@@ -177,22 +177,22 @@ tasks {
                     "--output", outputFileLinux.absolutePath
                 )
             }
-//            //Build macOS binary:
-//            exec {
-//                val outputFileMacOS = file("${buildDir.absolutePath}/make/macos/wakfu-autobuild-cli")
-//                if (!outputFileMacOS.parentFile.exists()) {
-//                    outputFileMacOS.parentFile.mkdirs()
-//                }
-//                setWorkingDir("${buildDir.absolutePath}/warp/")
-//                setCommandLine(cmd)
-//                standardOutput = ByteArrayOutputStream()
-//                args(
-//                    "--arch", "macos-x64",
-//                    "--input_dir", "${buildDir.absolutePath}/warp-bundle/macos/",
-//                    "--exec", "${buildDir.absolutePath}/warp-bundle/macos/run.sh",
-//                    "--output", outputFileMacOS.absolutePath
-//                )
-//            }
+            //Build macOS binary:
+            exec {
+                val outputFileMacOS = file("${buildDir.absolutePath}/make/macos/wakfu-autobuild-cli")
+                if (!outputFileMacOS.parentFile.exists()) {
+                    outputFileMacOS.parentFile.mkdirs()
+                }
+                setWorkingDir("${buildDir.absolutePath}/warp/")
+                setCommandLine(cmd)
+                standardOutput = ByteArrayOutputStream()
+                args(
+                    "--arch", "macos-x64",
+                    "--input_dir", "${buildDir.absolutePath}/warp-bundle/macos/",
+                    "--exec", "${buildDir.absolutePath}/warp-bundle/macos/run.sh",
+                    "--output", outputFileMacOS.absolutePath
+                )
+            }
             //Build Windows binary:
             exec {
                 val outputFileWindows = file("${buildDir.absolutePath}/make/windows/wakfu-autobuild-cli.exe")

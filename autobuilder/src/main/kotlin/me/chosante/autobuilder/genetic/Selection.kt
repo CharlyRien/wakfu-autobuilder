@@ -1,6 +1,5 @@
 package me.chosante.autobuilder.genetic
 
-import java.lang.Math.random
 import kotlin.math.max
 import kotlin.random.Random.Default.nextInt
 
