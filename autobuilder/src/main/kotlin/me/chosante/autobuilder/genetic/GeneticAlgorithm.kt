@@ -1,6 +1,5 @@
 package me.chosante.autobuilder.genetic
 
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -73,7 +72,7 @@ class GeneticAlgorithm<T>(
     private suspend fun updateProgressBar(progressBar: ProgressBar, isActive: () -> Boolean) {
         while (isActive()) {
             delay(1000L)
-            progressBar.step()
+            progressBar.stepTo(progressBar.totalElapsed.seconds)
         }
     }
 
@@ -92,7 +91,7 @@ class GeneticAlgorithm<T>(
     private suspend fun generateNewPopulation(scoredPopulation: List<ScoredIndividual<T>>) = coroutineScope {
         scoredPopulation
             .map {
-                async(coroutineDispatcher) {
+                async {
                     val selectedParents = select(scoredPopulation) to select(scoredPopulation)
                     val crossedIndividual = cross(selectedParents)
                     val mutatedIndividual = mutate(crossedIndividual)
@@ -104,7 +103,6 @@ class GeneticAlgorithm<T>(
     }
 }
 
-val coroutineDispatcher = Dispatchers.Default
 val progressBarThreadPool = Executors.newFixedThreadPool(1).asCoroutineDispatcher()
 
 data class ScoredIndividual<T>(val score: Double, val individual: T)

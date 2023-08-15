@@ -49,8 +49,6 @@ object WakfuBestBuildFinderAlgorithm {
                     value
             }
 
-        val targetStatsWithoutBaseCharacteristics =
-            targetStats.removeCharacteristicValues(params.character.baseCharacteristicValues)
         return try {
             val mutationProbability = 0.07
             val numberOfIndividualsInPopulation = 50000
@@ -60,12 +58,13 @@ object WakfuBestBuildFinderAlgorithm {
                     numberOfIndividual = numberOfIndividualsInPopulation,
                     equipmentsByItemType = equipmentsByItemType,
                     character = params.character,
-                    targetStats = targetStatsWithoutBaseCharacteristics
+                    targetStats = targetStats
                 ),
                 score = { combination ->
                     calculateSuccessPercentage(
-                        targetStats = targetStatsWithoutBaseCharacteristics,
+                        targetStats = targetStats,
                         buildCombination = combination,
+                        characterBaseCharacteristics = params.character.baseCharacteristicValues
                     )
                 },
                 select = ::tournamentSelection,
@@ -75,7 +74,7 @@ object WakfuBestBuildFinderAlgorithm {
                         individual = combination,
                         mutationProbability = mutationProbability,
                         equipmentsByItemType = equipmentsByItemType,
-                        targetStats = targetStatsWithoutBaseCharacteristics,
+                        targetStats = targetStats,
                         isLowLevel = isLowLevel
                     )
                 }
