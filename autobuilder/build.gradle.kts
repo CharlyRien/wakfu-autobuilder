@@ -91,10 +91,10 @@ tasks {
     val createWarpBundleTask by registering {
         dependsOn("jar")
         doLast {
-            val jdkDownloadBaseURL = "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.7+7"
+            val jdkDownloadBaseURL = "https://github.com/adoptium/temurin20-binaries/releases/download/jdk-20.0.2+9"
             val linuxJreFilePath = "${buildDir.absolutePath}/jre/linux/jre.tar.gz"
             download.run {
-                src("$jdkDownloadBaseURL/OpenJDK17U-jre_x64_linux_hotspot_17.0.7_7.tar.gz")
+                src("$jdkDownloadBaseURL/OpenJDK20U-jre_x64_linux_hotspot_20.0.2_9.tar.gz")
                 dest(file(linuxJreFilePath))
                 overwrite(false)
             }.also {
@@ -110,7 +110,7 @@ tasks {
             }
             val macOsJreFilePath = "${buildDir.absolutePath}/jre/macos/jre.tar.gz"
             download.run {
-                src("$jdkDownloadBaseURL/OpenJDK17U-jre_x64_mac_hotspot_17.0.7_7.tar.gz")
+                src("$jdkDownloadBaseURL/OpenJDK20U-jre_x64_mac_hotspot_20.0.2_9.tar.gz")
                 dest(file(macOsJreFilePath))
                 overwrite(false)
             }.also {
@@ -127,7 +127,7 @@ tasks {
             }
             val windowsJreFilePath = "${buildDir.absolutePath}/jre/windows/jre.zip"
             download.run {
-                src("$jdkDownloadBaseURL/OpenJDK17U-jre_x64_windows_hotspot_17.0.7_7.zip")
+                src("$jdkDownloadBaseURL/OpenJDK20U-jre_x64_windows_hotspot_20.0.2_9.zip")
                 dest(file(windowsJreFilePath))
                 overwrite(false)
             }.also {
