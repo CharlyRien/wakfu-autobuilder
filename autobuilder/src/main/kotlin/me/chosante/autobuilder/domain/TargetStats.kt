@@ -13,7 +13,15 @@ class TargetStats(targetStats: List<TargetStat>) :
     fun weight(targetStat: TargetStat): Double =
         targetStatToWeight.getValue(targetStat)
 
-    val masteryElementsWanted = filter {
+    val masteryElementsWanted = targetStats.firstOrNull { it.characteristic == Characteristic.MASTERY_ELEMENTARY }
+        ?.let {
+            mapOf(
+                Characteristic.MASTERY_ELEMENTARY_EARTH to it.target,
+                Characteristic.MASTERY_ELEMENTARY_WIND to it.target,
+                Characteristic.MASTERY_ELEMENTARY_WATER to it.target,
+                Characteristic.MASTERY_ELEMENTARY_FIRE to it.target
+            )
+        } ?: filter {
         it.characteristic in listOf(
             Characteristic.MASTERY_ELEMENTARY_EARTH,
             Characteristic.MASTERY_ELEMENTARY_WIND,
@@ -22,10 +30,16 @@ class TargetStats(targetStats: List<TargetStat>) :
         )
     }.associate { it.characteristic to it.target }
 
-    val masteryElementaryWanted =targetStats.firstOrNull { it.characteristic == Characteristic.MASTERY_ELEMENTARY }?.target
-    val resistanceElementaryWanted =targetStats.firstOrNull { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY }?.target
-
-    val resistanceElementsWanted = filter {
+    val resistanceElementsWanted = targetStats
+        .firstOrNull { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY }
+        ?.let {
+            mapOf(
+                Characteristic.RESISTANCE_ELEMENTARY_EARTH to it.target,
+                Characteristic.RESISTANCE_ELEMENTARY_WIND to it.target,
+                Characteristic.RESISTANCE_ELEMENTARY_WATER to it.target,
+                Characteristic.RESISTANCE_ELEMENTARY_FIRE to it.target
+            )
+        } ?: filter {
         it.characteristic in listOf(
             Characteristic.RESISTANCE_ELEMENTARY_EARTH,
             Characteristic.RESISTANCE_ELEMENTARY_WIND,
@@ -34,24 +48,24 @@ class TargetStats(targetStats: List<TargetStat>) :
         )
     }.associate { it.characteristic to it.target }
 
-    fun removeCharacteristicValues(characteristicValues: Map<Characteristic, Int>): TargetStats {
-        val characteristicsToRemove = characteristicValues.keys
-        return TargetStats(this.mapNotNull {
-            if (it.characteristic in characteristicsToRemove) {
-                val newTarget = it.target - characteristicValues.getValue(it.characteristic).coerceAtLeast(0)
-                if (newTarget == 0) {
-                    return@mapNotNull null
-                }
-                TargetStat(
-                    characteristic = it.characteristic,
-                    target = newTarget,
-                    userDefinedWeight = it.userDefinedWeight
-                )
-            } else {
-                it
-            }
-        })
-    }
+//    fun removeCharacteristicValues(characteristicValues: Map<Characteristic, Int>): TargetStats {
+//        val characteristicsToRemove = characteristicValues.keys.filterNot { it == Characteristic.HP }
+//        return TargetStats(this.mapNotNull {
+//            if (it.characteristic in characteristicsToRemove) {
+//                val newTarget = it.target - characteristicValues.getValue(it.characteristic).coerceAtLeast(0)
+//                if (newTarget == 0) {
+//                    return@mapNotNull null
+//                }
+//                TargetStat(
+//                    characteristic = it.characteristic,
+//                    target = newTarget,
+//                    userDefinedWeight = it.userDefinedWeight
+//                )
+//            } else {
+//                it
+//            }
+//        })
+//    }
 }
 
 fun List<TargetStat>.associateWeights(desiredValue: Int): Map<TargetStat, Double> {

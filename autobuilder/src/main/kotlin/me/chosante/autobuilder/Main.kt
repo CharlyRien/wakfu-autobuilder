@@ -444,7 +444,7 @@ class WakfuAutobuild :
                 .also {
                     println(
                         """Research result
-                        | Given vs. Expected characteristics
+                        |Given vs. Expected characteristics
                         |
                         |Equipment
                         |${it.equipments.asASCIITable()}

@@ -9,14 +9,14 @@ import kotlin.math.roundToInt
 fun calculateSuccessPercentage(
     targetStats: TargetStats,
     buildCombination: BuildCombination,
+    characterBaseCharacteristics: Map<Characteristic, Int>
 ): Double {
 
     val actualCharacteristicsValues = computeCharacteristicsValues(
         buildCombination,
+        characterBaseCharacteristics,
         targetStats.masteryElementsWanted,
         targetStats.resistanceElementsWanted,
-        targetStats.masteryElementaryWanted,
-        targetStats.resistanceElementaryWanted
     )
 
     val totalActualScore = targetStats.sumOf { targetStat ->
@@ -24,28 +24,38 @@ fun calculateSuccessPercentage(
         val characteristicExpectedScore = targetStats.expectedScoreByCharacteristic.getValue(targetStat)
         val actualScore = when (targetStat.characteristic) {
             Characteristic.MASTERY_ELEMENTARY -> {
-                val fire = (actualCharacteristicsValues[Characteristic.MASTERY_ELEMENTARY_FIRE] ?: 0) * weight
-                val water = (actualCharacteristicsValues[Characteristic.MASTERY_ELEMENTARY_WATER] ?: 0) * weight
-                val earth = (actualCharacteristicsValues[Characteristic.MASTERY_ELEMENTARY_EARTH] ?: 0) * weight
-                val wind = (actualCharacteristicsValues[Characteristic.MASTERY_ELEMENTARY_WIND] ?: 0) * weight
-                (min(fire, characteristicExpectedScore)
-                        + min(water, characteristicExpectedScore)
-                        + min(earth, characteristicExpectedScore)
-                        + min(wind, characteristicExpectedScore)) / 4
+                val masteryElementary = actualCharacteristicsValues[Characteristic.MASTERY_ELEMENTARY] ?: 0
+                val fireValue = actualCharacteristicsValues[Characteristic.MASTERY_ELEMENTARY_FIRE] ?: 0
+                val waterValue = actualCharacteristicsValues[Characteristic.MASTERY_ELEMENTARY_WATER] ?: 0
+                val earthValue = actualCharacteristicsValues[Characteristic.MASTERY_ELEMENTARY_EARTH] ?: 0
+                val windValue = actualCharacteristicsValues[Characteristic.MASTERY_ELEMENTARY_WIND] ?: 0
+                val fireScore = (fireValue + masteryElementary) * weight
+                val waterScore = (waterValue + masteryElementary) * weight
+                val earthScore = (earthValue + masteryElementary) * weight
+                val windScore = (windValue + masteryElementary) * weight
+                (min(fireScore , characteristicExpectedScore)
+                        + min(waterScore, characteristicExpectedScore)
+                        + min(earthScore, characteristicExpectedScore)
+                        + min(windScore, characteristicExpectedScore)) / 4
             }
+
             Characteristic.RESISTANCE_ELEMENTARY -> {
-                val fire = (actualCharacteristicsValues[Characteristic.RESISTANCE_ELEMENTARY_FIRE] ?: 0) * weight
-                val water = (actualCharacteristicsValues[Characteristic.RESISTANCE_ELEMENTARY_WATER] ?: 0) * weight
-                val earth = (actualCharacteristicsValues[Characteristic.RESISTANCE_ELEMENTARY_EARTH] ?: 0) * weight
-                val wind = (actualCharacteristicsValues[Characteristic.RESISTANCE_ELEMENTARY_WIND] ?: 0) * weight
-                (min(fire, characteristicExpectedScore)
-                        + min(water, characteristicExpectedScore)
-                        + min(earth, characteristicExpectedScore)
-                        + min(wind, characteristicExpectedScore)) / 4
+                val resistanceElementary = actualCharacteristicsValues[Characteristic.RESISTANCE_ELEMENTARY] ?: 0
+                val fireValue = actualCharacteristicsValues[Characteristic.RESISTANCE_ELEMENTARY_FIRE] ?: 0
+                val waterValue = actualCharacteristicsValues[Characteristic.RESISTANCE_ELEMENTARY_WATER] ?: 0
+                val earthValue = actualCharacteristicsValues[Characteristic.RESISTANCE_ELEMENTARY_EARTH] ?: 0
+                val windValue = actualCharacteristicsValues[Characteristic.RESISTANCE_ELEMENTARY_WIND] ?: 0
+                val fireScore = (fireValue + resistanceElementary) * weight
+                val waterScore = (waterValue + resistanceElementary) * weight
+                val earthScore = (earthValue + resistanceElementary) * weight
+                val windScore = (windValue + resistanceElementary) * weight
+                (min(fireScore , characteristicExpectedScore)
+                        + min(waterScore, characteristicExpectedScore)
+                        + min(earthScore, characteristicExpectedScore)
+                        + min(windScore, characteristicExpectedScore)) / 4
             }
-            else -> {
-                (actualCharacteristicsValues[targetStat.characteristic] ?: 0) * weight
-            }
+
+            else -> (actualCharacteristicsValues[targetStat.characteristic] ?: 0) * weight
         }
 
         min(actualScore, characteristicExpectedScore)
@@ -56,60 +66,13 @@ fun calculateSuccessPercentage(
 
 fun computeCharacteristicsValues(
     buildCombination: BuildCombination,
+    characterBaseCharacteristics: Map<Characteristic, Int>,
     masteryElementsWanted: Map<Characteristic, Int>,
-    resistanceElementsWanted: Map<Characteristic, Int>,
-    masteryElementaryWanted: Int?,
-    resistanceElementaryWanted: Int?
+    resistanceElementsWanted: Map<Characteristic, Int>
 ): Map<Characteristic, Int> {
     val eachCharacteristicValueLineByEquipment = buildCombination.equipments.flatMap { it.characteristics.entries }
         .groupBy({ it.key }, { it.value })
-        .toMutableMap()
-        .let { characteristicValues ->
-            val masteryElementaryValue = characteristicValues[Characteristic.MASTERY_ELEMENTARY]?.sum() ?: 0
-            val resistanceElementaryValue = characteristicValues[Characteristic.RESISTANCE_ELEMENTARY]?.sum() ?: 0
-            if (masteryElementsWanted.isNotEmpty()) {
-                getMasteryElementsWithRandomElementsAssigned(characteristicValues, masteryElementsWanted)
-                    .forEach { (key, value) ->
-                        characteristicValues[key] = listOf(value + masteryElementaryValue)
-                    }
-            }
-            if (resistanceElementsWanted.isNotEmpty()) {
-                getResistanceElementsWithRandomElementsAssigned(characteristicValues, resistanceElementsWanted)
-                    .forEach { (key, value) ->
-                        characteristicValues[key] = listOf(value + resistanceElementaryValue)
-                    }
-            }
 
-            masteryElementaryWanted?.let { masteryElementaryTarget ->
-                getMasteryElementsWithRandomElementsAssigned(
-                    characteristicValues = characteristicValues,
-                    elementsWanted = mapOf(
-                        Characteristic.MASTERY_ELEMENTARY_WIND to masteryElementaryTarget,
-                        Characteristic.MASTERY_ELEMENTARY_EARTH to masteryElementaryTarget,
-                        Characteristic.MASTERY_ELEMENTARY_WATER to masteryElementaryTarget,
-                        Characteristic.MASTERY_ELEMENTARY_FIRE to masteryElementaryTarget
-                    )
-                ).forEach {
-                    characteristicValues[it.key] = listOf(it.value + masteryElementaryValue)
-                }
-            }
-
-            resistanceElementaryWanted?.let { resistanceElementaryTarget ->
-                getResistanceElementsWithRandomElementsAssigned(
-                    characteristicValues = characteristicValues,
-                    resistanceElementsWanted = mapOf(
-                        Characteristic.RESISTANCE_ELEMENTARY_WIND to resistanceElementaryTarget,
-                        Characteristic.RESISTANCE_ELEMENTARY_EARTH to resistanceElementaryTarget,
-                        Characteristic.RESISTANCE_ELEMENTARY_WATER to resistanceElementaryTarget,
-                        Characteristic.RESISTANCE_ELEMENTARY_FIRE to resistanceElementaryTarget
-                    )
-                ).forEach {
-                    characteristicValues[it.key] = listOf(it.value + resistanceElementaryValue)
-                }
-            }
-
-            characteristicValues
-        }
     val characteristicsGivenByEquipmentCombination: Map<Characteristic, Int> =
         eachCharacteristicValueLineByEquipment
             .mapValues { (_, values) -> values.sum() }
@@ -136,6 +99,7 @@ fun computeCharacteristicsValues(
         characteristicsGivenByEquipmentCombination,
         characteristicGivenBySkillsFixedValues,
         edgeCasesCharacteristicsGivenByEquipment,
+        characterBaseCharacteristics,
         mapOf(Characteristic.ACTION_POINT to numberOfSetWith4ElementsOrMore)
     )
 
@@ -145,52 +109,54 @@ fun computeCharacteristicsValues(
         } ?: return@mapValues value
     }
 
+    actualCharacteristics
+        .toMutableMap()
+        .let { mutableCharacteristicsValue ->
+            if (masteryElementsWanted.isNotEmpty()) {
+                val masteryElementsCurrent = masteryElementsWanted.mapValues {
+                    (actualCharacteristics[it.key] ?: 0) + (actualCharacteristics[Characteristic.MASTERY_ELEMENTARY] ?: 0)
+                }
+                val masteryOneRandom =
+                    eachCharacteristicValueLineByEquipment[Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT]
+                val masteryTwoRandom =
+                    eachCharacteristicValueLineByEquipment[Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT]
+                val masteryThreeRandom =
+                    eachCharacteristicValueLineByEquipment[Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT]
+                getAssignedValues(
+                    masteryOneRandom ?: listOf(),
+                    masteryTwoRandom ?: listOf(),
+                    masteryThreeRandom ?: listOf(),
+                    masteryElementsCurrent,
+                    masteryElementsWanted
+                ).forEach {
+                    mutableCharacteristicsValue[it.key] = it.value
+                }
+            }
+
+            if (resistanceElementsWanted.isNotEmpty()) {
+                val resistanceElementsCurrent = resistanceElementsWanted.mapValues {
+                    (actualCharacteristics[it.key] ?: 0) + (actualCharacteristics[Characteristic.RESISTANCE_ELEMENTARY] ?: 0)
+                }
+                val resistanceOneRandom =
+                    eachCharacteristicValueLineByEquipment[Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT]
+                val resistanceTwoRandom =
+                    eachCharacteristicValueLineByEquipment[Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT]
+                val resistanceThreeRandom =
+                    eachCharacteristicValueLineByEquipment[Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT]
+                getAssignedValues(
+                    resistanceOneRandom ?: listOf(),
+                    resistanceTwoRandom ?: listOf(),
+                    resistanceThreeRandom ?: listOf(),
+                    resistanceElementsCurrent,
+                    resistanceElementsWanted
+                ).forEach {
+                    mutableCharacteristicsValue[it.key] = it.value
+                }
+            }
+        }
+
+
     return actualCharacteristics
-}
-
-private fun getMasteryElementsWithRandomElementsAssigned(
-    characteristicValues: Map<Characteristic, List<Int>>,
-    elementsWanted: Map<Characteristic, Int>
-): Map<Characteristic, Int> {
-    val oneRandomMastery = characteristicValues[Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT] ?: listOf()
-    val twoRandomMasteryValue = characteristicValues[Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT] ?: listOf()
-    val threeRandomMastery = characteristicValues[Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT] ?: listOf()
-
-    val masteryToAssign = assignValues(
-        oneRandomMastery,
-        twoRandomMasteryValue,
-        threeRandomMastery,
-        elementsWanted
-    )
-
-    masteryToAssign.mapValues { (characteristic, value) ->
-        value + (characteristicValues[characteristic]?.sum() ?: 0)
-    }
-
-    return masteryToAssign
-}
-
-private fun getResistanceElementsWithRandomElementsAssigned(
-    characteristicValues: Map<Characteristic, List<Int>>,
-    resistanceElementsWanted: Map<Characteristic, Int>
-): Map<Characteristic, Int> {
-    val oneRandomResistance = characteristicValues[Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT] ?: listOf()
-    val twoRandomResistance = characteristicValues[Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT] ?: listOf()
-    val threeRandomResistance =
-        characteristicValues[Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT] ?: listOf()
-
-    val resistanceToAssign = assignValues(
-        oneRandomResistance,
-        twoRandomResistance,
-        threeRandomResistance,
-        resistanceElementsWanted
-    )
-
-    resistanceToAssign.mapValues { (characteristic, value) ->
-        value + (characteristicValues[characteristic]?.sum() ?: 0)
-    }
-
-    return resistanceToAssign
 }
 
 fun mergeAndSumCharacteristicValues(
@@ -200,15 +166,16 @@ fun mergeAndSumCharacteristicValues(
     .fold(0) { accumulator, element -> accumulator + element.value }
 
 
-fun assignValues(
+fun getAssignedValues(
     oneRandomElement: List<Int>,
     twoRandomElement: List<Int>,
     threeRandomElement: List<Int>,
+    characteristicToValueCurrent: Map<Characteristic, Int>,
     characteristicToValueWanted: Map<Characteristic, Int>
 ): Map<Characteristic, Int> {
     val result = mutableMapOf<Characteristic, Int>()
     for ((characteristic, _) in characteristicToValueWanted) {
-        result[characteristic] = 0
+        result[characteristic] = characteristicToValueCurrent[characteristic] ?: 0
     }
 
     val valueToNumberOfCharacteristicAssignable = mutableMapOf<Int, Int>()
