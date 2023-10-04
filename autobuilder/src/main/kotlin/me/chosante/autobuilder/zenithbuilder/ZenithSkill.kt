@@ -38,8 +38,6 @@ private fun SkillCharacteristic.toZenithWakfuAptitudeId(): Int {
         is IntelligenceCharacteristic.HealReceivedPercentage -> 4
         is IntelligenceCharacteristic.HpPercentageAsArmor -> 5
         is StrengthCharacteristic.MasteryElementary -> 6
-        is StrengthCharacteristic.MasterySingleTarget -> 7
-        is StrengthCharacteristic.MasteryZone -> 8
         is StrengthCharacteristic.MasteryMelee -> 9
         is StrengthCharacteristic.MasteryDistance -> 10
         is StrengthCharacteristic.Hp -> 11

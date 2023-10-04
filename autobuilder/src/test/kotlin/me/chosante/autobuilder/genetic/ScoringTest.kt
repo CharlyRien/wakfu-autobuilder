@@ -22,8 +22,6 @@ import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_FIRE
 import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_WATER
 import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_WIND
 import me.chosante.common.Characteristic.MASTERY_HEALING
-import me.chosante.common.Characteristic.MASTERY_SINGLE_TARGET
-import me.chosante.common.Characteristic.MASTERY_ZONE
 import me.chosante.common.Characteristic.MOVEMENT_POINT
 import me.chosante.common.Characteristic.RANGE
 import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY
@@ -102,7 +100,6 @@ class ScoringTest {
                 characteristics = mapOf(
                     ACTION_POINT to 1,
                     HP to 115,
-                    MASTERY_SINGLE_TARGET to 30,
                     MASTERY_DISTANCE to 30,
                     CRITICAL_HIT to 3
                 )
@@ -112,7 +109,6 @@ class ScoringTest {
                     ACTION_POINT to 1,
                     HP to 118,
                     DODGE to 20,
-                    MASTERY_ZONE to 25,
                     MASTERY_DISTANCE to 25,
                     CRITICAL_HIT to 7
                 )
@@ -136,7 +132,6 @@ class ScoringTest {
             ), equipment(
                 characteristics = mapOf(
                     MASTERY_DISTANCE to 20,
-                    MASTERY_SINGLE_TARGET to 20,
                     MASTERY_BACK to -20,
                     HP to 98,
                     CRITICAL_HIT to 2,
@@ -167,11 +162,9 @@ class ScoringTest {
             HP to 5020,
             CRITICAL_HIT to 45,
             MASTERY_DISTANCE to 634,
-            MASTERY_ZONE to 25,
             DODGE to 55,
             LOCK to -40,
             CONTROL to 2,
-            MASTERY_SINGLE_TARGET to 50,
             MASTERY_ELEMENTARY to 10,
             MASTERY_BACK to -20
         )
@@ -192,7 +185,6 @@ class ScoringTest {
             equipment(
                 name = "Casque Bouftou Impérial",
                 level = 17,
-                equipmentSetId = 1,
                 characteristics = mapOf(
                     INITIATIVE to 6,
                     HP to 20,
@@ -203,7 +195,6 @@ class ScoringTest {
             equipment(
                 name = "Amulette du Piou Royal",
                 level = 32,
-                equipmentSetId = 2,
                 characteristics = mapOf(
                     DODGE to 10,
                     HP to 30,
@@ -214,7 +205,6 @@ class ScoringTest {
             equipment(
                 name = "Plastron Bouftou Impérial",
                 level = 20,
-                equipmentSetId = 1,
                 characteristics = mapOf(
                     CONTROL to 1,
                     HP to 20,
@@ -225,7 +215,6 @@ class ScoringTest {
             equipment(
                 name = "Anneau Bouftou Impérial",
                 level = 17,
-                equipmentSetId = 1,
                 characteristics = mapOf(
                     HP to 12,
                     MASTERY_ELEMENTARY to 8,
@@ -234,7 +223,6 @@ class ScoringTest {
             equipment(
                 name = "Anneau de Satisfaction",
                 level = 20,
-                equipmentSetId = 0,
                 characteristics = mapOf(
                     HP to -50,
                     ACTION_POINT to 1,
@@ -244,7 +232,6 @@ class ScoringTest {
             equipment(
                 name = "Pantoufle Piou Royal",
                 level = 30,
-                equipmentSetId = 2,
                 characteristics = mapOf(
                     MASTERY_HEALING to 15,
                     HP to 22,
@@ -255,7 +242,6 @@ class ScoringTest {
             equipment(
                 name = "Kapioutte Royale",
                 level = 30,
-                equipmentSetId = 2,
                 characteristics = mapOf(
                     CRITICAL_HIT to 4,
                     HP to 24,
@@ -266,7 +252,6 @@ class ScoringTest {
             equipment(
                 name = "Epaulettes Bouftou Impérial",
                 level = 19,
-                equipmentSetId = 1,
                 characteristics = mapOf(
                     HP to 15,
                     DODGE to 7,
@@ -276,7 +261,6 @@ class ScoringTest {
             ), equipment(
                 name = "Cordon du Piou Royal",
                 level = 32,
-                equipmentSetId = 2,
                 characteristics = mapOf(
                     HP to 28,
                     DODGE to 10,
@@ -388,13 +372,11 @@ class ScoringTest {
 
     private fun equipment(
         name: String = "name",
-        equipmentSetId: Int = 0,
         level: Int = 100,
         characteristics: Map<Characteristic, Int>
     ) =
         Equipment(
             equipmentId = 0,
-            equipmentSetId = equipmentSetId,
             level = level,
             name = name,
             rarity = Rarity.RARE,

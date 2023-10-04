@@ -87,7 +87,6 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
         val rarity = rarityIdToRarity.getValue(equipment.definition.item.baseParameters.rarity)
 
         val itemTypeId = equipment.definition.item.baseParameters.itemTypeId
-        val itemSetId = equipment.definition.item.baseParameters.itemSetId
         val itemType: ItemType = itemTypeIdToTypeName[itemTypeId] ?: continue
 
         if (itemType == ItemType.MOUNTS) {
@@ -170,7 +169,6 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
 
         val outputDict = Equipment(
             equipmentId = itemId,
-            equipmentSetId = itemSetId,
             level = level,
             name = name,
             rarity = rarity,
@@ -189,7 +187,6 @@ private fun String.toCharacteristic(): Pair<Characteristic, Int> {
         val value = match.groupValues[1].toInt()
         val characteristic = when (val statName = match.groupValues[2].trim()) {
             "Quantité Récolte Herboriste" -> Characteristic.HERBALIST_HARVEST_QUANTITY_PERCENTAGE
-            "Maîtrise Zone" -> Characteristic.MASTERY_ZONE
             "PA max" -> Characteristic.MAX_ACTION_POINT
             "Quantité Récolte Mineur" -> Characteristic.MINER_HARVEST_QUANTITY_PERCENTAGE
             "Esquive" -> Characteristic.DODGE
@@ -219,7 +216,6 @@ private fun String.toCharacteristic(): Pair<Characteristic, Int> {
             "Résistance Critique" -> Characteristic.RESISTANCE_CRITICAL
             "Résistance Élémentaire", "Résistance élémentaire" -> Characteristic.RESISTANCE_ELEMENTARY
             "Initiative" -> Characteristic.INITIATIVE
-            "Maîtrise Monocible" -> Characteristic.MASTERY_SINGLE_TARGET
             "Maîtrise Soin" -> Characteristic.MASTERY_HEALING
             "Portée" -> Characteristic.RANGE
             "Quantité Récolte Pêcheur" -> Characteristic.FISHERMAN_HARVEST_QUANTITY_PERCENTAGE
@@ -228,7 +224,7 @@ private fun String.toCharacteristic(): Pair<Characteristic, Int> {
             "Maîtrise Berserk" -> Characteristic.MASTERY_BERSERK
             "Quantité Récolte Forestier" -> Characteristic.LUMBERJACK_HARVEST_QUANTITY_PERCENTAGE
             "Armure reçue" -> Characteristic.RECEIVED_ARMOR_PERCENTAGE
-            "Coup Critique" -> Characteristic.CRITICAL_HIT
+            "Coup critique" -> Characteristic.CRITICAL_HIT
             "Points de Vie" -> Characteristic.HP
             "Maîtrise Élémentaire" -> Characteristic.MASTERY_ELEMENTARY
             "Volonté" -> Characteristic.WILLPOWER

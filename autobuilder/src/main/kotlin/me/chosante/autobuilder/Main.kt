@@ -31,7 +31,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 private val logger = KotlinLogging.logger {}
-const val VERSION = "1.80.1.11"
+const val VERSION = "1.81.1.13"
 
 fun main(args: Array<String>) = WakfuAutobuild().main(args)
 
@@ -163,13 +163,6 @@ class WakfuAutobuild :
     )
         .splitPair(delimiter = ":")
         .toTargetStat(MASTERY_CRITICAL)
-
-    private val masteryZoneWanted: TargetStat? by option(
-        names = arrayOf("--mastery-zone", "--maitrise-zone"),
-        help = "Number of zone mastery wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
-        .toTargetStat(MASTERY_ZONE)
 
     private val masteryWaterWanted: TargetStat? by option(
         names = arrayOf("--mastery-water", "--maitrise-eau"),
@@ -339,13 +332,6 @@ class WakfuAutobuild :
         .splitPair(delimiter = ":")
         .toTargetStat(MASTERY_DISTANCE)
 
-    private val masterySingleTargetWanted: TargetStat? by option(
-        names = arrayOf("--mastery-single-target", "--maitrise-monocible"),
-        help = "Number of single target mastery wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
-        .toTargetStat(MASTERY_SINGLE_TARGET)
-
     private val hpWanted: TargetStat? by option(
         names = arrayOf("--hp", "--pdv", "--health-points", "--points-de-vie"),
         help = "Number of health points wanted. $additionalHelpOnStats"
@@ -395,13 +381,11 @@ class WakfuAutobuild :
                 masteryFireWanted,
                 masteryWaterWanted,
                 masteryWindWanted,
-                masteryZoneWanted,
                 masteryMeleeWanted,
                 masteryBerserkWanted,
                 masteryHealingWanted,
                 masteryBackWanted,
                 masteryCriticalWanted,
-                masterySingleTargetWanted,
                 masteryDistanceWanted,
                 resistanceCriticalWanted,
                 resistanceBackWanted,
