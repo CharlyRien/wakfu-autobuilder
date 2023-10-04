@@ -5,14 +5,10 @@ import me.chosante.autobuilder.domain.skills.StrengthCharacteristic.Hp
 import me.chosante.autobuilder.domain.skills.StrengthCharacteristic.MasteryDistance
 import me.chosante.autobuilder.domain.skills.StrengthCharacteristic.MasteryElementary
 import me.chosante.autobuilder.domain.skills.StrengthCharacteristic.MasteryMelee
-import me.chosante.autobuilder.domain.skills.StrengthCharacteristic.MasterySingleTarget
-import me.chosante.autobuilder.domain.skills.StrengthCharacteristic.MasteryZone
 
 data class Strength(
     override val maxPointsToAssign: Int,
     val masteryElementary: MasteryElementary = MasteryElementary(0),
-    val masterySingleTarget: MasterySingleTarget = MasterySingleTarget(0),
-    val masteryZone: MasteryZone = MasteryZone(0),
     val masteryMelee: MasteryMelee = MasteryMelee(0),
     val masteryDistance: MasteryDistance = MasteryDistance(0),
     val hp: Hp = Hp(0)
@@ -27,10 +23,8 @@ data class Strength(
     override fun getCharacteristics(): List<SkillCharacteristic> {
         return listOf(
             masteryElementary,
-            masteryZone,
             masteryMelee,
             masteryDistance,
-            masterySingleTarget,
             hp
         )
     }
@@ -58,40 +52,20 @@ sealed class StrengthCharacteristic(
             name = "Mastery Elementary"
         )
 
-    class MasterySingleTarget(pointsAssigned: Int) :
-        StrengthCharacteristic(
-            pointsAssigned = pointsAssigned,
-            maxPointsAssignable = 20,
-            unitValue = 8,
-            unitType = UnitType.FIXED,
-            characteristic = Characteristic.MASTERY_SINGLE_TARGET,
-            name = "Mastery Single Target"
-        )
-
     class MasteryDistance(pointsAssigned: Int) :
         StrengthCharacteristic(
             pointsAssigned = pointsAssigned,
-            maxPointsAssignable = 20,
+            maxPointsAssignable = 40,
             unitValue = 8,
             unitType = UnitType.FIXED,
             characteristic = Characteristic.MASTERY_DISTANCE,
             name = "Mastery Distance"
         )
 
-    class MasteryZone(pointsAssigned: Int) :
-        StrengthCharacteristic(
-            pointsAssigned = pointsAssigned,
-            maxPointsAssignable = 20,
-            unitValue = 8,
-            unitType = UnitType.FIXED,
-            characteristic = Characteristic.MASTERY_ZONE,
-            name = "Mastery Zone"
-        )
-
     class MasteryMelee(pointsAssigned: Int) :
         StrengthCharacteristic(
             pointsAssigned = pointsAssigned,
-            maxPointsAssignable = 20,
+            maxPointsAssignable = 40,
             unitValue = 8,
             unitType = UnitType.FIXED,
             characteristic = Characteristic.MASTERY_MELEE,

@@ -77,12 +77,6 @@ fun computeCharacteristicsValues(
         eachCharacteristicValueLineByEquipment
             .mapValues { (_, values) -> values.sum() }
 
-    val numberOfSetWith4ElementsOrMore = buildCombination.equipments
-        .filter { it.level <= 35 && it.equipmentSetId !in listOf(0, 568, 567, 569) }
-        .groupingBy { it.equipmentSetId }
-        .eachCount()
-        .count { it.value >= 4 }
-
     val edgeCasesCharacteristicsGivenByEquipment = mapOf(
         Characteristic.ACTION_POINT to (characteristicsGivenByEquipmentCombination[Characteristic.MAX_ACTION_POINT]
             ?: 0),
@@ -100,7 +94,6 @@ fun computeCharacteristicsValues(
         characteristicGivenBySkillsFixedValues,
         edgeCasesCharacteristicsGivenByEquipment,
         characterBaseCharacteristics,
-        mapOf(Characteristic.ACTION_POINT to numberOfSetWith4ElementsOrMore)
     )
 
     val actualCharacteristics = sumOfCharacteristicFixedValues.mapValues { (key, value) ->

@@ -50,8 +50,8 @@ object WakfuBestBuildFinderAlgorithm {
             }
 
         return try {
-            val mutationProbability = 0.07
-            val numberOfIndividualsInPopulation = 50000
+            val mutationProbability = 0.02
+            val numberOfIndividualsInPopulation = 5000
             val isLowLevel = params.character.level <= 35
             GeneticAlgorithm(
                 population = generateRandomPopulations(

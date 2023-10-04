@@ -36,7 +36,6 @@ enum class ItemType {
 @Serializable
 data class Equipment(
     val equipmentId: Int,
-    val equipmentSetId: Int,
     val level: Int,
     val name: String,
     val rarity: Rarity,
@@ -46,7 +45,6 @@ data class Equipment(
 
 @Serializable
 enum class Characteristic {
-    MASTERY_ZONE,
     MASTERY_ELEMENTARY,
     MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT,
     MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT,
@@ -61,7 +59,6 @@ enum class Characteristic {
     MASTERY_MELEE,
     MASTERY_BERSERK,
     MASTERY_HEALING,
-    MASTERY_SINGLE_TARGET,
     RESISTANCE_CRITICAL,
     RESISTANCE_BACK,
     RESISTANCE_ELEMENTARY,
