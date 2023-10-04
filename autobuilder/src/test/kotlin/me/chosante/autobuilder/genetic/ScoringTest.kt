@@ -172,7 +172,7 @@ class ScoringTest {
     }
 
     @Test
-    fun `double pano should be taken into account`() {
+    fun `double pano should not be taken into account`() {
         val level = 35
         val characterSkills = CharacterSkills(level).apply {
             intelligence.resistance.setPointAssigned(9)
@@ -327,7 +327,7 @@ class ScoringTest {
         ).filterNot { it.value == 0 }
 
         val expectedCharacteristics = mapOf(
-            ACTION_POINT to 10,
+            ACTION_POINT to 8,
             MOVEMENT_POINT to 3,
             HP to 606,
             CRITICAL_HIT to 14,
