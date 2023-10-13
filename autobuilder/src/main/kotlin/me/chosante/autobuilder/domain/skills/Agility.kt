@@ -1,11 +1,11 @@
 package me.chosante.autobuilder.domain.skills
 
-import me.chosante.common.Characteristic
 import me.chosante.autobuilder.domain.skills.AgilityCharacteristic.Dodge
 import me.chosante.autobuilder.domain.skills.AgilityCharacteristic.DodgeAndLock
 import me.chosante.autobuilder.domain.skills.AgilityCharacteristic.Initiative
 import me.chosante.autobuilder.domain.skills.AgilityCharacteristic.Lock
 import me.chosante.autobuilder.domain.skills.AgilityCharacteristic.Willpower
+import me.chosante.common.Characteristic
 
 data class Agility(
     override val maxPointsToAssign: Int,
@@ -18,7 +18,7 @@ data class Agility(
         first = DodgeAndLock.Dodge(0),
         second = DodgeAndLock.Lock(0)
     ),
-    val willpower: Willpower = Willpower(0)
+    val willpower: Willpower = Willpower(0),
 ) : Assignable<Agility> {
     init {
         val sumOfAssignedPoints =
@@ -48,7 +48,6 @@ data class Agility(
             willpower
         ).sumOf { it.pointsAssigned }
     }
-
 }
 
 sealed class AgilityCharacteristic(
@@ -57,7 +56,7 @@ sealed class AgilityCharacteristic(
     maxPointsAssignable: Int,
     unitValue: Int,
     characteristic: Characteristic?,
-    unitType: UnitType
+    unitType: UnitType,
 ) : SkillCharacteristic(pointsAssigned, name, maxPointsAssignable, unitValue, characteristic, unitType) {
 
     class Lock(pointsAssigned: Int) :
@@ -120,5 +119,4 @@ sealed class AgilityCharacteristic(
             characteristic = Characteristic.WILLPOWER,
             name = "Willpower"
         )
-
 }

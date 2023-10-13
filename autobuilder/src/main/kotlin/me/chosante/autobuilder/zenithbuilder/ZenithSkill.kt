@@ -15,7 +15,7 @@ import me.chosante.autobuilder.domain.skills.MajorCharacteristic
 import me.chosante.autobuilder.domain.skills.SkillCharacteristic
 import me.chosante.autobuilder.domain.skills.StrengthCharacteristic
 
-const val urlUpdateSkill = "${baseAPIUrl}/aptitude/update"
+const val urlUpdateSkill = "$baseAPIUrl/aptitude/update"
 
 suspend fun addSkill(skillCharacteristic: SkillCharacteristic, buildId: Long) {
     val jsonPayload = buildJsonObject {
@@ -61,7 +61,7 @@ private fun SkillCharacteristic.toZenithWakfuAptitudeId(): Int {
         is MajorCharacteristic.Control, is MajorCharacteristic.MasteryElementaryWithControl -> 29
         is MajorCharacteristic.DamageInflicted -> 30
         is MajorCharacteristic.Resistance -> 31
-        is SkillCharacteristic.PairedCharacteristic ->  {
+        is SkillCharacteristic.PairedCharacteristic -> {
             first.toZenithWakfuAptitudeId()
         }
     }

@@ -1,22 +1,21 @@
 package me.chosante.autobuilder.genetic.wakfu
 
+import kotlin.math.min
+import kotlin.math.roundToInt
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.common.Characteristic
-import kotlin.math.min
-import kotlin.math.roundToInt
 
 fun calculateSuccessPercentage(
     targetStats: TargetStats,
     buildCombination: BuildCombination,
-    characterBaseCharacteristics: Map<Characteristic, Int>
+    characterBaseCharacteristics: Map<Characteristic, Int>,
 ): Double {
-
     val actualCharacteristicsValues = computeCharacteristicsValues(
         buildCombination,
         characterBaseCharacteristics,
         targetStats.masteryElementsWanted,
-        targetStats.resistanceElementsWanted,
+        targetStats.resistanceElementsWanted
     )
 
     val totalActualScore = targetStats.sumOf { targetStat ->
@@ -33,10 +32,12 @@ fun calculateSuccessPercentage(
                 val waterScore = (waterValue + masteryElementary) * weight
                 val earthScore = (earthValue + masteryElementary) * weight
                 val windScore = (windValue + masteryElementary) * weight
-                (min(fireScore , characteristicExpectedScore)
-                        + min(waterScore, characteristicExpectedScore)
-                        + min(earthScore, characteristicExpectedScore)
-                        + min(windScore, characteristicExpectedScore)) / 4
+                (
+                    min(fireScore, characteristicExpectedScore) + min(waterScore, characteristicExpectedScore) + min(earthScore, characteristicExpectedScore) + min(
+                        windScore,
+                        characteristicExpectedScore
+                    )
+                    ) / 4
             }
 
             Characteristic.RESISTANCE_ELEMENTARY -> {
@@ -49,10 +50,12 @@ fun calculateSuccessPercentage(
                 val waterScore = (waterValue + resistanceElementary) * weight
                 val earthScore = (earthValue + resistanceElementary) * weight
                 val windScore = (windValue + resistanceElementary) * weight
-                (min(fireScore , characteristicExpectedScore)
-                        + min(waterScore, characteristicExpectedScore)
-                        + min(earthScore, characteristicExpectedScore)
-                        + min(windScore, characteristicExpectedScore)) / 4
+                (
+                    min(fireScore, characteristicExpectedScore) + min(waterScore, characteristicExpectedScore) + min(earthScore, characteristicExpectedScore) + min(
+                        windScore,
+                        characteristicExpectedScore
+                    )
+                    ) / 4
             }
 
             else -> (actualCharacteristicsValues[targetStat.characteristic] ?: 0) * weight
@@ -68,7 +71,7 @@ fun computeCharacteristicsValues(
     buildCombination: BuildCombination,
     characterBaseCharacteristics: Map<Characteristic, Int>,
     masteryElementsWanted: Map<Characteristic, Int>,
-    resistanceElementsWanted: Map<Characteristic, Int>
+    resistanceElementsWanted: Map<Characteristic, Int>,
 ): Map<Characteristic, Int> {
     val eachCharacteristicValueLineByEquipment = buildCombination.equipments.flatMap { it.characteristics.entries }
         .groupBy({ it.key }, { it.value })
@@ -78,10 +81,14 @@ fun computeCharacteristicsValues(
             .mapValues { (_, values) -> values.sum() }
 
     val edgeCasesCharacteristicsGivenByEquipment = mapOf(
-        Characteristic.ACTION_POINT to (characteristicsGivenByEquipmentCombination[Characteristic.MAX_ACTION_POINT]
-            ?: 0),
-        Characteristic.MOVEMENT_POINT to (characteristicsGivenByEquipmentCombination[Characteristic.MAX_MOVEMENT_POINT]
-            ?: 0),
+        Characteristic.ACTION_POINT to (
+            characteristicsGivenByEquipmentCombination[Characteristic.MAX_ACTION_POINT]
+                ?: 0
+            ),
+        Characteristic.MOVEMENT_POINT to (
+            characteristicsGivenByEquipmentCombination[Characteristic.MAX_MOVEMENT_POINT]
+                ?: 0
+            ),
         Characteristic.WAKFU_POINT to (characteristicsGivenByEquipmentCombination[Characteristic.MAX_WAKFU_POINTS] ?: 0)
     )
 
@@ -93,7 +100,7 @@ fun computeCharacteristicsValues(
         characteristicsGivenByEquipmentCombination,
         characteristicGivenBySkillsFixedValues,
         edgeCasesCharacteristicsGivenByEquipment,
-        characterBaseCharacteristics,
+        characterBaseCharacteristics
     )
 
     val actualCharacteristics = sumOfCharacteristicFixedValues.mapValues { (key, value) ->
@@ -148,23 +155,21 @@ fun computeCharacteristicsValues(
             }
         }
 
-
     return actualCharacteristics
 }
 
 fun mergeAndSumCharacteristicValues(
-    vararg characteristicValuesMaps: Map<Characteristic, Int>
+    vararg characteristicValuesMaps: Map<Characteristic, Int>,
 ): Map<Characteristic, Int> = characteristicValuesMaps.flatMap { it.entries }
     .groupingBy { it.key }
     .fold(0) { accumulator, element -> accumulator + element.value }
-
 
 fun getAssignedValues(
     oneRandomElement: List<Int>,
     twoRandomElement: List<Int>,
     threeRandomElement: List<Int>,
     characteristicToValueCurrent: Map<Characteristic, Int>,
-    characteristicToValueWanted: Map<Characteristic, Int>
+    characteristicToValueWanted: Map<Characteristic, Int>,
 ): Map<Characteristic, Int> {
     val result = mutableMapOf<Characteristic, Int>()
     for ((characteristic, _) in characteristicToValueWanted) {

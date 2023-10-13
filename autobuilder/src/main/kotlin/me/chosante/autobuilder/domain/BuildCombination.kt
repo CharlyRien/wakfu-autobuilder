@@ -9,8 +9,9 @@ data class BuildCombination(val equipments: List<Equipment>, val characterSkills
     fun isValid(): Boolean {
         val numberOfEquipmentByType = equipments.groupingBy { it.itemType }.eachCount()
         if (numberOfEquipmentByType.any { (key, count) ->
-                count > 1 && key != ItemType.RING || count > 2
-            }) {
+            count > 1 && key != ItemType.RING || count > 2
+        }
+        ) {
             return false
         }
 
@@ -29,7 +30,7 @@ data class BuildCombination(val equipments: List<Equipment>, val characterSkills
         val numberOfSecondHandsWeapon = numberOfEquipmentByType[ItemType.OFF_HAND_WEAPONS] ?: 0
 
         // same ring
-        if(equipments.filter { it.itemType == ItemType.RING }.distinctBy { it.name }.count() == 1) {
+        if (equipments.filter { it.itemType == ItemType.RING }.distinctBy { it.name }.count() == 1) {
             return false
         }
 
@@ -40,5 +41,3 @@ data class BuildCombination(val equipments: List<Equipment>, val characterSkills
         return numberOfTwoHandsWeapon + numberOfSecondHandsWeapon <= 1
     }
 }
-
-

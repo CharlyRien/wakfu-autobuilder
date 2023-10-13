@@ -1,6 +1,8 @@
 package me.chosante.autobuilder.genetic.wakfu
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlin.system.exitProcess
+import kotlin.time.Duration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -14,15 +16,13 @@ import me.chosante.autobuilder.genetic.tournamentSelection
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
-import kotlin.system.exitProcess
-import kotlin.time.Duration
 
 object WakfuBestBuildFinderAlgorithm {
 
     private val logger = KotlinLogging.logger {}
 
     suspend fun run(
-        params: WakfuBestBuildParams
+        params: WakfuBestBuildParams,
     ): BuildCombination {
         val equipments = withContext(Dispatchers.IO) {
             val equipmentsRaw =
@@ -37,16 +37,17 @@ object WakfuBestBuildFinderAlgorithm {
                 equipment.rarity <= params.maxRarity
             }
             .filter { equipment ->
-                (equipment.level <= params.character.level && equipment.level >= maxOf(1, params.character.level - 50))
-                        || (equipment.itemType == ItemType.PETS || equipment.itemType == ItemType.MOUNTS)
+                (equipment.level <= params.character.level && equipment.level >= maxOf(1, params.character.level - 50)) ||
+                    (equipment.itemType == ItemType.PETS || equipment.itemType == ItemType.MOUNTS)
             }
             .filter { equipment -> equipment.name !in params.excludeItems }
             .groupBy { it.itemType }
             .mapValues { (_, value) ->
-                if (value.any { it.name in params.forcedItems })
+                if (value.any { it.name in params.forcedItems }) {
                     value.filter { it.name in params.forcedItems || params.forcedItems.isEmpty() }
-                else
+                } else {
                     value
+                }
             }
 
         return try {
@@ -89,7 +90,7 @@ object WakfuBestBuildFinderAlgorithm {
 fun List<Equipment>.replaceRandomlyOneItemWithRarity(
     rarity: Rarity,
     replacementResearchZone: List<Equipment>,
-    ringNames: List<String> = listOf()
+    ringNames: List<String> = listOf(),
 ): List<Equipment> {
     val equipments = this.toMutableList()
     val equipmentToRemove = equipments.filter { it.rarity == rarity }.random()
@@ -130,9 +131,9 @@ private fun findReplacementItem(
     return researchZone
         .filter {
             it.itemType == equipmentTypeToReplace &&
-                    it !in equipmentsToExclude
-                    && it.rarity !in raritiesToExclude
-                    && (it.itemType != ItemType.RING || it.name !in ringNamesToExclude)
+                it !in equipmentsToExclude &&
+                it.rarity !in raritiesToExclude &&
+                (it.itemType != ItemType.RING || it.name !in ringNamesToExclude)
         }.randomOrNull()
 }
 
@@ -143,5 +144,5 @@ data class WakfuBestBuildParams(
     val stopWhenBuildMatch: Boolean,
     val maxRarity: Rarity,
     val forcedItems: List<String>,
-    val excludeItems: List<String>
+    val excludeItems: List<String>,
 )

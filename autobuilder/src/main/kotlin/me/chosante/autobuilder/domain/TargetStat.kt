@@ -5,7 +5,7 @@ import me.chosante.common.Characteristic
 class TargetStat(
     val characteristic: Characteristic,
     val target: Int,
-    val userDefinedWeight: Int = 1
+    val userDefinedWeight: Int = 1,
 ) {
 
     override fun equals(other: Any?): Boolean {
@@ -26,6 +26,4 @@ class TargetStat(
         result = 31 * result + userDefinedWeight
         return result
     }
-
-
 }

@@ -11,7 +11,8 @@ enum class Rarity {
     LEGENDARY,
     RELIC,
     SOUVENIR,
-    EPIC;
+    EPIC,
+    ;
 }
 
 @Serializable
@@ -29,9 +30,9 @@ enum class ItemType {
     PETS,
     TWO_HANDED_WEAPONS,
     MOUNTS,
-    BELT
+    BELT,
+    ;
 }
-
 
 @Serializable
 data class Equipment(
@@ -40,7 +41,7 @@ data class Equipment(
     val name: String,
     val rarity: Rarity,
     val itemType: ItemType,
-    val characteristics: Map<Characteristic, Int>
+    val characteristics: Map<Characteristic, Int>,
 )
 
 @Serializable
@@ -93,5 +94,6 @@ enum class Characteristic {
     TRAPPER_HARVEST_QUANTITY_PERCENTAGE,
     MINER_HARVEST_QUANTITY_PERCENTAGE,
     FARMER_HARVEST_QUANTITY_PERCENTAGE,
-    FISHERMAN_HARVEST_QUANTITY_PERCENTAGE
+    FISHERMAN_HARVEST_QUANTITY_PERCENTAGE,
+    ;
 }

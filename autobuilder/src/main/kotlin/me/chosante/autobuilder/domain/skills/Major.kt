@@ -1,6 +1,5 @@
 package me.chosante.autobuilder.domain.skills
 
-import me.chosante.common.Characteristic
 import me.chosante.autobuilder.domain.skills.MajorCharacteristic.ActionPoint
 import me.chosante.autobuilder.domain.skills.MajorCharacteristic.Control
 import me.chosante.autobuilder.domain.skills.MajorCharacteristic.DamageInflicted
@@ -11,6 +10,7 @@ import me.chosante.autobuilder.domain.skills.MajorCharacteristic.MovementPoint
 import me.chosante.autobuilder.domain.skills.MajorCharacteristic.Range
 import me.chosante.autobuilder.domain.skills.MajorCharacteristic.Resistance
 import me.chosante.autobuilder.domain.skills.MajorCharacteristic.WakfuPoints
+import me.chosante.common.Characteristic
 
 data class Major(
     override val maxPointsToAssign: Int,
@@ -35,7 +35,7 @@ data class Major(
         second = MasteryElementaryWithControl(0)
     ),
     val damageInflicted: DamageInflicted = DamageInflicted(0),
-    val resistance: Resistance = Resistance(0)
+    val resistance: Resistance = Resistance(0),
 ) : Assignable<Major> {
 
     val allCharacteristicValues: CharacteristicValues
@@ -69,9 +69,8 @@ sealed class MajorCharacteristic(
     maxPointsAssignable: Int,
     unitValue: Int,
     characteristic: Characteristic?,
-    unitType: UnitType
+    unitType: UnitType,
 ) : SkillCharacteristic(pointsAssigned, name, maxPointsAssignable, unitValue, characteristic, unitType) {
-
 
     class ActionPoint(pointsAssigned: Int) :
         MajorCharacteristic(
@@ -172,5 +171,4 @@ sealed class MajorCharacteristic(
             characteristic = Characteristic.RESISTANCE_ELEMENTARY,
             name = "Resistance Elementary"
         )
-
 }

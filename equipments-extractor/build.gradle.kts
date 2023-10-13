@@ -1,8 +1,7 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
 plugins {
     kotlin("jvm")
     kotlin("plugin.serialization")
+    id("org.jlleitschuh.gradle.ktlint")
     application
 }
 
@@ -23,19 +22,16 @@ dependencies {
     implementation(project(":common-lib"))
 }
 
+kotlin {
+    jvmToolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
+}
+
 application {
     mainClass.set("me.chosante.equipmentextractor.MainKt")
 }
 
 tasks.test {
     useJUnitPlatform()
-}
-
-val compileKotlin: KotlinCompile by tasks
-compileKotlin.kotlinOptions {
-    jvmTarget = "20"
-}
-val compileTestKotlin: KotlinCompile by tasks
-compileTestKotlin.kotlinOptions {
-    jvmTarget = "20"
 }

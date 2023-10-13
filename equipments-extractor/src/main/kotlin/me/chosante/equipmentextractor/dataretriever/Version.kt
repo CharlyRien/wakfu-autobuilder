@@ -8,6 +8,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class Version(val version: String)
+
 suspend fun wakfuAPILatestVersion(): String = coroutineScope {
     "https://wakfu.cdn.ankama.com/gamedata/config.json"
         .httpGet()

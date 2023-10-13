@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ItemType(
     val definition: Definition,
-    val title: Title
+    val title: Title,
 ) {
     @Serializable
     data class Definition(
@@ -14,7 +14,7 @@ data class ItemType(
         val equipmentPositions: List<String>,
         val equipmentDisabledPositions: List<String>,
         val isRecyclable: Boolean,
-        val isVisibleInAnimation: Boolean
+        val isVisibleInAnimation: Boolean,
     )
 
     @Serializable
@@ -22,6 +22,6 @@ data class ItemType(
         val fr: String,
         val en: String,
         val es: String,
-        val pt: String
+        val pt: String,
     )
 }

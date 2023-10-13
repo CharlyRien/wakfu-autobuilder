@@ -1,9 +1,9 @@
 package me.chosante.autobuilder.genetic.wakfu
 
+import kotlin.random.Random
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
-import kotlin.random.Random
 
 fun cross(parents: Pair<BuildCombination, BuildCombination>): BuildCombination {
     val (parent1, parent2) = parents
@@ -41,13 +41,13 @@ fun cross(parents: Pair<BuildCombination, BuildCombination>): BuildCombination {
     if (crossEquipments.count { it.rarity == Rarity.RELIC } > 1) {
         crossEquipments = crossEquipments.replaceRandomlyOneItemWithRarity(
             rarity = Rarity.RELIC,
-            replacementResearchZone = parent1.equipments + parent2.equipments,
+            replacementResearchZone = parent1.equipments + parent2.equipments
         )
     }
     if (crossEquipments.count { it.rarity == Rarity.EPIC } > 1) {
         crossEquipments = crossEquipments.replaceRandomlyOneItemWithRarity(
             rarity = Rarity.EPIC,
-            replacementResearchZone = parent1.equipments + parent2.equipments,
+            replacementResearchZone = parent1.equipments + parent2.equipments
         )
     }
 

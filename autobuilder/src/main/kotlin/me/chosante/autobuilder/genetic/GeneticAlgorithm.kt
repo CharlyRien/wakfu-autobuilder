@@ -1,5 +1,9 @@
 package me.chosante.autobuilder.genetic
 
+import java.math.BigDecimal
+import java.math.RoundingMode
+import java.util.concurrent.Executors
+import kotlin.time.Duration
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -10,21 +14,17 @@ import me.tongfei.progressbar.ConsoleProgressBarConsumer
 import me.tongfei.progressbar.ProgressBar
 import me.tongfei.progressbar.ProgressBarBuilder
 import me.tongfei.progressbar.ProgressBarStyle
-import java.math.BigDecimal
-import java.math.RoundingMode
-import java.util.concurrent.Executors
-import kotlin.time.Duration
 
 class GeneticAlgorithm<T>(
     var population: Collection<T>,
     val score: (individual: T) -> Double,
     val cross: (parents: Pair<T, T>) -> T,
     val mutate: (individual: T) -> T,
-    val select: (scoredPopulation: Collection<ScoredIndividual<T>>) -> T
+    val select: (scoredPopulation: Collection<ScoredIndividual<T>>) -> T,
 ) {
     suspend fun run(
         duration: Duration,
-        stopWhenBuildMatch: Boolean
+        stopWhenBuildMatch: Boolean,
     ): T = coroutineScope {
         var scoredPopulation =
             population
@@ -49,7 +49,7 @@ class GeneticAlgorithm<T>(
 
     private fun findBestIndividual(
         scoredPopulation: List<ScoredIndividual<T>>,
-        bestOfAllTimeIndividual: ScoredIndividual<T>
+        bestOfAllTimeIndividual: ScoredIndividual<T>,
     ): ScoredIndividual<T> {
         val bestGenerationalIndividual = scoredPopulation.first()
         return if (bestGenerationalIndividual.score.toBigDecimal() > bestOfAllTimeIndividual.score.toBigDecimal()) {
@@ -76,12 +76,11 @@ class GeneticAlgorithm<T>(
         }
     }
 
-
     private fun shouldStop(
         startTime: Long,
         duration: Duration,
         bestScore: Double,
-        stopWhenBuildMatch: Boolean
+        stopWhenBuildMatch: Boolean,
     ): Boolean {
         val maxSuccessPercentage = BigDecimal("100")
         val timeElapsed = System.currentTimeMillis() - startTime
@@ -106,5 +105,3 @@ class GeneticAlgorithm<T>(
 val progressBarThreadPool = Executors.newFixedThreadPool(1).asCoroutineDispatcher()
 
 data class ScoredIndividual<T>(val score: Double, val individual: T)
-
-

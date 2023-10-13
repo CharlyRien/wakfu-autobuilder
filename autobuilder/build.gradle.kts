@@ -1,13 +1,13 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import java.io.ByteArrayOutputStream
 import org.jetbrains.kotlin.konan.target.HostManager.Companion.hostIsLinux
 import org.jetbrains.kotlin.konan.target.HostManager.Companion.hostIsMac
 import org.jetbrains.kotlin.konan.target.HostManager.Companion.hostIsMingw
-import java.io.ByteArrayOutputStream
 
 plugins {
     kotlin("jvm")
     kotlin("plugin.serialization")
     id("de.undercouch.download") version "5.4.0"
+    id("org.jlleitschuh.gradle.ktlint")
     application
 }
 
@@ -32,13 +32,10 @@ dependencies {
     implementation("org.slf4j:slf4j-simple:2.0.7")
 }
 
-val compileKotlin: KotlinCompile by tasks
-compileKotlin.kotlinOptions {
-    jvmTarget = "20"
-}
-val compileTestKotlin: KotlinCompile by tasks
-compileTestKotlin.kotlinOptions {
-    jvmTarget = "20"
+kotlin {
+    jvmToolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
 }
 
 tasks.test {
@@ -49,40 +46,42 @@ application {
     mainClass.set("me.chosante.autobuilder.MainKt")
 }
 
-tasks.withType<Jar> {
-    dependsOn(":common-lib:jar")
-    manifest {
-        attributes["Main-Class"] = application.mainClass
-    }
-    archiveFileName.set("wakfu-autobuilder-cli.jar")
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
-}
-
 tasks {
+    withType<Jar> {
+        dependsOn(":common-lib:jar")
+        manifest {
+            attributes["Main-Class"] = application.mainClass
+        }
+        archiveFileName.set("wakfu-autobuilder-cli.jar")
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
+    }
+
+    val buildDirectoryAbsolutePath = layout.buildDirectory.get().asFile.absolutePath
+
     val downloadWarpWrapperTask by registering {
         doLast {
-            //Warp for Linux:
+            // Warp for Linux:
             if (hostIsLinux) {
                 download.run {
                     src("https://github.com/dgiagio/warp/releases/download/v0.3.0/linux-x64.warp-packer")
-                    dest(file("${buildDir.absolutePath}/warp/warp-packer"))
+                    dest(file("$buildDirectoryAbsolutePath/warp/warp-packer"))
                     overwrite(false)
                 }
             }
-            //Warp for macOS:
+            // Warp for macOS:
             if (hostIsMac) {
                 download.run {
                     src("https://github.com/dgiagio/warp/releases/download/v0.3.0/macos-x64.warp-packer")
-                    dest(file("${buildDir.absolutePath}/warp/warp-packer"))
+                    dest(file("$buildDirectoryAbsolutePath/warp/warp-packer"))
                     overwrite(false)
                 }
             }
-            //Warp for Windows:
+            // Warp for Windows:
             if (hostIsMingw) {
                 download.run {
                     src("https://github.com/dgiagio/warp/releases/download/v0.3.0/windows-x64.warp-packer.exe")
-                    dest(file("${buildDir.absolutePath}/warp/warp-packer.exe"))
+                    dest(file("$buildDirectoryAbsolutePath/warp/warp-packer.exe"))
                     overwrite(false)
                 }
             }
@@ -91,30 +90,30 @@ tasks {
     val createWarpBundleTask by registering {
         dependsOn("jar")
         doLast {
-            val jdkDownloadBaseURL = "https://github.com/adoptium/temurin20-binaries/releases/download/jdk-20.0.2+9"
-            val linuxJreFilePath = "${buildDir.absolutePath}/jre/linux/jre.tar.gz"
+            val jdkDownloadBaseURL = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21+35"
+            val linuxJreFilePath = "$buildDirectoryAbsolutePath/jre/linux/jre.tar.gz"
             download.run {
-                src("$jdkDownloadBaseURL/OpenJDK20U-jre_x64_linux_hotspot_20.0.2_9.tar.gz")
+                src("$jdkDownloadBaseURL/OpenJDK21U-jre_x64_linux_hotspot_21_35.tar.gz")
                 dest(file(linuxJreFilePath))
                 overwrite(false)
             }.also {
-                val linuxWarpBundleDir = "${buildDir.absolutePath}/warp-bundle/linux"
+                val linuxWarpBundleDir = "$buildDirectoryAbsolutePath/warp-bundle/linux"
                 bundleWarpNecessaryFiles(linuxJreFilePath, linuxWarpBundleDir)
                 File(linuxWarpBundleDir, "run.sh").writeText(
                     """
                     #!/usr/bin/env bash
                     HERE=${'$'}{BASH_SOURCE%/*}
                     "${'$'}HERE/bin/java" -jar "${'$'}HERE/wakfu-autobuilder-cli.jar" "${'$'}@"
-                """.trimIndent()
+                    """.trimIndent()
                 )
             }
-            val macOsJreFilePath = "${buildDir.absolutePath}/jre/macos/jre.tar.gz"
+            val macOsJreFilePath = "$buildDirectoryAbsolutePath/jre/macos/jre.tar.gz"
             download.run {
-                src("$jdkDownloadBaseURL/OpenJDK20U-jre_x64_mac_hotspot_20.0.2_9.tar.gz")
+                src("$jdkDownloadBaseURL/OpenJDK21U-jre_x64_mac_hotspot_21_35.tar.gz")
                 dest(file(macOsJreFilePath))
                 overwrite(false)
             }.also {
-                val macosWarpBundlePathDir = "${buildDir.absolutePath}/warp-bundle/macos"
+                val macosWarpBundlePathDir = "$buildDirectoryAbsolutePath/warp-bundle/macos"
                 bundleWarpNecessaryFiles(macOsJreFilePath, macosWarpBundlePathDir)
 
                 File(macosWarpBundlePathDir, "run.sh").writeText(
@@ -122,16 +121,16 @@ tasks {
                     #!/usr/bin/env bash
                     HERE=${'$'}{BASH_SOURCE%/*}
                     "${'$'}HERE/Contents/Home/bin/java" -jar "${'$'}HERE/wakfu-autobuilder-cli.jar" "${'$'}@"
-                """.trimIndent()
+                    """.trimIndent()
                 )
             }
-            val windowsJreFilePath = "${buildDir.absolutePath}/jre/windows/jre.zip"
+            val windowsJreFilePath = "$buildDirectoryAbsolutePath/jre/windows/jre.zip"
             download.run {
-                src("$jdkDownloadBaseURL/OpenJDK20U-jre_x64_windows_hotspot_20.0.2_9.zip")
+                src("$jdkDownloadBaseURL/OpenJDK21U-jre_x64_windows_hotspot_21_35.zip")
                 dest(file(windowsJreFilePath))
                 overwrite(false)
             }.also {
-                val windowsWarpBundlePathDir = "${buildDir.absolutePath}/warp-bundle/windows"
+                val windowsWarpBundlePathDir = "$buildDirectoryAbsolutePath/warp-bundle/windows"
                 bundleWarpNecessaryFiles(windowsJreFilePath, windowsWarpBundlePathDir)
 
                 File(windowsWarpBundlePathDir, "launcher.cmd").writeText(
@@ -142,7 +141,7 @@ tasks {
                     SET "APP_JAR=%~dp0\wakfu-autobuilder-cli.jar"
                     CALL %JAVA_EXE% -jar %APP_JAR% %*
                     EXIT /B %ERRORLEVEL%
-                """.trimIndent()
+                    """.trimIndent()
                 )
             }
         }
@@ -156,57 +155,69 @@ tasks {
         dependsOn(downloadWarpWrapperTask, createWarpBundleTask)
         doLast {
             val cmd = when {
-                hostIsMac -> "${buildDir.absolutePath}/warp/warp-packer"
-                hostIsLinux -> "${buildDir.absolutePath}/warp/warp-packer"
-                hostIsMingw -> "${buildDir.absolutePath}\\warp\\warp-packer.exe"
+                hostIsMac -> "$buildDirectoryAbsolutePath/warp/warp-packer"
+                hostIsLinux -> "$buildDirectoryAbsolutePath/warp/warp-packer"
+                hostIsMingw -> "$buildDirectoryAbsolutePath/warp/warp-packer.exe"
                 else -> throw IllegalStateException("OS not supported for this task")
             }
-            //Build Linux binary:
+            // Build Linux binary:
             exec {
-                val outputFileLinux = file("${buildDir.absolutePath}/make/linux/wakfu-autobuild-cli")
+                val outputFileLinux = layout.buildDirectory.file("/make/linux/wakfu-autobuild-cli").get().asFile
                 if (!outputFileLinux.parentFile.exists()) {
                     outputFileLinux.parentFile.mkdirs()
                 }
-                setWorkingDir("${buildDir.absolutePath}/warp/")
+                setWorkingDir(layout.buildDirectory.dir("warp").get())
                 setCommandLine(cmd)
                 standardOutput = ByteArrayOutputStream()
                 args(
-                    "--arch", "linux-x64",
-                    "--input_dir", "${buildDir.absolutePath}/warp-bundle/linux/",
-                    "--exec", "${buildDir.absolutePath}/warp-bundle/linux/run.sh",
-                    "--output", outputFileLinux.absolutePath
+                    "--arch",
+                    "linux-x64",
+                    "--input_dir",
+                    "$buildDirectoryAbsolutePath/warp-bundle/linux/",
+                    "--exec",
+                    "$buildDirectoryAbsolutePath/warp-bundle/linux/run.sh",
+                    "--output",
+                    outputFileLinux.absolutePath
                 )
             }
-            //Build macOS binary:
+            // Build macOS binary:
             exec {
-                val outputFileMacOS = file("${buildDir.absolutePath}/make/macos/wakfu-autobuild-cli")
+                val outputFileMacOS = file("$buildDirectoryAbsolutePath/make/macos/wakfu-autobuild-cli")
                 if (!outputFileMacOS.parentFile.exists()) {
                     outputFileMacOS.parentFile.mkdirs()
                 }
-                setWorkingDir("${buildDir.absolutePath}/warp/")
+                setWorkingDir(layout.buildDirectory.dir("warp").get())
                 setCommandLine(cmd)
                 standardOutput = ByteArrayOutputStream()
                 args(
-                    "--arch", "macos-x64",
-                    "--input_dir", "${buildDir.absolutePath}/warp-bundle/macos/",
-                    "--exec", "${buildDir.absolutePath}/warp-bundle/macos/run.sh",
-                    "--output", outputFileMacOS.absolutePath
+                    "--arch",
+                    "macos-x64",
+                    "--input_dir",
+                    "$buildDirectoryAbsolutePath/warp-bundle/macos/",
+                    "--exec",
+                    "$buildDirectoryAbsolutePath/warp-bundle/macos/run.sh",
+                    "--output",
+                    outputFileMacOS.absolutePath
                 )
             }
-            //Build Windows binary:
+            // Build Windows binary:
             exec {
-                val outputFileWindows = file("${buildDir.absolutePath}/make/windows/wakfu-autobuild-cli.exe")
+                val outputFileWindows = file("$buildDirectoryAbsolutePath/make/windows/wakfu-autobuild-cli.exe")
                 if (!outputFileWindows.parentFile.exists()) {
                     outputFileWindows.parentFile.mkdirs()
                 }
-                setWorkingDir("${buildDir.absolutePath}/warp/")
+                setWorkingDir(layout.buildDirectory.dir("warp").get())
                 setCommandLine(cmd)
                 standardOutput = ByteArrayOutputStream()
                 args(
-                    "--arch", "windows-x64",
-                    "--input_dir", "${buildDir.absolutePath}/warp-bundle/windows/",
-                    "--exec", "${buildDir.absolutePath}/warp-bundle/windows/launcher.cmd",
-                    "--output", outputFileWindows.absolutePath
+                    "--arch",
+                    "windows-x64",
+                    "--input_dir",
+                    "$buildDirectoryAbsolutePath/warp-bundle/windows/",
+                    "--exec",
+                    "$buildDirectoryAbsolutePath/warp-bundle/windows/launcher.cmd",
+                    "--output",
+                    outputFileWindows.absolutePath
                 )
             }
         }
@@ -214,7 +225,7 @@ tasks {
 }
 
 fun bundleWarpNecessaryFiles(jreFilePath: String, destinationBundlePath: String): String {
-    val unzipDir = File("$buildDir/unzipTmp")
+    val unzipDir = layout.buildDirectory.dir("unzipTmp").get().asFile
     copy {
         when {
             jreFilePath.endsWith(".tar.gz") -> from(tarTree(resources.gzip((jreFilePath))))
@@ -231,7 +242,7 @@ fun bundleWarpNecessaryFiles(jreFilePath: String, destinationBundlePath: String)
     unzipDir.deleteRecursively()
 
     copy {
-        from(fileTree("${buildDir.absolutePath}/libs/"))
+        from(layout.buildDirectory.dir("libs").get().asFileTree)
         into(destinationBundlePath)
     }
     return destinationBundlePath

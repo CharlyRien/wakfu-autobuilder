@@ -78,8 +78,9 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
     val equipments = mutableListOf<Equipment>()
     val equipmentsToNotExtract = listOf(24037, 24038, 24039, 24049, 24051, 24058, 24082)
     for (equipment in wakfuData.items) {
-        if (equipment.definition.item.id in equipmentsToNotExtract)
+        if (equipment.definition.item.id in equipmentsToNotExtract) {
             continue
+        }
 
         var level = equipment.definition.item.level
         val itemId = equipment.definition.item.id
@@ -94,7 +95,7 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
         }
 
         if (itemType == ItemType.PETS) {
-            level = if(equipment.title.fr.contains("Gélutin")) {
+            level = if (equipment.title.fr.contains("Gélutin")) {
                 25
             } else {
                 50
@@ -119,7 +120,6 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
             }
 
             if (action?.description != null) {
-
                 var description = if ((actionId == 39 || actionId == 40) && params[4] != 0.0) {
                     "[#1] " + edgeCaseCharacteristicDescription.getValue(params[4].toInt())
                 } else {
@@ -127,7 +127,7 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
                 }
 
                 // OLD effect, can be replaced by new 57 effect
-                if(actionId == 42) {
+                if (actionId == 42) {
                     description = effectsByEffectId.getValue(57).description!!.fr
                 }
 

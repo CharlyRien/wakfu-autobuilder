@@ -9,5 +9,5 @@ data class WakfuData(
     val items: List<Item>,
     val jobs: List<Jobs>,
     val effects: List<Effect>,
-    val itemTypes: List<ItemType>
+    val itemTypes: List<ItemType>,
 )

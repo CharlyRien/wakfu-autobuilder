@@ -1,7 +1,7 @@
 package me.chosante.autobuilder.domain
 
-import me.chosante.common.Characteristic
 import java.math.RoundingMode
+import me.chosante.common.Characteristic
 
 class TargetStats(targetStats: List<TargetStat>) :
     HashSet<TargetStat>(targetStats) {
@@ -70,7 +70,9 @@ class TargetStats(targetStats: List<TargetStat>) :
 
 fun List<TargetStat>.associateWeights(desiredValue: Int): Map<TargetStat, Double> {
     return associateWith {
-        (desiredValue.toBigDecimal().setScale(2, RoundingMode.HALF_UP) / it.target.toBigDecimal()
-            .setScale(2, RoundingMode.HALF_UP)).toDouble() * it.userDefinedWeight
+        (
+            desiredValue.toBigDecimal().setScale(2, RoundingMode.HALF_UP) / it.target.toBigDecimal()
+                .setScale(2, RoundingMode.HALF_UP)
+            ).toDouble() * it.userDefinedWeight
     }
 }

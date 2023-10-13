@@ -1,11 +1,11 @@
 package me.chosante.autobuilder.domain.skills
 
-import me.chosante.common.Characteristic
 import me.chosante.autobuilder.domain.skills.IntelligenceCharacteristic.HealReceivedPercentage
 import me.chosante.autobuilder.domain.skills.IntelligenceCharacteristic.HpPercentage
 import me.chosante.autobuilder.domain.skills.IntelligenceCharacteristic.HpPercentageAsArmor
 import me.chosante.autobuilder.domain.skills.IntelligenceCharacteristic.Resistance
 import me.chosante.autobuilder.domain.skills.IntelligenceCharacteristic.Shield
+import me.chosante.common.Characteristic
 
 data class Intelligence(
     override val maxPointsToAssign: Int,
@@ -19,7 +19,7 @@ data class Intelligence(
     ),
     val hpPercentageAsArmor: HpPercentageAsArmor = HpPercentageAsArmor(
         0
-    )
+    ),
 ) : Assignable<Intelligence> {
 
     init {
@@ -47,7 +47,7 @@ sealed class IntelligenceCharacteristic(
     maxPointsAssignable: Int,
     unitValue: Int,
     characteristic: Characteristic?,
-    unitType: UnitType
+    unitType: UnitType,
 ) : SkillCharacteristic(pointsAssigned, name, maxPointsAssignable, unitValue, characteristic, unitType) {
 
     class HpPercentage(pointsAssigned: Int) :
@@ -99,5 +99,4 @@ sealed class IntelligenceCharacteristic(
             characteristic = null,
             name = "% HP as Armor"
         )
-
 }

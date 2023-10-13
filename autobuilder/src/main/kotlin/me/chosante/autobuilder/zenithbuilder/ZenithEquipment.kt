@@ -21,8 +21,8 @@ import kotlinx.serialization.json.put
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 
-const val urlAddEquipment = "${baseAPIUrl}/equipment/add"
-const val urlGetEquipments = "${baseAPIUrl}/equipment"
+const val urlAddEquipment = "$baseAPIUrl/equipment/add"
+const val urlGetEquipments = "$baseAPIUrl/equipment"
 
 val ringSideIds = mutableListOf(23, 24)
 
@@ -92,7 +92,7 @@ suspend fun addEquipment(equipment: Equipment, level: Int, buildId: Long) {
         } catch (exception: Exception) {
             println(
                 "Problem with the equipment: (id: ${equipment.equipmentId} name: ${equipment.name}), when getting the information from zenithwakfu" +
-                        " via the url: ${request.url}"
+                    " via the url: ${request.url}"
             )
             return
         }
@@ -110,17 +110,21 @@ suspend fun addEquipment(equipment: Equipment, level: Int, buildId: Long) {
 
     val equipmentInformationBody =
         JsonObject(
-            equipmentInformation + ("metadata" to buildJsonObject {
-                val sideValue = when (equipment.itemType) {
-                    ItemType.RING -> ringSideIds.removeFirst()
-                    ItemType.TWO_HANDED_WEAPONS, ItemType.ONE_HANDED_WEAPONS -> 540
-                    ItemType.OFF_HAND_WEAPONS -> 520
-                    else -> itemTypesZenithId.first()
+            equipmentInformation + (
+                "metadata" to buildJsonObject {
+                    val sideValue = when (equipment.itemType) {
+                        ItemType.RING -> ringSideIds.removeFirst()
+                        ItemType.TWO_HANDED_WEAPONS, ItemType.ONE_HANDED_WEAPONS -> 540
+                        ItemType.OFF_HAND_WEAPONS -> 520
+                        else -> itemTypesZenithId.first()
+                    }
+                    put("side", sideValue)
                 }
-                put("side", sideValue)
-            }) + ("effects" to JsonArray(
-                effects
-            ))
+                ) + (
+                "effects" to JsonArray(
+                    effects
+                )
+                )
         )
     val jsonPayloadAddEquipment: JsonObject = buildJsonObject {
         put("equipment", equipmentInformationBody)

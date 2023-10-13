@@ -30,29 +30,31 @@ object ItemSerializer : JsonContentPolymorphicSerializer<Item>(Item::class) {
 data class Sublimation(
     override val definition: Definition,
     override val title: LanguageText,
-    override val description: LanguageText? = null
+    override val description: LanguageText? = null,
 ) : Item()
 
 @Serializable
 data class Enchantment(
     override val definition: Definition,
     override val title: LanguageText,
-    override val description: LanguageText? = null
+    override val description: LanguageText? = null,
 ) : Item()
 
 @Serializable
 data class Equipment(
     override val definition: Definition,
     override val title: LanguageText,
-    override val description: LanguageText? = null
+    override val description: LanguageText? = null,
 ) : Item()
 
 @Serializable
 abstract class Item {
     @SerialName("definition")
     abstract val definition: Definition
+
     @SerialName("title")
     abstract val title: LanguageText
+
     @SerialName("description")
     abstract val description: LanguageText?
 
@@ -65,7 +67,7 @@ abstract class Item {
         @SerialName("useCriticalEffects")
         val useCriticalEffects: List<Effect>,
         @SerialName("equipEffects")
-        val equipEffects: List<Effect>
+        val equipEffects: List<Effect>,
     ) {
         @Serializable
         data class Effect(
@@ -94,7 +96,7 @@ data class ItemData(
     @SerialName("properties")
     val properties: List<Int>,
     @SerialName("shardsParameters")
-    val shardsParameters: ShardParameters? = null
+    val shardsParameters: ShardParameters? = null,
 ) {
     @Serializable
     data class SublimationParameters(
@@ -103,7 +105,7 @@ data class ItemData(
         @SerialName("isEpic")
         val isEpic: Boolean,
         @SerialName("isRelic")
-        val isRelic: Boolean
+        val isRelic: Boolean,
     )
 
     @Serializable
@@ -128,7 +130,7 @@ data class BaseParameters(
     @SerialName("minimumShardSlotNumber")
     val minimumShardSlotNumber: Int,
     @SerialName("maximumShardSlotNumber")
-    val maximumShardSlotNumber: Int
+    val maximumShardSlotNumber: Int,
 )
 
 @Serializable
@@ -152,7 +154,7 @@ data class UseParameters(
     @SerialName("useTestNoBorderCell")
     val useTestNoBorderCell: Boolean,
     @SerialName("useWorldTarget")
-    val useWorldTarget: Int
+    val useWorldTarget: Int,
 )
 
 @Serializable
@@ -160,7 +162,7 @@ data class GraphicParameters(
     @SerialName("gfxId")
     val gfxId: Int,
     @SerialName("femaleGfxId")
-    val femaleGfxId: Int
+    val femaleGfxId: Int,
 )
 
 @Serializable
@@ -181,7 +183,7 @@ data class EffectData(
         @SerialName("areaSize")
         val areaSize: List<Int>,
         @SerialName("params")
-        val params: List<Double>
+        val params: List<Double>,
     )
 }
 
@@ -194,5 +196,5 @@ data class LanguageText(
     @SerialName("es")
     val es: String,
     @SerialName("pt")
-    val pt: String
+    val pt: String,
 )
