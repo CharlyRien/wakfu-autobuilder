@@ -39,7 +39,7 @@ import me.chosante.autobuilder.domain.CharacterClass.ZOBAL
 
 data class ZenithBuild(
     val id: Long,
-    private val linkId: String
+    private val linkId: String,
 ) {
     val link
         get() = "https://zenithwakfu.com/builder/$linkId"
@@ -81,7 +81,7 @@ suspend fun createBuild(character: Character): ZenithBuild {
         putJsonArray("flags") {}
     }
 
-    val (_, _, result) ="$baseAPIUrl/create"
+    val (_, _, result) = "$baseAPIUrl/create"
         .httpPost()
         .header(apiZenithWakfuHeaders)
         .jsonBody(Json.encodeToString<JsonObject>(body))

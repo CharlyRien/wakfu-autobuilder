@@ -1,5 +1,6 @@
 package me.chosante.autobuilder.genetic.wakfu
 
+import kotlin.random.Random.Default.nextInt
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.domain.skills.Agility
@@ -11,14 +12,13 @@ import me.chosante.autobuilder.domain.skills.assignRandomPoints
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
-import kotlin.random.Random.Default.nextInt
 
 fun mutateCombination(
     individual: BuildCombination,
     mutationProbability: Double,
     equipmentsByItemType: Map<ItemType, List<Equipment>>,
     targetStats: TargetStats,
-    isLowLevel: Boolean
+    isLowLevel: Boolean,
 ): BuildCombination {
     var newEquipments = individual.equipments.toMutableList()
     var ringNames = newEquipments.filter { it.itemType == ItemType.RING }.map { it.name }
@@ -29,8 +29,8 @@ fun mutateCombination(
             val randomEquipment =
                 equipmentsByItemType[currentEquipment.itemType]
                     ?.randomByOrNull {
-                        it != currentEquipment
-                                && (currentEquipment.itemType != ItemType.RING || it.name !in ringNames)
+                        it != currentEquipment &&
+                            (currentEquipment.itemType != ItemType.RING || it.name !in ringNames)
                     } ?: break
 
             when (randomEquipment.rarity) {
@@ -70,23 +70,33 @@ fun mutateCombination(
         val newIntelligence = if (Math.random() <= mutationProbability) {
             val maxPointsToAssign = intelligence.maxPointsToAssign
             Intelligence(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
-        } else intelligence
+        } else {
+            intelligence
+        }
         val newStrength = if (Math.random() <= mutationProbability) {
             val maxPointsToAssign = strength.maxPointsToAssign
             Strength(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
-        } else strength
+        } else {
+            strength
+        }
         val newLuck = if (Math.random() <= mutationProbability) {
             val maxPointsToAssign = luck.maxPointsToAssign
             Luck(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
-        } else luck
+        } else {
+            luck
+        }
         val newAgility = if (Math.random() <= mutationProbability) {
             val maxPointsToAssign = agility.maxPointsToAssign
             Agility(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
-        } else agility
+        } else {
+            agility
+        }
         val newMajor = if (Math.random() <= mutationProbability) {
             val maxPointsToAssign = major.maxPointsToAssign
             Major(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
-        } else major
+        } else {
+            major
+        }
         copy(
             intelligence = newIntelligence,
             strength = newStrength,
@@ -95,7 +105,6 @@ fun mutateCombination(
             major = newMajor
         )
     }
-
 
     return BuildCombination(newEquipments, characterSkills)
 }

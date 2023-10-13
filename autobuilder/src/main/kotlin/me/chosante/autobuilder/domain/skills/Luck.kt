@@ -1,6 +1,5 @@
 package me.chosante.autobuilder.domain.skills
 
-import me.chosante.common.Characteristic
 import me.chosante.autobuilder.domain.skills.LuckCharacteristic.Block
 import me.chosante.autobuilder.domain.skills.LuckCharacteristic.CriticalHit
 import me.chosante.autobuilder.domain.skills.LuckCharacteristic.MasteryBack
@@ -9,6 +8,7 @@ import me.chosante.autobuilder.domain.skills.LuckCharacteristic.MasteryCritical
 import me.chosante.autobuilder.domain.skills.LuckCharacteristic.MasteryHealing
 import me.chosante.autobuilder.domain.skills.LuckCharacteristic.ResistanceBack
 import me.chosante.autobuilder.domain.skills.LuckCharacteristic.ResistanceCritical
+import me.chosante.common.Characteristic
 
 data class Luck(
     override val maxPointsToAssign: Int,
@@ -19,7 +19,7 @@ data class Luck(
     val masteryBerserk: MasteryBerserk = MasteryBerserk(0),
     val masteryHealing: MasteryHealing = MasteryHealing(0),
     val resistanceBack: ResistanceBack = ResistanceBack(0),
-    val resistanceCritical: ResistanceCritical = ResistanceCritical(0)
+    val resistanceCritical: ResistanceCritical = ResistanceCritical(0),
 ) : Assignable<Luck> {
 
     val allCharacteristicValues: CharacteristicValues
@@ -34,12 +34,11 @@ data class Luck(
             masteryCritical,
             masteryHealing,
             resistanceCritical,
-            resistanceBack,
+            resistanceBack
         )
     }
 
     override fun pointsAssigned() = getCharacteristics().sumOf { it.pointsAssigned }
-
 }
 
 sealed class LuckCharacteristic(
@@ -48,7 +47,7 @@ sealed class LuckCharacteristic(
     maxPointsAssignable: Int,
     unitValue: Int,
     characteristic: Characteristic?,
-    unitType: UnitType
+    unitType: UnitType,
 ) : SkillCharacteristic(pointsAssigned, name, maxPointsAssignable, unitValue, characteristic, unitType) {
     class CriticalHit(pointsAssigned: Int) :
         LuckCharacteristic(

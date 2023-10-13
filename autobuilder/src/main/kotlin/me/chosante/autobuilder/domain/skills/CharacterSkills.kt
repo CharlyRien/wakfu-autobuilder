@@ -1,12 +1,12 @@
 package me.chosante.autobuilder.domain.skills
 
-import me.chosante.common.Characteristic
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.random.Random.Default.nextInt
+import me.chosante.common.Characteristic
 
 class CharacterSkills(
-    val level: Int
+    val level: Int,
 ) {
     var strength: Strength
         private set
@@ -42,14 +42,15 @@ class CharacterSkills(
         get() = major.getCharacteristics() + intelligence.getCharacteristics() + strength.getCharacteristics() + agility.getCharacteristics() + luck.getCharacteristics()
 
     val allCharacteristicValues: CharacteristicValues
-        get() = major.allCharacteristicValues + intelligence.allCharacteristicValues + strength.allCharacteristicValues + agility.allCharacteristicValues + luck.allCharacteristicValues
+        get() = major.allCharacteristicValues + intelligence.allCharacteristicValues + strength.allCharacteristicValues + agility.allCharacteristicValues +
+            luck.allCharacteristicValues
 
     fun copy(
         strength: Strength = this.strength,
         agility: Agility = this.agility,
         luck: Luck = this.luck,
         major: Major = this.major,
-        intelligence: Intelligence = this.intelligence
+        intelligence: Intelligence = this.intelligence,
     ): CharacterSkills {
         return CharacterSkills(
             level = this.level
@@ -87,8 +88,6 @@ class CharacterSkills(
         result = 31 * result + intelligence.hashCode()
         return result
     }
-
-
 }
 
 enum class UnitType {
@@ -97,7 +96,7 @@ enum class UnitType {
 
 data class CharacteristicValues(
     val fixedValues: Map<Characteristic, Int>,
-    val percentValues: Map<Characteristic, Int>
+    val percentValues: Map<Characteristic, Int>,
 ) {
     operator fun plus(characteristicValues: CharacteristicValues): CharacteristicValues {
         val newFixedValues = fixedValues.toMutableMap()
@@ -123,15 +122,21 @@ sealed class SkillCharacteristic(
     val maxPointsAssignable: Int,
     private val unitValue: Int,
     val characteristic: Characteristic?,
-    val unitType: UnitType
+    val unitType: UnitType,
 ) {
     init {
-        check(pointsAssigned in 0..maxPointsAssignable) { "Impossible to have more points assigned ($pointsAssigned) than the max allowed ($maxPointsAssignable) to the characteristic: $this" }
+        check(pointsAssigned in 0..maxPointsAssignable) {
+            "Impossible to have more points assigned ($pointsAssigned)" +
+                " than the max allowed ($maxPointsAssignable) to the characteristic: $this"
+        }
     }
 
     open var pointsAssigned: Int = pointsAssigned
         protected set(value) {
-            check(value in 0..maxPointsAssignable) { "Impossible to have more points assigned ($value) than the max allowed ($maxPointsAssignable) to the characteristic: $this" }
+            check(value in 0..maxPointsAssignable) {
+                "Impossible to have more points assigned ($value)" +
+                    " than the max allowed ($maxPointsAssignable) to the characteristic: $this"
+            }
             field = value
         }
 
@@ -143,7 +148,7 @@ sealed class SkillCharacteristic(
         name: String,
         val first: SkillCharacteristic,
         val second: SkillCharacteristic,
-        maxPointsAssignable: Int
+        maxPointsAssignable: Int,
     ) : SkillCharacteristic(
         pointsAssigned = 0,
         maxPointsAssignable = maxPointsAssignable,
@@ -177,7 +182,7 @@ fun getAllCharacteristicValues(characteristics: List<SkillCharacteristic>): Char
 fun addCharacteristicValue(
     characteristic: SkillCharacteristic,
     fixedCharacteristics: MutableMap<Characteristic, Int>,
-    percentCharacteristics: MutableMap<Characteristic, Int>
+    percentCharacteristics: MutableMap<Characteristic, Int>,
 ) {
     if (characteristic is SkillCharacteristic.PairedCharacteristic) {
         addCharacteristicValue(characteristic.first, fixedCharacteristics, percentCharacteristics)
@@ -231,8 +236,8 @@ fun <T : Assignable<T>> T.assignRandomPoints(pointsToAssign: Int, targetCharacte
 private fun <T : Assignable<T>> T.filterOnlyWantedTargetCharacteristics(targetCharacteristics: List<Characteristic>): List<SkillCharacteristic> {
     return getCharacteristics().filter {
         if (it is SkillCharacteristic.PairedCharacteristic) {
-            it.first.characteristic in targetCharacteristics
-                    || it.second.characteristic in targetCharacteristics
+            it.first.characteristic in targetCharacteristics ||
+                it.second.characteristic in targetCharacteristics
         } else {
             it.characteristic in targetCharacteristics
         }
@@ -241,7 +246,7 @@ private fun <T : Assignable<T>> T.filterOnlyWantedTargetCharacteristics(targetCh
 
 private fun <T : Assignable<T>> T.assignPointsToCharacteristic(
     characteristic: SkillCharacteristic,
-    points: Int
+    points: Int,
 ): Int {
     val maxCharacteristicPointsAssignable =
         min(characteristic.maxPointsAssignable - characteristic.pointsAssigned, points)
@@ -251,5 +256,7 @@ private fun <T : Assignable<T>> T.assignPointsToCharacteristic(
         val randomPointsToAssign = nextInt(1, maxPointsAssignable + 1)
         characteristic.setPointAssigned(characteristic.pointsAssigned + randomPointsToAssign)
         randomPointsToAssign
-    } else 0
+    } else {
+        0
+    }
 }

@@ -1,17 +1,17 @@
 package me.chosante.autobuilder.domain.skills
 
-import me.chosante.common.Characteristic
 import me.chosante.autobuilder.domain.skills.StrengthCharacteristic.Hp
 import me.chosante.autobuilder.domain.skills.StrengthCharacteristic.MasteryDistance
 import me.chosante.autobuilder.domain.skills.StrengthCharacteristic.MasteryElementary
 import me.chosante.autobuilder.domain.skills.StrengthCharacteristic.MasteryMelee
+import me.chosante.common.Characteristic
 
 data class Strength(
     override val maxPointsToAssign: Int,
     val masteryElementary: MasteryElementary = MasteryElementary(0),
     val masteryMelee: MasteryMelee = MasteryMelee(0),
     val masteryDistance: MasteryDistance = MasteryDistance(0),
-    val hp: Hp = Hp(0)
+    val hp: Hp = Hp(0),
 ) : Assignable<Strength> {
     init {
         check(pointsAssigned() in 0..maxPointsToAssign)
@@ -30,7 +30,6 @@ data class Strength(
     }
 
     override fun pointsAssigned() = getCharacteristics().sumOf { it.pointsAssigned }
-
 }
 
 sealed class StrengthCharacteristic(
@@ -39,7 +38,7 @@ sealed class StrengthCharacteristic(
     maxPointsAssignable: Int,
     unitValue: Int,
     characteristic: Characteristic?,
-    unitType: UnitType
+    unitType: UnitType,
 ) : SkillCharacteristic(pointsAssigned, name, maxPointsAssignable, unitValue, characteristic, unitType) {
 
     class MasteryElementary(pointsAssigned: Int) :

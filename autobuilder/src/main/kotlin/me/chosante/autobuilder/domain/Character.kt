@@ -2,7 +2,12 @@ package me.chosante.autobuilder.domain
 
 import me.chosante.autobuilder.domain.skills.CharacterSkills
 import me.chosante.common.Characteristic
-import me.chosante.common.Characteristic.*
+import me.chosante.common.Characteristic.ACTION_POINT
+import me.chosante.common.Characteristic.CONTROL
+import me.chosante.common.Characteristic.CRITICAL_HIT
+import me.chosante.common.Characteristic.HP
+import me.chosante.common.Characteristic.MOVEMENT_POINT
+import me.chosante.common.Characteristic.WAKFU_POINT
 
 enum class CharacterClass {
     FECA,
@@ -24,7 +29,9 @@ enum class CharacterClass {
     ELIOTROPE,
     HUPPERMAGE,
 
-    UNKNOWN;
+    UNKNOWN,
+
+    ;
 
     companion object {
         fun fromValue(characterName: String): CharacterClass {
@@ -36,7 +43,7 @@ enum class CharacterClass {
 data class Character(
     val clazz: CharacterClass,
     val level: Int,
-    val characterSkills: CharacterSkills = CharacterSkills(level)
+    val characterSkills: CharacterSkills = CharacterSkills(level),
 ) {
     private val baseAP = CharacterStat(
         characteristic = ACTION_POINT,
@@ -76,7 +83,6 @@ data class Character(
 
     data class CharacterStat(
         val characteristic: Characteristic,
-        val value: Int
+        val value: Int,
     )
 }
-

@@ -1,5 +1,6 @@
 package me.chosante.autobuilder.genetic
 
+import kotlin.test.assertEquals
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.Character
 import me.chosante.autobuilder.domain.CharacterClass
@@ -34,7 +35,6 @@ import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import org.junit.jupiter.api.Test
-import kotlin.test.assertEquals
 
 class ScoringTest {
     @Test
@@ -55,7 +55,7 @@ class ScoringTest {
                     HP to 90,
                     LOCK to -40,
                     DODGE to 15,
-                    MASTERY_DISTANCE to 50,
+                    MASTERY_DISTANCE to 50
                 )
             ),
             equipment(
@@ -63,7 +63,7 @@ class ScoringTest {
                     ACTION_POINT to 1,
                     HP to 49,
                     CRITICAL_HIT to 3,
-                    MASTERY_DISTANCE to 45,
+                    MASTERY_DISTANCE to 45
                 )
             ),
             equipment(
@@ -71,21 +71,21 @@ class ScoringTest {
                     MOVEMENT_POINT to 1,
                     HP to 117,
                     MASTERY_DISTANCE to 20,
-                    MASTERY_ELEMENTARY to 10,
+                    MASTERY_ELEMENTARY to 10
                 )
             ),
             equipment(
                 characteristics = mapOf(
                     MOVEMENT_POINT to 1,
                     HP to 96,
-                    MASTERY_DISTANCE to 25,
+                    MASTERY_DISTANCE to 25
                 )
             ),
             equipment(
                 characteristics = mapOf(
                     HP to 57,
                     DODGE to 5,
-                    MASTERY_DISTANCE to 22,
+                    MASTERY_DISTANCE to 22
                 )
             ),
             equipment(
@@ -93,7 +93,7 @@ class ScoringTest {
                     RANGE to 1,
                     HP to 65,
                     DODGE to 15,
-                    MASTERY_DISTANCE to 35,
+                    MASTERY_DISTANCE to 35
                 )
             ),
             equipment(
@@ -112,35 +112,40 @@ class ScoringTest {
                     MASTERY_DISTANCE to 25,
                     CRITICAL_HIT to 7
                 )
-            ), equipment(
+            ),
+            equipment(
                 characteristics = mapOf(
                     HP to 92,
                     MASTERY_DISTANCE to 40,
                     CRITICAL_HIT to 3
                 )
-            ), equipment(
+            ),
+            equipment(
                 characteristics = mapOf(
-                    MASTERY_DISTANCE to 40,
+                    MASTERY_DISTANCE to 40
                 )
-            ), equipment(
+            ),
+            equipment(
                 characteristics = mapOf(
                     ACTION_POINT to 1,
                     MASTERY_DISTANCE to 70,
                     HP to 131,
-                    CRITICAL_HIT to 4,
+                    CRITICAL_HIT to 4
                 )
-            ), equipment(
+            ),
+            equipment(
                 characteristics = mapOf(
                     MASTERY_DISTANCE to 20,
                     MASTERY_BACK to -20,
                     HP to 98,
-                    CRITICAL_HIT to 2,
+                    CRITICAL_HIT to 2
                 )
-            ), equipment(
+            ),
+            equipment(
                 characteristics = mapOf(
                     MASTERY_DISTANCE to 60,
                     HP to 30,
-                    CONTROL to 1,
+                    CONTROL to 1
                 )
             )
         )
@@ -189,7 +194,7 @@ class ScoringTest {
                     INITIATIVE to 6,
                     HP to 20,
                     MASTERY_ELEMENTARY to 15,
-                    RESISTANCE_ELEMENTARY to 5,
+                    RESISTANCE_ELEMENTARY to 5
                 )
             ),
             equipment(
@@ -199,7 +204,7 @@ class ScoringTest {
                     DODGE to 10,
                     HP to 30,
                     CRITICAL_HIT to 4,
-                    MASTERY_HEALING to 20,
+                    MASTERY_HEALING to 20
                 )
             ),
             equipment(
@@ -209,7 +214,7 @@ class ScoringTest {
                     CONTROL to 1,
                     HP to 20,
                     RESISTANCE_ELEMENTARY to 5,
-                    MASTERY_ELEMENTARY to 15,
+                    MASTERY_ELEMENTARY to 15
                 )
             ),
             equipment(
@@ -217,7 +222,7 @@ class ScoringTest {
                 level = 17,
                 characteristics = mapOf(
                     HP to 12,
-                    MASTERY_ELEMENTARY to 8,
+                    MASTERY_ELEMENTARY to 8
                 )
             ),
             equipment(
@@ -226,7 +231,7 @@ class ScoringTest {
                 characteristics = mapOf(
                     HP to -50,
                     ACTION_POINT to 1,
-                    MASTERY_ELEMENTARY to 10,
+                    MASTERY_ELEMENTARY to 10
                 )
             ),
             equipment(
@@ -236,7 +241,7 @@ class ScoringTest {
                     MASTERY_HEALING to 15,
                     HP to 22,
                     DODGE to 10,
-                    RESISTANCE_ELEMENTARY to 10,
+                    RESISTANCE_ELEMENTARY to 10
                 )
             ),
             equipment(
@@ -246,7 +251,7 @@ class ScoringTest {
                     CRITICAL_HIT to 4,
                     HP to 24,
                     MASTERY_HEALING to 15,
-                    RESISTANCE_ELEMENTARY to 10,
+                    RESISTANCE_ELEMENTARY to 10
                 )
             ),
             equipment(
@@ -256,9 +261,10 @@ class ScoringTest {
                     HP to 15,
                     DODGE to 7,
                     MASTERY_ELEMENTARY to 20,
-                    RESISTANCE_ELEMENTARY to 5,
+                    RESISTANCE_ELEMENTARY to 5
                 )
-            ), equipment(
+            ),
+            equipment(
                 name = "Cordon du Piou Royal",
                 level = 32,
                 characteristics = mapOf(
@@ -268,36 +274,41 @@ class ScoringTest {
                     CRITICAL_HIT to 3,
                     RESISTANCE_ELEMENTARY to 10
                 )
-            ), equipment(
+            ),
+            equipment(
                 name = "Bouftou de guerre de distance",
                 level = 50,
                 characteristics = mapOf(
-                    MASTERY_DISTANCE to 40,
+                    MASTERY_DISTANCE to 40
                 )
-            ), equipment(
+            ),
+            equipment(
                 name = "Lame en table",
                 level = 18,
                 characteristics = mapOf(
                     INITIATIVE to 5,
                     MASTERY_ELEMENTARY to 15,
-                    HP to 10,
+                    HP to 10
                 )
-            ), equipment(
+            ),
+            equipment(
                 name = "Baguette Rangleuse",
                 level = 15,
                 characteristics = mapOf(
                     MASTERY_HEALING to 25,
                     HP to 15,
                     RESISTANCE_ELEMENTARY to 5,
-                    DODGE to 5,
+                    DODGE to 5
                 )
-            ), equipment(
+            ),
+            equipment(
                 name = "Médaille du mérite",
                 level = 10,
                 characteristics = mapOf(
-                    RESISTANCE_ELEMENTARY to 5,
+                    RESISTANCE_ELEMENTARY to 5
                 )
-            ), equipment(
+            ),
+            equipment(
                 name = "Chacha des Glaces",
                 level = 50,
                 characteristics = mapOf(
@@ -323,7 +334,7 @@ class ScoringTest {
                 RESISTANCE_ELEMENTARY_FIRE to 140,
                 RESISTANCE_ELEMENTARY_WIND to 140,
                 RESISTANCE_ELEMENTARY_WATER to 140
-            ),
+            )
         ).filterNot { it.value == 0 }
 
         val expectedCharacteristics = mapOf(
@@ -338,7 +349,7 @@ class ScoringTest {
             INITIATIVE to 11,
             WAKFU_POINT to 6,
             MASTERY_ELEMENTARY to 83,
-            RESISTANCE_ELEMENTARY to 145,
+            RESISTANCE_ELEMENTARY to 145
         )
 
         assertEquals(expectedCharacteristics, actualCharacteristics)
@@ -358,7 +369,7 @@ class ScoringTest {
         val expected = mapOf(
             MASTERY_ELEMENTARY_FIRE to 45,
             MASTERY_ELEMENTARY_WATER to 39,
-            MASTERY_ELEMENTARY_WIND to 24,
+            MASTERY_ELEMENTARY_WIND to 24
         )
         val result = getAssignedValues(
             oneRandomElement = oneRandomElement,
@@ -373,13 +384,14 @@ class ScoringTest {
     private fun equipment(
         name: String = "name",
         level: Int = 100,
-        characteristics: Map<Characteristic, Int>
+        characteristics: Map<Characteristic, Int>,
     ) =
         Equipment(
             equipmentId = 0,
             level = level,
             name = name,
             rarity = Rarity.RARE,
-            itemType = ItemType.HELMET, characteristics = characteristics
+            itemType = ItemType.HELMET,
+            characteristics = characteristics
         )
 }

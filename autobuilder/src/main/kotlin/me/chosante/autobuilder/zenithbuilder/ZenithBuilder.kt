@@ -3,8 +3,8 @@ package me.chosante.autobuilder.zenithbuilder
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.supervisorScope
-import me.chosante.autobuilder.domain.Character
 import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.domain.Character
 
 internal const val baseAPIUrl = "https://api.zenithwakfu.com/builder/api"
 val apiZenithWakfuHeaders = mapOf(

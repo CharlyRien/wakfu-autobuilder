@@ -13,6 +13,9 @@ import com.github.ajalt.clikt.parameters.options.splitPair
 import com.github.ajalt.clikt.parameters.types.int
 import de.vandermeer.asciitable.AsciiTable
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlin.system.exitProcess
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.runBlocking
 import me.chosante.autobuilder.domain.Character
 import me.chosante.autobuilder.domain.CharacterClass
@@ -23,20 +26,51 @@ import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildParams
 import me.chosante.autobuilder.zenithbuilder.createZenithBuild
 import me.chosante.common.Characteristic
-import me.chosante.common.Characteristic.*
+import me.chosante.common.Characteristic.ACTION_POINT
+import me.chosante.common.Characteristic.BLOCK_PERCENTAGE
+import me.chosante.common.Characteristic.CONTROL
+import me.chosante.common.Characteristic.CRITICAL_HIT
+import me.chosante.common.Characteristic.DODGE
+import me.chosante.common.Characteristic.GIVEN_ARMOR_PERCENTAGE
+import me.chosante.common.Characteristic.HP
+import me.chosante.common.Characteristic.INITIATIVE
+import me.chosante.common.Characteristic.LOCK
+import me.chosante.common.Characteristic.MASTERY_BACK
+import me.chosante.common.Characteristic.MASTERY_BERSERK
+import me.chosante.common.Characteristic.MASTERY_CRITICAL
+import me.chosante.common.Characteristic.MASTERY_DISTANCE
+import me.chosante.common.Characteristic.MASTERY_ELEMENTARY
+import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_EARTH
+import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_FIRE
+import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_WATER
+import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_WIND
+import me.chosante.common.Characteristic.MASTERY_HEALING
+import me.chosante.common.Characteristic.MASTERY_MELEE
+import me.chosante.common.Characteristic.MOVEMENT_POINT
+import me.chosante.common.Characteristic.PROSPECTION
+import me.chosante.common.Characteristic.RANGE
+import me.chosante.common.Characteristic.RECEIVED_ARMOR_PERCENTAGE
+import me.chosante.common.Characteristic.RESISTANCE_BACK
+import me.chosante.common.Characteristic.RESISTANCE_CRITICAL
+import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY
+import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_EARTH
+import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_FIRE
+import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_WATER
+import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_WIND
+import me.chosante.common.Characteristic.WILLPOWER
+import me.chosante.common.Characteristic.WISDOM
 import me.chosante.common.Equipment
 import me.chosante.common.Rarity
-import kotlin.system.exitProcess
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
 
 private val logger = KotlinLogging.logger {}
 const val VERSION = "1.81.1.13"
 
 fun main(args: Array<String>) = WakfuAutobuild().main(args)
 
-const val additionalHelpOnStats =
-    "note that, it is also possible to pass an optional weight with the following format -> x:y | x being the number wanted, y the weight of the statistic you want to put (default is 1)"
+val additionalHelpOnStats =
+    """note that, it is also possible to pass an optional weight with the following format 
+        |-> x:y | x being the number wanted, y the weight of the statistic you want to put (default is 1)
+    """.trimMargin()
 
 class WakfuAutobuild :
     CliktCommand(
@@ -47,7 +81,8 @@ class WakfuAutobuild :
             |Current Wakfu data version used: $VERSION
             |
             |Here's an example of usage in your terminal: 
-            |./wakfu-autobuilder-cli.exe --level 110 --action-point 11 --movement-point 5 --mastery-distance 500 --hp 2000 --range 2 --cc 30 --class cra --create-zenith-build --duration 60""".trimMargin(),
+            |./wakfu-autobuilder-cli.exe --level 110 --action-point 11 --movement-point 5 --mastery-distance 500 --hp 2000 --range 2 --cc 30 --class cra --create-zenith-build --duration 60
+        """.trimMargin(),
         name = "Wakfu Autobuilder version: $VERSION"
     ) {
     private val levelWanted: Int by option(
@@ -62,58 +97,61 @@ class WakfuAutobuild :
     private val characterClass: CharacterClass? by option(
         "--class",
         "--classe",
-        help = "The class of the character, here are the possible classes: " +
-                "FECA\n" +
-                "OSAMODAS\n" +
-                "ENUTROF\n" +
-                "SRAM\n" +
-                "XELOR\n" +
-                "ECAFLIP\n" +
-                "ENIRIPSA\n" +
-                "IOP\n" +
-                "CRA\n" +
-                "SADIDA\n" +
-                "SACRIEUR\n" +
-                "PANDAWA\n" +
-                "ROUBLARD\n" +
-                "ZOBAL\n" +
-                "OUGINAK\n" +
-                "STEAMER\n" +
-                "ELIOTROPE\n" +
-                "HUPPERMAGE"
+        help = """The class of the character, here are the possible classes: FECA
+OSAMODAS
+ENUTROF
+SRAM
+XELOR
+ECAFLIP
+ENIRIPSA
+IOP
+CRA
+SADIDA
+SACRIEUR
+PANDAWA
+ROUBLARD
+ZOBAL
+OUGINAK
+STEAMER
+ELIOTROPE
+HUPPERMAGE"""
     ).convert {
         val clazz = CharacterClass.fromValue(it)
-        if (clazz == CharacterClass.UNKNOWN)
+        if (clazz == CharacterClass.UNKNOWN) {
             fail("Unknown class, use --help to see all the classes possible")
+        }
 
         clazz
     }
 
     private val searchDuration: Duration by option(
-        "--duration", "--duree",
+        "--duration",
+        "--duree",
         help = "The number of seconds to search for the best set of equipment"
     ).convert { it.toLongOrNull()?.seconds ?: fail("'$it' should be a number") }
         .default(60.seconds)
 
     private val maxRarity: Rarity by option(
-        "--max-rarity", "--rarete-max",
+        "--max-rarity",
+        "--rarete-max",
         help = "Used to tell the algorithm to not take items into account that above this rarity, " +
-                "here the list of value possible in order: ${Rarity.entries}"
+            "here the list of value possible in order: ${Rarity.entries}"
     ).convert { Rarity.valueOf(it.uppercase()) }
         .default(Rarity.EPIC)
 
     private val forceItems: List<String> by option(
-        "--items-a-force", "--forced-items",
+        "--items-a-force",
+        "--forced-items",
         help = "Used to tell the algorithm to force specific items to be in the final build," +
-                " the names have to be French for now, can be used like that: --forced-items 'Gelano','Amulette du Bouftou',..."
+            " the names have to be French for now, can be used like that: --forced-items 'Gelano','Amulette du Bouftou',..."
     ).split(",").default(listOf())
 
     private val excludeItems: List<String> by option(
-        "--items-a-exclure", "--excluded-items",
+        "--items-a-exclure",
+        "--excluded-items",
         help = "Used to tell the algorithm to exclude specific items to not be in the final build," +
-                " the names have to be in french for now, can be used like that: --excluded-items 'Gelano','Amulette du Bouftou',..."
+            " the names have to be in french for now, can be used like that: --excluded-items 'Gelano','Amulette du Bouftou',..."
     ).split(",").default(listOf())
-
 
     private val paWanted: TargetStat? by option(
         names = arrayOf("--ap", "--action-point", "--pa"),
@@ -363,7 +401,6 @@ class WakfuAutobuild :
         help = "Use this flag to indicate that you want to stop searching when you have 100% build match already found."
     ).flag(default = false, defaultForHelp = "disabled")
 
-
     override fun run() {
         val character = Character(characterClass ?: CharacterClass.UNKNOWN, levelWanted)
         val targetStats = TargetStats(
@@ -422,7 +459,7 @@ class WakfuAutobuild :
                         stopWhenBuildMatch = stopWhenBuildMatch,
                         maxRarity = maxRarity,
                         forcedItems = forceItems,
-                        excludeItems = excludeItems,
+                        excludeItems = excludeItems
                     )
                 )
                 .also {
@@ -449,7 +486,7 @@ class WakfuAutobuild :
                         |
                         |Major
                         |${it.characterSkills.major.asASCIITable()}
-                    """.trimMargin()
+                        """.trimMargin()
                     )
                 }
 
@@ -512,4 +549,3 @@ private fun NullableOption<Pair<String, String>, Pair<String, String>>.toTargetS
             userDefinedWeight = weight.toIntOrNull() ?: 1
         )
     }
-
