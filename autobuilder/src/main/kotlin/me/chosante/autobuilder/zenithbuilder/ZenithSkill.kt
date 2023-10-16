@@ -15,9 +15,9 @@ import me.chosante.autobuilder.domain.skills.MajorCharacteristic
 import me.chosante.autobuilder.domain.skills.SkillCharacteristic
 import me.chosante.autobuilder.domain.skills.StrengthCharacteristic
 
-const val urlUpdateSkill = "$baseAPIUrl/aptitude/update"
+private const val urlUpdateSkill = "$baseAPIUrl/aptitude/update"
 
-suspend fun addSkill(skillCharacteristic: SkillCharacteristic, buildId: Long) {
+internal suspend fun addSkill(skillCharacteristic: SkillCharacteristic, buildId: Long) {
     val jsonPayload = buildJsonObject {
         put("id_build", buildId)
         put("id_aptitude", skillCharacteristic.toZenithWakfuAptitudeId())
@@ -55,14 +55,12 @@ private fun SkillCharacteristic.toZenithWakfuAptitudeId(): Int {
         is LuckCharacteristic.ResistanceBack -> 23
         is LuckCharacteristic.ResistanceCritical -> 24
         is MajorCharacteristic.ActionPoint -> 25
-        is MajorCharacteristic.MovementPoint, is MajorCharacteristic.MasteryElementaryWithMovementPoint -> 26
-        is MajorCharacteristic.Range, is MajorCharacteristic.MasteryElementaryWithRange -> 27
+        is MajorCharacteristic.MovementPointWithMasteryElementary -> 26
+        is MajorCharacteristic.RangeWithMasteryElementary -> 27
         is MajorCharacteristic.WakfuPoints -> 28
-        is MajorCharacteristic.Control, is MajorCharacteristic.MasteryElementaryWithControl -> 29
+        is MajorCharacteristic.ControlWithMasteryElementary -> 29
         is MajorCharacteristic.DamageInflicted -> 30
         is MajorCharacteristic.Resistance -> 31
-        is SkillCharacteristic.PairedCharacteristic -> {
-            first.toZenithWakfuAptitudeId()
-        }
+        else -> throw IllegalStateException("Unknown characteristic: $this")
     }
 }

@@ -16,6 +16,13 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlin.system.exitProcess
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel.Factory.CONFLATED
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import me.chosante.autobuilder.domain.Character
 import me.chosante.autobuilder.domain.CharacterClass
@@ -61,18 +68,22 @@ import me.chosante.common.Characteristic.WILLPOWER
 import me.chosante.common.Characteristic.WISDOM
 import me.chosante.common.Equipment
 import me.chosante.common.Rarity
+import me.tongfei.progressbar.ConsoleProgressBarConsumer
+import me.tongfei.progressbar.ProgressBar
+import me.tongfei.progressbar.ProgressBarBuilder
+import me.tongfei.progressbar.ProgressBarStyle
 
 private val logger = KotlinLogging.logger {}
-const val VERSION = "1.81.1.13"
+internal const val VERSION = "1.81.1.15"
 
 fun main(args: Array<String>) = WakfuAutobuild().main(args)
 
-val additionalHelpOnStats =
+private val additionalHelpOnStats =
     """note that, it is also possible to pass an optional weight with the following format 
         |-> x:y | x being the number wanted, y the weight of the statistic you want to put (default is 1)
     """.trimMargin()
 
-class WakfuAutobuild :
+private class WakfuAutobuild :
     CliktCommand(
         help = """This program helps Wakfu players easily find the best combination of equipment for their character 
             |at a given level by taking into account their desired stats and providing build suggestions
@@ -146,7 +157,7 @@ HUPPERMAGE"""
             " the names have to be French for now, can be used like that: --forced-items 'Gelano','Amulette du Bouftou',..."
     ).split(",").default(listOf())
 
-    private val excludeItems: List<String> by option(
+    private val excludedItems: List<String> by option(
         "--items-a-exclure",
         "--excluded-items",
         help = "Used to tell the algorithm to exclude specific items to not be in the final build," +
@@ -401,6 +412,7 @@ HUPPERMAGE"""
         help = "Use this flag to indicate that you want to stop searching when you have 100% build match already found."
     ).flag(default = false, defaultForHelp = "disabled")
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     override fun run() {
         val character = Character(characterClass ?: CharacterClass.UNKNOWN, levelWanted)
         val targetStats = TargetStats(
@@ -450,21 +462,34 @@ HUPPERMAGE"""
         }
 
         runBlocking {
-            val bestCombination = WakfuBestBuildFinderAlgorithm
-                .run(
-                    WakfuBestBuildParams(
-                        character = character,
-                        targetStats = targetStats,
-                        searchDuration = searchDuration,
-                        stopWhenBuildMatch = stopWhenBuildMatch,
-                        maxRarity = maxRarity,
-                        forcedItems = forceItems,
-                        excludeItems = excludeItems
+            val bestCombination = progressBar().use { progressBar ->
+                WakfuBestBuildFinderAlgorithm
+                    .run(
+                        WakfuBestBuildParams(
+                            character = character,
+                            targetStats = targetStats,
+                            searchDuration = searchDuration,
+                            stopWhenBuildMatch = stopWhenBuildMatch,
+                            maxRarity = maxRarity,
+                            forcedItems = forceItems,
+                            excludedItems = excludedItems
+                        )
                     )
-                )
-                .also {
-                    println(
-                        """Research result
+                    .buffer(CONFLATED)
+                    .onEach {
+                        progressBar.setExtraMessage("${it.individualMatchPercentage}% match found so far")
+                        progressBar.stepTo(it.progressPercentage.toLong())
+                        delay(1000L)
+                    }
+                    .onCompletion {
+                        progressBar.stepTo(progressBar.max)
+                    }
+                    .toList()
+                    .last()
+                    .individual
+                    .also {
+                        println(
+                            """Research result
                         |Given vs. Expected characteristics
                         |
                         |Equipment
@@ -486,9 +511,10 @@ HUPPERMAGE"""
                         |
                         |Major
                         |${it.characterSkills.major.asASCIITable()}
-                        """.trimMargin()
-                    )
-                }
+                            """.trimMargin()
+                        )
+                    }
+            }
 
             if (createZenithBuild) {
                 try {
@@ -518,6 +544,16 @@ HUPPERMAGE"""
         addRule()
         render()
     }
+}
+
+private fun progressBar(): ProgressBar {
+    return ProgressBarBuilder()
+        .hideEta()
+        .setTaskName("Best build research")
+        .setInitialMax(100)
+        .setStyle(ProgressBarStyle.UNICODE_BLOCK)
+        .setConsumer(ConsoleProgressBarConsumer(System.err))
+        .build()
 }
 
 private fun Assignable<*>.asASCIITable() = with(AsciiTable()) {
