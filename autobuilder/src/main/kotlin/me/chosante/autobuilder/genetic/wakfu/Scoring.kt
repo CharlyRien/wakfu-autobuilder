@@ -109,7 +109,7 @@ fun computeCharacteristicsValues(
         } ?: return@mapValues value
     }
 
-    actualCharacteristics
+    return actualCharacteristics
         .toMutableMap()
         .let { mutableCharacteristicsValue ->
             if (masteryElementsWanted.isNotEmpty()) {
@@ -153,9 +153,9 @@ fun computeCharacteristicsValues(
                     mutableCharacteristicsValue[it.key] = it.value
                 }
             }
-        }
 
-    return actualCharacteristics
+            mutableCharacteristicsValue
+        }
 }
 
 fun mergeAndSumCharacteristicValues(
