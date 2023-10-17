@@ -62,9 +62,10 @@ tasks {
     val downloadWarpWrapperTask by registering {
         doLast {
             // Warp for Linux:
+            val baseWarpPackerUrl = "https://github.com/fintermobilityas/warp/releases/download/v0.4.5"
             if (hostIsLinux) {
                 download.run {
-                    src("https://github.com/dgiagio/warp/releases/download/v0.3.0/linux-x64.warp-packer")
+                    src("${baseWarpPackerUrl}/linux-x64.warp-packer")
                     dest(file("$buildDirectoryAbsolutePath/warp/warp-packer"))
                     overwrite(false)
                 }
@@ -72,7 +73,7 @@ tasks {
             // Warp for macOS:
             if (hostIsMac) {
                 download.run {
-                    src("https://github.com/dgiagio/warp/releases/download/v0.3.0/macos-x64.warp-packer")
+                    src("${baseWarpPackerUrl}/macos-x64.warp-packer")
                     dest(file("$buildDirectoryAbsolutePath/warp/warp-packer"))
                     overwrite(false)
                 }
@@ -80,14 +81,14 @@ tasks {
             // Warp for Windows:
             if (hostIsMingw) {
                 download.run {
-                    src("https://github.com/dgiagio/warp/releases/download/v0.3.0/windows-x64.warp-packer.exe")
+                    src("${baseWarpPackerUrl}/windows-x64.warp-packer.exe")
                     dest(file("$buildDirectoryAbsolutePath/warp/warp-packer.exe"))
                     overwrite(false)
                 }
             }
         }
     }
-    val createWarpBundleTask by registering {
+    val createWarpBundle by registering {
         dependsOn("jar")
         doLast {
             val jdkDownloadBaseURL = "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21+35"
@@ -99,11 +100,15 @@ tasks {
             }.also {
                 val linuxWarpBundleDir = "$buildDirectoryAbsolutePath/warp-bundle/linux"
                 bundleWarpNecessaryFiles(linuxJreFilePath, linuxWarpBundleDir)
-                File(linuxWarpBundleDir, "run.sh").writeText(
+                File(linuxWarpBundleDir, "exec").writeText(
                     """
-                    #!/usr/bin/env bash
-                    HERE=${'$'}{BASH_SOURCE%/*}
-                    "${'$'}HERE/bin/java" -jar "${'$'}HERE/wakfu-autobuilder-cli.jar" "${'$'}@"
+                    #!/bin/sh
+                    
+                    DIR="${'$'}(cd "${'$'}(dirname "${'$'}0")" ; pwd -P)"
+                    JAVA_EXE=${'$'}DIR/bin/java
+                    chmod +x -R "${'$'}DIR"
+
+                    exec "${'$'}JAVA_EXE" -jar "${'$'}DIR/wakfu-autobuilder-cli.jar" "${'$'}@"
                     """.trimIndent()
                 )
             }
@@ -116,11 +121,15 @@ tasks {
                 val macosWarpBundlePathDir = "$buildDirectoryAbsolutePath/warp-bundle/macos"
                 bundleWarpNecessaryFiles(macOsJreFilePath, macosWarpBundlePathDir)
 
-                File(macosWarpBundlePathDir, "run.sh").writeText(
+                File(macosWarpBundlePathDir, "exec").writeText(
                     """
-                    #!/usr/bin/env bash
-                    HERE=${'$'}{BASH_SOURCE%/*}
-                    "${'$'}HERE/Contents/Home/bin/java" -jar "${'$'}HERE/wakfu-autobuilder-cli.jar" "${'$'}@"
+                    #!/bin/sh
+
+                    DIR="${'$'}(cd "${'$'}(dirname "${'$'}0")" ; pwd -P)"
+                    JAVA_EXE=${'$'}DIR/Contents/Home/bin/java
+                    chmod +x -R "${'$'}JAVA_EXE"
+
+                    exec "${'$'}JAVA_EXE" -jar "${'$'}DIR/wakfu-autobuilder-cli.jar" "${'$'}@"
                     """.trimIndent()
                 )
             }
@@ -152,7 +161,7 @@ tasks {
      * The output will be in "$buildDir/make/".
      */
     val make by registering {
-        dependsOn(downloadWarpWrapperTask, createWarpBundleTask)
+        dependsOn(downloadWarpWrapperTask, createWarpBundle)
         doLast {
             val cmd = when {
                 hostIsMac -> "$buildDirectoryAbsolutePath/warp/warp-packer"
@@ -160,22 +169,24 @@ tasks {
                 hostIsMingw -> "$buildDirectoryAbsolutePath/warp/warp-packer.exe"
                 else -> throw IllegalStateException("OS not supported for this task")
             }
+
             // Build Linux binary:
             exec {
                 val outputFileLinux = layout.buildDirectory.file("/make/linux/wakfu-autobuild-cli").get().asFile
                 if (!outputFileLinux.parentFile.exists()) {
                     outputFileLinux.parentFile.mkdirs()
                 }
-                setWorkingDir(layout.buildDirectory.dir("warp").get())
+                setWorkingDir(layout.buildDirectory.dir("warp-bundle/linux").get())
+
                 setCommandLine(cmd)
                 standardOutput = ByteArrayOutputStream()
                 args(
                     "--arch",
                     "linux-x64",
                     "--input_dir",
-                    "$buildDirectoryAbsolutePath/warp-bundle/linux/",
+                    ".",
                     "--exec",
-                    "$buildDirectoryAbsolutePath/warp-bundle/linux/run.sh",
+                    "exec",
                     "--output",
                     outputFileLinux.absolutePath
                 )
@@ -186,16 +197,16 @@ tasks {
                 if (!outputFileMacOS.parentFile.exists()) {
                     outputFileMacOS.parentFile.mkdirs()
                 }
-                setWorkingDir(layout.buildDirectory.dir("warp").get())
+                setWorkingDir(layout.buildDirectory.dir("warp-bundle/macos").get())
                 setCommandLine(cmd)
                 standardOutput = ByteArrayOutputStream()
                 args(
                     "--arch",
                     "macos-x64",
                     "--input_dir",
-                    "$buildDirectoryAbsolutePath/warp-bundle/macos/",
+                    ".",
                     "--exec",
-                    "$buildDirectoryAbsolutePath/warp-bundle/macos/run.sh",
+                    "exec",
                     "--output",
                     outputFileMacOS.absolutePath
                 )
@@ -206,16 +217,16 @@ tasks {
                 if (!outputFileWindows.parentFile.exists()) {
                     outputFileWindows.parentFile.mkdirs()
                 }
-                setWorkingDir(layout.buildDirectory.dir("warp").get())
+                setWorkingDir(layout.buildDirectory.dir("warp-bundle/windows").get())
                 setCommandLine(cmd)
                 standardOutput = ByteArrayOutputStream()
                 args(
                     "--arch",
                     "windows-x64",
                     "--input_dir",
-                    "$buildDirectoryAbsolutePath/warp-bundle/windows/",
+                    ".",
                     "--exec",
-                    "$buildDirectoryAbsolutePath/warp-bundle/windows/launcher.cmd",
+                    "launcher.cmd",
                     "--output",
                     outputFileWindows.absolutePath
                 )
