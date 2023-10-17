@@ -65,7 +65,7 @@ tasks {
             val baseWarpPackerUrl = "https://github.com/fintermobilityas/warp/releases/download/v0.4.5"
             if (hostIsLinux) {
                 download.run {
-                    src("${baseWarpPackerUrl}/linux-x64.warp-packer")
+                    src("$baseWarpPackerUrl/linux-x64.warp-packer")
                     dest(file("$buildDirectoryAbsolutePath/warp/warp-packer"))
                     overwrite(false)
                 }
@@ -73,7 +73,7 @@ tasks {
             // Warp for macOS:
             if (hostIsMac) {
                 download.run {
-                    src("${baseWarpPackerUrl}/macos-x64.warp-packer")
+                    src("$baseWarpPackerUrl/macos-x64.warp-packer")
                     dest(file("$buildDirectoryAbsolutePath/warp/warp-packer"))
                     overwrite(false)
                 }
@@ -81,7 +81,7 @@ tasks {
             // Warp for Windows:
             if (hostIsMingw) {
                 download.run {
-                    src("${baseWarpPackerUrl}/windows-x64.warp-packer.exe")
+                    src("$baseWarpPackerUrl/windows-x64.warp-packer.exe")
                     dest(file("$buildDirectoryAbsolutePath/warp/warp-packer.exe"))
                     overwrite(false)
                 }

@@ -53,7 +53,6 @@ object WakfuBestBuildFinderAlgorithm {
         return try {
             val mutationProbability = 0.02
             val numberOfIndividualsInPopulation = 5000
-            val isLowLevel = params.character.level <= 35
             GeneticAlgorithm(
                 population = generateRandomPopulations(
                     numberOfIndividual = numberOfIndividualsInPopulation,
@@ -75,8 +74,7 @@ object WakfuBestBuildFinderAlgorithm {
                         individual = combination,
                         mutationProbability = mutationProbability,
                         equipmentsByItemType = equipmentsByItemType,
-                        targetStats = targetStats,
-                        isLowLevel = isLowLevel
+                        targetStats = targetStats
                     )
                 }
             ).run(duration = params.searchDuration, stopWhenBuildMatch = params.stopWhenBuildMatch)

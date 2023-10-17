@@ -18,7 +18,6 @@ fun mutateCombination(
     mutationProbability: Double,
     equipmentsByItemType: Map<ItemType, List<Equipment>>,
     targetStats: TargetStats,
-    isLowLevel: Boolean,
 ): BuildCombination {
     var newEquipments = individual.equipments.toMutableList()
     var ringNames = newEquipments.filter { it.itemType == ItemType.RING }.map { it.name }
