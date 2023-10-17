@@ -140,7 +140,7 @@ fun computeCharacteristicsValues(
                 val resistanceOneRandom =
                     eachCharacteristicValueLineByEquipment[Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT]
                 val resistanceTwoRandom =
-                    eachCharacteristicValueLineByEquipment[Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT]
+                    eachCharacteristicValueLineByEquipment[Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT]
                 val resistanceThreeRandom =
                     eachCharacteristicValueLineByEquipment[Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT]
                 getAssignedValues(
