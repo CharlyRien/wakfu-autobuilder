@@ -1,39 +1,15 @@
 package me.chosante.autobuilder.domain.skills
 
-import me.chosante.autobuilder.domain.skills.MajorCharacteristic.ActionPoint
-import me.chosante.autobuilder.domain.skills.MajorCharacteristic.Control
-import me.chosante.autobuilder.domain.skills.MajorCharacteristic.DamageInflicted
-import me.chosante.autobuilder.domain.skills.MajorCharacteristic.MasteryElementaryWithControl
-import me.chosante.autobuilder.domain.skills.MajorCharacteristic.MasteryElementaryWithMovementPoint
-import me.chosante.autobuilder.domain.skills.MajorCharacteristic.MasteryElementaryWithRange
-import me.chosante.autobuilder.domain.skills.MajorCharacteristic.MovementPoint
-import me.chosante.autobuilder.domain.skills.MajorCharacteristic.Range
-import me.chosante.autobuilder.domain.skills.MajorCharacteristic.Resistance
-import me.chosante.autobuilder.domain.skills.MajorCharacteristic.WakfuPoints
+import me.chosante.autobuilder.domain.skills.MajorCharacteristic.*
 import me.chosante.common.Characteristic
 
 data class Major(
     override val maxPointsToAssign: Int,
     val actionPoint: ActionPoint = ActionPoint(0),
-    val movementPointAndMasteryElementary: SkillCharacteristic.PairedCharacteristic = SkillCharacteristic.PairedCharacteristic(
-        name = "Movement Point and damage",
-        maxPointsAssignable = 1,
-        first = MovementPoint(0),
-        second = MasteryElementaryWithMovementPoint(0)
-    ),
-    val rangeAndMasteryElementary: SkillCharacteristic.PairedCharacteristic = SkillCharacteristic.PairedCharacteristic(
-        name = "Range and damage",
-        maxPointsAssignable = 1,
-        first = Range(0),
-        second = MasteryElementaryWithRange(0)
-    ),
+    val movementPointAndMasteryElementary: MovementPointWithMasteryElementary = MovementPointWithMasteryElementary(0),
+    val rangeAndMasteryElementary: RangeWithMasteryElementary = RangeWithMasteryElementary(0),
     val wakfuPoints: WakfuPoints = WakfuPoints(0),
-    val controlAndMasteryElementary: SkillCharacteristic.PairedCharacteristic = SkillCharacteristic.PairedCharacteristic(
-        name = "Control and damage",
-        maxPointsAssignable = 1,
-        first = Control(0),
-        second = MasteryElementaryWithControl(0)
-    ),
+    val controlAndMasteryElementary: ControlWithMasteryElementary = ControlWithMasteryElementary(0),
     val damageInflicted: DamageInflicted = DamageInflicted(0),
     val resistance: Resistance = Resistance(0),
 ) : Assignable<Major> {
@@ -82,8 +58,14 @@ sealed class MajorCharacteristic(
             name = "Action Point"
         )
 
-    class MovementPoint(pointsAssigned: Int) :
-        MajorCharacteristic(
+    class MovementPointWithMasteryElementary(pointsAssigned: Int) :
+        PairedCharacteristic(
+            name = "Movement Point and damage",
+            first = MovementPoint(pointsAssigned),
+            second = MasteryElementary(pointsAssigned),
+            maxPointsAssignable = 1
+        ) {
+        private class MovementPoint(pointsAssigned: Int) : MajorCharacteristic(
             pointsAssigned = pointsAssigned,
             maxPointsAssignable = 1,
             unitValue = 1,
@@ -92,8 +74,7 @@ sealed class MajorCharacteristic(
             name = ""
         )
 
-    class MasteryElementaryWithMovementPoint(pointsAssigned: Int) :
-        MajorCharacteristic(
+        private class MasteryElementary(pointsAssigned: Int) : MajorCharacteristic(
             pointsAssigned = pointsAssigned,
             maxPointsAssignable = 1,
             unitValue = 20,
@@ -101,26 +82,34 @@ sealed class MajorCharacteristic(
             characteristic = Characteristic.MASTERY_ELEMENTARY,
             name = ""
         )
+    }
 
-    class Range(pointsAssigned: Int) :
-        MajorCharacteristic(
-            pointsAssigned = pointsAssigned,
-            maxPointsAssignable = 1,
-            unitValue = 1,
-            unitType = UnitType.FIXED,
-            characteristic = Characteristic.RANGE,
-            name = ""
-        )
+    class RangeWithMasteryElementary(pointsAssigned: Int) : PairedCharacteristic(
+        name = "Range and damage",
+        maxPointsAssignable = 1,
+        first = Range(pointsAssigned),
+        second = MasteryElementary(pointsAssigned)
+    ) {
+        private class Range(pointsAssigned: Int) :
+            MajorCharacteristic(
+                pointsAssigned = pointsAssigned,
+                maxPointsAssignable = 1,
+                unitValue = 1,
+                unitType = UnitType.FIXED,
+                characteristic = Characteristic.RANGE,
+                name = ""
+            )
 
-    class MasteryElementaryWithRange(pointsAssigned: Int) :
-        MajorCharacteristic(
-            pointsAssigned = pointsAssigned,
-            maxPointsAssignable = 1,
-            unitValue = 40,
-            unitType = UnitType.FIXED,
-            characteristic = Characteristic.MASTERY_ELEMENTARY,
-            name = ""
-        )
+        private class MasteryElementary(pointsAssigned: Int) :
+            MajorCharacteristic(
+                pointsAssigned = pointsAssigned,
+                maxPointsAssignable = 1,
+                unitValue = 40,
+                unitType = UnitType.FIXED,
+                characteristic = Characteristic.MASTERY_ELEMENTARY,
+                name = ""
+            )
+    }
 
     class WakfuPoints(pointsAssigned: Int) :
         MajorCharacteristic(
@@ -131,26 +120,32 @@ sealed class MajorCharacteristic(
             characteristic = Characteristic.WAKFU_POINT,
             name = "Wakfu Points"
         )
+    class ControlWithMasteryElementary(pointsAssigned: Int) : PairedCharacteristic(
+        name = "Control and damage",
+        maxPointsAssignable = 1,
+        first = Control(pointsAssigned),
+        second = MasteryElementary(pointsAssigned)
+    ) {
+        private class Control(pointsAssigned: Int) :
+            MajorCharacteristic(
+                pointsAssigned = pointsAssigned,
+                maxPointsAssignable = 1,
+                unitValue = 2,
+                unitType = UnitType.FIXED,
+                characteristic = Characteristic.CONTROL,
+                name = ""
+            )
 
-    class Control(pointsAssigned: Int) :
-        MajorCharacteristic(
-            pointsAssigned = pointsAssigned,
-            maxPointsAssignable = 1,
-            unitValue = 2,
-            unitType = UnitType.FIXED,
-            characteristic = Characteristic.CONTROL,
-            name = ""
-        )
-
-    class MasteryElementaryWithControl(pointsAssigned: Int) :
-        MajorCharacteristic(
-            pointsAssigned = pointsAssigned,
-            maxPointsAssignable = 1,
-            unitValue = 40,
-            unitType = UnitType.FIXED,
-            characteristic = Characteristic.MASTERY_ELEMENTARY,
-            name = ""
-        )
+        private class MasteryElementary(pointsAssigned: Int) :
+            MajorCharacteristic(
+                pointsAssigned = pointsAssigned,
+                maxPointsAssignable = 1,
+                unitValue = 40,
+                unitType = UnitType.FIXED,
+                characteristic = Characteristic.MASTERY_ELEMENTARY,
+                name = ""
+            )
+    }
 
     class DamageInflicted(pointsAssigned: Int) :
         MajorCharacteristic(

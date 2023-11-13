@@ -2,20 +2,17 @@ package me.chosante.autobuilder.genetic
 
 import java.math.BigDecimal
 import java.math.RoundingMode
-import java.util.concurrent.Executors
+import java.time.Instant
+import kotlin.math.floor
 import kotlin.time.Duration
-import kotlinx.coroutines.asCoroutineDispatcher
+import kotlin.time.toKotlinDuration
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import me.tongfei.progressbar.ConsoleProgressBarConsumer
-import me.tongfei.progressbar.ProgressBar
-import me.tongfei.progressbar.ProgressBarBuilder
-import me.tongfei.progressbar.ProgressBarStyle
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 
-class GeneticAlgorithm<T>(
+internal class GeneticAlgorithm<T>(
     var population: Collection<T>,
     val score: (individual: T) -> Double,
     val cross: (parents: Pair<T, T>) -> T,
@@ -25,25 +22,34 @@ class GeneticAlgorithm<T>(
     suspend fun run(
         duration: Duration,
         stopWhenBuildMatch: Boolean,
-    ): T = coroutineScope {
+    ): Flow<GeneticAlgorithmResult<T>> = coroutineScope {
         var scoredPopulation =
             population
                 .map { async { ScoredIndividual(score(it), it) } }
                 .awaitAll()
                 .sortedByDescending { it.score }
         var bestOfAllTimeIndividual = scoredPopulation.first()
-        progressBar(duration).use { progressBar ->
-            var isActive = true
-            launch(progressBarThreadPool) { updateProgressBar(progressBar) { isActive } }
-            val startTime = System.currentTimeMillis()
+        val startTime = System.currentTimeMillis()
+        flow {
             while (!shouldStop(startTime, duration, bestOfAllTimeIndividual.score, stopWhenBuildMatch)) {
                 scoredPopulation = generateNewPopulation(scoredPopulation)
                 bestOfAllTimeIndividual = findBestIndividual(scoredPopulation, bestOfAllTimeIndividual)
                 val scoreRounded = bestOfAllTimeIndividual.score.toBigDecimal().setScale(2, RoundingMode.FLOOR)
-                progressBar.setExtraMessage("$scoreRounded% match found so far")
+                emit(
+                    GeneticAlgorithmResult(
+                        individual = bestOfAllTimeIndividual.individual,
+                        individualMatchPercentage = scoreRounded,
+                        progressPercentage = floor(100.0 * Duration.between(startTime..System.currentTimeMillis()).inWholeSeconds / duration.inWholeSeconds).toInt()
+                    )
+                )
             }
-            isActive = false
-            bestOfAllTimeIndividual.individual
+            emit(
+                GeneticAlgorithmResult(
+                    individual = bestOfAllTimeIndividual.individual,
+                    individualMatchPercentage = bestOfAllTimeIndividual.score.toBigDecimal().setScale(2, RoundingMode.FLOOR),
+                    progressPercentage = floor(100.0 * Duration.between(startTime..System.currentTimeMillis()).inWholeSeconds / duration.inWholeSeconds).toInt()
+                )
+            )
         }
     }
 
@@ -56,23 +62,6 @@ class GeneticAlgorithm<T>(
             bestGenerationalIndividual
         } else {
             bestOfAllTimeIndividual
-        }
-    }
-
-    private fun progressBar(duration: Duration): ProgressBar {
-        return ProgressBarBuilder()
-            .hideEta()
-            .setTaskName("Best build research...")
-            .setInitialMax(duration.inWholeSeconds)
-            .setStyle(ProgressBarStyle.UNICODE_BLOCK)
-            .setConsumer(ConsoleProgressBarConsumer(System.err))
-            .build()
-    }
-
-    private suspend fun updateProgressBar(progressBar: ProgressBar, isActive: () -> Boolean) {
-        while (isActive()) {
-            delay(1000L)
-            progressBar.stepTo(progressBar.totalElapsed.seconds)
         }
     }
 
@@ -102,6 +91,16 @@ class GeneticAlgorithm<T>(
     }
 }
 
-val progressBarThreadPool = Executors.newFixedThreadPool(1).asCoroutineDispatcher()
+private fun Duration.Companion.between(timestampRange: LongRange): Duration {
+    val firstInstant = Instant.ofEpochMilli(timestampRange.first)
+    val lastInstant = Instant.ofEpochMilli(timestampRange.last)
+    return java.time.Duration.between(firstInstant, lastInstant).toKotlinDuration()
+}
 
 data class ScoredIndividual<T>(val score: Double, val individual: T)
+
+data class GeneticAlgorithmResult<T>(
+    val individual: T,
+    val individualMatchPercentage: BigDecimal,
+    val progressPercentage: Int,
+)

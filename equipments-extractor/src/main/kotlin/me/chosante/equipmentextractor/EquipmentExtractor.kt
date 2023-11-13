@@ -84,6 +84,7 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
 
         var level = equipment.definition.item.level
         val itemId = equipment.definition.item.id
+        val itemGuiId = equipment.definition.item.graphicParameters.gfxId
         val name = equipment.title.fr.replace("’", "'")
         val rarity = rarityIdToRarity.getValue(equipment.definition.item.baseParameters.rarity)
 
@@ -169,6 +170,7 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
 
         val outputDict = Equipment(
             equipmentId = itemId,
+            guiId = itemGuiId,
             level = level,
             name = name,
             rarity = rarity,
