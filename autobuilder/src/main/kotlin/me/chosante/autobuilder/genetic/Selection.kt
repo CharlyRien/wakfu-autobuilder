@@ -3,7 +3,7 @@ package me.chosante.autobuilder.genetic
 import kotlin.math.max
 import kotlin.random.Random.Default.nextInt
 
-fun <T> tournamentSelection(
+internal fun <T> tournamentSelection(
     scoredPopulation: Collection<ScoredIndividual<T>>,
 ): T {
     val tournamentSize = max(scoredPopulation.size / 1000, 2)

@@ -4,6 +4,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlin.system.exitProcess
 import kotlin.time.Duration
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import me.chosante.autobuilder.VERSION
@@ -11,6 +12,7 @@ import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.Character
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.GeneticAlgorithm
+import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
 import me.chosante.autobuilder.genetic.generateRandomPopulations
 import me.chosante.autobuilder.genetic.tournamentSelection
 import me.chosante.common.Equipment
@@ -23,36 +25,21 @@ object WakfuBestBuildFinderAlgorithm {
 
     suspend fun run(
         params: WakfuBestBuildParams,
-    ): BuildCombination {
-        val equipments = withContext(Dispatchers.IO) {
-            val equipmentsRaw =
-                this.javaClass.classLoader.getResourceAsStream("equipments-v$VERSION.json")?.readAllBytes()!!
-            Json.decodeFromString<List<Equipment>>(String(equipmentsRaw))
-        }
+    ): Flow<GeneticAlgorithmResult<BuildCombination>> {
+        val equipments = getEquipments()
+
+        val equipmentsByItemType = groupAndFilterEquipments(
+            equipments = equipments,
+            excludedItems = params.excludedItems,
+            forcedItems = params.forcedItems,
+            maxRarity = params.maxRarity,
+            character = params.character
+        )
 
         val targetStats = params.targetStats
-        val equipmentsByItemType = equipments
-            .asSequence()
-            .filter { equipment ->
-                equipment.rarity <= params.maxRarity
-            }
-            .filter { equipment ->
-                (equipment.level <= params.character.level && equipment.level >= maxOf(1, params.character.level - 50)) ||
-                    (equipment.itemType == ItemType.PETS || equipment.itemType == ItemType.MOUNTS)
-            }
-            .filter { equipment -> equipment.name !in params.excludeItems }
-            .groupBy { it.itemType }
-            .mapValues { (_, value) ->
-                if (value.any { it.name in params.forcedItems }) {
-                    value.filter { it.name in params.forcedItems || params.forcedItems.isEmpty() }
-                } else {
-                    value
-                }
-            }
-
         return try {
-            val mutationProbability = 0.02
-            val numberOfIndividualsInPopulation = 5000
+            val mutationProbability = 0.03
+            val numberOfIndividualsInPopulation = 10000
             GeneticAlgorithm(
                 population = generateRandomPopulations(
                     numberOfIndividual = numberOfIndividualsInPopulation,
@@ -82,6 +69,45 @@ object WakfuBestBuildFinderAlgorithm {
             logger.error(exception) { "Exception occurred during the process of finding the best equipments." }
             exitProcess(1)
         }
+    }
+
+    private fun groupAndFilterEquipments(
+        equipments: List<Equipment>,
+        excludedItems: List<String>,
+        forcedItems: List<String>,
+        maxRarity: Rarity,
+        character: Character,
+    ): Map<ItemType, List<Equipment>> {
+        val itemsExcluded = excludedItems.map { it.lowercase() }
+        val itemsToForce = forcedItems.map { it.lowercase() }
+        val equipmentsByItemType = equipments
+            .asSequence()
+            .filter { equipment ->
+                equipment.rarity <= maxRarity
+            }
+            .filter { equipment ->
+                (equipment.level <= character.level && equipment.level >= maxOf(1, character.level - 50)) ||
+                    (equipment.itemType == ItemType.PETS || equipment.itemType == ItemType.MOUNTS)
+            }
+            .filter { equipment -> equipment.name.lowercase() !in itemsExcluded }
+            .groupBy { it.itemType }
+            .mapValues { (_, value) ->
+                if (value.any { it.name.lowercase() in itemsToForce }) {
+                    value.filter { it.name.lowercase() in itemsToForce || itemsToForce.isEmpty() }
+                } else {
+                    value
+                }
+            }
+        return equipmentsByItemType
+    }
+
+    private suspend fun getEquipments(): List<Equipment> {
+        val equipments = withContext(Dispatchers.IO) {
+            val equipmentsRaw =
+                this.javaClass.classLoader.getResourceAsStream("equipments-v$VERSION.json")?.readAllBytes()!!
+            Json.decodeFromString<List<Equipment>>(String(equipmentsRaw))
+        }
+        return equipments
     }
 }
 
@@ -142,5 +168,5 @@ data class WakfuBestBuildParams(
     val stopWhenBuildMatch: Boolean,
     val maxRarity: Rarity,
     val forcedItems: List<String>,
-    val excludeItems: List<String>,
+    val excludedItems: List<String>,
 )

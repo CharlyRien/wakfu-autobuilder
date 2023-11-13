@@ -16,27 +16,28 @@ enum class Rarity {
 }
 
 @Serializable
-enum class ItemType {
-    AMULET,
-    EMBLEM,
-    SHOULDER_PADS,
-    RING,
-    BOOTS,
-    ONE_HANDED_WEAPONS,
-    CHEST_PLATE,
-    CAPE,
-    OFF_HAND_WEAPONS,
-    HELMET,
-    PETS,
-    TWO_HANDED_WEAPONS,
-    MOUNTS,
-    BELT,
+enum class ItemType(val id: Int) {
+    AMULET(120),
+    EMBLEM(646),
+    SHOULDER_PADS(138),
+    RING(103),
+    BOOTS(119),
+    ONE_HANDED_WEAPONS(518),
+    CHEST_PLATE(136),
+    CAPE(132),
+    OFF_HAND_WEAPONS(112),
+    HELMET(134),
+    PETS(582),
+    TWO_HANDED_WEAPONS(519),
+    MOUNTS(611),
+    BELT(133),
     ;
 }
 
 @Serializable
 data class Equipment(
     val equipmentId: Int,
+    val guiId: Int,
     val level: Int,
     val name: String,
     val rarity: Rarity,

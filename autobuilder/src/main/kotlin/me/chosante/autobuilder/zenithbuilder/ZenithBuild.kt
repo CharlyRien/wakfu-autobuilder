@@ -45,7 +45,7 @@ data class ZenithBuild(
         get() = "https://zenithwakfu.com/builder/$linkId"
 }
 
-val CHARACTER_CLASS_TO_ZENITH_JOB_ID =
+private val CHARACTER_CLASS_TO_ZENITH_JOB_ID =
     mapOf(
         FECA to 1,
         OSAMODAS to 2,
@@ -65,7 +65,6 @@ val CHARACTER_CLASS_TO_ZENITH_JOB_ID =
         STEAMER to 16,
         ELIOTROPE to 18,
         HUPPERMAGE to 19,
-
         UNKNOWN to 1
     )
 

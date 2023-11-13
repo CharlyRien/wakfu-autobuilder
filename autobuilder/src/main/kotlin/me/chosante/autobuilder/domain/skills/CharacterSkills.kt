@@ -144,7 +144,7 @@ sealed class SkillCharacteristic(
         pointsAssigned = pointsToAssign
     }
 
-    class PairedCharacteristic(
+    open class PairedCharacteristic(
         name: String,
         val first: SkillCharacteristic,
         val second: SkillCharacteristic,
@@ -234,12 +234,21 @@ fun <T : Assignable<T>> T.assignRandomPoints(pointsToAssign: Int, targetCharacte
 }
 
 private fun <T : Assignable<T>> T.filterOnlyWantedTargetCharacteristics(targetCharacteristics: List<Characteristic>): List<SkillCharacteristic> {
-    return getCharacteristics().filter {
-        if (it is SkillCharacteristic.PairedCharacteristic) {
-            it.first.characteristic in targetCharacteristics ||
-                it.second.characteristic in targetCharacteristics
-        } else {
-            it.characteristic in targetCharacteristics
+    return getCharacteristics().filter { skillCharacteristic ->
+        when {
+            skillCharacteristic is SkillCharacteristic.PairedCharacteristic ->
+                skillCharacteristic.first.characteristic in targetCharacteristics ||
+                    skillCharacteristic.second.characteristic in targetCharacteristics
+
+            skillCharacteristic.characteristic == Characteristic.RESISTANCE_ELEMENTARY -> targetCharacteristics.any {
+                it in resistanceElementaryCharacteristics
+            }
+
+            skillCharacteristic.characteristic == Characteristic.MASTERY_ELEMENTARY -> targetCharacteristics.any {
+                it in masteryElementaryCharacteristics
+            }
+
+            else -> skillCharacteristic.characteristic in targetCharacteristics
         }
     }
 }
@@ -260,3 +269,19 @@ private fun <T : Assignable<T>> T.assignPointsToCharacteristic(
         0
     }
 }
+
+private val masteryElementaryCharacteristics = listOf(
+    Characteristic.MASTERY_ELEMENTARY_EARTH,
+    Characteristic.MASTERY_ELEMENTARY_WATER,
+    Characteristic.MASTERY_ELEMENTARY_WIND,
+    Characteristic.MASTERY_ELEMENTARY_FIRE,
+    Characteristic.MASTERY_ELEMENTARY
+)
+
+private val resistanceElementaryCharacteristics = listOf(
+    Characteristic.RESISTANCE_ELEMENTARY_EARTH,
+    Characteristic.RESISTANCE_ELEMENTARY_WATER,
+    Characteristic.RESISTANCE_ELEMENTARY_WIND,
+    Characteristic.RESISTANCE_ELEMENTARY_FIRE,
+    Characteristic.RESISTANCE_ELEMENTARY
+)

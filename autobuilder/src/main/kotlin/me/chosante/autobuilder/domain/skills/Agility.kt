@@ -12,12 +12,7 @@ data class Agility(
     val lock: Lock = Lock(0),
     val dodge: Dodge = Dodge(0),
     val initiative: Initiative = Initiative(0),
-    val dodgeAndLock: SkillCharacteristic.PairedCharacteristic = SkillCharacteristic.PairedCharacteristic(
-        name = "Lock and Dodge",
-        maxPointsAssignable = Int.MAX_VALUE,
-        first = DodgeAndLock.Dodge(0),
-        second = DodgeAndLock.Lock(0)
-    ),
+    val dodgeAndLock: SkillCharacteristic.PairedCharacteristic = DodgeAndLock(0),
     val willpower: Willpower = Willpower(0),
 ) : Assignable<Agility> {
     init {
@@ -89,7 +84,12 @@ sealed class AgilityCharacteristic(
             name = "Initiative"
         )
 
-    class DodgeAndLock {
+    class DodgeAndLock(pointsAssigned: Int) : PairedCharacteristic(
+        "Dodge and lock",
+        first = Dodge(pointsAssigned),
+        second = Lock(pointsAssigned),
+        maxPointsAssignable = Int.MAX_VALUE
+    ) {
         class Dodge(pointsAssigned: Int) :
             AgilityCharacteristic(
                 pointsAssigned = pointsAssigned,

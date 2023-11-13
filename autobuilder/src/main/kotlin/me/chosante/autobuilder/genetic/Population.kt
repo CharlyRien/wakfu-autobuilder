@@ -8,33 +8,18 @@ import me.chosante.autobuilder.domain.skills.CharacterSkills
 import me.chosante.autobuilder.domain.skills.assignRandomPoints
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
-import me.tongfei.progressbar.ConsoleProgressBarConsumer
-import me.tongfei.progressbar.ProgressBarBuilder
-import me.tongfei.progressbar.ProgressBarStyle
 
-fun generateRandomPopulations(
+internal fun generateRandomPopulations(
     numberOfIndividual: Int = 10000,
     equipmentsByItemType: Map<ItemType, List<Equipment>>,
     character: Character,
     targetStats: TargetStats,
 ): Collection<BuildCombination> {
-    val progressBar = ProgressBarBuilder()
-        .hideEta()
-        .setTaskName("Initialize build finder engine")
-        .setStyle(ProgressBarStyle.UNICODE_BLOCK)
-        .setInitialMax(numberOfIndividual.toLong())
-        .setConsumer(ConsoleProgressBarConsumer(System.err))
-        .continuousUpdate()
-        .build()
-
-    progressBar.use { pb ->
-        return generateSequence {
-            getRandomCombination(character, equipmentsByItemType, targetStats)
-        }
-            .onEach { pb.step() }
-            .take(numberOfIndividual)
-            .toList()
+    return generateSequence {
+        getRandomCombination(character, equipmentsByItemType, targetStats)
     }
+        .take(numberOfIndividual)
+        .toList()
 }
 
 private fun getRandomCombination(

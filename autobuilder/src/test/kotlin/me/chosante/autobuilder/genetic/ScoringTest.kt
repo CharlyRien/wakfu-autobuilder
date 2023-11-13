@@ -5,8 +5,8 @@ import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.Character
 import me.chosante.autobuilder.domain.CharacterClass
 import me.chosante.autobuilder.domain.skills.CharacterSkills
+import me.chosante.autobuilder.genetic.wakfu.assignUniformlyMasteryRandomValues
 import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
-import me.chosante.autobuilder.genetic.wakfu.getAssignedValues
 import me.chosante.common.Characteristic
 import me.chosante.common.Characteristic.ACTION_POINT
 import me.chosante.common.Characteristic.CONTROL
@@ -349,7 +349,15 @@ class ScoringTest {
             INITIATIVE to 11,
             WAKFU_POINT to 6,
             MASTERY_ELEMENTARY to 83,
-            RESISTANCE_ELEMENTARY to 145
+            RESISTANCE_ELEMENTARY to 145,
+            MASTERY_ELEMENTARY_FIRE to 83,
+            MASTERY_ELEMENTARY_WIND to 83,
+            MASTERY_ELEMENTARY_WATER to 83,
+            MASTERY_ELEMENTARY_EARTH to 83,
+            RESISTANCE_ELEMENTARY_EARTH to 145,
+            RESISTANCE_ELEMENTARY_FIRE to 145,
+            RESISTANCE_ELEMENTARY_WIND to 145,
+            RESISTANCE_ELEMENTARY_WATER to 145
         )
 
         assertEquals(expectedCharacteristics, actualCharacteristics)
@@ -357,9 +365,11 @@ class ScoringTest {
 
     @Test
     fun `test assign values`() {
-        val oneRandomElement = listOf(1, 2, 3)
-        val twoRandomElement = listOf(4, 5, 6)
-        val threeRandomElement = listOf(7, 8, 9)
+        val randomElements = mapOf(
+            Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT to listOf(1, 2, 3),
+            Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT to listOf(4, 5, 6),
+            Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT to listOf(7, 8, 9)
+        )
         val wantedCharacteristics =
             mapOf(
                 MASTERY_ELEMENTARY_FIRE to 70,
@@ -371,10 +381,8 @@ class ScoringTest {
             MASTERY_ELEMENTARY_WATER to 39,
             MASTERY_ELEMENTARY_WIND to 24
         )
-        val result = getAssignedValues(
-            oneRandomElement = oneRandomElement,
-            twoRandomElement = twoRandomElement,
-            threeRandomElement = threeRandomElement,
+        val result = assignUniformlyMasteryRandomValues(
+            randomElements = randomElements,
             characteristicToValueCurrent = mapOf(),
             characteristicToValueWanted = wantedCharacteristics
         )
@@ -392,6 +400,7 @@ class ScoringTest {
             name = name,
             rarity = Rarity.RARE,
             itemType = ItemType.HELMET,
-            characteristics = characteristics
+            characteristics = characteristics,
+            guiId = 0
         )
 }

@@ -21,33 +21,10 @@ import kotlinx.serialization.json.put
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 
-const val urlAddEquipment = "$baseAPIUrl/equipment/add"
-const val urlGetEquipments = "$baseAPIUrl/equipment"
+private const val urlAddEquipment = "$baseAPIUrl/equipment/add"
+private const val urlGetEquipments = "$baseAPIUrl/equipment"
 
-val ringSideIds = mutableListOf(23, 24)
-
-val ITEM_TYPE_TO_ZENITH_TYPE_ID =
-    mapOf(
-        ItemType.AMULET to 120,
-        ItemType.EMBLEM to 646,
-        ItemType.SHOULDER_PADS to 138,
-        ItemType.RING to 103,
-        ItemType.BOOTS to 119,
-        ItemType.ONE_HANDED_WEAPONS to 518,
-        ItemType.CHEST_PLATE to 136,
-        ItemType.CAPE to 132,
-        ItemType.OFF_HAND_WEAPONS to 112,
-        ItemType.HELMET to 134,
-        ItemType.PETS to 582,
-        ItemType.TWO_HANDED_WEAPONS to 519,
-        ItemType.MOUNTS to 611,
-        ItemType.BELT to 133
-    )
-
-private val ItemType.zenithTypeId: Int
-    get() = ITEM_TYPE_TO_ZENITH_TYPE_ID.getValue(this)
-
-val elements = buildJsonArray {
+private val elements = buildJsonArray {
     addJsonObject {
         put("id_element", 1)
         put("id_inner_stats", 122)
@@ -70,14 +47,14 @@ val elements = buildJsonArray {
     }
 }
 
-suspend fun addEquipment(equipment: Equipment, level: Int, buildId: Long) {
+internal suspend fun addEquipment(equipment: Equipment, buildId: Long, sideValue: Int) {
     val itemTypesZenithId = if (equipment.itemType == ItemType.OFF_HAND_WEAPONS) {
-        listOf(equipment.itemType.zenithTypeId, 189) // 189 equals shield type
+        listOf(equipment.itemType.id, 189) // 189 equals shield type
     } else {
-        listOf(equipment.itemType.zenithTypeId)
+        listOf(equipment.itemType.id)
     }
     val parameters = listOf(
-        "maxLvl" to level,
+        "maxLvl" to equipment.level,
         "name" to equipment.name
     ) + itemTypesZenithId.map { "type[]" to it }
 
@@ -112,12 +89,6 @@ suspend fun addEquipment(equipment: Equipment, level: Int, buildId: Long) {
         JsonObject(
             equipmentInformation + (
                 "metadata" to buildJsonObject {
-                    val sideValue = when (equipment.itemType) {
-                        ItemType.RING -> ringSideIds.removeFirst()
-                        ItemType.TWO_HANDED_WEAPONS, ItemType.ONE_HANDED_WEAPONS -> 540
-                        ItemType.OFF_HAND_WEAPONS -> 520
-                        else -> itemTypesZenithId.first()
-                    }
                     put("side", sideValue)
                 }
                 ) + (
