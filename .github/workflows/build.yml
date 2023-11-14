@@ -13,18 +13,3 @@ jobs:
 
             - name: Verify everything is working fine
               run: ./gradlew test
-
-            - name: Create Jars
-              run: ./gradlew jar
-
-            - name: Upload artifact
-              uses: actions/upload-artifact@v3
-              with:
-                  name: build-result
-                  path: |
-                    .
-                    gui/build/libs/*.jar
-                    !gui/build/
-                    !gui/src/
-                    !.git
-                  if-no-files-found: error
