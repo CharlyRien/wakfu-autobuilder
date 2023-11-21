@@ -1,23 +1,16 @@
 package me.chosante.equipmentextractor.dataretriever.dtos
 
 import kotlinx.serialization.Serializable
+import me.chosante.common.I18nText
 
 @Serializable
 data class Effect(
     val definition: EffectDefinition,
-    val description: EffectDescription? = null,
+    val description: I18nText? = null,
 )
 
 @Serializable
 data class EffectDefinition(
     val id: Int,
     val effect: String,
-)
-
-@Serializable
-data class EffectDescription(
-    val fr: String,
-    val en: String,
-    val es: String,
-    val pt: String,
 )

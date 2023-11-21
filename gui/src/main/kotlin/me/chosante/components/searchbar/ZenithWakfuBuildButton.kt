@@ -1,6 +1,7 @@
 package me.chosante.components.searchbar
 
 import atlantafx.base.controls.RingProgressIndicator
+import generated.I18nKey
 import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleObjectProperty
 import javafx.event.EventHandler
@@ -12,9 +13,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.javafx.JavaFx
 import kotlinx.coroutines.launch
+import me.chosante.ZenithInputParameters
 import me.chosante.autobuilder.domain.BuildCombination
-import me.chosante.autobuilder.domain.Character
-import me.chosante.autobuilder.zenithbuilder.createZenithBuild
+import me.chosante.common.Character
+import me.chosante.createZenithBuild
 import me.chosante.eventbus.DefaultEventBus.publish
 import me.chosante.eventbus.DefaultEventBus.subscribe
 import me.chosante.eventbus.Listener
@@ -22,11 +24,12 @@ import me.chosante.events.AutobuildEndSearchEvent
 import me.chosante.events.AutobuildStartSearchEvent
 import me.chosante.events.AutobuildUpdateSearchEvent
 import me.chosante.events.ZenithBuildCreatedEvent
+import me.chosante.i18n.I18n
 
 @Suppress("UNUSED_PARAMETER")
 class ZenithWakfuBuildButton(
     getCharacter: () -> Character,
-) : Button("Create Zenith Wakfu Build"), CoroutineScope {
+) : Button(I18n.valueOf(I18nKey.ZENITH_WAKFU_BUILD_CREATION_BUTTON)), CoroutineScope {
 
     private val lastBuildFound = SimpleObjectProperty<BuildCombination>()
     private val isZenithWakfuCreationInProgress = SimpleBooleanProperty(false)
@@ -34,7 +37,7 @@ class ZenithWakfuBuildButton(
 
     init {
         disableProperty().bind(lastBuildFound.isNull.or(isZenithWakfuCreationInProgress))
-        tooltip = Tooltip("Create Zenith Wakfu Build")
+        tooltip = Tooltip(I18n.valueOf(I18nKey.ZENITH_WAKFU_BUILD_CREATION_BUTTON))
         contentDisplay = ContentDisplay.RIGHT
         onMouseClicked = EventHandler {
             if (!isDisabled) {
@@ -42,12 +45,17 @@ class ZenithWakfuBuildButton(
                 if (buildCombination.isNotNull.value) {
                     launch {
                         isZenithWakfuCreationInProgress.value = true
-                        // little hack here to be on the javafx thread to update the UI
                         graphicProperty().value = zenithBuildCreationProgressIndicator
-                        val createZenithBuildUrl = buildCombination.get().createZenithBuild(getCharacter())
+                        val combination = buildCombination.get()
+                        val zenithBuildUrl = ZenithInputParameters(
+                            character = getCharacter().copy(characterSkills = combination.characterSkills),
+                            equipments = combination.equipments
+                        ).createZenithBuild()
+                        publish(ZenithBuildCreatedEvent(zenithBuildUrl))
+                    }.invokeOnCompletion {
+                        isZenithWakfuCreationInProgress.value = false
                         graphicProperty().value = null
-                        publish(ZenithBuildCreatedEvent(createZenithBuildUrl))
-                    }.invokeOnCompletion { isZenithWakfuCreationInProgress.value = false }
+                    }
                 }
             }
         }

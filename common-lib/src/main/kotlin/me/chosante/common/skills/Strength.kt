@@ -1,10 +1,10 @@
-package me.chosante.autobuilder.domain.skills
+package me.chosante.common.skills
 
-import me.chosante.autobuilder.domain.skills.StrengthCharacteristic.Hp
-import me.chosante.autobuilder.domain.skills.StrengthCharacteristic.MasteryDistance
-import me.chosante.autobuilder.domain.skills.StrengthCharacteristic.MasteryElementary
-import me.chosante.autobuilder.domain.skills.StrengthCharacteristic.MasteryMelee
 import me.chosante.common.Characteristic
+import me.chosante.common.skills.StrengthCharacteristic.Hp
+import me.chosante.common.skills.StrengthCharacteristic.MasteryDistance
+import me.chosante.common.skills.StrengthCharacteristic.MasteryElementary
+import me.chosante.common.skills.StrengthCharacteristic.MasteryMelee
 
 data class Strength(
     override val maxPointsToAssign: Int,

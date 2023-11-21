@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import me.chosante.common.I18nText
 
 object ItemSerializer : JsonContentPolymorphicSerializer<Item>(Item::class) {
     override fun selectDeserializer(element: JsonElement): KSerializer<out Item> {
@@ -29,22 +30,22 @@ object ItemSerializer : JsonContentPolymorphicSerializer<Item>(Item::class) {
 @Serializable
 data class Sublimation(
     override val definition: Definition,
-    override val title: LanguageText,
-    override val description: LanguageText? = null,
+    override val title: I18nText,
+    override val description: I18nText? = null,
 ) : Item()
 
 @Serializable
 data class Enchantment(
     override val definition: Definition,
-    override val title: LanguageText,
-    override val description: LanguageText? = null,
+    override val title: I18nText,
+    override val description: I18nText? = null,
 ) : Item()
 
 @Serializable
 data class Equipment(
     override val definition: Definition,
-    override val title: LanguageText,
-    override val description: LanguageText? = null,
+    override val title: I18nText,
+    override val description: I18nText? = null,
 ) : Item()
 
 @Serializable
@@ -53,10 +54,10 @@ abstract class Item {
     abstract val definition: Definition
 
     @SerialName("title")
-    abstract val title: LanguageText
+    abstract val title: I18nText
 
     @SerialName("description")
-    abstract val description: LanguageText?
+    abstract val description: I18nText?
 
     @Serializable
     data class Definition(
@@ -170,7 +171,7 @@ data class EffectData(
     @SerialName("definition")
     val definition: EffectDefinition,
     @SerialName("description")
-    val description: LanguageText? = null,
+    val description: I18nText? = null,
 ) {
     @Serializable
     data class EffectDefinition(
@@ -186,15 +187,3 @@ data class EffectData(
         val params: List<Double>,
     )
 }
-
-@Serializable
-data class LanguageText(
-    @SerialName("fr")
-    val fr: String,
-    @SerialName("en")
-    val en: String,
-    @SerialName("es")
-    val es: String,
-    @SerialName("pt")
-    val pt: String,
-)

@@ -13,8 +13,9 @@ repositories {
 }
 
 dependencies {
-    testImplementation(platform("org.junit:junit-bom:5.10.1"))
+    testImplementation(platform(libs.junit.bom))
     testImplementation("org.junit.jupiter:junit-jupiter")
+    implementation(platform(libs.kotlinx.coroutine.bom))
     implementation(libs.bundles.fuel)
     implementation(libs.kotlinx.serialization.json)
     implementation(project(":common-lib"))
