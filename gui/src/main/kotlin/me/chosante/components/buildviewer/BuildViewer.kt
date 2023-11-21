@@ -1,13 +1,18 @@
 package me.chosante.components.buildviewer
 
+import atlantafx.base.theme.Styles
+import generated.I18nKey
 import javafx.beans.binding.Bindings
 import javafx.beans.property.SimpleObjectProperty
 import javafx.geometry.Insets
 import javafx.geometry.Pos
+import javafx.scene.control.Label
 import javafx.scene.control.ScrollPane
+import javafx.scene.effect.BoxBlur
 import javafx.scene.layout.GridPane
 import javafx.scene.layout.Priority
 import kotlin.coroutines.CoroutineContext
+import javafx.scene.layout.StackPane
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.javafx.JavaFx
@@ -18,6 +23,7 @@ import me.chosante.eventbus.Listener
 import me.chosante.events.AutobuildEndSearchEvent
 import me.chosante.events.AutobuildStartSearchEvent
 import me.chosante.events.AutobuildUpdateSearchEvent
+import me.chosante.i18n.I18n
 
 @Suppress("UNUSED_PARAMETER")
 class BuildViewer : ScrollPane(), CoroutineScope {
@@ -54,10 +60,17 @@ class BuildViewer : ScrollPane(), CoroutineScope {
         alignment = Pos.TOP_CENTER
     }
 
+    private val placeholderText = Label(I18n.valueOf(I18nKey.BUILD_VIEWER_PLACEHOLDER_TEXT)).apply {
+        styleClass.addAll(Styles.TITLE_1)
+    }
+
+    private val stackPane = StackPane(gridPane, placeholderText)
+
     init {
         isFitToWidth = true
         padding = Insets(10.0)
-        content = gridPane
+        gridPane.effect = BoxBlur(3.0, 3.0, 3)
+        content = stackPane
         hbarPolicy = ScrollBarPolicy.AS_NEEDED
         vbarPolicy = ScrollBarPolicy.AS_NEEDED
         gridPane.prefWidthProperty().bind(Bindings.add(-1, widthProperty()))
@@ -70,6 +83,10 @@ class BuildViewer : ScrollPane(), CoroutineScope {
     @Listener
     private fun buildStart(event: AutobuildStartSearchEvent) {
         launch {
+            if (gridPane.effect != null) {
+                gridPane.effect = null
+                stackPane.children -= placeholderText
+            }
             gridPane.isDisable = true
         }
     }

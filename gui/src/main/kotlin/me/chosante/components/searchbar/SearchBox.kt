@@ -1,6 +1,7 @@
 package me.chosante.components.searchbar
 
 import atlantafx.base.theme.Styles
+import generated.I18nKey
 import javafx.geometry.Orientation
 import javafx.geometry.Pos
 import javafx.scene.control.Hyperlink
@@ -23,6 +24,7 @@ import me.chosante.events.AutobuildStartSearchEvent
 import me.chosante.events.AutobuildUpdateSearchEvent
 import me.chosante.events.BrowseEvent
 import me.chosante.events.ZenithBuildCreatedEvent
+import me.chosante.i18n.I18n
 
 @Suppress("UNUSED_PARAMETER")
 class SearchBox(
@@ -35,7 +37,7 @@ class SearchBox(
     private val progressBar = ProgressBar(0.0).apply {
         styleClass.add(Styles.LARGE)
     }
-    private val matchPercentageLabel = Label("Match Percentage: 0%")
+    private val matchPercentageLabel = Label(I18n.valueOf(I18nKey.SEARCH_MATCH_PERCENTAGE_LABEL, "0"))
     private val searchButton = SearchButton(getParams)
     private val cancelSearchButton = CancelSearchButton()
     private val createZenithWakfuBuildButton = ZenithWakfuBuildButton(getCharacter)
@@ -55,6 +57,7 @@ class SearchBox(
         children += buildUrlLabel
         alignment = Pos.CENTER
         setHgrow(searchButton, Priority.ALWAYS)
+        searchButton.requestLayout()
         setHgrow(matchPercentageLabel, Priority.ALWAYS)
         DefaultEventBus.subscribe(AutobuildUpdateSearchEvent::class, ::onBuildProcessUpdate)
         DefaultEventBus.subscribe(AutobuildStartSearchEvent::class, ::onBuildProcessStart)
@@ -67,7 +70,7 @@ class SearchBox(
         launch {
             val buildCombination = autobuildUpdateSearchEvent.buildCombination
             progressBar.progressProperty().value = buildCombination.progressPercentage / 100.0
-            matchPercentageLabel.textProperty().value = "Match Percentage: ${buildCombination.individualMatchPercentage}%"
+            matchPercentageLabel.textProperty().value = I18n.valueOf(I18nKey.SEARCH_MATCH_PERCENTAGE_LABEL, buildCombination.individualMatchPercentage.toPlainString())
         }
     }
 

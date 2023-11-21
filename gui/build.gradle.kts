@@ -1,3 +1,6 @@
+import java.nio.file.Files
+import java.util.Properties
+
 plugins {
     kotlin("jvm")
     id("org.openjfx.javafxplugin") version "0.1.0"
@@ -30,12 +33,44 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter")
 }
 
+tasks {
+    val generateKotlinI18nKeys by registering {
+        val propertiesFile = file("src/main/resources/i18n_en.properties")
+        val properties = Properties()
+        properties.load(propertiesFile.inputStream())
+
+        val enumName = "I18nKey"
+        val constantsClass = buildString {
+            appendLine("package generated")
+            appendLine("enum class $enumName(val key: String) {")
+            properties.forEach { key, _ ->
+                val constantKeyName = key.toString().replace("[^a-zA-Z0-9]".toRegex(), "_").uppercase()
+                appendLine("""    $constantKeyName("$key"), """)
+            }
+            appendLine("}")
+        }
+
+        Files.createDirectories(file("src/main/kotlin/generated").toPath())
+        file("src/main/kotlin/generated/$enumName.kt").writeText(constantsClass)
+    }
+
+    compileKotlin {
+        dependsOn(generateKotlinI18nKeys)
+    }
+}
+
 tasks.test {
     useJUnitPlatform()
 }
 
 kotlin {
     jvmToolchain(libs.versions.jvm.get().toInt())
+}
+
+ktlint {
+    filter {
+        exclude("**/generated/**")
+    }
 }
 
 javafx {

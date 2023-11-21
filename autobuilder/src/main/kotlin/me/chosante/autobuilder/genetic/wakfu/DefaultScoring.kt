@@ -286,7 +286,7 @@ private fun MutableMap<Characteristic, Int>.assignValues(
     return this
 }
 
-fun getElementsCurrent(
+internal fun getElementsCurrent(
     elementsWanted: Map<Characteristic, Int>,
     actualCharacteristics: Map<Characteristic, Int>,
     characteristic: Characteristic,
@@ -296,11 +296,11 @@ fun getElementsCurrent(
     }
 }
 
-fun getMasteryRandoms(eachCharacteristicValueLineByEquipment: Map<Characteristic, List<Int>>) = eachCharacteristicValueLineByEquipment.filterKeys {
+internal fun getMasteryRandoms(eachCharacteristicValueLineByEquipment: Map<Characteristic, List<Int>>) = eachCharacteristicValueLineByEquipment.filterKeys {
     it in listOf(Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT, Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT, Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT)
 }
 
-fun getResistanceRandoms(eachCharacteristicValueLineByEquipment: Map<Characteristic, List<Int>>) = eachCharacteristicValueLineByEquipment.filterKeys {
+internal fun getResistanceRandoms(eachCharacteristicValueLineByEquipment: Map<Characteristic, List<Int>>) = eachCharacteristicValueLineByEquipment.filterKeys {
     it in listOf(
         Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT,
         Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT,

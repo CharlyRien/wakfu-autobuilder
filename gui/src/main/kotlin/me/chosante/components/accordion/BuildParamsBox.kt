@@ -5,9 +5,13 @@ import atlantafx.base.controls.ToggleSwitch
 import javafx.collections.FXCollections
 import javafx.scene.control.Alert
 import javafx.scene.control.ComboBox
+import javafx.scene.control.ListCell
 import javafx.scene.control.Spinner
 import javafx.scene.control.TextField
+import javafx.scene.image.Image
+import javafx.scene.image.ImageView
 import javafx.scene.layout.VBox
+import javafx.util.Callback
 import me.chosante.alert
 import me.chosante.autobuilder.domain.Character
 import me.chosante.autobuilder.domain.CharacterClass
@@ -30,11 +34,30 @@ class BuildParamsBox : VBox(5.0) {
         actionHandler = Runnable { }
     }
 
+    private data class RarityItem(val text: String, val image: Image)
+    private class RarityItemCell : ListCell<RarityItem>() {
+        override fun updateItem(item: RarityItem?, empty: Boolean) {
+            super.updateItem(item, empty)
+
+            if (empty || item == null) {
+                graphic = null
+                text = null
+            } else {
+                graphic = ImageView(item.image)
+                text = item.text
+            }
+        }
+    }
+
     private val maxRarityComboBox = ComboBox(
         FXCollections.observableArrayList(
-            Rarity.entries.map { it.name }
+            Rarity.entries.map { RarityItem(it.name, Image("assets/rarities/${it.name.lowercase()}.png")) }
         )
-    )
+    ).apply {
+        buttonCell = RarityItemCell()
+        cellFactory = Callback { RarityItemCell() }
+    }
+
     private val maxRarityTile = Tile(
         "Max Rarity",
         "No items will be used for the build above the selected rarity"
@@ -116,5 +139,5 @@ class BuildParamsBox : VBox(5.0) {
         get() = stopWhenBuildMatchToggleSwitch.selectedProperty().value
 
     val maxRarity
-        get() = Rarity.valueOf(maxRarityComboBox.value)
+        get() = Rarity.valueOf(maxRarityComboBox.value.text)
 }
