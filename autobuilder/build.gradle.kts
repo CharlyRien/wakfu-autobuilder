@@ -6,7 +6,7 @@ import org.jetbrains.kotlin.konan.target.HostManager.Companion.hostIsMingw
 plugins {
     kotlin("jvm")
     kotlin("plugin.serialization")
-    id("de.undercouch.download") version "5.4.0"
+    id("de.undercouch.download") version "5.5.0"
     id("org.jlleitschuh.gradle.ktlint")
     application
 }
