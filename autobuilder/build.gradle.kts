@@ -22,7 +22,7 @@ dependencies {
     implementation(project(":common-lib"))
     testImplementation(kotlin("test"))
     implementation("com.github.ajalt.clikt:clikt:4.1.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.1")
     implementation("me.tongfei:progressbar:0.9.5")
     implementation("com.github.kittinunf.fuel:fuel:2.3.1")
     implementation("com.github.kittinunf.fuel:fuel-coroutines:2.3.1")
