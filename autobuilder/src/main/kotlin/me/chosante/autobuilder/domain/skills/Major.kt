@@ -1,6 +1,12 @@
 package me.chosante.autobuilder.domain.skills
 
-import me.chosante.autobuilder.domain.skills.MajorCharacteristic.*
+import me.chosante.autobuilder.domain.skills.MajorCharacteristic.ActionPoint
+import me.chosante.autobuilder.domain.skills.MajorCharacteristic.ControlWithMasteryElementary
+import me.chosante.autobuilder.domain.skills.MajorCharacteristic.DamageInflicted
+import me.chosante.autobuilder.domain.skills.MajorCharacteristic.MovementPointWithMasteryElementary
+import me.chosante.autobuilder.domain.skills.MajorCharacteristic.RangeWithMasteryElementary
+import me.chosante.autobuilder.domain.skills.MajorCharacteristic.Resistance
+import me.chosante.autobuilder.domain.skills.MajorCharacteristic.WakfuPoints
 import me.chosante.common.Characteristic
 
 data class Major(

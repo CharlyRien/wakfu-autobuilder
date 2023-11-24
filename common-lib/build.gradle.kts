@@ -2,7 +2,7 @@ plugins {
     `java-library`
     kotlin("jvm")
     kotlin("plugin.serialization")
-    id("org.jlleitschuh.gradle.ktlint")
+    alias(libs.plugins.ktlint)
 }
 
 group = "me.chosante"
@@ -13,7 +13,7 @@ repositories {
 }
 
 dependencies {
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
+    implementation(libs.kotlinx.serialization.json)
 }
 
 kotlin {
