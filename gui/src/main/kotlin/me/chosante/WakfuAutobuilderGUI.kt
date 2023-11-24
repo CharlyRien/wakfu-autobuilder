@@ -8,12 +8,15 @@ import java.nio.file.Paths
 import javafx.application.Application
 import javafx.geometry.Insets
 import javafx.geometry.Orientation
+import javafx.geometry.Pos
 import javafx.scene.Scene
 import javafx.scene.control.Accordion
+import javafx.scene.control.Label
 import javafx.scene.control.SplitPane
 import javafx.scene.control.TitledPane
 import javafx.scene.image.Image
 import javafx.scene.layout.BorderPane
+import javafx.scene.layout.HBox
 import javafx.scene.layout.StackPane
 import javafx.stage.Stage
 import javafx.util.Duration
@@ -44,6 +47,11 @@ class WakfuAutobuilderGUI : Application(), CoroutineScope {
     private val buildParamsBox = BuildParamsBox()
     private val characteristicsTable = CharacteristicTable(::getCharacter)
     private val skillsTable = SkillsTable()
+    private val disclaimerLabel = HBox(
+        Label("WAKFU est un MMORPG édité par Ankama. \"Wakfu-Autobuilder\" est une application non officielle, sans aucun lien avec Ankama.").apply {
+            style = "-fx-font-size: 12px; -fx-text-fill: #696969;"
+        }
+    ).apply { alignment = Pos.CENTER }
 
     private val tableAndSettingsAccordion = Accordion(
         TitledPane("Build Parameters", buildParamsBox),
@@ -65,6 +73,8 @@ class WakfuAutobuilderGUI : Application(), CoroutineScope {
     private val borderPane = BorderPane().apply {
         center = settingsAndBuildViewer
         top = searchBox
+        bottom = disclaimerLabel
+        BorderPane.setMargin(disclaimerLabel, Insets(5.0))
         BorderPane.setMargin(settingsAndBuildViewer, Insets(15.0))
         BorderPane.setMargin(searchBox, Insets(15.0))
     }

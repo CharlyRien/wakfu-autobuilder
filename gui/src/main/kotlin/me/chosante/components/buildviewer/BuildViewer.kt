@@ -7,6 +7,7 @@ import javafx.geometry.Pos
 import javafx.scene.control.ScrollPane
 import javafx.scene.layout.GridPane
 import javafx.scene.layout.Priority
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.javafx.JavaFx
@@ -17,7 +18,6 @@ import me.chosante.eventbus.Listener
 import me.chosante.events.AutobuildEndSearchEvent
 import me.chosante.events.AutobuildStartSearchEvent
 import me.chosante.events.AutobuildUpdateSearchEvent
-import kotlin.coroutines.CoroutineContext
 
 @Suppress("UNUSED_PARAMETER")
 class BuildViewer : ScrollPane(), CoroutineScope {
