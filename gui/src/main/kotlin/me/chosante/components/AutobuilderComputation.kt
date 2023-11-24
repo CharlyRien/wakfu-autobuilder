@@ -24,6 +24,7 @@ import me.chosante.events.AutobuildEndSearchEvent
 import me.chosante.events.AutobuildStartSearchEvent
 import me.chosante.events.AutobuildUpdateSearchEvent
 
+@Suppress("UNUSED_PARAMETER")
 @ExperimentalCoroutinesApi
 @ExperimentalTime
 class AutobuilderComputation : CoroutineScope {

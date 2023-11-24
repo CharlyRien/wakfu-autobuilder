@@ -1,7 +1,7 @@
 plugins {
     kotlin("jvm")
     kotlin("plugin.serialization")
-    id("org.jlleitschuh.gradle.ktlint")
+    alias(libs.plugins.ktlint)
     application
 }
 
@@ -15,10 +15,8 @@ repositories {
 dependencies {
     testImplementation(platform("org.junit:junit-bom:5.9.2"))
     testImplementation("org.junit.jupiter:junit-jupiter")
-    implementation("com.github.kittinunf.fuel:fuel:2.3.1")
-    implementation("com.github.kittinunf.fuel:fuel-coroutines:2.3.1")
-    implementation("com.github.kittinunf.fuel:fuel-kotlinx-serialization:2.3.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
+    implementation(libs.bundles.fuel)
+    implementation(libs.kotlinx.serialization.json)
     implementation(project(":common-lib"))
 }
 
