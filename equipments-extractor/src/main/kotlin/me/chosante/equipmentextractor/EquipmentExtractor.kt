@@ -2,6 +2,7 @@ package me.chosante.equipmentextractor
 
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.I18nText
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import me.chosante.equipmentextractor.dataretriever.WakfuData
@@ -70,6 +71,8 @@ val edgeCaseCharacteristicDescription = mapOf(
     120 to "Armure reçue"
 )
 
+val mutableSet = mutableSetOf<I18nText>()
+
 fun extractData(wakfuData: WakfuData): List<Equipment> {
     val itemTypeIdToTypeName = wakfuData.itemTypes.associate { it.definition.id to it.title.fr.toItemType() }
     val effectsByEffectId = wakfuData.effects.associateBy { it.definition.id }
@@ -85,7 +88,14 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
         var level = equipment.definition.item.level
         val itemId = equipment.definition.item.id
         val itemGuiId = equipment.definition.item.graphicParameters.gfxId
-        val name = equipment.title.fr.replace("’", "'")
+        val name = equipment.title.let {
+            I18nText(
+                fr = it.fr.replace("’", "'"),
+                en = it.en.replace("’", "'"),
+                pt = it.pt.replace("’", "'"),
+                es = it.es.replace("’", "'")
+            )
+        }
         val rarity = rarityIdToRarity.getValue(equipment.definition.item.baseParameters.rarity)
 
         val itemTypeId = equipment.definition.item.baseParameters.itemTypeId
@@ -121,6 +131,7 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
             }
 
             if (action?.description != null) {
+                mutableSet.add(action.description)
                 var description = if ((actionId == 39 || actionId == 40) && params[4] != 0.0) {
                     "[#1] " + edgeCaseCharacteristicDescription.getValue(params[4].toInt())
                 } else {
@@ -179,6 +190,8 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
         )
         equipments.add(outputDict)
     }
+
+    println(mutableSet.toString())
     return equipments
 }
 

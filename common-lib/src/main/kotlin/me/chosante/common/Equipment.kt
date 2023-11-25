@@ -39,10 +39,18 @@ data class Equipment(
     val equipmentId: Int,
     val guiId: Int,
     val level: Int,
-    val name: String,
+    val name: I18nText,
     val rarity: Rarity,
     val itemType: ItemType,
     val characteristics: Map<Characteristic, Int>,
+)
+
+@Serializable
+data class I18nText(
+    val fr: String,
+    val en: String,
+    val es: String,
+    val pt: String,
 )
 
 @Serializable

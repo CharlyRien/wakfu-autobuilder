@@ -20,7 +20,7 @@ fun mutateCombination(
     targetStats: TargetStats,
 ): BuildCombination {
     var newEquipments = individual.equipments.toMutableList()
-    var ringNames = newEquipments.filter { it.itemType == ItemType.RING }.map { it.name }
+    var ringNames = newEquipments.filter { it.itemType == ItemType.RING }.map { it.name.fr }
 
     for (i in newEquipments.indices) {
         val currentEquipment = newEquipments[i]
@@ -29,7 +29,7 @@ fun mutateCombination(
                 equipmentsByItemType[currentEquipment.itemType]
                     ?.randomByOrNull {
                         it != currentEquipment &&
-                            (currentEquipment.itemType != ItemType.RING || it.name !in ringNames)
+                            (currentEquipment.itemType != ItemType.RING || it.name.fr !in ringNames)
                     } ?: break
 
             when (randomEquipment.rarity) {
@@ -61,7 +61,7 @@ fun mutateCombination(
 
                 else -> newEquipments[i] = randomEquipment
             }
-            ringNames = newEquipments.filter { it.itemType == ItemType.RING }.map { it.name }
+            ringNames = newEquipments.filter { it.itemType == ItemType.RING }.map { it.name.fr }
         }
     }
     val characterSkills = with(individual.characterSkills) {

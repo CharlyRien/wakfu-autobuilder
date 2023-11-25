@@ -89,11 +89,11 @@ object WakfuBestBuildFinderAlgorithm {
                 (equipment.level <= character.level && equipment.level >= character.minLevel) ||
                     (equipment.itemType == ItemType.PETS || equipment.itemType == ItemType.MOUNTS)
             }
-            .filter { equipment -> equipment.name.lowercase() !in itemsExcluded }
+            .filter { equipment -> equipment.name.fr.lowercase() !in itemsExcluded }
             .groupBy { it.itemType }
             .mapValues { (_, value) ->
-                if (value.any { it.name.lowercase() in itemsToForce }) {
-                    value.filter { it.name.lowercase() in itemsToForce || itemsToForce.isEmpty() }
+                if (value.any { it.name.fr.lowercase() in itemsToForce }) {
+                    value.filter { it.name.fr.lowercase() in itemsToForce || itemsToForce.isEmpty() }
                 } else {
                     value
                 }
@@ -157,7 +157,7 @@ private fun findReplacementItem(
             it.itemType == equipmentTypeToReplace &&
                 it !in equipmentsToExclude &&
                 it.rarity !in raritiesToExclude &&
-                (it.itemType != ItemType.RING || it.name !in ringNamesToExclude)
+                (it.itemType != ItemType.RING || it.name.fr !in ringNamesToExclude)
         }.randomOrNull()
 }
 

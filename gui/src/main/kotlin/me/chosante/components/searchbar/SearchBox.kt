@@ -56,8 +56,6 @@ class SearchBox(
         children += Separator(Orientation.VERTICAL)
         children += buildUrlLabel
         alignment = Pos.CENTER
-        setHgrow(searchButton, Priority.ALWAYS)
-        searchButton.requestLayout()
         setHgrow(matchPercentageLabel, Priority.ALWAYS)
         DefaultEventBus.subscribe(AutobuildUpdateSearchEvent::class, ::onBuildProcessUpdate)
         DefaultEventBus.subscribe(AutobuildStartSearchEvent::class, ::onBuildProcessStart)

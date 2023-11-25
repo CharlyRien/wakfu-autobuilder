@@ -11,8 +11,8 @@ import javafx.scene.control.ScrollPane
 import javafx.scene.effect.BoxBlur
 import javafx.scene.layout.GridPane
 import javafx.scene.layout.Priority
-import kotlin.coroutines.CoroutineContext
 import javafx.scene.layout.StackPane
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.javafx.JavaFx

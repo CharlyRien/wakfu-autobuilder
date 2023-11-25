@@ -2,6 +2,7 @@ package me.chosante.components.accordion
 
 import atlantafx.base.controls.Tile
 import atlantafx.base.controls.ToggleSwitch
+import generated.I18nKey
 import javafx.collections.FXCollections
 import javafx.scene.control.Alert
 import javafx.scene.control.ComboBox
@@ -16,6 +17,7 @@ import me.chosante.alert
 import me.chosante.autobuilder.domain.Character
 import me.chosante.autobuilder.domain.CharacterClass
 import me.chosante.common.Rarity
+import me.chosante.i18n.I18n
 
 class BuildParamsBox : VBox(5.0) {
     private val classComboBox = ComboBox(
@@ -25,8 +27,8 @@ class BuildParamsBox : VBox(5.0) {
     )
 
     private val classTile = Tile(
-        "Class",
-        "Class to use for the build"
+        I18n.valueOf(I18nKey.BUILD_PARAMETERS_CLASS_TITLE),
+        I18n.valueOf(I18nKey.BUILD_PARAMETERS_CLASS_DESCRIPTION)
     ).apply {
         action = classComboBox.apply {
             selectionModel.selectFirst()
@@ -59,8 +61,8 @@ class BuildParamsBox : VBox(5.0) {
     }
 
     private val maxRarityTile = Tile(
-        "Max Rarity",
-        "No items will be used for the build above the selected rarity"
+        I18n.valueOf(I18nKey.BUILD_PARAMETERS_MAX_RARITY_TITLE),
+        I18n.valueOf(I18nKey.BUILD_PARAMETERS_MAX_RARITY_DESCRIPTION)
     ).apply {
         action = maxRarityComboBox.apply {
             selectionModel.selectLast()
@@ -70,7 +72,7 @@ class BuildParamsBox : VBox(5.0) {
 
     private val stopWhenBuildMatchToggleSwitch = ToggleSwitch()
     private val stopWhenBuildMatchTile = Tile(
-        "Stop searching when build match 100%",
+        I18n.valueOf(I18nKey.BUILD_PARAMETERS_STOP_WHEN_BUILD_MATCH_TITLE),
         null
     ).apply {
         action = stopWhenBuildMatchToggleSwitch.apply {
@@ -92,8 +94,8 @@ class BuildParamsBox : VBox(5.0) {
 
     private val levelSpinner = Spinner<Int>(1, 230, 20)
     private val levelTile = Tile(
-        "Level",
-        "The level used for the build. Items above this level will be excluded"
+        I18n.valueOf(I18nKey.BUILD_PARAMETERS_LEVEL_TITLE),
+        I18n.valueOf(I18nKey.BUILD_PARAMETERS_LEVEL_DESCRIPTION)
     ).apply {
         action = levelSpinner.apply {
             isEditable = true
@@ -103,14 +105,20 @@ class BuildParamsBox : VBox(5.0) {
 
     private val durationTextField = TextField("20")
     private val durationTile = Tile(
-        "Search duration",
-        "Search duration used for the build in seconds"
+        I18n.valueOf(I18nKey.BUILD_PARAMETERS_SEARCH_DURATION_TITLE),
+        I18n.valueOf(I18nKey.BUILD_PARAMETERS_SEARCH_DURATION_DESCRIPTION)
     ).apply {
         action = durationTextField.apply {
             isEditable = true
             textProperty().addListener { _, _, newValue ->
+                if (newValue.isEmpty()) return@addListener
+
                 if (newValue.toIntOrNull() == null) {
-                    alert(Alert.AlertType.ERROR, headerText = "Input not valid", contentText = "The value must be a number")
+                    alert(
+                        Alert.AlertType.ERROR,
+                        headerText = I18n.valueOf(I18nKey.BUILD_PARAMETERS_SEARCH_DURATION_ALERT_HEADER),
+                        contentText = I18n.valueOf(I18nKey.BUILD_PARAMETERS_SEARCH_DURATION_ALERT_CONTENT)
+                    )
                     cancelEdit()
                 }
             }
@@ -133,7 +141,7 @@ class BuildParamsBox : VBox(5.0) {
         get() = Character(CharacterClass.fromValue(classComboBox.value), levelSpinner.value, minLevelSpinner.value)
 
     val searchDuration
-        get() = durationTextField.textProperty().value.toIntOrNull()
+        get() = durationTextField.textProperty().value?.toIntOrNull()
 
     val stopWhenBuildMatch: Boolean
         get() = stopWhenBuildMatchToggleSwitch.selectedProperty().value

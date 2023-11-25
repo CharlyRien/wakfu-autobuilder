@@ -2,6 +2,9 @@ package me.chosante
 
 import atlantafx.base.theme.NordDark
 import atlantafx.base.theme.Styles
+import generated.I18nKey
+import java.nio.file.Files
+import java.nio.file.Paths
 import javafx.animation.FadeTransition
 import javafx.application.Application
 import javafx.geometry.Insets
@@ -18,6 +21,8 @@ import javafx.scene.layout.HBox
 import javafx.scene.layout.StackPane
 import javafx.stage.Stage
 import javafx.util.Duration
+import kotlin.coroutines.CoroutineContext
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.javafx.JavaFx
@@ -32,10 +37,7 @@ import me.chosante.components.searchbar.SearchBox
 import me.chosante.eventbus.DefaultEventBus.subscribe
 import me.chosante.eventbus.Listener
 import me.chosante.events.BrowseEvent
-import java.nio.file.Files
-import java.nio.file.Paths
-import kotlin.coroutines.CoroutineContext
-import kotlin.time.Duration.Companion.seconds
+import me.chosante.i18n.I18n
 
 fun main(args: Array<String>) {
     Application.launch(WakfuAutobuilderGUI::class.java, *args)
@@ -48,18 +50,18 @@ class WakfuAutobuilderGUI : Application(), CoroutineScope {
     private val characteristicsTable = CharacteristicTable(::getCharacter)
     private val skillsTable = SkillsTable()
     private val disclaimerLabel = HBox(
-        Label("WAKFU est un MMORPG édité par Ankama. \"Wakfu-Autobuilder\" est une application non officielle, sans aucun lien avec Ankama.").apply {
+        Label(I18n.valueOf(I18nKey.WAKFU_DISCLAIMER_LABEL)).apply {
             style = "-fx-font-size: 12px; -fx-text-fill: #696969;"
         }
     ).apply { alignment = Pos.CENTER }
 
     private val tableAndSettingsAccordion = Accordion(
-        TitledPane("Build Parameters", buildParamsBox),
-        TitledPane("Characteristics", characteristicsTable),
-        TitledPane("Skills", skillsTable)
+        TitledPane(I18n.valueOf(I18nKey.BUILD_PARAMETERS_PANE_TITLE), buildParamsBox),
+        TitledPane(I18n.valueOf(I18nKey.CHARACTERISTICS_PANE_TITLE), characteristicsTable),
+        TitledPane(I18n.valueOf(I18nKey.SKILLS_PANE_TITLE), skillsTable)
     ).apply {
         styleClass.addAll(Styles.INTERACTIVE)
-        expandedPane = panes.firstOrNull { it.text == "Characteristics" }
+        expandedPane = panes.firstOrNull { it.text == I18n.valueOf(I18nKey.CHARACTERISTICS_PANE_TITLE) }
     }
 
     private val settingsAndBuildViewer = SplitPane(

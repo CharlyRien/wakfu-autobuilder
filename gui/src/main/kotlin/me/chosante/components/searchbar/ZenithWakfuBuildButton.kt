@@ -1,6 +1,7 @@
 package me.chosante.components.searchbar
 
 import atlantafx.base.controls.RingProgressIndicator
+import generated.I18nKey
 import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleObjectProperty
 import javafx.event.EventHandler
@@ -22,11 +23,12 @@ import me.chosante.events.AutobuildEndSearchEvent
 import me.chosante.events.AutobuildStartSearchEvent
 import me.chosante.events.AutobuildUpdateSearchEvent
 import me.chosante.events.ZenithBuildCreatedEvent
+import me.chosante.i18n.I18n
 
 @Suppress("UNUSED_PARAMETER")
 class ZenithWakfuBuildButton(
     getCharacter: () -> Character,
-) : Button("Create Zenith Wakfu Build"), CoroutineScope {
+) : Button(I18n.valueOf(I18nKey.ZENITH_WAKFU_BUILD_CREATION_BUTTON)), CoroutineScope {
 
     private val lastBuildFound = SimpleObjectProperty<BuildCombination>()
     private val isZenithWakfuCreationInProgress = SimpleBooleanProperty(false)
@@ -34,7 +36,7 @@ class ZenithWakfuBuildButton(
 
     init {
         disableProperty().bind(lastBuildFound.isNull.or(isZenithWakfuCreationInProgress))
-        tooltip = Tooltip("Create Zenith Wakfu Build")
+        tooltip = Tooltip(I18n.valueOf(I18nKey.ZENITH_WAKFU_BUILD_CREATION_BUTTON))
         contentDisplay = ContentDisplay.RIGHT
         onMouseClicked = EventHandler {
             if (!isDisabled) {
@@ -42,7 +44,6 @@ class ZenithWakfuBuildButton(
                 if (buildCombination.isNotNull.value) {
                     launch {
                         isZenithWakfuCreationInProgress.value = true
-                        // little hack here to be on the javafx thread to update the UI
                         graphicProperty().value = zenithBuildCreationProgressIndicator
                         val createZenithBuildUrl = buildCombination.get().createZenithBuild(getCharacter())
                         graphicProperty().value = null
