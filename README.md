@@ -96,11 +96,6 @@ If you don't want to use the user interface you can still use it via the CLI.
 
 For that you need first some [prerequisites](#prerequisites) and [installation](#installation)
 
-After that, you can build the jar directly by doing
-```sh
-./gradlew :autobuilder:jar
-```
-
 After that the documentation of the usage can be found using the `--help` command, that will list the available options and their descriptions.
 
 ```sh
