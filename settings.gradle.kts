@@ -12,7 +12,7 @@ include("gui")
 dependencyResolutionManagement {
     versionCatalogs {
         create("libs") {
-            library("kotlinx-serialization-json", "org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.1")
+            library("kotlinx-serialization-json", "org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
             library("fuel-core","com.github.kittinunf.fuel:fuel:2.3.1")
             library("fuel-coroutines","com.github.kittinunf.fuel:fuel-coroutines:2.3.1")
             library("fuel-kotlinx","com.github.kittinunf.fuel:fuel-kotlinx-serialization:2.3.1")

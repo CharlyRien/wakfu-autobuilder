@@ -27,7 +27,7 @@ dependencies {
     implementation("com.github.ajalt.clikt:clikt:4.2.1")
     implementation("me.tongfei:progressbar:0.10.0")
     implementation("de.vandermeer:asciitable:0.3.2")
-    implementation("io.github.oshai:kotlin-logging-jvm:5.1.0")
+    implementation("io.github.oshai:kotlin-logging-jvm:5.1.1")
     implementation("org.slf4j:slf4j-simple:2.0.9")
 }
 
