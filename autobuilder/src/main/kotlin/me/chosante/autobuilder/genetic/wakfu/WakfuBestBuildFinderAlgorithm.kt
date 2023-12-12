@@ -48,7 +48,7 @@ object WakfuBestBuildFinderAlgorithm {
                     targetStats = targetStats
                 ),
                 score = { combination ->
-                    calculateSuccessPercentage(
+                    DefaultScoring.computeScore(
                         targetStats = targetStats,
                         buildCombination = combination,
                         characterBaseCharacteristics = params.character.baseCharacteristicValues
@@ -86,7 +86,7 @@ object WakfuBestBuildFinderAlgorithm {
                 equipment.rarity <= maxRarity
             }
             .filter { equipment ->
-                (equipment.level <= character.level && equipment.level >= maxOf(1, character.level - 50)) ||
+                (equipment.level <= character.level && equipment.level >= character.minLevel) ||
                     (equipment.itemType == ItemType.PETS || equipment.itemType == ItemType.MOUNTS)
             }
             .filter { equipment -> equipment.name.lowercase() !in itemsExcluded }
