@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.flow
 
 internal class GeneticAlgorithm<T>(
     var population: Collection<T>,
-    val score: (individual: T) -> Double,
+    val score: (individual: T) -> BigDecimal,
     val cross: (parents: Pair<T, T>) -> T,
     val mutate: (individual: T) -> T,
     val select: (scoredPopulation: Collection<ScoredIndividual<T>>) -> T,
@@ -34,7 +34,7 @@ internal class GeneticAlgorithm<T>(
             while (!shouldStop(startTime, duration, bestOfAllTimeIndividual.score, stopWhenBuildMatch)) {
                 scoredPopulation = generateNewPopulation(scoredPopulation)
                 bestOfAllTimeIndividual = findBestIndividual(scoredPopulation, bestOfAllTimeIndividual)
-                val scoreRounded = bestOfAllTimeIndividual.score.toBigDecimal().setScale(2, RoundingMode.FLOOR)
+                val scoreRounded = bestOfAllTimeIndividual.score.setScale(2, RoundingMode.FLOOR)
                 emit(
                     GeneticAlgorithmResult(
                         individual = bestOfAllTimeIndividual.individual,
@@ -46,7 +46,7 @@ internal class GeneticAlgorithm<T>(
             emit(
                 GeneticAlgorithmResult(
                     individual = bestOfAllTimeIndividual.individual,
-                    individualMatchPercentage = bestOfAllTimeIndividual.score.toBigDecimal().setScale(2, RoundingMode.FLOOR),
+                    individualMatchPercentage = bestOfAllTimeIndividual.score.setScale(2, RoundingMode.FLOOR),
                     progressPercentage = floor(100.0 * Duration.between(startTime..System.currentTimeMillis()).inWholeSeconds / duration.inWholeSeconds).toInt()
                 )
             )
@@ -58,7 +58,7 @@ internal class GeneticAlgorithm<T>(
         bestOfAllTimeIndividual: ScoredIndividual<T>,
     ): ScoredIndividual<T> {
         val bestGenerationalIndividual = scoredPopulation.first()
-        return if (bestGenerationalIndividual.score.toBigDecimal() > bestOfAllTimeIndividual.score.toBigDecimal()) {
+        return if (bestGenerationalIndividual.score > bestOfAllTimeIndividual.score) {
             bestGenerationalIndividual
         } else {
             bestOfAllTimeIndividual
@@ -68,12 +68,12 @@ internal class GeneticAlgorithm<T>(
     private fun shouldStop(
         startTime: Long,
         duration: Duration,
-        bestScore: Double,
+        bestScore: BigDecimal,
         stopWhenBuildMatch: Boolean,
     ): Boolean {
         val maxSuccessPercentage = BigDecimal("100")
         val timeElapsed = System.currentTimeMillis() - startTime
-        return (bestScore.toBigDecimal() >= maxSuccessPercentage && stopWhenBuildMatch) || timeElapsed >= duration.inWholeMilliseconds
+        return (bestScore >= maxSuccessPercentage && stopWhenBuildMatch) || timeElapsed >= duration.inWholeMilliseconds
     }
 
     private suspend fun generateNewPopulation(scoredPopulation: List<ScoredIndividual<T>>) = coroutineScope {
@@ -97,7 +97,7 @@ private fun Duration.Companion.between(timestampRange: LongRange): Duration {
     return java.time.Duration.between(firstInstant, lastInstant).toKotlinDuration()
 }
 
-data class ScoredIndividual<T>(val score: Double, val individual: T)
+data class ScoredIndividual<T>(val score: BigDecimal, val individual: T)
 
 data class GeneticAlgorithmResult<T>(
     val individual: T,

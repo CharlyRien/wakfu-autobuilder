@@ -47,7 +47,7 @@ class ScoringTest {
             luck.criticalHit.setPointAssigned(20)
             major.actionPoint.setPointAssigned(1)
         }
-        val character = Character(clazz = CharacterClass.CRA, level = level, characterSkills)
+        val character = Character(clazz = CharacterClass.CRA, level = level, minLevel = level,characterSkills)
         val equipments = listOf(
             equipment(
                 characteristics = mapOf(
@@ -185,7 +185,7 @@ class ScoringTest {
             luck.masteryHealing.setPointAssigned(8)
             major.actionPoint.setPointAssigned(1)
         }
-        val character = Character(clazz = CharacterClass.ENIRIPSA, level = level, characterSkills)
+        val character = Character(clazz = CharacterClass.ENIRIPSA, level = level, minLevel = level, characterSkills)
         val equipments = listOf(
             equipment(
                 name = "Casque Bouftou Impérial",

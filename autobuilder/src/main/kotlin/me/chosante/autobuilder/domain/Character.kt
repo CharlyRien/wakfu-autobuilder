@@ -43,6 +43,7 @@ enum class CharacterClass {
 data class Character(
     val clazz: CharacterClass,
     val level: Int,
+    val minLevel: Int,
     val characterSkills: CharacterSkills = CharacterSkills(level),
 ) {
     private val baseAP = CharacterStat(
