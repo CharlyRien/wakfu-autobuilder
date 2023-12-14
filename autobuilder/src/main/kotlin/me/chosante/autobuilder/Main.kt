@@ -74,7 +74,7 @@ import me.tongfei.progressbar.ProgressBarBuilder
 import me.tongfei.progressbar.ProgressBarStyle
 
 private val logger = KotlinLogging.logger {}
-internal const val VERSION = "1.81.1.15"
+internal const val VERSION = "1.82.1.18"
 
 fun main(args: Array<String>) = WakfuAutobuild().main(args)
 
@@ -414,7 +414,7 @@ HUPPERMAGE"""
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun run() {
-        val character = Character(characterClass ?: CharacterClass.UNKNOWN, levelWanted)
+        val character = Character(characterClass ?: CharacterClass.UNKNOWN, levelWanted, (levelWanted - 50).coerceAtLeast(1) )
         val targetStats = TargetStats(
             listOfNotNull(
                 paWanted,

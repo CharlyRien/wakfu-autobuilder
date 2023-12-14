@@ -21,9 +21,7 @@ dependencies {
 }
 
 kotlin {
-    jvmToolchain {
-        languageVersion.set(JavaLanguageVersion.of(21))
-    }
+    jvmToolchain(libs.versions.jvm.get().toInt())
 }
 
 application {

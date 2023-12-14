@@ -83,7 +83,7 @@ class WakfuAutobuilderGUI : Application(), CoroutineScope {
     private fun buildParams(): WakfuBestBuildParams {
         val character = buildParamsBox.character
         return WakfuBestBuildParams(
-            character = Character(character.clazz, character.level),
+            character = Character(character.clazz, character.level, character.minLevel),
             targetStats = characteristicsTable.targetStats,
             searchDuration = buildParamsBox.searchDuration?.seconds ?: 30.seconds,
             stopWhenBuildMatch = buildParamsBox.stopWhenBuildMatch,

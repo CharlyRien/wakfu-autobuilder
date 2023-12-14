@@ -28,7 +28,7 @@ class EquipmentCard(title: String, var equipment: Equipment? = null) : Card(), C
                 title,
                 null,
                 when (currentEquipment) {
-                    null -> ImageView(Image("assets/items/unknown.png", 40.0, 40.0, true, false, false))
+                    null -> ImageView(Image("assets/items/0000000.png", 40.0, 40.0, true, false, false))
                     else -> currentEquipment.toHBoxImages()
                 }
             )
@@ -70,7 +70,7 @@ private fun Equipment.toHBoxImages(): HBox {
     val itemImageView = runCatching {
         ImageView(Image("assets/items/$guiId.png", 40.0, 40.0, true, false, false))
     }.getOrDefault(
-        ImageView(Image("assets/items/unknown.png", 40.0, 40.0, true, false, false))
+        ImageView(Image("assets/items/0000000.png", 40.0, 40.0, true, false, false))
     )
     return HBox(
         itemImageView,

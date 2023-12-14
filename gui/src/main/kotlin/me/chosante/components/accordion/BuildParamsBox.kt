@@ -56,6 +56,17 @@ class BuildParamsBox : VBox(5.0) {
         actionHandler = Runnable { }
     }
 
+    private val minLevelSpinner = Spinner<Int>(1, 230, 1)
+    private val minLevelTile = Tile(
+        "Minimum Level",
+        "The minimum level used for the build. Items under this level will be excluded"
+    ).apply {
+        action = minLevelSpinner.apply {
+            isEditable = true
+        }
+        actionHandler = Runnable { }
+    }
+
     private val levelSpinner = Spinner<Int>(1, 230, 20)
     private val levelTile = Tile(
         "Level",
@@ -87,6 +98,7 @@ class BuildParamsBox : VBox(5.0) {
     init {
         children += classTile
         children += durationTile
+        children += minLevelTile
         children += levelTile
         children += stopWhenBuildMatchTile
         children += maxRarityTile
@@ -95,7 +107,7 @@ class BuildParamsBox : VBox(5.0) {
     }
 
     val character
-        get() = Character(CharacterClass.fromValue(classComboBox.value), levelSpinner.value)
+        get() = Character(CharacterClass.fromValue(classComboBox.value), levelSpinner.value, minLevelSpinner.value)
 
     val searchDuration
         get() = durationTextField.textProperty().value.toIntOrNull()
