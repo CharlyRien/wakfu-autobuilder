@@ -3,9 +3,7 @@ package me.chosante.autobuilder.genetic.wakfu
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlin.system.exitProcess
 import kotlin.time.Duration
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import me.chosante.autobuilder.VERSION
 import me.chosante.autobuilder.domain.BuildCombination
@@ -23,13 +21,14 @@ object WakfuBestBuildFinderAlgorithm {
 
     private val logger = KotlinLogging.logger {}
 
+    private val equipments = this.javaClass.classLoader.getResourceAsStream("equipments-v$VERSION.json")?.readAllBytes()!!.let {
+        Json.decodeFromString<List<Equipment>>(String(it))
+    }
+
     suspend fun run(
         params: WakfuBestBuildParams,
     ): Flow<GeneticAlgorithmResult<BuildCombination>> {
-        val equipments = getEquipments()
-
         val equipmentsByItemType = groupAndFilterEquipments(
-            equipments = equipments,
             excludedItems = params.excludedItems,
             forcedItems = params.forcedItems,
             maxRarity = params.maxRarity,
@@ -38,8 +37,8 @@ object WakfuBestBuildFinderAlgorithm {
 
         val targetStats = params.targetStats
         return try {
-            val mutationProbability = 0.03
-            val numberOfIndividualsInPopulation = 10000
+            val mutationProbability = 0.08
+            val numberOfIndividualsInPopulation = 10_000
             GeneticAlgorithm(
                 population = generateRandomPopulations(
                     numberOfIndividual = numberOfIndividualsInPopulation,
@@ -72,7 +71,6 @@ object WakfuBestBuildFinderAlgorithm {
     }
 
     private fun groupAndFilterEquipments(
-        equipments: List<Equipment>,
         excludedItems: List<String>,
         forcedItems: List<String>,
         maxRarity: Rarity,
@@ -100,18 +98,9 @@ object WakfuBestBuildFinderAlgorithm {
             }
         return equipmentsByItemType
     }
-
-    private suspend fun getEquipments(): List<Equipment> {
-        val equipments = withContext(Dispatchers.IO) {
-            val equipmentsRaw =
-                this.javaClass.classLoader.getResourceAsStream("equipments-v$VERSION.json")?.readAllBytes()!!
-            Json.decodeFromString<List<Equipment>>(String(equipmentsRaw))
-        }
-        return equipments
-    }
 }
 
-fun List<Equipment>.replaceRandomlyOneItemWithRarity(
+internal fun List<Equipment>.replaceRandomlyOneItemWithRarity(
     rarity: Rarity,
     replacementResearchZone: List<Equipment>,
     ringNames: List<String> = listOf(),

@@ -1,14 +1,14 @@
 package me.chosante.autobuilder.genetic.wakfu
 
 import java.math.BigDecimal
+import java.math.MathContext
+import java.math.RoundingMode
 import kotlin.math.min
 import kotlin.math.roundToInt
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.common.Characteristic
-import java.math.MathContext
-import java.math.RoundingMode
 
 object DefaultScoring {
     fun computeScore(
@@ -41,9 +41,9 @@ object DefaultScoring {
         if (successPercentage.toBigDecimal() == BigDecimal("100.0")) {
             val calculateTotalActualScoreExceedingPerfectScore =
                 calculateTotalActualScore(targetStats, actualCharacteristicsValues, targetStats.expectedScoreByCharacteristic, canExceedPerfectScore = true)
-            return ((calculateTotalActualScoreExceedingPerfectScore / targetStats.totalExpectedScore) * 100).toBigDecimal(MathContext(2, RoundingMode.FLOOR))
+            return ((calculateTotalActualScoreExceedingPerfectScore / targetStats.totalExpectedScore) * 100).toBigDecimal(MathContext(4, RoundingMode.FLOOR))
         }
-        return successPercentage.toBigDecimal(MathContext(2, RoundingMode.FLOOR))
+        return successPercentage.toBigDecimal(MathContext(4, RoundingMode.FLOOR))
     }
 
     private fun calculateTotalActualScore(
@@ -120,7 +120,6 @@ object DefaultScoring {
         return totalScore / 4
     }
 }
-
 
 fun computeCharacteristicsValues(
     buildCombination: BuildCombination,

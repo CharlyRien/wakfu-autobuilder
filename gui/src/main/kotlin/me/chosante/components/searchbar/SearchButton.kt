@@ -5,7 +5,6 @@ import generated.I18nKey
 import javafx.event.EventHandler
 import javafx.scene.control.Alert
 import javafx.scene.control.Button
-import javafx.scene.layout.Region
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.ExperimentalTime
 import kotlinx.coroutines.CoroutineScope
@@ -32,7 +31,7 @@ class SearchButton(
     init {
         styleClass.addAll(Styles.LARGE, Styles.ACCENT, Styles.TITLE_1)
         isDefaultButton = true
-        minWidth = Region.USE_PREF_SIZE
+        maxWidth = Double.MAX_VALUE
     }
 
     @Listener

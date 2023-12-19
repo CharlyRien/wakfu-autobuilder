@@ -32,6 +32,7 @@ import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_WATER
 import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_WIND
 import me.chosante.common.Characteristic.WAKFU_POINT
 import me.chosante.common.Equipment
+import me.chosante.common.I18nText
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import org.junit.jupiter.api.Test
@@ -47,7 +48,7 @@ class ScoringTest {
             luck.criticalHit.setPointAssigned(20)
             major.actionPoint.setPointAssigned(1)
         }
-        val character = Character(clazz = CharacterClass.CRA, level = level, minLevel = level,characterSkills)
+        val character = Character(clazz = CharacterClass.CRA, level = level, minLevel = level, characterSkills)
         val equipments = listOf(
             equipment(
                 characteristics = mapOf(
@@ -397,7 +398,7 @@ class ScoringTest {
         Equipment(
             equipmentId = 0,
             level = level,
-            name = name,
+            name = I18nText(fr = name, en = "", es = "", pt = ""),
             rarity = Rarity.RARE,
             itemType = ItemType.HELMET,
             characteristics = characteristics,

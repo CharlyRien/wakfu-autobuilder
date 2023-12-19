@@ -191,7 +191,6 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
         equipments.add(outputDict)
     }
 
-    println(mutableSet.toString())
     return equipments
 }
 

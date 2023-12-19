@@ -55,7 +55,7 @@ internal suspend fun addEquipment(equipment: Equipment, buildId: Long, sideValue
     }
     val parameters = listOf(
         "maxLvl" to equipment.level,
-        "name" to equipment.name
+        "name" to equipment.name.fr
     ) + itemTypesZenithId.map { "type[]" to it }
 
     val (request, _, result) = urlGetEquipments
