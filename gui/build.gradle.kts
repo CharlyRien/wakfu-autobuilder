@@ -1,7 +1,7 @@
 plugins {
     kotlin("jvm")
     id("org.openjfx.javafxplugin") version "0.1.0"
-    id("dev.hydraulic.conveyor") version "1.6"
+    id("dev.hydraulic.conveyor") version "1.8"
     alias(libs.plugins.ktlint)
     application
 }
