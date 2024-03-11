@@ -6,7 +6,7 @@ import org.jetbrains.kotlin.konan.target.HostManager.Companion.hostIsMingw
 plugins {
     kotlin("jvm")
     kotlin("plugin.serialization")
-    id("de.undercouch.download") version "5.5.0"
+    id("de.undercouch.download") version "5.6.0"
     alias(libs.plugins.ktlint)
     application
 }
@@ -21,14 +21,14 @@ repositories {
 dependencies {
     implementation(project(":common-lib"))
     testImplementation(kotlin("test"))
-    implementation(platform("org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.7.3"))
+    implementation(platform("org.jetbrains.kotlinx:kotlinx-coroutines-bom:1.8.0"))
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.bundles.fuel)
-    implementation("com.github.ajalt.clikt:clikt:4.2.1")
+    implementation("com.github.ajalt.clikt:clikt:4.2.2")
     implementation("me.tongfei:progressbar:0.10.0")
     implementation("de.vandermeer:asciitable:0.3.2")
-    implementation("io.github.oshai:kotlin-logging-jvm:5.1.1")
-    implementation("org.slf4j:slf4j-simple:2.0.9")
+    implementation("io.github.oshai:kotlin-logging-jvm:6.0.3")
+    implementation("org.slf4j:slf4j-simple:2.0.12")
 }
 
 kotlin {
