@@ -1,13 +1,13 @@
 package me.chosante
 
 import atlantafx.base.util.Animations
+import javafx.animation.FadeTransition
 import javafx.geometry.Pos
 import javafx.scene.image.Image
 import javafx.scene.image.ImageView
 import javafx.scene.layout.StackPane
+import javafx.util.Duration
 import kotlin.coroutines.CoroutineContext
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -29,14 +29,14 @@ object SplashScreen : StackPane(), CoroutineScope {
         )
 
         for (animation in animations) {
-            suspendCoroutine { continuation ->
-                with(animation) {
-                    playFromStart()
-                    setOnFinished { continuation.resume(Unit) }
-                }
-            }
+            animation.awaitPlay()
             delay(300)
         }
+
+        FadeTransition(Duration(1000.0), SplashScreen).apply {
+            fromValue = 1.0
+            toValue = 0.0
+        }.awaitPlay()
     }
 
     override val coroutineContext: CoroutineContext

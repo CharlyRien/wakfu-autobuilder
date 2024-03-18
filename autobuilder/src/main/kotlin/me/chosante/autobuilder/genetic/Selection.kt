@@ -6,7 +6,7 @@ import kotlin.random.Random.Default.nextInt
 internal fun <T> tournamentSelection(
     scoredPopulation: Collection<ScoredIndividual<T>>,
 ): T {
-    val tournamentSize = max(scoredPopulation.size / 1000, 2)
+    val tournamentSize = max(scoredPopulation.size / 100, 2)
     val (firstRandomScore, firstRandomIndividual) = scoredPopulation.elementAt(nextInt(scoredPopulation.size))
     var bestIndividualInTournament = firstRandomIndividual
     var bestScoreInTournament = firstRandomScore

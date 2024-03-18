@@ -3,15 +3,15 @@ package me.chosante.autobuilder.genetic.wakfu
 import kotlin.random.Random.Default.nextInt
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStats
-import me.chosante.autobuilder.domain.skills.Agility
-import me.chosante.autobuilder.domain.skills.Intelligence
-import me.chosante.autobuilder.domain.skills.Luck
-import me.chosante.autobuilder.domain.skills.Major
-import me.chosante.autobuilder.domain.skills.Strength
-import me.chosante.autobuilder.domain.skills.assignRandomPoints
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
+import me.chosante.common.skills.Agility
+import me.chosante.common.skills.Intelligence
+import me.chosante.common.skills.Luck
+import me.chosante.common.skills.Major
+import me.chosante.common.skills.Strength
+import me.chosante.common.skills.assignRandomPoints
 
 fun mutateCombination(
     individual: BuildCombination,
@@ -20,7 +20,7 @@ fun mutateCombination(
     targetStats: TargetStats,
 ): BuildCombination {
     var newEquipments = individual.equipments.toMutableList()
-    var ringNames = newEquipments.filter { it.itemType == ItemType.RING }.map { it.name }
+    var ringNames = newEquipments.filter { it.itemType == ItemType.RING }.map { it.name.fr }
 
     for (i in newEquipments.indices) {
         val currentEquipment = newEquipments[i]
@@ -29,7 +29,7 @@ fun mutateCombination(
                 equipmentsByItemType[currentEquipment.itemType]
                     ?.randomByOrNull {
                         it != currentEquipment &&
-                            (currentEquipment.itemType != ItemType.RING || it.name !in ringNames)
+                            (currentEquipment.itemType != ItemType.RING || it.name.fr !in ringNames)
                     } ?: break
 
             when (randomEquipment.rarity) {
@@ -61,7 +61,7 @@ fun mutateCombination(
 
                 else -> newEquipments[i] = randomEquipment
             }
-            ringNames = newEquipments.filter { it.itemType == ItemType.RING }.map { it.name }
+            ringNames = newEquipments.filter { it.itemType == ItemType.RING }.map { it.name.fr }
         }
     }
     val characterSkills = with(individual.characterSkills) {

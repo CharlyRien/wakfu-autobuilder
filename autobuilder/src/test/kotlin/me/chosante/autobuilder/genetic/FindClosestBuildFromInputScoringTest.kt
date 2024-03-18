@@ -1,14 +1,15 @@
 package me.chosante.autobuilder.genetic
 
-import kotlin.test.assertEquals
+import kotlinx.serialization.json.Json
+import me.chosante.autobuilder.VERSION
 import me.chosante.autobuilder.domain.BuildCombination
-import me.chosante.autobuilder.domain.Character
-import me.chosante.autobuilder.domain.CharacterClass
-import me.chosante.autobuilder.domain.skills.CharacterSkills
 import me.chosante.autobuilder.genetic.wakfu.assignUniformlyMasteryRandomValues
 import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
+import me.chosante.common.Character
+import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
 import me.chosante.common.Characteristic.ACTION_POINT
+import me.chosante.common.Characteristic.BLOCK_PERCENTAGE
 import me.chosante.common.Characteristic.CONTROL
 import me.chosante.common.Characteristic.CRITICAL_HIT
 import me.chosante.common.Characteristic.DODGE
@@ -16,10 +17,14 @@ import me.chosante.common.Characteristic.HP
 import me.chosante.common.Characteristic.INITIATIVE
 import me.chosante.common.Characteristic.LOCK
 import me.chosante.common.Characteristic.MASTERY_BACK
+import me.chosante.common.Characteristic.MASTERY_CRITICAL
 import me.chosante.common.Characteristic.MASTERY_DISTANCE
 import me.chosante.common.Characteristic.MASTERY_ELEMENTARY
 import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_EARTH
 import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_FIRE
+import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT
+import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT
+import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT
 import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_WATER
 import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_WIND
 import me.chosante.common.Characteristic.MASTERY_HEALING
@@ -28,15 +33,96 @@ import me.chosante.common.Characteristic.RANGE
 import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY
 import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_EARTH
 import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_FIRE
+import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT
+import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT
 import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_WATER
 import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_WIND
 import me.chosante.common.Characteristic.WAKFU_POINT
 import me.chosante.common.Equipment
+import me.chosante.common.I18nText
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
+import me.chosante.common.skills.CharacterSkills
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
-class ScoringTest {
+class FindClosestBuildFromInputScoringTest {
+
+    private val equipments = this.javaClass.classLoader.getResourceAsStream("equipments-v$VERSION.json")?.readAllBytes()!!.let {
+        Json.decodeFromString<List<Equipment>>(String(it))
+    }
+
+    @Test
+    fun `given equipments with random elements and resistance and character skills the resulted score must be the one expected`() {
+        val level = 110
+        val characterSkills = CharacterSkills(level).apply {
+            strength.masteryDistance.setPointAssigned(27)
+            major.actionPoint.setPointAssigned(1)
+            major.rangeAndMasteryElementary.setPointAssigned(1)
+        }
+
+        val character = Character(clazz = CharacterClass.CRA, level = level, minLevel = level, characterSkills)
+        val equipmentNames = listOf(
+            "casque hazieff",
+            "amulette du corbeau blanc",
+            "combinaison lardante",
+            "halo de magmog",
+            "gelano",
+            "bottes massetard",
+            "coulée de magmog",
+            "ottopaulettes",
+            "ceinture du corbeau blanc",
+            "monture godron",
+            "la seconde jumelle d'azael",
+            "frogmourne",
+            "emblème du pouvoir",
+            "peroucan"
+        )
+        val filteredEquipments = equipments.filter {
+            it.name.fr.lowercase() in equipmentNames
+        }.groupBy { equipment -> equipment.name.fr }
+            .mapValues { it.value.sortedByDescending(Equipment::rarity).take(1) }
+            .values.flatten()
+        val actualCharacteristics = computeCharacteristicsValues(
+            buildCombination = BuildCombination(
+                characterSkills = character.characterSkills,
+                equipments = filteredEquipments
+            ),
+            characterBaseCharacteristics = character.baseCharacteristicValues,
+            masteryElementsWanted = mapOf(MASTERY_ELEMENTARY_WATER to 530, MASTERY_ELEMENTARY_FIRE to 530),
+            resistanceElementsWanted = mapOf()
+        ).filterNot { it.value == 0 }
+
+        val expectedCharacteristics = mapOf(
+            ACTION_POINT to 13,
+            MOVEMENT_POINT to 4,
+            WAKFU_POINT to 6,
+            RANGE to 3,
+            HP to 2418,
+            CRITICAL_HIT to 27,
+            MASTERY_DISTANCE to 373,
+            DODGE to 124,
+            LOCK to 55,
+            CONTROL to 2,
+            MASTERY_BACK to 18,
+            MASTERY_CRITICAL to 45,
+            BLOCK_PERCENTAGE to -7,
+            MASTERY_ELEMENTARY to 530,
+            MASTERY_ELEMENTARY_WATER to 530,
+            MASTERY_ELEMENTARY_FIRE to 530,
+            MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT to 123,
+            MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT to 170,
+            RESISTANCE_ELEMENTARY to 37,
+            RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT to 63,
+            RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT to 39,
+            RESISTANCE_ELEMENTARY_EARTH to 74,
+            RESISTANCE_ELEMENTARY_FIRE to 94,
+            RESISTANCE_ELEMENTARY_WATER to 151,
+            RESISTANCE_ELEMENTARY_WIND to 57
+        )
+        assertThat(actualCharacteristics).isEqualTo(expectedCharacteristics)
+    }
+
     @Test
     fun `given equipments and character skills the resulted score must be the one expected`() {
         val level = 110
@@ -47,7 +133,7 @@ class ScoringTest {
             luck.criticalHit.setPointAssigned(20)
             major.actionPoint.setPointAssigned(1)
         }
-        val character = Character(clazz = CharacterClass.CRA, level = level, minLevel = level,characterSkills)
+        val character = Character(clazz = CharacterClass.CRA, level = level, minLevel = level, characterSkills)
         val equipments = listOf(
             equipment(
                 characteristics = mapOf(
@@ -173,7 +259,7 @@ class ScoringTest {
             MASTERY_ELEMENTARY to 10,
             MASTERY_BACK to -20
         )
-        assertEquals(expectedCharacteristics, actualCharacteristics)
+        assertThat(actualCharacteristics).isEqualTo(expectedCharacteristics)
     }
 
     @Test
@@ -360,15 +446,15 @@ class ScoringTest {
             RESISTANCE_ELEMENTARY_WATER to 145
         )
 
-        assertEquals(expectedCharacteristics, actualCharacteristics)
+        assertThat(actualCharacteristics).isEqualTo(expectedCharacteristics)
     }
 
     @Test
     fun `test assign values`() {
         val randomElements = mapOf(
-            Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT to listOf(1, 2, 3),
-            Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT to listOf(4, 5, 6),
-            Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT to listOf(7, 8, 9)
+            MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT to listOf(1, 2, 3),
+            MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT to listOf(4, 5, 6),
+            MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT to listOf(7, 8, 9)
         )
         val wantedCharacteristics =
             mapOf(
@@ -386,7 +472,7 @@ class ScoringTest {
             characteristicToValueCurrent = mapOf(),
             characteristicToValueWanted = wantedCharacteristics
         )
-        assertEquals(expected, result)
+        assertThat(result).isEqualTo(expected)
     }
 
     private fun equipment(
@@ -397,7 +483,7 @@ class ScoringTest {
         Equipment(
             equipmentId = 0,
             level = level,
-            name = name,
+            name = I18nText(fr = name, en = "", es = "", pt = ""),
             rarity = Rarity.RARE,
             itemType = ItemType.HELMET,
             characteristics = characteristics,

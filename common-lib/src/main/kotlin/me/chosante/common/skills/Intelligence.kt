@@ -1,11 +1,11 @@
-package me.chosante.autobuilder.domain.skills
+package me.chosante.common.skills
 
-import me.chosante.autobuilder.domain.skills.IntelligenceCharacteristic.HealReceivedPercentage
-import me.chosante.autobuilder.domain.skills.IntelligenceCharacteristic.HpPercentage
-import me.chosante.autobuilder.domain.skills.IntelligenceCharacteristic.HpPercentageAsArmor
-import me.chosante.autobuilder.domain.skills.IntelligenceCharacteristic.Resistance
-import me.chosante.autobuilder.domain.skills.IntelligenceCharacteristic.Shield
 import me.chosante.common.Characteristic
+import me.chosante.common.skills.IntelligenceCharacteristic.HealReceivedPercentage
+import me.chosante.common.skills.IntelligenceCharacteristic.HpPercentage
+import me.chosante.common.skills.IntelligenceCharacteristic.HpPercentageAsArmor
+import me.chosante.common.skills.IntelligenceCharacteristic.Resistance
+import me.chosante.common.skills.IntelligenceCharacteristic.Shield
 
 data class Intelligence(
     override val maxPointsToAssign: Int,
