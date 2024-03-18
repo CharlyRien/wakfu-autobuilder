@@ -1,13 +1,12 @@
-package me.chosante.autobuilder.domain
+package me.chosante.common
 
-import me.chosante.autobuilder.domain.skills.CharacterSkills
-import me.chosante.common.Characteristic
 import me.chosante.common.Characteristic.ACTION_POINT
 import me.chosante.common.Characteristic.CONTROL
 import me.chosante.common.Characteristic.CRITICAL_HIT
 import me.chosante.common.Characteristic.HP
 import me.chosante.common.Characteristic.MOVEMENT_POINT
 import me.chosante.common.Characteristic.WAKFU_POINT
+import me.chosante.common.skills.CharacterSkills
 
 enum class CharacterClass {
     FECA,

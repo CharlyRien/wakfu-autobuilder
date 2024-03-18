@@ -16,10 +16,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.javafx.JavaFx
 import me.chosante.GuiCharacteristic
 import me.chosante.common.Equipment
+import me.chosante.i18n.I18n.usePreferredLanguageIfFoundOrEnglish
 
 class EquipmentCard(title: String, var equipment: Equipment? = null) : Card(), CoroutineScope {
 
-    constructor(equipment: Equipment) : this(equipment.name, equipment)
+    constructor(equipment: Equipment) : this(equipment.name.usePreferredLanguageIfFoundOrEnglish(), equipment)
 
     init {
         val currentEquipment = equipment

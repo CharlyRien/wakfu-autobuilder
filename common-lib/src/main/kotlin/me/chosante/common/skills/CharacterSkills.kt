@@ -1,4 +1,4 @@
-package me.chosante.autobuilder.domain.skills
+package me.chosante.common.skills
 
 import kotlin.math.max
 import kotlin.math.min
@@ -168,7 +168,7 @@ sealed class SkillCharacteristic(
         get() = unitValue * pointsAssigned
 }
 
-fun getAllCharacteristicValues(characteristics: List<SkillCharacteristic>): CharacteristicValues {
+internal fun getAllCharacteristicValues(characteristics: List<SkillCharacteristic>): CharacteristicValues {
     val fixedCharacteristics = mutableMapOf<Characteristic, Int>()
     val percentCharacteristics = mutableMapOf<Characteristic, Int>()
 

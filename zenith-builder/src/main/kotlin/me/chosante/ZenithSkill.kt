@@ -1,4 +1,4 @@
-package me.chosante.autobuilder.zenithbuilder
+package me.chosante
 
 import com.github.kittinunf.fuel.core.awaitUnit
 import com.github.kittinunf.fuel.core.extensions.jsonBody
@@ -8,12 +8,12 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import me.chosante.autobuilder.domain.skills.AgilityCharacteristic
-import me.chosante.autobuilder.domain.skills.IntelligenceCharacteristic
-import me.chosante.autobuilder.domain.skills.LuckCharacteristic
-import me.chosante.autobuilder.domain.skills.MajorCharacteristic
-import me.chosante.autobuilder.domain.skills.SkillCharacteristic
-import me.chosante.autobuilder.domain.skills.StrengthCharacteristic
+import me.chosante.common.skills.AgilityCharacteristic
+import me.chosante.common.skills.IntelligenceCharacteristic
+import me.chosante.common.skills.LuckCharacteristic
+import me.chosante.common.skills.MajorCharacteristic
+import me.chosante.common.skills.SkillCharacteristic
+import me.chosante.common.skills.StrengthCharacteristic
 
 private const val urlUpdateSkill = "$baseAPIUrl/aptitude/update"
 

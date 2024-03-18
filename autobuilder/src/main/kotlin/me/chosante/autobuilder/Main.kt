@@ -16,22 +16,21 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlin.system.exitProcess
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel.Factory.CONFLATED
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
-import me.chosante.autobuilder.domain.Character
-import me.chosante.autobuilder.domain.CharacterClass
+import me.chosante.ZenithInputParameters
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
-import me.chosante.autobuilder.domain.skills.Assignable
+import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildParams
-import me.chosante.autobuilder.zenithbuilder.createZenithBuild
+import me.chosante.common.Character
+import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
 import me.chosante.common.Characteristic.ACTION_POINT
 import me.chosante.common.Characteristic.BLOCK_PERCENTAGE
@@ -68,13 +67,15 @@ import me.chosante.common.Characteristic.WILLPOWER
 import me.chosante.common.Characteristic.WISDOM
 import me.chosante.common.Equipment
 import me.chosante.common.Rarity
+import me.chosante.common.skills.Assignable
+import me.chosante.createZenithBuild
 import me.tongfei.progressbar.ConsoleProgressBarConsumer
 import me.tongfei.progressbar.ProgressBar
 import me.tongfei.progressbar.ProgressBarBuilder
 import me.tongfei.progressbar.ProgressBarStyle
 
 private val logger = KotlinLogging.logger {}
-internal const val VERSION = "1.82.1.18"
+internal const val VERSION = "1.83.1.21"
 
 fun main(args: Array<String>) = WakfuAutobuild().main(args)
 
@@ -96,13 +97,23 @@ private class WakfuAutobuild :
         """.trimMargin(),
         name = "Wakfu Autobuilder version: $VERSION"
     ) {
-    private val levelWanted: Int by option(
-        "--level",
-        "--niveau",
-        help = "The level of the character (no items selected will be above this level)"
+
+    private val maxLevelWanted: Int by option(
+        "--max-level",
+        "--max-niveau",
+        help = "The max level of the character (no items selected will be above this level)"
     )
         .int()
         .default(230)
+        .check("Level should be between 1 and 230") { it in 1..230 }
+
+    private val minLevelWanted: Int by option(
+        "--min-level",
+        "--min-niveau",
+        help = "The min level of the character (no items selected will be under this level)"
+    )
+        .int()
+        .default(1)
         .check("Level should be between 1 and 230") { it in 1..230 }
 
     private val characterClass: CharacterClass? by option(
@@ -141,6 +152,20 @@ HUPPERMAGE"""
         help = "The number of seconds to search for the best set of equipment"
     ).convert { it.toLongOrNull()?.seconds ?: fail("'$it' should be a number") }
         .default(60.seconds)
+
+    private val computationMode: ScoreComputationMode by option(
+        "--computation-mode",
+        "--mode-de-calcul",
+        help = """The mode used for the algorithm, there are two for now:
+                     PRECISION -> In this mode you can ask for every characteristic possible,
+                     you have to enter a specific value for each characteristic wanted so the algorithm can try at all cost to follow or to surpass.
+                   
+                     MOST-MASTERIES -> In this mode, only the following characteristics can take a specific value: PA/PM/PO/CC
+                     For the rest you only have to set the value "1" to the masteries you want to have for your build. 
+                     The algorithm will then try to follow the constraints for the PA/PM/PO/CC while maximizing the masteries asked.
+                """
+    ).convert { ScoreComputationMode.from(it) ?: ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT }
+        .default(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT)
 
     private val maxRarity: Rarity by option(
         "--max-rarity",
@@ -412,9 +437,8 @@ HUPPERMAGE"""
         help = "Use this flag to indicate that you want to stop searching when you have 100% build match already found."
     ).flag(default = false, defaultForHelp = "disabled")
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     override fun run() {
-        val character = Character(characterClass ?: CharacterClass.UNKNOWN, levelWanted, (levelWanted - 50).coerceAtLeast(1) )
+        val character = Character(characterClass ?: CharacterClass.UNKNOWN, maxLevelWanted, minLevelWanted)
         val targetStats = TargetStats(
             listOfNotNull(
                 paWanted,
@@ -472,19 +496,19 @@ HUPPERMAGE"""
                             stopWhenBuildMatch = stopWhenBuildMatch,
                             maxRarity = maxRarity,
                             forcedItems = forceItems,
-                            excludedItems = excludedItems
+                            excludedItems = excludedItems,
+                            scoreComputationMode = computationMode
                         )
                     )
                     .buffer(CONFLATED)
                     .onEach {
-                        progressBar.setExtraMessage("${it.individualMatchPercentage}% match found so far")
+                        progressBar.setExtraMessage("${it.matchPercentage}% match found so far")
                         progressBar.stepTo(it.progressPercentage.toLong())
                         delay(1000L)
                     }
                     .onCompletion {
                         progressBar.stepTo(progressBar.max)
                     }
-                    .toList()
                     .last()
                     .individual
                     .also {
@@ -518,14 +542,19 @@ HUPPERMAGE"""
 
             if (createZenithBuild) {
                 try {
-                    val link = bestCombination.createZenithBuild(character)
+                    val zenithInputParameters = ZenithInputParameters(
+                        character = character.copy(characterSkills = bestCombination.characterSkills),
+                        equipments = bestCombination.equipments
+                    )
+                    val link = zenithInputParameters.createZenithBuild()
                     println("Zenith Build Link: $link")
                 } catch (exception: Exception) {
                     logger.error(exception) { "An error occurred during the creation of the Zenith build :(" }
                 }
             }
+
+            exitProcess(0)
         }
-        exitProcess(0)
     }
 
     private fun List<Equipment>.asASCIITable() = with(AsciiTable()) {
@@ -538,7 +567,7 @@ HUPPERMAGE"""
         addRow("Equipment name", "equipment type", "level", "rarity")
         this@asASCIITable.forEach {
             addRule()
-            addRow(it.name, it.itemType, it.level, it.rarity)
+            addRow(it.name.en, it.itemType, it.level, it.rarity)
             addRule()
         }
         addRule()

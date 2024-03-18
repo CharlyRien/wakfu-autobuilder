@@ -58,36 +58,54 @@
 
 ## About The Project
 
-Wakfu Autobuilder is a command-line interface (CLI) tool that try to find the optimal equipment combination for your character at a given level by taking into account your desired
-stats based on your input.
+The Wakfu Autobuilder is a toolkit, consisting of:
+* A Command-Line Interface (CLI)
+* A Graphic User Interface (GUI)
+
+These tools are designed to identify the best equipment setup for your character at a specific level. 
+
+They consider your preferred statistics and use your input to determine the most effective combination.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
+
+## Video GUI Usage Example
+
+https://github.com/CharlyRien/wakfu-autobuilder/assets/9572419/b83fa911-98f1-4bb2-bebe-180e4d314f11
 
 ### Built With
 
 * [![Kotlin][Kotlin]][Kotlin-url]
+* [![JavaFX][JavaFX]][JavaFX-url]
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 <!-- USAGE EXAMPLES -->
 
-## Usage
+## Usage GUI (User Interface)
 
 To use Wakfu Autobuilder, you need to download the executable file for your operating system from the [releases](https://github.com/CharlyRien/wakfu-autobuilder/releases) page and
-run it in your terminal with the appropriate options.
+execute it
 
-You can also use the --help option to see the available options and their descriptions.
+> [!IMPORTANT]  
+> I'm not paying any developer license (because it's too expensive).
+> Therefore it's possible that in some OS you will have to bypass security for being able to start the executable for the first time
 
-For example on Windows
+## Usage CLI (Command Line Interface)
+
+If you don't want to use the user interface you can still use it via the CLI.
+
+For that you need first some [prerequisites](#prerequisites) and [installation](#installation)
+
+After that the documentation of the usage can be found using the `--help` command, that will list the available options and their descriptions.
 
 ```sh
-./wakfu-autobuilder-cli.exe --help
+./gradlew :autobuilder:run --args="--help"
 ```
 
-Here is an example of how to use Wakfu Autobuilder in your terminal (for Windows on this example):
+Here is an example of how to use Wakfu Autobuilder in your terminal
 
 ```sh
-./wakfu-autobuilder-cli.exe --level 110 --action-point 11 --movement-point 5 --mastery-distance 500 --hp 2000 --range 2 --cc 30 --class cra --create-zenith-build --duration 60
+./gradlew :autobuilder:run --args="--level 110 --action-point 11 --movement-point 5 --mastery-distance 500 --hp 2000 --range 2 --cc 30 --class cra --create-zenith-build --duration 60"
 ```
 
 In this example, this command will search for the best equipment combination for a level 110 Cra with 11 action points, 5 movement points, 500 distance mastery, 2000 hp, 2 range,
@@ -106,7 +124,7 @@ The output of the command will show the details of the best build found, such as
 ## Roadmap
 
 - [ ] Add Changelog
-- [ ] Have a User Interface
+- [X] Have a User Interface
 - [ ] Multi-language Support
     - [ ] French
 
@@ -156,10 +174,22 @@ For this project you'll need to install:
 
 ### Test
 
-To test your release you can use the command:
+#### Test GUI
+
+To test your release for the GUI you can use the command:
 
 ```sh
-./gradlew make 
+./gradlew :gui:run
+```
+
+It will compile and start the GUI with your local changes.
+
+#### Test CLI
+
+To test your release for the CLI you can use the command:
+
+```sh
+./gradlew :autobuilder:run --args="--help"
 ```
 
 This command will package everything into a single executable file for the following platforms (x64):
@@ -178,6 +208,7 @@ After that you can use your executables created like any user would do.
 ## Contact
 
 Project Link: [https://github.com/CharlyRien/wakfu-autobuilder](https://github.com/CharlyRien/wakfu-autobuilder)
+Discord: Chosante
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -211,3 +242,6 @@ Project Link: [https://github.com/CharlyRien/wakfu-autobuilder](https://github.c
 [Kotlin]: https://img.shields.io/badge/kotlin-blue?logo=kotlin&style=for-the-badge
 
 [Kotlin-url]: https://kotlinlang.org/
+
+[JavaFX]: https://img.shields.io/badge/JavaFX-grey?style=for-the-badge&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAABCFBMVEUAAABTgqFTgqFSgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqH5mBxTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqH4mB1TgqFTgqFTgqFTgqH4mB1TgqH4mB1TgqFTgqH5mBz4mBz4mB1TgqH4mB34mB1TgqFTgqH4mB34mB1TgqFTgqH4mB34mBz4mB34mB34mB1TgqH4mBz4mB34mBz4mB34mB34mB34mB34mB34mB34mB34mB34mB34mB34mB1TgqH4mB34mB34mB34mB34mB34mB34mB34mB34mB1TgqH4LfLCAAAAVnRSTlMABgoXDcsR0R5PJyOGf/y7i3Gln2NILCfyrC/55NiTd1hBG/rsv2rFq5BZPDMVBurbzcOyl4VtXVIhBO/YRTgbEAnfooBmXlJMMy0MuJnzvrGbPJWQeS7C/+wAAANXSURBVFjD5FRLroMwDOQWHIANQiJRkEAqJALCrwVUKK+d+x/lJbQXqL1sNslmJvbM2MGvnLRmEoSD4BFcupBJkBkewU1PPIJB8ipods3TILl3LQc/q+rKsmDFY+GEaIeaGfgjg/00IAhCiERDjqV/1maqv/evl7AeX86vrqgJIxBBTw4f9io+yu8DvALbEQTLqGSfEgYgA+LQNf+820QQ7Nsc/uLwHTQlR8sDUO7/9okqofhv5Bt4lYhJOXwBqxNO/CEqSAnMgdwnYaMSDNEJTL0VDWmGNXp3tTGIIpY59uasxLtB28TS+EsBxH1g7Nl8UgHEjTTawauQR94QkgxFdvNGrFSCQPw3Vy07bsJQNGBsbGzzhuExPAdIaVCFmnTIKquqUhfppgv+/09qJs1kNBIhmW56Vgh87sPn3sPz72kJn59+ffS/8uXHxPz89OmyzNJNRLnUsPQS4UH44PevZ1NFntUyoiywUZGZ2V57TfXw7ef5sey6oa4cfI2uWbXKDuitMfytX1FOB+qxvdIHUfXR8OXLCUlWAI6K3DKt6PTG1XttPoBXV3GcGHbKOOeMtTs7NNZQVQ2noecjQbVZzQNsXO5sJ5IAXNdbO+WuFwH59USjJ/MVXMoGJcYlAEiR3mcwRnNRSxrNK8xigy4VMEDrHQucVVV4tfWX8pdwVJlLikPk+93BEwKEMGEvaf2dysFqCZILg1GPg+pRoAricdSDPiTSCpGUR6tbgPfcrtVe8PsEGrbZeNo0RVGBVzdDRljzo8inJZJXH4DQ/V+AsjB6M82IojsDFJUOHWa5e0Lyhjl1EpL7QpROMI5CiDgIYn2cHtVBuo0qlX4ERA9kBx8n8iTnI3SaTrlNvqFtLY++RAIdca0sawavA2+zAzpfeAbXA14qNc9mlQv1MdSu8mXs8bab++qrouPEzsiBAkWWpMtyT6bkF3vLtMM0B8LVZiTpMnvdV2IFxPhu7WPamgLpzrFP/rIOWe6L+aJWhubnV9vsG57a21owkr5PEuFKRnhkDTlgQZa1PDXaJT9QJiCAMaUUlwDJ0il24ZpbCHeessQ/5K477IlXbAQKj+SuxXahAWFtc0JvGaipEdfiTFzA0RE4piZv8sK/d8Om6xeQJ0X+Y/wBG81xvaJPOooAAAAASUVORK5CYII=
+[JavaFX-url]: https://openjfx.io/

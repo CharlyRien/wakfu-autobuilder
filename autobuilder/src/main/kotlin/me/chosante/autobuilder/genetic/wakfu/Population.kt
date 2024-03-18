@@ -1,13 +1,13 @@
-package me.chosante.autobuilder.genetic
+package me.chosante.autobuilder.genetic.wakfu
 
 import kotlin.random.Random
 import me.chosante.autobuilder.domain.BuildCombination
-import me.chosante.autobuilder.domain.Character
 import me.chosante.autobuilder.domain.TargetStats
-import me.chosante.autobuilder.domain.skills.CharacterSkills
-import me.chosante.autobuilder.domain.skills.assignRandomPoints
+import me.chosante.common.Character
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
+import me.chosante.common.skills.CharacterSkills
+import me.chosante.common.skills.assignRandomPoints
 
 internal fun generateRandomPopulations(
     numberOfIndividual: Int = 10000,
@@ -35,7 +35,9 @@ private fun getRandomCombination(
                 val ring1 = equipmentsByItemType[ItemType.RING]?.random()
                 ring1?.let { add(it) }
                 var ring2 = equipmentsByItemType[ItemType.RING]?.random()
-                while (ring2?.name == ring1?.name) {
+                var count = 0
+                while (ring2?.name == ring1?.name || count < 10) {
+                    count++
                     ring2 = equipmentsByItemType[ItemType.RING]?.random()
                 }
                 ring2?.let { add(it) }
