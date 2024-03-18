@@ -1,4 +1,4 @@
-package me.chosante.autobuilder.zenithbuilder
+package me.chosante
 
 import com.github.kittinunf.fuel.core.extensions.jsonBody
 import com.github.kittinunf.fuel.coroutines.awaitObjectResponse
@@ -15,29 +15,29 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
-import me.chosante.autobuilder.domain.Character
-import me.chosante.autobuilder.domain.CharacterClass
-import me.chosante.autobuilder.domain.CharacterClass.CRA
-import me.chosante.autobuilder.domain.CharacterClass.ECAFLIP
-import me.chosante.autobuilder.domain.CharacterClass.ELIOTROPE
-import me.chosante.autobuilder.domain.CharacterClass.ENIRIPSA
-import me.chosante.autobuilder.domain.CharacterClass.ENUTROF
-import me.chosante.autobuilder.domain.CharacterClass.FECA
-import me.chosante.autobuilder.domain.CharacterClass.HUPPERMAGE
-import me.chosante.autobuilder.domain.CharacterClass.IOP
-import me.chosante.autobuilder.domain.CharacterClass.OSAMODAS
-import me.chosante.autobuilder.domain.CharacterClass.OUGINAK
-import me.chosante.autobuilder.domain.CharacterClass.PANDAWA
-import me.chosante.autobuilder.domain.CharacterClass.ROUBLARD
-import me.chosante.autobuilder.domain.CharacterClass.SACRIEUR
-import me.chosante.autobuilder.domain.CharacterClass.SADIDA
-import me.chosante.autobuilder.domain.CharacterClass.SRAM
-import me.chosante.autobuilder.domain.CharacterClass.STEAMER
-import me.chosante.autobuilder.domain.CharacterClass.UNKNOWN
-import me.chosante.autobuilder.domain.CharacterClass.XELOR
-import me.chosante.autobuilder.domain.CharacterClass.ZOBAL
+import me.chosante.common.Character
+import me.chosante.common.CharacterClass
+import me.chosante.common.CharacterClass.CRA
+import me.chosante.common.CharacterClass.ECAFLIP
+import me.chosante.common.CharacterClass.ELIOTROPE
+import me.chosante.common.CharacterClass.ENIRIPSA
+import me.chosante.common.CharacterClass.ENUTROF
+import me.chosante.common.CharacterClass.FECA
+import me.chosante.common.CharacterClass.HUPPERMAGE
+import me.chosante.common.CharacterClass.IOP
+import me.chosante.common.CharacterClass.OSAMODAS
+import me.chosante.common.CharacterClass.OUGINAK
+import me.chosante.common.CharacterClass.PANDAWA
+import me.chosante.common.CharacterClass.ROUBLARD
+import me.chosante.common.CharacterClass.SACRIEUR
+import me.chosante.common.CharacterClass.SADIDA
+import me.chosante.common.CharacterClass.SRAM
+import me.chosante.common.CharacterClass.STEAMER
+import me.chosante.common.CharacterClass.UNKNOWN
+import me.chosante.common.CharacterClass.XELOR
+import me.chosante.common.CharacterClass.ZOBAL
 
-data class ZenithBuild(
+internal data class ZenithBuild(
     val id: Long,
     private val linkId: String,
 ) {
@@ -71,7 +71,7 @@ private val CHARACTER_CLASS_TO_ZENITH_JOB_ID =
 private val CharacterClass.zenithBuilderJobId: Int
     get() = CHARACTER_CLASS_TO_ZENITH_JOB_ID.getValue(this)
 
-suspend fun createBuild(character: Character): ZenithBuild {
+internal suspend fun createBuild(character: Character): ZenithBuild {
     val body = buildJsonObject {
         put("name", "${character.clazz.name}-${character.level}")
         put("level", character.level)

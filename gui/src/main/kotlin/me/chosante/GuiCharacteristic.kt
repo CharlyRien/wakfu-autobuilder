@@ -28,11 +28,10 @@ enum class GuiCharacteristic(val characteristic: Characteristic, val guiName: St
     RANGE(Characteristic.RANGE, "Range"),
     MOVEMENT_POINT(Characteristic.MOVEMENT_POINT, "Movement Point"),
     CONTROL(Characteristic.CONTROL, "Control"),
-    WISDOM(Characteristic.WISDOM, "Wisdom"),
     DODGE(Characteristic.DODGE, "Dodge"),
     LOCK(Characteristic.LOCK, "Lock"),
-    PROSPECTION(Characteristic.PROSPECTION, "Prospection"),
     INITIATIVE(Characteristic.INITIATIVE, "Initiative"),
+    BLOCK_PERCENTAGE(Characteristic.BLOCK_PERCENTAGE, "Block %"),
     WILLPOWER(Characteristic.WILLPOWER, "Willpower"),
     ;
 

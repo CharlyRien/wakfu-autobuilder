@@ -1,16 +1,16 @@
 package me.chosante.autobuilder.genetic.wakfu
 
 import java.math.BigDecimal
+import java.math.MathContext
+import java.math.RoundingMode
 import kotlin.math.min
 import kotlin.math.roundToInt
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.common.Characteristic
-import java.math.MathContext
-import java.math.RoundingMode
 
-object DefaultScoring {
+object FindClosestBuildFromInputScoring {
     fun computeScore(
         targetStats: TargetStats,
         buildCombination: BuildCombination,
@@ -41,9 +41,9 @@ object DefaultScoring {
         if (successPercentage.toBigDecimal() == BigDecimal("100.0")) {
             val calculateTotalActualScoreExceedingPerfectScore =
                 calculateTotalActualScore(targetStats, actualCharacteristicsValues, targetStats.expectedScoreByCharacteristic, canExceedPerfectScore = true)
-            return ((calculateTotalActualScoreExceedingPerfectScore / targetStats.totalExpectedScore) * 100).toBigDecimal(MathContext(2, RoundingMode.FLOOR))
+            return ((calculateTotalActualScoreExceedingPerfectScore / targetStats.totalExpectedScore) * 100).toBigDecimal(MathContext(4, RoundingMode.FLOOR))
         }
-        return successPercentage.toBigDecimal(MathContext(2, RoundingMode.FLOOR))
+        return successPercentage.toBigDecimal(MathContext(4, RoundingMode.FLOOR))
     }
 
     private fun calculateTotalActualScore(
@@ -121,7 +121,6 @@ object DefaultScoring {
     }
 }
 
-
 fun computeCharacteristicsValues(
     buildCombination: BuildCombination,
     characterBaseCharacteristics: Map<Characteristic, Int>,
@@ -158,52 +157,43 @@ fun computeCharacteristicsValues(
         characterBaseCharacteristics
     )
 
-    val actualCharacteristics = sumOfCharacteristicFixedValues.mapValues { (key, value) ->
+    val mutableActualCharacteristics = sumOfCharacteristicFixedValues.toMutableMap()
+    if (masteryElementsWanted.isNotEmpty()) {
+        val currentSpecificMasteryElements = currentStatSpecificElements(masteryElementsWanted, sumOfCharacteristicFixedValues, Characteristic.MASTERY_ELEMENTARY)
+        val specificMasteryElementsWithRandomValuesAssigned = assignUniformlyMasteryRandomValues(
+            getMasteryRandoms(eachCharacteristicValueLineByEquipment),
+            currentSpecificMasteryElements,
+            masteryElementsWanted
+        )
+        specificMasteryElementsWithRandomValuesAssigned.forEach {
+            mutableActualCharacteristics[it.key] = it.value
+        }
+        mutableActualCharacteristics[Characteristic.MASTERY_ELEMENTARY] = specificMasteryElementsWithRandomValuesAssigned.minOfOrNull { it.value } ?: 0
+    }
+
+    val resistanceElementsCurrent = currentStatSpecificElements(resistanceElementsWanted, sumOfCharacteristicFixedValues, Characteristic.RESISTANCE_ELEMENTARY)
+    if (resistanceElementsWanted.isNotEmpty()) {
+        val specificResistanceElementsWithRandomValuesAssigned = assignUniformlyResistanceRandomValues(
+            getResistanceRandoms(eachCharacteristicValueLineByEquipment),
+            resistanceElementsCurrent,
+            resistanceElementsWanted
+        )
+        specificResistanceElementsWithRandomValuesAssigned.forEach {
+            mutableActualCharacteristics[it.key] = it.value
+        }
+
+        specificResistanceElementsWithRandomValuesAssigned.minOfOrNull { it.value }?.let {
+            mutableActualCharacteristics[Characteristic.RESISTANCE_ELEMENTARY] = it
+        }
+    }
+
+    val actualCharacteristics = mutableActualCharacteristics.mapValues { (key, value) ->
         characteristicGivenBySkillsPercentValues[key]?.let { percent ->
             (value + value * (percent.toDouble() / 100)).roundToInt()
         } ?: return@mapValues value
     }
 
-    val mutableActualCharacteristics = actualCharacteristics.toMutableMap()
-    if (masteryElementsWanted.isNotEmpty()) {
-        val masteryElementsCurrent = getElementsCurrent(masteryElementsWanted, actualCharacteristics, Characteristic.MASTERY_ELEMENTARY)
-        var minMasteryElementaryValue: Int? = null
-        assignUniformlyMasteryRandomValues(
-            getMasteryRandoms(eachCharacteristicValueLineByEquipment),
-            masteryElementsCurrent,
-            masteryElementsWanted
-        ).forEach {
-            if (minMasteryElementaryValue == null) {
-                minMasteryElementaryValue = it.value
-            }
-            if (it.value < minMasteryElementaryValue!!) {
-                minMasteryElementaryValue = it.value
-            }
-            mutableActualCharacteristics[it.key] = it.value
-        }
-        mutableActualCharacteristics[Characteristic.MASTERY_ELEMENTARY] = minMasteryElementaryValue!!
-    }
-
-    if (resistanceElementsWanted.isNotEmpty()) {
-        val resistanceElementsCurrent = getElementsCurrent(resistanceElementsWanted, actualCharacteristics, Characteristic.RESISTANCE_ELEMENTARY)
-        var minResistanceElementaryValue: Int? = null
-        assignUniformlyResistanceRandomValues(
-            getResistanceRandoms(eachCharacteristicValueLineByEquipment),
-            resistanceElementsCurrent,
-            resistanceElementsWanted
-        ).forEach {
-            if (minResistanceElementaryValue == null) {
-                minResistanceElementaryValue = it.value
-            }
-            if (it.value < minResistanceElementaryValue!!) {
-                minResistanceElementaryValue = it.value
-            }
-            mutableActualCharacteristics[it.key] = it.value
-        }
-        mutableActualCharacteristics[Characteristic.RESISTANCE_ELEMENTARY] = minResistanceElementaryValue!!
-    }
-
-    return mutableActualCharacteristics
+    return actualCharacteristics
 }
 
 fun mergeAndSumCharacteristicValues(
@@ -222,15 +212,15 @@ fun assignUniformlyMasteryRandomValues(
         result[characteristic] = characteristicToValueCurrent[characteristic] ?: 0
     }
 
-    val valueToNumberOfCharacteristicAssignable = mutableMapOf<Int, Int>()
+    val valueToNumberOfCharacteristicAssignable = mutableListOf<Pair<Int, Int>>()
     for (value in randomElements[Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT] ?: listOf()) {
-        valueToNumberOfCharacteristicAssignable[value] = 1
+        valueToNumberOfCharacteristicAssignable.add(value to 1)
     }
     for (value in randomElements[Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT] ?: listOf()) {
-        valueToNumberOfCharacteristicAssignable[value] = 2
+        valueToNumberOfCharacteristicAssignable.add(value to 2)
     }
     for (value in randomElements[Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT] ?: listOf()) {
-        valueToNumberOfCharacteristicAssignable[value] = 3
+        valueToNumberOfCharacteristicAssignable.add(value to 3)
     }
 
     return result.assignValues(valueToNumberOfCharacteristicAssignable, characteristicToValueWanted)
@@ -246,22 +236,22 @@ fun assignUniformlyResistanceRandomValues(
         result[characteristic] = characteristicToValueCurrent[characteristic] ?: 0
     }
 
-    val valueToNumberOfCharacteristicAssignable = mutableMapOf<Int, Int>()
+    val valueToNumberOfCharacteristicAssignable = mutableListOf<Pair<Int, Int>>()
     for (value in randomElements[Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT] ?: listOf()) {
-        valueToNumberOfCharacteristicAssignable[value] = 1
+        valueToNumberOfCharacteristicAssignable.add(value to 1)
     }
     for (value in randomElements[Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT] ?: listOf()) {
-        valueToNumberOfCharacteristicAssignable[value] = 2
+        valueToNumberOfCharacteristicAssignable.add(value to 2)
     }
     for (value in randomElements[Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT] ?: listOf()) {
-        valueToNumberOfCharacteristicAssignable[value] = 3
+        valueToNumberOfCharacteristicAssignable.add(value to 3)
     }
 
     return result.assignValues(valueToNumberOfCharacteristicAssignable, characteristicToValueWanted)
 }
 
 private fun MutableMap<Characteristic, Int>.assignValues(
-    valueToNumberOfCharacteristicAssignable: MutableMap<Int, Int>,
+    valueToNumberOfCharacteristicAssignable: List<Pair<Int, Int>>,
     characteristicToValueWanted: Map<Characteristic, Int>,
 ): MutableMap<Characteristic, Int> {
     for ((value, count) in valueToNumberOfCharacteristicAssignable) {
@@ -276,17 +266,14 @@ private fun MutableMap<Characteristic, Int>.assignValues(
             if (assignedCount >= count) break
             val characteristic = entry.key
             val currentValue = this[characteristic]!!
-            val target = entry.value
-            if (currentValue < target) {
-                this[characteristic] = currentValue + value
-                assignedCount++
-            }
+            this[characteristic] = currentValue + value
+            assignedCount++
         }
     }
     return this
 }
 
-fun getElementsCurrent(
+internal fun currentStatSpecificElements(
     elementsWanted: Map<Characteristic, Int>,
     actualCharacteristics: Map<Characteristic, Int>,
     characteristic: Characteristic,
@@ -296,11 +283,15 @@ fun getElementsCurrent(
     }
 }
 
-fun getMasteryRandoms(eachCharacteristicValueLineByEquipment: Map<Characteristic, List<Int>>) = eachCharacteristicValueLineByEquipment.filterKeys {
-    it in listOf(Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT, Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT, Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT)
+internal fun getMasteryRandoms(eachCharacteristicValueLineByEquipment: Map<Characteristic, List<Int>>) = eachCharacteristicValueLineByEquipment.filterKeys {
+    it in listOf(
+        Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT,
+        Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT,
+        Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT
+    )
 }
 
-fun getResistanceRandoms(eachCharacteristicValueLineByEquipment: Map<Characteristic, List<Int>>) = eachCharacteristicValueLineByEquipment.filterKeys {
+internal fun getResistanceRandoms(eachCharacteristicValueLineByEquipment: Map<Characteristic, List<Int>>) = eachCharacteristicValueLineByEquipment.filterKeys {
     it in listOf(
         Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT,
         Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT,

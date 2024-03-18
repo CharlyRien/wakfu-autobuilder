@@ -20,10 +20,10 @@ import kotlinx.coroutines.javafx.JavaFx
 import kotlinx.coroutines.launch
 import me.chosante.GuiCharacteristic
 import me.chosante.alert
-import me.chosante.autobuilder.domain.Character
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
+import me.chosante.common.Character
 import me.chosante.eventbus.DefaultEventBus.subscribe
 import me.chosante.eventbus.Listener
 import me.chosante.events.AutobuildEndSearchEvent

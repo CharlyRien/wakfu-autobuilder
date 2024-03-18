@@ -1,14 +1,14 @@
-package me.chosante.autobuilder.domain.skills
+package me.chosante.common.skills
 
-import me.chosante.autobuilder.domain.skills.LuckCharacteristic.Block
-import me.chosante.autobuilder.domain.skills.LuckCharacteristic.CriticalHit
-import me.chosante.autobuilder.domain.skills.LuckCharacteristic.MasteryBack
-import me.chosante.autobuilder.domain.skills.LuckCharacteristic.MasteryBerserk
-import me.chosante.autobuilder.domain.skills.LuckCharacteristic.MasteryCritical
-import me.chosante.autobuilder.domain.skills.LuckCharacteristic.MasteryHealing
-import me.chosante.autobuilder.domain.skills.LuckCharacteristic.ResistanceBack
-import me.chosante.autobuilder.domain.skills.LuckCharacteristic.ResistanceCritical
 import me.chosante.common.Characteristic
+import me.chosante.common.skills.LuckCharacteristic.Block
+import me.chosante.common.skills.LuckCharacteristic.CriticalHit
+import me.chosante.common.skills.LuckCharacteristic.MasteryBack
+import me.chosante.common.skills.LuckCharacteristic.MasteryBerserk
+import me.chosante.common.skills.LuckCharacteristic.MasteryCritical
+import me.chosante.common.skills.LuckCharacteristic.MasteryHealing
+import me.chosante.common.skills.LuckCharacteristic.ResistanceBack
+import me.chosante.common.skills.LuckCharacteristic.ResistanceCritical
 
 data class Luck(
     override val maxPointsToAssign: Int,

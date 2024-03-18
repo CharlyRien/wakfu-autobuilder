@@ -1,11 +1,11 @@
-package me.chosante.autobuilder.domain.skills
+package me.chosante.common.skills
 
-import me.chosante.autobuilder.domain.skills.AgilityCharacteristic.Dodge
-import me.chosante.autobuilder.domain.skills.AgilityCharacteristic.DodgeAndLock
-import me.chosante.autobuilder.domain.skills.AgilityCharacteristic.Initiative
-import me.chosante.autobuilder.domain.skills.AgilityCharacteristic.Lock
-import me.chosante.autobuilder.domain.skills.AgilityCharacteristic.Willpower
 import me.chosante.common.Characteristic
+import me.chosante.common.skills.AgilityCharacteristic.Dodge
+import me.chosante.common.skills.AgilityCharacteristic.DodgeAndLock
+import me.chosante.common.skills.AgilityCharacteristic.Initiative
+import me.chosante.common.skills.AgilityCharacteristic.Lock
+import me.chosante.common.skills.AgilityCharacteristic.Willpower
 
 data class Agility(
     override val maxPointsToAssign: Int,

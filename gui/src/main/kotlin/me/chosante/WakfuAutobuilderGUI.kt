@@ -2,9 +2,10 @@ package me.chosante
 
 import atlantafx.base.theme.NordDark
 import atlantafx.base.theme.Styles
-import atlantafx.base.util.Animations
+import generated.I18nKey
 import java.nio.file.Files
 import java.nio.file.Paths
+import javafx.animation.FadeTransition
 import javafx.application.Application
 import javafx.geometry.Insets
 import javafx.geometry.Orientation
@@ -12,6 +13,7 @@ import javafx.geometry.Pos
 import javafx.scene.Scene
 import javafx.scene.control.Accordion
 import javafx.scene.control.Label
+import javafx.scene.control.ScrollPane
 import javafx.scene.control.SplitPane
 import javafx.scene.control.TitledPane
 import javafx.scene.image.Image
@@ -26,16 +28,19 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.javafx.JavaFx
 import kotlinx.coroutines.launch
-import me.chosante.autobuilder.domain.Character
+import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildParams
+import me.chosante.common.Character
 import me.chosante.components.accordion.BuildParamsBox
 import me.chosante.components.accordion.CharacteristicTable
+import me.chosante.components.accordion.ItemsForcedTable
 import me.chosante.components.accordion.SkillsTable
 import me.chosante.components.buildviewer.BuildViewer
 import me.chosante.components.searchbar.SearchBox
 import me.chosante.eventbus.DefaultEventBus.subscribe
 import me.chosante.eventbus.Listener
 import me.chosante.events.BrowseEvent
+import me.chosante.i18n.I18n
 
 fun main(args: Array<String>) {
     Application.launch(WakfuAutobuilderGUI::class.java, *args)
@@ -47,19 +52,27 @@ class WakfuAutobuilderGUI : Application(), CoroutineScope {
     private val buildParamsBox = BuildParamsBox()
     private val characteristicsTable = CharacteristicTable(::getCharacter)
     private val skillsTable = SkillsTable()
+    private val itemForcedTable = ItemsForcedTable()
     private val disclaimerLabel = HBox(
-        Label("WAKFU est un MMORPG édité par Ankama. \"Wakfu-Autobuilder\" est une application non officielle, sans aucun lien avec Ankama.").apply {
+        Label(I18n.valueOf(I18nKey.WAKFU_DISCLAIMER_LABEL)).apply {
             style = "-fx-font-size: 12px; -fx-text-fill: #696969;"
         }
     ).apply { alignment = Pos.CENTER }
 
     private val tableAndSettingsAccordion = Accordion(
-        TitledPane("Build Parameters", buildParamsBox),
-        TitledPane("Characteristics", characteristicsTable),
-        TitledPane("Skills", skillsTable)
+        TitledPane(
+            I18n.valueOf(I18nKey.BUILD_PARAMETERS_PANE_TITLE),
+            ScrollPane(buildParamsBox).apply {
+                isFitToWidth = true
+                minHeight = 200.0
+            }
+        ),
+        TitledPane(I18n.valueOf(I18nKey.CHARACTERISTICS_PANE_TITLE), characteristicsTable),
+        TitledPane(I18n.valueOf(I18nKey.SKILLS_PANE_TITLE), skillsTable),
+        TitledPane(I18n.valueOf(I18nKey.ITEM_FORCED_PANE_TITLE), itemForcedTable)
     ).apply {
         styleClass.addAll(Styles.INTERACTIVE)
-        expandedPane = panes.firstOrNull { it.text == "Characteristics" }
+        expandedPane = panes.firstOrNull { it.text == I18n.valueOf(I18nKey.CHARACTERISTICS_PANE_TITLE) }
     }
 
     private val settingsAndBuildViewer = SplitPane(
@@ -71,6 +84,7 @@ class WakfuAutobuilderGUI : Application(), CoroutineScope {
     }
 
     private val borderPane = BorderPane().apply {
+        opacity = 0.0
         center = settingsAndBuildViewer
         top = searchBox
         bottom = disclaimerLabel
@@ -82,12 +96,19 @@ class WakfuAutobuilderGUI : Application(), CoroutineScope {
     private fun getCharacter() = buildParamsBox.character
     private fun buildParams(): WakfuBestBuildParams {
         val character = buildParamsBox.character
+        val scoreComputationMode =
+            if (buildParamsBox.precisionMode) {
+                ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
+            } else {
+                ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+            }
         return WakfuBestBuildParams(
             character = Character(character.clazz, character.level, character.minLevel),
             targetStats = characteristicsTable.targetStats,
             searchDuration = buildParamsBox.searchDuration?.seconds ?: 30.seconds,
             stopWhenBuildMatch = buildParamsBox.stopWhenBuildMatch,
             maxRarity = buildParamsBox.maxRarity,
+            scoreComputationMode = scoreComputationMode,
             forcedItems = listOf(),
             excludedItems = listOf()
         )
@@ -127,14 +148,12 @@ class WakfuAutobuilderGUI : Application(), CoroutineScope {
 
             stage.show()
             SplashScreen.animateSplashScreen()
-            Animations.fadeOut(SplashScreen, Duration.seconds(1.0))
-                .apply {
-                    playFromStart()
-                    setOnFinished {
-                        rootNode.children -= SplashScreen
-                        rootNode.children += borderPane
-                    }
-                }
+            rootNode.children -= SplashScreen
+            rootNode.children += borderPane
+            FadeTransition(Duration(1000.0), borderPane).apply {
+                fromValue = 0.0
+                toValue = 1.0
+            }.awaitPlay()
             subscribe(BrowseEvent::class, ::openBrowser)
         }
     }

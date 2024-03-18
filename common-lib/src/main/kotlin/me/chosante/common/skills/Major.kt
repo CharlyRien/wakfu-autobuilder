@@ -1,13 +1,13 @@
-package me.chosante.autobuilder.domain.skills
+package me.chosante.common.skills
 
-import me.chosante.autobuilder.domain.skills.MajorCharacteristic.ActionPoint
-import me.chosante.autobuilder.domain.skills.MajorCharacteristic.ControlWithMasteryElementary
-import me.chosante.autobuilder.domain.skills.MajorCharacteristic.DamageInflicted
-import me.chosante.autobuilder.domain.skills.MajorCharacteristic.MovementPointWithMasteryElementary
-import me.chosante.autobuilder.domain.skills.MajorCharacteristic.RangeWithMasteryElementary
-import me.chosante.autobuilder.domain.skills.MajorCharacteristic.Resistance
-import me.chosante.autobuilder.domain.skills.MajorCharacteristic.WakfuPoints
 import me.chosante.common.Characteristic
+import me.chosante.common.skills.MajorCharacteristic.ActionPoint
+import me.chosante.common.skills.MajorCharacteristic.ControlWithMasteryElementary
+import me.chosante.common.skills.MajorCharacteristic.DamageInflicted
+import me.chosante.common.skills.MajorCharacteristic.MovementPointWithMasteryElementary
+import me.chosante.common.skills.MajorCharacteristic.RangeWithMasteryElementary
+import me.chosante.common.skills.MajorCharacteristic.Resistance
+import me.chosante.common.skills.MajorCharacteristic.WakfuPoints
 
 data class Major(
     override val maxPointsToAssign: Int,
