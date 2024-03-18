@@ -1,23 +1,42 @@
 package me.chosante.components.buildviewer
 
+import atlantafx.base.theme.Styles
+import generated.I18nKey
 import javafx.beans.binding.Bindings
 import javafx.beans.property.SimpleObjectProperty
 import javafx.geometry.Insets
 import javafx.geometry.Pos
+import javafx.scene.control.Label
 import javafx.scene.control.ScrollPane
+import javafx.scene.effect.BoxBlur
 import javafx.scene.layout.GridPane
 import javafx.scene.layout.Priority
+import javafx.scene.layout.StackPane
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.javafx.JavaFx
 import kotlinx.coroutines.launch
-import me.chosante.common.ItemType
+import me.chosante.common.ItemType.AMULET
+import me.chosante.common.ItemType.BELT
+import me.chosante.common.ItemType.BOOTS
+import me.chosante.common.ItemType.CAPE
+import me.chosante.common.ItemType.CHEST_PLATE
+import me.chosante.common.ItemType.EMBLEM
+import me.chosante.common.ItemType.HELMET
+import me.chosante.common.ItemType.MOUNTS
+import me.chosante.common.ItemType.OFF_HAND_WEAPONS
+import me.chosante.common.ItemType.ONE_HANDED_WEAPONS
+import me.chosante.common.ItemType.PETS
+import me.chosante.common.ItemType.RING
+import me.chosante.common.ItemType.SHOULDER_PADS
+import me.chosante.common.ItemType.TWO_HANDED_WEAPONS
 import me.chosante.eventbus.DefaultEventBus
 import me.chosante.eventbus.Listener
 import me.chosante.events.AutobuildEndSearchEvent
 import me.chosante.events.AutobuildStartSearchEvent
 import me.chosante.events.AutobuildUpdateSearchEvent
+import me.chosante.i18n.I18n
 
 @Suppress("UNUSED_PARAMETER")
 class BuildViewer : ScrollPane(), CoroutineScope {
@@ -54,10 +73,17 @@ class BuildViewer : ScrollPane(), CoroutineScope {
         alignment = Pos.TOP_CENTER
     }
 
+    private val placeholderText = Label(I18n.valueOf(I18nKey.BUILD_VIEWER_PLACEHOLDER_TEXT)).apply {
+        styleClass.addAll(Styles.TITLE_1)
+    }
+
+    private val stackPane = StackPane(gridPane, placeholderText)
+
     init {
         isFitToWidth = true
         padding = Insets(10.0)
-        content = gridPane
+        gridPane.effect = BoxBlur(3.0, 3.0, 3)
+        content = stackPane
         hbarPolicy = ScrollBarPolicy.AS_NEEDED
         vbarPolicy = ScrollBarPolicy.AS_NEEDED
         gridPane.prefWidthProperty().bind(Bindings.add(-1, widthProperty()))
@@ -70,6 +96,10 @@ class BuildViewer : ScrollPane(), CoroutineScope {
     @Listener
     private fun buildStart(event: AutobuildStartSearchEvent) {
         launch {
+            if (gridPane.effect != null) {
+                gridPane.effect = null
+                stackPane.children -= placeholderText
+            }
             gridPane.isDisable = true
         }
     }
@@ -91,44 +121,42 @@ class BuildViewer : ScrollPane(), CoroutineScope {
                 .equipments
 
             val offHandedWeapon = equipments.firstOrNull {
-                it.itemType == ItemType.OFF_HAND_WEAPONS
+                it.itemType == OFF_HAND_WEAPONS
             }?.let { EquipmentCard(it) }
 
             val oneHandedWeapon = equipments.firstOrNull {
-                it.itemType == ItemType.ONE_HANDED_WEAPONS
+                it.itemType == ONE_HANDED_WEAPONS
             }?.let { EquipmentCard(it) }
 
             equipments
                 .forEach {
                     val newEquipmentCard = EquipmentCard(it)
                     when (it.itemType) {
-                        ItemType.AMULET -> amuletCard.value.replaceWith(newEquipmentCard)
-                        ItemType.EMBLEM -> emblemCard.value.replaceWith(newEquipmentCard)
-                        ItemType.SHOULDER_PADS -> shoulderPadsCard.value.replaceWith(newEquipmentCard)
-                        ItemType.RING -> ringCards.next().value.replaceWith(newEquipmentCard)
-                        ItemType.BOOTS -> bootsCard.value.replaceWith(newEquipmentCard)
-                        ItemType.CHEST_PLATE -> chestPlateCard.value.replaceWith(newEquipmentCard)
-                        ItemType.CAPE -> capeCard.value.replaceWith(newEquipmentCard)
-                        ItemType.HELMET -> helmetCard.value.replaceWith(newEquipmentCard)
-                        ItemType.PETS -> petCard.value.replaceWith(newEquipmentCard)
-                        ItemType.ONE_HANDED_WEAPONS -> {
+                        AMULET -> amuletCard.value.replaceWith(newEquipmentCard)
+                        EMBLEM -> emblemCard.value.replaceWith(newEquipmentCard)
+                        SHOULDER_PADS -> shoulderPadsCard.value.replaceWith(newEquipmentCard)
+                        RING -> ringCards.next().value.replaceWith(newEquipmentCard)
+                        BOOTS -> bootsCard.value.replaceWith(newEquipmentCard)
+                        CHEST_PLATE -> chestPlateCard.value.replaceWith(newEquipmentCard)
+                        CAPE -> capeCard.value.replaceWith(newEquipmentCard)
+                        HELMET -> helmetCard.value.replaceWith(newEquipmentCard)
+                        PETS -> petCard.value.replaceWith(newEquipmentCard)
+                        ONE_HANDED_WEAPONS -> {
                             weapon1Card.value.replaceWith(newEquipmentCard)
                             weapon2Card.value.replaceWith(offHandedWeapon ?: EquipmentCard(title = "Weapon 2"))
                         }
-
-                        ItemType.OFF_HAND_WEAPONS -> {
+                        OFF_HAND_WEAPONS -> {
                             weapon1Card.value.replaceWith(newEquipmentCard)
                             weapon2Card.value.replaceWith(oneHandedWeapon ?: EquipmentCard(title = "Weapon 2"))
                         }
-
-                        ItemType.TWO_HANDED_WEAPONS -> {
+                        TWO_HANDED_WEAPONS -> {
                             weapon1Card.value.replaceWith(newEquipmentCard)
                             val twoHandedWeaponCard = EquipmentCard(it)
                             weapon2Card.value.replaceWith(twoHandedWeaponCard)
                         }
 
-                        ItemType.MOUNTS -> mountCard.value.replaceWith(newEquipmentCard)
-                        ItemType.BELT -> beltCard.value.replaceWith(newEquipmentCard)
+                        MOUNTS -> mountCard.value.replaceWith(newEquipmentCard)
+                        BELT -> beltCard.value.replaceWith(newEquipmentCard)
                     }
                 }
         }

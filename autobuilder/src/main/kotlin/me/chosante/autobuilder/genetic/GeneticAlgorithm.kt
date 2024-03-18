@@ -38,7 +38,7 @@ internal class GeneticAlgorithm<T>(
                 emit(
                     GeneticAlgorithmResult(
                         individual = bestOfAllTimeIndividual.individual,
-                        individualMatchPercentage = scoreRounded,
+                        matchPercentage = scoreRounded,
                         progressPercentage = floor(100.0 * Duration.between(startTime..System.currentTimeMillis()).inWholeSeconds / duration.inWholeSeconds).toInt()
                     )
                 )
@@ -46,7 +46,7 @@ internal class GeneticAlgorithm<T>(
             emit(
                 GeneticAlgorithmResult(
                     individual = bestOfAllTimeIndividual.individual,
-                    individualMatchPercentage = bestOfAllTimeIndividual.score.setScale(2, RoundingMode.FLOOR),
+                    matchPercentage = bestOfAllTimeIndividual.score.setScale(2, RoundingMode.FLOOR),
                     progressPercentage = floor(100.0 * Duration.between(startTime..System.currentTimeMillis()).inWholeSeconds / duration.inWholeSeconds).toInt()
                 )
             )
@@ -101,6 +101,6 @@ data class ScoredIndividual<T>(val score: BigDecimal, val individual: T)
 
 data class GeneticAlgorithmResult<T>(
     val individual: T,
-    val individualMatchPercentage: BigDecimal,
+    val matchPercentage: BigDecimal,
     val progressPercentage: Int,
 )
