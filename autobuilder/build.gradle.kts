@@ -21,10 +21,10 @@ dependencies {
     implementation("com.github.ajalt.clikt:clikt:4.4.0")
     implementation("me.tongfei:progressbar:0.10.1")
     implementation("de.vandermeer:asciitable:0.3.2")
-    implementation("io.github.oshai:kotlin-logging-jvm:6.0.9")
+    implementation("io.github.oshai:kotlin-logging-jvm:7.0.0")
     implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.23.1")
     implementation("org.slf4j:slf4j-api:2.0.13")
-    testImplementation("org.assertj:assertj-core:3.25.3")
+    testImplementation("org.assertj:assertj-core:3.26.0")
     testImplementation(kotlin("test"))
 }
 
