@@ -7,13 +7,17 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class Version(val version: String)
+data class Version(
+    val version: String,
+)
 
-suspend fun wakfuAPILatestVersion(): String = coroutineScope {
-    "https://wakfu.cdn.ankama.com/gamedata/config.json"
-        .httpGet()
-        .awaitResult(kotlinxDeserializerOf<Version>()).fold(
-            success = { it.version },
-            failure = { throw IllegalStateException(it) }
-        )
-}
+suspend fun wakfuAPILatestVersion(): String =
+    coroutineScope {
+        "https://wakfu.cdn.ankama.com/gamedata/config.json"
+            .httpGet()
+            .awaitResult(kotlinxDeserializerOf<Version>())
+            .fold(
+                success = { it.version },
+                failure = { throw IllegalStateException(it) }
+            )
+    }

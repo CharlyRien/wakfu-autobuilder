@@ -19,29 +19,29 @@ import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 
 object WakfuBestBuildFinderAlgorithm {
-
     private val logger = KotlinLogging.logger {}
 
-    val equipments = this.javaClass.classLoader.getResourceAsStream("equipments-v$VERSION.json")?.readAllBytes()!!.let {
-        Json.decodeFromString<List<Equipment>>(String(it))
-    }
+    val equipments =
+        this.javaClass.classLoader.getResourceAsStream("equipments-v$VERSION.json")?.readAllBytes()!!.let {
+            Json.decodeFromString<List<Equipment>>(String(it))
+        }
 
-    suspend fun run(
-        params: WakfuBestBuildParams,
-    ): Flow<GeneticAlgorithmResult<BuildCombination>> {
-        val equipmentsByItemType = groupAndFilterEquipments(
-            excludedItems = params.excludedItems,
-            forcedItems = params.forcedItems,
-            maxRarity = params.maxRarity,
-            character = params.character
-        )
+    suspend fun run(params: WakfuBestBuildParams): Flow<GeneticAlgorithmResult<BuildCombination>> {
+        val equipmentsByItemType =
+            groupAndFilterEquipments(
+                excludedItems = params.excludedItems,
+                forcedItems = params.forcedItems,
+                maxRarity = params.maxRarity,
+                character = params.character
+            )
 
         val targetStats = params.targetStats
         return try {
-            val mutationProbability = 0.15
-            val numberOfIndividualsInPopulation = 10000
+            val mutationProbability = 0.20
+            val numberOfIndividualsInPopulation = 20000
             GeneticAlgorithm(
-                population = generateRandomPopulations(
+                population =
+                generateRandomPopulations(
                     numberOfIndividual = numberOfIndividualsInPopulation,
                     equipmentsByItemType = equipmentsByItemType,
                     character = params.character,
@@ -49,17 +49,19 @@ object WakfuBestBuildFinderAlgorithm {
                 ),
                 score = { combination ->
                     when (params.scoreComputationMode) {
-                        FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT -> FindMostMasteriesFromInputScoring.computeScore(
-                            targetStats = targetStats,
-                            buildCombination = combination,
-                            characterBaseCharacteristics = params.character.baseCharacteristicValues
-                        )
+                        FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
+                            FindMostMasteriesFromInputScoring.computeScore(
+                                targetStats = targetStats,
+                                buildCombination = combination,
+                                characterBaseCharacteristics = params.character.baseCharacteristicValues
+                            )
 
-                        FIND_CLOSEST_BUILD_FROM_INPUT -> FindClosestBuildFromInputScoring.computeScore(
-                            targetStats = targetStats,
-                            buildCombination = combination,
-                            characterBaseCharacteristics = params.character.baseCharacteristicValues
-                        )
+                        FIND_CLOSEST_BUILD_FROM_INPUT ->
+                            FindClosestBuildFromInputScoring.computeScore(
+                                targetStats = targetStats,
+                                buildCombination = combination,
+                                characterBaseCharacteristics = params.character.baseCharacteristicValues
+                            )
                     }
                 },
                 select = ::tournamentSelection,
@@ -87,24 +89,23 @@ object WakfuBestBuildFinderAlgorithm {
     ): Map<ItemType, List<Equipment>> {
         val itemsExcluded = excludedItems.map { it.lowercase() }
         val itemsToForce = forcedItems.map { it.lowercase() }
-        val equipmentsByItemType = equipments
-            .asSequence()
-            .filter { equipment ->
-                equipment.rarity <= maxRarity
-            }
-            .filter { equipment ->
-                (equipment.level <= character.level && equipment.level >= character.minLevel) ||
-                    (equipment.itemType == ItemType.PETS || equipment.itemType == ItemType.MOUNTS)
-            }
-            .filter { equipment -> equipment.name.fr.lowercase() !in itemsExcluded }
-            .groupBy { it.itemType }
-            .mapValues { (_, value) ->
-                if (value.any { it.name.fr.lowercase() in itemsToForce }) {
-                    value.filter { it.name.fr.lowercase() in itemsToForce || itemsToForce.isEmpty() }
-                } else {
-                    value
+        val equipmentsByItemType =
+            equipments
+                .asSequence()
+                .filter { equipment ->
+                    equipment.rarity <= maxRarity
+                }.filter { equipment ->
+                    (equipment.level <= character.level && equipment.level >= character.minLevel) ||
+                        (equipment.itemType == ItemType.PETS || equipment.itemType == ItemType.MOUNTS)
+                }.filter { equipment -> equipment.name.fr.lowercase() !in itemsExcluded }
+                .groupBy { it.itemType }
+                .mapValues { (_, value) ->
+                    if (value.any { it.name.fr.lowercase() in itemsToForce }) {
+                        value.filter { it.name.fr.lowercase() in itemsToForce || itemsToForce.isEmpty() }
+                    } else {
+                        value
+                    }
                 }
-            }
         return equipmentsByItemType
     }
 }
@@ -117,12 +118,13 @@ internal fun List<Equipment>.replaceRandomlyOneItemWithRarity(
     val equipments = this.toMutableList()
     val equipmentToRemove = equipments.filter { it.rarity == rarity }.random()
 
-    val replacementEquipment = findReplacementItem(
-        equipmentTypeToReplace = equipmentToRemove.itemType,
-        researchZone = replacementResearchZone,
-        equipmentsToExclude = equipments,
-        ringNamesToExclude = ringNames
-    )
+    val replacementEquipment =
+        findReplacementItem(
+            equipmentTypeToReplace = equipmentToRemove.itemType,
+            researchZone = replacementResearchZone,
+            equipmentsToExclude = equipments,
+            ringNamesToExclude = ringNames
+        )
 
     if (replacementEquipment == null) {
         val otherEquipmentToRemove = equipments.firstOrNull { it.rarity == rarity && it != equipmentToRemove }
@@ -151,15 +153,14 @@ private fun findReplacementItem(
     equipmentsToExclude: List<Equipment>,
     raritiesToExclude: List<Rarity> = listOf(Rarity.EPIC, Rarity.RELIC),
     ringNamesToExclude: List<String>,
-): Equipment? {
-    return researchZone
+): Equipment? =
+    researchZone
         .filter {
             it.itemType == equipmentTypeToReplace &&
                 it !in equipmentsToExclude &&
                 it.rarity !in raritiesToExclude &&
                 (it.itemType != ItemType.RING || it.name.fr !in ringNamesToExclude)
         }.randomOrNull()
-}
 
 data class WakfuBestBuildParams(
     val character: Character,

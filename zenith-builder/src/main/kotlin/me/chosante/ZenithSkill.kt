@@ -44,7 +44,7 @@ private fun SkillCharacteristic.toZenithWakfuAptitudeId(): Int {
         is AgilityCharacteristic.Lock -> 12
         is AgilityCharacteristic.Dodge -> 13
         is AgilityCharacteristic.Initiative -> 14
-        is AgilityCharacteristic.DodgeAndLock.Dodge, is AgilityCharacteristic.DodgeAndLock.Lock -> 15
+        is AgilityCharacteristic.DodgeAndLock -> 15
         is AgilityCharacteristic.Willpower -> 16
         is LuckCharacteristic.CriticalHit -> 17
         is LuckCharacteristic.Block -> 18

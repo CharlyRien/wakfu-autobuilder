@@ -59,10 +59,10 @@ tasks {
     compileKotlin {
         dependsOn(generateKotlinI18nKeys)
     }
-}
 
-tasks.test {
-    useJUnitPlatform()
+    test {
+        useJUnitPlatform()
+    }
 }
 
 kotlin {

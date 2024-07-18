@@ -12,6 +12,11 @@ repositories {
     mavenCentral()
 }
 
+java {
+    withSourcesJar()
+    withSourcesJar()
+}
+
 dependencies {
     implementation(libs.kotlinx.serialization.json)
 }
