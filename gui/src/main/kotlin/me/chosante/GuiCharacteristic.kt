@@ -2,7 +2,11 @@ package me.chosante
 
 import me.chosante.common.Characteristic
 
-enum class GuiCharacteristic(val characteristic: Characteristic, val guiName: String) {
+// TODO: I18N here
+enum class GuiCharacteristic(
+    val characteristic: Characteristic,
+    val guiName: String,
+) {
     MASTERY_ELEMENTARY(Characteristic.MASTERY_ELEMENTARY, "Mastery Elementary"),
     MASTERY_ELEMENTARY_WATER(Characteristic.MASTERY_ELEMENTARY_WATER, "Mastery Elementary Water"),
     MASTERY_ELEMENTARY_WIND(Characteristic.MASTERY_ELEMENTARY_WIND, "Mastery Elementary Wind"),

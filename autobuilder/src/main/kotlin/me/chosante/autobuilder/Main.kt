@@ -2,6 +2,7 @@ package me.chosante.autobuilder
 
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.PrintMessage
+import com.github.ajalt.clikt.core.terminal
 import com.github.ajalt.clikt.parameters.options.NullableOption
 import com.github.ajalt.clikt.parameters.options.check
 import com.github.ajalt.clikt.parameters.options.convert
@@ -11,7 +12,22 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.split
 import com.github.ajalt.clikt.parameters.options.splitPair
 import com.github.ajalt.clikt.parameters.types.int
-import de.vandermeer.asciitable.AsciiTable
+import com.github.ajalt.mordant.animation.progress.ThreadProgressTaskAnimator
+import com.github.ajalt.mordant.animation.progress.animateOnThread
+import com.github.ajalt.mordant.animation.progress.execute
+import com.github.ajalt.mordant.rendering.BorderType.Companion.SQUARE_DOUBLE_SECTION_SEPARATOR
+import com.github.ajalt.mordant.rendering.TextAlign
+import com.github.ajalt.mordant.rendering.TextColors
+import com.github.ajalt.mordant.rendering.TextColors.Companion.rgb
+import com.github.ajalt.mordant.rendering.TextStyle
+import com.github.ajalt.mordant.rendering.TextStyles
+import com.github.ajalt.mordant.table.Borders
+import com.github.ajalt.mordant.table.table
+import com.github.ajalt.mordant.terminal.Terminal
+import com.github.ajalt.mordant.widgets.progress.percentage
+import com.github.ajalt.mordant.widgets.progress.progressBar
+import com.github.ajalt.mordant.widgets.progress.progressBarContextLayout
+import com.github.ajalt.mordant.widgets.progress.text
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlin.system.exitProcess
 import kotlin.time.Duration
@@ -22,6 +38,7 @@ import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.runBlocking
 import me.chosante.ZenithInputParameters
 import me.chosante.autobuilder.domain.TargetStat
@@ -69,13 +86,9 @@ import me.chosante.common.Equipment
 import me.chosante.common.Rarity
 import me.chosante.common.skills.Assignable
 import me.chosante.createZenithBuild
-import me.tongfei.progressbar.ConsoleProgressBarConsumer
-import me.tongfei.progressbar.ProgressBar
-import me.tongfei.progressbar.ProgressBarBuilder
-import me.tongfei.progressbar.ProgressBarStyle
 
 private val logger = KotlinLogging.logger {}
-internal const val VERSION = "1.83.1.21"
+internal const val VERSION = "1.84.1.25"
 
 fun main(args: Array<String>) = WakfuAutobuild().main(args)
 
@@ -86,7 +99,8 @@ private val additionalHelpOnStats =
 
 private class WakfuAutobuild :
     CliktCommand(
-        help = """This program helps Wakfu players easily find the best combination of equipment for their character 
+        help =
+        """This program helps Wakfu players easily find the best combination of equipment for their character 
             |at a given level by taking into account their desired stats and providing build suggestions
             |based on their input.
             |
@@ -97,13 +111,11 @@ private class WakfuAutobuild :
         """.trimMargin(),
         name = "Wakfu Autobuilder version: $VERSION"
     ) {
-
     private val maxLevelWanted: Int by option(
         "--max-level",
         "--max-niveau",
         help = "The max level of the character (no items selected will be above this level)"
-    )
-        .int()
+    ).int()
         .default(230)
         .check("Level should be between 1 and 230") { it in 1..230 }
 
@@ -111,8 +123,7 @@ private class WakfuAutobuild :
         "--min-level",
         "--min-niveau",
         help = "The min level of the character (no items selected will be under this level)"
-    )
-        .int()
+    ).int()
         .default(1)
         .check("Level should be between 1 and 230") { it in 1..230 }
 
@@ -170,7 +181,8 @@ HUPPERMAGE"""
     private val maxRarity: Rarity by option(
         "--max-rarity",
         "--rarete-max",
-        help = "Used to tell the algorithm to not take items into account that above this rarity, " +
+        help =
+        "Used to tell the algorithm to not take items into account that above this rarity, " +
             "here the list of value possible in order: ${Rarity.entries}"
     ).convert { Rarity.valueOf(it.uppercase()) }
         .default(Rarity.EPIC)
@@ -178,253 +190,221 @@ HUPPERMAGE"""
     private val forceItems: List<String> by option(
         "--items-a-force",
         "--forced-items",
-        help = "Used to tell the algorithm to force specific items to be in the final build," +
+        help =
+        "Used to tell the algorithm to force specific items to be in the final build," +
             " the names have to be French for now, can be used like that: --forced-items 'Gelano','Amulette du Bouftou',..."
     ).split(",").default(listOf())
 
     private val excludedItems: List<String> by option(
         "--items-a-exclure",
         "--excluded-items",
-        help = "Used to tell the algorithm to exclude specific items to not be in the final build," +
+        help =
+        "Used to tell the algorithm to exclude specific items to not be in the final build," +
             " the names have to be in french for now, can be used like that: --excluded-items 'Gelano','Amulette du Bouftou',..."
     ).split(",").default(listOf())
 
     private val paWanted: TargetStat? by option(
         names = arrayOf("--ap", "--action-point", "--pa"),
         help = "Number of action points wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
-        .toTargetStat(ACTION_POINT)
+    ).splitPair(delimiter = ":")
+            .toTargetStat(ACTION_POINT)
 
     private val rangeWanted: TargetStat? by option(
         names = arrayOf("--range", "--portee", "--po"),
         help = "Number of range points wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(RANGE)
 
     private val criticalHitWanted: TargetStat? by option(
         names = arrayOf("--critical-hit", "--cc"),
         help = "Number of critical hit wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(CRITICAL_HIT)
 
     private val pmWanted: TargetStat? by option(
         names = arrayOf("--mp", "--movement-point", "--pm"),
         help = "Number of movement points wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
-        .toTargetStat(MOVEMENT_POINT)
+    ).splitPair(delimiter = ":")
+            .toTargetStat(MOVEMENT_POINT)
 
     private val pwWanted: TargetStat? by option(
         names = arrayOf("--wp", "--wakfu-point", "--pw"),
         help = "Number of wakfu points wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(MOVEMENT_POINT)
 
     private val masteryElementWanted: TargetStat? by option(
         names = arrayOf("--mastery-elementary", "--maitrise-elementaire"),
         help = "Number of elementary mastery wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(MASTERY_ELEMENTARY)
 
     private val masteryCriticalWanted: TargetStat? by option(
         names = arrayOf("--mastery-critical", "--maitrise-critique"),
         help = "Number of critical mastery wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(MASTERY_CRITICAL)
 
     private val masteryWaterWanted: TargetStat? by option(
         names = arrayOf("--mastery-water", "--maitrise-eau"),
         help = "Number of water mastery wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(MASTERY_ELEMENTARY_WATER)
 
     private val masteryFireWanted: TargetStat? by option(
         names = arrayOf("--mastery-fire", "--maitrise-feu"),
         help = "Number of fire mastery wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(MASTERY_ELEMENTARY_FIRE)
 
     private val masteryWindWanted: TargetStat? by option(
         names = arrayOf("--mastery-wind", "--maitrise-air"),
         help = "Number of wind mastery wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(MASTERY_ELEMENTARY_WIND)
 
     private val masteryEarthWanted: TargetStat? by option(
         names = arrayOf("--mastery-earth", "--maitrise-terre"),
         help = "Number of wind mastery wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(MASTERY_ELEMENTARY_EARTH)
 
     private val masteryBackWanted: TargetStat? by option(
         names = arrayOf("--mastery-back", "--maitrise-dos"),
         help = "Number of back mastery wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(MASTERY_BACK)
 
     private val masteryMeleeWanted: TargetStat? by option(
         names = arrayOf("--mastery-melee", "--maitrise-melee"),
         help = "Number of melee mastery wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(MASTERY_MELEE)
 
     private val masteryBerserkWanted: TargetStat? by option(
         names = arrayOf("--mastery-berserk", "--maitrise-berserk"),
         help = "Number of berserk mastery wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(MASTERY_BERSERK)
 
     private val masteryHealingWanted: TargetStat? by option(
         names = arrayOf("--mastery-healing", "--maitrise-soin"),
         help = "Number of healing mastery wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(MASTERY_HEALING)
 
     private val resistanceCriticalWanted: TargetStat? by option(
         names = arrayOf("--resistance-critical", "--resistance-critique"),
         help = "Number of critical resistance wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(RESISTANCE_CRITICAL)
 
     private val resistanceBackWanted: TargetStat? by option(
         names = arrayOf("--resistance-back", "--resistance-dos"),
         help = "Number of back resistance wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(RESISTANCE_BACK)
 
     private val resistanceElementaryWanted: TargetStat? by option(
         names = arrayOf("--resistance-elementary", "--resistance-elementaire"),
         help = "Number of elementary resistance wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(RESISTANCE_ELEMENTARY)
 
     private val resistanceElementaryFireWanted: TargetStat? by option(
         names = arrayOf("--resistance-elementary-fire", "--resistance-elementaire-feu"),
         help = "Number of fire elementary resistance wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(RESISTANCE_ELEMENTARY_FIRE)
 
     private val resistanceElementaryWaterWanted: TargetStat? by option(
         names = arrayOf("--resistance-elementary-water", "--resistance-elementaire-eau"),
         help = "Number of water elementary resistance wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(RESISTANCE_ELEMENTARY_WATER)
 
     private val resistanceElementaryWindWanted: TargetStat? by option(
         names = arrayOf("--resistance-elementary-wind", "--resistance-elementaire-air"),
         help = "Number of wind elementary resistance wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(RESISTANCE_ELEMENTARY_WIND)
 
     private val resistanceElementaryEarthWanted: TargetStat? by option(
         names = arrayOf("--resistance-elementary-earth", "--resistance-elementaire-terre"),
         help = "Number of earth elementary resistance wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(RESISTANCE_ELEMENTARY_EARTH)
 
     private val controlWanted: TargetStat? by option(
         names = arrayOf("--control", "--controle"),
         help = "Number of control wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(CONTROL)
 
     private val wisdomWanted: TargetStat? by option(
         names = arrayOf("--wisdom", "--sagesse"),
         help = "Number of wisdom wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(WISDOM)
 
     private val dodgeWanted: TargetStat? by option(
         names = arrayOf("--dodge", "--esquive"),
         help = "Number of dodge wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(DODGE)
 
     private val lockWanted: TargetStat? by option(
         names = arrayOf("--lock", "--tacle"),
         help = "Number of lock wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(LOCK)
 
     private val prospectionWanted: TargetStat? by option(
         names = arrayOf("--prospection"),
         help = "Number of prospection wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(PROSPECTION)
 
     private val initiativeWanted: TargetStat? by option(
         names = arrayOf("--initiative"),
         help = "Number of initiative wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(INITIATIVE)
 
     private val willpowerWanted: TargetStat? by option(
         names = arrayOf("--willpower", "--volonte"),
         help = "Number of willpower wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(WILLPOWER)
 
     private val receivedArmorPercentageWanted: TargetStat? by option(
         names = arrayOf("--received-armor", "--armure-recue"),
         help = "Number of received armor percentage wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(RECEIVED_ARMOR_PERCENTAGE)
 
     private val masteryDistanceWanted: TargetStat? by option(
         names = arrayOf("--mastery-distance", "--maitrise-distance"),
         help = "Number of distance mastery wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(MASTERY_DISTANCE)
 
     private val hpWanted: TargetStat? by option(
         names = arrayOf("--hp", "--pdv", "--health-points", "--points-de-vie"),
         help = "Number of health points wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(HP)
 
     private val blockPercentageWanted: TargetStat? by option(
         names = arrayOf("--parade", "--block"),
         help = "percentage of parade wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(BLOCK_PERCENTAGE)
 
     private val armorGivenPercentageWanted: TargetStat? by option(
         names = arrayOf("--armor-given", "--armure-donnee"),
         help = "percentage of parade wanted. $additionalHelpOnStats"
-    )
-        .splitPair(delimiter = ":")
+    ).splitPair(delimiter = ":")
         .toTargetStat(GIVEN_ARMOR_PERCENTAGE)
 
     private val createZenithBuild: Boolean by option(
@@ -439,45 +419,46 @@ HUPPERMAGE"""
 
     override fun run() {
         val character = Character(characterClass ?: CharacterClass.UNKNOWN, maxLevelWanted, minLevelWanted)
-        val targetStats = TargetStats(
-            listOfNotNull(
-                paWanted,
-                pmWanted,
-                hpWanted,
-                pwWanted,
-                criticalHitWanted,
-                rangeWanted,
-                masteryElementWanted,
-                masteryBackWanted,
-                controlWanted,
-                masteryEarthWanted,
-                masteryFireWanted,
-                masteryWaterWanted,
-                masteryWindWanted,
-                masteryMeleeWanted,
-                masteryBerserkWanted,
-                masteryHealingWanted,
-                masteryBackWanted,
-                masteryCriticalWanted,
-                masteryDistanceWanted,
-                resistanceCriticalWanted,
-                resistanceBackWanted,
-                resistanceElementaryWanted,
-                resistanceElementaryFireWanted,
-                resistanceElementaryWaterWanted,
-                resistanceElementaryEarthWanted,
-                resistanceElementaryWindWanted,
-                wisdomWanted,
-                lockWanted,
-                dodgeWanted,
-                prospectionWanted,
-                initiativeWanted,
-                willpowerWanted,
-                receivedArmorPercentageWanted,
-                blockPercentageWanted,
-                armorGivenPercentageWanted
+        val targetStats =
+            TargetStats(
+                listOfNotNull(
+                    paWanted,
+                    pmWanted,
+                    hpWanted,
+                    pwWanted,
+                    criticalHitWanted,
+                    rangeWanted,
+                    masteryElementWanted,
+                    masteryBackWanted,
+                    controlWanted,
+                    masteryEarthWanted,
+                    masteryFireWanted,
+                    masteryWaterWanted,
+                    masteryWindWanted,
+                    masteryMeleeWanted,
+                    masteryBerserkWanted,
+                    masteryHealingWanted,
+                    masteryBackWanted,
+                    masteryCriticalWanted,
+                    masteryDistanceWanted,
+                    resistanceCriticalWanted,
+                    resistanceBackWanted,
+                    resistanceElementaryWanted,
+                    resistanceElementaryFireWanted,
+                    resistanceElementaryWaterWanted,
+                    resistanceElementaryEarthWanted,
+                    resistanceElementaryWindWanted,
+                    wisdomWanted,
+                    lockWanted,
+                    dodgeWanted,
+                    prospectionWanted,
+                    initiativeWanted,
+                    willpowerWanted,
+                    receivedArmorPercentageWanted,
+                    blockPercentageWanted,
+                    armorGivenPercentageWanted
+                )
             )
-        )
         if (targetStats.isEmpty()) {
             throw PrintMessage(
                 message = "No input stats given, stopping the program... Use --help flag for more information",
@@ -486,7 +467,8 @@ HUPPERMAGE"""
         }
 
         runBlocking {
-            val bestCombination = progressBar().use { progressBar ->
+            val progressBar = progressBar(terminal)
+            val bestCombination =
                 WakfuBestBuildFinderAlgorithm
                     .run(
                         WakfuBestBuildParams(
@@ -499,55 +481,44 @@ HUPPERMAGE"""
                             excludedItems = excludedItems,
                             scoreComputationMode = computationMode
                         )
-                    )
-                    .buffer(CONFLATED)
+                    ).buffer(CONFLATED)
+                    .onStart { progressBar.execute() }
                     .onEach {
-                        progressBar.setExtraMessage("${it.matchPercentage}% match found so far")
-                        progressBar.stepTo(it.progressPercentage.toLong())
+                        progressBar.update {
+                            context = "${it.matchPercentage}% match found so far"
+                            completed = it.progressPercentage.toLong()
+                        }
                         delay(1000L)
-                    }
-                    .onCompletion {
-                        progressBar.stepTo(progressBar.max)
-                    }
-                    .last()
+                    }.onCompletion {
+                        progressBar.stop()
+                    }.last()
                     .individual
                     .also {
-                        println(
-                            """Research result
-                        |Given vs. Expected characteristics
-                        |
-                        |Equipment
-                        |${it.equipments.asASCIITable()}
-                        |
-                        |Skills
-                        |
-                        |Intelligence
-                        |${it.characterSkills.intelligence.asASCIITable()}
-                        |
-                        |Strength
-                        |${it.characterSkills.strength.asASCIITable()}
-                        |
-                        |Luck
-                        |${it.characterSkills.luck.asASCIITable()}
-                        |
-                        |Agility
-                        |${it.characterSkills.agility.asASCIITable()}
-                        |
-                        |Major
-                        |${it.characterSkills.major.asASCIITable()}
-                            """.trimMargin()
-                        )
+                        terminal.println("Research result")
+                        terminal.println("Equipment")
+                        terminal.println(it.equipments.asASCIITable())
+                        terminal.println("Skills")
+                        terminal.println("Intelligence")
+                        terminal.println(it.characterSkills.intelligence.asASCIITable())
+                        terminal.println("Strength")
+                        terminal.println(it.characterSkills.strength.asASCIITable())
+                        terminal.println("Luck")
+                        terminal.println(it.characterSkills.luck.asASCIITable())
+                        terminal.println("Agility")
+                        terminal.println(it.characterSkills.agility.asASCIITable())
+                        terminal.println("Major")
+                        terminal.println(it.characterSkills.major.asASCIITable())
                     }
-            }
 
             if (createZenithBuild) {
                 try {
-                    val zenithInputParameters = ZenithInputParameters(
-                        character = character.copy(characterSkills = bestCombination.characterSkills),
-                        equipments = bestCombination.equipments
-                    )
+                    val zenithInputParameters =
+                        ZenithInputParameters(
+                            character = character.copy(characterSkills = bestCombination.characterSkills),
+                            equipments = bestCombination.equipments
+                        )
                     val link = zenithInputParameters.createZenithBuild()
-                    println("Zenith Build Link: $link")
+                    terminal.println(TextStyles.bold("Zenith Build Link: $link"))
                 } catch (exception: Exception) {
                     logger.error(exception) { "An error occurred during the creation of the Zenith build :(" }
                 }
@@ -557,52 +528,70 @@ HUPPERMAGE"""
         }
     }
 
-    private fun List<Equipment>.asASCIITable() = with(AsciiTable()) {
-        with(context) {
-            setFrameLeftRightMargin(2)
-            setFrameTopBottomMargin(2)
-            width = 100
+    private fun List<Equipment>.asASCIITable() =
+        table {
+            borderType = SQUARE_DOUBLE_SECTION_SEPARATOR
+            borderStyle = rgb("#4b25b9")
+            align = TextAlign.RIGHT
+            tableBorders = Borders.NONE
+            header {
+                style = TextColors.brightRed + TextStyles.bold
+                row("Equipment name", "Equipment type", "Level", "Rarity") { cellBorders = Borders.BOTTOM }
+            }
+            body {
+                style = TextColors.green
+                column(0) {
+                    align = TextAlign.LEFT
+                    cellBorders = Borders.ALL
+                    style = TextColors.brightBlue
+                }
+                column(3) {
+                    cellBorders = Borders.LEFT_BOTTOM
+                    style = TextColors.brightBlue
+                }
+                column(4) {
+                    style = TextColors.brightBlue
+                }
+                rowStyles(TextStyle(), TextStyles.dim.style)
+                cellBorders = Borders.TOP_BOTTOM
+                this@asASCIITable.forEach {
+                    row(it.name.en, it.itemType, it.level, it.rarity)
+                }
+            }
         }
-        addRule()
-        addRow("Equipment name", "equipment type", "level", "rarity")
-        this@asASCIITable.forEach {
-            addRule()
-            addRow(it.name.en, it.itemType, it.level, it.rarity)
-            addRule()
-        }
-        addRule()
-        render()
-    }
 }
 
-private fun progressBar(): ProgressBar {
-    return ProgressBarBuilder()
-        .hideEta()
-        .setTaskName("Best build research")
-        .setInitialMax(100)
-        .setStyle(ProgressBarStyle.UNICODE_BLOCK)
-        .setConsumer(ConsoleProgressBarConsumer(System.err))
-        .build()
-}
+private fun progressBar(terminal: Terminal): ThreadProgressTaskAnimator<String> =
+    progressBarContextLayout {
+        text { context }
+        progressBar()
+        percentage()
+    }.animateOnThread(terminal, "", total = 100L)
 
-private fun Assignable<*>.asASCIITable() = with(AsciiTable()) {
-    val characterSkills = this@asASCIITable
-    with(context) {
-        setFrameLeftRightMargin(2)
-        setFrameTopBottomMargin(2)
-        width = 100
-    }
-    characterSkills
-        .getCharacteristics().forEach {
-            addRule()
-            addRow(
-                it.name,
-                "${it.pointsAssigned}/${if (it.maxPointsAssignable == Int.MAX_VALUE) "∞" else it.maxPointsAssignable}"
-            )
+private fun Assignable<*>.asASCIITable() =
+    table {
+        borderType = SQUARE_DOUBLE_SECTION_SEPARATOR
+        borderStyle = rgb("#4b25b9")
+        align = TextAlign.RIGHT
+        tableBorders = Borders.NONE
+        body {
+            style = TextColors.green
+            column(0) {
+                align = TextAlign.LEFT
+                cellBorders = Borders.ALL
+                style = TextColors.brightBlue
+            }
+            column(1) {
+                cellBorders = Borders.LEFT_BOTTOM
+                style = TextColors.brightBlue
+            }
+            rowStyles(TextStyle(), TextStyles.dim.style)
+            cellBorders = Borders.TOP_BOTTOM
+            this@asASCIITable.getCharacteristics().forEach {
+                row(it.name, "${it.pointsAssigned}/${if (it.maxPointsAssignable == Int.MAX_VALUE) "∞" else it.maxPointsAssignable}")
+            }
         }
-    addRule()
-    render()
-}
+    }
 
 private fun NullableOption<Pair<String, String>, Pair<String, String>>.toTargetStat(characteristic: Characteristic): NullableOption<TargetStat, TargetStat> =
     convert { (value, weight) ->
