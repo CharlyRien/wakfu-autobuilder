@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "me.chosante"
-version = "0.1.0"
+version = "0.2.0"
 
 repositories {
     mavenCentral()
@@ -42,15 +42,16 @@ tasks {
         properties.load(propertiesFile.inputStream())
 
         val enumName = "I18nKey"
-        val constantsClass = buildString {
-            appendLine("package generated")
-            appendLine("enum class $enumName(val key: String) {")
-            properties.forEach { key, _ ->
-                val constantKeyName = key.toString().replace("[^a-zA-Z0-9]".toRegex(), "_").uppercase()
-                appendLine("""    $constantKeyName("$key"), """)
+        val constantsClass =
+            buildString {
+                appendLine("package generated")
+                appendLine("enum class $enumName(val key: String) {")
+                properties.forEach { key, _ ->
+                    val constantKeyName = key.toString().replace("[^a-zA-Z0-9]".toRegex(), "_").uppercase()
+                    appendLine("""    $constantKeyName("$key"), """)
+                }
+                appendLine("}")
             }
-            appendLine("}")
-        }
 
         Files.createDirectories(file("src/main/kotlin/generated").toPath())
         file("src/main/kotlin/generated/$enumName.kt").writeText(constantsClass)
@@ -66,7 +67,11 @@ tasks {
 }
 
 kotlin {
-    jvmToolchain(libs.versions.jvm.get().toInt())
+    jvmToolchain(
+        libs.versions.jvm
+            .get()
+            .toInt()
+    )
 }
 
 ktlint {
