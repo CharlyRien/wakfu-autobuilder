@@ -4,7 +4,7 @@ import java.util.Properties
 plugins {
     kotlin("jvm")
     id("org.openjfx.javafxplugin") version "0.1.0"
-    id("dev.hydraulic.conveyor") version "1.10"
+    id("dev.hydraulic.conveyor") version "1.11"
     alias(libs.plugins.ktlint)
     application
 }
