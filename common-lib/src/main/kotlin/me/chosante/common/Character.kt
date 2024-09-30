@@ -33,9 +33,7 @@ enum class CharacterClass {
     ;
 
     companion object {
-        fun fromValue(characterName: String): CharacterClass {
-            return entries.find { it.name == characterName.uppercase() } ?: UNKNOWN
-        }
+        fun fromValue(characterName: String): CharacterClass = entries.find { it.name == characterName.uppercase() } ?: UNKNOWN
     }
 }
 
@@ -45,41 +43,48 @@ data class Character(
     val minLevel: Int,
     val characterSkills: CharacterSkills = CharacterSkills(level),
 ) {
-    private val baseAP = CharacterStat(
-        characteristic = ACTION_POINT,
-        value = 6
-    )
-    private val baseMP = CharacterStat(
-        characteristic = MOVEMENT_POINT,
-        value = 3
-    )
-    private val baseWP = CharacterStat(
-        characteristic = WAKFU_POINT,
-        value = if (clazz == CharacterClass.XELOR) 12 else 6
-    )
-    private val baseHP = CharacterStat(
-        characteristic = HP,
-        value = 50 + (level * 10)
-    )
+    private val baseAP =
+        CharacterStat(
+            characteristic = ACTION_POINT,
+            value = 6
+        )
+    private val baseMP =
+        CharacterStat(
+            characteristic = MOVEMENT_POINT,
+            value = 3
+        )
+    private val baseWP =
+        CharacterStat(
+            characteristic = WAKFU_POINT,
+            value = if (clazz == CharacterClass.XELOR) 12 else 6
+        )
+    private val baseHP =
+        CharacterStat(
+            characteristic = HP,
+            value = 50 + (level * 10)
+        )
 
-    private val baseCriticalHit = CharacterStat(
-        characteristic = CRITICAL_HIT,
-        value = 3
-    )
+    private val baseCriticalHit =
+        CharacterStat(
+            characteristic = CRITICAL_HIT,
+            value = 3
+        )
 
-    private val baseControl = CharacterStat(
-        characteristic = CONTROL,
-        value = 1
-    )
+    private val baseControl =
+        CharacterStat(
+            characteristic = CONTROL,
+            value = 1
+        )
 
-    val baseCharacteristicValues = setOf(
-        baseAP,
-        baseMP,
-        baseWP,
-        baseHP,
-        baseCriticalHit,
-        baseControl
-    ).associate { it.characteristic to it.value }
+    val baseCharacteristicValues =
+        setOf(
+            baseAP,
+            baseMP,
+            baseWP,
+            baseHP,
+            baseCriticalHit,
+            baseControl
+        ).associate { it.characteristic to it.value }
 
     data class CharacterStat(
         val characteristic: Characteristic,

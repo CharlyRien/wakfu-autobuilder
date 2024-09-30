@@ -16,17 +16,19 @@ object FindClosestBuildFromInputScoring {
         buildCombination: BuildCombination,
         characterBaseCharacteristics: Map<Characteristic, Int>,
     ): BigDecimal {
-        val actualCharacteristicsValues = computeCharacteristicsValues(
-            buildCombination,
-            characterBaseCharacteristics,
-            targetStats.masteryElementsWanted,
-            targetStats.resistanceElementsWanted
-        )
+        val actualCharacteristicsValues =
+            computeCharacteristicsValues(
+                buildCombination,
+                characterBaseCharacteristics,
+                targetStats.masteryElementsWanted,
+                targetStats.resistanceElementsWanted
+            )
 
         var totalActualScore = calculateTotalActualScore(targetStats, actualCharacteristicsValues, targetStats.expectedScoreByCharacteristic, canExceedPerfectScore = false)
 
         // Apply penalty on asked characteristics with target 0 and negative value on the current build
-        targetStats.filter { it.target == 0 }
+        targetStats
+            .filter { it.target == 0 }
             .forEach { targetStat ->
                 actualCharacteristicsValues[targetStat.characteristic]?.let {
                     if (it < 0) {
@@ -52,29 +54,33 @@ object FindClosestBuildFromInputScoring {
         expectedScoreByCharacteristic: Map<TargetStat, Double>,
         canExceedPerfectScore: Boolean,
     ): Double {
-        val totalActualScore = targetStats.sumOf { targetStat ->
-            val weight = targetStats.weight(targetStat)
-            val actualScore = when (targetStat.characteristic) {
-                Characteristic.MASTERY_ELEMENTARY -> calculateElementaryMasteryScore(
-                    targetStat,
-                    actualCharacteristicsValues,
-                    weight,
-                    expectedScoreByCharacteristic,
-                    canExceedPerfectScore
-                )
+        val totalActualScore =
+            targetStats.sumOf { targetStat ->
+                val weight = targetStats.weight(targetStat)
+                val actualScore =
+                    when (targetStat.characteristic) {
+                        Characteristic.MASTERY_ELEMENTARY ->
+                            calculateElementaryMasteryScore(
+                                targetStat,
+                                actualCharacteristicsValues,
+                                weight,
+                                expectedScoreByCharacteristic,
+                                canExceedPerfectScore
+                            )
 
-                Characteristic.RESISTANCE_ELEMENTARY -> calculateElementaryResistanceScore(
-                    targetStat,
-                    actualCharacteristicsValues,
-                    weight,
-                    expectedScoreByCharacteristic,
-                    canExceedPerfectScore
-                )
+                        Characteristic.RESISTANCE_ELEMENTARY ->
+                            calculateElementaryResistanceScore(
+                                targetStat,
+                                actualCharacteristicsValues,
+                                weight,
+                                expectedScoreByCharacteristic,
+                                canExceedPerfectScore
+                            )
 
-                else -> (actualCharacteristicsValues[targetStat.characteristic] ?: 0) * weight
+                        else -> (actualCharacteristicsValues[targetStat.characteristic] ?: 0) * weight
+                    }
+                if (canExceedPerfectScore) actualScore else min(actualScore, expectedScoreByCharacteristic.getValue(targetStat))
             }
-            if (canExceedPerfectScore) actualScore else min(actualScore, expectedScoreByCharacteristic.getValue(targetStat))
-        }
         return totalActualScore
     }
 
@@ -85,17 +91,19 @@ object FindClosestBuildFromInputScoring {
         expectedScoreByCharacteristic: Map<TargetStat, Double>,
         canExceedPerfectScore: Boolean,
     ): Double {
-        val elements = listOf(
-            Characteristic.MASTERY_ELEMENTARY_FIRE,
-            Characteristic.MASTERY_ELEMENTARY_WATER,
-            Characteristic.MASTERY_ELEMENTARY_EARTH,
-            Characteristic.MASTERY_ELEMENTARY_WIND
-        )
-        val totalScore = elements.sumOf { element ->
-            val elementValue = actualCharacteristicsValues[element] ?: 0
-            val actualElementScore = elementValue * weight
-            if (canExceedPerfectScore) actualElementScore else min(actualElementScore, expectedScoreByCharacteristic.getValue(targetStat))
-        }
+        val elements =
+            listOf(
+                Characteristic.MASTERY_ELEMENTARY_FIRE,
+                Characteristic.MASTERY_ELEMENTARY_WATER,
+                Characteristic.MASTERY_ELEMENTARY_EARTH,
+                Characteristic.MASTERY_ELEMENTARY_WIND
+            )
+        val totalScore =
+            elements.sumOf { element ->
+                val elementValue = actualCharacteristicsValues[element] ?: 0
+                val actualElementScore = elementValue * weight
+                if (canExceedPerfectScore) actualElementScore else min(actualElementScore, expectedScoreByCharacteristic.getValue(targetStat))
+            }
         return totalScore / 4
     }
 
@@ -106,17 +114,19 @@ object FindClosestBuildFromInputScoring {
         expectedScoreByCharacteristic: Map<TargetStat, Double>,
         canExceedPerfectScore: Boolean,
     ): Double {
-        val elements = listOf(
-            Characteristic.RESISTANCE_ELEMENTARY_FIRE,
-            Characteristic.RESISTANCE_ELEMENTARY_WATER,
-            Characteristic.RESISTANCE_ELEMENTARY_EARTH,
-            Characteristic.RESISTANCE_ELEMENTARY_WIND
-        )
-        val totalScore = elements.sumOf { element ->
-            val elementValue = actualCharacteristicsValues[element] ?: 0
-            val actualElementScore = elementValue * weight
-            if (canExceedPerfectScore) actualElementScore else min(actualElementScore, expectedScoreByCharacteristic.getValue(targetStat))
-        }
+        val elements =
+            listOf(
+                Characteristic.RESISTANCE_ELEMENTARY_FIRE,
+                Characteristic.RESISTANCE_ELEMENTARY_WATER,
+                Characteristic.RESISTANCE_ELEMENTARY_EARTH,
+                Characteristic.RESISTANCE_ELEMENTARY_WIND
+            )
+        val totalScore =
+            elements.sumOf { element ->
+                val elementValue = actualCharacteristicsValues[element] ?: 0
+                val actualElementScore = elementValue * weight
+                if (canExceedPerfectScore) actualElementScore else min(actualElementScore, expectedScoreByCharacteristic.getValue(targetStat))
+            }
         return totalScore / 4
     }
 }
@@ -127,44 +137,50 @@ fun computeCharacteristicsValues(
     masteryElementsWanted: Map<Characteristic, Int>,
     resistanceElementsWanted: Map<Characteristic, Int>,
 ): Map<Characteristic, Int> {
-    val eachCharacteristicValueLineByEquipment = buildCombination.equipments.flatMap { it.characteristics.entries }
-        .groupBy({ it.key }, { it.value })
+    val eachCharacteristicValueLineByEquipment =
+        buildCombination.equipments
+            .flatMap { it.characteristics.entries }
+            .groupBy({ it.key }, { it.value })
 
     val characteristicsGivenByEquipmentCombination: Map<Characteristic, Int> =
         eachCharacteristicValueLineByEquipment
             .mapValues { (_, values) -> values.sum() }
 
-    val edgeCasesCharacteristicsGivenByEquipment = mapOf(
-        Characteristic.ACTION_POINT to (
-            characteristicsGivenByEquipmentCombination[Characteristic.MAX_ACTION_POINT]
-                ?: 0
-            ),
-        Characteristic.MOVEMENT_POINT to (
-            characteristicsGivenByEquipmentCombination[Characteristic.MAX_MOVEMENT_POINT]
-                ?: 0
-            ),
-        Characteristic.WAKFU_POINT to (characteristicsGivenByEquipmentCombination[Characteristic.MAX_WAKFU_POINTS] ?: 0)
-    )
+    val edgeCasesCharacteristicsGivenByEquipment =
+        mapOf(
+            Characteristic.ACTION_POINT to (
+                characteristicsGivenByEquipmentCombination[Characteristic.MAX_ACTION_POINT]
+                    ?: 0
+                ),
+            Characteristic.MOVEMENT_POINT to (
+                characteristicsGivenByEquipmentCombination[Characteristic.MAX_MOVEMENT_POINT]
+                    ?: 0
+                ),
+            Characteristic.WAKFU_POINT to (characteristicsGivenByEquipmentCombination[Characteristic.MAX_WAKFU_POINTS] ?: 0)
+        )
 
-    val (characteristicGivenBySkillsFixedValues, characteristicGivenBySkillsPercentValues) = buildCombination
-        .characterSkills
-        .allCharacteristicValues
+    val (characteristicGivenBySkillsFixedValues, characteristicGivenBySkillsPercentValues) =
+        buildCombination
+            .characterSkills
+            .allCharacteristicValues
 
-    val sumOfCharacteristicFixedValues = mergeAndSumCharacteristicValues(
-        characteristicsGivenByEquipmentCombination,
-        characteristicGivenBySkillsFixedValues,
-        edgeCasesCharacteristicsGivenByEquipment,
-        characterBaseCharacteristics
-    )
+    val sumOfCharacteristicFixedValues =
+        mergeAndSumCharacteristicValues(
+            characteristicsGivenByEquipmentCombination,
+            characteristicGivenBySkillsFixedValues,
+            edgeCasesCharacteristicsGivenByEquipment,
+            characterBaseCharacteristics
+        )
 
     val mutableActualCharacteristics = sumOfCharacteristicFixedValues.toMutableMap()
     if (masteryElementsWanted.isNotEmpty()) {
         val currentSpecificMasteryElements = currentStatSpecificElements(masteryElementsWanted, sumOfCharacteristicFixedValues, Characteristic.MASTERY_ELEMENTARY)
-        val specificMasteryElementsWithRandomValuesAssigned = assignUniformlyMasteryRandomValues(
-            getMasteryRandoms(eachCharacteristicValueLineByEquipment),
-            currentSpecificMasteryElements,
-            masteryElementsWanted
-        )
+        val specificMasteryElementsWithRandomValuesAssigned =
+            assignUniformlyMasteryRandomValues(
+                getMasteryRandoms(eachCharacteristicValueLineByEquipment),
+                currentSpecificMasteryElements,
+                masteryElementsWanted
+            )
         specificMasteryElementsWithRandomValuesAssigned.forEach {
             mutableActualCharacteristics[it.key] = it.value
         }
@@ -173,11 +189,12 @@ fun computeCharacteristicsValues(
 
     val resistanceElementsCurrent = currentStatSpecificElements(resistanceElementsWanted, sumOfCharacteristicFixedValues, Characteristic.RESISTANCE_ELEMENTARY)
     if (resistanceElementsWanted.isNotEmpty()) {
-        val specificResistanceElementsWithRandomValuesAssigned = assignUniformlyResistanceRandomValues(
-            getResistanceRandoms(eachCharacteristicValueLineByEquipment),
-            resistanceElementsCurrent,
-            resistanceElementsWanted
-        )
+        val specificResistanceElementsWithRandomValuesAssigned =
+            assignUniformlyResistanceRandomValues(
+                getResistanceRandoms(eachCharacteristicValueLineByEquipment),
+                resistanceElementsCurrent,
+                resistanceElementsWanted
+            )
         specificResistanceElementsWithRandomValuesAssigned.forEach {
             mutableActualCharacteristics[it.key] = it.value
         }
@@ -187,20 +204,21 @@ fun computeCharacteristicsValues(
         }
     }
 
-    val actualCharacteristics = mutableActualCharacteristics.mapValues { (key, value) ->
-        characteristicGivenBySkillsPercentValues[key]?.let { percent ->
-            (value + value * (percent.toDouble() / 100)).roundToInt()
-        } ?: return@mapValues value
-    }
+    val actualCharacteristics =
+        mutableActualCharacteristics.mapValues { (key, value) ->
+            characteristicGivenBySkillsPercentValues[key]?.let { percent ->
+                (value + value * (percent.toDouble() / 100)).roundToInt()
+            } ?: return@mapValues value
+        }
 
     return actualCharacteristics
 }
 
-fun mergeAndSumCharacteristicValues(
-    vararg characteristicValuesMaps: Map<Characteristic, Int>,
-): Map<Characteristic, Int> = characteristicValuesMaps.flatMap { it.entries }
-    .groupingBy { it.key }
-    .fold(0) { accumulator, element -> accumulator + element.value }
+fun mergeAndSumCharacteristicValues(vararg characteristicValuesMaps: Map<Characteristic, Int>): Map<Characteristic, Int> =
+    characteristicValuesMaps
+        .flatMap { it.entries }
+        .groupingBy { it.key }
+        .fold(0) { accumulator, element -> accumulator + element.value }
 
 fun assignUniformlyMasteryRandomValues(
     randomElements: Map<Characteristic, List<Int>>,
@@ -255,12 +273,13 @@ private fun MutableMap<Characteristic, Int>.assignValues(
     characteristicToValueWanted: Map<Characteristic, Int>,
 ): MutableMap<Characteristic, Int> {
     for ((value, count) in valueToNumberOfCharacteristicAssignable) {
-        val sortedCategories = characteristicToValueWanted.entries.sortedByDescending { entry ->
-            val currentValue = this[entry.key]!!
-            val target = entry.value
-            val difference = target - currentValue
-            difference
-        }
+        val sortedCategories =
+            characteristicToValueWanted.entries.sortedByDescending { entry ->
+                val currentValue = this[entry.key]!!
+                val target = entry.value
+                val difference = target - currentValue
+                difference
+            }
         var assignedCount = 0
         for (entry in sortedCategories) {
             if (assignedCount >= count) break
@@ -277,24 +296,27 @@ internal fun currentStatSpecificElements(
     elementsWanted: Map<Characteristic, Int>,
     actualCharacteristics: Map<Characteristic, Int>,
     characteristic: Characteristic,
-): Map<Characteristic, Int> {
-    return elementsWanted.mapValues {
+): Map<Characteristic, Int> =
+    elementsWanted.mapValues {
         (actualCharacteristics[it.key] ?: 0) + (actualCharacteristics[characteristic] ?: 0)
     }
-}
 
-internal fun getMasteryRandoms(eachCharacteristicValueLineByEquipment: Map<Characteristic, List<Int>>) = eachCharacteristicValueLineByEquipment.filterKeys {
-    it in listOf(
-        Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT,
-        Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT,
-        Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT
-    )
-}
+internal fun getMasteryRandoms(eachCharacteristicValueLineByEquipment: Map<Characteristic, List<Int>>) =
+    eachCharacteristicValueLineByEquipment.filterKeys {
+        it in
+            listOf(
+                Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT,
+                Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT,
+                Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT
+            )
+    }
 
-internal fun getResistanceRandoms(eachCharacteristicValueLineByEquipment: Map<Characteristic, List<Int>>) = eachCharacteristicValueLineByEquipment.filterKeys {
-    it in listOf(
-        Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT,
-        Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT,
-        Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT
-    )
-}
+internal fun getResistanceRandoms(eachCharacteristicValueLineByEquipment: Map<Characteristic, List<Int>>) =
+    eachCharacteristicValueLineByEquipment.filterKeys {
+        it in
+            listOf(
+                Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT,
+                Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT,
+                Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT
+            )
+    }

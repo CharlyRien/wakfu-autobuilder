@@ -13,10 +13,14 @@ import me.chosante.common.I18nText
 object ItemSerializer : JsonContentPolymorphicSerializer<Item>(Item::class) {
     override fun selectDeserializer(element: JsonElement): KSerializer<out Item> {
         val itemTypeId =
-            element.jsonObject.getValue("definition")
-                .jsonObject.getValue("item")
-                .jsonObject.getValue("baseParameters")
-                .jsonObject.getValue("itemTypeId")
+            element.jsonObject
+                .getValue("definition")
+                .jsonObject
+                .getValue("item")
+                .jsonObject
+                .getValue("baseParameters")
+                .jsonObject
+                .getValue("itemTypeId")
                 .jsonPrimitive
                 .int
         return when (itemTypeId) {

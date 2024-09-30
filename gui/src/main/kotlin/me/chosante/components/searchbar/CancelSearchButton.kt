@@ -18,9 +18,10 @@ class CancelSearchButton : Button(null, FontIcon(Feather.X)) {
         styleClass.addAll(Styles.LARGE, Styles.DANGER)
         isCancelButton = true
         isDisable = true
-        onMouseClicked = EventHandler {
-            publish(AutobuildCancelSearchEvent())
-        }
+        onMouseClicked =
+            EventHandler {
+                publish(AutobuildCancelSearchEvent())
+            }
         DefaultEventBus.subscribe(AutobuildStartSearchEvent::class, ::onSearchStart)
         DefaultEventBus.subscribe(AutobuildEndSearchEvent::class, ::onSearchEnd)
     }

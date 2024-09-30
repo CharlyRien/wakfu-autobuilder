@@ -23,20 +23,22 @@ object SplashScreen : StackPane(), CoroutineScope {
     }
 
     suspend fun animateSplashScreen() {
-        val animations = listOf(
-            Animations.pulse(splashImage, 1.15),
-            Animations.pulse(splashImage, 1.35)
-        )
+        val animations =
+            listOf(
+                Animations.pulse(splashImage, 1.15),
+                Animations.pulse(splashImage, 1.35)
+            )
 
         for (animation in animations) {
             animation.awaitPlay()
             delay(300)
         }
 
-        FadeTransition(Duration(1000.0), SplashScreen).apply {
-            fromValue = 1.0
-            toValue = 0.0
-        }.awaitPlay()
+        FadeTransition(Duration(1000.0), SplashScreen)
+            .apply {
+                fromValue = 1.0
+                toValue = 0.0
+            }.awaitPlay()
     }
 
     override val coroutineContext: CoroutineContext

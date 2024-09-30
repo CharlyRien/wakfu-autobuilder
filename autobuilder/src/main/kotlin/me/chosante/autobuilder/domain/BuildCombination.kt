@@ -5,7 +5,10 @@ import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import me.chosante.common.skills.CharacterSkills
 
-data class BuildCombination(val equipments: List<Equipment>, val characterSkills: CharacterSkills) {
+data class BuildCombination(
+    val equipments: List<Equipment>,
+    val characterSkills: CharacterSkills,
+) {
     fun isValid(): Boolean {
         val numberOfEquipmentByType = equipments.groupingBy { it.itemType }.eachCount()
         if (numberOfEquipmentByType.any { (key, count) ->
