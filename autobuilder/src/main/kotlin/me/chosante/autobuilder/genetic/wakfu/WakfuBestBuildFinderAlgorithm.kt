@@ -1,8 +1,6 @@
 package me.chosante.autobuilder.genetic.wakfu
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlin.system.exitProcess
-import kotlin.time.Duration
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.Json
 import me.chosante.autobuilder.VERSION
@@ -17,6 +15,8 @@ import me.chosante.common.Character
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
+import kotlin.system.exitProcess
+import kotlin.time.Duration
 
 object WakfuBestBuildFinderAlgorithm {
     private val logger = KotlinLogging.logger {}
@@ -41,12 +41,12 @@ object WakfuBestBuildFinderAlgorithm {
             val numberOfIndividualsInPopulation = 20000
             GeneticAlgorithm(
                 population =
-                generateRandomPopulations(
-                    numberOfIndividual = numberOfIndividualsInPopulation,
-                    equipmentsByItemType = equipmentsByItemType,
-                    character = params.character,
-                    targetStats = targetStats
-                ),
+                    generateRandomPopulations(
+                        numberOfIndividual = numberOfIndividualsInPopulation,
+                        equipmentsByItemType = equipmentsByItemType,
+                        character = params.character,
+                        targetStats = targetStats
+                    ),
                 score = { combination ->
                     when (params.scoreComputationMode) {
                         FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->

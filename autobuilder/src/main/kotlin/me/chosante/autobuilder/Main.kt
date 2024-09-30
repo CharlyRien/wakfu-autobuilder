@@ -1,7 +1,9 @@
 package me.chosante.autobuilder
 
 import com.github.ajalt.clikt.core.CliktCommand
+import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.PrintMessage
+import com.github.ajalt.clikt.core.main
 import com.github.ajalt.clikt.core.terminal
 import com.github.ajalt.clikt.parameters.options.NullableOption
 import com.github.ajalt.clikt.parameters.options.check
@@ -29,9 +31,6 @@ import com.github.ajalt.mordant.widgets.progress.progressBar
 import com.github.ajalt.mordant.widgets.progress.progressBarContextLayout
 import com.github.ajalt.mordant.widgets.progress.text
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlin.system.exitProcess
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.channels.Channel.Factory.CONFLATED
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.buffer
@@ -86,6 +85,9 @@ import me.chosante.common.Equipment
 import me.chosante.common.Rarity
 import me.chosante.common.skills.Assignable
 import me.chosante.createZenithBuild
+import kotlin.system.exitProcess
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 private val logger = KotlinLogging.logger {}
 internal const val VERSION = "1.84.1.25"
@@ -99,18 +101,19 @@ private val additionalHelpOnStats =
 
 private class WakfuAutobuild :
     CliktCommand(
-        help =
-        """This program helps Wakfu players easily find the best combination of equipment for their character 
-            |at a given level by taking into account their desired stats and providing build suggestions
-            |based on their input.
-            |
-            |Current Wakfu data version used: $VERSION
-            |
-            |Here's an example of usage in your terminal: 
-            |./wakfu-autobuilder-cli.exe --level 110 --action-point 11 --movement-point 5 --mastery-distance 500 --hp 2000 --range 2 --cc 30 --class cra --create-zenith-build --duration 60
-        """.trimMargin(),
         name = "Wakfu Autobuilder version: $VERSION"
     ) {
+    override fun help(context: Context) =
+        """This program helps Wakfu players easily find the best combination of equipment for their character 
+    |at a given level by taking into account their desired stats and providing build suggestions
+    |based on their input.
+    |
+    |Current Wakfu data version used: $VERSION
+    |
+    |Here's an example of usage in your terminal: 
+    |./wakfu-autobuilder-cli.exe --level 110 --action-point 11 --movement-point 5 --mastery-distance 500 --hp 2000 --range 2 --cc 30 --class cra --create-zenith-build --duration 60
+        """.trimMargin()
+
     private val maxLevelWanted: Int by option(
         "--max-level",
         "--max-niveau",
@@ -182,8 +185,8 @@ HUPPERMAGE"""
         "--max-rarity",
         "--rarete-max",
         help =
-        "Used to tell the algorithm to not take items into account that above this rarity, " +
-            "here the list of value possible in order: ${Rarity.entries}"
+            "Used to tell the algorithm to not take items into account that above this rarity, " +
+                "here the list of value possible in order: ${Rarity.entries}"
     ).convert { Rarity.valueOf(it.uppercase()) }
         .default(Rarity.EPIC)
 
@@ -191,23 +194,23 @@ HUPPERMAGE"""
         "--items-a-force",
         "--forced-items",
         help =
-        "Used to tell the algorithm to force specific items to be in the final build," +
-            " the names have to be French for now, can be used like that: --forced-items 'Gelano','Amulette du Bouftou',..."
+            "Used to tell the algorithm to force specific items to be in the final build," +
+                " the names have to be French for now, can be used like that: --forced-items 'Gelano','Amulette du Bouftou',..."
     ).split(",").default(listOf())
 
     private val excludedItems: List<String> by option(
         "--items-a-exclure",
         "--excluded-items",
         help =
-        "Used to tell the algorithm to exclude specific items to not be in the final build," +
-            " the names have to be in french for now, can be used like that: --excluded-items 'Gelano','Amulette du Bouftou',..."
+            "Used to tell the algorithm to exclude specific items to not be in the final build," +
+                " the names have to be in french for now, can be used like that: --excluded-items 'Gelano','Amulette du Bouftou',..."
     ).split(",").default(listOf())
 
     private val paWanted: TargetStat? by option(
         names = arrayOf("--ap", "--action-point", "--pa"),
         help = "Number of action points wanted. $additionalHelpOnStats"
     ).splitPair(delimiter = ":")
-            .toTargetStat(ACTION_POINT)
+        .toTargetStat(ACTION_POINT)
 
     private val rangeWanted: TargetStat? by option(
         names = arrayOf("--range", "--portee", "--po"),
@@ -225,7 +228,7 @@ HUPPERMAGE"""
         names = arrayOf("--mp", "--movement-point", "--pm"),
         help = "Number of movement points wanted. $additionalHelpOnStats"
     ).splitPair(delimiter = ":")
-            .toTargetStat(MOVEMENT_POINT)
+        .toTargetStat(MOVEMENT_POINT)
 
     private val pwWanted: TargetStat? by option(
         names = arrayOf("--wp", "--wakfu-point", "--pw"),

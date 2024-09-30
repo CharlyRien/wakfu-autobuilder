@@ -19,19 +19,19 @@ data class Major(
     val damageInflicted: DamageInflicted = DamageInflicted(0),
     val resistance: Resistance = Resistance(0),
 ) : Assignable<Major> {
-
     val allCharacteristicValues: CharacteristicValues
         get() = getAllCharacteristicValues(getCharacteristics())
 
-    override fun getCharacteristics() = listOf(
-        actionPoint,
-        movementPointAndMasteryElementary,
-        rangeAndMasteryElementary,
-        wakfuPoints,
-        controlAndMasteryElementary,
-        damageInflicted,
-        resistance
-    )
+    override fun getCharacteristics() =
+        listOf(
+            actionPoint,
+            movementPointAndMasteryElementary,
+            rangeAndMasteryElementary,
+            wakfuPoints,
+            controlAndMasteryElementary,
+            damageInflicted,
+            resistance
+        )
 
     override fun pointsAssigned() =
         listOf(
@@ -53,9 +53,9 @@ sealed class MajorCharacteristic(
     characteristic: Characteristic?,
     unitType: UnitType,
 ) : SkillCharacteristic(pointsAssigned, name, maxPointsAssignable, unitValue, characteristic, unitType) {
-
-    class ActionPoint(pointsAssigned: Int) :
-        MajorCharacteristic(
+    class ActionPoint(
+        pointsAssigned: Int,
+    ) : MajorCharacteristic(
             pointsAssigned = pointsAssigned,
             maxPointsAssignable = 1,
             unitValue = 1,
@@ -64,40 +64,48 @@ sealed class MajorCharacteristic(
             name = "Action Point"
         )
 
-    class MovementPointWithMasteryElementary(pointsAssigned: Int) :
-        PairedCharacteristic(
+    class MovementPointWithMasteryElementary(
+        pointsAssigned: Int,
+    ) : PairedCharacteristic(
             name = "Movement Point and damage",
             first = MovementPoint(pointsAssigned),
             second = MasteryElementary(pointsAssigned),
             maxPointsAssignable = 1
         ) {
-        private class MovementPoint(pointsAssigned: Int) : MajorCharacteristic(
-            pointsAssigned = pointsAssigned,
-            maxPointsAssignable = 1,
-            unitValue = 1,
-            unitType = UnitType.FIXED,
-            characteristic = Characteristic.MOVEMENT_POINT,
-            name = ""
-        )
+        private class MovementPoint(
+            pointsAssigned: Int,
+        ) : MajorCharacteristic(
+                pointsAssigned = pointsAssigned,
+                maxPointsAssignable = 1,
+                unitValue = 1,
+                unitType = UnitType.FIXED,
+                characteristic = Characteristic.MOVEMENT_POINT,
+                name = ""
+            )
 
-        private class MasteryElementary(pointsAssigned: Int) : MajorCharacteristic(
-            pointsAssigned = pointsAssigned,
-            maxPointsAssignable = 1,
-            unitValue = 20,
-            unitType = UnitType.FIXED,
-            characteristic = Characteristic.MASTERY_ELEMENTARY,
-            name = ""
-        )
+        private class MasteryElementary(
+            pointsAssigned: Int,
+        ) : MajorCharacteristic(
+                pointsAssigned = pointsAssigned,
+                maxPointsAssignable = 1,
+                unitValue = 20,
+                unitType = UnitType.FIXED,
+                characteristic = Characteristic.MASTERY_ELEMENTARY,
+                name = ""
+            )
     }
 
-    class RangeWithMasteryElementary(pointsAssigned: Int) : PairedCharacteristic(
-        name = "Range and damage",
-        maxPointsAssignable = 1,
-        first = Range(pointsAssigned),
-        second = MasteryElementary(pointsAssigned)
-    ) {
-        private class Range(pointsAssigned: Int) :
-            MajorCharacteristic(
+    class RangeWithMasteryElementary(
+        pointsAssigned: Int,
+    ) : PairedCharacteristic(
+            name = "Range and damage",
+            maxPointsAssignable = 1,
+            first = Range(pointsAssigned),
+            second = MasteryElementary(pointsAssigned)
+        ) {
+        private class Range(
+            pointsAssigned: Int,
+        ) : MajorCharacteristic(
                 pointsAssigned = pointsAssigned,
                 maxPointsAssignable = 1,
                 unitValue = 1,
@@ -106,8 +114,9 @@ sealed class MajorCharacteristic(
                 name = ""
             )
 
-        private class MasteryElementary(pointsAssigned: Int) :
-            MajorCharacteristic(
+        private class MasteryElementary(
+            pointsAssigned: Int,
+        ) : MajorCharacteristic(
                 pointsAssigned = pointsAssigned,
                 maxPointsAssignable = 1,
                 unitValue = 40,
@@ -117,8 +126,9 @@ sealed class MajorCharacteristic(
             )
     }
 
-    class WakfuPoints(pointsAssigned: Int) :
-        MajorCharacteristic(
+    class WakfuPoints(
+        pointsAssigned: Int,
+    ) : MajorCharacteristic(
             pointsAssigned = pointsAssigned,
             maxPointsAssignable = 1,
             unitValue = 2,
@@ -126,14 +136,18 @@ sealed class MajorCharacteristic(
             characteristic = Characteristic.WAKFU_POINT,
             name = "Wakfu Points"
         )
-    class ControlWithMasteryElementary(pointsAssigned: Int) : PairedCharacteristic(
-        name = "Control and damage",
-        maxPointsAssignable = 1,
-        first = Control(pointsAssigned),
-        second = MasteryElementary(pointsAssigned)
-    ) {
-        private class Control(pointsAssigned: Int) :
-            MajorCharacteristic(
+
+    class ControlWithMasteryElementary(
+        pointsAssigned: Int,
+    ) : PairedCharacteristic(
+            name = "Control and damage",
+            maxPointsAssignable = 1,
+            first = Control(pointsAssigned),
+            second = MasteryElementary(pointsAssigned)
+        ) {
+        private class Control(
+            pointsAssigned: Int,
+        ) : MajorCharacteristic(
                 pointsAssigned = pointsAssigned,
                 maxPointsAssignable = 1,
                 unitValue = 2,
@@ -142,8 +156,9 @@ sealed class MajorCharacteristic(
                 name = ""
             )
 
-        private class MasteryElementary(pointsAssigned: Int) :
-            MajorCharacteristic(
+        private class MasteryElementary(
+            pointsAssigned: Int,
+        ) : MajorCharacteristic(
                 pointsAssigned = pointsAssigned,
                 maxPointsAssignable = 1,
                 unitValue = 40,
@@ -153,8 +168,9 @@ sealed class MajorCharacteristic(
             )
     }
 
-    class DamageInflicted(pointsAssigned: Int) :
-        MajorCharacteristic(
+    class DamageInflicted(
+        pointsAssigned: Int,
+    ) : MajorCharacteristic(
             pointsAssigned = pointsAssigned,
             maxPointsAssignable = 1,
             unitValue = 10,
@@ -163,8 +179,9 @@ sealed class MajorCharacteristic(
             name = "% Inflicted Damage"
         )
 
-    class Resistance(pointsAssigned: Int) :
-        MajorCharacteristic(
+    class Resistance(
+        pointsAssigned: Int,
+    ) : MajorCharacteristic(
             pointsAssigned = pointsAssigned,
             maxPointsAssignable = 1,
             unitValue = 50,

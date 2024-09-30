@@ -5,8 +5,6 @@ import generated.I18nKey
 import javafx.event.EventHandler
 import javafx.scene.control.Alert
 import javafx.scene.control.Button
-import kotlin.coroutines.CoroutineContext
-import kotlin.time.ExperimentalTime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -21,13 +19,15 @@ import me.chosante.events.AutobuildStartSearchEvent
 import me.chosante.i18n.I18n
 import org.kordamp.ikonli.feather.Feather
 import org.kordamp.ikonli.javafx.FontIcon
+import kotlin.coroutines.CoroutineContext
+import kotlin.time.ExperimentalTime
 
 @Suppress("UNUSED_PARAMETER")
 @OptIn(ExperimentalCoroutinesApi::class, ExperimentalTime::class)
 class SearchButton(
     private val getParams: () -> WakfuBestBuildParams,
-) : CoroutineScope, Button(I18n.valueOf(I18nKey.SEARCH_BUTTON), FontIcon(Feather.SEARCH)) {
-
+) : Button(I18n.valueOf(I18nKey.SEARCH_BUTTON), FontIcon(Feather.SEARCH)),
+    CoroutineScope {
     init {
         styleClass.addAll(Styles.LARGE, Styles.ACCENT, Styles.TITLE_1)
         isDefaultButton = true
@@ -46,16 +46,17 @@ class SearchButton(
 
     init {
         prefWidth = 100.0
-        onMouseClicked = EventHandler {
-            if (!isDisabled) {
-                val wakfuBestBuildParams = getParams()
-                if (wakfuBestBuildParams.targetStats.isEmpty()) {
-                    alert(Alert.AlertType.ERROR, headerText = I18n.valueOf(I18nKey.SEARCH_ALERT_NO_VALUE_SET_HEADER), I18n.valueOf(I18nKey.SEARCH_ALERT_NO_VALUE_SET_CONTENT))
-                    return@EventHandler
+        onMouseClicked =
+            EventHandler {
+                if (!isDisabled) {
+                    val wakfuBestBuildParams = getParams()
+                    if (wakfuBestBuildParams.targetStats.isEmpty()) {
+                        alert(Alert.AlertType.ERROR, headerText = I18n.valueOf(I18nKey.SEARCH_ALERT_NO_VALUE_SET_HEADER), I18n.valueOf(I18nKey.SEARCH_ALERT_NO_VALUE_SET_CONTENT))
+                        return@EventHandler
+                    }
+                    AutobuilderComputation().start(wakfuBestBuildParams = wakfuBestBuildParams)
                 }
-                AutobuilderComputation().start(wakfuBestBuildParams = wakfuBestBuildParams)
             }
-        }
 
         DefaultEventBus.subscribe(AutobuildStartSearchEvent::class, ::processStarted)
         DefaultEventBus.subscribe(AutobuildEndSearchEvent::class, ::processEnd)

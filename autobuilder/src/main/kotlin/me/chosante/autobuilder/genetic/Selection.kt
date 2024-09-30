@@ -3,9 +3,7 @@ package me.chosante.autobuilder.genetic
 import kotlin.math.max
 import kotlin.random.Random.Default.nextInt
 
-internal fun <T> tournamentSelection(
-    scoredPopulation: Collection<ScoredIndividual<T>>,
-): T {
+internal fun <T> tournamentSelection(scoredPopulation: Collection<ScoredIndividual<T>>): T {
     val tournamentSize = max(scoredPopulation.size / 100, 2)
     val (firstRandomScore, firstRandomIndividual) = scoredPopulation.elementAt(nextInt(scoredPopulation.size))
     var bestIndividualInTournament = firstRandomIndividual

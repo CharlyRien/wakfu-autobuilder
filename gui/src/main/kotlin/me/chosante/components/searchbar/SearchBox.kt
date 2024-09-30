@@ -10,7 +10,6 @@ import javafx.scene.control.ProgressBar
 import javafx.scene.control.Separator
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
-import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.javafx.JavaFx
@@ -25,18 +24,20 @@ import me.chosante.events.AutobuildUpdateSearchEvent
 import me.chosante.events.BrowseEvent
 import me.chosante.events.ZenithBuildCreatedEvent
 import me.chosante.i18n.I18n
+import kotlin.coroutines.CoroutineContext
 
 @Suppress("UNUSED_PARAMETER")
 class SearchBox(
     getParams: () -> WakfuBestBuildParams,
     getCharacter: () -> Character,
-) : HBox(5.0), CoroutineScope {
-
+) : HBox(5.0),
+    CoroutineScope {
     private var buildUrlHyperlink: Hyperlink? = null
 
-    private val progressBar = ProgressBar(0.0).apply {
-        styleClass.add(Styles.LARGE)
-    }
+    private val progressBar =
+        ProgressBar(0.0).apply {
+            styleClass.add(Styles.LARGE)
+        }
     private val matchPercentageLabel = Label(I18n.valueOf(I18nKey.SEARCH_MATCH_PERCENTAGE_LABEL, "0"))
     private val searchButton = SearchButton(getParams)
     private val cancelSearchButton = CancelSearchButton()
@@ -77,11 +78,12 @@ class SearchBox(
     private fun onZenithWakfuBuildCreated(zenithBuildCreatedEvent: ZenithBuildCreatedEvent) {
         launch {
             buildUrlHyperlink?.let { children.remove(it) }
-            buildUrlHyperlink = Hyperlink(zenithBuildCreatedEvent.buildUrl).apply {
-                setOnAction {
-                    BrowseEvent.fire(zenithBuildCreatedEvent.buildUrl)
+            buildUrlHyperlink =
+                Hyperlink(zenithBuildCreatedEvent.buildUrl).apply {
+                    setOnAction {
+                        BrowseEvent.fire(zenithBuildCreatedEvent.buildUrl)
+                    }
                 }
-            }
             setHgrow(buildUrlHyperlink, Priority.ALWAYS)
             children += buildUrlHyperlink
         }

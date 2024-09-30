@@ -10,18 +10,20 @@ import me.chosante.common.skills.IntelligenceCharacteristic.Shield
 data class Intelligence(
     override val maxPointsToAssign: Int,
     val hpPercentage: HpPercentage = HpPercentage(0),
-    val resistance: Resistance = Resistance(
-        0
-    ),
+    val resistance: Resistance =
+        Resistance(
+            0
+        ),
     val shield: Shield = Shield(0),
-    val healReceivedPercentage: HealReceivedPercentage = HealReceivedPercentage(
-        0
-    ),
-    val hpPercentageAsArmor: HpPercentageAsArmor = HpPercentageAsArmor(
-        0
-    ),
+    val healReceivedPercentage: HealReceivedPercentage =
+        HealReceivedPercentage(
+            0
+        ),
+    val hpPercentageAsArmor: HpPercentageAsArmor =
+        HpPercentageAsArmor(
+            0
+        ),
 ) : Assignable<Intelligence> {
-
     init {
         check(pointsAssigned() in 0..maxPointsToAssign)
     }
@@ -29,13 +31,14 @@ data class Intelligence(
     val allCharacteristicValues: CharacteristicValues
         get() = getAllCharacteristicValues(getCharacteristics())
 
-    override fun getCharacteristics() = listOf(
-        hpPercentage,
-        resistance,
-        shield,
-        healReceivedPercentage,
-        hpPercentageAsArmor
-    )
+    override fun getCharacteristics() =
+        listOf(
+            hpPercentage,
+            resistance,
+            shield,
+            healReceivedPercentage,
+            hpPercentageAsArmor
+        )
 
     override fun pointsAssigned() =
         hpPercentage.pointsAssigned + resistance.pointsAssigned + shield.pointsAssigned + healReceivedPercentage.pointsAssigned + hpPercentageAsArmor.pointsAssigned
@@ -49,9 +52,9 @@ sealed class IntelligenceCharacteristic(
     characteristic: Characteristic?,
     unitType: UnitType,
 ) : SkillCharacteristic(pointsAssigned, name, maxPointsAssignable, unitValue, characteristic, unitType) {
-
-    class HpPercentage(pointsAssigned: Int) :
-        IntelligenceCharacteristic(
+    class HpPercentage(
+        pointsAssigned: Int,
+    ) : IntelligenceCharacteristic(
             pointsAssigned = pointsAssigned,
             maxPointsAssignable = Int.MAX_VALUE,
             unitValue = 4,
@@ -60,8 +63,9 @@ sealed class IntelligenceCharacteristic(
             name = "% HP"
         )
 
-    class Resistance(pointsAssigned: Int) :
-        IntelligenceCharacteristic(
+    class Resistance(
+        pointsAssigned: Int,
+    ) : IntelligenceCharacteristic(
             pointsAssigned = pointsAssigned,
             maxPointsAssignable = 10,
             unitValue = 10,
@@ -70,8 +74,9 @@ sealed class IntelligenceCharacteristic(
             name = "Resistance Elementary"
         )
 
-    class Shield(pointsAssigned: Int) :
-        IntelligenceCharacteristic(
+    class Shield(
+        pointsAssigned: Int,
+    ) : IntelligenceCharacteristic(
             pointsAssigned = pointsAssigned,
             unitValue = 1,
             maxPointsAssignable = 10,
@@ -80,8 +85,9 @@ sealed class IntelligenceCharacteristic(
             name = "Shield"
         )
 
-    class HealReceivedPercentage(pointsAssigned: Int) :
-        IntelligenceCharacteristic(
+    class HealReceivedPercentage(
+        pointsAssigned: Int,
+    ) : IntelligenceCharacteristic(
             pointsAssigned = pointsAssigned,
             maxPointsAssignable = 5,
             unitValue = 6,
@@ -90,8 +96,9 @@ sealed class IntelligenceCharacteristic(
             name = "% Heal Received"
         )
 
-    class HpPercentageAsArmor(pointsAssigned: Int) :
-        IntelligenceCharacteristic(
+    class HpPercentageAsArmor(
+        pointsAssigned: Int,
+    ) : IntelligenceCharacteristic(
             pointsAssigned = pointsAssigned,
             maxPointsAssignable = 10,
             unitValue = 4,

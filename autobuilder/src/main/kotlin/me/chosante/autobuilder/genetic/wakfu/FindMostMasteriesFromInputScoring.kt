@@ -1,10 +1,10 @@
 package me.chosante.autobuilder.genetic.wakfu
 
-import java.math.BigDecimal
-import java.math.RoundingMode
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.common.Characteristic
+import java.math.BigDecimal
+import java.math.RoundingMode
 
 object FindMostMasteriesFromInputScoring {
     fun computeScore(
@@ -101,10 +101,10 @@ object FindMostMasteriesFromInputScoring {
                     actualCharacteristicsValues.entries.sumOf {
                         if (it.key in
                             listOf(
-                                    Characteristic.MASTERY_BACK,
-                                    Characteristic.MASTERY_CRITICAL,
-                                    Characteristic.MASTERY_BERSERK
-                                ) &&
+                                Characteristic.MASTERY_BACK,
+                                Characteristic.MASTERY_CRITICAL,
+                                Characteristic.MASTERY_BERSERK
+                            ) &&
                             it.value < 0
                         ) {
                             it.value

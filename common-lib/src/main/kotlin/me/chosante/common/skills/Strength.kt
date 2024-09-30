@@ -20,14 +20,13 @@ data class Strength(
     val allCharacteristicValues: CharacteristicValues
         get() = getAllCharacteristicValues(getCharacteristics())
 
-    override fun getCharacteristics(): List<SkillCharacteristic> {
-        return listOf(
+    override fun getCharacteristics(): List<SkillCharacteristic> =
+        listOf(
             masteryElementary,
             masteryMelee,
             masteryDistance,
             hp
         )
-    }
 
     override fun pointsAssigned() = getCharacteristics().sumOf { it.pointsAssigned }
 }
@@ -40,9 +39,9 @@ sealed class StrengthCharacteristic(
     characteristic: Characteristic?,
     unitType: UnitType,
 ) : SkillCharacteristic(pointsAssigned, name, maxPointsAssignable, unitValue, characteristic, unitType) {
-
-    class MasteryElementary(pointsAssigned: Int) :
-        StrengthCharacteristic(
+    class MasteryElementary(
+        pointsAssigned: Int,
+    ) : StrengthCharacteristic(
             pointsAssigned = pointsAssigned,
             maxPointsAssignable = Int.MAX_VALUE,
             unitValue = 5,
@@ -51,8 +50,9 @@ sealed class StrengthCharacteristic(
             name = "Mastery Elementary"
         )
 
-    class MasteryDistance(pointsAssigned: Int) :
-        StrengthCharacteristic(
+    class MasteryDistance(
+        pointsAssigned: Int,
+    ) : StrengthCharacteristic(
             pointsAssigned = pointsAssigned,
             maxPointsAssignable = 40,
             unitValue = 8,
@@ -61,8 +61,9 @@ sealed class StrengthCharacteristic(
             name = "Mastery Distance"
         )
 
-    class MasteryMelee(pointsAssigned: Int) :
-        StrengthCharacteristic(
+    class MasteryMelee(
+        pointsAssigned: Int,
+    ) : StrengthCharacteristic(
             pointsAssigned = pointsAssigned,
             maxPointsAssignable = 40,
             unitValue = 8,
@@ -71,8 +72,9 @@ sealed class StrengthCharacteristic(
             name = "Mastery Melee"
         )
 
-    class Hp(pointsAssigned: Int) :
-        StrengthCharacteristic(
+    class Hp(
+        pointsAssigned: Int,
+    ) : StrengthCharacteristic(
             pointsAssigned = pointsAssigned,
             maxPointsAssignable = Int.MAX_VALUE,
             unitValue = 20,
