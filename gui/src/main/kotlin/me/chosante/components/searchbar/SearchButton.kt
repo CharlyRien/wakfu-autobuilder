@@ -26,8 +26,8 @@ import org.kordamp.ikonli.javafx.FontIcon
 @OptIn(ExperimentalCoroutinesApi::class, ExperimentalTime::class)
 class SearchButton(
     private val getParams: () -> WakfuBestBuildParams,
-) : CoroutineScope, Button(I18n.valueOf(I18nKey.SEARCH_BUTTON), FontIcon(Feather.SEARCH)) {
-
+) : Button(I18n.valueOf(I18nKey.SEARCH_BUTTON), FontIcon(Feather.SEARCH)),
+    CoroutineScope {
     init {
         styleClass.addAll(Styles.LARGE, Styles.ACCENT, Styles.TITLE_1)
         isDefaultButton = true
@@ -46,16 +46,17 @@ class SearchButton(
 
     init {
         prefWidth = 100.0
-        onMouseClicked = EventHandler {
-            if (!isDisabled) {
-                val wakfuBestBuildParams = getParams()
-                if (wakfuBestBuildParams.targetStats.isEmpty()) {
-                    alert(Alert.AlertType.ERROR, headerText = I18n.valueOf(I18nKey.SEARCH_ALERT_NO_VALUE_SET_HEADER), I18n.valueOf(I18nKey.SEARCH_ALERT_NO_VALUE_SET_CONTENT))
-                    return@EventHandler
+        onMouseClicked =
+            EventHandler {
+                if (!isDisabled) {
+                    val wakfuBestBuildParams = getParams()
+                    if (wakfuBestBuildParams.targetStats.isEmpty()) {
+                        alert(Alert.AlertType.ERROR, headerText = I18n.valueOf(I18nKey.SEARCH_ALERT_NO_VALUE_SET_HEADER), I18n.valueOf(I18nKey.SEARCH_ALERT_NO_VALUE_SET_CONTENT))
+                        return@EventHandler
+                    }
+                    AutobuilderComputation().start(wakfuBestBuildParams = wakfuBestBuildParams)
                 }
-                AutobuilderComputation().start(wakfuBestBuildParams = wakfuBestBuildParams)
             }
-        }
 
         DefaultEventBus.subscribe(AutobuildStartSearchEvent::class, ::processStarted)
         DefaultEventBus.subscribe(AutobuildEndSearchEvent::class, ::processEnd)

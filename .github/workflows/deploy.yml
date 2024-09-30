@@ -1,28 +1,28 @@
 name: Deploy
-on: [workflow_dispatch]
+on: [ workflow_dispatch ]
 jobs:
     build:
         # Use the Build workflow described above
         uses: ./.github/workflows/build.yml
     deploy:
-        needs: [build]
+        needs: [ build ]
         runs-on: ubuntu-latest
         steps:
-            - name: Checkout
-              uses: actions/checkout@v4
+            -   name: Checkout
+                uses: actions/checkout@v4.2.2
 
-            - name: Setup Gradle
-              uses: gradle/gradle-build-action@v3.5.0
+            -   name: Setup Gradle
+                uses: gradle/actions/setup-gradle@v4
 
-            - name: Create Jars
-              run: ./gradlew jar
+            -   name: Create Jars
+                run: ./gradlew jar
 
-            - name: Run Conveyor
-              uses: hydraulic-software/conveyor/actions/build@v14.3
-              env:
-                OAUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              with:
-                  extra_flags: '-f ./gui/conveyor.conf'
-                  command: make copied-site
-                  signing_key: ${{ secrets.SIGNING_KEY }}
-                  agree_to_license: 1
+            -   name: Run Conveyor
+                uses: hydraulic-software/conveyor/actions/build@v15.1
+                env:
+                    OAUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                with:
+                    extra_flags: '-f ./gui/conveyor.conf'
+                    command: make copied-site
+                    signing_key: ${{ secrets.SIGNING_KEY }}
+                    agree_to_license: 1

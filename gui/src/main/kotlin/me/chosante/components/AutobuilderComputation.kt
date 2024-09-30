@@ -36,18 +36,20 @@ class AutobuilderComputation : CoroutineScope {
     init {
         DefaultEventBus.subscribe(AutobuildCancelSearchEvent::class, ::cancel)
     }
+
     fun start(wakfuBestBuildParams: WakfuBestBuildParams) {
-        job = launch {
-            WakfuBestBuildFinderAlgorithm.run(wakfuBestBuildParams)
-                .buffer(capacity = CONFLATED)
-                .onEach {
-                    publish(AutobuildUpdateSearchEvent(it))
-                    delay(1000L)
-                }
-                .onCompletion { publish(AutobuildEndSearchEvent()) }
-                .onStart { publish(AutobuildStartSearchEvent()) }
-                .collect()
-        }
+        job =
+            launch {
+                WakfuBestBuildFinderAlgorithm
+                    .run(wakfuBestBuildParams)
+                    .buffer(capacity = CONFLATED)
+                    .onEach {
+                        publish(AutobuildUpdateSearchEvent(it))
+                        delay(1000L)
+                    }.onCompletion { publish(AutobuildEndSearchEvent()) }
+                    .onStart { publish(AutobuildStartSearchEvent()) }
+                    .collect()
+            }
     }
 
     @Listener

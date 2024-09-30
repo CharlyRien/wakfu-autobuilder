@@ -17,12 +17,16 @@ import me.chosante.common.skills.StrengthCharacteristic
 
 private const val urlUpdateSkill = "$baseAPIUrl/aptitude/update"
 
-internal suspend fun addSkill(skillCharacteristic: SkillCharacteristic, buildId: Long) {
-    val jsonPayload = buildJsonObject {
-        put("id_build", buildId)
-        put("id_aptitude", skillCharacteristic.toZenithWakfuAptitudeId())
-        put("aptitude_value", skillCharacteristic.pointsAssigned)
-    }
+internal suspend fun addSkill(
+    skillCharacteristic: SkillCharacteristic,
+    buildId: Long,
+) {
+    val jsonPayload =
+        buildJsonObject {
+            put("id_build", buildId)
+            put("id_aptitude", skillCharacteristic.toZenithWakfuAptitudeId())
+            put("aptitude_value", skillCharacteristic.pointsAssigned)
+        }
     urlUpdateSkill
         .httpPost()
         .header(apiZenithWakfuHeaders)
@@ -30,8 +34,8 @@ internal suspend fun addSkill(skillCharacteristic: SkillCharacteristic, buildId:
         .awaitUnit()
 }
 
-private fun SkillCharacteristic.toZenithWakfuAptitudeId(): Int {
-    return when (this) {
+private fun SkillCharacteristic.toZenithWakfuAptitudeId(): Int =
+    when (this) {
         is IntelligenceCharacteristic.HpPercentage -> 1
         is IntelligenceCharacteristic.Resistance -> 2
         is IntelligenceCharacteristic.Shield -> 3
@@ -63,4 +67,3 @@ private fun SkillCharacteristic.toZenithWakfuAptitudeId(): Int {
         is MajorCharacteristic.Resistance -> 31
         else -> throw IllegalStateException("Unknown characteristic: $this")
     }
-}

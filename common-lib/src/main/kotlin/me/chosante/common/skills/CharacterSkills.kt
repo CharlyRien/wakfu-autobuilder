@@ -27,23 +27,26 @@ class CharacterSkills(
         strength = Strength(basePoints + if (extraPoints >= 2) 1 else 0)
         agility = Agility(basePoints + if (extraPoints >= 3) 1 else 0)
         luck = Luck(basePoints)
-        major = Major(
-            maxPointsToAssign = when {
-                level >= 175 -> 4
-                level >= 125 -> 3
-                level >= 75 -> 2
-                level >= 25 -> 1
-                else -> 0
-            }
-        )
+        major =
+            Major(
+                maxPointsToAssign =
+                when {
+                    level >= 175 -> 4
+                    level >= 125 -> 3
+                    level >= 75 -> 2
+                    level >= 25 -> 1
+                    else -> 0
+                }
+            )
     }
 
     val allCharacteristic
         get() = major.getCharacteristics() + intelligence.getCharacteristics() + strength.getCharacteristics() + agility.getCharacteristics() + luck.getCharacteristics()
 
     val allCharacteristicValues: CharacteristicValues
-        get() = major.allCharacteristicValues + intelligence.allCharacteristicValues + strength.allCharacteristicValues + agility.allCharacteristicValues +
-            luck.allCharacteristicValues
+        get() =
+            major.allCharacteristicValues + intelligence.allCharacteristicValues + strength.allCharacteristicValues + agility.allCharacteristicValues +
+                luck.allCharacteristicValues
 
     fun copy(
         strength: Strength = this.strength,
@@ -51,8 +54,8 @@ class CharacterSkills(
         luck: Luck = this.luck,
         major: Major = this.major,
         intelligence: Intelligence = this.intelligence,
-    ): CharacterSkills {
-        return CharacterSkills(
+    ): CharacterSkills =
+        CharacterSkills(
             level = this.level
         ).apply {
             this.strength = strength
@@ -61,7 +64,6 @@ class CharacterSkills(
             this.major = major
             this.intelligence = intelligence
         }
-    }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -91,7 +93,8 @@ class CharacterSkills(
 }
 
 enum class UnitType {
-    FIXED, PERCENT
+    FIXED,
+    PERCENT,
 }
 
 data class CharacteristicValues(
@@ -191,22 +194,29 @@ fun addCharacteristicValue(
 
     if (characteristic.characteristic != null) {
         when (characteristic.unitType) {
-            UnitType.FIXED -> fixedCharacteristics[characteristic.characteristic] =
-                fixedCharacteristics.getOrPut(characteristic.characteristic) { 0 } + characteristic.value
+            UnitType.FIXED ->
+                fixedCharacteristics[characteristic.characteristic] =
+                    fixedCharacteristics.getOrPut(characteristic.characteristic) { 0 } + characteristic.value
 
-            UnitType.PERCENT -> percentCharacteristics[characteristic.characteristic] =
-                percentCharacteristics.getOrPut(characteristic.characteristic) { 0 } + characteristic.value
+            UnitType.PERCENT ->
+                percentCharacteristics[characteristic.characteristic] =
+                    percentCharacteristics.getOrPut(characteristic.characteristic) { 0 } + characteristic.value
         }
     }
 }
 
 interface Assignable<T> {
     val maxPointsToAssign: Int
+
     fun getCharacteristics(): List<SkillCharacteristic>
+
     fun pointsAssigned(): Int
 }
 
-fun <T : Assignable<T>> T.assignRandomPoints(pointsToAssign: Int, targetCharacteristics: List<Characteristic>): T {
+fun <T : Assignable<T>> T.assignRandomPoints(
+    pointsToAssign: Int,
+    targetCharacteristics: List<Characteristic>,
+): T {
     check(pointsToAssign in 0..maxPointsToAssign)
     val skillCharacteristics = filterOnlyWantedTargetCharacteristics(targetCharacteristics)
     this.getCharacteristics().forEach { it.setPointAssigned(0) }
@@ -233,25 +243,26 @@ fun <T : Assignable<T>> T.assignRandomPoints(pointsToAssign: Int, targetCharacte
     return this
 }
 
-private fun <T : Assignable<T>> T.filterOnlyWantedTargetCharacteristics(targetCharacteristics: List<Characteristic>): List<SkillCharacteristic> {
-    return getCharacteristics().filter { skillCharacteristic ->
+private fun <T : Assignable<T>> T.filterOnlyWantedTargetCharacteristics(targetCharacteristics: List<Characteristic>): List<SkillCharacteristic> =
+    getCharacteristics().filter { skillCharacteristic ->
         when {
             skillCharacteristic is SkillCharacteristic.PairedCharacteristic ->
                 skillCharacteristic.first.characteristic in targetCharacteristics ||
                     skillCharacteristic.second.characteristic in targetCharacteristics
 
-            skillCharacteristic.characteristic == Characteristic.RESISTANCE_ELEMENTARY -> targetCharacteristics.any {
-                it in resistanceElementaryCharacteristics
-            }
+            skillCharacteristic.characteristic == Characteristic.RESISTANCE_ELEMENTARY ->
+                targetCharacteristics.any {
+                    it in resistanceElementaryCharacteristics
+                }
 
-            skillCharacteristic.characteristic == Characteristic.MASTERY_ELEMENTARY -> targetCharacteristics.any {
-                it in masteryElementaryCharacteristics
-            }
+            skillCharacteristic.characteristic == Characteristic.MASTERY_ELEMENTARY ->
+                targetCharacteristics.any {
+                    it in masteryElementaryCharacteristics
+                }
 
             else -> skillCharacteristic.characteristic in targetCharacteristics
         }
     }
-}
 
 private fun <T : Assignable<T>> T.assignPointsToCharacteristic(
     characteristic: SkillCharacteristic,
@@ -270,18 +281,20 @@ private fun <T : Assignable<T>> T.assignPointsToCharacteristic(
     }
 }
 
-private val masteryElementaryCharacteristics = listOf(
-    Characteristic.MASTERY_ELEMENTARY_EARTH,
-    Characteristic.MASTERY_ELEMENTARY_WATER,
-    Characteristic.MASTERY_ELEMENTARY_WIND,
-    Characteristic.MASTERY_ELEMENTARY_FIRE,
-    Characteristic.MASTERY_ELEMENTARY
-)
+private val masteryElementaryCharacteristics =
+    listOf(
+        Characteristic.MASTERY_ELEMENTARY_EARTH,
+        Characteristic.MASTERY_ELEMENTARY_WATER,
+        Characteristic.MASTERY_ELEMENTARY_WIND,
+        Characteristic.MASTERY_ELEMENTARY_FIRE,
+        Characteristic.MASTERY_ELEMENTARY
+    )
 
-private val resistanceElementaryCharacteristics = listOf(
-    Characteristic.RESISTANCE_ELEMENTARY_EARTH,
-    Characteristic.RESISTANCE_ELEMENTARY_WATER,
-    Characteristic.RESISTANCE_ELEMENTARY_WIND,
-    Characteristic.RESISTANCE_ELEMENTARY_FIRE,
-    Characteristic.RESISTANCE_ELEMENTARY
-)
+private val resistanceElementaryCharacteristics =
+    listOf(
+        Characteristic.RESISTANCE_ELEMENTARY_EARTH,
+        Characteristic.RESISTANCE_ELEMENTARY_WATER,
+        Characteristic.RESISTANCE_ELEMENTARY_WIND,
+        Characteristic.RESISTANCE_ELEMENTARY_FIRE,
+        Characteristic.RESISTANCE_ELEMENTARY
+    )

@@ -22,36 +22,37 @@ internal class GeneticAlgorithm<T>(
     suspend fun run(
         duration: Duration,
         stopWhenBuildMatch: Boolean,
-    ): Flow<GeneticAlgorithmResult<T>> = coroutineScope {
-        var scoredPopulation =
-            population
-                .map { async { ScoredIndividual(score(it), it) } }
-                .awaitAll()
-                .sortedByDescending { it.score }
-        var bestOfAllTimeIndividual = scoredPopulation.first()
-        val startTime = System.currentTimeMillis()
-        flow {
-            while (!shouldStop(startTime, duration, bestOfAllTimeIndividual.score, stopWhenBuildMatch)) {
-                scoredPopulation = generateNewPopulation(scoredPopulation)
-                bestOfAllTimeIndividual = findBestIndividual(scoredPopulation, bestOfAllTimeIndividual)
-                val scoreRounded = bestOfAllTimeIndividual.score.setScale(2, RoundingMode.FLOOR)
+    ): Flow<GeneticAlgorithmResult<T>> =
+        coroutineScope {
+            var scoredPopulation =
+                population
+                    .map { async { ScoredIndividual(score(it), it) } }
+                    .awaitAll()
+                    .sortedByDescending { it.score }
+            var bestOfAllTimeIndividual = scoredPopulation.first()
+            val startTime = System.currentTimeMillis()
+            flow {
+                while (!shouldStop(startTime, duration, bestOfAllTimeIndividual.score, stopWhenBuildMatch)) {
+                    scoredPopulation = generateNewPopulation(scoredPopulation)
+                    bestOfAllTimeIndividual = findBestIndividual(scoredPopulation, bestOfAllTimeIndividual)
+                    val scoreRounded = bestOfAllTimeIndividual.score.setScale(2, RoundingMode.FLOOR)
+                    emit(
+                        GeneticAlgorithmResult(
+                            individual = bestOfAllTimeIndividual.individual,
+                            matchPercentage = scoreRounded,
+                            progressPercentage = floor(100.0 * Duration.between(startTime..System.currentTimeMillis()).inWholeSeconds / duration.inWholeSeconds).toInt()
+                        )
+                    )
+                }
                 emit(
                     GeneticAlgorithmResult(
                         individual = bestOfAllTimeIndividual.individual,
-                        matchPercentage = scoreRounded,
+                        matchPercentage = bestOfAllTimeIndividual.score.setScale(2, RoundingMode.FLOOR),
                         progressPercentage = floor(100.0 * Duration.between(startTime..System.currentTimeMillis()).inWholeSeconds / duration.inWholeSeconds).toInt()
                     )
                 )
             }
-            emit(
-                GeneticAlgorithmResult(
-                    individual = bestOfAllTimeIndividual.individual,
-                    matchPercentage = bestOfAllTimeIndividual.score.setScale(2, RoundingMode.FLOOR),
-                    progressPercentage = floor(100.0 * Duration.between(startTime..System.currentTimeMillis()).inWholeSeconds / duration.inWholeSeconds).toInt()
-                )
-            )
         }
-    }
 
     private fun findBestIndividual(
         scoredPopulation: List<ScoredIndividual<T>>,
@@ -76,28 +77,33 @@ internal class GeneticAlgorithm<T>(
         return (bestScore >= maxSuccessPercentage && stopWhenBuildMatch) || timeElapsed >= duration.inWholeMilliseconds
     }
 
-    private suspend fun generateNewPopulation(scoredPopulation: List<ScoredIndividual<T>>) = coroutineScope {
-        scoredPopulation
-            .map {
-                async {
-                    val selectedParents = select(scoredPopulation) to select(scoredPopulation)
-                    val crossedIndividual = cross(selectedParents)
-                    val mutatedIndividual = mutate(crossedIndividual)
-                    ScoredIndividual(score(mutatedIndividual), mutatedIndividual)
-                }
-            }
-            .awaitAll()
-            .sortedByDescending { it.score }
-    }
+    private suspend fun generateNewPopulation(scoredPopulation: List<ScoredIndividual<T>>) =
+        coroutineScope {
+            scoredPopulation
+                .map {
+                    async {
+                        val selectedParents = select(scoredPopulation) to select(scoredPopulation)
+                        val crossedIndividual = cross(selectedParents)
+                        val mutatedIndividual = mutate(crossedIndividual)
+                        ScoredIndividual(score(mutatedIndividual), mutatedIndividual)
+                    }
+                }.awaitAll()
+                .sortedByDescending { it.score }
+        }
 }
 
 private fun Duration.Companion.between(timestampRange: LongRange): Duration {
     val firstInstant = Instant.ofEpochMilli(timestampRange.first)
     val lastInstant = Instant.ofEpochMilli(timestampRange.last)
-    return java.time.Duration.between(firstInstant, lastInstant).toKotlinDuration()
+    return java.time.Duration
+        .between(firstInstant, lastInstant)
+        .toKotlinDuration()
 }
 
-data class ScoredIndividual<T>(val score: BigDecimal, val individual: T)
+data class ScoredIndividual<T>(
+    val score: BigDecimal,
+    val individual: T,
+)
 
 data class GeneticAlgorithmResult<T>(
     val individual: T,

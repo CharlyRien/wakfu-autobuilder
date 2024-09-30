@@ -72,25 +72,31 @@ private val CharacterClass.zenithBuilderJobId: Int
     get() = CHARACTER_CLASS_TO_ZENITH_JOB_ID.getValue(this)
 
 internal suspend fun createBuild(character: Character): ZenithBuild {
-    val body = buildJsonObject {
-        put("name", "${character.clazz.name}-${character.level}")
-        put("level", character.level)
-        put("id_job", character.clazz.zenithBuilderJobId)
-        put("is_visible", false)
-        putJsonArray("flags") {}
-    }
+    val body =
+        buildJsonObject {
+            put("name", "${character.clazz.name}-${character.level}")
+            put("level", character.level)
+            put("id_job", character.clazz.zenithBuilderJobId)
+            put("is_visible", false)
+            putJsonArray("flags") {}
+        }
 
-    val (_, _, result) = "$baseAPIUrl/create"
-        .httpPost()
-        .header(apiZenithWakfuHeaders)
-        .jsonBody(Json.encodeToString<JsonObject>(body))
-        .awaitObjectResponse(kotlinxDeserializerOf<JsonElement>())
+    val (_, _, result) =
+        "$baseAPIUrl/create"
+            .httpPost()
+            .header(apiZenithWakfuHeaders)
+            .jsonBody(Json.encodeToString<JsonObject>(body))
+            .awaitObjectResponse(kotlinxDeserializerOf<JsonElement>())
 
-    val link = result.jsonObject.getValue("link").jsonPrimitive.content
-    val (_, _, getBuildJsonObject) = "$baseAPIUrl/build/$link"
-        .httpGet()
-        .header(apiZenithWakfuHeaders)
-        .awaitObjectResponse(kotlinxDeserializerOf<JsonObject>())
+    val link =
+        result.jsonObject
+            .getValue("link")
+            .jsonPrimitive.content
+    val (_, _, getBuildJsonObject) =
+        "$baseAPIUrl/build/$link"
+            .httpGet()
+            .header(apiZenithWakfuHeaders)
+            .awaitObjectResponse(kotlinxDeserializerOf<JsonObject>())
 
     val buildId = getBuildJsonObject.getValue("id_build").jsonPrimitive.long
 

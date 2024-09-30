@@ -19,27 +19,31 @@ import me.chosante.eventbus.Listener
 import me.chosante.events.AutobuildUpdateSearchEvent
 
 class SkillsTable : TreeTableView<SkillRowContent>() {
-
     private val classToSkillCurrentValue = mutableMapOf<KClass<out SkillCharacteristic>, SimpleStringProperty>()
 
     init {
-        val col1 = TreeTableColumn<SkillRowContent, String>("Skill name").apply {
-            cellValueFactory = Callback { c -> SimpleStringProperty(c.value.value.name) }
-            prefWidth = 250.0
-        }
+        val col1 =
+            TreeTableColumn<SkillRowContent, String>("Skill name").apply {
+                cellValueFactory = Callback { c -> SimpleStringProperty(c.value.value.name) }
+                prefWidth = 250.0
+            }
 
-        val col2 = TreeTableColumn<SkillRowContent, String>("Value").apply {
-            val nestedCol1 = TreeTableColumn<SkillRowContent, String>("Current").apply {
-                cellValueFactory = Callback { c -> c.value.value.current }
+        val col2 =
+            TreeTableColumn<SkillRowContent, String>("Value").apply {
+                val nestedCol1 =
+                    TreeTableColumn<SkillRowContent, String>("Current").apply {
+                        cellValueFactory = Callback { c -> c.value.value.current }
+                    }
+                val nestedCol2 =
+                    TreeTableColumn<SkillRowContent, String>("Max").apply {
+                        cellValueFactory =
+                            Callback { c ->
+                                val value = c.value.value
+                                SimpleStringProperty(if (value.max.toIntOrNull() == Int.MAX_VALUE) "∞" else value.max)
+                            }
+                    }
+                columns.addAll(nestedCol1, nestedCol2)
             }
-            val nestedCol2 = TreeTableColumn<SkillRowContent, String>("Max").apply {
-                cellValueFactory = Callback { c ->
-                    val value = c.value.value
-                    SimpleStringProperty(if (value.max.toIntOrNull() == Int.MAX_VALUE) "∞" else value.max)
-                }
-            }
-            columns.addAll(nestedCol1, nestedCol2)
-        }
 
         columns.addAll(col1, col2)
         columnResizePolicy = CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN
@@ -50,8 +54,8 @@ class SkillsTable : TreeTableView<SkillRowContent>() {
         subscribe(AutobuildUpdateSearchEvent::class, ::onBuildUpdate)
     }
 
-    private fun initTree(): TreeItem<SkillRowContent> {
-        return TreeItem(SkillRowContent("dummy", SimpleStringProperty(""), ""))
+    private fun initTree(): TreeItem<SkillRowContent> =
+        TreeItem(SkillRowContent("dummy", SimpleStringProperty(""), ""))
             .apply {
                 children.addAll(
                     TreeItem(SkillRowContent("Agility", SimpleStringProperty(""), "")).apply {
@@ -110,7 +114,6 @@ class SkillsTable : TreeTableView<SkillRowContent>() {
                     }
                 )
             }
-    }
 
     @Listener
     private fun onBuildUpdate(autobuildUpdateSearchEvent: AutobuildUpdateSearchEvent) {
@@ -137,4 +140,8 @@ class SkillsTable : TreeTableView<SkillRowContent>() {
     }
 }
 
-data class SkillRowContent(val name: String, val current: ObservableValue<String>, val max: String)
+data class SkillRowContent(
+    val name: String,
+    val current: ObservableValue<String>,
+    val max: String,
+)

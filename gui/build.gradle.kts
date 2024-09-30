@@ -1,16 +1,20 @@
+import org.jetbrains.kotlin.konan.file.unzipTo
 import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.Properties
+import kotlin.io.path.createTempDirectory
+import kotlin.io.path.createTempFile
 
 plugins {
     kotlin("jvm")
     id("org.openjfx.javafxplugin") version "0.1.0"
-    id("dev.hydraulic.conveyor") version "1.10"
+    id("dev.hydraulic.conveyor") version "1.12"
     alias(libs.plugins.ktlint)
     application
 }
 
 group = "me.chosante"
-version = "0.2.0"
+version = "0.3.0"
 
 repositories {
     mavenCentral()
@@ -57,6 +61,63 @@ tasks {
         file("src/main/kotlin/generated/$enumName.kt").writeText(constantsClass)
     }
 
+    @Suppress("UNCHECKED_CAST")
+    val generateAssets by register("generateAssets") {
+        group = "Assets"
+        val assetsDir =
+            file("src/main/resources/assets").apply {
+                mkdirs()
+            }
+        val assetsItemsDir =
+            file(assetsDir.absolutePath + "/items").apply {
+                mkdirs()
+            }
+
+        // take the equipment json file and parse it to get all the items name from the other module autobuilder
+        val guiIdsFromCurrentEquipmentJson =
+            parent
+                ?.projectDir
+                ?.resolve("autobuilder/src/main/resources")
+                ?.listFiles()
+                ?.sortedBy { it.nameWithoutExtension }
+                ?.firstOrNull()
+                ?.let {
+                    val items = groovy.json.JsonSlurper().parseText(it.readText()) as List<Map<String, Any>>
+                    items.map { item -> (item["guiId"] as Int).toString() }
+                } ?: emptyList()
+
+        // take all file name and check if it exists in a github project
+        // if it does, download it and put it in the assets folder
+        val repoUrl = "https://github.com/Vertylo/wakassets/archive/refs/heads/main.zip"
+        val destinationFile = createTempFile("wakassets", ".zip").toFile()
+        downloadRepositoryAsZip(repoUrl, destinationFile)
+
+        // unzip the file
+        val unzippedTempDirectory = createTempDirectory()
+        destinationFile.toPath().unzipTo(unzippedTempDirectory)
+        val allExistingGuiId =
+            unzippedTempDirectory
+                .resolve("wakassets-main/items")
+                .toFile()
+                .listFiles()
+                .toList()
+
+        // filter the items that are in the equipment json file
+        val itemsExistingInEquipmentJson = allExistingGuiId.filter { it.nameWithoutExtension in guiIdsFromCurrentEquipmentJson }
+
+        // copy the items to the assets folder
+        // but does not override existing files
+        itemsExistingInEquipmentJson.forEach { item ->
+            val destination = assetsItemsDir.resolve(item.name)
+            if (!destination.exists()) {
+                item.copyTo(destination)
+            }
+        }
+
+        destinationFile.delete()
+        unzippedTempDirectory.toFile().deleteRecursively()
+    }
+
     compileKotlin {
         dependsOn(generateKotlinI18nKeys)
     }
@@ -83,4 +144,14 @@ ktlint {
 javafx {
     version = "21"
     modules("javafx.controls", "javafx.fxml")
+}
+
+fun downloadRepositoryAsZip(
+    repoUrl: String,
+    destinationFile: File,
+) {
+    val url = uri(repoUrl).toURL()
+    url.openStream().use { input ->
+        Files.copy(input, destinationFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+    }
 }

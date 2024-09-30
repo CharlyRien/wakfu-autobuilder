@@ -46,54 +46,60 @@ fun main(args: Array<String>) {
     Application.launch(WakfuAutobuilderGUI::class.java, *args)
 }
 
-class WakfuAutobuilderGUI : Application(), CoroutineScope {
-
+class WakfuAutobuilderGUI :
+    Application(),
+    CoroutineScope {
     private val searchBox = SearchBox(::buildParams, ::getCharacter)
     private val buildParamsBox = BuildParamsBox()
     private val characteristicsTable = CharacteristicTable(::getCharacter)
     private val skillsTable = SkillsTable()
     private val itemForcedTable = ItemsForcedTable()
-    private val disclaimerLabel = HBox(
-        Label(I18n.valueOf(I18nKey.WAKFU_DISCLAIMER_LABEL)).apply {
-            style = "-fx-font-size: 12px; -fx-text-fill: #696969;"
-        }
-    ).apply { alignment = Pos.CENTER }
-
-    private val tableAndSettingsAccordion = Accordion(
-        TitledPane(
-            I18n.valueOf(I18nKey.BUILD_PARAMETERS_PANE_TITLE),
-            ScrollPane(buildParamsBox).apply {
-                isFitToWidth = true
-                minHeight = 200.0
+    private val disclaimerLabel =
+        HBox(
+            Label(I18n.valueOf(I18nKey.WAKFU_DISCLAIMER_LABEL)).apply {
+                style = "-fx-font-size: 12px; -fx-text-fill: #696969;"
             }
-        ),
-        TitledPane(I18n.valueOf(I18nKey.CHARACTERISTICS_PANE_TITLE), characteristicsTable),
-        TitledPane(I18n.valueOf(I18nKey.SKILLS_PANE_TITLE), skillsTable),
-        TitledPane(I18n.valueOf(I18nKey.ITEM_FORCED_PANE_TITLE), itemForcedTable)
-    ).apply {
-        styleClass.addAll(Styles.INTERACTIVE)
-        expandedPane = panes.firstOrNull { it.text == I18n.valueOf(I18nKey.CHARACTERISTICS_PANE_TITLE) }
-    }
+        ).apply { alignment = Pos.CENTER }
 
-    private val settingsAndBuildViewer = SplitPane(
-        tableAndSettingsAccordion,
-        BuildViewer()
-    ).apply {
-        orientation = Orientation.HORIZONTAL
-        setDividerPositions(0.40)
-    }
+    private val tableAndSettingsAccordion =
+        Accordion(
+            TitledPane(
+                I18n.valueOf(I18nKey.BUILD_PARAMETERS_PANE_TITLE),
+                ScrollPane(buildParamsBox).apply {
+                    isFitToWidth = true
+                    minHeight = 200.0
+                }
+            ),
+            TitledPane(I18n.valueOf(I18nKey.CHARACTERISTICS_PANE_TITLE), characteristicsTable),
+            TitledPane(I18n.valueOf(I18nKey.SKILLS_PANE_TITLE), skillsTable),
+            TitledPane(I18n.valueOf(I18nKey.ITEM_FORCED_PANE_TITLE), itemForcedTable)
+        ).apply {
+            styleClass.addAll(Styles.INTERACTIVE)
+            expandedPane = panes.firstOrNull { it.text == I18n.valueOf(I18nKey.CHARACTERISTICS_PANE_TITLE) }
+        }
 
-    private val borderPane = BorderPane().apply {
-        opacity = 0.0
-        center = settingsAndBuildViewer
-        top = searchBox
-        bottom = disclaimerLabel
-        BorderPane.setMargin(disclaimerLabel, Insets(5.0))
-        BorderPane.setMargin(settingsAndBuildViewer, Insets(15.0))
-        BorderPane.setMargin(searchBox, Insets(15.0))
-    }
+    private val settingsAndBuildViewer =
+        SplitPane(
+            tableAndSettingsAccordion,
+            BuildViewer()
+        ).apply {
+            orientation = Orientation.HORIZONTAL
+            setDividerPositions(0.40)
+        }
+
+    private val borderPane =
+        BorderPane().apply {
+            opacity = 0.0
+            center = settingsAndBuildViewer
+            top = searchBox
+            bottom = disclaimerLabel
+            BorderPane.setMargin(disclaimerLabel, Insets(5.0))
+            BorderPane.setMargin(settingsAndBuildViewer, Insets(15.0))
+            BorderPane.setMargin(searchBox, Insets(15.0))
+        }
 
     private fun getCharacter() = buildParamsBox.character
+
     private fun buildParams(): WakfuBestBuildParams {
         val character = buildParamsBox.character
         val scoreComputationMode =
@@ -115,7 +121,7 @@ class WakfuAutobuilderGUI : Application(), CoroutineScope {
     }
 
     /*
-    * Used to load icon resized by Conveyor
+     * Used to load icon resized by Conveyor
      */
     private fun loadIconsForStage(stage: Stage) {
         val appDir = System.getProperty("app.dir") ?: return
@@ -136,9 +142,10 @@ class WakfuAutobuilderGUI : Application(), CoroutineScope {
             stage.apply {
                 title = "Wakfu autobuilder"
                 isMaximized = true
-                scene = Scene(rootNode).apply {
-                    stylesheets.add("assets/css/root.css")
-                }
+                scene =
+                    Scene(rootNode).apply {
+                        stylesheets.add("assets/css/root.css")
+                    }
                 showingProperty().addListener { _, _, newValue ->
                     if (newValue) {
                         settingsAndBuildViewer.setDividerPositions(0.4)
@@ -150,10 +157,11 @@ class WakfuAutobuilderGUI : Application(), CoroutineScope {
             SplashScreen.animateSplashScreen()
             rootNode.children -= SplashScreen
             rootNode.children += borderPane
-            FadeTransition(Duration(1000.0), borderPane).apply {
-                fromValue = 0.0
-                toValue = 1.0
-            }.awaitPlay()
+            FadeTransition(Duration(1000.0), borderPane)
+                .apply {
+                    fromValue = 0.0
+                    toValue = 1.0
+                }.awaitPlay()
             subscribe(BrowseEvent::class, ::openBrowser)
         }
     }
