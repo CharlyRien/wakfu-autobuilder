@@ -12,11 +12,12 @@ enum class Rarity {
     RELIC,
     SOUVENIR,
     EPIC,
-    ;
 }
 
 @Serializable
-enum class ItemType(val id: Int) {
+enum class ItemType(
+    val id: Int,
+) {
     AMULET(120),
     EMBLEM(646),
     SHOULDER_PADS(138),
@@ -31,7 +32,6 @@ enum class ItemType(val id: Int) {
     TWO_HANDED_WEAPONS(519),
     MOUNTS(611),
     BELT(133),
-    ;
 }
 
 @Serializable
@@ -104,5 +104,4 @@ enum class Characteristic {
     MINER_HARVEST_QUANTITY_PERCENTAGE,
     FARMER_HARVEST_QUANTITY_PERCENTAGE,
     FISHERMAN_HARVEST_QUANTITY_PERCENTAGE,
-    ;
 }

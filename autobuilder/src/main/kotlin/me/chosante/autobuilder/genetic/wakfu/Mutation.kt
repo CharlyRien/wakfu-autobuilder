@@ -38,11 +38,13 @@ fun mutateCombination(
                     if (currentEpicEquipment == null) {
                         newEquipments[i] = randomEquipment
                     } else {
-                        newEquipments = newEquipments.replaceRandomlyOneItemWithRarity(
-                            rarity = Rarity.EPIC,
-                            replacementResearchZone = equipmentsByItemType[currentEpicEquipment.itemType] ?: listOf(),
-                            ringNames = ringNames
-                        ).toMutableList()
+                        newEquipments =
+                            newEquipments
+                                .replaceRandomlyOneItemWithRarity(
+                                    rarity = Rarity.EPIC,
+                                    replacementResearchZone = equipmentsByItemType[currentEpicEquipment.itemType] ?: listOf(),
+                                    ringNames = ringNames
+                                ).toMutableList()
                     }
                 }
 
@@ -51,11 +53,13 @@ fun mutateCombination(
                     if (currentRelicEquipment == null) {
                         newEquipments[i] = randomEquipment
                     } else {
-                        newEquipments = newEquipments.replaceRandomlyOneItemWithRarity(
-                            rarity = Rarity.RELIC,
-                            replacementResearchZone = equipmentsByItemType[currentRelicEquipment.itemType] ?: listOf(),
-                            ringNames = ringNames
-                        ).toMutableList()
+                        newEquipments =
+                            newEquipments
+                                .replaceRandomlyOneItemWithRarity(
+                                    rarity = Rarity.RELIC,
+                                    replacementResearchZone = equipmentsByItemType[currentRelicEquipment.itemType] ?: listOf(),
+                                    ringNames = ringNames
+                                ).toMutableList()
                     }
                 }
 
@@ -64,46 +68,52 @@ fun mutateCombination(
             ringNames = newEquipments.filter { it.itemType == ItemType.RING }.map { it.name.fr }
         }
     }
-    val characterSkills = with(individual.characterSkills) {
-        val targetCharacteristics = targetStats.map { it.characteristic }
-        val newIntelligence = if (Math.random() <= mutationProbability) {
-            val maxPointsToAssign = intelligence.maxPointsToAssign
-            Intelligence(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
-        } else {
-            intelligence
+    val characterSkills =
+        with(individual.characterSkills) {
+            val targetCharacteristics = targetStats.map { it.characteristic }
+            val newIntelligence =
+                if (Math.random() <= mutationProbability) {
+                    val maxPointsToAssign = intelligence.maxPointsToAssign
+                    Intelligence(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
+                } else {
+                    intelligence
+                }
+            val newStrength =
+                if (Math.random() <= mutationProbability) {
+                    val maxPointsToAssign = strength.maxPointsToAssign
+                    Strength(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
+                } else {
+                    strength
+                }
+            val newLuck =
+                if (Math.random() <= mutationProbability) {
+                    val maxPointsToAssign = luck.maxPointsToAssign
+                    Luck(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
+                } else {
+                    luck
+                }
+            val newAgility =
+                if (Math.random() <= mutationProbability) {
+                    val maxPointsToAssign = agility.maxPointsToAssign
+                    Agility(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
+                } else {
+                    agility
+                }
+            val newMajor =
+                if (Math.random() <= mutationProbability) {
+                    val maxPointsToAssign = major.maxPointsToAssign
+                    Major(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
+                } else {
+                    major
+                }
+            copy(
+                intelligence = newIntelligence,
+                strength = newStrength,
+                luck = newLuck,
+                agility = newAgility,
+                major = newMajor
+            )
         }
-        val newStrength = if (Math.random() <= mutationProbability) {
-            val maxPointsToAssign = strength.maxPointsToAssign
-            Strength(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
-        } else {
-            strength
-        }
-        val newLuck = if (Math.random() <= mutationProbability) {
-            val maxPointsToAssign = luck.maxPointsToAssign
-            Luck(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
-        } else {
-            luck
-        }
-        val newAgility = if (Math.random() <= mutationProbability) {
-            val maxPointsToAssign = agility.maxPointsToAssign
-            Agility(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
-        } else {
-            agility
-        }
-        val newMajor = if (Math.random() <= mutationProbability) {
-            val maxPointsToAssign = major.maxPointsToAssign
-            Major(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
-        } else {
-            major
-        }
-        copy(
-            intelligence = newIntelligence,
-            strength = newStrength,
-            luck = newLuck,
-            agility = newAgility,
-            major = newMajor
-        )
-    }
 
     return BuildCombination(newEquipments, characterSkills)
 }

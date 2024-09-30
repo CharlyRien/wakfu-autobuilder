@@ -1,7 +1,9 @@
 package me.chosante.autobuilder
 
 import com.github.ajalt.clikt.core.CliktCommand
+import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.PrintMessage
+import com.github.ajalt.clikt.core.main
 import com.github.ajalt.clikt.core.terminal
 import com.github.ajalt.clikt.parameters.options.NullableOption
 import com.github.ajalt.clikt.parameters.options.check
@@ -88,7 +90,7 @@ import me.chosante.common.skills.Assignable
 import me.chosante.createZenithBuild
 
 private val logger = KotlinLogging.logger {}
-internal const val VERSION = "1.84.1.25"
+internal const val VERSION = "1.85.1.29"
 
 fun main(args: Array<String>) = WakfuAutobuild().main(args)
 
@@ -99,18 +101,19 @@ private val additionalHelpOnStats =
 
 private class WakfuAutobuild :
     CliktCommand(
-        help =
-        """This program helps Wakfu players easily find the best combination of equipment for their character 
-            |at a given level by taking into account their desired stats and providing build suggestions
-            |based on their input.
-            |
-            |Current Wakfu data version used: $VERSION
-            |
-            |Here's an example of usage in your terminal: 
-            |./wakfu-autobuilder-cli.exe --level 110 --action-point 11 --movement-point 5 --mastery-distance 500 --hp 2000 --range 2 --cc 30 --class cra --create-zenith-build --duration 60
-        """.trimMargin(),
         name = "Wakfu Autobuilder version: $VERSION"
     ) {
+    override fun help(context: Context) =
+        """This program helps Wakfu players easily find the best combination of equipment for their character 
+    |at a given level by taking into account their desired stats and providing build suggestions
+    |based on their input.
+    |
+    |Current Wakfu data version used: $VERSION
+    |
+    |Here's an example of usage in your terminal: 
+    |./wakfu-autobuilder-cli.exe --level 110 --action-point 11 --movement-point 5 --mastery-distance 500 --hp 2000 --range 2 --cc 30 --class cra --create-zenith-build --duration 60
+        """.trimMargin()
+
     private val maxLevelWanted: Int by option(
         "--max-level",
         "--max-niveau",
@@ -207,7 +210,7 @@ HUPPERMAGE"""
         names = arrayOf("--ap", "--action-point", "--pa"),
         help = "Number of action points wanted. $additionalHelpOnStats"
     ).splitPair(delimiter = ":")
-            .toTargetStat(ACTION_POINT)
+        .toTargetStat(ACTION_POINT)
 
     private val rangeWanted: TargetStat? by option(
         names = arrayOf("--range", "--portee", "--po"),
@@ -225,7 +228,7 @@ HUPPERMAGE"""
         names = arrayOf("--mp", "--movement-point", "--pm"),
         help = "Number of movement points wanted. $additionalHelpOnStats"
     ).splitPair(delimiter = ":")
-            .toTargetStat(MOVEMENT_POINT)
+        .toTargetStat(MOVEMENT_POINT)
 
     private val pwWanted: TargetStat? by option(
         names = arrayOf("--wp", "--wakfu-point", "--pw"),

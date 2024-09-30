@@ -8,7 +8,6 @@ import javafx.event.EventHandler
 import javafx.scene.control.Button
 import javafx.scene.control.ContentDisplay
 import javafx.scene.control.Tooltip
-import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.javafx.JavaFx
@@ -25,12 +24,13 @@ import me.chosante.events.AutobuildStartSearchEvent
 import me.chosante.events.AutobuildUpdateSearchEvent
 import me.chosante.events.ZenithBuildCreatedEvent
 import me.chosante.i18n.I18n
+import kotlin.coroutines.CoroutineContext
 
 @Suppress("UNUSED_PARAMETER")
 class ZenithWakfuBuildButton(
     getCharacter: () -> Character,
-) : Button(I18n.valueOf(I18nKey.ZENITH_WAKFU_BUILD_CREATION_BUTTON)), CoroutineScope {
-
+) : Button(I18n.valueOf(I18nKey.ZENITH_WAKFU_BUILD_CREATION_BUTTON)),
+    CoroutineScope {
     private val lastBuildFound = SimpleObjectProperty<BuildCombination>()
     private val isZenithWakfuCreationInProgress = SimpleBooleanProperty(false)
     private val zenithBuildCreationProgressIndicator = RingProgressIndicator(-1.0, false)
@@ -39,26 +39,28 @@ class ZenithWakfuBuildButton(
         disableProperty().bind(lastBuildFound.isNull.or(isZenithWakfuCreationInProgress))
         tooltip = Tooltip(I18n.valueOf(I18nKey.ZENITH_WAKFU_BUILD_CREATION_BUTTON))
         contentDisplay = ContentDisplay.RIGHT
-        onMouseClicked = EventHandler {
-            if (!isDisabled) {
-                val buildCombination = lastBuildFound
-                if (buildCombination.isNotNull.value) {
-                    launch {
-                        isZenithWakfuCreationInProgress.value = true
-                        graphicProperty().value = zenithBuildCreationProgressIndicator
-                        val combination = buildCombination.get()
-                        val zenithBuildUrl = ZenithInputParameters(
-                            character = getCharacter().copy(characterSkills = combination.characterSkills),
-                            equipments = combination.equipments
-                        ).createZenithBuild()
-                        publish(ZenithBuildCreatedEvent(zenithBuildUrl))
-                    }.invokeOnCompletion {
-                        isZenithWakfuCreationInProgress.value = false
-                        graphicProperty().value = null
+        onMouseClicked =
+            EventHandler {
+                if (!isDisabled) {
+                    val buildCombination = lastBuildFound
+                    if (buildCombination.isNotNull.value) {
+                        launch {
+                            isZenithWakfuCreationInProgress.value = true
+                            graphicProperty().value = zenithBuildCreationProgressIndicator
+                            val combination = buildCombination.get()
+                            val zenithBuildUrl =
+                                ZenithInputParameters(
+                                    character = getCharacter().copy(characterSkills = combination.characterSkills),
+                                    equipments = combination.equipments
+                                ).createZenithBuild()
+                            publish(ZenithBuildCreatedEvent(zenithBuildUrl))
+                        }.invokeOnCompletion {
+                            isZenithWakfuCreationInProgress.value = false
+                            graphicProperty().value = null
+                        }
                     }
                 }
             }
-        }
         subscribe(AutobuildUpdateSearchEvent::class, ::onBuildUpdate)
         subscribe(AutobuildStartSearchEvent::class, ::onBuildStart)
         subscribe(AutobuildEndSearchEvent::class, ::onBuildEnd)

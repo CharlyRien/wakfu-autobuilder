@@ -39,8 +39,9 @@ import me.chosante.events.AutobuildUpdateSearchEvent
 import me.chosante.i18n.I18n
 
 @Suppress("UNUSED_PARAMETER")
-class BuildViewer : ScrollPane(), CoroutineScope {
-
+class BuildViewer :
+    ScrollPane(),
+    CoroutineScope {
     private val helmetCard = SimpleObjectProperty(EquipmentCard("Helmet"))
     private val capeCard = SimpleObjectProperty(EquipmentCard("Cape"))
     private val amuletCard = SimpleObjectProperty(EquipmentCard("Amulet"))
@@ -56,26 +57,28 @@ class BuildViewer : ScrollPane(), CoroutineScope {
     private val emblemCard = SimpleObjectProperty(EquipmentCard("Emblem"))
     private val mountCard = SimpleObjectProperty(EquipmentCard("Mount"))
 
-    private val gridPane = GridPane(5.0, 5.0).apply {
-        addRow(0, helmetCard.value, capeCard.value)
-        addRow(1, amuletCard.value, shoulderPadsCard.value)
-        addRow(2, chestPlateCard.value, beltCard.value)
-        addRow(3, ring1Card.value, ring2Card.value)
-        addRow(4, bootsCard.value, petCard.value)
-        addRow(5, weapon1Card.value, weapon2Card.value)
-        addRow(6, emblemCard.value, mountCard.value)
-        children.forEach {
-            GridPane.setVgrow(it, Priority.ALWAYS)
-            GridPane.setHgrow(it, Priority.ALWAYS)
-            GridPane.setFillHeight(it, true)
-            GridPane.setFillWidth(it, true)
+    private val gridPane =
+        GridPane(5.0, 5.0).apply {
+            addRow(0, helmetCard.value, capeCard.value)
+            addRow(1, amuletCard.value, shoulderPadsCard.value)
+            addRow(2, chestPlateCard.value, beltCard.value)
+            addRow(3, ring1Card.value, ring2Card.value)
+            addRow(4, bootsCard.value, petCard.value)
+            addRow(5, weapon1Card.value, weapon2Card.value)
+            addRow(6, emblemCard.value, mountCard.value)
+            children.forEach {
+                GridPane.setVgrow(it, Priority.ALWAYS)
+                GridPane.setHgrow(it, Priority.ALWAYS)
+                GridPane.setFillHeight(it, true)
+                GridPane.setFillWidth(it, true)
+            }
+            alignment = Pos.TOP_CENTER
         }
-        alignment = Pos.TOP_CENTER
-    }
 
-    private val placeholderText = Label(I18n.valueOf(I18nKey.BUILD_VIEWER_PLACEHOLDER_TEXT)).apply {
-        styleClass.addAll(Styles.TITLE_1)
-    }
+    private val placeholderText =
+        Label(I18n.valueOf(I18nKey.BUILD_VIEWER_PLACEHOLDER_TEXT)).apply {
+            styleClass.addAll(Styles.TITLE_1)
+        }
 
     private val stackPane = StackPane(gridPane, placeholderText)
 
@@ -115,18 +118,23 @@ class BuildViewer : ScrollPane(), CoroutineScope {
     private fun buildUpdate(autobuildUpdateSearchEvent: AutobuildUpdateSearchEvent) {
         launch {
             val ringCards = listOf(ring1Card, ring2Card).iterator()
-            val equipments = autobuildUpdateSearchEvent
-                .buildCombination
-                .individual
-                .equipments
+            val equipments =
+                autobuildUpdateSearchEvent
+                    .buildCombination
+                    .individual
+                    .equipments
 
-            val offHandedWeapon = equipments.firstOrNull {
-                it.itemType == OFF_HAND_WEAPONS
-            }?.let { EquipmentCard(it) }
+            val offHandedWeapon =
+                equipments
+                    .firstOrNull {
+                        it.itemType == OFF_HAND_WEAPONS
+                    }?.let { EquipmentCard(it) }
 
-            val oneHandedWeapon = equipments.firstOrNull {
-                it.itemType == ONE_HANDED_WEAPONS
-            }?.let { EquipmentCard(it) }
+            val oneHandedWeapon =
+                equipments
+                    .firstOrNull {
+                        it.itemType == ONE_HANDED_WEAPONS
+                    }?.let { EquipmentCard(it) }
 
             equipments
                 .forEach {
@@ -145,10 +153,12 @@ class BuildViewer : ScrollPane(), CoroutineScope {
                             weapon1Card.value.replaceWith(newEquipmentCard)
                             weapon2Card.value.replaceWith(offHandedWeapon ?: EquipmentCard(title = "Weapon 2"))
                         }
+
                         OFF_HAND_WEAPONS -> {
                             weapon1Card.value.replaceWith(newEquipmentCard)
                             weapon2Card.value.replaceWith(oneHandedWeapon ?: EquipmentCard(title = "Weapon 2"))
                         }
+
                         TWO_HANDED_WEAPONS -> {
                             weapon1Card.value.replaceWith(newEquipmentCard)
                             val twoHandedWeaponCard = EquipmentCard(it)

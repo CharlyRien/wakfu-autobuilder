@@ -1,15 +1,15 @@
 name: Build
 
-on: [push, workflow_dispatch, workflow_call]
+on: [ push, workflow_dispatch, workflow_call ]
 jobs:
     build:
         runs-on: ubuntu-latest
         steps:
-            - name: Checkout project sources
-              uses: actions/checkout@v4
+            -   name: Checkout project sources
+                uses: actions/checkout@v4.2.2
 
-            - name: Setup Gradle
-              uses: gradle/gradle-build-action@v3.5.0
+            -   name: Setup Gradle
+                uses: gradle/actions/setup-gradle@v4
 
-            - name: Verify everything is working fine
-              run: ./gradlew test
+            -   name: Verify everything is working fine
+                run: ./gradlew test
