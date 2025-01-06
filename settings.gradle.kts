@@ -1,5 +1,5 @@
 plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "0.8.0"
+    id("org.gradle.toolchains.foojay-resolver-convention") version "0.9.0"
 }
 
 rootProject.name = "wakfu-autobuilder"
@@ -14,7 +14,7 @@ dependencyResolutionManagement {
     versionCatalogs {
         create("libs") {
             version("jvm", "21")
-            val coroutineVersion = "1.9.0"
+            val coroutineVersion = "1.10.1"
             val fuelVersion = "2.3.1"
             library("kotlinx-serialization-json", "org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
             library("kotlinx-coroutine-bom", "org.jetbrains.kotlinx:kotlinx-coroutines-bom:$coroutineVersion")
@@ -23,7 +23,7 @@ dependencyResolutionManagement {
             library("fuel-coroutines", "com.github.kittinunf.fuel:fuel-coroutines:$fuelVersion")
             library("fuel-kotlinx", "com.github.kittinunf.fuel:fuel-kotlinx-serialization:$fuelVersion")
 
-            library("junit-bom", "org.junit:junit-bom:5.11.2")
+            library("junit-bom", "org.junit:junit-bom:5.11.4")
             plugin("ktlint", "org.jlleitschuh.gradle.ktlint").version("11.6.1")
             bundle("fuel", listOf("fuel-core", "fuel-coroutines", "fuel-kotlinx"))
         }
