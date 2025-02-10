@@ -14,7 +14,7 @@ plugins {
 }
 
 group = "me.chosante"
-version = "0.3.0"
+version = "0.4.0"
 
 repositories {
     mavenCentral()
@@ -61,9 +61,8 @@ tasks {
         file("src/main/kotlin/generated/$enumName.kt").writeText(constantsClass)
     }
 
-    @Suppress("UNCHECKED_CAST")
     val generateAssets by register("generateAssets") {
-        group = "Assets"
+        group = "assets"
         val assetsDir =
             file("src/main/resources/assets").apply {
                 mkdirs()
@@ -74,13 +73,13 @@ tasks {
             }
 
         // take the equipment json file and parse it to get all the items name from the other module autobuilder
+        @Suppress("UNCHECKED_CAST")
         val guiIdsFromCurrentEquipmentJson =
             parent
                 ?.projectDir
                 ?.resolve("autobuilder/src/main/resources")
                 ?.listFiles()
-                ?.sortedBy { it.nameWithoutExtension }
-                ?.firstOrNull()
+                ?.minByOrNull { it.nameWithoutExtension }
                 ?.let {
                     val items = groovy.json.JsonSlurper().parseText(it.readText()) as List<Map<String, Any>>
                     items.map { item -> (item["guiId"] as Int).toString() }

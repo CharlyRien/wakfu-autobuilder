@@ -121,7 +121,7 @@ class BuildParamsBox : VBox(5.0) {
             actionHandler = Runnable { stopWhenBuildMatchToggleSwitch.isSelected = !stopWhenBuildMatchToggleSwitch.isSelected }
         }
 
-    private val minLevelSpinner = Spinner<Int>(1, 230, 1)
+    private val minLevelSpinner = Spinner<Int>(1, 245, 1)
     private val minLevelTile =
         Tile(
             "Minimum Level",
@@ -134,7 +134,7 @@ class BuildParamsBox : VBox(5.0) {
             actionHandler = Runnable { minLevelSpinner.requestFocus() }
         }
 
-    private val levelSpinner = Spinner<Int>(1, 230, 20)
+    private val levelSpinner = Spinner<Int>(1, 245, 20)
     private val levelTile =
         Tile(
             I18n.valueOf(I18nKey.BUILD_PARAMETERS_LEVEL_TITLE),
