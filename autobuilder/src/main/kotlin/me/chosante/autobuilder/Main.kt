@@ -90,7 +90,7 @@ import me.chosante.common.skills.Assignable
 import me.chosante.createZenithBuild
 
 private val logger = KotlinLogging.logger {}
-internal const val VERSION = "1.85.1.29"
+internal const val VERSION = "1.86.4.31"
 
 fun main(args: Array<String>) = WakfuAutobuild().main(args)
 
@@ -119,8 +119,8 @@ private class WakfuAutobuild :
         "--max-niveau",
         help = "The max level of the character (no items selected will be above this level)"
     ).int()
-        .default(230)
-        .check("Level should be between 1 and 230") { it in 1..230 }
+        .default(245)
+        .check("Level should be between 1 and 245") { it in 1..245 }
 
     private val minLevelWanted: Int by option(
         "--min-level",
@@ -128,7 +128,7 @@ private class WakfuAutobuild :
         help = "The min level of the character (no items selected will be under this level)"
     ).int()
         .default(1)
-        .check("Level should be between 1 and 230") { it in 1..230 }
+        .check("Level should be between 1 and 245") { it in 1..245 }
 
     private val characterClass: CharacterClass? by option(
         "--class",
@@ -184,9 +184,7 @@ HUPPERMAGE"""
     private val maxRarity: Rarity by option(
         "--max-rarity",
         "--rarete-max",
-        help =
-        "Used to tell the algorithm to not take items into account that above this rarity, " +
-            "here the list of value possible in order: ${Rarity.entries}"
+        help = """Used to tell the algorithm to not take items into account that above this rarity, here the list of value possible in order: ${Rarity.entries}"""
     ).convert { Rarity.valueOf(it.uppercase()) }
         .default(Rarity.EPIC)
 
@@ -194,16 +192,21 @@ HUPPERMAGE"""
         "--items-a-force",
         "--forced-items",
         help =
-        "Used to tell the algorithm to force specific items to be in the final build," +
-            " the names have to be French for now, can be used like that: --forced-items 'Gelano','Amulette du Bouftou',..."
+        """
+            Used to tell the algorithm to force specific items to be in the final build,
+             the names have to be French for now, can be used like that:
+              --forced-items 'Gelano','Amulette du Bouftou',...
+        """.trimIndent()
     ).split(",").default(listOf())
 
     private val excludedItems: List<String> by option(
         "--items-a-exclure",
         "--excluded-items",
         help =
-        "Used to tell the algorithm to exclude specific items to not be in the final build," +
-            " the names have to be in french for now, can be used like that: --excluded-items 'Gelano','Amulette du Bouftou',..."
+        """
+            Used to tell the algorithm to exclude specific items to not be in the final build,
+            the names have to be in french for now, can be used like that: --excluded-items 'Gelano','Amulette du Bouftou',...
+        """.trimIndent()
     ).split(",").default(listOf())
 
     private val paWanted: TargetStat? by option(
