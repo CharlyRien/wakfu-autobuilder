@@ -8,6 +8,7 @@ import javafx.event.EventHandler
 import javafx.scene.control.Button
 import javafx.scene.control.ContentDisplay
 import javafx.scene.control.Tooltip
+import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.javafx.JavaFx
@@ -24,7 +25,6 @@ import me.chosante.events.AutobuildStartSearchEvent
 import me.chosante.events.AutobuildUpdateSearchEvent
 import me.chosante.events.ZenithBuildCreatedEvent
 import me.chosante.i18n.I18n
-import kotlin.coroutines.CoroutineContext
 
 @Suppress("UNUSED_PARAMETER")
 class ZenithWakfuBuildButton(

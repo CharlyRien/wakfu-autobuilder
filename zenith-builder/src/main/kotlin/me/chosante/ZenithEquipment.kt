@@ -100,12 +100,12 @@ internal suspend fun addEquipment(
                     buildJsonObject {
                         put("side", sideValue)
                     }
-            ) + (
+                ) + (
                 "effects" to
                     JsonArray(
                         effects
                     )
-            )
+                )
         )
     val jsonPayloadAddEquipment: JsonObject =
         buildJsonObject {
