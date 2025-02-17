@@ -19,7 +19,7 @@ dependencies {
     implementation(libs.kotlinx.coroutine.core)
     implementation(libs.kotlinx.serialization.json)
     implementation("com.github.ajalt.clikt:clikt:5.0.3")
-    implementation("com.github.ajalt.mordant:mordant:3.0.1")
+    implementation("com.github.ajalt.mordant:mordant:3.0.2")
     implementation("io.github.oshai:kotlin-logging-jvm:7.0.4")
     implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.24.3")
     implementation("org.slf4j:slf4j-api:2.0.16")
