@@ -89,10 +89,16 @@ object FindMostMasteriesFromInputScoring {
                 actualCharacteristicsValues[it.characteristic] ?: 0
             }
 
+        val targetCharacteristics = targetStats.map { it.characteristic }
         val removeNegativeMasteries =
             actualCharacteristicsValues
-                .filterKeys {
-                    it in listOf(Characteristic.MASTERY_BACK, Characteristic.MASTERY_CRITICAL, Characteristic.MASTERY_BERSERK) && it !in targetStats.map { it.characteristic }
+                .filterKeys { characteristic ->
+                    characteristic in
+                        listOf(
+                            Characteristic.MASTERY_BACK,
+                            Characteristic.MASTERY_CRITICAL,
+                            Characteristic.MASTERY_BERSERK
+                        ) && characteristic !in targetCharacteristics
                 }.filterValues { it < 0 }
                 .values
                 .sum()
