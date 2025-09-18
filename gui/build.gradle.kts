@@ -1,9 +1,9 @@
-import org.jetbrains.kotlin.konan.file.unzipTo
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.Properties
 import kotlin.io.path.createTempDirectory
 import kotlin.io.path.createTempFile
+import org.jetbrains.kotlin.konan.file.unzipTo
 
 plugins {
     kotlin("jvm")
@@ -50,7 +50,7 @@ tasks {
             buildString {
                 appendLine("package generated")
                 appendLine("enum class $enumName(val key: String) {")
-                properties.forEach { key, _ ->
+                properties.forEach { (key, _) ->
                     val constantKeyName = key.toString().replace("[^a-zA-Z0-9]".toRegex(), "_").uppercase()
                     appendLine("""    $constantKeyName("$key"), """)
                 }
@@ -72,7 +72,7 @@ tasks {
                 mkdirs()
             }
 
-        // take the equipment json file and parse it to get all the items name from the other module autobuilder
+        // take the equipment JSON file and parse it to get all the item name from the other module autobuilder
         @Suppress("UNCHECKED_CAST")
         val guiIdsFromCurrentEquipmentJson =
             parent
@@ -85,7 +85,7 @@ tasks {
                     items.map { item -> (item["guiId"] as Int).toString() }
                 } ?: emptyList()
 
-        // take all file name and check if it exists in a github project
+        // take all file name and check if it exists in a GitHub project
         // if it does, download it and put it in the assets folder
         val repoUrl = "https://github.com/Vertylo/wakassets/archive/refs/heads/main.zip"
         val destinationFile = createTempFile("wakassets", ".zip").toFile()
@@ -101,7 +101,7 @@ tasks {
                 .listFiles()
                 .toList()
 
-        // filter the items that are in the equipment json file
+        // filter the items that are in the equipment JSON file
         val itemsExistingInEquipmentJson = allExistingGuiId.filter { it.nameWithoutExtension in guiIdsFromCurrentEquipmentJson }
 
         // copy the items to the assets folder
