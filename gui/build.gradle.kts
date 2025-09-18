@@ -31,9 +31,9 @@ dependencies {
     implementation(platform(libs.kotlinx.coroutine.bom))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-javafx")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
-    implementation("io.github.mkpaz:atlantafx-base:2.0.1")
-    implementation("org.kordamp.ikonli:ikonli-javafx:12.3.1")
-    implementation("org.kordamp.ikonli:ikonli-feather-pack:12.3.1")
+    implementation("io.github.mkpaz:atlantafx-base:2.1.0")
+    implementation("org.kordamp.ikonli:ikonli-javafx:12.4.0")
+    implementation("org.kordamp.ikonli:ikonli-feather-pack:12.4.0")
     testImplementation(platform(libs.junit.bom))
     testImplementation("org.junit.jupiter:junit-jupiter")
 }
