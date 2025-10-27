@@ -23,7 +23,7 @@ dependencyResolutionManagement {
             library("fuel-coroutines", "com.github.kittinunf.fuel:fuel-coroutines:$fuelVersion")
             library("fuel-kotlinx", "com.github.kittinunf.fuel:fuel-kotlinx-serialization:$fuelVersion")
 
-            library("junit-bom", "org.junit:junit-bom:5.13.4")
+            library("junit-bom", "org.junit:junit-bom:6.0.0")
             plugin("ktlint", "org.jlleitschuh.gradle.ktlint").version("11.6.1")
             bundle("fuel", listOf("fuel-core", "fuel-coroutines", "fuel-kotlinx"))
         }
