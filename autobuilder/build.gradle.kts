@@ -21,7 +21,7 @@ dependencies {
     implementation("com.github.ajalt.clikt:clikt:5.0.3")
     implementation("com.github.ajalt.mordant:mordant:3.0.2")
     implementation("io.github.oshai:kotlin-logging-jvm:7.0.13")
-    implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.25.2")
+    implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.25.3")
     implementation("org.slf4j:slf4j-api:2.0.17")
     testImplementation("org.assertj:assertj-core:3.27.6")
     testImplementation(kotlin("test"))
