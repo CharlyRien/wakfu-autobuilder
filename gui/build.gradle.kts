@@ -8,7 +8,7 @@ import org.jetbrains.kotlin.konan.file.unzipTo
 plugins {
     kotlin("jvm")
     id("org.openjfx.javafxplugin") version "0.1.0"
-    id("dev.hydraulic.conveyor") version "1.12"
+    id("dev.hydraulic.conveyor") version "1.13"
     alias(libs.plugins.ktlint)
     application
 }
