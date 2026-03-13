@@ -1,9 +1,9 @@
+import org.jetbrains.kotlin.konan.file.unzipTo
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.Properties
 import kotlin.io.path.createTempDirectory
 import kotlin.io.path.createTempFile
-import org.jetbrains.kotlin.konan.file.unzipTo
 
 plugins {
     kotlin("jvm")
@@ -61,7 +61,7 @@ tasks {
         file("src/main/kotlin/generated/$enumName.kt").writeText(constantsClass)
     }
 
-    val generateAssets by register("generateAssets") {
+    register("generateAssets") {
         group = "assets"
         val assetsDir =
             file("src/main/resources/assets").apply {
@@ -141,7 +141,7 @@ ktlint {
 }
 
 javafx {
-    version = "21"
+    version = "25"
     modules("javafx.controls", "javafx.fxml")
 }
 

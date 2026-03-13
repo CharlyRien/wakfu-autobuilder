@@ -23,6 +23,7 @@ dependencies {
     implementation("io.github.oshai:kotlin-logging-jvm:7.0.14")
     implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.25.3")
     implementation("org.slf4j:slf4j-api:2.0.17")
+    implementation("com.google.ortools:ortools-java:9.15.6755")
     testImplementation("org.assertj:assertj-core:3.27.7")
     testImplementation(kotlin("test"))
 }
@@ -37,6 +38,11 @@ kotlin {
 
 tasks.test {
     useJUnitPlatform()
+    jvmArgs(
+        "--enable-native-access=ALL-UNNAMED",
+        "--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
+        "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED"
+    )
 }
 
 application {

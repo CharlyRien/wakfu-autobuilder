@@ -1,14 +1,14 @@
 package me.chosante.autobuilder.genetic.wakfu
 
+import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.domain.TargetStat
+import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.common.Characteristic
 import java.math.BigDecimal
 import java.math.MathContext
 import java.math.RoundingMode
 import kotlin.math.min
 import kotlin.math.roundToInt
-import me.chosante.autobuilder.domain.BuildCombination
-import me.chosante.autobuilder.domain.TargetStat
-import me.chosante.autobuilder.domain.TargetStats
-import me.chosante.common.Characteristic
 
 object FindClosestBuildFromInputScoring {
     fun computeScore(
@@ -151,11 +151,11 @@ fun computeCharacteristicsValues(
             Characteristic.ACTION_POINT to (
                 characteristicsGivenByEquipmentCombination[Characteristic.MAX_ACTION_POINT]
                     ?: 0
-                ),
+            ),
             Characteristic.MOVEMENT_POINT to (
                 characteristicsGivenByEquipmentCombination[Characteristic.MAX_MOVEMENT_POINT]
                     ?: 0
-                ),
+            ),
             Characteristic.WAKFU_POINT to (characteristicsGivenByEquipmentCombination[Characteristic.MAX_WAKFU_POINTS] ?: 0)
         )
 

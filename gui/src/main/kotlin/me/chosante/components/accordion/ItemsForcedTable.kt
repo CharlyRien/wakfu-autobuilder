@@ -1,7 +1,6 @@
 package me.chosante.components.accordion
 
 import generated.I18nKey
-import java.util.Optional
 import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleStringProperty
 import javafx.scene.control.Button
@@ -14,6 +13,7 @@ import javafx.scene.control.cell.TextFieldTableCell
 import javafx.util.Callback
 import me.chosante.common.Rarity
 import me.chosante.i18n.I18n
+import java.util.Optional
 
 class ItemsForcedTable : TableView<ItemForced>() {
     private val selectAllCheckBox = CheckBox()
@@ -60,7 +60,7 @@ class ItemsForcedTable : TableView<ItemForced>() {
             }
             event.consume()
         }
-        addButton.setOnAction { event ->
+        addButton.setOnAction { _ ->
             val dialog: Dialog<ItemForced> = Dialog()
             dialog.title = "Ajouter un nouvel élément"
 

@@ -10,7 +10,6 @@ import javafx.scene.control.ProgressBar
 import javafx.scene.control.Separator
 import javafx.scene.layout.HBox
 import javafx.scene.layout.Priority
-import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.javafx.JavaFx
@@ -25,6 +24,7 @@ import me.chosante.events.AutobuildUpdateSearchEvent
 import me.chosante.events.BrowseEvent
 import me.chosante.events.ZenithBuildCreatedEvent
 import me.chosante.i18n.I18n
+import kotlin.coroutines.CoroutineContext
 
 @Suppress("UNUSED_PARAMETER")
 class SearchBox(

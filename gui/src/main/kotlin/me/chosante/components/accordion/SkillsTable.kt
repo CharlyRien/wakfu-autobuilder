@@ -7,7 +7,6 @@ import javafx.scene.control.TreeItem
 import javafx.scene.control.TreeTableColumn
 import javafx.scene.control.TreeTableView
 import javafx.util.Callback
-import kotlin.reflect.KClass
 import me.chosante.common.skills.AgilityCharacteristic
 import me.chosante.common.skills.IntelligenceCharacteristic
 import me.chosante.common.skills.LuckCharacteristic
@@ -17,6 +16,7 @@ import me.chosante.common.skills.StrengthCharacteristic
 import me.chosante.eventbus.DefaultEventBus.subscribe
 import me.chosante.eventbus.Listener
 import me.chosante.events.AutobuildUpdateSearchEvent
+import kotlin.reflect.KClass
 
 class SkillsTable : TreeTableView<SkillRowContent>() {
     private val classToSkillCurrentValue = mutableMapOf<KClass<out SkillCharacteristic>, SimpleStringProperty>()

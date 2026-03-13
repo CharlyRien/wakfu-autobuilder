@@ -1,12 +1,12 @@
 package me.chosante.i18n
 
 import generated.I18nKey
+import me.chosante.WakfuAutobuilderGUI
+import me.chosante.common.I18nText
 import java.text.MessageFormat
 import java.util.Locale
 import java.util.ResourceBundle
 import java.util.prefs.Preferences
-import me.chosante.WakfuAutobuilderGUI
-import me.chosante.common.I18nText
 
 object I18n {
     private val fallbackOnEnglishWhenLocaleNotFound =

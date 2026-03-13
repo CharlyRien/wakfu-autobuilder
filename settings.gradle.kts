@@ -13,7 +13,7 @@ include("zenith-builder")
 dependencyResolutionManagement {
     versionCatalogs {
         create("libs") {
-            version("jvm", "21")
+            version("jvm", "25")
             val coroutineVersion = "1.10.2"
             val fuelVersion = "2.3.1"
             library("kotlinx-serialization-json", "org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
@@ -24,7 +24,7 @@ dependencyResolutionManagement {
             library("fuel-kotlinx", "com.github.kittinunf.fuel:fuel-kotlinx-serialization:$fuelVersion")
 
             library("junit-bom", "org.junit:junit-bom:6.0.3")
-            plugin("ktlint", "org.jlleitschuh.gradle.ktlint").version("11.6.1")
+            plugin("ktlint", "org.jlleitschuh.gradle.ktlint").version("14.2.0")
             bundle("fuel", listOf("fuel-core", "fuel-coroutines", "fuel-kotlinx"))
         }
     }

@@ -1,22 +1,18 @@
 package me.chosante.autobuilder.genetic.wakfu
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlin.system.exitProcess
-import kotlin.time.Duration
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.Json
 import me.chosante.autobuilder.VERSION
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStats
-import me.chosante.autobuilder.genetic.GeneticAlgorithm
 import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
-import me.chosante.autobuilder.genetic.tournamentSelection
-import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
-import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
 import me.chosante.common.Character
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
+import kotlin.system.exitProcess
+import kotlin.time.Duration
 
 object WakfuBestBuildFinderAlgorithm {
     private val logger = KotlinLogging.logger {}
@@ -26,7 +22,7 @@ object WakfuBestBuildFinderAlgorithm {
             Json.decodeFromString<List<Equipment>>(String(it))
         }
 
-    suspend fun run(params: WakfuBestBuildParams): Flow<GeneticAlgorithmResult<BuildCombination>> {
+    fun run(params: WakfuBestBuildParams): Flow<GeneticAlgorithmResult<BuildCombination>> {
         val equipmentsByItemType =
             groupAndFilterEquipments(
                 excludedItems = params.excludedItems,
@@ -35,46 +31,8 @@ object WakfuBestBuildFinderAlgorithm {
                 character = params.character
             )
 
-        val targetStats = params.targetStats
         return try {
-            val mutationProbability = 0.20
-            val numberOfIndividualsInPopulation = 20000
-            GeneticAlgorithm(
-                population =
-                generateRandomPopulations(
-                    numberOfIndividual = numberOfIndividualsInPopulation,
-                    equipmentsByItemType = equipmentsByItemType,
-                    character = params.character,
-                    targetStats = targetStats
-                ),
-                score = { combination ->
-                    when (params.scoreComputationMode) {
-                        FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
-                            FindMostMasteriesFromInputScoring.computeScore(
-                                targetStats = targetStats,
-                                buildCombination = combination,
-                                characterBaseCharacteristics = params.character.baseCharacteristicValues
-                            )
-
-                        FIND_CLOSEST_BUILD_FROM_INPUT ->
-                            FindClosestBuildFromInputScoring.computeScore(
-                                targetStats = targetStats,
-                                buildCombination = combination,
-                                characterBaseCharacteristics = params.character.baseCharacteristicValues
-                            )
-                    }
-                },
-                select = ::tournamentSelection,
-                cross = ::cross,
-                mutate = { combination ->
-                    mutateCombination(
-                        individual = combination,
-                        mutationProbability = mutationProbability,
-                        equipmentsByItemType = equipmentsByItemType,
-                        targetStats = targetStats
-                    )
-                }
-            ).run(duration = params.searchDuration, stopWhenBuildMatch = params.stopWhenBuildMatch)
+            WakfuBuildSolver.optimize(params, equipmentsByItemType)
         } catch (exception: Exception) {
             logger.error(exception) { "Exception occurred during the process of finding the best equipments." }
             exitProcess(1)
@@ -114,16 +72,18 @@ internal fun List<Equipment>.replaceRandomlyOneItemWithRarity(
     rarity: Rarity,
     replacementResearchZone: List<Equipment>,
     ringNames: List<String> = listOf(),
+    random: kotlin.random.Random = kotlin.random.Random.Default,
 ): List<Equipment> {
     val equipments = this.toMutableList()
-    val equipmentToRemove = equipments.filter { it.rarity == rarity }.random()
+    val equipmentToRemove = equipments.filter { it.rarity == rarity }.random(random)
 
     val replacementEquipment =
         findReplacementItem(
             equipmentTypeToReplace = equipmentToRemove.itemType,
             researchZone = replacementResearchZone,
             equipmentsToExclude = equipments,
-            ringNamesToExclude = ringNames
+            ringNamesToExclude = ringNames,
+            random = random
         )
 
     if (replacementEquipment == null) {
@@ -135,11 +95,12 @@ internal fun List<Equipment>.replaceRandomlyOneItemWithRarity(
             equipmentTypeToReplace = otherEquipmentToRemove.itemType,
             researchZone = replacementResearchZone,
             equipmentsToExclude = equipments,
-            ringNamesToExclude = ringNames
+            ringNamesToExclude = ringNames,
+            random = random
         )?.let {
             equipments.remove(otherEquipmentToRemove)
             equipments.add(it)
-        } ?: equipments.remove(listOf(otherEquipmentToRemove, equipmentToRemove).random())
+        } ?: equipments.remove(listOf(otherEquipmentToRemove, equipmentToRemove).random(random))
     }
 
     equipments.remove(equipmentToRemove)
@@ -153,6 +114,7 @@ private fun findReplacementItem(
     equipmentsToExclude: List<Equipment>,
     raritiesToExclude: List<Rarity> = listOf(Rarity.EPIC, Rarity.RELIC),
     ringNamesToExclude: List<String>,
+    random: kotlin.random.Random = kotlin.random.Random.Default,
 ): Equipment? =
     researchZone
         .filter {
@@ -160,7 +122,7 @@ private fun findReplacementItem(
                 it !in equipmentsToExclude &&
                 it.rarity !in raritiesToExclude &&
                 (it.itemType != ItemType.RING || it.name.fr !in ringNamesToExclude)
-        }.randomOrNull()
+        }.randomOrNull(random)
 
 data class WakfuBestBuildParams(
     val character: Character,

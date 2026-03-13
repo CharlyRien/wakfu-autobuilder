@@ -1,7 +1,7 @@
 package me.chosante.events
 
-import java.net.URI
 import me.chosante.eventbus.Event
+import java.net.URI
 
 class BrowseEvent(
     val uri: URI,

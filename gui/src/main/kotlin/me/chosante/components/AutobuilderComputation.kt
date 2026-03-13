@@ -1,7 +1,5 @@
 package me.chosante.components
 
-import kotlin.coroutines.CoroutineContext
-import kotlin.time.ExperimentalTime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -23,6 +21,8 @@ import me.chosante.events.AutobuildCancelSearchEvent
 import me.chosante.events.AutobuildEndSearchEvent
 import me.chosante.events.AutobuildStartSearchEvent
 import me.chosante.events.AutobuildUpdateSearchEvent
+import kotlin.coroutines.CoroutineContext
+import kotlin.time.ExperimentalTime
 
 @Suppress("UNUSED_PARAMETER")
 @ExperimentalCoroutinesApi

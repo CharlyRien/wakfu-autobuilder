@@ -13,7 +13,6 @@ import javafx.scene.control.TableRow
 import javafx.scene.control.TableView
 import javafx.scene.control.cell.TextFieldTableCell
 import javafx.util.Callback
-import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.javafx.JavaFx
@@ -29,6 +28,7 @@ import me.chosante.eventbus.Listener
 import me.chosante.events.AutobuildEndSearchEvent
 import me.chosante.events.AutobuildStartSearchEvent
 import me.chosante.events.AutobuildUpdateSearchEvent
+import kotlin.coroutines.CoroutineContext
 
 @Suppress("UNUSED_PARAMETER", "UNCHECKED_CAST")
 class CharacteristicTable(

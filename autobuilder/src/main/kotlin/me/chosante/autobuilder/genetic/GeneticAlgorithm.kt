@@ -1,16 +1,16 @@
 package me.chosante.autobuilder.genetic
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.time.Instant
 import kotlin.math.floor
 import kotlin.time.Duration
 import kotlin.time.toKotlinDuration
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
 
 internal class GeneticAlgorithm<T>(
     var population: Collection<T>,

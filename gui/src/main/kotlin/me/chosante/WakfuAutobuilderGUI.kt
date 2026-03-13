@@ -3,8 +3,6 @@ package me.chosante
 import atlantafx.base.theme.NordDark
 import atlantafx.base.theme.Styles
 import generated.I18nKey
-import java.nio.file.Files
-import java.nio.file.Paths
 import javafx.animation.FadeTransition
 import javafx.application.Application
 import javafx.geometry.Insets
@@ -22,8 +20,6 @@ import javafx.scene.layout.HBox
 import javafx.scene.layout.StackPane
 import javafx.stage.Stage
 import javafx.util.Duration
-import kotlin.coroutines.CoroutineContext
-import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.javafx.JavaFx
@@ -41,6 +37,10 @@ import me.chosante.eventbus.DefaultEventBus.subscribe
 import me.chosante.eventbus.Listener
 import me.chosante.events.BrowseEvent
 import me.chosante.i18n.I18n
+import java.nio.file.Files
+import java.nio.file.Paths
+import kotlin.coroutines.CoroutineContext
+import kotlin.time.Duration.Companion.seconds
 
 fun main(args: Array<String>) {
     Application.launch(WakfuAutobuilderGUI::class.java, *args)

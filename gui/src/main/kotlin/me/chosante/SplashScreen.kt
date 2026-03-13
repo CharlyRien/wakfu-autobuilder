@@ -7,11 +7,11 @@ import javafx.scene.image.Image
 import javafx.scene.image.ImageView
 import javafx.scene.layout.StackPane
 import javafx.util.Duration
-import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.javafx.JavaFx
+import kotlin.coroutines.CoroutineContext
 
 object SplashScreen : StackPane(), CoroutineScope {
     private const val SPLASH_IMAGE = "logo.png"

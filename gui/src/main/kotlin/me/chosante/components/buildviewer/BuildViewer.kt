@@ -12,7 +12,6 @@ import javafx.scene.effect.BoxBlur
 import javafx.scene.layout.GridPane
 import javafx.scene.layout.Priority
 import javafx.scene.layout.StackPane
-import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.javafx.JavaFx
@@ -37,6 +36,7 @@ import me.chosante.events.AutobuildEndSearchEvent
 import me.chosante.events.AutobuildStartSearchEvent
 import me.chosante.events.AutobuildUpdateSearchEvent
 import me.chosante.i18n.I18n
+import kotlin.coroutines.CoroutineContext
 
 @Suppress("UNUSED_PARAMETER")
 class BuildViewer :

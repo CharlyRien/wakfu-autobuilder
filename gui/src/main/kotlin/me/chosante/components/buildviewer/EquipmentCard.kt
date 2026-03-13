@@ -10,13 +10,13 @@ import javafx.scene.image.Image
 import javafx.scene.image.ImageView
 import javafx.scene.layout.HBox
 import javafx.scene.layout.VBox
-import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.javafx.JavaFx
 import me.chosante.GuiCharacteristic
 import me.chosante.common.Equipment
 import me.chosante.i18n.I18n.usePreferredLanguageIfFoundOrEnglish
+import kotlin.coroutines.CoroutineContext
 
 class EquipmentCard(
     title: String,

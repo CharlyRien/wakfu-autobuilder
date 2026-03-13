@@ -5,8 +5,6 @@ import generated.I18nKey
 import javafx.event.EventHandler
 import javafx.scene.control.Alert
 import javafx.scene.control.Button
-import kotlin.coroutines.CoroutineContext
-import kotlin.time.ExperimentalTime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -21,6 +19,8 @@ import me.chosante.events.AutobuildStartSearchEvent
 import me.chosante.i18n.I18n
 import org.kordamp.ikonli.feather.Feather
 import org.kordamp.ikonli.javafx.FontIcon
+import kotlin.coroutines.CoroutineContext
+import kotlin.time.ExperimentalTime
 
 @Suppress("UNUSED_PARAMETER")
 @OptIn(ExperimentalCoroutinesApi::class, ExperimentalTime::class)
