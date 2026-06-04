@@ -90,7 +90,7 @@ import me.chosante.common.skills.Assignable
 import me.chosante.createZenithBuild
 
 private val logger = KotlinLogging.logger {}
-internal const val VERSION = "1.89.1.41"
+internal const val VERSION = "1.91.1.54"
 
 fun main(args: Array<String>) = WakfuAutobuild().main(args)
 

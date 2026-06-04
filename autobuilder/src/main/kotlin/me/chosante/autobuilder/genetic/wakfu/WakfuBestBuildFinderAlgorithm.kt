@@ -38,11 +38,10 @@ object WakfuBestBuildFinderAlgorithm {
         val targetStats = params.targetStats
         return try {
             val mutationProbability = 0.20
-            val numberOfIndividualsInPopulation = 20000
             GeneticAlgorithm(
                 population =
                 generateRandomPopulations(
-                    numberOfIndividual = numberOfIndividualsInPopulation,
+                    numberOfIndividual = params.populationSize.coerceAtLeast(1),
                     equipmentsByItemType = equipmentsByItemType,
                     character = params.character,
                     targetStats = targetStats
@@ -89,7 +88,7 @@ object WakfuBestBuildFinderAlgorithm {
     ): Map<ItemType, List<Equipment>> {
         val itemsExcluded = excludedItems.map { it.lowercase() }
         val itemsToForce = forcedItems.map { it.lowercase() }
-        val equipmentsByItemType =
+        val eligibleEquipments =
             equipments
                 .asSequence()
                 .filter { equipment ->
@@ -98,6 +97,14 @@ object WakfuBestBuildFinderAlgorithm {
                     (equipment.level <= character.level && equipment.level >= character.minLevel) ||
                         (equipment.itemType == ItemType.PETS || equipment.itemType == ItemType.MOUNTS)
                 }.filter { equipment -> equipment.name.fr.lowercase() !in itemsExcluded }
+                .toList()
+        val forcedWeaponTypes =
+            eligibleEquipments
+                .filter { it.name.fr.lowercase() in itemsToForce }
+                .map { it.itemType }
+                .toSet()
+        val equipmentsByItemType =
+            eligibleEquipments
                 .groupBy { it.itemType }
                 .mapValues { (_, value) ->
                     if (value.any { it.name.fr.lowercase() in itemsToForce }) {
@@ -105,7 +112,13 @@ object WakfuBestBuildFinderAlgorithm {
                     } else {
                         value
                     }
-                }
+                }.toMutableMap()
+        if (ItemType.TWO_HANDED_WEAPONS in forcedWeaponTypes) {
+            equipmentsByItemType.remove(ItemType.ONE_HANDED_WEAPONS)
+            equipmentsByItemType.remove(ItemType.OFF_HAND_WEAPONS)
+        } else if (ItemType.ONE_HANDED_WEAPONS in forcedWeaponTypes || ItemType.OFF_HAND_WEAPONS in forcedWeaponTypes) {
+            equipmentsByItemType.remove(ItemType.TWO_HANDED_WEAPONS)
+        }
         return equipmentsByItemType
     }
 }
@@ -171,4 +184,5 @@ data class WakfuBestBuildParams(
     val forcedItems: List<String>,
     val excludedItems: List<String>,
     val scoreComputationMode: ScoreComputationMode,
+    val populationSize: Int = 20000,
 )
