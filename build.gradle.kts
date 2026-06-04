@@ -6,8 +6,8 @@ import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.toolchain.JavaToolchainService
 
 plugins {
-    kotlin("jvm") version "2.3.21" apply false
-    kotlin("plugin.serialization") version "2.3.21" apply false
+    kotlin("jvm") version "2.4.0" apply false
+    kotlin("plugin.serialization") version "2.4.0" apply false
     alias(libs.plugins.ktlint) apply false
 }
 

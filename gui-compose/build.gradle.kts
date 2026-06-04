@@ -3,8 +3,8 @@ import org.gradle.jvm.toolchain.JavaToolchainService
 
 plugins {
     kotlin("jvm")
-    id("org.jetbrains.kotlin.plugin.compose") version "2.3.21"
-    id("org.jetbrains.compose") version "1.8.1"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.4.0"
+    id("org.jetbrains.compose") version "1.11.1"
     id("dev.hydraulic.conveyor") version "2.0"
     alias(libs.plugins.ktlint)
 }

@@ -20,7 +20,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation("com.github.ajalt.clikt:clikt:5.1.0")
     implementation("com.github.ajalt.mordant:mordant:3.0.2")
-    implementation("io.github.oshai:kotlin-logging-jvm:8.0.02")
+    implementation("io.github.oshai:kotlin-logging-jvm:8.0.4")
     implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.26.0")
     implementation("org.slf4j:slf4j-api:2.0.18")
     testImplementation("org.assertj:assertj-core:3.27.7")
