@@ -176,9 +176,15 @@ Java 21+ required (Java 25 on the `linear-programming` branch). Use the Gradle w
 ./gradlew test                                    # run all tests (this is what CI runs)
 ./gradlew ktlintCheck                             # lint  (ktlintFormat to auto-fix)
 
-./gradlew :gui:run                                # launch the JavaFX GUI
+./gradlew :gui:run                                # launch the JavaFX GUI (legacy, kept until cutover)
+./gradlew :gui-compose:run                        # launch the new Compose Desktop GUI (migration in progress)
 ./gradlew :autobuilder:run --args="--help"        # CLI help
 ./gradlew :equipments-extractor:run               # regenerate the equipments JSON from Ankama CDN
+
+# Compose GUI screenshot smoke-check (renders the app, writes a PNG, exits):
+WAKFU_COMPOSE_SCREENSHOT=/tmp/out.png ./gradlew :gui-compose:run
+# Conveyor packaging is wired for gui-compose too (gui-compose/conveyor.conf):
+./gradlew :gui-compose:printConveyorConfig        # validates the Conveyor/Gradle wiring offline
 
 # Example CLI search:
 ./gradlew :autobuilder:run --args="--level 110 --action-point 11 --movement-point 5 \

@@ -1,0 +1,231 @@
+package me.chosante.ui.i18n
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
+import me.chosante.common.Characteristic
+import me.chosante.common.ItemType
+import me.chosante.common.Rarity
+
+enum class Lang(
+    val label: String,
+) {
+    EN("EN"),
+    FR("FR"),
+}
+
+/** The active UI language, provided once at the app root and read by [tr]. */
+val LocalLang = staticCompositionLocalOf { Lang.EN }
+
+/**
+ * Every user-facing static string, with its English and French forms. Hand-written (no codegen)
+ * so the two translations stay side by side and the keys are type-checked at the call site.
+ */
+enum class Tr(
+    val en: String,
+    val fr: String,
+) {
+    // Brand / top bar
+    BRAND_SUBTITLE("BUILD DISCOVERER", "DÉCOUVREUR DE BUILD"),
+    CLASS("Class", "Classe"),
+    LEVEL_SHORT("Lvl", "Niv"),
+    MIN_SHORT("Min", "Min"),
+    PROGRESS("Progress", "Progression"),
+    MATCH("Match", "Correspondance"),
+    SEARCH("Search", "Rechercher"),
+    STOP("Stop", "Arrêter"),
+
+    // Zone headers
+    ZONE_REQUEST("Request", "Requête"),
+    ZONE_REQUEST_HINT("Input", "Entrée"),
+    ZONE_BUILD("Discovered Build", "Build découvert"),
+    ZONE_BUILD_IDLE("Awaiting search", "En attente"),
+    ZONE_BUILD_SEARCHING("Live - best so far", "En direct - meilleur trouvé"),
+    ZONE_BUILD_DONE("Result", "Résultat"),
+    ZONE_STATS("Resulting Stats", "Stats résultantes"),
+    ZONE_STATS_HINT("Output", "Sortie"),
+
+    // Request panel
+    SEARCH_MODE("Search Mode", "Mode de recherche"),
+    MODE_MASTERIES("Most Masteries", "Max maîtrises"),
+    MODE_MASTERIES_SUB("hit AP/MP/Ra/Crit, max masteries", "vise PA/PM/Po/Crit, max maîtrises"),
+    MODE_PRECISION("Precision", "Précision"),
+    MODE_PRECISION_SUB("hit every target exactly", "vise chaque cible exactement"),
+    TARGET_STATS("Target Stats", "Stats cibles"),
+    ADD_TARGET_STAT("＋ Add target stat", "＋ Ajouter une stat"),
+    KIND_EXACT("exact target", "cible exacte"),
+    KIND_MAXIMIZE("maximize >=", "maximiser >="),
+    CONSTRAINTS("Constraints", "Contraintes"),
+    MAX_RARITY("Max rarity", "Rareté max"),
+    SEARCH_DURATION("Search duration", "Durée de recherche"),
+    SEARCH_DURATION_SUB("genetic search window", "fenêtre de recherche génétique"),
+    SECONDS_SHORT("sec", "sec"),
+    STOP_AT_MATCH("Stop at 100% match", "Arrêter à 100%"),
+    FORCED_ITEMS("Forced Items", "Objets imposés"),
+    REQUIRE_ITEM_CHIP("＋ require item", "＋ imposer un objet"),
+    EXCLUDED_ITEMS("Excluded Items", "Objets exclus"),
+    BAN_ITEM_CHIP("＋ ban item", "＋ exclure un objet"),
+
+    // Paperdoll
+    EMPTY("empty", "vide"),
+    LEVEL_PREFIX_LONG("Level", "Niveau"),
+    DISCLAIMER(
+        "Unofficial fan tool - not affiliated with Ankama - item art © Ankama (community-sourced)",
+        "Outil de fan non officiel - non affilié à Ankama - visuels © Ankama (communautaires)"
+    ),
+    SLOT_HELMET("Helmet", "Casque"),
+    SLOT_AMULET("Amulet", "Amulette"),
+    SLOT_EPAULETTES("Epaulettes", "Épaulettes"),
+    SLOT_BREASTPLATE("Breastplate", "Plastron"),
+    SLOT_CAPE("Cape", "Cape"),
+    SLOT_EMBLEM("Emblem", "Emblème"),
+    SLOT_BELT("Belt", "Ceinture"),
+    SLOT_RING_I("Ring I", "Anneau I"),
+    SLOT_RING_II("Ring II", "Anneau II"),
+    SLOT_BOOTS("Boots", "Bottes"),
+    SLOT_WEAPON("Weapon", "Arme"),
+    SLOT_SECOND_WEAPON("Second Wpn", "2nde arme"),
+    SLOT_PET("Pet", "Familier"),
+    SLOT_MOUNT("Mount", "Monture"),
+
+    // Stats panel
+    BUILD_MATCH("Build Match", "Correspondance"),
+    DESIRED_VS_ACHIEVED("Desired vs Achieved", "Désiré vs Obtenu"),
+    TAG_EXACT("exact", "exact"),
+    TAG_MAXIMIZE("maximize", "maximiser"),
+    SKILL_ALLOCATION("Skill Allocation", "Répartition des aptitudes"),
+    BRANCHES_COUNT("5 branches", "5 branches"),
+    OPEN_IN_ZENITH("Open in Zenith ↗", "Ouvrir dans Zenith ↗"),
+    OPENING("Opening...", "Ouverture..."),
+    COPY_BUILD_LINK("Copy build link", "Copier le lien"),
+    NO_BUILD_YET("No build yet", "Aucun build"),
+    NO_BUILD_HINT(
+        "Set your target stats & constraints on the left, then hit Search. " +
+            "The paperdoll fills in live as better builds are found.",
+        "Définissez vos stats cibles et contraintes à gauche, puis lancez la recherche. " +
+            "L'équipement se remplit en direct à mesure que de meilleurs builds sont trouvés."
+    ),
+    BRANCH_INTELLIGENCE("Intelligence", "Intelligence"),
+    BRANCH_STRENGTH("Strength", "Force"),
+    BRANCH_AGILITY("Agility", "Agilité"),
+    BRANCH_LUCK("Luck", "Chance"),
+    BRANCH_MAJOR("Major", "Majeur"),
+
+    // Modals
+    ADD_TARGET_STAT_TITLE("Add target stat", "Ajouter une stat cible"),
+    FILTER_STATS("Filter stats…", "Filtrer les stats…"),
+    NO_MATCHING_STAT("No matching stat", "Aucune stat correspondante"),
+    REQUIRE_ITEM_TITLE("Require item", "Imposer un objet"),
+    BAN_ITEM_TITLE("Ban item", "Exclure un objet"),
+    SEARCH_ITEMS("Search items (FR / EN)…", "Rechercher des objets (FR / EN)…"),
+    NO_MATCHING_ITEM("No matching item", "Aucun objet correspondant"),
+    REQUIRE("Require", "Imposer"),
+    BAN("Ban", "Exclure"),
+    LOADING_ITEMS("Loading item database…", "Chargement de la base d'objets…"),
+
+    // Toasts (read off the composition by the state holder)
+    TOAST_ZENITH_COPIED("Zenith link copied", "Lien Zenith copié"),
+    TOAST_ZENITH_READY("Zenith build ready", "Build Zenith prêt"),
+    ;
+
+    fun value(lang: Lang): String =
+        when (lang) {
+            Lang.EN -> en
+            Lang.FR -> fr
+        }
+}
+
+@Composable
+@ReadOnlyComposable
+fun tr(key: Tr): String = key.value(LocalLang.current)
+
+/**
+ * Localized display name for **every** characteristic — exhaustive so the compiler guarantees no
+ * stat shown on an item tooltip is left without a translation.
+ */
+fun Characteristic.label(lang: Lang): String {
+    val fr = lang == Lang.FR
+    return when (this) {
+        Characteristic.MASTERY_ELEMENTARY -> if (fr) "Maîtrise Élémentaire" else "Elemental Mastery"
+        Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT -> if (fr) "Maîtrise d'1 élément aléatoire" else "Mastery of 1 Random Element"
+        Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT -> if (fr) "Maîtrise de 2 éléments aléatoires" else "Mastery of 2 Random Elements"
+        Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT -> if (fr) "Maîtrise de 3 éléments aléatoires" else "Mastery of 3 Random Elements"
+        Characteristic.MASTERY_ELEMENTARY_WATER -> if (fr) "Maîtrise Eau" else "Water Mastery"
+        Characteristic.MASTERY_ELEMENTARY_WIND -> if (fr) "Maîtrise Air" else "Air Mastery"
+        Characteristic.MASTERY_ELEMENTARY_FIRE -> if (fr) "Maîtrise Feu" else "Fire Mastery"
+        Characteristic.MASTERY_ELEMENTARY_EARTH -> if (fr) "Maîtrise Terre" else "Earth Mastery"
+        Characteristic.MASTERY_DISTANCE -> if (fr) "Maîtrise Distance" else "Distance Mastery"
+        Characteristic.MASTERY_CRITICAL -> if (fr) "Maîtrise Critique" else "Critical Mastery"
+        Characteristic.MASTERY_BACK -> if (fr) "Maîtrise Dos" else "Rear Mastery"
+        Characteristic.MASTERY_MELEE -> if (fr) "Maîtrise Mêlée" else "Melee Mastery"
+        Characteristic.MASTERY_BERSERK -> if (fr) "Maîtrise Berserk" else "Berserk Mastery"
+        Characteristic.MASTERY_HEALING -> if (fr) "Maîtrise Soin" else "Healing Mastery"
+        Characteristic.RESISTANCE_CRITICAL -> if (fr) "Résistance Critique" else "Critical Resist"
+        Characteristic.RESISTANCE_BACK -> if (fr) "Résistance Dos" else "Rear Resist"
+        Characteristic.RESISTANCE_ELEMENTARY -> if (fr) "Résistance Élémentaire" else "Elemental Resist"
+        Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT -> if (fr) "Résistance d'1 élément aléatoire" else "Resist of 1 Random Element"
+        Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT -> if (fr) "Résistance de 2 éléments aléatoires" else "Resist of 2 Random Elements"
+        Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT -> if (fr) "Résistance de 3 éléments aléatoires" else "Resist of 3 Random Elements"
+        Characteristic.RESISTANCE_ELEMENTARY_EARTH -> if (fr) "Résistance Terre" else "Earth Resist"
+        Characteristic.RESISTANCE_ELEMENTARY_FIRE -> if (fr) "Résistance Feu" else "Fire Resist"
+        Characteristic.RESISTANCE_ELEMENTARY_WATER -> if (fr) "Résistance Eau" else "Water Resist"
+        Characteristic.RESISTANCE_ELEMENTARY_WIND -> if (fr) "Résistance Air" else "Air Resist"
+        Characteristic.HP -> if (fr) "Points de Vie" else "Health Points"
+        Characteristic.CRITICAL_HIT -> if (fr) "Coup Critique" else "Critical Hit"
+        Characteristic.WAKFU_POINT -> if (fr) "PW" else "WP"
+        Characteristic.MAX_WAKFU_POINTS -> if (fr) "PW max" else "Max WP"
+        Characteristic.ACTION_POINT -> if (fr) "PA" else "AP"
+        Characteristic.MAX_ACTION_POINT -> if (fr) "PA max" else "Max AP"
+        Characteristic.RANGE -> if (fr) "Portée" else "Range"
+        Characteristic.MOVEMENT_POINT -> if (fr) "PM" else "MP"
+        Characteristic.MAX_MOVEMENT_POINT -> if (fr) "PM max" else "Max MP"
+        Characteristic.CONTROL -> if (fr) "Contrôle" else "Control"
+        Characteristic.WISDOM -> if (fr) "Sagesse" else "Wisdom"
+        Characteristic.DODGE -> if (fr) "Esquive" else "Dodge"
+        Characteristic.LOCK -> if (fr) "Tacle" else "Lock"
+        Characteristic.PROSPECTION -> if (fr) "Prospection" else "Prospecting"
+        Characteristic.INITIATIVE -> if (fr) "Initiative" else "Initiative"
+        Characteristic.WILLPOWER -> if (fr) "Volonté" else "Willpower"
+        Characteristic.BLOCK_PERCENTAGE -> if (fr) "Parade %" else "Block %"
+        Characteristic.GIVEN_ARMOR_PERCENTAGE -> if (fr) "Armure donnée %" else "Given Armor %"
+        Characteristic.RECEIVED_ARMOR_PERCENTAGE -> if (fr) "Armure reçue %" else "Received Armor %"
+        Characteristic.HERBALIST_HARVEST_QUANTITY_PERCENTAGE -> if (fr) "Récolte Herboriste %" else "Herbalist Harvest %"
+        Characteristic.LUMBERJACK_HARVEST_QUANTITY_PERCENTAGE -> if (fr) "Récolte Bûcheron %" else "Lumberjack Harvest %"
+        Characteristic.TRAPPER_HARVEST_QUANTITY_PERCENTAGE -> if (fr) "Récolte Trappeur %" else "Trapper Harvest %"
+        Characteristic.MINER_HARVEST_QUANTITY_PERCENTAGE -> if (fr) "Récolte Mineur %" else "Miner Harvest %"
+        Characteristic.FARMER_HARVEST_QUANTITY_PERCENTAGE -> if (fr) "Récolte Paysan %" else "Farmer Harvest %"
+        Characteristic.FISHERMAN_HARVEST_QUANTITY_PERCENTAGE -> if (fr) "Récolte Pêcheur %" else "Fisherman Harvest %"
+    }
+}
+
+/** Localized display name for an item rarity. */
+fun Rarity.label(lang: Lang): String =
+    when (this) {
+        Rarity.COMMON -> if (lang == Lang.FR) "Commun" else "Common"
+        Rarity.UNCOMMON -> if (lang == Lang.FR) "Inhabituel" else "Uncommon"
+        Rarity.RARE -> if (lang == Lang.FR) "Rare" else "Rare"
+        Rarity.MYTHIC -> if (lang == Lang.FR) "Mythique" else "Mythic"
+        Rarity.LEGENDARY -> if (lang == Lang.FR) "Légendaire" else "Legendary"
+        Rarity.RELIC -> if (lang == Lang.FR) "Relique" else "Relic"
+        Rarity.SOUVENIR -> if (lang == Lang.FR) "Souvenir" else "Souvenir"
+        Rarity.EPIC -> if (lang == Lang.FR) "Épique" else "Epic"
+    }
+
+/** Localized display name for an equipment slot type. */
+fun ItemType.label(lang: Lang): String =
+    when (this) {
+        ItemType.AMULET -> if (lang == Lang.FR) "Amulette" else "Amulet"
+        ItemType.EMBLEM -> if (lang == Lang.FR) "Emblème" else "Emblem"
+        ItemType.SHOULDER_PADS -> if (lang == Lang.FR) "Épaulettes" else "Epaulettes"
+        ItemType.RING -> if (lang == Lang.FR) "Anneau" else "Ring"
+        ItemType.BOOTS -> if (lang == Lang.FR) "Bottes" else "Boots"
+        ItemType.ONE_HANDED_WEAPONS -> if (lang == Lang.FR) "Arme à une main" else "One-handed Weapon"
+        ItemType.CHEST_PLATE -> if (lang == Lang.FR) "Plastron" else "Breastplate"
+        ItemType.CAPE -> if (lang == Lang.FR) "Cape" else "Cape"
+        ItemType.OFF_HAND_WEAPONS -> if (lang == Lang.FR) "Seconde main" else "Off-hand"
+        ItemType.HELMET -> if (lang == Lang.FR) "Casque" else "Helmet"
+        ItemType.PETS -> if (lang == Lang.FR) "Familier" else "Pet"
+        ItemType.TWO_HANDED_WEAPONS -> if (lang == Lang.FR) "Arme à deux mains" else "Two-handed Weapon"
+        ItemType.MOUNTS -> if (lang == Lang.FR) "Monture" else "Mount"
+        ItemType.BELT -> if (lang == Lang.FR) "Ceinture" else "Belt"
+    }
