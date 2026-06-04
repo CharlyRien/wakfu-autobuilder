@@ -303,17 +303,21 @@ application { mainClass = "me.chosante.ui.MainKt" }
 
 Each phase is independently demoable. Match the corresponding screenshot before moving on.
 
-| Phase | Deliverable | Done when |
-|---|---|---|
-| **0 · Spike** | `gui-compose` module builds; empty `Window`; tokens + fonts load; **verify Compose on the target JDK** | window opens, Manrope/IBM Plex Mono render |
-| **1 · Shell** | TopBar + 3-column body scaffold + theme + ZoneHeaders | matches `01-idle` chrome (no data) |
-| **2 · Request panel** | Search-mode seg, target-stat rows + number fields + remove, constraints (rarity dropdown, duration, stop toggle), forced/excluded chips | left column == `01-idle` left |
-| **3 · Engine wiring** | `BuildSearchModel` collects the real `Flow`; TopBar meters + phase transitions live | Search runs, Progress/Match climb, phase idle→searching→done |
-| **4 · Paperdoll** | Two-column doll + char art + rail; **live fill** + land animation + idle/searching states + hover tooltip | matches `02-search`/`03-done` center |
-| **5 · Stats panel** | MatchHero, Desired-vs-Achieved (`computeCharacteristicsValues`), SkillTree, Zenith/Copy actions + error/toast | matches `03-done` right; "Open in Zenith" produces a real link |
-| **6 · Modals & polish** | AddStat + ItemPicker modals, empty/error states, keyboard, resize, optional radial layout | pickers work; resizes cleanly |
-| **7 · i18n** | en + fr; every string (incl. stat labels) via the bundle | language switch fully localized |
-| **8 · Package & cutover** | Conveyor (or Compose `nativeDistributions`) installer; **delete `:gui`**; update README + `AGENTS.md` | installer runs; old JavaFX gone |
+| Phase | Status | Deliverable | Done when |
+|---|---|---|---|
+| **0 · Spike** | ✅ | `gui-compose` module builds; empty `Window`; tokens + fonts load; **verify Compose on the target JDK** | window opens, Manrope/IBM Plex Mono render |
+| **1 · Shell** | ✅ | TopBar + 3-column body scaffold + theme + ZoneHeaders | matches `01-idle` chrome (no data) |
+| **2 · Request panel** | ✅ | Search-mode seg, target-stat rows + number fields + remove, constraints (rarity dropdown, duration, stop toggle), forced/excluded chips | left column == `01-idle` left |
+| **3 · Engine wiring** | ✅ | `BuildSearchModel` collects the real `Flow`; TopBar meters + phase transitions live | Search runs, Progress/Match climb, phase idle→searching→done |
+| **4 · Paperdoll** | ✅ | Two-column doll + char art + rail; **live fill** + land animation + idle/searching states + hover tooltip | matches `02-search`/`03-done` center |
+| **5 · Stats panel** | ✅ | MatchHero, Desired-vs-Achieved (`computeCharacteristicsValues`), SkillTree, Zenith/Copy actions + error/toast | matches `03-done` right; "Open in Zenith" produces a real link |
+| **6 · Modals & polish** | ✅ (radial TODO) | AddStat + ItemPicker modals (over real `Characteristic` enum + embedded equipment list, async-loaded with a spinner), empty/error states, keyboard, resize, optional radial layout | pickers work; resizes cleanly |
+| **7 · i18n** | ✅ | en + fr; every string (incl. stat labels) via the bundle — typed `Tr` enum + `LocalLang` + live EN/FR toggle | language switch fully localized |
+| **8 · Package & cutover** | 🚧 packaging wired | Conveyor (`gui-compose/conveyor.conf` + `dev.hydraulic.conveyor` plugin, validated via `printConveyorConfig`); **delete `:gui`** + README/`AGENTS.md` deferred until parity confirmed | installer runs; old JavaFX gone |
+
+Also done outside the original plan: TopBar class dropdown + editable level/min (so the engine can search any class/level, not just the level-110 Cra default).
+
+**Remaining before cutover:** optional radial layout (Phase 6), end-to-end real-search verification, then Conveyor `make` an actual installer and delete `:gui` + update README.
 
 ---
 

@@ -32,8 +32,8 @@ data class BuildCombination(
         val numberOfOneHandsWeapon = numberOfEquipmentByType[ItemType.ONE_HANDED_WEAPONS] ?: 0
         val numberOfSecondHandsWeapon = numberOfEquipmentByType[ItemType.OFF_HAND_WEAPONS] ?: 0
 
-        // same ring
-        if (equipments.filter { it.itemType == ItemType.RING }.distinctBy { it.name }.count() == 1) {
+        val rings = equipments.filter { it.itemType == ItemType.RING }
+        if (rings.size > 1 && rings.distinctBy { it.name }.count() == 1) {
             return false
         }
 
