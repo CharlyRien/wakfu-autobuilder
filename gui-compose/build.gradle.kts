@@ -46,14 +46,18 @@ ktlint {
 }
 
 val javaToolchains = project.extensions.getByType<JavaToolchainService>()
-val projectJvmLauncher = javaToolchains.launcherFor {
-    languageVersion = JavaLanguageVersion.of(libs.versions.jvm.get())
-}
+val projectJvmLauncher =
+    javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(libs.versions.jvm.get())
+    }
 
 compose.desktop {
     application {
         mainClass = "me.chosante.ui.MainKt"
-        javaHome = projectJvmLauncher.get().metadata.installationPath.asFile.absolutePath
+        javaHome =
+            projectJvmLauncher
+                .get()
+                .metadata.installationPath.asFile.absolutePath
         jvmArgs += listOf("--enable-native-access=ALL-UNNAMED")
     }
 }

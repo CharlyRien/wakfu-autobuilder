@@ -66,10 +66,10 @@ fun PaperdollPanel(
     Column(modifier = modifier.fillMaxSize()) {
         Box(
             modifier =
-            Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(WDimens.pad)
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(WDimens.pad)
         ) {
             Column(
                 modifier = Modifier.fillMaxSize(),
@@ -117,10 +117,10 @@ fun PaperdollPanel(
             style = WTypography.labelSmall,
             textAlign = TextAlign.Center,
             modifier =
-            Modifier
-                .fillMaxWidth()
-                .border(1.dp, WColor.hairline)
-                .padding(vertical = 10.dp, horizontal = WDimens.pad)
+                Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, WColor.hairline)
+                    .padding(vertical = 10.dp, horizontal = WDimens.pad)
         )
     }
 }
@@ -188,21 +188,19 @@ private fun SlotRowContent(
     val color = equipment?.rarity?.color() ?: WColor.border
     Row(
         modifier =
-        modifier
-            .height(62.dp)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .alpha(if (idle) 0.48f else 1f)
-            .clip(RoundedCornerShape(11.dp))
-            .background(WColor.surface)
-            .border(
-                width = 1.dp,
-                color = if (filled) WColor.hairline else WColor.border.copy(alpha = 0.75f),
-                shape = RoundedCornerShape(11.dp)
-            )
-            .padding(9.dp),
+            modifier
+                .height(62.dp)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }.alpha(if (idle) 0.48f else 1f)
+                .clip(RoundedCornerShape(11.dp))
+                .background(WColor.surface)
+                .border(
+                    width = 1.dp,
+                    color = if (filled) WColor.hairline else WColor.border.copy(alpha = 0.75f),
+                    shape = RoundedCornerShape(11.dp)
+                ).padding(9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(11.dp)
     ) {
@@ -226,13 +224,13 @@ private fun ItemTooltip(
     val statsScroll = rememberScrollState()
     Column(
         modifier =
-        Modifier
-            .widthIn(min = 230.dp, max = 300.dp)
-            .shadow(elevation = 18.dp, shape = shape, clip = false)
-            .clip(shape)
-            .background(WColor.raised)
-            .border(1.dp, WColor.border, shape)
-            .padding(13.dp),
+            Modifier
+                .widthIn(min = 230.dp, max = 300.dp)
+                .shadow(elevation = 18.dp, shape = shape, clip = false)
+                .clip(shape)
+                .background(WColor.raised)
+                .border(1.dp, WColor.border, shape)
+                .padding(13.dp),
         verticalArrangement = Arrangement.spacedBy(7.dp)
     ) {
         Text(
@@ -262,10 +260,10 @@ private fun ItemTooltip(
             Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
             Column(
                 modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 260.dp)
-                    .verticalScroll(statsScroll),
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 260.dp)
+                        .verticalScroll(statsScroll),
                 verticalArrangement = Arrangement.spacedBy(5.dp)
             ) {
                 stats.forEach { (characteristic, value) ->
@@ -289,19 +287,19 @@ private fun TooltipStatRow(
     ) {
         Box(
             modifier =
-            Modifier
-                .size(8.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(color)
+                Modifier
+                    .size(8.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(color)
         )
         Text(
             text = if (value > 0) "+$value" else value.toString(),
             style =
-            WTypography.bodySmall.copy(
-                fontFamily = WType.mono,
-                fontWeight = FontWeight.SemiBold,
-                color = if (value < 0) WColor.danger else color
-            )
+                WTypography.bodySmall.copy(
+                    fontFamily = WType.mono,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (value < 0) WColor.danger else color
+                )
         )
         Text(
             text = characteristic.label(lang),
@@ -321,11 +319,11 @@ private fun RarityPill(
     val color = rarity.color()
     Box(
         modifier =
-        Modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(color.copy(alpha = 0.16f))
-            .border(1.dp, color.copy(alpha = 0.4f), RoundedCornerShape(999.dp))
-            .padding(horizontal = 8.dp, vertical = 2.dp)
+            Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .background(color.copy(alpha = 0.16f))
+                .border(1.dp, color.copy(alpha = 0.4f), RoundedCornerShape(999.dp))
+                .padding(horizontal = 8.dp, vertical = 2.dp)
     ) {
         Text(
             text = rarity.label(lang),
@@ -342,22 +340,22 @@ private fun SlotIcon(
 ) {
     Box(
         modifier =
-        Modifier
-            .size(42.dp)
-            .clip(RoundedCornerShape(9.dp))
-            .background(if (equipment == null) WColor.raised else color.copy(alpha = 0.14f))
-            .border(1.dp, if (equipment == null) WColor.border else color.copy(alpha = 0.35f), RoundedCornerShape(9.dp)),
+            Modifier
+                .size(42.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(if (equipment == null) WColor.raised else color.copy(alpha = 0.14f))
+                .border(1.dp, if (equipment == null) WColor.border else color.copy(alpha = 0.35f), RoundedCornerShape(9.dp)),
         contentAlignment = Alignment.Center
     ) {
         if (equipment == null) {
             Text(
                 text = slot.glyph,
                 style =
-                WTypography.headlineMedium.copy(
-                    color = WColor.faint,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 18.sp
-                )
+                    WTypography.headlineMedium.copy(
+                        color = WColor.faint,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 18.sp
+                    )
             )
         } else {
             Image(
@@ -368,12 +366,12 @@ private fun SlotIcon(
             )
             Box(
                 modifier =
-                Modifier
-                    .align(Alignment.BottomEnd)
-                    .size(12.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(color)
-                    .border(2.dp, WColor.surface, RoundedCornerShape(999.dp))
+                    Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(12.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(color)
+                        .border(2.dp, WColor.surface, RoundedCornerShape(999.dp))
             )
         }
     }
@@ -400,12 +398,12 @@ private fun SlotMeta(
         Text(
             text = equipment?.localizedName(LocalLang.current) ?: tr(Tr.EMPTY),
             style =
-            WTypography.bodySmall.copy(
-                color = if (equipment == null) WColor.faint else WColor.text,
-                fontWeight = if (equipment == null) FontWeight.Normal else FontWeight.Medium,
-                textAlign = align,
-                lineHeight = 15.sp
-            ),
+                WTypography.bodySmall.copy(
+                    color = if (equipment == null) WColor.faint else WColor.text,
+                    fontWeight = if (equipment == null) FontWeight.Normal else FontWeight.Medium,
+                    textAlign = align,
+                    lineHeight = 15.sp
+                ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -413,11 +411,11 @@ private fun SlotMeta(
             Text(
                 text = "Lv ${equipment.level} · ${equipment.rarity.label(LocalLang.current)}",
                 style =
-                WTypography.labelSmall.copy(
-                    fontFamily = WType.mono,
-                    color = WColor.muted,
-                    textAlign = align
-                ),
+                    WTypography.labelSmall.copy(
+                        fontFamily = WType.mono,
+                        color = WColor.muted,
+                        textAlign = align
+                    ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

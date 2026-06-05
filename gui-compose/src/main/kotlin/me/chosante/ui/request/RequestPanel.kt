@@ -72,10 +72,10 @@ fun RequestPanel(
 ) {
     Column(
         modifier =
-        modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(WDimens.gap),
+            modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(WDimens.gap),
         verticalArrangement = Arrangement.spacedBy(WDimens.gap)
     ) {
         SearchModeCard(
@@ -124,12 +124,12 @@ private fun SearchModeCard(
     RequestCard(title = tr(Tr.SEARCH_MODE)) {
         Row(
             modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
-                .background(WColor.bg)
-                .border(1.dp, WColor.border, RoundedCornerShape(10.dp))
-                .padding(4.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(WColor.bg)
+                    .border(1.dp, WColor.border, RoundedCornerShape(10.dp))
+                    .padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             ModeSegment(
@@ -160,23 +160,23 @@ private fun ModeSegment(
 ) {
     Column(
         modifier =
-        modifier
-            .height(58.dp)
-            .clip(RoundedCornerShape(7.dp))
-            .background(if (selected) WColor.raised else Color.Transparent)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp),
+            modifier
+                .height(58.dp)
+                .clip(RoundedCornerShape(7.dp))
+                .background(if (selected) WColor.raised else Color.Transparent)
+                .clickable(onClick = onClick)
+                .padding(horizontal = 8.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             text = title,
             style =
-            WTypography.labelMedium.copy(
-                color = if (selected) WColor.text else WColor.muted,
-                textAlign = TextAlign.Center,
-                lineHeight = 14.sp
-            )
+                WTypography.labelMedium.copy(
+                    color = if (selected) WColor.text else WColor.muted,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 14.sp
+                )
         )
         Text(
             text = subtitle,
@@ -209,23 +209,23 @@ private fun TargetStatsCard(
         }
         Box(
             modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(top = 6.dp)
-                .height(40.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-                .clickable(onClick = onAdd),
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp)
+                    .height(40.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                    .clickable(onClick = onAdd),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = tr(Tr.ADD_TARGET_STAT),
                 style =
-                WTypography.labelMedium.copy(
-                    color = WColor.accent,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 14.sp
-                )
+                    WTypography.labelMedium.copy(
+                        color = WColor.accent,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 14.sp
+                    )
             )
         }
     }
@@ -256,20 +256,20 @@ private fun TargetStatRow(
         Spacer(modifier = Modifier.width(8.dp))
         Box(
             modifier =
-            Modifier
-                .size(24.dp)
-                .clip(RoundedCornerShape(7.dp))
-                .clickable(onClick = onRemove),
+                Modifier
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(7.dp))
+                    .clickable(onClick = onRemove),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = "×",
                 style =
-                WTypography.bodySmall.copy(
-                    color = WColor.faint,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 14.sp
-                )
+                    WTypography.bodySmall.copy(
+                        color = WColor.faint,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 14.sp
+                    )
             )
         }
     }
@@ -319,13 +319,13 @@ private fun RarityDropdown(
     Box {
         Row(
             modifier =
-            Modifier
-                .height(34.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(WColor.raised)
-                .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
-                .clickable { expanded = true }
-                .padding(horizontal = 11.dp),
+                Modifier
+                    .height(34.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(WColor.raised)
+                    .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
+                    .clickable { expanded = true }
+                    .padding(horizontal = 11.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             RarityDot(rarity = rarity)
@@ -349,9 +349,9 @@ private fun RarityDropdown(
                             Text(
                                 text = item.label(LocalLang.current),
                                 style =
-                                WTypography.bodyMedium.copy(
-                                    color = if (item == rarity) WColor.accent else WColor.text
-                                )
+                                    WTypography.bodyMedium.copy(
+                                        color = if (item == rarity) WColor.accent else WColor.text
+                                    )
                             )
                         }
                     },
@@ -392,22 +392,22 @@ private fun Toggle(
 ) {
     Box(
         modifier =
-        Modifier
-            .width(44.dp)
-            .height(24.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(if (checked) WColor.accent2 else WColor.raised)
-            .border(1.dp, if (checked) WColor.accent2 else WColor.border, RoundedCornerShape(999.dp))
-            .clickable { onCheckedChange(!checked) }
-            .padding(3.dp),
+            Modifier
+                .width(44.dp)
+                .height(24.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(if (checked) WColor.accent2 else WColor.raised)
+                .border(1.dp, if (checked) WColor.accent2 else WColor.border, RoundedCornerShape(999.dp))
+                .clickable { onCheckedChange(!checked) }
+                .padding(3.dp),
         contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart
     ) {
         Box(
             modifier =
-            Modifier
-                .size(18.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(if (checked) WColor.bg else WColor.faint)
+                Modifier
+                    .size(18.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(if (checked) WColor.bg else WColor.faint)
         )
     }
 }
@@ -432,22 +432,22 @@ private fun ItemChipsCard(
             }
             Box(
                 modifier =
-                Modifier
-                    .height(30.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
-                    .clickable(onClick = onAdd)
-                    .padding(horizontal = 9.dp),
+                    Modifier
+                        .height(30.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
+                        .clickable(onClick = onAdd)
+                        .padding(horizontal = 9.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = addLabel,
                     style =
-                    WTypography.labelMedium.copy(
-                        color = WColor.accent,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 14.sp
-                    )
+                        WTypography.labelMedium.copy(
+                            color = WColor.accent,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 14.sp
+                        )
                 )
             }
         }
@@ -462,20 +462,20 @@ private fun ItemChipView(
 ) {
     Row(
         modifier =
-        Modifier
-            .height(30.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(WColor.raised)
-            .border(1.dp, accent.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
-            .padding(horizontal = 9.dp),
+            Modifier
+                .height(30.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(WColor.raised)
+                .border(1.dp, accent.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier =
-            Modifier
-                .size(7.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(item.rarity.color())
+                Modifier
+                    .size(7.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(item.rarity.color())
         )
         Spacer(modifier = Modifier.width(7.dp))
         Text(text = item.name, style = WTypography.labelMedium.copy(color = WColor.text))
@@ -483,11 +483,11 @@ private fun ItemChipView(
         Text(
             text = "×",
             style =
-            WTypography.labelMedium.copy(
-                color = WColor.faint,
-                textAlign = TextAlign.Center,
-                lineHeight = 14.sp
-            ),
+                WTypography.labelMedium.copy(
+                    color = WColor.faint,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 14.sp
+                ),
             modifier = Modifier.clickable(onClick = onRemove)
         )
     }
@@ -501,12 +501,12 @@ private fun RequestCard(
 ) {
     Column(
         modifier =
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(WDimens.radius))
-            .background(WColor.surface)
-            .border(1.dp, WColor.hairline, RoundedCornerShape(WDimens.radius))
-            .padding(WDimens.pad)
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(WDimens.radius))
+                .background(WColor.surface)
+                .border(1.dp, WColor.hairline, RoundedCornerShape(WDimens.radius))
+                .padding(WDimens.pad)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(text = title, style = WTypography.labelMedium)
@@ -517,10 +517,10 @@ private fun RequestCard(
                 Text(
                     text = trailing,
                     style =
-                    WTypography.labelSmall.copy(
-                        fontFamily = WType.mono,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                        WTypography.labelSmall.copy(
+                            fontFamily = WType.mono,
+                            fontWeight = FontWeight.SemiBold
+                        )
                 )
             }
         }
@@ -536,23 +536,23 @@ private fun GlyphChip(
 ) {
     Box(
         modifier =
-        Modifier
-            .size(28.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(WColor.raised)
-            .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(8.dp)),
+            Modifier
+                .size(28.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(WColor.raised)
+                .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(8.dp)),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
             style =
-            WTypography.labelSmall.copy(
-                color = color,
-                fontFamily = WType.mono,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-                lineHeight = 11.sp
-            )
+                WTypography.labelSmall.copy(
+                    color = color,
+                    fontFamily = WType.mono,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 11.sp
+                )
         )
     }
 }
@@ -569,20 +569,20 @@ private fun NumberField(
         singleLine = true,
         cursorBrush = SolidColor(WColor.accent),
         textStyle =
-        WTypography.bodyMedium.copy(
-            color = WColor.text,
-            fontFamily = WType.mono,
-            fontWeight = FontWeight.Medium,
-            textAlign = TextAlign.End,
-            lineHeight = 16.sp
-        ),
+            WTypography.bodyMedium.copy(
+                color = WColor.text,
+                fontFamily = WType.mono,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.End,
+                lineHeight = 16.sp
+            ),
         modifier =
-        Modifier
-            .width(width)
-            .height(34.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(WColor.bg)
-            .border(1.dp, WColor.border, RoundedCornerShape(8.dp)),
+            Modifier
+                .width(width)
+                .height(34.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(WColor.bg)
+                .border(1.dp, WColor.border, RoundedCornerShape(8.dp)),
         decorationBox = { innerTextField ->
             Box(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 9.dp),
@@ -598,10 +598,10 @@ private fun NumberField(
 private fun RarityDot(rarity: Rarity) {
     Box(
         modifier =
-        Modifier
-            .size(9.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(rarity.color())
+            Modifier
+                .size(9.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(rarity.color())
     )
 }
 

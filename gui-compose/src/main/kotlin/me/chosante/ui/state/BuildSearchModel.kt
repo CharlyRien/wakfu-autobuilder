@@ -2,12 +2,6 @@ package me.chosante.ui.state
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
-import java.awt.Desktop
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
-import java.net.URI
-import java.util.concurrent.CancellationException
-import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +24,12 @@ import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
 import me.chosante.common.Character
 import me.chosante.common.Rarity
 import me.chosante.createZenithBuild
+import java.awt.Desktop
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
+import java.net.URI
+import java.util.concurrent.CancellationException
+import kotlin.time.Duration.Companion.seconds
 
 private typealias BuildFinder = suspend (WakfuBestBuildParams) -> Flow<GeneticAlgorithmResult<BuildCombination>>
 private typealias ZenithBuilder = suspend (ZenithInputParameters) -> String
@@ -60,12 +60,22 @@ class BuildSearchModel(
     }
 
     fun setLevel(level: String) {
-        val parsed = level.onlyDigits().take(3).toIntOrNull()?.coerceIn(1, 245) ?: return
+        val parsed =
+            level
+                .onlyDigits()
+                .take(3)
+                .toIntOrNull()
+                ?.coerceIn(1, 245) ?: return
         ui = ui.copy(level = parsed, minLevel = ui.minLevel.coerceAtMost(parsed))
     }
 
     fun setMinLevel(minLevel: String) {
-        val parsed = minLevel.onlyDigits().take(3).toIntOrNull()?.coerceIn(0, ui.level) ?: return
+        val parsed =
+            minLevel
+                .onlyDigits()
+                .take(3)
+                .toIntOrNull()
+                ?.coerceIn(0, ui.level) ?: return
         ui = ui.copy(minLevel = parsed)
     }
 
@@ -260,7 +270,12 @@ class BuildSearchModel(
     fun copyZenithLink() {
         createZenithLink { link ->
             copyToClipboard(link)
-            ui = ui.copy(toast = me.chosante.ui.i18n.Tr.TOAST_ZENITH_COPIED.value(ui.lang))
+            ui =
+                ui.copy(
+                    toast =
+                        me.chosante.ui.i18n.Tr.TOAST_ZENITH_COPIED
+                            .value(ui.lang)
+                )
         }
     }
 
@@ -282,7 +297,14 @@ class BuildSearchModel(
                         )
                     )
                 withContext(mainDispatcher) {
-                    ui = ui.copy(zenith = ZenithState.Ready, zenithUrl = link, toast = me.chosante.ui.i18n.Tr.TOAST_ZENITH_READY.value(ui.lang))
+                    ui =
+                        ui.copy(
+                            zenith = ZenithState.Ready,
+                            zenithUrl = link,
+                            toast =
+                                me.chosante.ui.i18n.Tr.TOAST_ZENITH_READY
+                                    .value(ui.lang)
+                        )
                     onReady(link)
                 }
             } catch (exception: Exception) {
@@ -293,8 +315,7 @@ class BuildSearchModel(
         }
     }
 
-    private fun UiState.toTargetStats(): TargetStats =
-        TargetStats(targets.map { TargetStat(it.characteristic, it.value.toIntOrNull() ?: 0) })
+    private fun UiState.toTargetStats(): TargetStats = TargetStats(targets.map { TargetStat(it.characteristic, it.value.toIntOrNull() ?: 0) })
 
     private fun newlyLandedEquipmentId(
         previous: BuildCombination?,

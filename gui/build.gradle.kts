@@ -1,10 +1,10 @@
+import org.gradle.api.tasks.JavaExec
 import org.jetbrains.kotlin.konan.file.unzipTo
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.Properties
 import kotlin.io.path.createTempDirectory
 import kotlin.io.path.createTempFile
-import org.gradle.api.tasks.JavaExec
 
 plugins {
     kotlin("jvm")

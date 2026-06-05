@@ -92,12 +92,12 @@ private fun LangToggle(
 ) {
     Row(
         modifier =
-        Modifier
-            .height(34.dp)
-            .clip(RoundedCornerShape(9.dp))
-            .background(WColor.bg)
-            .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-            .padding(3.dp),
+            Modifier
+                .height(34.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(WColor.bg)
+                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -105,20 +105,20 @@ private fun LangToggle(
             val selected = lang == current
             Box(
                 modifier =
-                Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(if (selected) WColor.raised else androidx.compose.ui.graphics.Color.Transparent)
-                    .clickable { onSelect(lang) }
-                    .padding(horizontal = 9.dp, vertical = 4.dp),
+                    Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (selected) WColor.raised else androidx.compose.ui.graphics.Color.Transparent)
+                        .clickable { onSelect(lang) }
+                        .padding(horizontal = 9.dp, vertical = 4.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = lang.label,
                     style =
-                    WTypography.labelMedium.copy(
-                        color = if (selected) WColor.text else WColor.muted,
-                        fontFamily = WType.mono
-                    )
+                        WTypography.labelMedium.copy(
+                            color = if (selected) WColor.text else WColor.muted,
+                            fontFamily = WType.mono
+                        )
                 )
             }
         }
@@ -130,10 +130,10 @@ private fun Brand() {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier =
-            Modifier
-                .size(32.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(WColor.accent),
+                Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(WColor.accent),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -165,13 +165,13 @@ private fun ClassDropdown(
     Box {
         Row(
             modifier =
-            Modifier
-                .height(38.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(WColor.raised)
-                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-                .clickable { expanded = true }
-                .padding(horizontal = 13.dp),
+                Modifier
+                    .height(38.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(WColor.raised)
+                    .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                    .clickable { expanded = true }
+                    .padding(horizontal = 13.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(text = tr(Tr.CLASS), style = WTypography.labelMedium)
@@ -195,9 +195,9 @@ private fun ClassDropdown(
                             Text(
                                 text = item.displayName(),
                                 style =
-                                WTypography.bodyMedium.copy(
-                                    color = if (item == selected) WColor.accent else WColor.text
-                                )
+                                    WTypography.bodyMedium.copy(
+                                        color = if (item == selected) WColor.accent else WColor.text
+                                    )
                             )
                         },
                         onClick = {
@@ -218,12 +218,12 @@ private fun NumberControl(
 ) {
     Row(
         modifier =
-        Modifier
-            .height(38.dp)
-            .clip(RoundedCornerShape(9.dp))
-            .background(WColor.raised)
-            .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-            .padding(horizontal = 9.dp),
+            Modifier
+                .height(38.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(WColor.raised)
+                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                .padding(horizontal = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(text = label, style = WTypography.labelMedium)
@@ -234,19 +234,19 @@ private fun NumberControl(
             singleLine = true,
             cursorBrush = SolidColor(WColor.accent),
             textStyle =
-            WTypography.bodyMedium.copy(
-                fontFamily = WType.mono,
-                color = WColor.text,
-                textAlign = TextAlign.Center,
-                lineHeight = 16.sp
-            ),
+                WTypography.bodyMedium.copy(
+                    fontFamily = WType.mono,
+                    color = WColor.text,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 16.sp
+                ),
             modifier =
-            Modifier
-                .width(56.dp)
-                .height(28.dp)
-                .clip(RoundedCornerShape(7.dp))
-                .background(WColor.bg)
-                .border(1.dp, WColor.border, RoundedCornerShape(7.dp)),
+                Modifier
+                    .width(56.dp)
+                    .height(28.dp)
+                    .clip(RoundedCornerShape(7.dp))
+                    .background(WColor.bg)
+                    .border(1.dp, WColor.border, RoundedCornerShape(7.dp)),
             decorationBox = { innerTextField ->
                 Box(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 6.dp),
@@ -273,28 +273,28 @@ private fun TopMeter(
             Text(
                 text = value,
                 style =
-                WTypography.labelMedium.copy(
-                    fontFamily = WType.mono,
-                    color = WColor.text
-                )
+                    WTypography.labelMedium.copy(
+                        fontFamily = WType.mono,
+                        color = WColor.text
+                    )
             )
         }
         Spacer(modifier = Modifier.height(6.dp))
         Box(
             modifier =
-            Modifier
-                .fillMaxWidth()
-                .height(6.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(WColor.raised)
+                Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(WColor.raised)
         ) {
             Box(
                 modifier =
-                Modifier
-                    .fillMaxWidth(fill.coerceIn(0f, 1f))
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(color)
+                    Modifier
+                        .fillMaxWidth(fill.coerceIn(0f, 1f))
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(color)
             )
         }
     }
@@ -307,24 +307,24 @@ private fun SearchButton(
 ) {
     Box(
         modifier =
-        Modifier
-            .height(38.dp)
-            .widthIn(min = 86.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (searching) WColor.raised else WColor.accent)
-            .border(1.dp, if (searching) WColor.border else WColor.accentPress, RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp),
+            Modifier
+                .height(38.dp)
+                .widthIn(min = 86.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (searching) WColor.raised else WColor.accent)
+                .border(1.dp, if (searching) WColor.border else WColor.accentPress, RoundedCornerShape(10.dp))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 18.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = if (searching) tr(Tr.STOP) else tr(Tr.SEARCH),
             style =
-            WTypography.labelLarge.copy(
-                color = if (searching) WColor.text else WColor.bg,
-                textAlign = TextAlign.Center,
-                lineHeight = 16.sp
-            )
+                WTypography.labelLarge.copy(
+                    color = if (searching) WColor.text else WColor.bg,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 16.sp
+                )
         )
     }
 }

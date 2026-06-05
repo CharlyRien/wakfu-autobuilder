@@ -1,7 +1,6 @@
 package me.chosante.ui.state
 
 import androidx.compose.ui.graphics.Color
-import java.math.BigDecimal
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.common.CharacterClass
@@ -12,6 +11,7 @@ import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.label
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WRarityColor
+import java.math.BigDecimal
 
 enum class Phase {
     Idle,
@@ -79,8 +79,7 @@ data class ItemChip(
     val matchName: String = name,
 )
 
-fun TargetRow.isExact(mode: ScoreComputationMode): Boolean =
-    mode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT || characteristic in exactMostMasteryTargets
+fun TargetRow.isExact(mode: ScoreComputationMode): Boolean = mode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT || characteristic in exactMostMasteryTargets
 
 fun String.onlyDigits(): String = filter { it.isDigit() }
 

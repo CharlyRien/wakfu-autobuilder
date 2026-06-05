@@ -32,10 +32,10 @@ fun ZoneHeader(
         ) {
             Box(
                 modifier =
-                Modifier
-                    .size(6.dp)
-                    .clip(CircleShape)
-                    .background(WColor.accent)
+                    Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(WColor.accent)
             )
             Spacer(modifier = Modifier.size(10.dp))
             Text(text = title, style = WTypography.headlineMedium)

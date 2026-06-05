@@ -29,8 +29,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.text.NumberFormat
-import java.util.Locale
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.common.skills.Assignable
 import me.chosante.common.skills.CharacterSkills
@@ -48,6 +46,8 @@ import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WDimens
 import me.chosante.ui.theme.WType
 import me.chosante.ui.theme.WTypography
+import java.text.NumberFormat
+import java.util.Locale
 
 @Composable
 fun StatsPanel(
@@ -58,10 +58,10 @@ fun StatsPanel(
 ) {
     Column(
         modifier =
-        modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(WDimens.gap),
+            modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(WDimens.gap),
         verticalArrangement = Arrangement.spacedBy(WDimens.gap)
     ) {
         MatchHero(ui)
@@ -89,21 +89,21 @@ private fun MatchHero(ui: UiState) {
                 Text(
                     text = ui.match.toInt().toString(),
                     style =
-                    WTypography.displayLarge.copy(
-                        fontSize = 46.sp,
-                        lineHeight = 46.sp,
-                        color = if (ui.match.toInt() == 100) WColor.success else WColor.text,
-                        fontFamily = WType.display,
-                        textAlign = TextAlign.Center
-                    )
+                        WTypography.displayLarge.copy(
+                            fontSize = 46.sp,
+                            lineHeight = 46.sp,
+                            color = if (ui.match.toInt() == 100) WColor.success else WColor.text,
+                            fontFamily = WType.display,
+                            textAlign = TextAlign.Center
+                        )
                 )
                 Text(
                     text = "%",
                     style =
-                    WTypography.headlineMedium.copy(
-                        color = WColor.muted,
-                        lineHeight = 24.sp
-                    )
+                        WTypography.headlineMedium.copy(
+                            color = WColor.muted,
+                            lineHeight = 24.sp
+                        )
                 )
             }
             Text(
@@ -174,11 +174,11 @@ private fun StatRow(
                 Text(
                     text = achieved.formatCompact(),
                     style =
-                    WTypography.bodyMedium.copy(
-                        fontFamily = WType.mono,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (status == StatStatus.Miss) WColor.warning else WColor.text
-                    )
+                        WTypography.bodyMedium.copy(
+                            fontFamily = WType.mono,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (status == StatStatus.Miss) WColor.warning else WColor.text
+                        )
                 )
                 if (targetValue > 0) {
                     Text(text = " / ", style = WTypography.bodySmall.copy(color = WColor.faint))
@@ -191,11 +191,11 @@ private fun StatRow(
             Text(
                 text = status.icon,
                 style =
-                WTypography.bodyMedium.copy(
-                    color = status.color,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 18.sp
-                ),
+                    WTypography.bodyMedium.copy(
+                        color = status.color,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 18.sp
+                    ),
                 modifier = Modifier.width(18.dp)
             )
         }
@@ -221,10 +221,10 @@ private fun SkillTree(skills: CharacterSkills) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier =
-                        Modifier
-                            .size(8.dp)
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(branch.color)
+                            Modifier
+                                .size(8.dp)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(branch.color)
                     )
                     Spacer(modifier = Modifier.width(9.dp))
                     Text(
@@ -250,19 +250,19 @@ private fun SkillTree(skills: CharacterSkills) {
                             Text(
                                 text = line.name,
                                 style =
-                                WTypography.bodySmall.copy(
-                                    color = if (line.points > 0) WColor.text else WColor.muted,
-                                    lineHeight = 15.sp
-                                ),
+                                    WTypography.bodySmall.copy(
+                                        color = if (line.points > 0) WColor.text else WColor.muted,
+                                        lineHeight = 15.sp
+                                    ),
                                 modifier = Modifier.weight(1f)
                             )
                             Text(
                                 text = "${line.points}/${line.maxText}",
                                 style =
-                                WTypography.bodySmall.copy(
-                                    fontFamily = WType.mono,
-                                    color = if (line.points > 0) WColor.muted else WColor.faint
-                                )
+                                    WTypography.bodySmall.copy(
+                                        fontFamily = WType.mono,
+                                        color = if (line.points > 0) WColor.muted else WColor.faint
+                                    )
                             )
                         }
                     }
@@ -333,11 +333,11 @@ private fun EmptyHint() {
             Text(
                 text = tr(Tr.NO_BUILD_HINT),
                 style =
-                WTypography.bodyMedium.copy(
-                    color = WColor.muted,
-                    lineHeight = 20.sp,
-                    textAlign = TextAlign.Center
-                ),
+                    WTypography.bodyMedium.copy(
+                        color = WColor.muted,
+                        lineHeight = 20.sp,
+                        textAlign = TextAlign.Center
+                    ),
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
@@ -355,25 +355,25 @@ private fun ActionButton(
 ) {
     Box(
         modifier =
-        Modifier
-            .fillMaxWidth()
-            .height(42.dp)
-            .alpha(if (enabled) 1f else 0.5f)
-            .clip(RoundedCornerShape(10.dp))
-            .background(color)
-            .border(1.dp, borderColor, RoundedCornerShape(10.dp))
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 12.dp),
+            Modifier
+                .fillMaxWidth()
+                .height(42.dp)
+                .alpha(if (enabled) 1f else 0.5f)
+                .clip(RoundedCornerShape(10.dp))
+                .background(color)
+                .border(1.dp, borderColor, RoundedCornerShape(10.dp))
+                .clickable(enabled = enabled, onClick = onClick)
+                .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
             style =
-            WTypography.labelLarge.copy(
-                color = contentColor,
-                textAlign = TextAlign.Center,
-                lineHeight = 16.sp
-            )
+                WTypography.labelLarge.copy(
+                    color = contentColor,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 16.sp
+                )
         )
     }
 }
@@ -382,12 +382,12 @@ private fun ActionButton(
 private fun ErrorBanner(error: String) {
     Row(
         modifier =
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(WColor.danger.copy(alpha = 0.1f))
-            .border(1.dp, WColor.danger.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
-            .padding(11.dp),
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(WColor.danger.copy(alpha = 0.1f))
+                .border(1.dp, WColor.danger.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                .padding(11.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.Top
     ) {
@@ -408,12 +408,12 @@ private fun ResultCard(
 ) {
     Column(
         modifier =
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(WDimens.radius))
-            .background(WColor.surface)
-            .border(1.dp, WColor.hairline, RoundedCornerShape(WDimens.radius))
-            .padding(WDimens.pad)
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(WDimens.radius))
+                .background(WColor.surface)
+                .border(1.dp, WColor.hairline, RoundedCornerShape(WDimens.radius))
+                .padding(WDimens.pad)
     ) {
         if (title != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -438,23 +438,23 @@ private fun StatGlyph(
 ) {
     Box(
         modifier =
-        Modifier
-            .size(24.dp)
-            .clip(RoundedCornerShape(7.dp))
-            .background(WColor.raised)
-            .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(7.dp)),
+            Modifier
+                .size(24.dp)
+                .clip(RoundedCornerShape(7.dp))
+                .background(WColor.raised)
+                .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(7.dp)),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
             style =
-            WTypography.labelSmall.copy(
-                color = color,
-                fontFamily = WType.mono,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-                lineHeight = 11.sp
-            )
+                WTypography.labelSmall.copy(
+                    color = color,
+                    fontFamily = WType.mono,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 11.sp
+                )
         )
     }
 }
@@ -467,19 +467,19 @@ private fun Meter(
 ) {
     Box(
         modifier =
-        modifier
-            .fillMaxWidth()
-            .height(6.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(WColor.raised)
+            modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(WColor.raised)
     ) {
         Box(
             modifier =
-            Modifier
-                .fillMaxWidth(fill.coerceIn(0f, 1f))
-                .height(6.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(color)
+                Modifier
+                    .fillMaxWidth(fill.coerceIn(0f, 1f))
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(color)
         )
     }
 }

@@ -90,10 +90,10 @@ private fun Scrim(
 ) {
     Box(
         modifier =
-        Modifier
-            .fillMaxSize()
-            .background(Color(0xCC0B0C0F))
-            .noRippleClickable(onClick = onDismiss),
+            Modifier
+                .fillMaxSize()
+                .background(Color(0xCC0B0C0F))
+                .noRippleClickable(onClick = onDismiss),
         contentAlignment = Alignment.Center
     ) {
         // Card swallows its own clicks so it does not dismiss the scrim.
@@ -121,9 +121,9 @@ private fun AddStatModal(
         Spacer(modifier = Modifier.height(WDimens.gap))
         Column(
             modifier =
-            Modifier
-                .heightIn(max = 420.dp)
-                .verticalScroll(rememberScrollState()),
+                Modifier
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             results.chunked(2).forEach { pair ->
@@ -161,35 +161,35 @@ private fun CatalogTile(
 ) {
     Row(
         modifier =
-        modifier
-            .height(44.dp)
-            .clip(RoundedCornerShape(9.dp))
-            .background(WColor.raised)
-            .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 9.dp),
+            modifier
+                .height(44.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(WColor.raised)
+                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(9.dp)
     ) {
         Box(
             modifier =
-            Modifier
-                .size(26.dp)
-                .clip(RoundedCornerShape(7.dp))
-                .background(WColor.surface)
-                .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(7.dp)),
+                Modifier
+                    .size(26.dp)
+                    .clip(RoundedCornerShape(7.dp))
+                    .background(WColor.surface)
+                    .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(7.dp)),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = glyph,
                 style =
-                WTypography.labelSmall.copy(
-                    color = color,
-                    fontFamily = WType.mono,
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 11.sp
-                )
+                    WTypography.labelSmall.copy(
+                        color = color,
+                        fontFamily = WType.mono,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 11.sp
+                    )
             )
         }
         Text(
@@ -273,22 +273,22 @@ private fun ItemResultRow(
     val lang = LocalLang.current
     Row(
         modifier =
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(9.dp))
-            .background(WColor.raised)
-            .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 11.dp, vertical = 9.dp),
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(9.dp))
+                .background(WColor.raised)
+                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 11.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Box(
             modifier =
-            Modifier
-                .size(9.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(equipment.rarity.color())
+                Modifier
+                    .size(9.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(equipment.rarity.color())
         )
         Column(modifier = Modifier.weight(1f)) {
             val name = if (lang == Lang.FR) equipment.name.fr.ifBlank { equipment.name.en } else equipment.name.en.ifBlank { equipment.name.fr }
@@ -319,12 +319,12 @@ private fun ModalCard(
 ) {
     Column(
         modifier =
-        Modifier
-            .widthIn(min = 380.dp, max = 460.dp)
-            .clip(RoundedCornerShape(WDimens.radius))
-            .background(WColor.surface)
-            .border(1.dp, WColor.border, RoundedCornerShape(WDimens.radius))
-            .padding(WDimens.pad)
+            Modifier
+                .widthIn(min = 380.dp, max = 460.dp)
+                .clip(RoundedCornerShape(WDimens.radius))
+                .background(WColor.surface)
+                .border(1.dp, WColor.border, RoundedCornerShape(WDimens.radius))
+                .padding(WDimens.pad)
     ) {
         Text(
             text = title,
@@ -343,13 +343,13 @@ private fun SearchField(
 ) {
     Box(
         modifier =
-        Modifier
-            .fillMaxWidth()
-            .height(40.dp)
-            .clip(RoundedCornerShape(9.dp))
-            .background(WColor.bg)
-            .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-            .padding(horizontal = 11.dp),
+            Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(WColor.bg)
+                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                .padding(horizontal = 11.dp),
         contentAlignment = Alignment.CenterStart
     ) {
         BasicTextField(

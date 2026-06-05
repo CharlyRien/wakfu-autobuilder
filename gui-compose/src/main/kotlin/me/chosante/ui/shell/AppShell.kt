@@ -74,11 +74,11 @@ fun AppShell(modifier: Modifier = Modifier) {
                     ShellColumn(
                         title = tr(Tr.ZONE_BUILD),
                         hint =
-                        when (ui.phase) {
-                            Phase.Idle -> tr(Tr.ZONE_BUILD_IDLE)
-                            Phase.Searching -> tr(Tr.ZONE_BUILD_SEARCHING)
-                            Phase.Done -> tr(Tr.ZONE_BUILD_DONE)
-                        },
+                            when (ui.phase) {
+                                Phase.Idle -> tr(Tr.ZONE_BUILD_IDLE)
+                                Phase.Searching -> tr(Tr.ZONE_BUILD_SEARCHING)
+                                Phase.Done -> tr(Tr.ZONE_BUILD_DONE)
+                            },
                         modifier = Modifier.weight(1f)
                     ) {
                         PaperdollPanel(ui = ui)

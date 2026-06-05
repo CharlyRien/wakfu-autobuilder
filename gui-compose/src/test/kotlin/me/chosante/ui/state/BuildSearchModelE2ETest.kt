@@ -1,7 +1,5 @@
 package me.chosante.ui.state
 
-import java.math.BigDecimal
-import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -23,6 +21,8 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.math.BigDecimal
+import kotlin.time.Duration.Companion.seconds
 
 class BuildSearchModelE2ETest {
     @Test
@@ -58,7 +58,12 @@ class BuildSearchModelE2ETest {
                 model.pickItem(excluded)
 
                 assertEquals(forcedEquipmentNames.size, model.ui.forcedItems.size)
-                assertEquals("Solomonk", model.ui.excludedItems.single().matchName)
+                assertEquals(
+                    "Solomonk",
+                    model.ui.excludedItems
+                        .single()
+                        .matchName
+                )
                 assertNull(model.ui.modal)
 
                 model.search()
@@ -107,8 +112,7 @@ class BuildSearchModelE2ETest {
             }
         }
 
-    private fun UiState.toTargetStats(): TargetStats =
-        TargetStats(targets.map { TargetStat(it.characteristic, it.value.toIntOrNull() ?: 0) })
+    private fun UiState.toTargetStats(): TargetStats = TargetStats(targets.map { TargetStat(it.characteristic, it.value.toIntOrNull() ?: 0) })
 
     private suspend fun awaitUntil(predicate: () -> Boolean) {
         withTimeout(25.seconds) {
