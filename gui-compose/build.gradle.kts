@@ -58,10 +58,20 @@ compose.desktop {
             projectJvmLauncher
                 .get()
                 .metadata.installationPath.asFile.absolutePath
-        jvmArgs += listOf("--enable-native-access=ALL-UNNAMED")
+        jvmArgs +=
+            listOf(
+                "--enable-native-access=ALL-UNNAMED",
+                "--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
+                "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED"
+            )
     }
 }
 
 tasks.test {
     useJUnitPlatform()
+    jvmArgs(
+        "--enable-native-access=ALL-UNNAMED",
+        "--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
+        "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED"
+    )
 }

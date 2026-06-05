@@ -20,10 +20,13 @@ import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildParams
+import me.chosante.autobuilder.genetic.wakfu.WakfuSolver
 import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
+import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.common.Character
 import me.chosante.common.Rarity
 import me.chosante.createZenithBuild
+import me.chosante.ui.i18n.Tr
 import java.awt.Desktop
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
@@ -33,6 +36,8 @@ import kotlin.time.Duration.Companion.seconds
 
 private typealias BuildFinder = suspend (WakfuBestBuildParams) -> Flow<GeneticAlgorithmResult<BuildCombination>>
 private typealias ZenithBuilder = suspend (ZenithInputParameters) -> String
+
+private const val MAX_INTERACTIVE_OR_TOOLS_LEVEL_RANGE = 60
 
 class BuildSearchModel(
     private val scope: CoroutineScope,
@@ -48,7 +53,23 @@ class BuildSearchModel(
     private var job: Job? = null
 
     fun setMode(mode: ScoreComputationMode) {
-        ui = ui.copy(mode = mode)
+        val normalizedTargets =
+            if (mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) {
+                ui.targets.map { target ->
+                    if (target.characteristic.isMaximizableMastery()) {
+                        target.copy(value = "1")
+                    } else {
+                        target
+                    }
+                }
+            } else {
+                ui.targets
+            }
+        ui = ui.copy(mode = mode, targets = normalizedTargets)
+    }
+
+    fun setSolver(solver: WakfuSolver) {
+        ui = ui.copy(solver = solver)
     }
 
     fun setLang(lang: me.chosante.ui.i18n.Lang) {
@@ -66,7 +87,7 @@ class BuildSearchModel(
                 .take(3)
                 .toIntOrNull()
                 ?.coerceIn(1, 245) ?: return
-        ui = ui.copy(level = parsed, minLevel = ui.minLevel.coerceAtMost(parsed))
+        ui = ui.copy(level = parsed)
     }
 
     fun setMinLevel(minLevel: String) {
@@ -75,7 +96,7 @@ class BuildSearchModel(
                 .onlyDigits()
                 .take(3)
                 .toIntOrNull()
-                ?.coerceIn(0, ui.level) ?: return
+                ?.coerceIn(0, 245) ?: return
         ui = ui.copy(minLevel = parsed)
     }
 
@@ -96,8 +117,26 @@ class BuildSearchModel(
             return
         }
         statDefFor(characteristic)?.let { def ->
-            ui = ui.copy(targets = ui.targets + def.toRow("0"), modal = null)
+            ui =
+                ui.copy(
+                    targets = ui.targets + def.toRow(if (characteristic.isMaximizableMastery()) "1" else "0"),
+                    modal = null
+                )
         }
+    }
+
+    fun toggleMaximizedMastery(characteristic: me.chosante.common.Characteristic) {
+        if (!characteristic.isMaximizableMastery()) {
+            return
+        }
+        val existing = ui.targets.firstOrNull { it.characteristic == characteristic }
+        ui =
+            if (existing == null) {
+                val row = statDefFor(characteristic)?.toRow("1") ?: return
+                ui.copy(targets = ui.targets + row)
+            } else {
+                ui.copy(targets = ui.targets.filterNot { it.characteristic == characteristic })
+            }
     }
 
     fun setMaxRarity(rarity: Rarity) {
@@ -181,7 +220,20 @@ class BuildSearchModel(
     fun search() {
         job?.cancel()
         val snapshot = ui
-        val character = Character(snapshot.clazz, snapshot.level, snapshot.minLevel)
+        val effectiveMinLevel = snapshot.minLevel.coerceAtMost(snapshot.level)
+        if (
+            snapshot.solver == WakfuSolver.OR_TOOLS &&
+            snapshot.level - effectiveMinLevel > MAX_INTERACTIVE_OR_TOOLS_LEVEL_RANGE
+        ) {
+            ui =
+                snapshot.copy(
+                    phase = Phase.Idle,
+                    error = Tr.OR_TOOLS_LEVEL_RANGE_ERROR.value(snapshot.lang),
+                    toast = null
+                )
+            return
+        }
+        val character = Character(snapshot.clazz, snapshot.level, effectiveMinLevel)
         val targetStats = snapshot.toTargetStats()
         val params =
             WakfuBestBuildParams(
@@ -192,7 +244,8 @@ class BuildSearchModel(
                 maxRarity = snapshot.maxRarity,
                 forcedItems = snapshot.forcedItems.map { it.matchName },
                 excludedItems = snapshot.excludedItems.map { it.matchName },
-                scoreComputationMode = snapshot.mode
+                scoreComputationMode = snapshot.mode,
+                solver = snapshot.solver
             )
 
         ui =
@@ -200,6 +253,7 @@ class BuildSearchModel(
                 phase = Phase.Searching,
                 progress = 0,
                 match = java.math.BigDecimal.ZERO,
+                optimal = false,
                 build = null,
                 achieved = emptyMap(),
                 lastLandedEquipmentId = null,
@@ -211,9 +265,11 @@ class BuildSearchModel(
         job =
             scope.launch(Dispatchers.Default) {
                 try {
+                    var hasResult = false
                     buildFinder(params)
                         .conflate()
                         .collect { result ->
+                            hasResult = true
                             val achieved =
                                 computeCharacteristicsValues(
                                     buildCombination = result.individual,
@@ -227,6 +283,7 @@ class BuildSearchModel(
                                     ui.copy(
                                         progress = result.progressPercentage,
                                         match = result.matchPercentage,
+                                        optimal = result.isOptimal,
                                         build = result.individual,
                                         achieved = achieved,
                                         lastLandedEquipmentId = landedEquipmentId ?: ui.lastLandedEquipmentId
@@ -237,15 +294,28 @@ class BuildSearchModel(
                             }
                         }
                     withContext(mainDispatcher) {
-                        if (ui.phase == Phase.Searching) {
+                        if (ui.phase == Phase.Searching && hasResult) {
                             ui = ui.copy(phase = Phase.Done, lastLandedEquipmentId = null)
+                        } else if (ui.phase == Phase.Searching) {
+                            ui =
+                                ui.copy(
+                                    phase = Phase.Idle,
+                                    progress = 0,
+                                    error = Tr.SEARCH_NO_RESULT.value(ui.lang),
+                                    lastLandedEquipmentId = null
+                                )
                         }
                     }
                 } catch (exception: CancellationException) {
                     throw exception
-                } catch (exception: Exception) {
+                } catch (throwable: Throwable) {
+                    // Catch Throwable (not just Exception): the solver can raise fatal Errors
+                    // (e.g. native-access / linkage issues) that would otherwise crash the event
+                    // thread with a masked coroutines error instead of surfacing here.
+                    throwable.printStackTrace()
+                    val message = throwable.message ?: throwable::class.qualifiedName ?: "Search failed"
                     withContext(mainDispatcher) {
-                        ui = ui.copy(phase = Phase.Idle, error = exception.message ?: "Search failed")
+                        ui = ui.copy(phase = Phase.Idle, error = message)
                     }
                 }
             }

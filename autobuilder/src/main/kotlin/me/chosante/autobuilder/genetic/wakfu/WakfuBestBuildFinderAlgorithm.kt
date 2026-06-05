@@ -2,15 +2,20 @@ package me.chosante.autobuilder.genetic.wakfu
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.Json
 import me.chosante.autobuilder.VERSION
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.autobuilder.genetic.GeneticAlgorithm
 import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
+import me.chosante.autobuilder.genetic.tournamentSelection
 import me.chosante.common.Character
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
+import java.math.BigDecimal
 import kotlin.system.exitProcess
 import kotlin.time.Duration
 
@@ -32,12 +37,65 @@ object WakfuBestBuildFinderAlgorithm {
             )
 
         return try {
-            WakfuBuildSolver.optimize(params, equipmentsByItemType)
+            when (params.solver) {
+                WakfuSolver.OR_TOOLS -> WakfuBuildSolver.optimize(params, equipmentsByItemType)
+                WakfuSolver.GENETIC_ALGORITHM -> runGeneticAlgorithm(params, equipmentsByItemType)
+            }
         } catch (exception: Exception) {
             logger.error(exception) { "Exception occurred during the process of finding the best equipments." }
             exitProcess(1)
         }
     }
+
+    private fun runGeneticAlgorithm(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+    ): Flow<GeneticAlgorithmResult<BuildCombination>> =
+        flow {
+            val population =
+                generateRandomPopulations(
+                    numberOfIndividual = params.populationSize,
+                    equipmentsByItemType = equipmentsByItemType,
+                    character = params.character,
+                    targetStats = params.targetStats
+                )
+            val score = scoreFn(params)
+            val algorithm =
+                GeneticAlgorithm(
+                    population = population,
+                    score = score,
+                    cross = { parents -> cross(parents) },
+                    mutate = { individual ->
+                        mutateCombination(
+                            individual = individual,
+                            mutationProbability = 0.2,
+                            equipmentsByItemType = equipmentsByItemType,
+                            targetStats = params.targetStats
+                        )
+                    },
+                    select = { scoredPopulation -> tournamentSelection(scoredPopulation) }
+                )
+            emitAll(algorithm.run(params.searchDuration, params.stopWhenBuildMatch))
+        }
+
+    private fun scoreFn(params: WakfuBestBuildParams): (BuildCombination) -> BigDecimal =
+        { build ->
+            when (params.scoreComputationMode) {
+                ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
+                    FindMostMasteriesFromInputScoring.computeScore(
+                        targetStats = params.targetStats,
+                        buildCombination = build,
+                        characterBaseCharacteristics = params.character.baseCharacteristicValues
+                    )
+
+                ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
+                    FindClosestBuildFromInputScoring.computeScore(
+                        targetStats = params.targetStats,
+                        buildCombination = build,
+                        characterBaseCharacteristics = params.character.baseCharacteristicValues
+                    )
+            }
+        }
 
     private fun groupAndFilterEquipments(
         excludedItems: List<String>,
@@ -147,5 +205,11 @@ data class WakfuBestBuildParams(
     val forcedItems: List<String>,
     val excludedItems: List<String>,
     val scoreComputationMode: ScoreComputationMode,
+    val solver: WakfuSolver = WakfuSolver.OR_TOOLS,
     val populationSize: Int = 20000,
 )
+
+enum class WakfuSolver {
+    OR_TOOLS,
+    GENETIC_ALGORITHM,
+}

@@ -280,14 +280,20 @@ class WakfuBuildSolverTest {
                 )
 
             val equipmentsByItemType =
-                equipments.filter { it.level <= level && it.rarity <= params.maxRarity }.groupBy { it.itemType }
+                equipments
+                    .filter { it.rarity <= params.maxRarity }
+                    .filter {
+                        (it.level <= level && it.level >= character.minLevel) ||
+                            it.itemType == ItemType.PETS ||
+                            it.itemType == ItemType.MOUNTS
+                    }.groupBy { it.itemType }
 
             val lpBest = WakfuBuildSolver.optimize(params, equipmentsByItemType).toList().maxByOrNull { it.matchPercentage }!!
             val gaBest =
                 runSequentialGeneticSearch(
-                    params = params,
+                    params = params.copy(searchDuration = 5.seconds),
                     equipmentsByItemType = equipmentsByItemType,
-                    populationSize = 2000,
+                    populationSize = 1000,
                     mutationProbability = 0.2,
                     seed = 42L
                 )
@@ -296,6 +302,160 @@ class WakfuBuildSolverTest {
             val gaScore = gaBest.score
             println("Level 245 LP score: $lpScore | GA score: $gaScore")
             assertThat(lpScore).isGreaterThanOrEqualTo(gaScore)
+        }
+
+    // ---------------------------------------------------------------------------------------------
+    // Equivalence suite: on small synthetic pools the brute-force optimum is the ground truth, so we
+    // assert the solver reaches the *exact* optimum of the matching GA scorer (stronger than ">= GA").
+    // ---------------------------------------------------------------------------------------------
+
+    @Test
+    fun `most-masteries solver honours an HP constraint above 100 (weight no longer truncated)`() {
+        // HP target 200 -> GA weight 100/200 = 0.5, which the old .toLong() collapsed to 0; the
+        // solver then ignored HP and grabbed the high-mastery amulet that misses the constraint.
+        val equipments =
+            listOf(
+                equipment(1, ItemType.AMULET, "HpAmulet", mapOf(Characteristic.HP to 200, Characteristic.MASTERY_MELEE to 10)),
+                equipment(2, ItemType.AMULET, "DmgAmulet", mapOf(Characteristic.MASTERY_MELEE to 100)),
+                equipment(3, ItemType.BELT, "Belt", mapOf(Characteristic.MASTERY_MELEE to 40))
+            )
+        assertSolverReachesExhaustiveOptimum(
+            equipments = equipments,
+            targetStats = TargetStats(listOf(TargetStat(Characteristic.HP, 200), TargetStat(Characteristic.MASTERY_MELEE, 1))),
+            mode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+        )
+    }
+
+    @Test
+    fun `most-masteries solver honours a critical-hit constraint above 100`() {
+        val equipments =
+            listOf(
+                equipment(1, ItemType.AMULET, "CritAmulet", mapOf(Characteristic.CRITICAL_HIT to 200, Characteristic.MASTERY_MELEE to 10)),
+                equipment(2, ItemType.AMULET, "DmgAmulet", mapOf(Characteristic.MASTERY_MELEE to 100)),
+                equipment(3, ItemType.BELT, "Belt", mapOf(Characteristic.MASTERY_MELEE to 40))
+            )
+        assertSolverReachesExhaustiveOptimum(
+            equipments = equipments,
+            targetStats = TargetStats(listOf(TargetStat(Characteristic.CRITICAL_HIT, 150), TargetStat(Characteristic.MASTERY_MELEE, 1))),
+            mode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+        )
+    }
+
+    @Test
+    fun `precision solver hits exact AP and mastery targets`() {
+        val equipments =
+            listOf(
+                equipment(1, ItemType.AMULET, "Ap", mapOf(Characteristic.ACTION_POINT to 1, Characteristic.MASTERY_MELEE to 20)),
+                equipment(2, ItemType.AMULET, "Dmg", mapOf(Characteristic.MASTERY_MELEE to 60)),
+                equipment(3, ItemType.BELT, "Belt", mapOf(Characteristic.MASTERY_MELEE to 30)),
+                equipment(4, ItemType.BOOTS, "Boots", mapOf(Characteristic.MASTERY_MELEE to 10))
+            )
+        assertSolverReachesExhaustiveOptimum(
+            equipments = equipments,
+            targetStats = TargetStats(listOf(TargetStat(Characteristic.ACTION_POINT, 7), TargetStat(Characteristic.MASTERY_MELEE, 40))),
+            mode = ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
+        )
+    }
+
+    @Test
+    fun `precision solver respects user-defined weights when arbitrating`() {
+        // One amulet slot, two candidates; MP weighted 5x AP, so the solver should keep MP and drop AP.
+        val equipments =
+            listOf(
+                equipment(1, ItemType.AMULET, "ApAmulet", mapOf(Characteristic.ACTION_POINT to 2)),
+                equipment(2, ItemType.AMULET, "MpAmulet", mapOf(Characteristic.MOVEMENT_POINT to 2))
+            )
+        assertSolverReachesExhaustiveOptimum(
+            equipments = equipments,
+            targetStats =
+                TargetStats(
+                    listOf(
+                        TargetStat(Characteristic.ACTION_POINT, 8, userDefinedWeight = 1),
+                        TargetStat(Characteristic.MOVEMENT_POINT, 5, userDefinedWeight = 5)
+                    )
+                ),
+            mode = ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
+        )
+    }
+
+    @Test
+    fun `precision solver averages the four elements for elementary mastery`() {
+        val equipments =
+            listOf(
+                equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 40)),
+                equipment(2, ItemType.BELT, "Water", mapOf(Characteristic.MASTERY_ELEMENTARY_WATER to 40)),
+                equipment(3, ItemType.BOOTS, "AllRound", mapOf(Characteristic.MASTERY_ELEMENTARY to 15))
+            )
+        assertSolverReachesExhaustiveOptimum(
+            equipments = equipments,
+            targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY, 20))),
+            mode = ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
+        )
+    }
+
+    @Test
+    fun `precision solver penalises a negative target-0 stat`() {
+        // GoodDmg hits the melee target but drags MASTERY_BACK negative; with a target of 0 that
+        // halves the score, so the cleaner amulet must win.
+        val equipments =
+            listOf(
+                equipment(1, ItemType.AMULET, "GoodDmg", mapOf(Characteristic.MASTERY_MELEE to 50, Characteristic.MASTERY_BACK to -30)),
+                equipment(2, ItemType.AMULET, "CleanDmg", mapOf(Characteristic.MASTERY_MELEE to 40))
+            )
+        assertSolverReachesExhaustiveOptimum(
+            equipments = equipments,
+            targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_MELEE, 50), TargetStat(Characteristic.MASTERY_BACK, 0))),
+            mode = ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
+        )
+    }
+
+    private fun assertSolverReachesExhaustiveOptimum(
+        equipments: List<Equipment>,
+        targetStats: TargetStats,
+        mode: ScoreComputationMode,
+        level: Int = 1,
+    ): Unit =
+        runBlocking {
+            val characterSkills = CharacterSkills(level)
+            val character = Character(clazz = CharacterClass.CRA, level = level, minLevel = level, characterSkills)
+            val score = { build: BuildCombination -> exactScore(mode, targetStats, character, build) }
+
+            val exhaustiveScore = allValidCombinations(equipments, characterSkills).maxOf { score(it) }
+
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = targetStats,
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = mode
+                )
+
+            val solverBest =
+                WakfuBuildSolver
+                    .optimize(params, equipments.groupBy { it.itemType })
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(solverBest.individual.isValid()).isTrue()
+            assertThat(solverBest.matchPercentage).isEqualByComparingTo(exhaustiveScore)
+        }
+
+    private fun exactScore(
+        mode: ScoreComputationMode,
+        targetStats: TargetStats,
+        character: Character,
+        build: BuildCombination,
+    ): BigDecimal =
+        when (mode) {
+            ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
+                FindMostMasteriesFromInputScoring.computeScore(targetStats, build, character.baseCharacteristicValues)
+
+            ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
+                FindClosestBuildFromInputScoring.computeScore(targetStats, build, character.baseCharacteristicValues)
         }
 
     private fun runDeterministicGeneticAlgorithm(

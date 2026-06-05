@@ -109,4 +109,5 @@ data class GeneticAlgorithmResult<T>(
     val individual: T,
     val matchPercentage: BigDecimal,
     val progressPercentage: Int,
+    val isOptimal: Boolean = false,
 )

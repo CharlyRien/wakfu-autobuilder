@@ -7,25 +7,6 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 
 object FindMostMasteriesFromInputScoring {
-    private val characteristicsToCheckBeforeCheckingMasteries =
-        listOf(
-            Characteristic.ACTION_POINT,
-            Characteristic.CONTROL,
-            Characteristic.MOVEMENT_POINT,
-            Characteristic.RANGE,
-            Characteristic.WAKFU_POINT,
-            Characteristic.CRITICAL_HIT,
-            Characteristic.HP,
-            Characteristic.LOCK,
-            Characteristic.DODGE,
-            Characteristic.BLOCK_PERCENTAGE,
-            Characteristic.GIVEN_ARMOR_PERCENTAGE,
-            Characteristic.RECEIVED_ARMOR_PERCENTAGE,
-            Characteristic.INITIATIVE,
-            Characteristic.RESISTANCE_BACK,
-            Characteristic.RESISTANCE_CRITICAL
-        )
-
     private val masteryCharacteristicsWithoutElementaries =
         listOf(
             Characteristic.MASTERY_BACK,
@@ -62,7 +43,7 @@ object FindMostMasteriesFromInputScoring {
                 .sumOf { targetStat ->
                     val weight = targetStats.weight(targetStat)
                     val actualScore =
-                        if (targetStat.characteristic in characteristicsToCheckBeforeCheckingMasteries) {
+                        if (!targetStat.characteristic.isMaximizableMastery()) {
                             (actualCharacteristicsValues[targetStat.characteristic] ?: 0) * weight
                         } else {
                             0.0
@@ -73,7 +54,7 @@ object FindMostMasteriesFromInputScoring {
 
         val totalExpectedScore =
             targetStats
-                .filter { it.characteristic in characteristicsToCheckBeforeCheckingMasteries }
+                .filter { !it.characteristic.isMaximizableMastery() }
                 .sumOf { it.target * targetStats.weight(it) }
                 .toBigDecimal()
                 .setScale(4, RoundingMode.FLOOR)

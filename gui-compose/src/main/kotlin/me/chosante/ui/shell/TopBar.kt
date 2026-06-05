@@ -40,6 +40,7 @@ import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.tr
 import me.chosante.ui.state.Phase
 import me.chosante.ui.state.UiState
+import me.chosante.ui.state.onlyDigits
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WType
 import me.chosante.ui.theme.WTypography
@@ -216,6 +217,8 @@ private fun NumberControl(
     value: String,
     onValueChange: (String) -> Unit,
 ) {
+    var draft by remember(value) { mutableStateOf(value) }
+
     Row(
         modifier =
             Modifier
@@ -229,8 +232,13 @@ private fun NumberControl(
         Text(text = label, style = WTypography.labelMedium)
         Spacer(modifier = Modifier.width(8.dp))
         BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
+            value = draft,
+            onValueChange = { next ->
+                draft = next.onlyDigits().take(3)
+                if (draft.isNotBlank()) {
+                    onValueChange(draft)
+                }
+            },
             singleLine = true,
             cursorBrush = SolidColor(WColor.accent),
             textStyle =

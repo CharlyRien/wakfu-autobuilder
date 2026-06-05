@@ -110,10 +110,24 @@ private fun AddStatModal(
 ) {
     val lang = LocalLang.current
     var query by remember { mutableStateOf("") }
-    val results =
+    val sections =
         remember(query, excluded, lang) {
-            statCatalog.filter { def ->
-                def.characteristic !in excluded && def.label(lang).contains(query.trim(), ignoreCase = true)
+            val normalizedQuery = query.trim()
+            val results =
+                statCatalog.filter { def ->
+                    def.characteristic !in excluded &&
+                        def.label(lang).contains(normalizedQuery, ignoreCase = true)
+                }
+            statSections.mapNotNull { section ->
+                val sectionStats =
+                    results
+                        .filter { section.accepts(it.characteristic) }
+                        .sortedBy { it.label(lang) }
+                if (sectionStats.isEmpty()) {
+                    null
+                } else {
+                    section to sectionStats
+                }
             }
         }
     ModalCard(title = tr(Tr.ADD_TARGET_STAT_TITLE)) {
@@ -126,21 +140,30 @@ private fun AddStatModal(
                     .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
-            results.chunked(2).forEach { pair ->
-                Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                    pair.forEach { def ->
-                        CatalogTile(
-                            glyph = def.glyph,
-                            color = def.color,
-                            label = def.label(lang),
-                            onClick = { onSelect(def.characteristic) },
-                            modifier = Modifier.weight(1f)
-                        )
+            sections.forEachIndexed { sectionIndex, (section, stats) ->
+                if (sectionIndex > 0) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+                Text(
+                    text = tr(section.title),
+                    style = WTypography.labelMedium.copy(color = WColor.muted)
+                )
+                stats.chunked(2).forEach { pair ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        pair.forEach { def ->
+                            CatalogTile(
+                                glyph = def.glyph,
+                                color = def.color,
+                                label = def.label(lang),
+                                onClick = { onSelect(def.characteristic) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        if (pair.size == 1) Spacer(modifier = Modifier.weight(1f))
                     }
-                    if (pair.size == 1) Spacer(modifier = Modifier.weight(1f))
                 }
             }
-            if (results.isEmpty()) {
+            if (sections.isEmpty()) {
                 Text(
                     text = tr(Tr.NO_MATCHING_STAT),
                     style = WTypography.bodyMedium.copy(color = WColor.muted),
@@ -150,6 +173,55 @@ private fun AddStatModal(
         }
     }
 }
+
+private data class StatSection(
+    val title: Tr,
+    val accepts: (Characteristic) -> Boolean,
+)
+
+private val coreStats =
+    setOf(
+        Characteristic.ACTION_POINT,
+        Characteristic.MOVEMENT_POINT,
+        Characteristic.RANGE,
+        Characteristic.WAKFU_POINT,
+        Characteristic.CRITICAL_HIT,
+        Characteristic.HP
+    )
+
+private val elementalMasteryStats =
+    setOf(
+        Characteristic.MASTERY_ELEMENTARY,
+        Characteristic.MASTERY_ELEMENTARY_WATER,
+        Characteristic.MASTERY_ELEMENTARY_FIRE,
+        Characteristic.MASTERY_ELEMENTARY_EARTH,
+        Characteristic.MASTERY_ELEMENTARY_WIND
+    )
+
+private val specializedMasteryStats =
+    setOf(
+        Characteristic.MASTERY_DISTANCE,
+        Characteristic.MASTERY_MELEE,
+        Characteristic.MASTERY_CRITICAL,
+        Characteristic.MASTERY_BACK,
+        Characteristic.MASTERY_BERSERK,
+        Characteristic.MASTERY_HEALING
+    )
+
+private val masteryStats = elementalMasteryStats + specializedMasteryStats
+
+private val statSections =
+    listOf(
+        StatSection(Tr.STAT_GROUP_CORE) { it in coreStats },
+        StatSection(Tr.MASTERY_ELEMENTALS) { it in elementalMasteryStats },
+        StatSection(Tr.MASTERY_SPECIALIZED) { it in specializedMasteryStats },
+        StatSection(Tr.STAT_GROUP_RESISTANCES) { it.name.startsWith("RESISTANCE") },
+        StatSection(Tr.STAT_GROUP_SECONDARY) {
+            it !in coreStats &&
+                it !in masteryStats &&
+                !it.name.startsWith("RESISTANCE")
+        }
+    )
 
 @Composable
 private fun CatalogTile(
@@ -283,21 +355,21 @@ private fun ItemResultRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Box(
-            modifier =
-                Modifier
-                    .size(9.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(equipment.rarity.color())
-        )
+        ItemThumbnail(equipment = equipment, size = 38.dp)
         Column(modifier = Modifier.weight(1f)) {
             val name = if (lang == Lang.FR) equipment.name.fr.ifBlank { equipment.name.en } else equipment.name.en.ifBlank { equipment.name.fr }
-            Text(
-                text = name,
-                style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                RarityIcon(rarity = equipment.rarity, size = 14.dp)
+                Text(
+                    text = name,
+                    style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             Text(
                 text = "Lv ${equipment.level} · ${equipment.itemType.label(lang)} · ${equipment.rarity.label(lang)}",
                 style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted),

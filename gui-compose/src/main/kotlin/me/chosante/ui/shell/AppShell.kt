@@ -14,6 +14,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
+import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.ui.components.ModalHost
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
@@ -24,6 +26,7 @@ import me.chosante.ui.state.BuildSearchModel
 import me.chosante.ui.state.Modal
 import me.chosante.ui.state.Phase
 import me.chosante.ui.state.PickerMode
+import me.chosante.ui.state.statCatalog
 import me.chosante.ui.stats.StatsPanel
 import me.chosante.ui.theme.WColor
 
@@ -32,6 +35,16 @@ fun AppShell(modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val model = remember { BuildSearchModel(scope) }
     val ui = model.ui
+    val addStatExcludedCharacteristics =
+        ui.targets.map { it.characteristic }.toSet() +
+            if (ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) {
+                statCatalog
+                    .map { it.characteristic }
+                    .filter { it.isMaximizableMastery() }
+                    .toSet()
+            } else {
+                emptySet()
+            }
 
     Box(modifier = modifier.fillMaxSize()) {
         CompositionLocalProvider(LocalLang provides ui.lang) {
@@ -61,9 +74,11 @@ fun AppShell(modifier: Modifier = Modifier) {
                             onTargetValueChange = model::updateTargetValue,
                             onRemoveTarget = model::removeTarget,
                             onAddTarget = { model.openModal(Modal.AddStat) },
+                            onToggleMastery = model::toggleMaximizedMastery,
                             onMaxRarityChange = model::setMaxRarity,
                             onDurationChange = model::setDuration,
                             onStopAtMatchChange = model::setStopAtMatch,
+                            onSolverChange = model::setSolver,
                             onAddForcedItem = { model.openModal(Modal.ItemPicker(PickerMode.Forced)) },
                             onRemoveForcedItem = model::removeForcedItem,
                             onAddExcludedItem = { model.openModal(Modal.ItemPicker(PickerMode.Excluded)) },
@@ -100,7 +115,7 @@ fun AppShell(modifier: Modifier = Modifier) {
 
             ModalHost(
                 modal = ui.modal,
-                excludedCharacteristics = ui.targets.map { it.characteristic }.toSet(),
+                excludedCharacteristics = addStatExcludedCharacteristics,
                 equipmentCatalog = model.equipmentCatalog,
                 onSelectStat = model::addTarget,
                 onPickItem = model::pickItem,

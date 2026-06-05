@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -41,8 +42,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import me.chosante.autobuilder.genetic.wakfu.WakfuSolver
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
+import me.chosante.ui.components.RarityIcon
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
@@ -111,6 +114,12 @@ fun PaperdollPanel(
                     }
                 }
             }
+            if (ui.phase == Phase.Searching && ui.build == null) {
+                SolverLoadingOverlay(
+                    ui = ui,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
         }
         Text(
             text = tr(Tr.DISCLAIMER),
@@ -121,6 +130,51 @@ fun PaperdollPanel(
                     .fillMaxWidth()
                     .border(1.dp, WColor.hairline)
                     .padding(vertical = 10.dp, horizontal = WDimens.pad)
+        )
+    }
+}
+
+@Composable
+private fun SolverLoadingOverlay(
+    ui: UiState,
+    modifier: Modifier = Modifier,
+) {
+    val title =
+        if (ui.solver == WakfuSolver.OR_TOOLS) {
+            tr(Tr.PREPARING_OR_TOOLS_MODEL)
+        } else {
+            tr(Tr.SEARCHING_FIRST_BUILD)
+        }
+    Column(
+        modifier =
+            modifier
+                .width(310.dp)
+                .clip(RoundedCornerShape(11.dp))
+                .background(WColor.surface.copy(alpha = 0.96f))
+                .border(1.dp, WColor.border, RoundedCornerShape(11.dp))
+                .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(9.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = title,
+            style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.SemiBold),
+            textAlign = TextAlign.Center
+        )
+        LinearProgressIndicator(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(999.dp)),
+            color = WColor.accent,
+            trackColor = WColor.border
+        )
+        Text(
+            text = tr(Tr.FIRST_RESULT_HINT),
+            style = WTypography.labelSmall.copy(color = WColor.muted, textAlign = TextAlign.Center),
+            textAlign = TextAlign.Center,
+            lineHeight = 13.sp
         )
     }
 }
@@ -317,14 +371,17 @@ private fun RarityPill(
     lang: Lang,
 ) {
     val color = rarity.color()
-    Box(
+    Row(
         modifier =
             Modifier
                 .clip(RoundedCornerShape(999.dp))
                 .background(color.copy(alpha = 0.16f))
                 .border(1.dp, color.copy(alpha = 0.4f), RoundedCornerShape(999.dp))
-                .padding(horizontal = 8.dp, vertical = 2.dp)
+                .padding(horizontal = 8.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
+        RarityIcon(rarity = rarity, size = 12.dp)
         Text(
             text = rarity.label(lang),
             style = WTypography.labelSmall.copy(color = color, fontWeight = FontWeight.SemiBold)

@@ -48,25 +48,46 @@ enum class Tr(
     // Request panel
     SEARCH_MODE("Search Mode", "Mode de recherche"),
     MODE_MASTERIES("Most Masteries", "Max maîtrises"),
-    MODE_MASTERIES_SUB("hit AP/MP/Ra/Crit, max masteries", "vise PA/PM/Po/Crit, max maîtrises"),
+    MODE_MASTERIES_SUB("minimum constraints, max masteries", "contraintes min, max maîtrises"),
     MODE_PRECISION("Precision", "Précision"),
     MODE_PRECISION_SUB("hit every target exactly", "vise chaque cible exactement"),
     TARGET_STATS("Target Stats", "Stats cibles"),
+    MAXIMIZED_MASTERIES("Maximized Masteries", "Maîtrises à maximiser"),
+    NO_MASTERY_SELECTED("None selected", "Aucune sélection"),
     ADD_TARGET_STAT("＋ Add target stat", "＋ Ajouter une stat"),
-    KIND_EXACT("exact target", "cible exacte"),
-    KIND_MAXIMIZE("maximize >=", "maximiser >="),
+    KIND_EXACT("minimum", "minimum"),
+    KIND_MAXIMIZE("maximize", "maximiser"),
     CONSTRAINTS("Constraints", "Contraintes"),
     MAX_RARITY("Max rarity", "Rareté max"),
     SEARCH_DURATION("Search duration", "Durée de recherche"),
     SEARCH_DURATION_SUB("genetic search window", "fenêtre de recherche génétique"),
     SECONDS_SHORT("sec", "sec"),
     STOP_AT_MATCH("Stop at 100% match", "Arrêter à 100%"),
+    DEBUG_SOLVER("Debug solver", "Solveur debug"),
+    SOLVER_OR_TOOLS("OR-Tools", "OR-Tools"),
+    SOLVER_OR_TOOLS_SUB("optimal", "optimal"),
+    SOLVER_GA("GA", "AG"),
+    SOLVER_GA_SUB("legacy", "historique"),
+    OR_TOOLS_LEVEL_RANGE_ERROR(
+        "OR-Tools needs a narrower level range. Raise Min or switch the debug solver to GA.",
+        "OR-Tools a besoin d'une plage de niveaux plus courte. Monte le Min ou passe le solveur debug en AG."
+    ),
+    SEARCH_NO_RESULT(
+        "No build produced in this time window. Narrow the level range, increase duration, or switch to GA.",
+        "Aucun build produit dans cette fenêtre. Réduis la plage de niveaux, augmente la durée, ou passe en AG."
+    ),
     FORCED_ITEMS("Forced Items", "Objets imposés"),
     REQUIRE_ITEM_CHIP("＋ require item", "＋ imposer un objet"),
     EXCLUDED_ITEMS("Excluded Items", "Objets exclus"),
     BAN_ITEM_CHIP("＋ ban item", "＋ exclure un objet"),
 
     // Paperdoll
+    PREPARING_OR_TOOLS_MODEL("Preparing OR-Tools model", "Préparation du modèle OR-Tools"),
+    SEARCHING_FIRST_BUILD("Searching first build", "Recherche du premier build"),
+    FIRST_RESULT_HINT(
+        "The first build will appear here as soon as the solver has one.",
+        "Le premier build apparaîtra ici dès que le solveur en a un."
+    ),
     EMPTY("empty", "vide"),
     LEVEL_PREFIX_LONG("Level", "Niveau"),
     DISCLAIMER(
@@ -90,8 +111,14 @@ enum class Tr(
 
     // Stats panel
     BUILD_MATCH("Build Match", "Correspondance"),
+    OPTIMAL_PROVEN("Optimal proven", "Optimal prouvé"),
+    BEST_FOUND("Best found", "Meilleur trouvé"),
+    MASTERY_SUMMARY("Mastery Summary", "Cumul maîtrises"),
+    MASTERY_TOTAL("Tracked total", "Total suivi"),
+    MASTERY_ELEMENTALS("Elementals", "Élémentaires"),
+    MASTERY_SPECIALIZED("Specialized", "Spécialisées"),
     DESIRED_VS_ACHIEVED("Desired vs Achieved", "Désiré vs Obtenu"),
-    TAG_EXACT("exact", "exact"),
+    TAG_EXACT("minimum", "minimum"),
     TAG_MAXIMIZE("maximize", "maximiser"),
     SKILL_ALLOCATION("Skill Allocation", "Répartition des aptitudes"),
     BRANCHES_COUNT("5 branches", "5 branches"),
@@ -114,6 +141,10 @@ enum class Tr(
     // Modals
     ADD_TARGET_STAT_TITLE("Add target stat", "Ajouter une stat cible"),
     FILTER_STATS("Filter stats…", "Filtrer les stats…"),
+    STAT_GROUP_CORE("Core", "Base"),
+    STAT_GROUP_MASTERIES("Masteries", "Maîtrises"),
+    STAT_GROUP_RESISTANCES("Resistances", "Résistances"),
+    STAT_GROUP_SECONDARY("Secondary", "Secondaires"),
     NO_MATCHING_STAT("No matching stat", "Aucune stat correspondante"),
     REQUIRE_ITEM_TITLE("Require item", "Imposer un objet"),
     BAN_ITEM_TITLE("Ban item", "Exclure un objet"),

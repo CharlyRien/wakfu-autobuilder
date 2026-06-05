@@ -3,6 +3,8 @@ package me.chosante.ui.state
 import androidx.compose.ui.graphics.Color
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
+import me.chosante.autobuilder.genetic.wakfu.WakfuSolver
+import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
@@ -45,6 +47,7 @@ data class UiState(
     val level: Int = 110,
     val minLevel: Int = 80,
     val mode: ScoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+    val solver: WakfuSolver = WakfuSolver.OR_TOOLS,
     val targets: List<TargetRow> = defaultTargets(),
     val maxRarity: Rarity = Rarity.EPIC,
     val duration: String = "20",
@@ -54,6 +57,7 @@ data class UiState(
     val phase: Phase = Phase.Idle,
     val progress: Int = 0,
     val match: BigDecimal = BigDecimal.ZERO,
+    val optimal: Boolean = false,
     val build: BuildCombination? = null,
     val achieved: Map<Characteristic, Int> = emptyMap(),
     val lastLandedEquipmentId: Int? = null,
@@ -79,7 +83,11 @@ data class ItemChip(
     val matchName: String = name,
 )
 
-fun TargetRow.isExact(mode: ScoreComputationMode): Boolean = mode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT || characteristic in exactMostMasteryTargets
+fun TargetRow.isExact(mode: ScoreComputationMode): Boolean = !isMaximized(mode)
+
+fun TargetRow.isMaximized(mode: ScoreComputationMode): Boolean =
+    mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+        characteristic.isMaximizableMastery()
 
 fun String.onlyDigits(): String = filter { it.isDigit() }
 
@@ -124,14 +132,6 @@ fun Equipment.toChip(): ItemChip =
         name = name.en.ifBlank { name.fr },
         rarity = rarity,
         matchName = name.fr
-    )
-
-private val exactMostMasteryTargets =
-    setOf(
-        Characteristic.ACTION_POINT,
-        Characteristic.MOVEMENT_POINT,
-        Characteristic.RANGE,
-        Characteristic.CRITICAL_HIT
     )
 
 /** User-facing characteristics in catalog order; excludes engine-internal random/harvest stats. */
@@ -192,8 +192,7 @@ private val defaultTargetValues =
         Characteristic.MOVEMENT_POINT to "4",
         Characteristic.RANGE to "4",
         Characteristic.CRITICAL_HIT to "25",
-        Characteristic.MASTERY_DISTANCE to "500",
-        Characteristic.MASTERY_CRITICAL to "0",
+        Characteristic.MASTERY_DISTANCE to "1",
         Characteristic.HP to "2000",
         Characteristic.RESISTANCE_ELEMENTARY_WIND to "0",
         Characteristic.DODGE to "0"

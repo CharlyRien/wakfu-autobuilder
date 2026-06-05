@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
+import me.chosante.common.Characteristic
 import me.chosante.common.skills.Assignable
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.common.skills.SkillCharacteristic
@@ -68,13 +69,14 @@ fun StatsPanel(
         if (ui.phase == Phase.Idle && ui.build == null) {
             EmptyHint()
         } else {
-            DesiredVsAchieved(ui)
-            SkillTree(ui.build?.characterSkills ?: CharacterSkills(ui.level))
             ActionsCard(
                 ui = ui,
                 onOpenZenith = onOpenZenith,
                 onCopyZenith = onCopyZenith
             )
+            MasterySummary(ui)
+            DesiredVsAchieved(ui)
+            SkillTree(ui.build?.characterSkills ?: CharacterSkills(ui.level))
         }
     }
 }
@@ -111,6 +113,13 @@ private fun MatchHero(ui: UiState) {
                 style = WTypography.labelMedium,
                 modifier = Modifier.padding(top = 4.dp)
             )
+            if (ui.build != null) {
+                Text(
+                    text = tr(if (ui.optimal) Tr.OPTIMAL_PROVEN else Tr.BEST_FOUND),
+                    style = WTypography.labelSmall.copy(color = if (ui.optimal) WColor.success else WColor.warning),
+                    modifier = Modifier.padding(top = 3.dp)
+                )
+            }
             Meter(
                 fill = ui.match.toFloat() / 100f,
                 color = if (ui.match.toInt() == 100) WColor.success else WColor.warning,
@@ -123,16 +132,158 @@ private fun MatchHero(ui: UiState) {
 @Composable
 private fun DesiredVsAchieved(ui: UiState) {
     ResultCard(title = tr(Tr.DESIRED_VS_ACHIEVED)) {
-        ui.targets.forEachIndexed { index, target ->
-            if (index > 0) Hairline()
-            StatRow(
-                target = target,
-                achieved = ui.achieved[target.characteristic] ?: 0,
-                mode = ui.mode
+        groupedTargets(ui.targets).forEachIndexed { groupIndex, group ->
+            if (groupIndex > 0) {
+                Hairline()
+            }
+            Text(
+                text = tr(group.title),
+                style = WTypography.labelMedium.copy(color = WColor.muted),
+                modifier = Modifier.padding(top = if (groupIndex == 0) 0.dp else 10.dp, bottom = 2.dp)
             )
+            group.targets.forEachIndexed { index, target ->
+                if (index > 0) Hairline()
+                StatRow(
+                    target = target,
+                    achieved = ui.achieved[target.characteristic] ?: 0,
+                    mode = ui.mode
+                )
+            }
         }
     }
 }
+
+@Composable
+private fun MasterySummary(ui: UiState) {
+    val elementalMasteries =
+        listOf(
+            Characteristic.MASTERY_ELEMENTARY_WATER,
+            Characteristic.MASTERY_ELEMENTARY_FIRE,
+            Characteristic.MASTERY_ELEMENTARY_EARTH,
+            Characteristic.MASTERY_ELEMENTARY_WIND
+        )
+    val specializedMasteries =
+        listOf(
+            Characteristic.MASTERY_DISTANCE,
+            Characteristic.MASTERY_MELEE,
+            Characteristic.MASTERY_CRITICAL,
+            Characteristic.MASTERY_BACK,
+            Characteristic.MASTERY_BERSERK,
+            Characteristic.MASTERY_HEALING
+        )
+    val elementalValues = elementalMasteries.map { it to (ui.achieved[it] ?: 0) }
+    val specializedValues = specializedMasteries.map { it to (ui.achieved[it] ?: 0) }
+    val trackedTotal = (elementalValues.minOfOrNull { it.second } ?: 0) + specializedValues.sumOf { it.second }
+
+    ResultCard(
+        title = tr(Tr.MASTERY_SUMMARY),
+        trailing = trackedTotal.formatCompact()
+    ) {
+        SummaryMetric(label = tr(Tr.MASTERY_TOTAL), value = trackedTotal)
+        Hairline()
+        MasteryGroup(title = tr(Tr.MASTERY_ELEMENTALS), values = elementalValues)
+        Hairline()
+        MasteryGroup(title = tr(Tr.MASTERY_SPECIALIZED), values = specializedValues)
+    }
+}
+
+@Composable
+private fun SummaryMetric(
+    label: String,
+    value: Int,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = label, style = WTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = value.formatCompact(),
+            style = WTypography.headlineMedium.copy(fontFamily = WType.mono, color = WColor.text)
+        )
+    }
+}
+
+@Composable
+private fun MasteryGroup(
+    title: String,
+    values: List<Pair<Characteristic, Int>>,
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(text = title, style = WTypography.labelSmall.copy(color = WColor.muted))
+        values.forEach { (characteristic, value) ->
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = characteristic.label(LocalLang.current),
+                    style = WTypography.bodySmall.copy(color = WColor.text),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = value.formatCompact(),
+                    style = WTypography.bodySmall.copy(fontFamily = WType.mono, color = WColor.muted)
+                )
+            }
+        }
+    }
+}
+
+private data class TargetGroup(
+    val title: Tr,
+    val targets: List<TargetRow>,
+)
+
+private fun groupedTargets(targets: List<TargetRow>): List<TargetGroup> {
+    val groups =
+        listOf(
+            TargetGroup(Tr.STAT_GROUP_CORE, targets.filter { it.characteristic in coreTargetStats }),
+            TargetGroup(Tr.MASTERY_ELEMENTALS, targets.filter { it.characteristic in elementalTargetMasteries }),
+            TargetGroup(Tr.MASTERY_SPECIALIZED, targets.filter { it.characteristic in specializedTargetMasteries }),
+            TargetGroup(Tr.STAT_GROUP_RESISTANCES, targets.filter { it.characteristic.name.startsWith("RESISTANCE") }),
+            TargetGroup(
+                Tr.STAT_GROUP_SECONDARY,
+                targets.filter {
+                    it.characteristic !in coreTargetStats &&
+                        it.characteristic !in allTargetMasteries &&
+                        !it.characteristic.name.startsWith("RESISTANCE")
+                }
+            )
+        )
+    return groups.filter { it.targets.isNotEmpty() }
+}
+
+private val coreTargetStats =
+    setOf(
+        Characteristic.ACTION_POINT,
+        Characteristic.MOVEMENT_POINT,
+        Characteristic.RANGE,
+        Characteristic.WAKFU_POINT,
+        Characteristic.CRITICAL_HIT,
+        Characteristic.HP
+    )
+
+private val elementalTargetMasteries =
+    setOf(
+        Characteristic.MASTERY_ELEMENTARY,
+        Characteristic.MASTERY_ELEMENTARY_WATER,
+        Characteristic.MASTERY_ELEMENTARY_FIRE,
+        Characteristic.MASTERY_ELEMENTARY_EARTH,
+        Characteristic.MASTERY_ELEMENTARY_WIND
+    )
+
+private val specializedTargetMasteries =
+    setOf(
+        Characteristic.MASTERY_DISTANCE,
+        Characteristic.MASTERY_MELEE,
+        Characteristic.MASTERY_CRITICAL,
+        Characteristic.MASTERY_BACK,
+        Characteristic.MASTERY_BERSERK,
+        Characteristic.MASTERY_HEALING
+    )
+
+private val allTargetMasteries = elementalTargetMasteries + specializedTargetMasteries
 
 @Composable
 private fun StatRow(

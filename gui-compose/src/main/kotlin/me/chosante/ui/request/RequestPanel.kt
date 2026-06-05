@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -35,20 +36,27 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
+import me.chosante.autobuilder.genetic.wakfu.WakfuSolver
+import me.chosante.common.Characteristic
 import me.chosante.common.Rarity
+import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.label
 import me.chosante.ui.i18n.tr
 import me.chosante.ui.state.ItemChip
+import me.chosante.ui.state.StatDef
 import me.chosante.ui.state.TargetRow
 import me.chosante.ui.state.UiState
 import me.chosante.ui.state.color
 import me.chosante.ui.state.isExact
+import me.chosante.ui.state.statCatalog
+import me.chosante.ui.state.statDefFor
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WDimens
 import me.chosante.ui.theme.WType
@@ -61,9 +69,11 @@ fun RequestPanel(
     onTargetValueChange: (String, String) -> Unit,
     onRemoveTarget: (String) -> Unit,
     onAddTarget: () -> Unit,
+    onToggleMastery: (Characteristic) -> Unit,
     onMaxRarityChange: (Rarity) -> Unit,
     onDurationChange: (String) -> Unit,
     onStopAtMatchChange: (Boolean) -> Unit,
+    onSolverChange: (WakfuSolver) -> Unit,
     onAddForcedItem: () -> Unit,
     onRemoveForcedItem: (ItemChip) -> Unit,
     onAddExcludedItem: () -> Unit,
@@ -87,15 +97,18 @@ fun RequestPanel(
             targets = ui.targets,
             onValueChange = onTargetValueChange,
             onRemove = onRemoveTarget,
-            onAdd = onAddTarget
+            onAdd = onAddTarget,
+            onToggleMastery = onToggleMastery
         )
         ConstraintsCard(
             maxRarity = ui.maxRarity,
             duration = ui.duration,
             stopAtMatch = ui.stopAtMatch,
+            solver = ui.solver,
             onRarityChange = onMaxRarityChange,
             onDurationChange = onDurationChange,
-            onStopAtMatchChange = onStopAtMatchChange
+            onStopAtMatchChange = onStopAtMatchChange,
+            onSolverChange = onSolverChange
         )
         ItemChipsCard(
             title = tr(Tr.FORCED_ITEMS),
@@ -193,41 +206,276 @@ private fun TargetStatsCard(
     onValueChange: (String, String) -> Unit,
     onRemove: (String) -> Unit,
     onAdd: () -> Unit,
+    onToggleMastery: (Characteristic) -> Unit,
 ) {
+    val maximizedMasteriesMode = mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
     RequestCard(
         title = tr(Tr.TARGET_STATS),
         trailing = targets.size.toString()
     ) {
-        targets.forEachIndexed { index, target ->
-            if (index > 0) Hairline()
-            TargetStatRow(
-                target = target,
-                kind = tr(if (target.isExact(mode)) Tr.KIND_EXACT else Tr.KIND_MAXIMIZE),
-                onValueChange = { onValueChange(target.id, it) },
-                onRemove = { onRemove(target.id) }
+        val sections =
+            if (maximizedMasteriesMode) {
+                maxMasteryInputSections
+            } else {
+                targetInputSections
+            }
+        if (maximizedMasteriesMode) {
+            SelectedMasteriesSummary(targets = targets)
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+        sections.forEachIndexed { sectionIndex, section ->
+            val rows = targets.filter { section.accepts(it.characteristic) }.sortedBy { section.orderOf(it.characteristic) }
+            val shouldRenderMasteryPicker = maximizedMasteriesMode && section.renderAsMasteryPicker
+            if (rows.isNotEmpty() || shouldRenderMasteryPicker) {
+                if (sectionIndex > 0) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+                SectionHeader(title = tr(section.title))
+                if (shouldRenderMasteryPicker) {
+                    MasteryCheckboxGrid(
+                        options = section.characteristics,
+                        selected = targets.map { it.characteristic }.toSet(),
+                        onToggle = onToggleMastery
+                    )
+                } else {
+                    TargetRowList(
+                        mode = mode,
+                        targets = rows,
+                        onValueChange = onValueChange,
+                        onRemove = onRemove
+                    )
+                }
+            }
+        }
+        AddTargetButton(onAdd = onAdd)
+    }
+}
+
+@Composable
+private fun SelectedMasteriesSummary(targets: List<TargetRow>) {
+    val selected =
+        allMasteryCharacteristics
+            .filter { characteristic -> targets.any { it.characteristic == characteristic } }
+            .mapNotNull { statDefFor(it) }
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(9.dp))
+                .background(WColor.bg)
+                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                .padding(9.dp),
+        verticalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = tr(Tr.MAXIMIZED_MASTERIES),
+                style = WTypography.labelSmall.copy(color = WColor.muted, fontWeight = FontWeight.SemiBold)
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = selected.size.toString(),
+                style = WTypography.labelSmall.copy(color = WColor.faint, fontFamily = WType.mono)
             )
         }
+        if (selected.isEmpty()) {
+            Text(text = tr(Tr.NO_MASTERY_SELECTED), style = WTypography.bodySmall.copy(color = WColor.faint))
+        } else {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                selected.forEach { def ->
+                    SelectedMasteryPill(def = def)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectedMasteryPill(def: StatDef) {
+    Row(
+        modifier =
+            Modifier
+                .height(26.dp)
+                .clip(RoundedCornerShape(7.dp))
+                .background(def.color.copy(alpha = 0.14f))
+                .border(1.dp, def.color.copy(alpha = 0.45f), RoundedCornerShape(7.dp))
+                .padding(horizontal = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Text(
+            text = def.glyph,
+            style =
+                WTypography.labelSmall.copy(
+                    color = def.color,
+                    fontFamily = WType.mono,
+                    fontWeight = FontWeight.SemiBold,
+                    lineHeight = 10.sp
+                )
+        )
+        Text(
+            text = def.characteristic.masteryOptionLabel(LocalLang.current),
+            style = WTypography.labelSmall.copy(color = WColor.text, lineHeight = 10.sp),
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        style = WTypography.labelSmall.copy(color = WColor.muted, fontWeight = FontWeight.SemiBold),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.padding(bottom = 5.dp)
+    )
+}
+
+@Composable
+private fun TargetRowList(
+    mode: ScoreComputationMode,
+    targets: List<TargetRow>,
+    onValueChange: (String, String) -> Unit,
+    onRemove: (String) -> Unit,
+) {
+    targets.forEachIndexed { index, target ->
+        if (index > 0) Hairline()
+        TargetStatRow(
+            target = target,
+            kind = tr(if (target.isExact(mode)) Tr.KIND_EXACT else Tr.KIND_MAXIMIZE),
+            onValueChange = { onValueChange(target.id, it) },
+            onRemove = { onRemove(target.id) }
+        )
+    }
+}
+
+@Composable
+private fun MasteryCheckboxGrid(
+    options: List<Characteristic>,
+    selected: Set<Characteristic>,
+    onToggle: (Characteristic) -> Unit,
+) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+        verticalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        options.mapNotNull { statDefFor(it) }.forEach { def ->
+            MasteryCheckboxChip(
+                def = def,
+                checked = def.characteristic in selected,
+                onClick = { onToggle(def.characteristic) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun MasteryCheckboxChip(
+    def: StatDef,
+    checked: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .width(118.dp)
+                .height(36.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (checked) def.color.copy(alpha = 0.16f) else WColor.bg)
+                .border(
+                    width = if (checked) 2.dp else 1.dp,
+                    color = if (checked) def.color.copy(alpha = 0.82f) else WColor.border,
+                    shape = RoundedCornerShape(8.dp)
+                ).clickable(onClick = onClick)
+                .padding(horizontal = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
         Box(
             modifier =
                 Modifier
-                    .fillMaxWidth()
-                    .padding(top = 6.dp)
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(9.dp))
-                    .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-                    .clickable(onClick = onAdd),
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(7.dp))
+                    .background(if (checked) def.color.copy(alpha = 0.24f) else WColor.surface)
+                    .border(
+                        width = 1.dp,
+                        color = def.color.copy(alpha = if (checked) 0.85f else 0.35f),
+                        shape = RoundedCornerShape(7.dp)
+                    ),
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = tr(Tr.ADD_TARGET_STAT),
+                text = def.glyph,
                 style =
-                    WTypography.labelMedium.copy(
-                        color = WColor.accent,
+                    WTypography.labelSmall.copy(
+                        color = def.color,
+                        fontFamily = WType.mono,
+                        fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center,
-                        lineHeight = 14.sp
+                        lineHeight = 10.sp
                     )
             )
         }
+        Text(
+            text = def.characteristic.masteryOptionLabel(LocalLang.current),
+            style = WTypography.labelMedium.copy(color = if (checked) WColor.text else WColor.muted, lineHeight = 13.sp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        Box(
+            modifier =
+                Modifier
+                    .size(16.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(if (checked) def.color else WColor.surface)
+                    .border(1.dp, if (checked) def.color else WColor.border, RoundedCornerShape(999.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (checked) {
+                Text(
+                    text = "✓",
+                    style =
+                        WTypography.labelSmall.copy(
+                            color = def.color,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 10.sp
+                        )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddTargetButton(onAdd: () -> Unit) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp)
+                .height(40.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                .clickable(onClick = onAdd),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = tr(Tr.ADD_TARGET_STAT),
+            style =
+                WTypography.labelMedium.copy(
+                    color = WColor.accent,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 14.sp
+                )
+        )
     }
 }
 
@@ -280,9 +528,11 @@ private fun ConstraintsCard(
     maxRarity: Rarity,
     duration: String,
     stopAtMatch: Boolean,
+    solver: WakfuSolver,
     onRarityChange: (Rarity) -> Unit,
     onDurationChange: (String) -> Unit,
     onStopAtMatchChange: (Boolean) -> Unit,
+    onSolverChange: (WakfuSolver) -> Unit,
 ) {
     RequestCard(title = tr(Tr.CONSTRAINTS)) {
         ConstraintRow(label = tr(Tr.MAX_RARITY)) {
@@ -306,6 +556,77 @@ private fun ConstraintsCard(
                 onCheckedChange = onStopAtMatchChange
             )
         }
+        Hairline()
+        ConstraintRow(label = tr(Tr.DEBUG_SOLVER)) {
+            SolverSegmentedControl(
+                selected = solver,
+                onSelect = onSolverChange
+            )
+        }
+    }
+}
+
+@Composable
+private fun SolverSegmentedControl(
+    selected: WakfuSolver,
+    onSelect: (WakfuSolver) -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .width(146.dp)
+                .height(34.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(WColor.bg)
+                .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
+                .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        SolverSegment(
+            title = tr(Tr.SOLVER_OR_TOOLS),
+            subtitle = tr(Tr.SOLVER_OR_TOOLS_SUB),
+            selected = selected == WakfuSolver.OR_TOOLS,
+            onClick = { onSelect(WakfuSolver.OR_TOOLS) },
+            modifier = Modifier.weight(1f)
+        )
+        SolverSegment(
+            title = tr(Tr.SOLVER_GA),
+            subtitle = tr(Tr.SOLVER_GA_SUB),
+            selected = selected == WakfuSolver.GENETIC_ALGORITHM,
+            onClick = { onSelect(WakfuSolver.GENETIC_ALGORITHM) },
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun SolverSegment(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier =
+            modifier
+                .fillMaxHeight()
+                .clip(RoundedCornerShape(6.dp))
+                .background(if (selected) WColor.raised else Color.Transparent)
+                .clickable(onClick = onClick),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = title,
+            style = WTypography.labelSmall.copy(color = if (selected) WColor.text else WColor.muted, lineHeight = 10.sp),
+            maxLines = 1
+        )
+        Text(
+            text = subtitle,
+            style = WTypography.labelSmall.copy(fontSize = 9.sp, lineHeight = 9.sp),
+            maxLines = 1
+        )
     }
 }
 
@@ -608,4 +929,99 @@ private fun RarityDot(rarity: Rarity) {
 @Composable
 private fun Hairline() {
     Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
+}
+
+private data class TargetInputSection(
+    val title: Tr,
+    val characteristics: List<Characteristic>,
+    val renderAsMasteryPicker: Boolean = false,
+) {
+    fun accepts(characteristic: Characteristic): Boolean = characteristic in characteristics
+
+    fun orderOf(characteristic: Characteristic): Int {
+        val index = characteristics.indexOf(characteristic)
+        return if (index == -1) Int.MAX_VALUE else index
+    }
+}
+
+private val coreInputCharacteristics =
+    listOf(
+        Characteristic.ACTION_POINT,
+        Characteristic.MOVEMENT_POINT,
+        Characteristic.RANGE,
+        Characteristic.WAKFU_POINT,
+        Characteristic.CRITICAL_HIT,
+        Characteristic.HP
+    )
+
+private val elementalMasteryCharacteristics =
+    listOf(
+        Characteristic.MASTERY_ELEMENTARY,
+        Characteristic.MASTERY_ELEMENTARY_WATER,
+        Characteristic.MASTERY_ELEMENTARY_FIRE,
+        Characteristic.MASTERY_ELEMENTARY_EARTH,
+        Characteristic.MASTERY_ELEMENTARY_WIND
+    )
+
+private val specializedMasteryCharacteristics =
+    listOf(
+        Characteristic.MASTERY_DISTANCE,
+        Characteristic.MASTERY_MELEE,
+        Characteristic.MASTERY_CRITICAL,
+        Characteristic.MASTERY_BACK,
+        Characteristic.MASTERY_BERSERK,
+        Characteristic.MASTERY_HEALING
+    )
+
+private val resistanceInputCharacteristics =
+    statCatalog
+        .map { it.characteristic }
+        .filter { it.name.startsWith("RESISTANCE") }
+
+private val secondaryInputCharacteristics =
+    statCatalog
+        .map { it.characteristic }
+        .filter {
+            it !in coreInputCharacteristics &&
+                it !in elementalMasteryCharacteristics &&
+                it !in specializedMasteryCharacteristics &&
+                it !in resistanceInputCharacteristics
+        }
+
+private val targetInputSections =
+    listOf(
+        TargetInputSection(Tr.STAT_GROUP_CORE, coreInputCharacteristics),
+        TargetInputSection(Tr.MASTERY_ELEMENTALS, elementalMasteryCharacteristics, renderAsMasteryPicker = true),
+        TargetInputSection(Tr.MASTERY_SPECIALIZED, specializedMasteryCharacteristics, renderAsMasteryPicker = true),
+        TargetInputSection(Tr.STAT_GROUP_RESISTANCES, resistanceInputCharacteristics),
+        TargetInputSection(Tr.STAT_GROUP_SECONDARY, secondaryInputCharacteristics)
+    )
+
+private val maxMasteryInputSections =
+    listOf(
+        TargetInputSection(Tr.MASTERY_SPECIALIZED, specializedMasteryCharacteristics, renderAsMasteryPicker = true),
+        TargetInputSection(Tr.MASTERY_ELEMENTALS, elementalMasteryCharacteristics, renderAsMasteryPicker = true),
+        TargetInputSection(Tr.STAT_GROUP_CORE, coreInputCharacteristics),
+        TargetInputSection(Tr.STAT_GROUP_RESISTANCES, resistanceInputCharacteristics),
+        TargetInputSection(Tr.STAT_GROUP_SECONDARY, secondaryInputCharacteristics)
+    )
+
+private val allMasteryCharacteristics = specializedMasteryCharacteristics + elementalMasteryCharacteristics
+
+private fun Characteristic.masteryOptionLabel(lang: Lang): String {
+    val fr = lang == Lang.FR
+    return when (this) {
+        Characteristic.MASTERY_ELEMENTARY -> if (fr) "Toutes" else "All"
+        Characteristic.MASTERY_ELEMENTARY_WATER -> if (fr) "Eau" else "Water"
+        Characteristic.MASTERY_ELEMENTARY_FIRE -> if (fr) "Feu" else "Fire"
+        Characteristic.MASTERY_ELEMENTARY_EARTH -> if (fr) "Terre" else "Earth"
+        Characteristic.MASTERY_ELEMENTARY_WIND -> if (fr) "Air" else "Air"
+        Characteristic.MASTERY_DISTANCE -> "Distance"
+        Characteristic.MASTERY_MELEE -> if (fr) "Mêlée" else "Melee"
+        Characteristic.MASTERY_CRITICAL -> if (fr) "Critique" else "Critical"
+        Characteristic.MASTERY_BACK -> if (fr) "Dos" else "Rear"
+        Characteristic.MASTERY_BERSERK -> "Berserk"
+        Characteristic.MASTERY_HEALING -> if (fr) "Soin" else "Healing"
+        else -> label(lang)
+    }
 }

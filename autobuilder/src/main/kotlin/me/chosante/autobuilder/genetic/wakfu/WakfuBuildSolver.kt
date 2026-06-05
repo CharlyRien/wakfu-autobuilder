@@ -28,6 +28,7 @@ import java.math.BigDecimal
 import java.math.BigInteger
 import kotlin.math.ceil
 import kotlin.math.min
+import kotlin.math.roundToLong
 
 object WakfuBuildSolver {
     private const val STAT_ABS_MAX = 10_000_000L
@@ -35,27 +36,17 @@ object WakfuBuildSolver {
     private const val PRODUCT_ABS_MAX = STAT_ABS_MAX * PERCENT_ABS_MAX
     private const val STAT_WITH_PERCENT_ABS_MAX = STAT_ABS_MAX + (PRODUCT_ABS_MAX / 100) + 10
     private const val MASTERY_SCORE_ABS_MAX = 100_000_000L
-    private const val MAX_POWER_TABLE_INDEX = 50_000
+    private const val MAX_POWER_TABLE_INDEX = 2_000
     private const val MAX_PENALTY_MULTIPLIER = 1_000_000L
 
-    private val PRE_MASTERY_STATS =
-        listOf(
-            Characteristic.ACTION_POINT,
-            Characteristic.CONTROL,
-            Characteristic.MOVEMENT_POINT,
-            Characteristic.RANGE,
-            Characteristic.WAKFU_POINT,
-            Characteristic.CRITICAL_HIT,
-            Characteristic.HP,
-            Characteristic.LOCK,
-            Characteristic.DODGE,
-            Characteristic.BLOCK_PERCENTAGE,
-            Characteristic.GIVEN_ARMOR_PERCENTAGE,
-            Characteristic.RECEIVED_ARMOR_PERCENTAGE,
-            Characteristic.INITIATIVE,
-            Characteristic.RESISTANCE_BACK,
-            Characteristic.RESISTANCE_CRITICAL
-        )
+    // The GA scorers weight each target by a Double = (100 / target) * userDefinedWeight, which is
+    // almost always < 1 for high targets (e.g. HP target 2000 -> 0.05). Truncating that to Long with
+    // .toLong() collapsed those weights to 0, silently dropping HP and any target > 100 from the
+    // objective. We instead carry the weight in fixed-point (x WEIGHT_SCALE), which preserves both
+    // the per-target 100/target normalization and userDefinedWeight. Because the same scale is
+    // applied to the expected and the actual score, the success ratio that drives the penalty is
+    // unchanged.
+    private const val WEIGHT_SCALE = 1_000L
 
     private val NON_ELEMENTARY_MASTERIES =
         listOf(
@@ -85,31 +76,136 @@ object WakfuBuildSolver {
         Loader.loadNativeLibraries()
     }
 
+    /** Fixed-point version of [TargetStats.weight] so sub-unit weights survive integer arithmetic. */
+    private fun TargetStats.scaledWeight(targetStat: TargetStat): Long = (weight(targetStat) * WEIGHT_SCALE).roundToLong()
+
+    private val ELEMENTARY_MASTERIES =
+        listOf(
+            Characteristic.MASTERY_ELEMENTARY_WATER,
+            Characteristic.MASTERY_ELEMENTARY_FIRE,
+            Characteristic.MASTERY_ELEMENTARY_EARTH,
+            Characteristic.MASTERY_ELEMENTARY_WIND
+        )
+
+    private val ELEMENTARY_RESISTANCES =
+        listOf(
+            Characteristic.RESISTANCE_ELEMENTARY_WATER,
+            Characteristic.RESISTANCE_ELEMENTARY_FIRE,
+            Characteristic.RESISTANCE_ELEMENTARY_EARTH,
+            Characteristic.RESISTANCE_ELEMENTARY_WIND
+        )
+
+    // Upper bound for the "exceed the target once everything is met" tie-breaker. Far above any
+    // realistic scaled overflow, so the clamp never triggers in practice while keeping the
+    // lexicographic objective (hit targets first, then maximise overflow) inside Long range.
+    private const val PRECISION_OVERFLOW_BOUND = 1_000_000_000L
+
+    private val RANDOM_RESISTANCES =
+        listOf(
+            Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT,
+            Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT,
+            Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT
+        )
+
+    /**
+     * Only elemental / resistance targets pull in the per-item random-element modelling that makes
+     * the full late-game pool intractable; everything else solves to a proven global optimum on the
+     * full pool, so we keep the prefilter (which trades global optimality for tractability) opt-in.
+     */
+    private fun needsItemPrefilter(targetStats: TargetStats): Boolean = targetStats.masteryElementsWanted.isNotEmpty() || targetStats.resistanceElementsWanted.isNotEmpty()
+
+    /**
+     * Restricts each slot to the items that can plausibly matter for the requested stats. The full
+     * pool produces a CP-SAT model with tens of thousands of booleans that presolve cannot reduce in
+     * time; keeping only the strongest items per requested characteristic (plus forced items) shrinks
+     * the model dramatically, so presolve stays fast and the search reaches strong solutions.
+     */
+    private fun prefilterRelevantEquipments(
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        params: WakfuBestBuildParams,
+        topPerCharacteristic: Int = 8,
+    ): Map<ItemType, List<Equipment>> {
+        val relevant = relevantCharacteristics(params.targetStats)
+        if (relevant.isEmpty()) return equipmentsByItemType
+        val forced = params.forcedItems.map { it.lowercase() }.toSet()
+
+        return equipmentsByItemType.mapValues { (_, items) ->
+            val keep = LinkedHashSet<Equipment>()
+            items.filter { it.name.fr.lowercase() in forced }.forEach { keep.add(it) }
+            for (characteristic in relevant) {
+                items
+                    .asSequence()
+                    .filter { it.valueFor(characteristic) > 0 }
+                    .sortedByDescending { it.valueFor(characteristic) }
+                    .take(topPerCharacteristic)
+                    .forEach { keep.add(it) }
+            }
+            if (keep.isEmpty()) items else keep.toList()
+        }
+    }
+
+    private fun relevantCharacteristics(targetStats: TargetStats): Set<Characteristic> {
+        val result = mutableSetOf<Characteristic>()
+        for (targetStat in targetStats) {
+            val characteristic = targetStat.characteristic
+            result.add(characteristic)
+            when (characteristic) {
+                // Aggregate request: every element is wanted, fed by specific + generic + random.
+                Characteristic.MASTERY_ELEMENTARY -> {
+                    result.addAll(ELEMENTARY_MASTERIES)
+                    result.addAll(RANDOM_MASTERY_COUNTS.keys)
+                }
+                // Specific element (e.g. fire): the generic "+all elements" stat and random masteries
+                // also feed it, so keep those items — but not the sibling elements, which do not.
+                in ELEMENTARY_MASTERIES -> {
+                    result.add(Characteristic.MASTERY_ELEMENTARY)
+                    result.addAll(RANDOM_MASTERY_COUNTS.keys)
+                }
+                Characteristic.RESISTANCE_ELEMENTARY -> {
+                    result.addAll(ELEMENTARY_RESISTANCES)
+                    result.addAll(RANDOM_RESISTANCES)
+                }
+                in ELEMENTARY_RESISTANCES -> {
+                    result.add(Characteristic.RESISTANCE_ELEMENTARY)
+                    result.addAll(RANDOM_RESISTANCES)
+                }
+                else -> Unit
+            }
+        }
+        return result
+    }
+
     fun optimize(
         params: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
     ): Flow<GeneticAlgorithmResult<BuildCombination>> =
         callbackFlow {
-            require(params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) {
-                "Only FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT is supported in the LP solver"
-            }
-
             withContext(Dispatchers.IO) {
                 val model = CpModel()
 
-                val allEquips = orderEquipments(equipmentsByItemType)
+                // Full pool gives the provable *global* optimum and stays tractable for most queries.
+                // Only elemental/resistance targets activate the heavy random-element modelling that
+                // explodes on the full late-game pool, so we prefilter exactly (and only) those cases.
+                val pool =
+                    if (needsItemPrefilter(params.targetStats)) {
+                        prefilterRelevantEquipments(equipmentsByItemType, params)
+                    } else {
+                        equipmentsByItemType
+                    }
+                val allEquips = orderEquipments(pool)
                 val equipVars = model.createEquipmentVariables(allEquips)
                 val skillVars = model.createSkillVariables(params.character.characterSkills)
 
                 model.addBuildValidityConstraints(allEquips, equipVars)
 
                 val objective =
-                    model.buildMostMasteriesObjective(
-                        params = params,
-                        allEquips = allEquips,
-                        equipVars = equipVars,
-                        skillVars = skillVars
-                    )
+                    when (params.scoreComputationMode) {
+                        ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
+                            model.buildMostMasteriesObjective(params, allEquips, equipVars, skillVars)
+
+                        ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
+                            model.buildPrecisionObjective(params, allEquips, equipVars, skillVars)
+                    }
                 model.maximize(objective)
 
                 executeSolverAndEmitResults(model, params, allEquips, equipVars, skillVars, this@callbackFlow)
@@ -236,10 +332,10 @@ object WakfuBuildSolver {
         val targetStats = params.targetStats
         val targetCharacteristics = targetStats.map { it.characteristic }.toSet()
 
-        val requiredTargets = targetStats.filter { it.characteristic in PRE_MASTERY_STATS }
+        val requiredTargets = targetStats.filter { !it.characteristic.isMaximizableMastery() }
         val totalExpectedScore =
             requiredTargets
-                .sumOf { it.target.toLong() * targetStats.weight(it).toLong() }
+                .sumOf { it.target.toLong() * targetStats.scaledWeight(it) }
                 .coerceAtLeast(1L)
 
         val masteryScore = statBuilder.finalMasteryScore(targetStats, targetCharacteristics)
@@ -265,6 +361,37 @@ object WakfuBuildSolver {
         return objective
     }
 
+    private fun CpModel.buildPrecisionObjective(
+        params: WakfuBestBuildParams,
+        allEquips: List<Equipment>,
+        equipVars: Map<Equipment, IntVar>,
+        skillVars: Map<SkillCharacteristic, IntVar>,
+    ): IntVar {
+        val statBuilder = StatBuilder(this, params, allEquips, equipVars, skillVars)
+        return statBuilder.precisionScore(params.targetStats)
+    }
+
+    /** Exact score of a candidate build, using the scorer that matches the requested mode. */
+    private fun scoreFor(
+        params: WakfuBestBuildParams,
+        combination: BuildCombination,
+    ): BigDecimal =
+        when (params.scoreComputationMode) {
+            ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
+                FindMostMasteriesFromInputScoring.computeScore(
+                    targetStats = params.targetStats,
+                    buildCombination = combination,
+                    characterBaseCharacteristics = params.character.baseCharacteristicValues
+                )
+
+            ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
+                FindClosestBuildFromInputScoring.computeScore(
+                    targetStats = params.targetStats,
+                    buildCombination = combination,
+                    characterBaseCharacteristics = params.character.baseCharacteristicValues
+                )
+        }
+
     private fun executeSolverAndEmitResults(
         model: CpModel,
         params: WakfuBestBuildParams,
@@ -275,7 +402,12 @@ object WakfuBuildSolver {
     ) {
         val solver = CpSolver()
         solver.parameters.maxTimeInSeconds = params.searchDuration.inWholeSeconds.toDouble()
-        solver.parameters.logSearchProgress = true
+        solver.parameters.logSearchProgress = false
+        // Run a parallel portfolio across all cores (CP-SAT's equivalent of the GA's parallel
+        // scoring). Presolve is capped because full presolve on this objective never terminates in
+        // the time budget; the prefiltered (small) model keeps even a light presolve effective.
+        solver.parameters.numSearchWorkers = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
+        solver.parameters.maxPresolveIterations = 1
 
         val startTime = System.currentTimeMillis()
 
@@ -300,12 +432,7 @@ object WakfuBuildSolver {
                     }
 
                     val combination = BuildCombination(equippedItems, optimizedSkills)
-                    val actualScore =
-                        FindMostMasteriesFromInputScoring.computeScore(
-                            targetStats = params.targetStats,
-                            buildCombination = combination,
-                            characterBaseCharacteristics = params.character.baseCharacteristicValues
-                        )
+                    val actualScore = scoreFor(params, combination)
 
                     if (actualScore > bestScore) {
                         bestScore = actualScore
@@ -336,13 +463,15 @@ object WakfuBuildSolver {
                     }
                 }
                 val finalComb = BuildCombination(equippedItems, optimizedSkills)
-                val finalScore =
-                    FindMostMasteriesFromInputScoring.computeScore(
-                        targetStats = params.targetStats,
-                        buildCombination = finalComb,
-                        characterBaseCharacteristics = params.character.baseCharacteristicValues
+                val finalScore = scoreFor(params, finalComb)
+                scope.trySend(
+                    GeneticAlgorithmResult(
+                        individual = finalComb,
+                        matchPercentage = finalScore,
+                        progressPercentage = 100,
+                        isOptimal = status == com.google.ortools.sat.CpSolverStatus.OPTIMAL
                     )
-                scope.trySend(GeneticAlgorithmResult(finalComb, finalScore, 100))
+                )
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -368,28 +497,180 @@ object WakfuBuildSolver {
             totalExpectedScore: Long,
             targetStats: TargetStats,
         ): IntVar {
-            val cappedScores =
+            // Score each constraint as weight * clamp(actual, -target, target). Clamping *before*
+            // multiplying by the (fixed-point) weight keeps the weighted domain tight (~target*weight)
+            // instead of STAT_WITH_PERCENT_ABS_MAX*weight, which otherwise blows the integer domains up
+            // and makes the model intractable on the full item set. The low clamp at -target is
+            // faithful to the scorer: totalActualScore is floored at 1 before the penalty ratio, so a
+            // constraint dragged below -target already maxes out the penalty either way.
+            val contributions =
                 requiredTargets.map { targetStat ->
                     val actual = actualStat(targetStat.characteristic)
-                    val weight = targetStats.weight(targetStat).toLong()
-                    val weighted =
-                        if (weight == 1L) {
-                            actual
-                        } else {
-                            val weightedVar = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX * weight, STAT_WITH_PERCENT_ABS_MAX * weight, "weighted_${targetStat.characteristic.name}")
-                            model.addEquality(weightedVar, LinearExpr.term(actual, weight))
-                            weightedVar
-                        }
+                    val weight = targetStats.scaledWeight(targetStat)
+                    val target = targetStat.target.toLong()
+                    val name = targetStat.characteristic.name
 
-                    val expectedScore = targetStat.target.toLong() * weight
-                    val capped = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX * weight, expectedScore, "capped_${targetStat.characteristic.name}")
-                    model.addMinEquality(capped, arrayOf(weighted, model.newConstant(expectedScore)))
-                    capped
+                    val cappedAtTarget = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, target.coerceAtLeast(0), "capAt_$name")
+                    model.addMinEquality(cappedAtTarget, arrayOf(actual, model.newConstant(target)))
+
+                    val clamped = model.newIntVar(-target.coerceAtLeast(0), target.coerceAtLeast(0), "clamp_$name")
+                    model.addMaxEquality(clamped, arrayOf(cappedAtTarget, model.newConstant(-target)))
+
+                    val expectedScore = target * weight
+                    val contribution = model.newIntVar(-expectedScore, expectedScore, "contrib_$name")
+                    model.addEquality(contribution, LinearExpr.term(clamped, weight))
+                    contribution
                 }
 
-            val maxWeight = requiredTargets.maxOfOrNull { targetStats.weight(it).toLong() } ?: 1L
-            val minSum = -STAT_WITH_PERCENT_ABS_MAX * maxWeight * requiredTargets.size
-            return model.sumVar("totalActualScore", cappedScores, minSum, totalExpectedScore)
+            return model.sumVar("totalActualScore", contributions, -totalExpectedScore, totalExpectedScore)
+        }
+
+        /**
+         * Models [FindClosestBuildFromInputScoring] as a CP-SAT objective: every requested stat
+         * scores min(weight * actual, weight * target); the aggregate elementary stats average the
+         * four elements. Two refinements mirror the scorer: a target-0 stat that ends up negative
+         * halves the score, and once every target is fully met the build that exceeds the targets
+         * the most ranks higher (lexicographic capped-then-overflow objective).
+         */
+        fun precisionScore(targetStats: TargetStats): IntVar {
+            val capped = mutableListOf<IntVar>()
+            val uncapped = mutableListOf<IntVar>()
+            var totalExpected = 0L
+
+            for (targetStat in targetStats) {
+                val weight = targetStats.scaledWeight(targetStat)
+                if (weight == 0L) continue
+                val expected = targetStat.target.toLong() * weight
+                val name = targetStat.characteristic.name
+                val (cappedVar, uncappedVar) =
+                    when (targetStat.characteristic) {
+                        Characteristic.MASTERY_ELEMENTARY ->
+                            averagedContribution(elementMasteryVars(ELEMENTARY_MASTERIES).values.toList(), weight, expected, name)
+
+                        Characteristic.RESISTANCE_ELEMENTARY ->
+                            averagedContribution(ELEMENTARY_RESISTANCES.map { actualStat(it) }, weight, expected, name)
+
+                        else -> cappedContribution(actualStat(targetStat.characteristic), weight, expected, name)
+                    }
+                capped.add(cappedVar)
+                uncapped.add(uncappedVar)
+                totalExpected += expected
+            }
+
+            val totalExpectedScore = totalExpected.coerceAtLeast(1L)
+            val maxWeight = (targetStats.maxOfOrNull { targetStats.scaledWeight(it) } ?: 1L).coerceAtLeast(1L)
+            val bound = STAT_WITH_PERCENT_ABS_MAX * maxWeight * targetStats.size.coerceAtLeast(1)
+
+            val cappedSum = model.sumVar("precisionCapped", capped, -bound, totalExpectedScore)
+            val uncappedSum = model.sumVar("precisionUncapped", uncapped, -bound, bound)
+            val penalizedCapped = negativeTargetPenalty(targetStats, cappedSum, -bound, totalExpectedScore)
+
+            // overflow = how far the build exceeds the targets; always >= 0 because each capped term
+            // is <= its uncapped term. It is only rewarded once every target is met (see fullyMet).
+            val rawOverflow = model.newIntVar(0, 2 * bound, "precisionRawOverflow")
+            model.addEquality(
+                rawOverflow,
+                LinearExpr
+                    .newBuilder()
+                    .addTerm(uncappedSum, 1)
+                    .addTerm(cappedSum, -1)
+                    .build()
+            )
+            val clampedOverflow = model.newIntVar(0, PRECISION_OVERFLOW_BOUND, "precisionOverflow")
+            model.addMinEquality(clampedOverflow, arrayOf(rawOverflow, model.newConstant(PRECISION_OVERFLOW_BOUND)))
+
+            val fullyMet = model.newBoolVar("precisionFullyMet")
+            model.addGreaterOrEqual(penalizedCapped, totalExpectedScore).onlyEnforceIf(fullyMet)
+            model.addLessOrEqual(penalizedCapped, totalExpectedScore - 1).onlyEnforceIf(fullyMet.not())
+
+            val bonus = model.newIntVar(0, PRECISION_OVERFLOW_BOUND, "precisionBonus")
+            model.addEquality(bonus, clampedOverflow).onlyEnforceIf(fullyMet)
+            model.addEquality(bonus, 0L).onlyEnforceIf(fullyMet.not())
+
+            val objective = model.newIntVar(-bound, totalExpectedScore + PRECISION_OVERFLOW_BOUND, "precisionObjective")
+            model.addEquality(
+                objective,
+                LinearExpr
+                    .newBuilder()
+                    .addTerm(penalizedCapped, 1)
+                    .addTerm(bonus, 1)
+                    .build()
+            )
+            return objective
+        }
+
+        private fun cappedContribution(
+            actual: IntVar,
+            weight: Long,
+            expected: Long,
+            name: String,
+        ): Pair<IntVar, IntVar> {
+            val span = STAT_WITH_PERCENT_ABS_MAX * weight
+            val weighted = model.newIntVar(-span, span, "precWeighted_$name")
+            model.addEquality(weighted, LinearExpr.term(actual, weight))
+            val cappedVar = model.newIntVar(-span, expected, "precCapped_$name")
+            model.addMinEquality(cappedVar, arrayOf(weighted, model.newConstant(expected)))
+            return cappedVar to weighted
+        }
+
+        private fun averagedContribution(
+            elementActuals: List<IntVar>,
+            weight: Long,
+            expected: Long,
+            name: String,
+        ): Pair<IntVar, IntVar> {
+            val cappedElements = mutableListOf<IntVar>()
+            val uncappedElements = mutableListOf<IntVar>()
+            elementActuals.forEachIndexed { index, element ->
+                val (cappedVar, uncappedVar) = cappedContribution(element, weight, expected, "${name}_$index")
+                cappedElements.add(cappedVar)
+                uncappedElements.add(uncappedVar)
+            }
+            val count = elementActuals.size.coerceAtLeast(1)
+            val span = STAT_WITH_PERCENT_ABS_MAX * weight * count
+            val cappedSum = model.sumVar("precElemCapped_$name", cappedElements, -span, expected * count)
+            val uncappedSum = model.sumVar("precElemUncapped_$name", uncappedElements, -span, span)
+            val cappedAvg = model.newIntVar(-span, expected, "precElemCappedAvg_$name")
+            model.addDivisionEquality(cappedAvg, cappedSum, model.newConstant(count.toLong()))
+            val uncappedAvg = model.newIntVar(-span, span, "precElemUncappedAvg_$name")
+            model.addDivisionEquality(uncappedAvg, uncappedSum, model.newConstant(count.toLong()))
+            return cappedAvg to uncappedAvg
+        }
+
+        private fun negativeTargetPenalty(
+            targetStats: TargetStats,
+            cappedSum: IntVar,
+            low: Long,
+            high: Long,
+        ): IntVar {
+            val zeroTargets =
+                targetStats.filter {
+                    it.target == 0 &&
+                        it.characteristic != Characteristic.MASTERY_ELEMENTARY &&
+                        it.characteristic != Characteristic.RESISTANCE_ELEMENTARY
+                }
+            if (zeroTargets.isEmpty()) return cappedSum
+
+            val flagsSum = LinearExpr.newBuilder()
+            for (targetStat in zeroTargets) {
+                val actual = actualStat(targetStat.characteristic)
+                val isNegative = model.newBoolVar("precNeg_${targetStat.characteristic.name}")
+                model.addLessOrEqual(actual, -1L).onlyEnforceIf(isNegative)
+                model.addGreaterOrEqual(actual, 0L).onlyEnforceIf(isNegative.not())
+                flagsSum.addTerm(isNegative, 1)
+            }
+            val anyNegative = model.newBoolVar("precAnyNegativeTarget0")
+            val flags = flagsSum.build()
+            model.addGreaterOrEqual(flags, 1L).onlyEnforceIf(anyNegative)
+            model.addLessOrEqual(flags, 0L).onlyEnforceIf(anyNegative.not())
+
+            val halved = model.newIntVar(low, high, "precHalvedCapped")
+            model.addDivisionEquality(halved, cappedSum, model.newConstant(2L))
+
+            val penalized = model.newIntVar(low, high, "precPenalizedCapped")
+            model.addEquality(penalized, cappedSum).onlyEnforceIf(anyNegative.not())
+            model.addEquality(penalized, halved).onlyEnforceIf(anyNegative)
+            return penalized
         }
 
         fun finalMasteryScore(
