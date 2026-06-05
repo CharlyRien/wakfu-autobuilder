@@ -90,7 +90,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 private val logger = KotlinLogging.logger {}
-internal const val VERSION = "1.91.1.53"
+internal const val VERSION = "1.91.1.54"
 
 fun main(args: Array<String>) = WakfuAutobuild().main(args)
 

@@ -37,11 +37,11 @@ private fun getRandomCombination(
                     ring1?.let { add(it) }
                     var ring2 = equipmentsByItemType[ItemType.RING]?.random(random)
                     var count = 0
-                    while (ring2?.name == ring1?.name || count < 10) {
+                    while (ring2?.name == ring1?.name && count < 10) {
                         count++
                         ring2 = equipmentsByItemType[ItemType.RING]?.random(random)
                     }
-                    ring2?.let { add(it) }
+                    ring2?.takeUnless { it.name == ring1?.name }?.let { add(it) }
                     equipmentsByItemType[ItemType.HELMET]?.random(random)?.let { add(it) }
                     equipmentsByItemType[ItemType.AMULET]?.random(random)?.let { add(it) }
                     equipmentsByItemType[ItemType.EMBLEM]?.random(random)?.let { add(it) }

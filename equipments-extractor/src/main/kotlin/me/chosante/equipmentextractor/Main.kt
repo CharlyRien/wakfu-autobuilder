@@ -11,6 +11,14 @@ suspend fun main() {
     val latestWakfuVersion = wakfuAPILatestVersion()
     val wakfuRawData = getWakfuRawData(latestWakfuVersion)
     val equipments = extractData(wakfuRawData)
-    File("autobuilder/src/main/resources", "equipments-v$latestWakfuVersion.json")
+    val repositoryRoot = findRepositoryRoot()
+    val outputDirectory = File(repositoryRoot, "autobuilder/src/main/resources").apply { mkdirs() }
+
+    File(outputDirectory, "equipments-v$latestWakfuVersion.json")
         .writeText(Json.encodeToString(ListSerializer(Equipment.serializer()), equipments))
 }
+
+private fun findRepositoryRoot(): File =
+    generateSequence(File(System.getProperty("user.dir")).absoluteFile) { it.parentFile }
+        .firstOrNull { File(it, "settings.gradle.kts").exists() }
+        ?: error("Unable to locate repository root from ${System.getProperty("user.dir")}")

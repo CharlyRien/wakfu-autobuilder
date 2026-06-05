@@ -4,11 +4,12 @@ import java.nio.file.StandardCopyOption
 import java.util.Properties
 import kotlin.io.path.createTempDirectory
 import kotlin.io.path.createTempFile
+import org.gradle.api.tasks.JavaExec
 
 plugins {
     kotlin("jvm")
     id("org.openjfx.javafxplugin") version "0.1.0"
-    id("dev.hydraulic.conveyor") version "1.13"
+    id("dev.hydraulic.conveyor") version "2.0"
     alias(libs.plugins.ktlint)
     application
 }
@@ -123,6 +124,10 @@ tasks {
 
     test {
         useJUnitPlatform()
+    }
+
+    withType<JavaExec>().configureEach {
+        jvmArgs("--enable-native-access=javafx.graphics")
     }
 }
 
