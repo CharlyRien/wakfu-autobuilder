@@ -10,8 +10,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
@@ -31,9 +29,10 @@ import me.chosante.ui.stats.StatsPanel
 import me.chosante.ui.theme.WColor
 
 @Composable
-fun AppShell(modifier: Modifier = Modifier) {
-    val scope = rememberCoroutineScope()
-    val model = remember { BuildSearchModel(scope) }
+fun AppShell(
+    model: BuildSearchModel,
+    modifier: Modifier = Modifier,
+) {
     val ui = model.ui
     val addStatExcludedCharacteristics =
         ui.targets.map { it.characteristic }.toSet() +
@@ -96,7 +95,11 @@ fun AppShell(modifier: Modifier = Modifier) {
                             },
                         modifier = Modifier.weight(1f)
                     ) {
-                        PaperdollPanel(ui = ui)
+                        PaperdollPanel(
+                            ui = ui,
+                            onForceItem = model::forceItem,
+                            onExcludeItem = model::excludeItem
+                        )
                     }
                     VerticalSeparator()
                     ShellColumn(

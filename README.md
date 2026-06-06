@@ -10,7 +10,7 @@
 <br />
 <div align="center">
   <a href="https://github.com/CharlyRien/wakfu-autobuilder">
-    <img src="gui/src/main/resources/logo.png" alt="Logo" width="512" height="512">
+    <img src="gui-compose/src/main/resources/assets/branding/wordmark.png" alt="Wakfu Auto-Builder" width="480">
   </a>
 
 <h3 align="center">Wakfu autobuilder</h3>

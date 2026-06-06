@@ -6,11 +6,13 @@ import com.google.ortools.sat.CpSolver
 import com.google.ortools.sat.CpSolverSolutionCallback
 import com.google.ortools.sat.IntVar
 import com.google.ortools.sat.LinearExpr
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStat
@@ -31,6 +33,8 @@ import kotlin.math.min
 import kotlin.math.roundToLong
 
 object WakfuBuildSolver {
+    private val logger = KotlinLogging.logger {}
+
     private const val STAT_ABS_MAX = 10_000_000L
     private const val PERCENT_ABS_MAX = 10_000L
     private const val PRODUCT_ABS_MAX = STAT_ABS_MAX * PERCENT_ABS_MAX
@@ -76,6 +80,43 @@ object WakfuBuildSolver {
         Loader.loadNativeLibraries()
     }
 
+    private val warmedUp =
+        java.util.concurrent.atomic
+            .AtomicBoolean(false)
+
+    /**
+     * Pays OR-Tools' one-time cold-start cost up front, off any search's critical path. The very
+     * first real search is otherwise slow because touching this object loads the native library
+     * (`init` above), the CP-SAT Java types are class-loaded on first use, and the solver spins up
+     * its worker-thread pool / engine state on the first `solve`. We trigger all of that here on a
+     * throwaway model so later searches start warm; subsequent searches are already fast because
+     * none of this is repeated. Idempotent and safe to call from any thread (e.g. during app
+     * startup, concurrently with other warm-up work).
+     */
+    fun warmUp() {
+        if (!warmedUp.compareAndSet(false, true)) return
+        // Referencing this object already ran `init { Loader.loadNativeLibraries() }`.
+        val model = CpModel()
+        val a = model.newBoolVar("warmup_a")
+        val b = model.newBoolVar("warmup_b")
+        model.addLessOrEqual(LinearExpr.sum(arrayOf<IntVar>(a, b)), 1L)
+        model.maximize(
+            LinearExpr
+                .newBuilder()
+                .addTerm(a, 1L)
+                .addTerm(b, 1L)
+                .build()
+        )
+        val solver = CpSolver()
+        solver.parameters.maxTimeInSeconds = 1.0
+        solver.parameters.logSearchProgress = false
+        // Use the full core count, exactly like the real search, so the multi-worker portfolio is
+        // spun up here too. The CPU spike is safe because warm-up runs behind the lightweight
+        // loading screen — the heavy main UI only mounts once this has finished.
+        solver.parameters.numSearchWorkers = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
+        solver.solve(model)
+    }
+
     /** Fixed-point version of [TargetStats.weight] so sub-unit weights survive integer arithmetic. */
     private fun TargetStats.scaledWeight(targetStat: TargetStat): Long = (weight(targetStat) * WEIGHT_SCALE).roundToLong()
 
@@ -105,6 +146,22 @@ object WakfuBuildSolver {
             Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT,
             Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT,
             Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT
+        )
+
+    // Per-element random lines paired with how many distinct elements each rolls onto. Used to fold
+    // random masteries/resistances into specific elements exactly as the scorers do.
+    private val MASTERY_RANDOM_BY_COUNT =
+        listOf(
+            Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT to 1,
+            Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT to 2,
+            Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT to 3
+        )
+
+    private val RESISTANCE_RANDOM_BY_COUNT =
+        listOf(
+            Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT to 1,
+            Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT to 2,
+            Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT to 3
         )
 
     /**
@@ -322,6 +379,18 @@ object WakfuBuildSolver {
         }
     }
 
+    /**
+     * Objective for "most masteries" mode: maximize only the *requested* masteries under the
+     * required-stat constraints. There is deliberately no tie-breaker that fills otherwise-empty
+     * slots, so a slot whose items cannot improve any requested stat is left empty in the proven
+     * optimum. This is why, e.g., an item set asking only for distance mastery + AP/MP/HP comes
+     * back with no mount: every mount in the data carries only [Characteristic.MASTERY_ELEMENTARY],
+     * which contributes to none of those targets. The genetic algorithm appears to "find" a mount
+     * only because each of its individuals starts with every slot filled and nothing pushes it to
+     * drop a zero-value item — that mount does not raise the GA score either. Both engines reach
+     * the same optimum for the requested stats; only the empty slot differs. (Decision: keep as-is;
+     * see the engine discussion in AGENTS.md §4.)
+     */
     private fun CpModel.buildMostMasteriesObjective(
         params: WakfuBestBuildParams,
         allEquips: List<Equipment>,
@@ -332,7 +401,7 @@ object WakfuBuildSolver {
         val targetStats = params.targetStats
         val targetCharacteristics = targetStats.map { it.characteristic }.toSet()
 
-        val requiredTargets = targetStats.filter { !it.characteristic.isMaximizableMastery() }
+        val requiredTargets = targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }
         val totalExpectedScore =
             requiredTargets
                 .sumOf { it.target.toLong() * targetStats.scaledWeight(it) }
@@ -392,7 +461,7 @@ object WakfuBuildSolver {
                 )
         }
 
-    private fun executeSolverAndEmitResults(
+    private suspend fun executeSolverAndEmitResults(
         model: CpModel,
         params: WakfuBestBuildParams,
         allEquips: List<Equipment>,
@@ -413,30 +482,17 @@ object WakfuBuildSolver {
 
         val cb =
             object : CpSolverSolutionCallback() {
-                var bestScore = BigDecimal.ZERO
-
                 override fun onSolutionCallback() {
-                    val equippedItems = mutableListOf<Equipment>()
-                    for (equip in allEquips) {
-                        if (value(equipVars.getValue(equip)) > 0L) {
-                            equippedItems.add(equip)
-                        }
+                    // The native solve blocks the IO thread, so coroutine cancellation can't interrupt
+                    // it directly; stopping the search here (next time a solution is found) is the
+                    // CP-SAT idiom that lets the GUI's cancel actually end the work.
+                    if (!scope.isActive) {
+                        stopSearch()
+                        return
                     }
 
-                    val optimizedSkills = CharacterSkills(params.character.level)
-                    for (skill in optimizedSkills.allCharacteristic) {
-                        val matchedVar = skillVars.entries.find { it.key.name == skill.name }?.value
-                        if (matchedVar != null) {
-                            skill.setPointAssigned(value(matchedVar).toInt())
-                        }
-                    }
-
-                    val combination = BuildCombination(equippedItems, optimizedSkills)
+                    val combination = solutionToBuild(params, allEquips, equipVars, skillVars) { value(it) }
                     val actualScore = scoreFor(params, combination)
-
-                    if (actualScore > bestScore) {
-                        bestScore = actualScore
-                    }
 
                     val progress = ((System.currentTimeMillis() - startTime).toDouble() / params.searchDuration.inWholeMilliseconds.toDouble() * 100).toInt()
                     scope.trySend(GeneticAlgorithmResult(combination, actualScore, progress.coerceAtMost(100)))
@@ -445,37 +501,54 @@ object WakfuBuildSolver {
 
         try {
             val status = solver.solve(model, cb)
-            println("Solver status returned: $status")
-            println("Solver response stats: \n${solver.responseStats()}")
+            logger.debug { "Solver status returned: $status" }
+            logger.debug { "Solver response stats:\n${solver.responseStats()}" }
 
             if (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL || status == com.google.ortools.sat.CpSolverStatus.FEASIBLE) {
-                val equippedItems = mutableListOf<Equipment>()
-                for (equip in allEquips) {
-                    if (solver.value(equipVars.getValue(equip)) > 0L) {
-                        equippedItems.add(equip)
-                    }
-                }
-                val optimizedSkills = CharacterSkills(params.character.level)
-                for (skill in optimizedSkills.allCharacteristic) {
-                    val matchedVar = skillVars.entries.find { it.key.name == skill.name }?.value
-                    if (matchedVar != null) {
-                        skill.setPointAssigned(solver.value(matchedVar).toInt())
-                    }
-                }
-                val finalComb = BuildCombination(equippedItems, optimizedSkills)
+                val finalComb = solutionToBuild(params, allEquips, equipVars, skillVars) { solver.value(it) }
                 val finalScore = scoreFor(params, finalComb)
-                scope.trySend(
-                    GeneticAlgorithmResult(
-                        individual = finalComb,
-                        matchPercentage = finalScore,
-                        progressPercentage = 100,
-                        isOptimal = status == com.google.ortools.sat.CpSolverStatus.OPTIMAL
+                // Guaranteed delivery (suspending send, not trySend): intermediate best-so-far
+                // emissions are best-effort progress and may be dropped under back-pressure, but the
+                // final/optimal build must never be lost to a saturated callbackFlow buffer.
+                if (scope.isActive) {
+                    scope.send(
+                        GeneticAlgorithmResult(
+                            individual = finalComb,
+                            matchPercentage = finalScore,
+                            progressPercentage = 100,
+                            isOptimal = status == com.google.ortools.sat.CpSolverStatus.OPTIMAL
+                        )
                     )
-                )
+                }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            logger.error(e) { "Solver failed while searching for the best build." }
         }
+    }
+
+    /**
+     * Rebuilds a [BuildCombination] from a solved assignment. Skill points are mapped back by the
+     * *position* of each skill in [CharacterSkills.allCharacteristic] — identical between the params'
+     * skills (used to create the variables) and the fresh skills here — never by name: two distinct
+     * skills share the name "Resistance Elementary" (Intelligence vs Major), so a name lookup would
+     * cross-assign their points and corrupt both the build and its recomputed score.
+     */
+    private fun solutionToBuild(
+        params: WakfuBestBuildParams,
+        allEquips: List<Equipment>,
+        equipVars: Map<Equipment, IntVar>,
+        skillVars: Map<SkillCharacteristic, IntVar>,
+        valueOf: (IntVar) -> Long,
+    ): BuildCombination {
+        val equippedItems = allEquips.filter { valueOf(equipVars.getValue(it)) > 0L }
+
+        val optimizedSkills = CharacterSkills(params.character.level)
+        val originalSkills = params.character.characterSkills.allCharacteristic
+        optimizedSkills.allCharacteristic.forEachIndexed { index, skill ->
+            skillVars[originalSkills[index]]?.let { skill.setPointAssigned(valueOf(it).toInt()) }
+        }
+
+        return BuildCombination(equippedItems, optimizedSkills)
     }
 
     private class StatBuilder(
@@ -490,7 +563,7 @@ object WakfuBuildSolver {
 
         private val prePercentCache = mutableMapOf<Characteristic, IntVar>()
         private val actualCache = mutableMapOf<Characteristic, IntVar>()
-        private val elementCache = mutableMapOf<List<Characteristic>, Map<Characteristic, IntVar>>()
+        private val elementCache = mutableMapOf<Pair<Characteristic, List<Characteristic>>, Map<Characteristic, IntVar>>()
 
         fun totalActualScore(
             requiredTargets: List<TargetStat>,
@@ -505,7 +578,7 @@ object WakfuBuildSolver {
             // constraint dragged below -target already maxes out the penalty either way.
             val contributions =
                 requiredTargets.map { targetStat ->
-                    val actual = actualStat(targetStat.characteristic)
+                    val actual = requiredActualStat(targetStat.characteristic)
                     val weight = targetStats.scaledWeight(targetStat)
                     val target = targetStat.target.toLong()
                     val name = targetStat.characteristic.name
@@ -548,9 +621,9 @@ object WakfuBuildSolver {
                             averagedContribution(elementMasteryVars(ELEMENTARY_MASTERIES).values.toList(), weight, expected, name)
 
                         Characteristic.RESISTANCE_ELEMENTARY ->
-                            averagedContribution(ELEMENTARY_RESISTANCES.map { actualStat(it) }, weight, expected, name)
+                            averagedContribution(elementResistanceVars(ELEMENTARY_RESISTANCES).values.toList(), weight, expected, name)
 
-                        else -> cappedContribution(actualStat(targetStat.characteristic), weight, expected, name)
+                        else -> cappedContribution(foldedElementalStat(targetStat.characteristic), weight, expected, name)
                     }
                 capped.add(cappedVar)
                 uncapped.add(uncappedVar)
@@ -718,10 +791,69 @@ object WakfuBuildSolver {
             return total
         }
 
-        private fun elementMasteryVars(wantedElements: List<Characteristic>): Map<Characteristic, IntVar> {
-            val key = wantedElements.toList()
+        private fun elementMasteryVars(wantedElements: List<Characteristic>): Map<Characteristic, IntVar> =
+            elementVars(
+                wantedElements = wantedElements,
+                genericCharacteristic = Characteristic.MASTERY_ELEMENTARY,
+                targets = params.targetStats.masteryElementsWanted,
+                randomByCount = MASTERY_RANDOM_BY_COUNT
+            )
+
+        private fun elementResistanceVars(wantedElements: List<Characteristic>): Map<Characteristic, IntVar> =
+            elementVars(
+                wantedElements = wantedElements,
+                genericCharacteristic = Characteristic.RESISTANCE_ELEMENTARY,
+                targets = params.targetStats.resistanceElementsWanted,
+                randomByCount = RESISTANCE_RANDOM_BY_COUNT
+            )
+
+        /**
+         * Actual per-element value of an elemental mastery/resistance with the generic "+all elements"
+         * stat folded in — the way the scorers compute it (see `currentStatSpecificElements`). Falls
+         * back to the plain [actualStat] for any non-elemental characteristic. Routing single-element
+         * targets through here is what lets the solver see generic-mastery / generic-resistance gear
+         * and the Major aptitudes (which carry [Characteristic.MASTERY_ELEMENTARY] /
+         * [Characteristic.RESISTANCE_ELEMENTARY]); without it those contributions were invisible and
+         * the matching items/aptitudes were never selected.
+         */
+        private fun foldedElementalStat(characteristic: Characteristic): IntVar =
+            when (characteristic) {
+                in ELEMENTARY_MASTERIES -> elementMasteryVars(listOf(characteristic)).getValue(characteristic)
+                in ELEMENTARY_RESISTANCES -> elementResistanceVars(listOf(characteristic)).getValue(characteristic)
+                else -> actualStat(characteristic)
+            }
+
+        /**
+         * Actual value of a *required* (most-masteries) target. Same as [foldedElementalStat], except
+         * the aggregate [Characteristic.RESISTANCE_ELEMENTARY] resolves to the **minimum** of the four
+         * folded elemental resistances — the scorer stores that aggregate as the min of the elements
+         * (see `computeCharacteristicsValues`), so the constraint must use the min too.
+         */
+        private fun requiredActualStat(characteristic: Characteristic): IntVar =
+            if (characteristic == Characteristic.RESISTANCE_ELEMENTARY) {
+                val elementResistances = elementResistanceVars(ELEMENTARY_RESISTANCES)
+                val minVar = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, STAT_WITH_PERCENT_ABS_MAX, "minElementResistance")
+                model.addMinEquality(minVar, elementResistances.values.toTypedArray())
+                minVar
+            } else {
+                foldedElementalStat(characteristic)
+            }
+
+        /**
+         * Builds, for each requested element, an [IntVar] equal to that element's own stat plus the
+         * generic "+all elements" stat ([genericCharacteristic]), with random-element lines greedily
+         * assigned and percent skills applied — mirroring `computeCharacteristicsValues`. Works for
+         * both elemental masteries and elemental resistances.
+         */
+        private fun elementVars(
+            wantedElements: List<Characteristic>,
+            genericCharacteristic: Characteristic,
+            targets: Map<Characteristic, Int>,
+            randomByCount: List<Pair<Characteristic, Int>>,
+        ): Map<Characteristic, IntVar> {
+            val key = genericCharacteristic to wantedElements.toList()
             return elementCache.getOrPut(key) {
-                val masteryElementaryBase = prePercentStat(Characteristic.MASTERY_ELEMENTARY)
+                val genericBase = prePercentStat(genericCharacteristic)
                 val baseElements =
                     wantedElements.associateWith { element ->
                         val baseElement = prePercentStat(element)
@@ -730,7 +862,7 @@ object WakfuBuildSolver {
                             terms =
                                 listOf(
                                     Term(baseElement, 1L),
-                                    Term(masteryElementaryBase, 1L)
+                                    Term(genericBase, 1L)
                                 ),
                             constant = 0L,
                             min = -STAT_WITH_PERCENT_ABS_MAX,
@@ -738,7 +870,8 @@ object WakfuBuildSolver {
                         )
                     }
 
-                val prePercentElements = applyGreedyRandomMastery(wantedElements, baseElements)
+                val prePercentElements =
+                    applyGreedyRandom(wantedElements, baseElements, targets, buildRandomEntries(randomByCount))
 
                 prePercentElements.mapValues { (element, preElement) ->
                     val percentTerms = skillTerms.percent[element].orEmpty()
@@ -759,16 +892,14 @@ object WakfuBuildSolver {
             }
         }
 
-        private fun applyGreedyRandomMastery(
+        private fun applyGreedyRandom(
             wantedElements: List<Characteristic>,
             baseElements: Map<Characteristic, IntVar>,
+            targets: Map<Characteristic, Int>,
+            randomEntries: List<RandomEntry>,
         ): Map<Characteristic, IntVar> {
             if (wantedElements.isEmpty()) return baseElements
-
-            val targets = params.targetStats.masteryElementsWanted
             if (targets.isEmpty()) return baseElements
-
-            val randomEntries = buildRandomMasteryEntries()
             if (randomEntries.isEmpty()) return baseElements
 
             val priorities =
@@ -884,28 +1015,21 @@ object WakfuBuildSolver {
             return current
         }
 
-        private fun buildRandomMasteryEntries(): List<RandomEntry> {
-            val ones = mutableListOf<RandomEntry>()
-            val twos = mutableListOf<RandomEntry>()
-            val threes = mutableListOf<RandomEntry>()
+        private fun buildRandomEntries(randomByCount: List<Pair<Characteristic, Int>>): List<RandomEntry> {
+            // Grouped by element-count (1s, then 2s, then 3s) to preserve the original assignment order.
+            val entriesByCount = randomByCount.map { mutableListOf<RandomEntry>() }
 
             for (equip in allEquips) {
                 val equipVar = equipVars.getValue(equip)
-                val one = equip.characteristics[Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT] ?: 0
-                if (one != 0) {
-                    ones.add(RandomEntry(equipVar, one, 1, "one_${equip.equipmentId}"))
-                }
-                val two = equip.characteristics[Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT] ?: 0
-                if (two != 0) {
-                    twos.add(RandomEntry(equipVar, two, 2, "two_${equip.equipmentId}"))
-                }
-                val three = equip.characteristics[Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT] ?: 0
-                if (three != 0) {
-                    threes.add(RandomEntry(equipVar, three, 3, "three_${equip.equipmentId}"))
+                randomByCount.forEachIndexed { groupIndex, (randomCharacteristic, count) ->
+                    val value = equip.characteristics[randomCharacteristic] ?: 0
+                    if (value != 0) {
+                        entriesByCount[groupIndex].add(RandomEntry(equipVar, value, count, "${count}_${equip.equipmentId}"))
+                    }
                 }
             }
 
-            return ones + twos + threes
+            return entriesByCount.flatten()
         }
 
         private fun actualStat(char: Characteristic): IntVar =
@@ -967,6 +1091,10 @@ object WakfuBuildSolver {
         val maxValue: Long,
     )
 
+    // Splits each skill's contribution into fixed / percent terms keyed by characteristic, mirroring
+    // CharacteristicValues. The Major "% Inflicted Damage" aptitude lands in percent[MASTERY_ELEMENTARY]
+    // and — like in the scorer — never reaches the score (mastery is read through the specific element
+    // keys, which carry no percent). Kept inert on purpose; see the NOTE in computeCharacteristicsValues.
     private fun buildSkillTerms(skillVars: Map<SkillCharacteristic, IntVar>): SkillTerms {
         val fixed = mutableMapOf<Characteristic, MutableList<Term>>()
         val percent = mutableMapOf<Characteristic, MutableList<Term>>()

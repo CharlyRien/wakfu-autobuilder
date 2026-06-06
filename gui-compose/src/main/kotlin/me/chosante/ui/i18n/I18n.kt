@@ -31,6 +31,8 @@ enum class Tr(
     LEVEL_SHORT("Lvl", "Niv"),
     MIN_SHORT("Min", "Min"),
     PROGRESS("Progress", "Progression"),
+    PRELOAD_ICONS("Preloading item icons…", "Préchargement des icônes d'objets…"),
+    PRELOAD_WARMUP("Starting the engine…", "Démarrage du moteur…"),
     MATCH("Match", "Correspondance"),
     SEARCH("Search", "Rechercher"),
     STOP("Stop", "Arrêter"),
@@ -68,10 +70,6 @@ enum class Tr(
     SOLVER_OR_TOOLS_SUB("optimal", "optimal"),
     SOLVER_GA("GA", "AG"),
     SOLVER_GA_SUB("legacy", "historique"),
-    OR_TOOLS_LEVEL_RANGE_ERROR(
-        "OR-Tools needs a narrower level range. Raise Min or switch the debug solver to GA.",
-        "OR-Tools a besoin d'une plage de niveaux plus courte. Monte le Min ou passe le solveur debug en AG."
-    ),
     SEARCH_NO_RESULT(
         "No build produced in this time window. Narrow the level range, increase duration, or switch to GA.",
         "Aucun build produit dans cette fenêtre. Réduis la plage de niveaux, augmente la durée, ou passe en AG."
@@ -111,6 +109,8 @@ enum class Tr(
 
     // Stats panel
     BUILD_MATCH("Build Match", "Correspondance"),
+    BUILD_MASTERY("Total mastery", "Total maîtrises"),
+    MASTERY_SHORT("Mastery", "Maîtrise"),
     OPTIMAL_PROVEN("Optimal proven", "Optimal prouvé"),
     BEST_FOUND("Best found", "Meilleur trouvé"),
     MASTERY_SUMMARY("Mastery Summary", "Cumul maîtrises"),

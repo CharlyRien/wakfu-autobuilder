@@ -31,8 +31,8 @@ subprojects {
 tasks.register<Exec>("conveyorRun") {
     group = "conveyor"
     description = "Run the wakfu autobuilder gui through conveyor"
-    workingDir = file("$projectDir/gui")
-    dependsOn(":gui:build")
+    workingDir = file("$projectDir/gui-compose")
+    dependsOn(":gui-compose:build")
 
     commandLine("bash", "-c", "conveyor -f conveyor-local.conf run")
 }

@@ -29,3 +29,27 @@ fun Characteristic.isMaximizableMastery(): Boolean =
             Characteristic.MASTERY_BERSERK,
             Characteristic.MASTERY_HEALING
         )
+
+private val RANDOM_ELEMENT_STATS =
+    setOf(
+        Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT,
+        Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT,
+        Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT,
+        Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT,
+        Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT,
+        Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT
+    )
+
+/**
+ * Item-level "random element" stats: they are rolled onto concrete elements when a build is scored,
+ * not stats a user meaningfully targets. They are not exposed as targets in the CLI or GUI, so this is
+ * defensive — but if one ever reached [TargetStats] it must not be treated as a hard exact constraint.
+ */
+fun Characteristic.isRandomElementStat(): Boolean = this in RANDOM_ELEMENT_STATS
+
+/**
+ * True for characteristics that "most-masteries" mode enforces as exact required targets (the score's
+ * numerator/denominator), as opposed to the masteries it maximizes or the random-element stats it
+ * distributes. Used by both the scorer and the OR-Tools solver so they stay in lockstep.
+ */
+fun Characteristic.isRequiredMostMasteriesTarget(): Boolean = !isMaximizableMastery() && !isRandomElementStat()

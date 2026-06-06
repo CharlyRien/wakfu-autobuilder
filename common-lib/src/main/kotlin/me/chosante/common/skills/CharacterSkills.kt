@@ -64,31 +64,21 @@ class CharacterSkills(
             this.intelligence = intelligence
         }
 
+    // Value-based on the *net* skill allocation rather than the skill objects: the underlying
+    // SkillCharacteristic instances have no value equality (and must keep identity semantics — they
+    // are used as map keys in the solver), so comparing them directly made two structurally identical
+    // allocations compare unequal. Comparing allCharacteristicValues fixes equality for BuildCombination
+    // (a data class) — two builds with the same resulting stats are equal regardless of object identity.
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
 
         other as CharacterSkills
 
-        if (level != other.level) return false
-        if (strength != other.strength) return false
-        if (agility != other.agility) return false
-        if (luck != other.luck) return false
-        if (major != other.major) return false
-        if (intelligence != other.intelligence) return false
-
-        return true
+        return level == other.level && allCharacteristicValues == other.allCharacteristicValues
     }
 
-    override fun hashCode(): Int {
-        var result = level
-        result = 31 * result + strength.hashCode()
-        result = 31 * result + agility.hashCode()
-        result = 31 * result + luck.hashCode()
-        result = 31 * result + major.hashCode()
-        result = 31 * result + intelligence.hashCode()
-        return result
-    }
+    override fun hashCode(): Int = 31 * level + allCharacteristicValues.hashCode()
 }
 
 enum class UnitType {

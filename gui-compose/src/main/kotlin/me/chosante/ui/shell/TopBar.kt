@@ -1,6 +1,7 @@
 package me.chosante.ui.shell
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,12 +10,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,6 +24,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,17 +32,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.common.CharacterClass
+import me.chosante.ui.components.rememberClasspathBitmap
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.tr
 import me.chosante.ui.state.Phase
 import me.chosante.ui.state.UiState
+import me.chosante.ui.state.formatCompact
 import me.chosante.ui.state.onlyDigits
+import me.chosante.ui.state.requestedMasteryTotal
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WType
 import me.chosante.ui.theme.WTypography
@@ -75,7 +83,12 @@ fun TopBar(
             Spacer(modifier = Modifier.width(22.dp))
             TopMeter(label = tr(Tr.PROGRESS), value = "${ui.progress}%", fill = ui.progress / 100f, color = WColor.accent2)
             Spacer(modifier = Modifier.width(16.dp))
-            TopMeter(label = tr(Tr.MATCH), value = "${ui.match.toInt()}%", fill = ui.match.toFloat() / 100f, color = WColor.success)
+            if (ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) {
+                // Most-masteries: no exact-target "% match"; show the cumulated requested mastery.
+                TopMeter(label = tr(Tr.MASTERY_SHORT), value = ui.requestedMasteryTotal().formatCompact(), fill = null, color = WColor.success)
+            } else {
+                TopMeter(label = tr(Tr.MATCH), value = "${ui.match.toInt()}%", fill = ui.match.toFloat() / 100f, color = WColor.success)
+            }
             Spacer(modifier = Modifier.width(18.dp))
             SearchButton(
                 searching = ui.phase == Phase.Searching,
@@ -83,6 +96,24 @@ fun TopBar(
             )
         }
         Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
+    }
+}
+
+@Composable
+private fun Brand() {
+    val wordmark = rememberClasspathBitmap("assets/branding/wordmark.png")
+    if (wordmark != null) {
+        Image(
+            bitmap = wordmark,
+            contentDescription = "Wakfu Auto-Builder",
+            contentScale = ContentScale.Fit,
+            // The wordmark is downscaled hard (large bitmap -> ~46dp tall); High filtering resamples
+            // it smoothly instead of the default Low, which looked aliased on the fine lettering.
+            filterQuality = FilterQuality.High,
+            modifier = Modifier.height(46.dp).aspectRatio(wordmark.width.toFloat() / wordmark.height)
+        )
+    } else {
+        Text(text = "Wakfu Auto-Builder", style = WTypography.headlineLarge)
     }
 }
 
@@ -122,36 +153,6 @@ private fun LangToggle(
                         )
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun Brand() {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier =
-                Modifier
-                    .size(32.dp)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(WColor.accent),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "W",
-                style = WTypography.titleMedium.copy(color = WColor.bg)
-            )
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column {
-            Text(
-                text = "Wakfu Autobuilder",
-                style = WTypography.headlineLarge
-            )
-            Text(
-                text = tr(Tr.BRAND_SUBTITLE),
-                style = WTypography.labelSmall
-            )
         }
     }
 }
@@ -217,7 +218,16 @@ private fun NumberControl(
     value: String,
     onValueChange: (String) -> Unit,
 ) {
-    var draft by remember(value) { mutableStateOf(value) }
+    var draft by remember { mutableStateOf(value) }
+    // Keep the box in lockstep with the model's canonical (already-coerced) value. When the user types
+    // something the model clamps or rejects — e.g. "999" -> 245, or a value that coerces to the one
+    // already shown — snap back instead of leaving an out-of-range number on screen. Blank is left
+    // untouched so the field can be cleared mid-edit.
+    LaunchedEffect(value, draft) {
+        if (draft.isNotBlank() && draft != value) {
+            draft = value
+        }
+    }
 
     Row(
         modifier =
@@ -271,7 +281,7 @@ private fun NumberControl(
 private fun TopMeter(
     label: String,
     value: String,
-    fill: Float,
+    fill: Float?,
     color: androidx.compose.ui.graphics.Color,
 ) {
     Column(modifier = Modifier.width(112.dp)) {
@@ -288,22 +298,28 @@ private fun TopMeter(
             )
         }
         Spacer(modifier = Modifier.height(6.dp))
-        Box(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(WColor.raised)
-        ) {
+        if (fill != null) {
             Box(
                 modifier =
                     Modifier
-                        .fillMaxWidth(fill.coerceIn(0f, 1f))
+                        .fillMaxWidth()
                         .height(6.dp)
                         .clip(RoundedCornerShape(999.dp))
-                        .background(color)
-            )
+                        .background(WColor.raised)
+            ) {
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth(fill.coerceIn(0f, 1f))
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(color)
+                )
+            }
+        } else {
+            // No meaningful 0-100 fill (e.g. a cumulated mastery total); keep the column height
+            // aligned with the neighbouring meters by reserving the bar's space.
+            Spacer(modifier = Modifier.height(6.dp))
         }
     }
 }

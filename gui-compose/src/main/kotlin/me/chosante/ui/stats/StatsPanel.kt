@@ -1,5 +1,6 @@
 package me.chosante.ui.stats
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,6 +36,10 @@ import me.chosante.common.Characteristic
 import me.chosante.common.skills.Assignable
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.common.skills.SkillCharacteristic
+import me.chosante.ui.components.StatGlyphIcon
+import me.chosante.ui.components.VerticalScrollHints
+import me.chosante.ui.components.iconResourcePath
+import me.chosante.ui.components.rememberClasspathBitmap
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.label
@@ -42,13 +48,13 @@ import me.chosante.ui.state.Phase
 import me.chosante.ui.state.TargetRow
 import me.chosante.ui.state.UiState
 import me.chosante.ui.state.ZenithState
+import me.chosante.ui.state.formatCompact
 import me.chosante.ui.state.isExact
+import me.chosante.ui.state.requestedMasteryTotal
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WDimens
 import me.chosante.ui.theme.WType
 import me.chosante.ui.theme.WTypography
-import java.text.NumberFormat
-import java.util.Locale
 
 @Composable
 fun StatsPanel(
@@ -57,62 +63,88 @@ fun StatsPanel(
     onCopyZenith: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(WDimens.gap),
-        verticalArrangement = Arrangement.spacedBy(WDimens.gap)
-    ) {
-        MatchHero(ui)
-        if (ui.phase == Phase.Idle && ui.build == null) {
-            EmptyHint()
-        } else {
-            ActionsCard(
-                ui = ui,
-                onOpenZenith = onOpenZenith,
-                onCopyZenith = onCopyZenith
-            )
-            MasterySummary(ui)
-            DesiredVsAchieved(ui)
-            SkillTree(ui.build?.characterSkills ?: CharacterSkills(ui.level))
+    val scroll = rememberScrollState()
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scroll)
+                    .padding(WDimens.gap),
+            verticalArrangement = Arrangement.spacedBy(WDimens.gap)
+        ) {
+            MatchHero(ui)
+            if (ui.phase == Phase.Idle && ui.build == null) {
+                EmptyHint()
+            } else {
+                ActionsCard(
+                    ui = ui,
+                    onOpenZenith = onOpenZenith,
+                    onCopyZenith = onCopyZenith
+                )
+                MasterySummary(ui)
+                DesiredVsAchieved(ui)
+                SkillTree(ui.build?.characterSkills ?: CharacterSkills(ui.level))
+            }
         }
+        VerticalScrollHints(scroll)
     }
 }
 
 @Composable
 private fun MatchHero(ui: UiState) {
+    // Most-masteries maximizes mastery rather than hitting exact targets, so a "% match" is
+    // meaningless there — show the cumulated requested mastery (no %, no progress bar) instead.
+    val masteryMode = ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
     ResultCard {
         Column(
             modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
         ) {
-            Row(verticalAlignment = Alignment.Bottom) {
+            if (masteryMode) {
                 Text(
-                    text = ui.match.toInt().toString(),
+                    text = ui.requestedMasteryTotal().formatCompact(),
                     style =
                         WTypography.displayLarge.copy(
                             fontSize = 46.sp,
                             lineHeight = 46.sp,
-                            color = if (ui.match.toInt() == 100) WColor.success else WColor.text,
+                            color = WColor.text,
                             fontFamily = WType.display,
                             textAlign = TextAlign.Center
                         )
                 )
                 Text(
-                    text = "%",
-                    style =
-                        WTypography.headlineMedium.copy(
-                            color = WColor.muted,
-                            lineHeight = 24.sp
-                        )
+                    text = tr(Tr.BUILD_MASTERY),
+                    style = WTypography.labelMedium,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            } else {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        text = ui.match.toInt().toString(),
+                        style =
+                            WTypography.displayLarge.copy(
+                                fontSize = 46.sp,
+                                lineHeight = 46.sp,
+                                color = if (ui.match.toInt() == 100) WColor.success else WColor.text,
+                                fontFamily = WType.display,
+                                textAlign = TextAlign.Center
+                            )
+                    )
+                    Text(
+                        text = "%",
+                        style =
+                            WTypography.headlineMedium.copy(
+                                color = WColor.muted,
+                                lineHeight = 24.sp
+                            )
+                    )
+                }
+                Text(
+                    text = tr(Tr.BUILD_MATCH),
+                    style = WTypography.labelMedium,
+                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
-            Text(
-                text = tr(Tr.BUILD_MATCH),
-                style = WTypography.labelMedium,
-                modifier = Modifier.padding(top = 4.dp)
-            )
             if (ui.build != null) {
                 Text(
                     text = tr(if (ui.optimal) Tr.OPTIMAL_PROVEN else Tr.BEST_FOUND),
@@ -120,11 +152,13 @@ private fun MatchHero(ui: UiState) {
                     modifier = Modifier.padding(top = 3.dp)
                 )
             }
-            Meter(
-                fill = ui.match.toFloat() / 100f,
-                color = if (ui.match.toInt() == 100) WColor.success else WColor.warning,
-                modifier = Modifier.padding(top = 14.dp)
-            )
+            if (!masteryMode) {
+                Meter(
+                    fill = ui.match.toFloat() / 100f,
+                    color = if (ui.match.toInt() == 100) WColor.success else WColor.warning,
+                    modifier = Modifier.padding(top = 14.dp)
+                )
+            }
         }
     }
 }
@@ -308,7 +342,7 @@ private fun StatRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            StatGlyph(label = target.glyph, color = target.color)
+            StatGlyph(characteristic = target.characteristic, label = target.glyph, color = target.color)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = target.characteristic.label(LocalLang.current),
@@ -398,15 +432,30 @@ private fun SkillTree(skills: CharacterSkills) {
                             verticalAlignment = Alignment.Top,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text(
-                                text = line.name,
-                                style =
-                                    WTypography.bodySmall.copy(
-                                        color = if (line.points > 0) WColor.text else WColor.muted,
-                                        lineHeight = 15.sp
-                                    ),
-                                modifier = Modifier.weight(1f)
-                            )
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.Top,
+                                horizontalArrangement = Arrangement.spacedBy(7.dp)
+                            ) {
+                                val bitmap = line.iconPath?.let { rememberClasspathBitmap(it) }
+                                if (bitmap != null) {
+                                    Image(
+                                        bitmap = bitmap,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Fit,
+                                        modifier = Modifier.padding(top = 1.dp).size(15.dp)
+                                    )
+                                }
+                                Text(
+                                    text = line.name,
+                                    style =
+                                        WTypography.bodySmall.copy(
+                                            color = if (line.points > 0) WColor.text else WColor.muted,
+                                            lineHeight = 15.sp
+                                        ),
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
                             Text(
                                 text = "${line.points}/${line.maxText}",
                                 style =
@@ -584,6 +633,7 @@ private fun ResultCard(
 
 @Composable
 private fun StatGlyph(
+    characteristic: Characteristic,
     label: String,
     color: Color,
 ) {
@@ -596,17 +646,7 @@ private fun StatGlyph(
                 .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(7.dp)),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = label,
-            style =
-                WTypography.labelSmall.copy(
-                    color = color,
-                    fontFamily = WType.mono,
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 11.sp
-                )
-        )
+        StatGlyphIcon(characteristic = characteristic, glyph = label, color = color, iconSize = 18.dp)
     }
 }
 
@@ -661,6 +701,7 @@ private data class SkillLine(
     val name: String,
     val points: Int,
     val maxText: String,
+    val iconPath: String?,
 )
 
 private fun skillBranches(skills: CharacterSkills): List<SkillBranch> =
@@ -689,12 +730,6 @@ private fun SkillCharacteristic.toSkillLine(): SkillLine =
     SkillLine(
         name = name,
         points = pointsAssigned,
-        maxText = if (maxPointsAssignable == Int.MAX_VALUE) "∞" else maxPointsAssignable.toString()
+        maxText = if (maxPointsAssignable == Int.MAX_VALUE) "∞" else maxPointsAssignable.toString(),
+        iconPath = iconResourcePath()
     )
-
-private fun Int.formatCompact(): String =
-    if (this >= 1000) {
-        NumberFormat.getIntegerInstance(Locale.US).format(this)
-    } else {
-        toString()
-    }

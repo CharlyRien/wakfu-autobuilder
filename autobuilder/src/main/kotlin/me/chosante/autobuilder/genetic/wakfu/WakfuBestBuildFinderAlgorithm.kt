@@ -16,7 +16,6 @@ import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import java.math.BigDecimal
-import kotlin.system.exitProcess
 import kotlin.time.Duration
 
 object WakfuBestBuildFinderAlgorithm {
@@ -42,8 +41,11 @@ object WakfuBestBuildFinderAlgorithm {
                 WakfuSolver.GENETIC_ALGORITHM -> runGeneticAlgorithm(params, equipmentsByItemType)
             }
         } catch (exception: Exception) {
+            // Surface the failure to the caller instead of killing the JVM: the CLI's runBlocking
+            // turns it into a visible crash, while the GUI can catch it and show an error rather than
+            // having the whole desktop app terminated by exitProcess.
             logger.error(exception) { "Exception occurred during the process of finding the best equipments." }
-            exitProcess(1)
+            throw exception
         }
     }
 

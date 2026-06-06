@@ -44,6 +44,9 @@ import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuSolver
 import me.chosante.common.Characteristic
 import me.chosante.common.Rarity
+import me.chosante.ui.components.RarityIcon
+import me.chosante.ui.components.StatGlyphIcon
+import me.chosante.ui.components.VerticalScrollHints
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
@@ -53,7 +56,6 @@ import me.chosante.ui.state.ItemChip
 import me.chosante.ui.state.StatDef
 import me.chosante.ui.state.TargetRow
 import me.chosante.ui.state.UiState
-import me.chosante.ui.state.color
 import me.chosante.ui.state.isExact
 import me.chosante.ui.state.statCatalog
 import me.chosante.ui.state.statDefFor
@@ -80,52 +82,56 @@ fun RequestPanel(
     onRemoveExcludedItem: (ItemChip) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(WDimens.gap),
-        verticalArrangement = Arrangement.spacedBy(WDimens.gap)
-    ) {
-        SearchModeCard(
-            selected = ui.mode,
-            onSelect = onModeChange
-        )
-        TargetStatsCard(
-            mode = ui.mode,
-            targets = ui.targets,
-            onValueChange = onTargetValueChange,
-            onRemove = onRemoveTarget,
-            onAdd = onAddTarget,
-            onToggleMastery = onToggleMastery
-        )
-        ConstraintsCard(
-            maxRarity = ui.maxRarity,
-            duration = ui.duration,
-            stopAtMatch = ui.stopAtMatch,
-            solver = ui.solver,
-            onRarityChange = onMaxRarityChange,
-            onDurationChange = onDurationChange,
-            onStopAtMatchChange = onStopAtMatchChange,
-            onSolverChange = onSolverChange
-        )
-        ItemChipsCard(
-            title = tr(Tr.FORCED_ITEMS),
-            addLabel = tr(Tr.REQUIRE_ITEM_CHIP),
-            items = ui.forcedItems,
-            accent = WColor.success,
-            onAdd = onAddForcedItem,
-            onRemove = onRemoveForcedItem
-        )
-        ItemChipsCard(
-            title = tr(Tr.EXCLUDED_ITEMS),
-            addLabel = tr(Tr.BAN_ITEM_CHIP),
-            items = ui.excludedItems,
-            accent = WColor.danger,
-            onAdd = onAddExcludedItem,
-            onRemove = onRemoveExcludedItem
-        )
+    val scroll = rememberScrollState()
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scroll)
+                    .padding(WDimens.gap),
+            verticalArrangement = Arrangement.spacedBy(WDimens.gap)
+        ) {
+            SearchModeCard(
+                selected = ui.mode,
+                onSelect = onModeChange
+            )
+            TargetStatsCard(
+                mode = ui.mode,
+                targets = ui.targets,
+                onValueChange = onTargetValueChange,
+                onRemove = onRemoveTarget,
+                onAdd = onAddTarget,
+                onToggleMastery = onToggleMastery
+            )
+            ConstraintsCard(
+                maxRarity = ui.maxRarity,
+                duration = ui.duration,
+                stopAtMatch = ui.stopAtMatch,
+                solver = ui.solver,
+                onRarityChange = onMaxRarityChange,
+                onDurationChange = onDurationChange,
+                onStopAtMatchChange = onStopAtMatchChange,
+                onSolverChange = onSolverChange
+            )
+            ItemChipsCard(
+                title = tr(Tr.FORCED_ITEMS),
+                addLabel = tr(Tr.REQUIRE_ITEM_CHIP),
+                items = ui.forcedItems,
+                accent = WColor.success,
+                onAdd = onAddForcedItem,
+                onRemove = onRemoveForcedItem
+            )
+            ItemChipsCard(
+                title = tr(Tr.EXCLUDED_ITEMS),
+                addLabel = tr(Tr.BAN_ITEM_CHIP),
+                items = ui.excludedItems,
+                accent = WColor.danger,
+                onAdd = onAddExcludedItem,
+                onRemove = onRemoveExcludedItem
+            )
+        }
+        VerticalScrollHints(scroll)
     }
 }
 
@@ -307,16 +313,7 @@ private fun SelectedMasteryPill(def: StatDef) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp)
     ) {
-        Text(
-            text = def.glyph,
-            style =
-                WTypography.labelSmall.copy(
-                    color = def.color,
-                    fontFamily = WType.mono,
-                    fontWeight = FontWeight.SemiBold,
-                    lineHeight = 10.sp
-                )
-        )
+        StatGlyphIcon(characteristic = def.characteristic, glyph = def.glyph, color = def.color, iconSize = 15.dp)
         Text(
             text = def.characteristic.masteryOptionLabel(LocalLang.current),
             style = WTypography.labelSmall.copy(color = WColor.text, lineHeight = 10.sp),
@@ -410,17 +407,7 @@ private fun MasteryCheckboxChip(
                     ),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = def.glyph,
-                style =
-                    WTypography.labelSmall.copy(
-                        color = def.color,
-                        fontFamily = WType.mono,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 10.sp
-                    )
-            )
+            StatGlyphIcon(characteristic = def.characteristic, glyph = def.glyph, color = def.color, iconSize = 18.dp)
         }
         Text(
             text = def.characteristic.masteryOptionLabel(LocalLang.current),
@@ -490,7 +477,7 @@ private fun TargetStatRow(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        GlyphChip(label = target.glyph, color = target.color)
+        GlyphChip(characteristic = target.characteristic, label = target.glyph, color = target.color)
         Spacer(modifier = Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(text = target.characteristic.label(LocalLang.current), style = WTypography.bodyLarge)
@@ -649,7 +636,7 @@ private fun RarityDropdown(
                     .padding(horizontal = 11.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            RarityDot(rarity = rarity)
+            RarityIcon(rarity = rarity, size = 13.dp)
             Spacer(modifier = Modifier.width(7.dp))
             Text(text = rarity.label(LocalLang.current), style = WTypography.labelMedium.copy(color = WColor.text))
             Spacer(modifier = Modifier.width(8.dp))
@@ -665,7 +652,7 @@ private fun RarityDropdown(
                 DropdownMenuItem(
                     text = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            RarityDot(rarity = item)
+                            RarityIcon(rarity = item, size = 13.dp)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = item.label(LocalLang.current),
@@ -791,13 +778,7 @@ private fun ItemChipView(
                 .padding(horizontal = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier =
-                Modifier
-                    .size(7.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(item.rarity.color())
-        )
+        RarityIcon(rarity = item.rarity, size = 13.dp)
         Spacer(modifier = Modifier.width(7.dp))
         Text(text = item.name, style = WTypography.labelMedium.copy(color = WColor.text))
         Spacer(modifier = Modifier.width(7.dp))
@@ -852,6 +833,7 @@ private fun RequestCard(
 
 @Composable
 private fun GlyphChip(
+    characteristic: Characteristic,
     label: String,
     color: Color,
 ) {
@@ -864,17 +846,7 @@ private fun GlyphChip(
                 .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(8.dp)),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = label,
-            style =
-                WTypography.labelSmall.copy(
-                    color = color,
-                    fontFamily = WType.mono,
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 11.sp
-                )
-        )
+        StatGlyphIcon(characteristic = characteristic, glyph = label, color = color, iconSize = 20.dp)
     }
 }
 
@@ -912,17 +884,6 @@ private fun NumberField(
                 innerTextField()
             }
         }
-    )
-}
-
-@Composable
-private fun RarityDot(rarity: Rarity) {
-    Box(
-        modifier =
-            Modifier
-                .size(9.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(rarity.color())
     )
 }
 

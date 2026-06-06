@@ -9,6 +9,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.swing.Swing
 import kotlinx.coroutines.withContext
@@ -20,24 +21,27 @@ import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildParams
+import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver
 import me.chosante.autobuilder.genetic.wakfu.WakfuSolver
 import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.common.Character
 import me.chosante.common.Rarity
 import me.chosante.createZenithBuild
+import me.chosante.ui.components.IconPreloader
+import me.chosante.ui.components.warmUpPaths
 import me.chosante.ui.i18n.Tr
 import java.awt.Desktop
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import java.net.URI
 import java.util.concurrent.CancellationException
+import kotlin.math.ceil
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-private typealias BuildFinder = suspend (WakfuBestBuildParams) -> Flow<GeneticAlgorithmResult<BuildCombination>>
+private typealias BuildFinder = (WakfuBestBuildParams) -> Flow<GeneticAlgorithmResult<BuildCombination>>
 private typealias ZenithBuilder = suspend (ZenithInputParameters) -> String
-
-private const val MAX_INTERACTIVE_OR_TOOLS_LEVEL_RANGE = 60
 
 class BuildSearchModel(
     private val scope: CoroutineScope,
@@ -50,7 +54,81 @@ class BuildSearchModel(
     var ui by androidx.compose.runtime.mutableStateOf(UiState())
         private set
 
+    /**
+     * `true` once the app is ready to show its main UI: OR-Tools' one-time cold start has been paid
+     * (or we're in screenshot mode). Until then a [me.chosante.ui.shell.LoadingScreen] is shown
+     * instead of the heavy main UI — mounting that UI *during* native-library loading is what made
+     * the window appear to hang.
+     */
+    var isReady by androidx.compose.runtime.mutableStateOf(false)
+        private set
+
+    /** Estimated warm-up progress (0..1) for the loading screen. See [WarmupTiming]. */
+    var warmupProgress by androidx.compose.runtime.mutableStateOf(0f)
+        private set
+
+    /** Estimated seconds left on the warm-up, or `null` once the estimate is exhausted/done. */
+    var warmupEtaSeconds by androidx.compose.runtime.mutableStateOf<Int?>(null)
+        private set
+
     private var job: Job? = null
+
+    /** Mirrors [me.chosante.ui.SCREENSHOT_PATH_PROPERTY] / `WAKFU_COMPOSE_SCREENSHOT` (see Main.kt). */
+    private val isScreenshotMode =
+        System.getProperty("wakfu.compose.screenshot") != null ||
+            System.getenv("WAKFU_COMPOSE_SCREENSHOT") != null
+
+    init {
+        // Decode item icons into the cache off the UI thread so they're ready (and decoded once)
+        // by the time a build is shown. Purely background work: it never gates startup — items
+        // simply appear as they decode, so we don't make the user wait on ~thousands of PNGs.
+        scope.launch(Dispatchers.Default) {
+            val paths = warmUpPaths(WakfuBestBuildFinderAlgorithm.equipments)
+            IconPreloader.warmUp(scope, paths) { _, _ -> }
+        }
+
+        if (isScreenshotMode) {
+            // Screenshots want the real UI immediately, with no warm-up gating.
+            isReady = true
+        } else {
+            // Pay OR-Tools' one-time cold start behind the loading screen, so the first real search
+            // starts warm and the heavy main UI only mounts once the native library is loaded (no
+            // CPU/IO contention with Compose's first render). The short delay lets the loader paint.
+            scope.launch(Dispatchers.Default) {
+                val estimateMs = WarmupTiming.estimatedDurationMs()
+                val start = System.currentTimeMillis()
+                // The native load reports no real progress, so animate an estimated %/ETA from the
+                // elapsed time vs. the last measured duration. The bar caps below 100% until warm-up
+                // actually finishes, then snaps full — never claims "done" early.
+                val ticker =
+                    launch {
+                        while (isActive) {
+                            val elapsed = System.currentTimeMillis() - start
+                            val remainingMs = estimateMs - elapsed
+                            withContext(mainDispatcher) {
+                                warmupProgress = (elapsed.toFloat() / estimateMs).coerceIn(0f, 0.92f)
+                                warmupEtaSeconds = if (remainingMs > 0) ceil(remainingMs / 1000.0).toInt() else null
+                            }
+                            delay(80.milliseconds)
+                        }
+                    }
+                delay(200.milliseconds)
+                try {
+                    WakfuBuildSolver.warmUp()
+                    WarmupTiming.record(System.currentTimeMillis() - start)
+                } finally {
+                    // Always reveal the UI: a warm-up failure should degrade to a cold first search,
+                    // never leave the app stuck on the loading screen.
+                    ticker.cancel()
+                    withContext(mainDispatcher) {
+                        warmupProgress = 1f
+                        warmupEtaSeconds = null
+                        isReady = true
+                    }
+                }
+            }
+        }
+    }
 
     fun setMode(mode: ScoreComputationMode) {
         val normalizedTargets =
@@ -159,6 +237,26 @@ class BuildSearchModel(
         ui = ui.copy(excludedItems = ui.excludedItems - item)
     }
 
+    /**
+     * Force this exact item into the next searched build. Driven by the center paperdoll's per-slot
+     * action; mirrors [pickItem]'s dedup but is independent of the picker modal and, like the modal,
+     * does **not** re-run the search.
+     */
+    fun forceItem(equipment: me.chosante.common.Equipment) {
+        val chip = equipment.toChip()
+        if (ui.forcedItems.none { it.matchName == chip.matchName }) {
+            ui = ui.copy(forcedItems = ui.forcedItems + chip)
+        }
+    }
+
+    /** Exclude this exact item from the next search. Paperdoll counterpart to [forceItem]. */
+    fun excludeItem(equipment: me.chosante.common.Equipment) {
+        val chip = equipment.toChip()
+        if (ui.excludedItems.none { it.matchName == chip.matchName }) {
+            ui = ui.copy(excludedItems = ui.excludedItems + chip)
+        }
+    }
+
     fun openModal(modal: Modal) {
         ui = ui.copy(modal = modal)
         if (modal is Modal.ItemPicker) {
@@ -221,18 +319,6 @@ class BuildSearchModel(
         job?.cancel()
         val snapshot = ui
         val effectiveMinLevel = snapshot.minLevel.coerceAtMost(snapshot.level)
-        if (
-            snapshot.solver == WakfuSolver.OR_TOOLS &&
-            snapshot.level - effectiveMinLevel > MAX_INTERACTIVE_OR_TOOLS_LEVEL_RANGE
-        ) {
-            ui =
-                snapshot.copy(
-                    phase = Phase.Idle,
-                    error = Tr.OR_TOOLS_LEVEL_RANGE_ERROR.value(snapshot.lang),
-                    toast = null
-                )
-            return
-        }
         val character = Character(snapshot.clazz, snapshot.level, effectiveMinLevel)
         val targetStats = snapshot.toTargetStats()
         val params =
@@ -343,8 +429,7 @@ class BuildSearchModel(
             ui =
                 ui.copy(
                     toast =
-                        me.chosante.ui.i18n.Tr.TOAST_ZENITH_COPIED
-                            .value(ui.lang)
+                        Tr.TOAST_ZENITH_COPIED.value(ui.lang)
                 )
         }
     }
@@ -372,8 +457,7 @@ class BuildSearchModel(
                             zenith = ZenithState.Ready,
                             zenithUrl = link,
                             toast =
-                                me.chosante.ui.i18n.Tr.TOAST_ZENITH_READY
-                                    .value(ui.lang)
+                                Tr.TOAST_ZENITH_READY.value(ui.lang)
                         )
                     onReady(link)
                 }
@@ -397,7 +481,7 @@ class BuildSearchModel(
 
     private fun clearLandedMarkerLater(equipmentId: Int) {
         scope.launch {
-            delay(560)
+            delay(560.milliseconds)
             withContext(mainDispatcher) {
                 if (ui.lastLandedEquipmentId == equipmentId) {
                     ui = ui.copy(lastLandedEquipmentId = null)

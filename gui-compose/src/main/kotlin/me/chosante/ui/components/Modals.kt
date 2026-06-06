@@ -35,10 +35,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.ui.i18n.Lang
@@ -152,6 +150,7 @@ private fun AddStatModal(
                     Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         pair.forEach { def ->
                             CatalogTile(
+                                characteristic = def.characteristic,
                                 glyph = def.glyph,
                                 color = def.color,
                                 label = def.label(lang),
@@ -225,6 +224,7 @@ private val statSections =
 
 @Composable
 private fun CatalogTile(
+    characteristic: Characteristic,
     glyph: String,
     color: Color,
     label: String,
@@ -252,17 +252,7 @@ private fun CatalogTile(
                     .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(7.dp)),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = glyph,
-                style =
-                    WTypography.labelSmall.copy(
-                        color = color,
-                        fontFamily = WType.mono,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 11.sp
-                    )
-            )
+            StatGlyphIcon(characteristic = characteristic, glyph = glyph, color = color, iconSize = 19.dp)
         }
         Text(
             text = label,

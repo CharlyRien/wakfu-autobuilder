@@ -43,7 +43,7 @@ object FindMostMasteriesFromInputScoring {
                 .sumOf { targetStat ->
                     val weight = targetStats.weight(targetStat)
                     val actualScore =
-                        if (!targetStat.characteristic.isMaximizableMastery()) {
+                        if (targetStat.characteristic.isRequiredMostMasteriesTarget()) {
                             (actualCharacteristicsValues[targetStat.characteristic] ?: 0) * weight
                         } else {
                             0.0
@@ -54,7 +54,7 @@ object FindMostMasteriesFromInputScoring {
 
         val totalExpectedScore =
             targetStats
-                .filter { !it.characteristic.isMaximizableMastery() }
+                .filter { it.characteristic.isRequiredMostMasteriesTarget() }
                 .sumOf { it.target * targetStats.weight(it) }
                 .toBigDecimal()
                 .setScale(4, RoundingMode.FLOOR)

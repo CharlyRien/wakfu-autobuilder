@@ -1,12 +1,18 @@
 package me.chosante.ui.paperdoll
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.ContextMenuArea
+import androidx.compose.foundation.ContextMenuItem
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.TooltipPlacement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,9 +39,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -46,6 +52,9 @@ import me.chosante.autobuilder.genetic.wakfu.WakfuSolver
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.ui.components.RarityIcon
+import me.chosante.ui.components.iconResourcePath
+import me.chosante.ui.components.itemResourcePath
+import me.chosante.ui.components.rememberClasspathBitmap
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
@@ -63,6 +72,8 @@ import me.chosante.ui.theme.WTypography
 @Composable
 fun PaperdollPanel(
     ui: UiState,
+    onForceItem: (Equipment) -> Unit,
+    onExcludeItem: (Equipment) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val slots = remember(ui.build) { slotAssignments(ui.build?.equipments.orEmpty()) }
@@ -80,7 +91,7 @@ fun PaperdollPanel(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth().weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(40.dp),
+                    horizontalArrangement = Arrangement.spacedBy(26.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     SlotColumn(
@@ -88,6 +99,8 @@ fun PaperdollPanel(
                         assignments = slots,
                         ui = ui,
                         rightAlign = false,
+                        onForceItem = onForceItem,
+                        onExcludeItem = onExcludeItem,
                         modifier = Modifier.weight(1f).fillMaxHeight()
                     )
                     SlotColumn(
@@ -95,6 +108,8 @@ fun PaperdollPanel(
                         assignments = slots,
                         ui = ui,
                         rightAlign = true,
+                        onForceItem = onForceItem,
+                        onExcludeItem = onExcludeItem,
                         modifier = Modifier.weight(1f).fillMaxHeight()
                     )
                 }
@@ -103,14 +118,21 @@ fun PaperdollPanel(
                     horizontalArrangement = Arrangement.spacedBy(13.dp)
                 ) {
                     bottomSlots.forEach { slot ->
-                        EquipmentSlot(
-                            slot = slot,
-                            equipment = slots[slot.id],
-                            idle = ui.phase == Phase.Idle,
-                            justLanded = slots[slot.id]?.equipmentId == ui.lastLandedEquipmentId,
-                            rightAlign = false,
-                            modifier = Modifier.weight(1f)
-                        )
+                        // The weight must sit on a direct Row child: a filled slot wraps its
+                        // content in ContextMenuArea (no modifier param), which would otherwise
+                        // swallow the weight and let the weapon expand over its neighbours.
+                        Box(modifier = Modifier.weight(1f)) {
+                            EquipmentSlot(
+                                slot = slot,
+                                equipment = slots[slot.id],
+                                idle = ui.phase == Phase.Idle,
+                                justLanded = slots[slot.id]?.equipmentId == ui.lastLandedEquipmentId,
+                                rightAlign = false,
+                                onForceItem = onForceItem,
+                                onExcludeItem = onExcludeItem,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
             }
@@ -185,11 +207,13 @@ private fun SlotColumn(
     assignments: Map<String, Equipment>,
     ui: UiState,
     rightAlign: Boolean,
+    onForceItem: (Equipment) -> Unit,
+    onExcludeItem: (Equipment) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(13.dp, Alignment.CenterVertically)
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
     ) {
         slots.forEach { slot ->
             EquipmentSlot(
@@ -198,6 +222,8 @@ private fun SlotColumn(
                 idle = ui.phase == Phase.Idle,
                 justLanded = assignments[slot.id]?.equipmentId == ui.lastLandedEquipmentId,
                 rightAlign = rightAlign,
+                onForceItem = onForceItem,
+                onExcludeItem = onExcludeItem,
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -212,19 +238,96 @@ private fun EquipmentSlot(
     idle: Boolean,
     justLanded: Boolean,
     rightAlign: Boolean,
+    onForceItem: (Equipment) -> Unit,
+    onExcludeItem: (Equipment) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (equipment == null) {
         SlotRowContent(slot, null, idle, justLanded, rightAlign, modifier)
         return
     }
-    TooltipArea(
-        modifier = modifier,
-        delayMillis = 350,
-        tooltipPlacement = TooltipPlacement.CursorPoint(offset = DpOffset(0.dp, 18.dp)),
-        tooltip = { ItemTooltip(slot = slot, equipment = equipment) }
+    val forceLabel = tr(Tr.REQUIRE)
+    val excludeLabel = tr(Tr.BAN)
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    ContextMenuArea(
+        items = {
+            listOf(
+                ContextMenuItem(forceLabel) { onForceItem(equipment) },
+                ContextMenuItem(excludeLabel) { onExcludeItem(equipment) }
+            )
+        }
     ) {
-        SlotRowContent(slot, equipment, idle, justLanded, rightAlign, Modifier.fillMaxWidth())
+        TooltipArea(
+            modifier = modifier,
+            delayMillis = 350,
+            tooltipPlacement = TooltipPlacement.CursorPoint(offset = DpOffset(0.dp, 18.dp)),
+            tooltip = { ItemTooltip(slot = slot, equipment = equipment) }
+        ) {
+            Box(modifier = Modifier.fillMaxWidth().hoverable(interaction)) {
+                SlotRowContent(slot, equipment, idle, justLanded, rightAlign, Modifier.fillMaxWidth())
+                if (hovered) {
+                    SlotActions(
+                        onForce = { onForceItem(equipment) },
+                        onExclude = { onExcludeItem(equipment) },
+                        modifier =
+                            Modifier
+                                .align(if (rightAlign) Alignment.TopStart else Alignment.TopEnd)
+                                .padding(5.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SlotActions(
+    onForce: () -> Unit,
+    onExclude: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier =
+            modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(WColor.raised.copy(alpha = 0.96f))
+                .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
+                .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SlotActionButton(glyph = "＋", color = WColor.success, onClick = onForce)
+        SlotActionButton(glyph = "⊘", color = WColor.danger, onClick = onExclude)
+    }
+}
+
+@Composable
+private fun SlotActionButton(
+    glyph: String,
+    color: Color,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .size(24.dp)
+                .clip(RoundedCornerShape(7.dp))
+                .background(color.copy(alpha = 0.18f))
+                .border(1.dp, color.copy(alpha = 0.55f), RoundedCornerShape(7.dp))
+                .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = glyph,
+            style =
+                WTypography.labelMedium.copy(
+                    color = color,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 13.sp
+                )
+        )
     }
 }
 
@@ -243,20 +346,20 @@ private fun SlotRowContent(
     Row(
         modifier =
             modifier
-                .height(62.dp)
+                .height(84.dp)
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
                 }.alpha(if (idle) 0.48f else 1f)
-                .clip(RoundedCornerShape(11.dp))
+                .clip(RoundedCornerShape(13.dp))
                 .background(WColor.surface)
                 .border(
                     width = 1.dp,
                     color = if (filled) WColor.hairline else WColor.border.copy(alpha = 0.75f),
-                    shape = RoundedCornerShape(11.dp)
-                ).padding(9.dp),
+                    shape = RoundedCornerShape(13.dp)
+                ).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(11.dp)
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         if (rightAlign) {
             SlotMeta(slot = slot, equipment = equipment, modifier = Modifier.weight(1f), align = TextAlign.End)
@@ -339,13 +442,23 @@ private fun TooltipStatRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp)
     ) {
-        Box(
-            modifier =
-                Modifier
-                    .size(8.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(color)
-        )
+        val iconBitmap = characteristic.iconResourcePath()?.let { rememberClasspathBitmap(it) }
+        if (iconBitmap != null) {
+            Image(
+                bitmap = iconBitmap,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(14.dp)
+            )
+        } else {
+            Box(
+                modifier =
+                    Modifier
+                        .size(8.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(color)
+            )
+        }
         Text(
             text = if (value > 0) "+$value" else value.toString(),
             style =
@@ -398,10 +511,10 @@ private fun SlotIcon(
     Box(
         modifier =
             Modifier
-                .size(42.dp)
-                .clip(RoundedCornerShape(9.dp))
+                .size(58.dp)
+                .clip(RoundedCornerShape(11.dp))
                 .background(if (equipment == null) WColor.raised else color.copy(alpha = 0.14f))
-                .border(1.dp, if (equipment == null) WColor.border else color.copy(alpha = 0.35f), RoundedCornerShape(9.dp)),
+                .border(1.dp, if (equipment == null) WColor.border else color.copy(alpha = 0.35f), RoundedCornerShape(11.dp)),
         contentAlignment = Alignment.Center
     ) {
         if (equipment == null) {
@@ -411,24 +524,23 @@ private fun SlotIcon(
                     WTypography.headlineMedium.copy(
                         color = WColor.faint,
                         textAlign = TextAlign.Center,
-                        lineHeight = 18.sp
+                        lineHeight = 24.sp
                     )
             )
         } else {
-            Image(
-                painter = painterResource(equipment.itemResourcePath()),
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize().padding(4.dp)
-            )
-            Box(
-                modifier =
-                    Modifier
-                        .align(Alignment.BottomEnd)
-                        .size(12.dp)
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(color)
-                        .border(2.dp, WColor.surface, RoundedCornerShape(999.dp))
+            val bitmap = rememberClasspathBitmap(equipment.itemResourcePath())
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize().padding(5.dp)
+                )
+            }
+            RarityIcon(
+                rarity = equipment.rarity,
+                modifier = Modifier.align(Alignment.BottomEnd),
+                size = 14.dp
             )
         }
     }
@@ -455,11 +567,11 @@ private fun SlotMeta(
         Text(
             text = equipment?.localizedName(LocalLang.current) ?: tr(Tr.EMPTY),
             style =
-                WTypography.bodySmall.copy(
+                WTypography.bodyMedium.copy(
                     color = if (equipment == null) WColor.faint else WColor.text,
                     fontWeight = if (equipment == null) FontWeight.Normal else FontWeight.Medium,
                     textAlign = align,
-                    lineHeight = 15.sp
+                    lineHeight = 18.sp
                 ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -560,10 +672,4 @@ private fun Equipment.secondaryLine(
         }.ifBlank { null }
             ?.takeUnless { it == localizedName(lang) }
     return listOfNotNull(secondaryName, slot.labelKey.value(lang)).joinToString(" · ")
-}
-
-private fun Equipment.itemResourcePath(): String {
-    val path = "assets/items/$guiId.png"
-    val loader = Thread.currentThread().contextClassLoader
-    return if (loader.getResource(path) != null) path else "assets/items/0000000.png"
 }

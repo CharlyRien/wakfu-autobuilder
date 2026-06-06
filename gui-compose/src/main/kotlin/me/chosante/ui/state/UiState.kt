@@ -68,6 +68,28 @@ data class UiState(
     val modal: Modal? = null,
 )
 
+/**
+ * Cumulated value of the masteries the user asked to maximize (most-masteries mode). This is the
+ * meaningful headline number there — unlike precision mode, "% match" says nothing about how much
+ * mastery the build actually reached. Sums the achieved value of every maximizable-mastery target;
+ * the "all elements" target reads through the aggregate [Characteristic.MASTERY_ELEMENTARY] key
+ * (set to the weakest element by the scorer), so it counts once, not four times.
+ */
+fun UiState.requestedMasteryTotal(): Int =
+    targets
+        .filter { it.characteristic.isMaximizableMastery() }
+        .sumOf { achieved[it.characteristic] ?: 0 }
+
+/** Compact integer formatting: a thousands separator past 1000, plain otherwise. */
+fun Int.formatCompact(): String =
+    if (this >= 1000) {
+        java.text.NumberFormat
+            .getIntegerInstance(java.util.Locale.US)
+            .format(this)
+    } else {
+        toString()
+    }
+
 data class TargetRow(
     val id: String,
     val characteristic: Characteristic,

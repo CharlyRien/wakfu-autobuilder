@@ -114,6 +114,17 @@ The `linear-programming` branch replaces the GA with a **Google OR-Tools CP-SAT 
 When touching the engine, check **which branch you are on** — the two implementations are very
 different even though they share types and the output Flow.
 
+### Why the solver can leave slots empty (mount/pet/…) — *not a bug*
+"Most-masteries" mode maximizes **only the requested** masteries (under the required-stat
+constraints) and has no tie-breaker to fill otherwise-empty slots. So if no item in a slot can
+improve any requested stat, the proven optimum leaves that slot empty. Concrete case: the default
+request (distance mastery + AP/MP/HP/…) returns **no mount**, because every mount in the data
+carries only `MASTERY_ELEMENTARY` — which matches none of those targets. The GA *appears* to fill
+the mount only because its individuals start with all slots filled and nothing forces it to drop a
+zero-value item; that mount does not raise the GA score either. Both engines reach the same optimum
+for the requested stats. (A lexicographic secondary objective — "max total elemental mastery among
+optimal builds" — would fill such slots and was considered, but deliberately not implemented.)
+
 ---
 
 ## 5. Data pipeline
