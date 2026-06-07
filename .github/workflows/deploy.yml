@@ -1,87 +1,31 @@
 name: Deploy
-
-# ⚠️ DRAFT multi-machine release workflow — validate on the first manual run.
-#
-# Compose Desktop's Conveyor cross-build (one runner packaging every OS) ships the build host's
-# Skiko native into every installer, so the non-host platforms crash on launch. Building each OS on
-# its OWN native runner makes `compose.desktop.currentOs` resolve the correct Skiko. The `package`
-# matrix produces one prebuilt app per OS; the `site` job recombines them (via conveyor-ci.conf)
-# into the signed, auto-updating gh-pages site WITHOUT rebuilding.
 on: [ workflow_dispatch ]
-
 jobs:
-    test:
+    build:
         # Reuse the Build workflow (./gradlew test) as a gate.
         uses: ./.github/workflows/build.yml
-
-    package:
-        needs: [ test ]
-        strategy:
-            fail-fast: false
-            matrix:
-                include:
-                    - { os: macos-14, machine: mac.aarch64, target: mac-app, artifact: mac-aarch64 }
-                    - { os: macos-13, machine: mac.amd64, target: mac-app, artifact: mac-amd64 }
-                    - { os: windows-latest, machine: windows.amd64, target: windows-app, artifact: windows-amd64 }
-                    - { os: ubuntu-latest, machine: linux.amd64.glibc, target: linux-app, artifact: linux-amd64 }
-        runs-on: ${{ matrix.os }}
-        defaults:
-            run:
-                shell: bash # so ./gradlew works on the Windows runner too
-        steps:
-            -   name: Checkout
-                uses: actions/checkout@v6.0.2
-
-            -   name: Set up JDK 25
-                uses: actions/setup-java@v4
-                with:
-                    distribution: temurin
-                    java-version: '25'
-
-            -   name: Build the app jar
-                run: ./gradlew :gui-compose:jar
-
-            # Package just this matrix entry's machine, on its native runner.
-            -   name: Conveyor make ${{ matrix.target }} (${{ matrix.machine }})
-                uses: hydraulic-software/conveyor/actions/build@v21.1
-                with:
-                    extra_flags: '-f ./gui-compose/conveyor.conf -Kapp.machines=${{ matrix.machine }} --output-dir output'
-                    command: make ${{ matrix.target }}
-                    agree_to_license: 1
-
-            -   name: Upload prebuilt app
-                uses: actions/upload-artifact@v4
-                with:
-                    name: ${{ matrix.artifact }}
-                    path: output
-                    retention-days: 1
-
-    site:
-        needs: [ package ]
+    deploy:
+        needs: [ build ]
         runs-on: ubuntu-latest
         steps:
             -   name: Checkout
                 uses: actions/checkout@v6.0.2
 
-            -   name: Set up JDK 25
-                uses: actions/setup-java@v4
-                with:
-                    distribution: temurin
-                    java-version: '25'
+            -   name: Setup Gradle
+                uses: gradle/actions/setup-gradle@v5
 
-            # Pulls every matrix artifact into ./artifacts/<name>/ (the paths conveyor-ci.conf expects).
-            -   name: Download prebuilt apps
-                uses: actions/download-artifact@v4
-                with:
-                    path: artifacts
+            -   name: Create Jars
+                run: ./gradlew jar
 
-            # Recombine the prebuilt per-OS apps into the signed auto-update site (no rebuild).
-            -   name: Conveyor make copied-site
+            # Single-host cross-build: the per-machine Compose/OR-Tools deps in gui-compose/build.gradle.kts
+            # make Conveyor package each OS with its own Skiko + native (needs Compose >= 1.11 / Skiko
+            # >= 0.144 so the JVM Skiko variant resolves unambiguously — SKIKO-1013).
+            -   name: Run Conveyor
                 uses: hydraulic-software/conveyor/actions/build@v21.1
                 env:
                     OAUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                 with:
-                    extra_flags: '-f ./gui-compose/conveyor-ci.conf'
+                    extra_flags: '-f ./gui-compose/conveyor.conf'
                     command: make copied-site
                     signing_key: ${{ secrets.SIGNING_KEY }}
                     agree_to_license: 1

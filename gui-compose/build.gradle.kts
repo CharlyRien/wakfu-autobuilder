@@ -9,7 +9,7 @@ import kotlin.io.path.createTempFile
 plugins {
     kotlin("jvm")
     id("org.jetbrains.kotlin.plugin.compose") version "2.3.21"
-    id("org.jetbrains.compose") version "1.8.1"
+    id("org.jetbrains.compose") version "1.11.1"
     id("dev.hydraulic.conveyor") version "2.0"
     alias(libs.plugins.ktlint)
 }
@@ -22,11 +22,22 @@ repositories {
     google()
 }
 
+// OR-Tools ships one native jar per OS/arch (all pulled in transitively via :autobuilder). Keep them
+// off the shared classpath and attach each to its Conveyor machine config, so every installer bundles
+// only the native it needs instead of all five.
+val ortoolsVersion = "9.15.6755"
+
 dependencies {
-    implementation(project(":autobuilder"))
+    implementation(project(":autobuilder")) {
+        exclude(group = "com.google.ortools", module = "ortools-darwin-aarch64")
+        exclude(group = "com.google.ortools", module = "ortools-darwin-x86-64")
+        exclude(group = "com.google.ortools", module = "ortools-linux-aarch64")
+        exclude(group = "com.google.ortools", module = "ortools-linux-x86-64")
+        exclude(group = "com.google.ortools", module = "ortools-win32-x86-64")
+    }
     implementation(project(":zenith-builder"))
     implementation(project(":common-lib"))
-    implementation(compose.desktop.currentOs)
+    implementation(compose.desktop.currentOs) // host Compose/Skiko for :gui-compose:run / :test
     implementation(compose.material3)
     implementation(platform(libs.kotlinx.coroutine.bom))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing")
@@ -34,6 +45,21 @@ dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    // Per-machine artifacts Conveyor packages for each target: that OS's Compose Desktop (Skiko) +
+    // OR-Tools native. Without these, Conveyor falls back to the build host's `currentOs` Skiko for
+    // every OS (ships e.g. macOS Skiko in the Windows/Linux installers → crash). Resolving these
+    // cleanly requires Skiko ≥ 0.144 (Compose ≥ 1.11), which drops the awt/android variant ambiguity
+    // for JVM consumers (SKIKO-1013). The Conveyor plugin routes whichever matches the build host
+    // into `implementation`, so local dev keeps working.
+    "macAarch64"(compose.desktop.macos_arm64)
+    "macAarch64"("com.google.ortools:ortools-darwin-aarch64:$ortoolsVersion")
+    "macAmd64"(compose.desktop.macos_x64)
+    "macAmd64"("com.google.ortools:ortools-darwin-x86-64:$ortoolsVersion")
+    "linuxAmd64"(compose.desktop.linux_x64)
+    "linuxAmd64"("com.google.ortools:ortools-linux-x86-64:$ortoolsVersion")
+    "windowsAmd64"(compose.desktop.windows_x64)
+    "windowsAmd64"("com.google.ortools:ortools-win32-x86-64:$ortoolsVersion")
 }
 
 kotlin {
