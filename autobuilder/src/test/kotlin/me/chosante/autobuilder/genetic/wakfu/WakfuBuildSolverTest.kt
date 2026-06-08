@@ -288,10 +288,26 @@ class WakfuBuildSolverTest {
                             it.itemType == ItemType.MOUNTS
                     }.groupBy { it.itemType }
 
-            val lpBest = WakfuBuildSolver.optimize(params, equipmentsByItemType).toList().maxByOrNull { it.matchPercentage }!!
+            // Deterministic, machine-independent solve (fixed worker + seed + deterministic-time
+            // budget): the search reaches the *same proven optimum* on every machine. This is what
+            // de-flakes the test — under the real wall-clock search a slow/loaded CI runner could stop
+            // early on a sub-optimal feasible build that violated the assertions below.
+            val results =
+                WakfuBuildSolver
+                    .optimize(params, equipmentsByItemType, WakfuBuildSolver.SolverTuning())
+                    .toList()
+
+            // Optimality must actually be *proven* within the deterministic-time budget — that proof
+            // is what keeps every assertion below stable. A failure here is a loud, reproducible
+            // "budget too small" signal, never a flake.
+            val lpBest =
+                results.lastOrNull { it.isOptimal }
+            assertThat(lpBest)
+                .describedAs("solver must prove optimality within the deterministic-time budget")
+                .isNotNull
 
             // A real, valid, non-trivial build — not an empty no-op that could pass a bare ">= GA".
-            assertThat(lpBest.individual.isValid()).isTrue()
+            assertThat(lpBest!!.individual.isValid()).isTrue()
             assertThat(lpBest.individual.equipments.size).isGreaterThanOrEqualTo(10)
 
             // Correctness on real data: every required hard constraint (AP/MP/range/crit) is actually met.
