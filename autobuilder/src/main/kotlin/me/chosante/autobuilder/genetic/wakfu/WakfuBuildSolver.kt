@@ -232,9 +232,31 @@ object WakfuBuildSolver {
         return result
     }
 
+    /**
+     * Test-only knobs to make a solve bit-for-bit reproducible. Production never passes this — the
+     * default `null` keeps the real search (wall-clock budget, a worker per core, no fixed seed),
+     * which is fast but intentionally non-deterministic. A test that drives that real search can stop
+     * at a *sub-optimal feasible* build on a slow/loaded CI runner (the AP/MP/range/crit targets are
+     * objective penalties, not hard constraints, so a poor feasible solution can violate them). With
+     * a tuning, CP-SAT instead runs a fixed worker count + fixed seed + a **deterministic-time**
+     * budget — work-unit based, not wall-clock — so it returns the *same proven optimum* on any
+     * machine, however slow or loaded.
+     */
+    internal data class SolverTuning(
+        val numSearchWorkers: Int = 8,
+        val randomSeed: Int = 1,
+        val maxDeterministicTime: Double = 60.0,
+    )
+
     fun optimize(
         params: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
+    ): Flow<GeneticAlgorithmResult<BuildCombination>> = optimize(params, equipmentsByItemType, tuning = null)
+
+    internal fun optimize(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        tuning: SolverTuning?,
     ): Flow<GeneticAlgorithmResult<BuildCombination>> =
         callbackFlow {
             withContext(Dispatchers.IO) {
@@ -265,7 +287,7 @@ object WakfuBuildSolver {
                     }
                 model.maximize(objective)
 
-                executeSolverAndEmitResults(model, params, allEquips, equipVars, skillVars, this@callbackFlow)
+                executeSolverAndEmitResults(model, params, allEquips, equipVars, skillVars, this@callbackFlow, tuning)
             }
             close()
             awaitClose { }
@@ -468,15 +490,28 @@ object WakfuBuildSolver {
         equipVars: Map<Equipment, IntVar>,
         skillVars: Map<SkillCharacteristic, IntVar>,
         scope: ProducerScope<GeneticAlgorithmResult<BuildCombination>>,
+        tuning: SolverTuning?,
     ) {
         val solver = CpSolver()
-        solver.parameters.maxTimeInSeconds = params.searchDuration.inWholeSeconds.toDouble()
         solver.parameters.logSearchProgress = false
-        // Run a parallel portfolio across all cores (CP-SAT's equivalent of the GA's parallel
-        // scoring). Presolve is capped because full presolve on this objective never terminates in
-        // the time budget; the prefiltered (small) model keeps even a light presolve effective.
-        solver.parameters.numSearchWorkers = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
-        solver.parameters.maxPresolveIterations = 1
+        if (tuning == null) {
+            // Production: a parallel portfolio across all cores (CP-SAT's equivalent of the GA's
+            // parallel scoring), bounded by the user's wall-clock search duration. Presolve is capped
+            // because full presolve on this objective never terminates within that budget; the
+            // prefiltered (small) model keeps even a light presolve effective.
+            solver.parameters.maxPresolveIterations = 1
+            solver.parameters.maxTimeInSeconds = params.searchDuration.inWholeSeconds.toDouble()
+            solver.parameters.numSearchWorkers = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
+        } else {
+            // Deterministic, machine-independent solve for tests — see [SolverTuning]. A fixed worker
+            // count + seed + a deterministic-time budget (not wall-clock) make CP-SAT reach the same
+            // proven optimum on every machine, removing the flakiness of a wall-clock-bounded search.
+            // Presolve runs in full here (tests only ever solve the small, prefiltered model) so the
+            // optimality proof finishes quickly.
+            solver.parameters.numSearchWorkers = tuning.numSearchWorkers
+            solver.parameters.randomSeed = tuning.randomSeed
+            solver.parameters.maxDeterministicTime = tuning.maxDeterministicTime
+        }
 
         val startTime = System.currentTimeMillis()
 
