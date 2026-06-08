@@ -5,10 +5,12 @@ import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuSolver
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
+import me.chosante.autobuilder.genetic.wakfu.isRandomElementStat
 import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.Rarity
+import me.chosante.common.history.HistoryEntry
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.label
 import me.chosante.ui.theme.WColor
@@ -33,12 +35,49 @@ enum class PickerMode {
     Excluded,
 }
 
+/**
+ * The three top-level surfaces. A deliberately tiny router (a `when` in `AppShell`) rather than a
+ * navigation library — there are only three screens and state is a single [UiState].
+ */
+enum class Screen {
+    Builder,
+    Library,
+    Compare,
+}
+
+/** The two sides of the compare view. */
+enum class CompareSlot {
+    A,
+    B,
+}
+
 sealed interface Modal {
     data object AddStat : Modal
 
     data class ItemPicker(
         val mode: PickerMode,
     ) : Modal
+
+    /** Save-the-current-build dialog (name + optional note). */
+    data object SaveBuild : Modal
+
+    /** Rename an existing saved build. */
+    data class RenameBuild(
+        val id: String,
+        val currentName: String,
+    ) : Modal
+
+    /** Confirm deleting a saved build. */
+    data class ConfirmDelete(
+        val id: String,
+        val name: String,
+    ) : Modal
+
+    /**
+     * Confirm re-running the solver while a saved build is loaded — the guard behind the locked
+     * search button, so the user knowingly re-optimizes the build they're editing.
+     */
+    data object ConfirmReSearch : Modal
 }
 
 data class UiState(
@@ -66,19 +105,95 @@ data class UiState(
     val toast: String? = null,
     val error: String? = null,
     val modal: Modal? = null,
+    // --- Build history / comparison ---
+    val screen: Screen = Screen.Builder,
+    /** Saved builds, newest first; loaded from disk at startup and kept in sync after each write. */
+    val savedBuilds: List<HistoryEntry> = emptyList(),
+    /** Id of the saved build currently loaded into the workspace, if any (drives the active-build chip). */
+    val activeBuildId: String? = null,
+    /** Display name of the loaded build, shown in the workspace; `null` ⇒ "unsaved build". */
+    val activeBuildName: String? = null,
+    /**
+     * When a saved build is loaded, the search button is locked so re-optimizing it is a deliberate
+     * act (it pops [Modal.ConfirmReSearch] first). Cleared once the user confirms or starts fresh.
+     */
+    val searchLocked: Boolean = false,
+    /** The two builds pinned for the side-by-side compare view (entry ids), A then B. */
+    val compareA: String? = null,
+    val compareB: String? = null,
 )
 
 /**
- * Cumulated value of the masteries the user asked to maximize (most-masteries mode). This is the
- * meaningful headline number there — unlike precision mode, "% match" says nothing about how much
- * mastery the build actually reached. Sums the achieved value of every maximizable-mastery target;
- * the "all elements" target reads through the aggregate [Characteristic.MASTERY_ELEMENTARY] key
- * (set to the weakest element by the scorer), so it counts once, not four times.
+ * Stats the engine treats as internal encodings rather than final values a player reads:
+ *  - `MAX_ACTION/MOVEMENT/WAKFU` — the game data stores AP/MP/WP gear modifiers here, and the engine
+ *    folds them into AP/MP/WP (so a "-1 Max MP" is *already* deducted from MP — showing it again
+ *    reads as a phantom second penalty);
+ *  - random-element masteries/resistances — item rolls distributed onto concrete elements at scoring
+ *    time, so they're already reflected in the per-element values.
+ * These are hidden from the build sheet and the compare table.
+ */
+fun Characteristic.isEngineInternalStat(): Boolean =
+    this == Characteristic.MAX_ACTION_POINT ||
+        this == Characteristic.MAX_MOVEMENT_POINT ||
+        this == Characteristic.MAX_WAKFU_POINTS ||
+        isRandomElementStat()
+
+/** The four elementary mastery stats. */
+private val ELEMENTARY_MASTERIES =
+    setOf(
+        Characteristic.MASTERY_ELEMENTARY_WATER,
+        Characteristic.MASTERY_ELEMENTARY_FIRE,
+        Characteristic.MASTERY_ELEMENTARY_EARTH,
+        Characteristic.MASTERY_ELEMENTARY_WIND
+    )
+
+/** Specialized (non-elementary) maximizable masteries — these are summed. */
+private val SPECIALIZED_MASTERIES =
+    setOf(
+        Characteristic.MASTERY_DISTANCE,
+        Characteristic.MASTERY_CRITICAL,
+        Characteristic.MASTERY_BACK,
+        Characteristic.MASTERY_MELEE,
+        Characteristic.MASTERY_BERSERK,
+        Characteristic.MASTERY_HEALING
+    )
+
+/**
+ * The mastery value the **engine actually optimizes**, mirroring `FindMostMasteriesFromInputScoring`:
+ * the sum of the requested *specialized* masteries **plus the MINIMUM of the requested *elementary*
+ * masteries** — your weakest requested element gates hybrid damage, so the elements are never summed.
+ *
+ * Showing this (instead of a naive sum of all requested masteries) keeps "what you see" == "what the
+ * solver maximized": a build with balanced-high fire+water no longer looks better than one the engine
+ * actually ranks higher. [requestedMasteries] is the set of maximizable-mastery characteristics that
+ * were requested; [achieved] is the build's resulting stats.
+ */
+fun engineMasteryScore(
+    achieved: Map<Characteristic, Int>,
+    requestedMasteries: Set<Characteristic>,
+): Int {
+    val specialized = requestedMasteries.filter { it in SPECIALIZED_MASTERIES }.sumOf { achieved[it] ?: 0 }
+    val wantedElements =
+        if (Characteristic.MASTERY_ELEMENTARY in requestedMasteries) {
+            ELEMENTARY_MASTERIES.toList()
+        } else {
+            requestedMasteries.filter { it in ELEMENTARY_MASTERIES }
+        }
+    val elemental = wantedElements.minOfOrNull { achieved[it] ?: 0 } ?: 0
+    return specialized + elemental
+}
+
+/**
+ * Cumulated mastery the build reached, as the **engine scores it** — the meaningful headline in
+ * most-masteries mode (unlike precision mode, "% match" says nothing about how much mastery the build
+ * reached). See [engineMasteryScore]: requested specialized masteries are summed, requested elemental
+ * masteries count by their minimum (not their sum).
  */
 fun UiState.requestedMasteryTotal(): Int =
-    targets
-        .filter { it.characteristic.isMaximizableMastery() }
-        .sumOf { achieved[it.characteristic] ?: 0 }
+    engineMasteryScore(
+        achieved = achieved,
+        requestedMasteries = targets.filter { it.characteristic.isMaximizableMastery() }.map { it.characteristic }.toSet()
+    )
 
 /** Compact integer formatting: a thousands separator past 1000, plain otherwise. */
 fun Int.formatCompact(): String =

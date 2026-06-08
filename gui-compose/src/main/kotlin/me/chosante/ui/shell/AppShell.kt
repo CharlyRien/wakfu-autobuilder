@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.dp
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.ui.components.ModalHost
+import me.chosante.ui.history.CompareScreen
+import me.chosante.ui.history.LibraryScreen
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.tr
@@ -24,6 +26,7 @@ import me.chosante.ui.state.BuildSearchModel
 import me.chosante.ui.state.Modal
 import me.chosante.ui.state.Phase
 import me.chosante.ui.state.PickerMode
+import me.chosante.ui.state.Screen
 import me.chosante.ui.state.statCatalog
 import me.chosante.ui.stats.StatsPanel
 import me.chosante.ui.theme.WColor
@@ -52,66 +55,36 @@ fun AppShell(
             ) {
                 TopBar(
                     ui = ui,
-                    onSearch = model::search,
+                    onSearch = model::onSearchPressed,
                     onCancel = model::cancel,
                     onClassChange = model::setClass,
                     onLevelChange = model::setLevel,
                     onMinLevelChange = model::setMinLevel,
-                    onLangChange = model::setLang
+                    onLangChange = model::setLang,
+                    onNavigate = model::goToScreen,
+                    onNewBuild = model::newBuild,
+                    onDetachActiveBuild = model::clearActiveBuild
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth().weight(1f).background(WColor.hairline)
-                ) {
-                    ShellColumn(
-                        title = tr(Tr.ZONE_REQUEST),
-                        hint = tr(Tr.ZONE_REQUEST_HINT),
-                        modifier = Modifier.width(320.dp)
-                    ) {
-                        RequestPanel(
-                            ui = ui,
-                            onModeChange = model::setMode,
-                            onTargetValueChange = model::updateTargetValue,
-                            onRemoveTarget = model::removeTarget,
-                            onAddTarget = { model.openModal(Modal.AddStat) },
-                            onToggleMastery = model::toggleMaximizedMastery,
-                            onMaxRarityChange = model::setMaxRarity,
-                            onDurationChange = model::setDuration,
-                            onStopAtMatchChange = model::setStopAtMatch,
-                            onSolverChange = model::setSolver,
-                            onAddForcedItem = { model.openModal(Modal.ItemPicker(PickerMode.Forced)) },
-                            onRemoveForcedItem = model::removeForcedItem,
-                            onAddExcludedItem = { model.openModal(Modal.ItemPicker(PickerMode.Excluded)) },
-                            onRemoveExcludedItem = model::removeExcludedItem
-                        )
-                    }
-                    VerticalSeparator()
-                    ShellColumn(
-                        title = tr(Tr.ZONE_BUILD),
-                        hint =
-                            when (ui.phase) {
-                                Phase.Idle -> tr(Tr.ZONE_BUILD_IDLE)
-                                Phase.Searching -> tr(Tr.ZONE_BUILD_SEARCHING)
-                                Phase.Done -> tr(Tr.ZONE_BUILD_DONE)
-                            },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        PaperdollPanel(
-                            ui = ui,
-                            onForceItem = model::forceItem,
-                            onExcludeItem = model::excludeItem
-                        )
-                    }
-                    VerticalSeparator()
-                    ShellColumn(
-                        title = tr(Tr.ZONE_STATS),
-                        hint = tr(Tr.ZONE_STATS_HINT),
-                        modifier = Modifier.width(360.dp)
-                    ) {
-                        StatsPanel(
-                            ui = ui,
-                            onOpenZenith = model::openZenithBuild,
-                            onCopyZenith = model::copyZenithLink
-                        )
+                Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                    when (ui.screen) {
+                        Screen.Builder -> BuilderBody(model = model)
+                        Screen.Library ->
+                            LibraryScreen(
+                                ui = ui,
+                                onLoad = model::loadBuild,
+                                onCompare = model::startCompare,
+                                onRename = model::requestRename,
+                                onDelete = model::requestDelete,
+                                onGoBuilder = { model.goToScreen(Screen.Builder) }
+                            )
+
+                        Screen.Compare ->
+                            CompareScreen(
+                                ui = ui,
+                                onPick = model::setCompareSlot,
+                                onClearSlot = model::clearCompareSlot,
+                                onBack = { model.goToScreen(Screen.Library) }
+                            )
                     }
                 }
             }
@@ -122,7 +95,75 @@ fun AppShell(
                 equipmentCatalog = model.equipmentCatalog,
                 onSelectStat = model::addTarget,
                 onPickItem = model::pickItem,
-                onDismiss = model::closeModal
+                onDismiss = model::closeModal,
+                suggestedSaveName = model.suggestedSaveName(),
+                isEditingExisting = ui.activeBuildId != null,
+                takenNames = model.takenBuildNames(),
+                onSaveBuild = model::saveBuild,
+                onRenameBuild = model::renameBuild,
+                onDeleteBuild = model::deleteBuild,
+                onConfirmReSearch = model::confirmReSearch
+            )
+        }
+    }
+}
+
+@Composable
+private fun BuilderBody(model: BuildSearchModel) {
+    val ui = model.ui
+    Row(
+        modifier = Modifier.fillMaxSize().background(WColor.hairline)
+    ) {
+        ShellColumn(
+            title = tr(Tr.ZONE_REQUEST),
+            hint = tr(Tr.ZONE_REQUEST_HINT),
+            modifier = Modifier.width(320.dp)
+        ) {
+            RequestPanel(
+                ui = ui,
+                onModeChange = model::setMode,
+                onTargetValueChange = model::updateTargetValue,
+                onRemoveTarget = model::removeTarget,
+                onAddTarget = { model.openModal(Modal.AddStat) },
+                onToggleMastery = model::toggleMaximizedMastery,
+                onMaxRarityChange = model::setMaxRarity,
+                onDurationChange = model::setDuration,
+                onStopAtMatchChange = model::setStopAtMatch,
+                onSolverChange = model::setSolver,
+                onAddForcedItem = { model.openModal(Modal.ItemPicker(PickerMode.Forced)) },
+                onRemoveForcedItem = model::removeForcedItem,
+                onAddExcludedItem = { model.openModal(Modal.ItemPicker(PickerMode.Excluded)) },
+                onRemoveExcludedItem = model::removeExcludedItem
+            )
+        }
+        VerticalSeparator()
+        ShellColumn(
+            title = tr(Tr.ZONE_BUILD),
+            hint =
+                when (ui.phase) {
+                    Phase.Idle -> tr(Tr.ZONE_BUILD_IDLE)
+                    Phase.Searching -> tr(Tr.ZONE_BUILD_SEARCHING)
+                    Phase.Done -> tr(Tr.ZONE_BUILD_DONE)
+                },
+            modifier = Modifier.weight(1f)
+        ) {
+            PaperdollPanel(
+                ui = ui,
+                onForceItem = model::forceItem,
+                onExcludeItem = model::excludeItem
+            )
+        }
+        VerticalSeparator()
+        ShellColumn(
+            title = tr(Tr.ZONE_STATS),
+            hint = tr(Tr.ZONE_STATS_HINT),
+            modifier = Modifier.width(360.dp)
+        ) {
+            StatsPanel(
+                ui = ui,
+                onOpenZenith = model::openZenithBuild,
+                onCopyZenith = model::copyZenithLink,
+                onSaveBuild = model::requestSaveBuild
             )
         }
     }

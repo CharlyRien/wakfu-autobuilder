@@ -1,10 +1,14 @@
 package me.chosante.ui.components
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -15,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import me.chosante.common.Characteristic
 import me.chosante.common.skills.IntelligenceCharacteristic
 import me.chosante.common.skills.SkillCharacteristic
+import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WType
 import me.chosante.ui.theme.WTypography
 
@@ -97,6 +102,36 @@ internal fun SkillCharacteristic.iconResourcePath(): String? =
         is IntelligenceCharacteristic.HpPercentageAsArmor -> "assets/icons/armor.png"
         else -> null
     }
+
+/**
+ * A standalone HUD icon for [characteristic], for plain stat lines (no surrounding chip/glyph). Falls
+ * back to a small muted dot when the stat has no mapped icon, so every line still gets a marker.
+ */
+@Composable
+internal fun CharacteristicIcon(
+    characteristic: Characteristic,
+    modifier: Modifier = Modifier,
+    size: Dp = 16.dp,
+    fallbackColor: Color = WColor.muted,
+) {
+    val bitmap = characteristic.iconResourcePath()?.let { rememberClasspathBitmap(it) }
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap,
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = modifier.size(size)
+        )
+    } else {
+        Box(
+            modifier =
+                modifier
+                    .size(size * 0.5f)
+                    .clip(CircleShape)
+                    .background(fallbackColor.copy(alpha = 0.6f))
+        )
+    }
+}
 
 /** Every stat/skill icon worth pre-decoding off the UI thread (paired with [warmUpPaths]). */
 internal fun statIconWarmUpPaths(): List<String> =

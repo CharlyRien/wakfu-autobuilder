@@ -37,6 +37,7 @@ dependencies {
     }
     implementation(project(":zenith-builder"))
     implementation(project(":common-lib"))
+    implementation(libs.kotlinx.serialization.json)
     implementation(compose.desktop.currentOs) // host Compose/Skiko for :gui-compose:run / :test
     implementation(compose.material3)
     implementation(platform(libs.kotlinx.coroutine.bom))
@@ -44,6 +45,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
     testImplementation(platform(libs.junit.bom))
     testImplementation("org.junit.jupiter:junit-jupiter")
+    testImplementation("org.assertj:assertj-core:3.27.7")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     // Per-machine artifacts Conveyor packages for each target: that OS's Compose Desktop (Skiko) +
