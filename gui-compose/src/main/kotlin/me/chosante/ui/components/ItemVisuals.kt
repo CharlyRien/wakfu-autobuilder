@@ -11,8 +11,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.decodeToImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.loadImageBitmap
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
@@ -65,7 +65,7 @@ internal fun loadClasspathBitmap(path: String): ImageBitmap? {
         val loader = Thread.currentThread().contextClassLoader
         return try {
             loader.getResourceAsStream(path)?.use { stream ->
-                loadImageBitmap(stream).also { bitmapCache[path] = it }
+                stream.readAllBytes().decodeToImageBitmap().also { bitmapCache[path] = it }
             }
         } catch (_: Exception) {
             null

@@ -23,7 +23,12 @@ subprojects {
         // ("Toolchain from `executable` does not match toolchain from `javaLauncher`"), which broke
         // running apps (e.g. equipments-extractor) from the IDE.
         tasks.withType<JavaExec>().configureEach {
-            jvmArgs("--enable-native-access=ALL-UNNAMED")
+            jvmArgs(
+                "--enable-native-access=ALL-UNNAMED",
+                // Silence protobuf-java's "deprecated sun.misc.Unsafe::arrayBaseOffset" warnings
+                // (transitive via OR-Tools) on launched apps (CLI / equipments-extractor).
+                "--sun-misc-unsafe-memory-access=allow"
+            )
         }
     }
 }

@@ -41,7 +41,10 @@ tasks.test {
     jvmArgs(
         "--enable-native-access=ALL-UNNAMED",
         "--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
-        "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED"
+        "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED",
+        // Silence the "terminally deprecated sun.misc.Unsafe::arrayBaseOffset" warnings emitted by
+        // protobuf-java (pulled in transitively by OR-Tools) — nothing we can fix in our own code.
+        "--sun-misc-unsafe-memory-access=allow"
     )
 }
 
