@@ -9,10 +9,10 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             -   name: Checkout
-                uses: actions/checkout@v6.0.2
+                uses: actions/checkout@v6.0.3
 
             -   name: Setup Gradle
-                uses: gradle/actions/setup-gradle@v5
+                uses: gradle/actions/setup-gradle@v6
 
             -   name: Create Jars
                 run: ./gradlew jar
@@ -21,7 +21,7 @@ jobs:
             # make Conveyor package each OS with its own Skiko + native (needs Compose >= 1.11 / Skiko
             # >= 0.144 so the JVM Skiko variant resolves unambiguously — SKIKO-1013).
             -   name: Run Conveyor
-                uses: hydraulic-software/conveyor/actions/build@v21.1
+                uses: hydraulic-software/conveyor/actions/build@v22.0
                 env:
                     OAUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                 with:
