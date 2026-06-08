@@ -31,12 +31,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.ui.i18n.Lang
@@ -61,6 +63,13 @@ fun ModalHost(
     onSelectStat: (Characteristic) -> Unit,
     onPickItem: (Equipment) -> Unit,
     onDismiss: () -> Unit,
+    suggestedSaveName: String = "",
+    isEditingExisting: Boolean = false,
+    takenNames: Set<String> = emptySet(),
+    onSaveBuild: (name: String, note: String?, asNew: Boolean) -> Unit = { _, _, _ -> },
+    onRenameBuild: (id: String, newName: String) -> Unit = { _, _ -> },
+    onDeleteBuild: (id: String) -> Unit = {},
+    onConfirmReSearch: () -> Unit = {},
 ) {
     if (modal == null) return
     Scrim(onDismiss = onDismiss) {
@@ -76,6 +85,44 @@ fun ModalHost(
                     mode = modal.mode,
                     equipmentCatalog = equipmentCatalog,
                     onPick = onPickItem
+                )
+
+            Modal.SaveBuild ->
+                SaveBuildModal(
+                    initialName = suggestedSaveName,
+                    isEditingExisting = isEditingExisting,
+                    takenNames = takenNames,
+                    onSave = onSaveBuild,
+                    onCancel = onDismiss
+                )
+
+            is Modal.RenameBuild ->
+                RenameModal(
+                    initialName = modal.currentName,
+                    onRename = { newName -> onRenameBuild(modal.id, newName) },
+                    onCancel = onDismiss
+                )
+
+            is Modal.ConfirmDelete ->
+                ConfirmModal(
+                    title = tr(Tr.DELETE_TITLE),
+                    emphasis = modal.name,
+                    message = tr(Tr.DELETE_HINT),
+                    confirmLabel = tr(Tr.ACTION_DELETE),
+                    confirmColor = WColor.danger,
+                    onConfirm = { onDeleteBuild(modal.id) },
+                    onCancel = onDismiss
+                )
+
+            Modal.ConfirmReSearch ->
+                ConfirmModal(
+                    title = tr(Tr.RESEARCH_TITLE),
+                    emphasis = null,
+                    message = tr(Tr.RESEARCH_HINT),
+                    confirmLabel = tr(Tr.RESEARCH_CONFIRM),
+                    confirmColor = WColor.accent,
+                    onConfirm = onConfirmReSearch,
+                    onCancel = onDismiss
                 )
         }
     }
@@ -425,6 +472,190 @@ private fun SearchField(
         if (query.isEmpty()) {
             Text(text = placeholder, style = WTypography.bodyMedium.copy(color = WColor.faint))
         }
+    }
+}
+
+@Composable
+private fun SaveBuildModal(
+    initialName: String,
+    isEditingExisting: Boolean,
+    takenNames: Set<String>,
+    onSave: (name: String, note: String?, asNew: Boolean) -> Unit,
+    onCancel: () -> Unit,
+) {
+    var name by remember { mutableStateOf(initialName) }
+    var note by remember { mutableStateOf("") }
+    val nameTaken = name.trim().lowercase() in takenNames
+    ModalCard(title = tr(Tr.SAVE_DIALOG_TITLE)) {
+        LabeledField(
+            label = tr(Tr.SAVE_NAME_LABEL),
+            value = name,
+            onValueChange = { name = it },
+            placeholder = ""
+        )
+        if (nameTaken) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = tr(Tr.SAVE_NAME_TAKEN),
+                style = WTypography.labelSmall.copy(color = WColor.danger)
+            )
+        }
+        Spacer(modifier = Modifier.height(WDimens.gap))
+        LabeledField(
+            label = tr(Tr.SAVE_NOTE_LABEL),
+            value = note,
+            onValueChange = { note = it },
+            placeholder = ""
+        )
+        if (isEditingExisting) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = tr(Tr.SAVE_UPDATE_HINT),
+                style = WTypography.labelSmall.copy(color = WColor.muted)
+            )
+        }
+        Spacer(modifier = Modifier.height(WDimens.gap))
+        // Block any save whose name collides with a *different* saved build, so two builds never
+        // share a name (which would make the library and compare view ambiguous).
+        val canSave = name.isNotBlank() && !nameTaken
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            DialogButton(text = tr(Tr.CANCEL), filled = false, color = WColor.border, onClick = onCancel, modifier = Modifier.weight(1f))
+            if (isEditingExisting) {
+                DialogButton(
+                    text = tr(Tr.SAVE_AS_NEW),
+                    filled = false,
+                    color = WColor.accent2,
+                    enabled = canSave,
+                    onClick = { onSave(name, note.ifBlank { null }, true) },
+                    modifier = Modifier.weight(1f)
+                )
+                DialogButton(
+                    text = tr(Tr.UPDATE_BUILD),
+                    filled = true,
+                    color = WColor.accent,
+                    enabled = canSave,
+                    onClick = { onSave(name, note.ifBlank { null }, false) },
+                    modifier = Modifier.weight(1f)
+                )
+            } else {
+                DialogButton(
+                    text = tr(Tr.SAVE),
+                    filled = true,
+                    color = WColor.accent,
+                    enabled = canSave,
+                    onClick = { onSave(name, note.ifBlank { null }, false) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RenameModal(
+    initialName: String,
+    onRename: (String) -> Unit,
+    onCancel: () -> Unit,
+) {
+    var name by remember { mutableStateOf(initialName) }
+    ModalCard(title = tr(Tr.RENAME_TITLE)) {
+        LabeledField(
+            label = tr(Tr.SAVE_NAME_LABEL),
+            value = name,
+            onValueChange = { name = it },
+            placeholder = ""
+        )
+        Spacer(modifier = Modifier.height(WDimens.gap))
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            DialogButton(text = tr(Tr.CANCEL), filled = false, color = WColor.border, onClick = onCancel, modifier = Modifier.weight(1f))
+            DialogButton(
+                text = tr(Tr.SAVE),
+                filled = true,
+                color = WColor.accent,
+                enabled = name.isNotBlank(),
+                onClick = { onRename(name) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ConfirmModal(
+    title: String,
+    emphasis: String?,
+    message: String,
+    confirmLabel: String,
+    confirmColor: Color,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    ModalCard(title = title) {
+        if (emphasis != null) {
+            Text(
+                text = emphasis,
+                style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.SemiBold),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+        }
+        Text(
+            text = message,
+            style = WTypography.bodyMedium.copy(color = WColor.muted, lineHeight = 19.sp)
+        )
+        Spacer(modifier = Modifier.height(WDimens.gap))
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            DialogButton(text = tr(Tr.CANCEL), filled = false, color = WColor.border, onClick = onCancel, modifier = Modifier.weight(1f))
+            DialogButton(text = confirmLabel, filled = true, color = confirmColor, onClick = onConfirm, modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun LabeledField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+) {
+    Column {
+        Text(text = label, style = WTypography.labelMedium.copy(color = WColor.muted))
+        Spacer(modifier = Modifier.height(6.dp))
+        SearchField(query = value, onQueryChange = onValueChange, placeholder = placeholder)
+    }
+}
+
+@Composable
+private fun DialogButton(
+    text: String,
+    filled: Boolean,
+    color: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    Box(
+        modifier =
+            modifier
+                .height(42.dp)
+                .alpha(if (enabled) 1f else 0.45f)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (filled) color else Color.Transparent)
+                .border(1.dp, if (filled) color else WColor.border, RoundedCornerShape(10.dp))
+                .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
+                .padding(horizontal = 14.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            style =
+                WTypography.labelLarge.copy(
+                    color = if (filled) WColor.bg else WColor.text
+                ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

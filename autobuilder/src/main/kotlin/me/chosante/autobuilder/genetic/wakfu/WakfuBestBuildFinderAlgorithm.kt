@@ -21,6 +21,13 @@ import kotlin.time.Duration
 object WakfuBestBuildFinderAlgorithm {
     private val logger = KotlinLogging.logger {}
 
+    /**
+     * The embedded Wakfu game-data version (e.g. `1.91.1.54`). Exposed publicly so callers outside
+     * this module (the GUI's build-history persistence) can stamp saved builds with the exact data
+     * set they were computed against — crucial for reproducibility across data bumps.
+     */
+    val dataVersion: String = VERSION
+
     val equipments =
         this.javaClass.classLoader.getResourceAsStream("equipments-v$VERSION.json")?.readAllBytes()!!.let {
             Json.decodeFromString<List<Equipment>>(String(it))

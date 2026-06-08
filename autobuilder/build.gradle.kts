@@ -23,8 +23,8 @@ dependencies {
     implementation("io.github.oshai:kotlin-logging-jvm:8.0.02")
     implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.26.0")
     implementation("org.slf4j:slf4j-api:2.0.18")
-    implementation("com.google.ortools:ortools-java:9.15.6755")
-    testImplementation("org.assertj:assertj-core:3.27.7")
+    implementation(libs.ortools.java)
+    testImplementation(libs.assertj.core)
     testImplementation(kotlin("test"))
 }
 
@@ -41,7 +41,10 @@ tasks.test {
     jvmArgs(
         "--enable-native-access=ALL-UNNAMED",
         "--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
-        "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED"
+        "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED",
+        // Silence the "terminally deprecated sun.misc.Unsafe::arrayBaseOffset" warnings emitted by
+        // protobuf-java (pulled in transitively by OR-Tools) — nothing we can fix in our own code.
+        "--sun-misc-unsafe-memory-access=allow"
     )
 }
 

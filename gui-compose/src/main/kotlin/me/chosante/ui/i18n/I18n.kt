@@ -109,12 +109,15 @@ enum class Tr(
 
     // Stats panel
     BUILD_MATCH("Build Match", "Correspondance"),
-    BUILD_MASTERY("Total mastery", "Total maîtrises"),
+    BUILD_MASTERY("Effective mastery", "Maîtrise effective"),
+    BUILD_MASTERY_HINT("specialized summed + weakest requested element", "spécialisées sommées + élément demandé le plus faible"),
     MASTERY_SHORT("Mastery", "Maîtrise"),
     OPTIMAL_PROVEN("Optimal proven", "Optimal prouvé"),
     BEST_FOUND("Best found", "Meilleur trouvé"),
     MASTERY_SUMMARY("Mastery Summary", "Cumul maîtrises"),
     MASTERY_TOTAL("Tracked total", "Total suivi"),
+    BUILD_SHEET_TITLE("Other build stats", "Autres stats du build"),
+    BUILD_SHEET_EMPTY("No other notable stats on this build.", "Aucune autre stat notable sur ce build."),
     MASTERY_ELEMENTALS("Elementals", "Élémentaires"),
     MASTERY_SPECIALIZED("Specialized", "Spécialisées"),
     DESIRED_VS_ACHIEVED("Desired vs Achieved", "Désiré vs Obtenu"),
@@ -157,6 +160,72 @@ enum class Tr(
     // Toasts (read off the composition by the state holder)
     TOAST_ZENITH_COPIED("Zenith link copied", "Lien Zenith copié"),
     TOAST_ZENITH_READY("Zenith build ready", "Build Zenith prêt"),
+    TOAST_BUILD_SAVED("Build saved", "Build enregistré"),
+
+    // Navigation / active build
+    NAV_BUILDER("Builder", "Builder"),
+    NAV_LIBRARY("My Builds", "Mes builds"),
+    NEW_BUILD("＋ New", "＋ Nouveau"),
+    NEW_BUILD_FULL("New build", "Nouveau build"),
+    ACTIVE_BUILD_UNSAVED("Unsaved build", "Build non enregistré"),
+    ACTIVE_BUILD_EDITING("Editing", "Édition"),
+    SEARCH_LOCKED_HINT("Saved build loaded — click to re-optimize", "Build enregistré chargé — clique pour ré-optimiser"),
+    UNLINK_BUILD("Detach", "Détacher"),
+    BACK("Back", "Retour"),
+
+    // Save dialog
+    SAVE_BUILD("Save build", "Enregistrer le build"),
+    SAVE_DIALOG_TITLE("Save this build", "Enregistrer ce build"),
+    SAVE_NAME_LABEL("Name", "Nom"),
+    SAVE_NOTE_LABEL("Note (optional)", "Note (facultatif)"),
+    SAVE("Save", "Enregistrer"),
+    SAVE_AS_NEW("Save as new", "Nouveau build"),
+    UPDATE_BUILD("Update", "Mettre à jour"),
+    SAVE_NAME_TAKEN("Another build already uses this name", "Un autre build porte déjà ce nom"),
+    SAVE_UPDATE_HINT("Updating the loaded build — or save it as a new one.", "Met à jour le build chargé — ou enregistre-le comme nouveau."),
+    CANCEL("Cancel", "Annuler"),
+
+    // Library
+    LIBRARY_TITLE("My Builds", "Mes builds"),
+    LIBRARY_SUBTITLE("Saved locally on this computer", "Enregistrés localement sur cet ordinateur"),
+    LIBRARY_EMPTY("No saved builds yet", "Aucun build enregistré"),
+    LIBRARY_EMPTY_HINT(
+        "Run a search in the Builder, then hit Save — your builds show up here.",
+        "Lance une recherche dans le Builder, puis Enregistre — tes builds apparaîtront ici."
+    ),
+    LIBRARY_SEARCH("Search builds…", "Rechercher un build…"),
+    LIBRARY_NO_MATCH("No build matches your search", "Aucun build ne correspond"),
+    LIBRARY_COUNT("saved", "enregistrés"),
+    ACTION_LOAD("Load", "Charger"),
+    ACTION_COMPARE("Compare", "Comparer"),
+    ACTION_RENAME("Rename", "Renommer"),
+    ACTION_DELETE("Delete", "Supprimer"),
+
+    // Rename / delete dialogs
+    RENAME_TITLE("Rename build", "Renommer le build"),
+    DELETE_TITLE("Delete this build?", "Supprimer ce build ?"),
+    DELETE_HINT("This permanently removes it from your local library.", "Le retire définitivement de ta bibliothèque locale."),
+
+    // Re-search guard
+    RESEARCH_TITLE("Re-optimize this build?", "Ré-optimiser ce build ?"),
+    RESEARCH_HINT(
+        "You're editing a saved build. Searching recomputes it from your current targets; " +
+            "you can then save the result back over it.",
+        "Tu édites un build enregistré. La recherche le recalcule selon tes cibles actuelles ; " +
+            "tu pourras ensuite réenregistrer le résultat par-dessus."
+    ),
+    RESEARCH_CONFIRM("Re-optimize", "Ré-optimiser"),
+
+    // Compare view
+    COMPARE_TITLE("Compare builds", "Comparer les builds"),
+    COMPARE_PICK_A("Pick build A", "Choisir le build A"),
+    COMPARE_PICK_B("Pick build B", "Choisir le build B"),
+    COMPARE_WORKSPACE("Current workspace", "Build courant"),
+    COMPARE_BETTER("Best", "Meilleur"),
+    COMPARE_EQUAL("=", "="),
+    COMPARE_EMPTY("Pick two builds to compare them side by side.", "Choisis deux builds à comparer côte à côte."),
+    COMPARE_STAT("Stat", "Stat"),
+    COMPARE_ENGINE_SCORE("Mastery score (engine)", "Score maîtrises (moteur)"),
     ;
 
     fun value(lang: Lang): String =

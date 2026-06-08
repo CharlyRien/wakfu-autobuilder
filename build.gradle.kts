@@ -4,8 +4,8 @@ import org.gradle.buildconfiguration.tasks.UpdateDaemonJvm
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 
 plugins {
-    kotlin("jvm") version "2.3.21" apply false
-    kotlin("plugin.serialization") version "2.3.21" apply false
+    alias(libs.plugins.kotlin.jvm) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.ktlint) apply false
 }
 
@@ -23,7 +23,12 @@ subprojects {
         // ("Toolchain from `executable` does not match toolchain from `javaLauncher`"), which broke
         // running apps (e.g. equipments-extractor) from the IDE.
         tasks.withType<JavaExec>().configureEach {
-            jvmArgs("--enable-native-access=ALL-UNNAMED")
+            jvmArgs(
+                "--enable-native-access=ALL-UNNAMED",
+                // Silence protobuf-java's "deprecated sun.misc.Unsafe::arrayBaseOffset" warnings
+                // (transitive via OR-Tools) on launched apps (CLI / equipments-extractor).
+                "--sun-misc-unsafe-memory-access=allow"
+            )
         }
     }
 }

@@ -36,6 +36,7 @@ import me.chosante.common.Characteristic
 import me.chosante.common.skills.Assignable
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.common.skills.SkillCharacteristic
+import me.chosante.ui.components.CharacteristicIcon
 import me.chosante.ui.components.StatGlyphIcon
 import me.chosante.ui.components.VerticalScrollHints
 import me.chosante.ui.components.iconResourcePath
@@ -49,6 +50,7 @@ import me.chosante.ui.state.TargetRow
 import me.chosante.ui.state.UiState
 import me.chosante.ui.state.ZenithState
 import me.chosante.ui.state.formatCompact
+import me.chosante.ui.state.isEngineInternalStat
 import me.chosante.ui.state.isExact
 import me.chosante.ui.state.requestedMasteryTotal
 import me.chosante.ui.theme.WColor
@@ -61,6 +63,7 @@ fun StatsPanel(
     ui: UiState,
     onOpenZenith: () -> Unit,
     onCopyZenith: () -> Unit,
+    onSaveBuild: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
@@ -80,10 +83,12 @@ fun StatsPanel(
                 ActionsCard(
                     ui = ui,
                     onOpenZenith = onOpenZenith,
-                    onCopyZenith = onCopyZenith
+                    onCopyZenith = onCopyZenith,
+                    onSaveBuild = onSaveBuild
                 )
                 MasterySummary(ui)
                 DesiredVsAchieved(ui)
+                BuildSheet(ui)
                 SkillTree(ui.build?.characterSkills ?: CharacterSkills(ui.level))
             }
         }
@@ -116,6 +121,11 @@ private fun MatchHero(ui: UiState) {
                     text = tr(Tr.BUILD_MASTERY),
                     style = WTypography.labelMedium,
                     modifier = Modifier.padding(top = 4.dp)
+                )
+                Text(
+                    text = tr(Tr.BUILD_MASTERY_HINT),
+                    style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center),
+                    modifier = Modifier.padding(top = 2.dp)
                 )
             } else {
                 Row(verticalAlignment = Alignment.Bottom) {
@@ -205,19 +215,35 @@ private fun MasterySummary(ui: UiState) {
             Characteristic.MASTERY_BERSERK,
             Characteristic.MASTERY_HEALING
         )
-    val elementalValues = elementalMasteries.map { it to (ui.achieved[it] ?: 0) }
-    val specializedValues = specializedMasteries.map { it to (ui.achieved[it] ?: 0) }
-    val trackedTotal = (elementalValues.minOfOrNull { it.second } ?: 0) + specializedValues.sumOf { it.second }
+    // Only show masteries that are either requested or actually present (non-zero) — hiding the
+    // irrelevant zeros (e.g. Earth/Air on a fire/water build) is what makes the elemental MIN below
+    // meaningful and the total line up with the headline.
+    val requested = ui.targets.map { it.characteristic }.toSet()
+
+    fun shown(characteristic: Characteristic) = characteristic in requested || (ui.achieved[characteristic] ?: 0) != 0
+    val elementalValues = elementalMasteries.filter(::shown).map { it to (ui.achieved[it] ?: 0) }
+    val specializedValues = specializedMasteries.filter(::shown).map { it to (ui.achieved[it] ?: 0) }
+    // The engine-faithful number: requested specialized summed + the weakest *requested* element.
+    val effectiveMastery = ui.requestedMasteryTotal()
 
     ResultCard(
         title = tr(Tr.MASTERY_SUMMARY),
-        trailing = trackedTotal.formatCompact()
+        trailing = effectiveMastery.formatCompact()
     ) {
-        SummaryMetric(label = tr(Tr.MASTERY_TOTAL), value = trackedTotal)
-        Hairline()
-        MasteryGroup(title = tr(Tr.MASTERY_ELEMENTALS), values = elementalValues)
-        Hairline()
-        MasteryGroup(title = tr(Tr.MASTERY_SPECIALIZED), values = specializedValues)
+        SummaryMetric(label = tr(Tr.BUILD_MASTERY), value = effectiveMastery)
+        Text(
+            text = tr(Tr.BUILD_MASTERY_HINT),
+            style = WTypography.labelSmall.copy(color = WColor.faint),
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        if (elementalValues.isNotEmpty()) {
+            Hairline()
+            MasteryGroup(title = tr(Tr.MASTERY_ELEMENTALS), values = elementalValues)
+        }
+        if (specializedValues.isNotEmpty()) {
+            Hairline()
+            MasteryGroup(title = tr(Tr.MASTERY_SPECIALIZED), values = specializedValues)
+        }
     }
 }
 
@@ -239,6 +265,72 @@ private fun SummaryMetric(
     }
 }
 
+/**
+ * The full "rest of the build" sheet: every resulting characteristic the build actually carries that
+ * is **not** one of your requested targets (those are in Desired vs Achieved) and isn't already in the
+ * mastery summary. Surfaces the incidental stats — and especially any negatives the gear introduced on
+ * things you didn't ask for — so you can check the build doesn't quietly break something.
+ */
+@Composable
+private fun BuildSheet(ui: UiState) {
+    val requested = ui.targets.map { it.characteristic }.toSet()
+    val shownMasteries =
+        setOf(
+            Characteristic.MASTERY_ELEMENTARY_WATER,
+            Characteristic.MASTERY_ELEMENTARY_FIRE,
+            Characteristic.MASTERY_ELEMENTARY_EARTH,
+            Characteristic.MASTERY_ELEMENTARY_WIND,
+            Characteristic.MASTERY_DISTANCE,
+            Characteristic.MASTERY_MELEE,
+            Characteristic.MASTERY_CRITICAL,
+            Characteristic.MASTERY_BACK,
+            Characteristic.MASTERY_BERSERK,
+            Characteristic.MASTERY_HEALING
+        ).filter { it in requested || (ui.achieved[it] ?: 0) != 0 }.toSet()
+    val rows =
+        ui.achieved
+            .filterValues { it != 0 }
+            .filterKeys { it !in requested && it !in shownMasteries && !it.isEngineInternalStat() }
+            .entries
+            .sortedBy { it.key.ordinal }
+    ResultCard(title = tr(Tr.BUILD_SHEET_TITLE)) {
+        if (rows.isEmpty()) {
+            Text(
+                text = tr(Tr.BUILD_SHEET_EMPTY),
+                style = WTypography.bodyMedium.copy(color = WColor.muted),
+                modifier = Modifier.padding(vertical = 6.dp)
+            )
+        } else {
+            rows.forEachIndexed { index, (characteristic, value) ->
+                if (index > 0) Hairline()
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CharacteristicIcon(characteristic = characteristic, size = 16.dp)
+                    Spacer(modifier = Modifier.width(9.dp))
+                    Text(
+                        text = characteristic.label(LocalLang.current),
+                        style = WTypography.bodyMedium.copy(color = if (value < 0) WColor.danger else WColor.text),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = if (value > 0) "+${value.formatCompact()}" else value.formatCompact(),
+                        style =
+                            WTypography.bodyMedium.copy(
+                                fontFamily = WType.mono,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (value < 0) WColor.danger else WColor.muted
+                            )
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun MasteryGroup(
     title: String,
@@ -248,6 +340,8 @@ private fun MasteryGroup(
         Text(text = title, style = WTypography.labelSmall.copy(color = WColor.muted))
         values.forEach { (characteristic, value) ->
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                CharacteristicIcon(characteristic = characteristic, size = 15.dp)
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = characteristic.label(LocalLang.current),
                     style = WTypography.bodySmall.copy(color = WColor.text),
@@ -477,12 +571,21 @@ private fun ActionsCard(
     ui: UiState,
     onOpenZenith: () -> Unit,
     onCopyZenith: () -> Unit,
+    onSaveBuild: () -> Unit,
 ) {
     ResultCard {
         if (ui.error != null) {
             ErrorBanner(error = ui.error)
             Spacer(modifier = Modifier.height(10.dp))
         }
+        ActionButton(
+            text = if (ui.activeBuildId != null) tr(Tr.UPDATE_BUILD) else tr(Tr.SAVE_BUILD),
+            color = WColor.accent,
+            contentColor = WColor.bg,
+            enabled = ui.phase == Phase.Done && ui.build != null,
+            onClick = onSaveBuild
+        )
+        Spacer(modifier = Modifier.height(9.dp))
         ActionButton(
             text = if (ui.zenith == ZenithState.Loading) tr(Tr.OPENING) else tr(Tr.OPEN_IN_ZENITH),
             color = WColor.accent2,

@@ -30,6 +30,16 @@ import me.chosante.common.Rarity
 import me.chosante.createZenithBuild
 import me.chosante.ui.components.IconPreloader
 import me.chosante.ui.components.warmUpPaths
+import me.chosante.ui.history.HistoryRepository
+import me.chosante.ui.history.restoredClass
+import me.chosante.ui.history.restoredMode
+import me.chosante.ui.history.restoredSolver
+import me.chosante.ui.history.suggestedBuildName
+import me.chosante.ui.history.toBuildCombination
+import me.chosante.ui.history.toExcludedChips
+import me.chosante.ui.history.toForcedChips
+import me.chosante.ui.history.toHistoryEntry
+import me.chosante.ui.history.toTargetRows
 import me.chosante.ui.i18n.Tr
 import java.awt.Desktop
 import java.awt.Toolkit
@@ -50,6 +60,15 @@ class BuildSearchModel(
     private val openBrowser: (String) -> Unit = { link -> Desktop.getDesktop().browse(URI(link)) },
     private val copyToClipboard: (String) -> Unit = { link -> Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(link), null) },
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Swing,
+    private val historyRepository: HistoryRepository = HistoryRepository(),
+    /** Wakfu game-data version stamped onto saved builds (injectable for tests). */
+    private val dataVersion: String = WakfuBestBuildFinderAlgorithm.dataVersion,
+    private val idGenerator: () -> String = {
+        java.util.UUID
+            .randomUUID()
+            .toString()
+    },
+    private val clock: () -> Long = { System.currentTimeMillis() },
 ) {
     var ui by androidx.compose.runtime.mutableStateOf(UiState())
         private set
@@ -85,6 +104,13 @@ class BuildSearchModel(
         scope.launch(Dispatchers.Default) {
             val paths = warmUpPaths(WakfuBestBuildFinderAlgorithm.equipments)
             IconPreloader.warmUp(scope, paths) { _, _ -> }
+        }
+
+        // Load the saved-build library off the UI thread. A read failure must never block startup —
+        // it just yields an empty library that fills in as the user saves builds.
+        scope.launch(Dispatchers.IO) {
+            val all = runCatching { historyRepository.loadAll() }.getOrDefault(emptyList())
+            withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all) }
         }
 
         if (isScreenshotMode) {
@@ -486,6 +512,219 @@ class BuildSearchModel(
                 if (ui.lastLandedEquipmentId == equipmentId) {
                     ui = ui.copy(lastLandedEquipmentId = null)
                 }
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Build history / comparison
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * The search button's click handler. When a saved build is loaded the button is *locked*: the
+     * first click asks for confirmation (so re-optimizing a saved build is a deliberate act) rather
+     * than silently recomputing it. Otherwise it runs the search straight away.
+     */
+    fun onSearchPressed() {
+        if (ui.searchLocked) {
+            ui = ui.copy(modal = Modal.ConfirmReSearch)
+        } else {
+            search()
+        }
+    }
+
+    /** Confirms the guarded re-search: unlock and run. The active build identity is kept so the user
+     * can save the recomputed result back over the same entry. */
+    fun confirmReSearch() {
+        ui = ui.copy(modal = null, searchLocked = false)
+        search()
+    }
+
+    fun goToScreen(screen: Screen) {
+        ui = ui.copy(screen = screen)
+    }
+
+    /** Opens the save dialog, pre-filling the name (existing name when editing a loaded build). */
+    fun requestSaveBuild() {
+        if (ui.build == null) return
+        ui = ui.copy(modal = Modal.SaveBuild)
+    }
+
+    /** Default text for the save dialog's name field. */
+    fun suggestedSaveName(): String = ui.activeBuildName ?: ui.suggestedBuildName()
+
+    /**
+     * Names already used by *other* saved builds (the active build's own name is excluded so updating
+     * it isn't blocked). The save dialog rejects these so two builds never share a name — which would
+     * make the library and the compare view ambiguous.
+     */
+    fun takenBuildNames(): Set<String> =
+        ui.savedBuilds
+            .filter { it.id != ui.activeBuildId }
+            .map { it.name.trim().lowercase() }
+            .toSet()
+
+    /**
+     * Persists the current workspace build. When [asNew] is false and a build is already loaded, it
+     * overwrites that entry (same id); otherwise it creates a new entry. Local write is the source of
+     * truth and is done off the UI thread; the in-memory library is refreshed afterwards.
+     */
+    fun saveBuild(
+        name: String,
+        note: String?,
+        asNew: Boolean,
+    ) {
+        val trimmedName = name.trim().ifBlank { ui.suggestedBuildName() }
+        val id = if (!asNew && ui.activeBuildId != null) ui.activeBuildId!! else idGenerator()
+        val entry = ui.toHistoryEntry(id = id, name = trimmedName, note = note, createdAt = clock(), dataVersion = dataVersion) ?: return
+        // Note: saving does NOT lock search. The lock guards *revisiting* a build loaded from the
+        // library (a deliberate act); right after saving you should stay free to keep iterating.
+        ui = ui.copy(modal = null, activeBuildId = id, activeBuildName = trimmedName)
+        scope.launch(Dispatchers.IO) {
+            runCatching { historyRepository.save(entry) }
+                .onSuccess {
+                    val all = historyRepository.loadAll()
+                    withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all, toast = Tr.TOAST_BUILD_SAVED.value(ui.lang)) }
+                }.onFailure { throwable ->
+                    withContext(mainDispatcher) { ui = ui.copy(error = throwable.message ?: "Could not save build") }
+                }
+        }
+    }
+
+    /**
+     * Loads a saved build into the workspace: restores its request (so it can be tweaked & re-run)
+     * and its result (shown without re-running), marks it as the active build, and locks the search
+     * button. Returns to the Builder screen.
+     */
+    fun loadBuild(id: String) {
+        val entry = ui.savedBuilds.firstOrNull { it.id == id } ?: return
+        job?.cancel()
+        ui =
+            ui.copy(
+                screen = Screen.Builder,
+                modal = null,
+                clazz = entry.restoredClass(),
+                level = entry.request.level,
+                minLevel = entry.request.minLevel,
+                mode = entry.restoredMode(),
+                solver = entry.restoredSolver(),
+                maxRarity = entry.request.maxRarity,
+                duration = entry.request.duration,
+                stopAtMatch = entry.request.stopAtMatch,
+                targets = entry.toTargetRows(),
+                forcedItems = entry.toForcedChips(),
+                excludedItems = entry.toExcludedChips(),
+                phase = Phase.Done,
+                progress = 100,
+                match = entry.result.match.toBigDecimal(),
+                optimal = entry.result.optimal,
+                build = entry.toBuildCombination(),
+                achieved = entry.result.achieved,
+                lastLandedEquipmentId = null,
+                zenith = if (entry.zenithUrl != null) ZenithState.Ready else ZenithState.Idle,
+                zenithUrl = entry.zenithUrl,
+                error = null,
+                toast = null,
+                activeBuildId = entry.id,
+                activeBuildName = entry.name,
+                searchLocked = true
+            )
+    }
+
+    /** Clears the active-build identity (the workspace becomes an "unsaved build" again, unlocked). */
+    fun clearActiveBuild() {
+        ui = ui.copy(activeBuildId = null, activeBuildName = null, searchLocked = false)
+    }
+
+    /**
+     * Starts a fresh, blank build: resets the whole workspace to defaults (request + result), drops
+     * any active-build link, and unlocks search. Keeps the language and the saved-build library.
+     * This is the explicit "New build" escape from editing a loaded build.
+     */
+    fun newBuild() {
+        job?.cancel()
+        ui = UiState(lang = ui.lang, savedBuilds = ui.savedBuilds, screen = Screen.Builder)
+    }
+
+    fun requestRename(
+        id: String,
+        currentName: String,
+    ) {
+        ui = ui.copy(modal = Modal.RenameBuild(id, currentName))
+    }
+
+    fun renameBuild(
+        id: String,
+        newName: String,
+    ) {
+        val trimmed = newName.trim()
+        val entry = ui.savedBuilds.firstOrNull { it.id == id }
+        if (trimmed.isBlank() || entry == null) {
+            ui = ui.copy(modal = null)
+            return
+        }
+        // Reject a rename that would collide with a *different* build's name, keeping names unique.
+        val collides = ui.savedBuilds.any { it.id != id && it.name.trim().equals(trimmed, ignoreCase = true) }
+        if (collides) {
+            ui = ui.copy(modal = null, toast = Tr.SAVE_NAME_TAKEN.value(ui.lang))
+            return
+        }
+        val renamed = entry.copy(name = trimmed)
+        ui = ui.copy(modal = null, activeBuildName = if (ui.activeBuildId == id) trimmed else ui.activeBuildName)
+        scope.launch(Dispatchers.IO) {
+            runCatching { historyRepository.save(renamed) }
+            val all = historyRepository.loadAll()
+            withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all) }
+        }
+    }
+
+    fun requestDelete(
+        id: String,
+        name: String,
+    ) {
+        ui = ui.copy(modal = Modal.ConfirmDelete(id, name))
+    }
+
+    /** Opens the compare view with [id] pre-selected as side A. */
+    fun startCompare(id: String) {
+        ui = ui.copy(screen = Screen.Compare, compareA = id, compareB = null, modal = null)
+    }
+
+    fun setCompareSlot(
+        slot: CompareSlot,
+        id: String,
+    ) {
+        ui =
+            when (slot) {
+                CompareSlot.A -> ui.copy(compareA = id)
+                CompareSlot.B -> ui.copy(compareB = id)
+            }
+    }
+
+    fun clearCompareSlot(slot: CompareSlot) {
+        ui =
+            when (slot) {
+                CompareSlot.A -> ui.copy(compareA = null)
+                CompareSlot.B -> ui.copy(compareB = null)
+            }
+    }
+
+    fun deleteBuild(id: String) {
+        ui = ui.copy(modal = null)
+        scope.launch(Dispatchers.IO) {
+            runCatching { historyRepository.delete(id) }
+            val all = historyRepository.loadAll()
+            withContext(mainDispatcher) {
+                val wasActive = ui.activeBuildId == id
+                ui =
+                    ui.copy(
+                        savedBuilds = all,
+                        activeBuildId = if (wasActive) null else ui.activeBuildId,
+                        activeBuildName = if (wasActive) null else ui.activeBuildName,
+                        searchLocked = if (wasActive) false else ui.searchLocked,
+                        compareA = if (ui.compareA == id) null else ui.compareA,
+                        compareB = if (ui.compareB == id) null else ui.compareB
+                    )
             }
         }
     }

@@ -8,8 +8,8 @@ import kotlin.io.path.createTempFile
 
 plugins {
     kotlin("jvm")
-    id("org.jetbrains.kotlin.plugin.compose") version "2.3.21"
-    id("org.jetbrains.compose") version "1.11.1"
+    alias(libs.plugins.kotlin.compose.compiler)
+    alias(libs.plugins.compose)
     id("dev.hydraulic.conveyor") version "2.0"
     alias(libs.plugins.ktlint)
 }
@@ -25,7 +25,7 @@ repositories {
 // OR-Tools ships one native jar per OS/arch (all pulled in transitively via :autobuilder). Keep them
 // off the shared classpath and attach each to its Conveyor machine config, so every installer bundles
 // only the native it needs instead of all five.
-val ortoolsVersion = "9.15.6755"
+val ortoolsVersion = libs.versions.ortools.get()
 
 dependencies {
     implementation(project(":autobuilder")) {
@@ -37,13 +37,15 @@ dependencies {
     }
     implementation(project(":zenith-builder"))
     implementation(project(":common-lib"))
+    implementation(libs.kotlinx.serialization.json)
     implementation(compose.desktop.currentOs) // host Compose/Skiko for :gui-compose:run / :test
-    implementation(compose.material3)
+    implementation(libs.compose.material3)
     implementation(platform(libs.kotlinx.coroutine.bom))
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
+    implementation(libs.kotlinx.coroutine.swing)
+    implementation(libs.kotlinx.coroutine.core)
     testImplementation(platform(libs.junit.bom))
-    testImplementation("org.junit.jupiter:junit-jupiter")
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.assertj.core)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     // Per-machine artifacts Conveyor packages for each target: that OS's Compose Desktop (Skiko) +
@@ -52,13 +54,13 @@ dependencies {
     // cleanly requires Skiko ≥ 0.144 (Compose ≥ 1.11), which drops the awt/android variant ambiguity
     // for JVM consumers (SKIKO-1013). The Conveyor plugin routes whichever matches the build host
     // into `implementation`, so local dev keeps working.
-    "macAarch64"(compose.desktop.macos_arm64)
+    "macAarch64"(libs.compose.desktop.macos.arm64)
     "macAarch64"("com.google.ortools:ortools-darwin-aarch64:$ortoolsVersion")
-    "macAmd64"(compose.desktop.macos_x64)
+    "macAmd64"(libs.compose.desktop.macos.x64)
     "macAmd64"("com.google.ortools:ortools-darwin-x86-64:$ortoolsVersion")
-    "linuxAmd64"(compose.desktop.linux_x64)
+    "linuxAmd64"(libs.compose.desktop.linux.x64)
     "linuxAmd64"("com.google.ortools:ortools-linux-x86-64:$ortoolsVersion")
-    "windowsAmd64"(compose.desktop.windows_x64)
+    "windowsAmd64"(libs.compose.desktop.windows.x64)
     "windowsAmd64"("com.google.ortools:ortools-win32-x86-64:$ortoolsVersion")
 }
 
@@ -93,7 +95,9 @@ compose.desktop {
             listOf(
                 "--enable-native-access=ALL-UNNAMED",
                 "--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
-                "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED"
+                "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED",
+                // Silence protobuf-java's deprecated-Unsafe warnings (transitive via OR-Tools).
+                "--sun-misc-unsafe-memory-access=allow"
             )
     }
 }
@@ -103,19 +107,24 @@ tasks.test {
     jvmArgs(
         "--enable-native-access=ALL-UNNAMED",
         "--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
-        "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED"
+        "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED",
+        // Silence protobuf-java's deprecated-Unsafe warnings (transitive via OR-Tools).
+        "--sun-misc-unsafe-memory-access=allow"
     )
 }
 
-// Downloads the artwork bundled with the Compose GUI from the community
-// https://github.com/Vertylo/wakassets repository. Hits the network, so it is run on demand
-// (not part of the normal build) and the resulting PNGs are committed alongside the others.
-//
-// It copies two sets into src/main/resources/assets:
-//   - items/  filtered to the guiIds referenced by the current equipments JSON (large set)
-//   - icons/  the HUD stat icons used to render characteristics + skill-tree lines (complete set)
-// Existing files are never overwritten.
 tasks.register("generateAssets") {
+    description =
+        """
+        Downloads the artwork bundled with the Compose GUI from the community
+        https://github.com/Vertylo/wakassets repository. Hits the network, so it is run on demand
+        (not part of the normal build) and the resulting PNGs are committed alongside the others.
+        
+        It copies two sets into src/main/resources/assets:
+          - items/  filtered to the guiIds referenced by the current equipments JSON (large set)
+          - icons/  the HUD stat icons used to render characteristics + skill-tree lines (complete set)
+        Existing files are never overwritten.
+        """.trimIndent()
     group = "assets"
 
     val repoUrl = "https://github.com/Vertylo/wakassets/archive/refs/heads/main.zip"
