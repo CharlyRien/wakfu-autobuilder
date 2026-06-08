@@ -8,7 +8,7 @@ import kotlin.io.path.createTempFile
 
 plugins {
     kotlin("jvm")
-    id("org.jetbrains.kotlin.plugin.compose") version "2.3.21"
+    alias(libs.plugins.kotlin.compose.compiler)
     alias(libs.plugins.compose)
     id("dev.hydraulic.conveyor") version "2.0"
     alias(libs.plugins.ktlint)
@@ -25,7 +25,7 @@ repositories {
 // OR-Tools ships one native jar per OS/arch (all pulled in transitively via :autobuilder). Keep them
 // off the shared classpath and attach each to its Conveyor machine config, so every installer bundles
 // only the native it needs instead of all five.
-val ortoolsVersion = "9.15.6755"
+val ortoolsVersion = libs.versions.ortools.get()
 
 dependencies {
     implementation(project(":autobuilder")) {
@@ -41,11 +41,11 @@ dependencies {
     implementation(compose.desktop.currentOs) // host Compose/Skiko for :gui-compose:run / :test
     implementation(libs.compose.material3)
     implementation(platform(libs.kotlinx.coroutine.bom))
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
+    implementation(libs.kotlinx.coroutine.swing)
+    implementation(libs.kotlinx.coroutine.core)
     testImplementation(platform(libs.junit.bom))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testImplementation("org.assertj:assertj-core:3.27.7")
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.assertj.core)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     // Per-machine artifacts Conveyor packages for each target: that OS's Compose Desktop (Skiko) +

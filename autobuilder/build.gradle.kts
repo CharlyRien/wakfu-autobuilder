@@ -23,8 +23,8 @@ dependencies {
     implementation("io.github.oshai:kotlin-logging-jvm:8.0.02")
     implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.26.0")
     implementation("org.slf4j:slf4j-api:2.0.18")
-    implementation("com.google.ortools:ortools-java:9.15.6755")
-    testImplementation("org.assertj:assertj-core:3.27.7")
+    implementation(libs.ortools.java)
+    testImplementation(libs.assertj.core)
     testImplementation(kotlin("test"))
 }
 
