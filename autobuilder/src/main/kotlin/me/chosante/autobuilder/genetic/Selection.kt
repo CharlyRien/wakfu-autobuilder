@@ -1,15 +1,18 @@
 package me.chosante.autobuilder.genetic
 
 import kotlin.math.max
-import kotlin.random.Random.Default.nextInt
+import kotlin.random.Random
 
-internal fun <T> tournamentSelection(scoredPopulation: Collection<ScoredIndividual<T>>): T {
+internal fun <T> tournamentSelection(
+    scoredPopulation: Collection<ScoredIndividual<T>>,
+    random: Random = Random.Default,
+): T {
     val tournamentSize = max(scoredPopulation.size / 100, 2)
-    val (firstRandomScore, firstRandomIndividual) = scoredPopulation.elementAt(nextInt(scoredPopulation.size))
+    val (firstRandomScore, firstRandomIndividual) = scoredPopulation.elementAt(random.nextInt(scoredPopulation.size))
     var bestIndividualInTournament = firstRandomIndividual
     var bestScoreInTournament = firstRandomScore
     repeat(tournamentSize - 1) {
-        val randomIndice = nextInt(scoredPopulation.size)
+        val randomIndice = random.nextInt(scoredPopulation.size)
         val (score, individual) = scoredPopulation.elementAt(randomIndice)
         if (score > bestScoreInTournament) {
             bestIndividualInTournament = individual

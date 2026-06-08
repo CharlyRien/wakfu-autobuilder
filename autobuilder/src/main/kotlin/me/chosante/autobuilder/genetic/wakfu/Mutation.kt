@@ -1,6 +1,5 @@
 package me.chosante.autobuilder.genetic.wakfu
 
-import kotlin.random.Random.Default.nextInt
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.common.Equipment
@@ -12,22 +11,24 @@ import me.chosante.common.skills.Luck
 import me.chosante.common.skills.Major
 import me.chosante.common.skills.Strength
 import me.chosante.common.skills.assignRandomPoints
+import kotlin.random.Random
 
 fun mutateCombination(
     individual: BuildCombination,
     mutationProbability: Double,
     equipmentsByItemType: Map<ItemType, List<Equipment>>,
     targetStats: TargetStats,
+    random: Random = Random.Default,
 ): BuildCombination {
     var newEquipments = individual.equipments.toMutableList()
     var ringNames = newEquipments.filter { it.itemType == ItemType.RING }.map { it.name.fr }
 
     for (i in newEquipments.indices) {
         val currentEquipment = newEquipments[i]
-        if (Math.random() <= mutationProbability) {
+        if (random.nextDouble() <= mutationProbability) {
             val randomEquipment =
                 equipmentsByItemType[currentEquipment.itemType]
-                    ?.randomByOrNull {
+                    ?.randomByOrNull(random) {
                         it != currentEquipment &&
                             (currentEquipment.itemType != ItemType.RING || it.name.fr !in ringNames)
                     } ?: break
@@ -43,7 +44,8 @@ fun mutateCombination(
                                 .replaceRandomlyOneItemWithRarity(
                                     rarity = Rarity.EPIC,
                                     replacementResearchZone = equipmentsByItemType[currentEpicEquipment.itemType] ?: listOf(),
-                                    ringNames = ringNames
+                                    ringNames = ringNames,
+                                    random = random
                                 ).toMutableList()
                     }
                 }
@@ -58,7 +60,8 @@ fun mutateCombination(
                                 .replaceRandomlyOneItemWithRarity(
                                     rarity = Rarity.RELIC,
                                     replacementResearchZone = equipmentsByItemType[currentRelicEquipment.itemType] ?: listOf(),
-                                    ringNames = ringNames
+                                    ringNames = ringNames,
+                                    random = random
                                 ).toMutableList()
                     }
                 }
@@ -72,37 +75,37 @@ fun mutateCombination(
         with(individual.characterSkills) {
             val targetCharacteristics = targetStats.map { it.characteristic }
             val newIntelligence =
-                if (Math.random() <= mutationProbability) {
+                if (random.nextDouble() <= mutationProbability) {
                     val maxPointsToAssign = intelligence.maxPointsToAssign
-                    Intelligence(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
+                    Intelligence(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics, random)
                 } else {
                     intelligence
                 }
             val newStrength =
-                if (Math.random() <= mutationProbability) {
+                if (random.nextDouble() <= mutationProbability) {
                     val maxPointsToAssign = strength.maxPointsToAssign
-                    Strength(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
+                    Strength(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics, random)
                 } else {
                     strength
                 }
             val newLuck =
-                if (Math.random() <= mutationProbability) {
+                if (random.nextDouble() <= mutationProbability) {
                     val maxPointsToAssign = luck.maxPointsToAssign
-                    Luck(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
+                    Luck(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics, random)
                 } else {
                     luck
                 }
             val newAgility =
-                if (Math.random() <= mutationProbability) {
+                if (random.nextDouble() <= mutationProbability) {
                     val maxPointsToAssign = agility.maxPointsToAssign
-                    Agility(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
+                    Agility(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics, random)
                 } else {
                     agility
                 }
             val newMajor =
-                if (Math.random() <= mutationProbability) {
+                if (random.nextDouble() <= mutationProbability) {
                     val maxPointsToAssign = major.maxPointsToAssign
-                    Major(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics)
+                    Major(maxPointsToAssign).assignRandomPoints(maxPointsToAssign, targetCharacteristics, random)
                 } else {
                     major
                 }
@@ -118,10 +121,13 @@ fun mutateCombination(
     return BuildCombination(newEquipments, characterSkills)
 }
 
-private fun <E> List<E>.randomByOrNull(predicate: (E) -> Boolean): E? {
+private fun <E> List<E>.randomByOrNull(
+    random: Random,
+    predicate: (E) -> Boolean,
+): E? {
     var randomElement: E? = null
     repeat(10) {
-        val randomIndex = nextInt(size)
+        val randomIndex = random.nextInt(size)
         val element = elementAt(randomIndex)
         if (predicate(element)) {
             randomElement = element

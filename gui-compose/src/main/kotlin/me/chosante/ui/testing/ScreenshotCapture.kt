@@ -2,18 +2,16 @@ package me.chosante.ui.testing
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.swing.Swing
+import kotlinx.coroutines.withContext
 import java.awt.Frame
 import java.awt.Rectangle
 import java.awt.Robot
 import java.io.File
 import javax.imageio.ImageIO
 import javax.swing.JFrame
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.swing.Swing
-import kotlinx.coroutines.withContext
-
-const val ScreenshotPathProperty = "wakfu.compose.screenshot"
 
 @Composable
 fun ScreenshotCapture(

@@ -10,7 +10,7 @@
 <br />
 <div align="center">
   <a href="https://github.com/CharlyRien/wakfu-autobuilder">
-    <img src="gui/src/main/resources/logo.png" alt="Logo" width="512" height="512">
+    <img src="gui-compose/src/main/resources/assets/branding/wordmark.png" alt="Wakfu Auto-Builder" width="480">
   </a>
 
 <h3 align="center">Wakfu autobuilder</h3>
@@ -61,22 +61,23 @@
 The Wakfu Autobuilder is a toolkit, consisting of:
 
 * A Command-Line Interface (CLI)
-* A Graphic User Interface (GUI)
+* A desktop Graphical User Interface (GUI), built with Compose Desktop
 
-These tools are designed to identify the best equipment setup for your character at a specific level.
+These tools identify the best equipment setup for your character at a given level: you provide
+constraints (level, class, target characteristics, max rarity, forced/excluded items) and the
+**search engine** explores the item space to return the best build it found (14 equipment slots +
+skill-point allocation), which it can publish as a shareable [zenithwakfu.com](https://zenithwakfu.com) link.
 
-They consider your preferred statistics and use your input to determine the most effective combination.
+The engine uses a **Google OR-Tools CP-SAT solver** by default, which finds a *provably optimal*
+build (a genetic-algorithm solver remains available as an alternative).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
-
-## Video GUI Usage Example
-
-https://github.com/CharlyRien/wakfu-autobuilder/assets/9572419/b83fa911-98f1-4bb2-bebe-180e4d314f11
 
 ### Built With
 
 * [![Kotlin][Kotlin]][Kotlin-url]
-* [![JavaFX][JavaFX]][JavaFX-url]
+* [![Compose][Compose]][Compose-url]
+* [![OR-Tools][ORTools]][ORTools-url]
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -124,10 +125,11 @@ The output of the command will show the details of the best build found, such as
 
 ## Roadmap
 
+- [X] Have a User Interface (Compose Desktop)
+- [X] Provably optimal builds (OR-Tools CP-SAT solver)
+- [X] Multi-language Support (English / French)
+- [ ] Enchantments support (runes + sublimations) — see `docs/ENCHANTMENTS_PLAN.md`
 - [ ] Add Changelog
-- [X] Have a User Interface
-- [ ] Multi-language Support
-    - [ ] French
 
 See the [open issues](https://github.com/CharlyRien/wakfu-autobuilder/issues) for a full list of proposed features (and known issues).
 
@@ -158,7 +160,7 @@ Remember to give the project a star! Thanks again!
 
 For this project you'll need to install:
 
-* [Java 21](https://www.oracle.com/fr/java/technologies/downloads/)
+* [Java 25](https://adoptium.net/) (the Gradle toolchain is pinned to JDK 25)
 
 ### Installation
 
@@ -180,10 +182,10 @@ For this project you'll need to install:
 To test your release for the GUI you can use the command:
 
 ```sh
-./gradlew :gui:run
+./gradlew :gui-compose:run
 ```
 
-It will compile and start the GUI with your local changes.
+It will compile and start the Compose Desktop GUI with your local changes.
 
 #### Test CLI
 
@@ -245,6 +247,10 @@ Discord: Chosante
 
 [Kotlin-url]: https://kotlinlang.org/
 
-[JavaFX]: https://img.shields.io/badge/JavaFX-grey?style=for-the-badge&logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAMAAACdt4HsAAABCFBMVEUAAABTgqFTgqFSgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqH5mBxTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqFTgqH4mB1TgqFTgqFTgqFTgqH4mB1TgqH4mB1TgqFTgqH5mBz4mBz4mB1TgqH4mB34mB1TgqFTgqH4mB34mB1TgqFTgqH4mB34mBz4mB34mB34mB1TgqH4mBz4mB34mBz4mB34mB34mB34mB34mB34mB34mB34mB34mB34mB34mB1TgqH4mB34mB34mB34mB34mB34mB34mB34mB34mB1TgqH4LfLCAAAAVnRSTlMABgoXDcsR0R5PJyOGf/y7i3Gln2NILCfyrC/55NiTd1hBG/rsv2rFq5BZPDMVBurbzcOyl4VtXVIhBO/YRTgbEAnfooBmXlJMMy0MuJnzvrGbPJWQeS7C/+wAAANXSURBVFjD5FRLroMwDOQWHIANQiJRkEAqJALCrwVUKK+d+x/lJbQXqL1sNslmJvbM2MGvnLRmEoSD4BFcupBJkBkewU1PPIJB8ipods3TILl3LQc/q+rKsmDFY+GEaIeaGfgjg/00IAhCiERDjqV/1maqv/evl7AeX86vrqgJIxBBTw4f9io+yu8DvALbEQTLqGSfEgYgA+LQNf+820QQ7Nsc/uLwHTQlR8sDUO7/9okqofhv5Bt4lYhJOXwBqxNO/CEqSAnMgdwnYaMSDNEJTL0VDWmGNXp3tTGIIpY59uasxLtB28TS+EsBxH1g7Nl8UgHEjTTawauQR94QkgxFdvNGrFSCQPw3Vy07bsJQNGBsbGzzhuExPAdIaVCFmnTIKquqUhfppgv+/09qJs1kNBIhmW56Vgh87sPn3sPz72kJn59+ffS/8uXHxPz89OmyzNJNRLnUsPQS4UH44PevZ1NFntUyoiywUZGZ2V57TfXw7ef5sey6oa4cfI2uWbXKDuitMfytX1FOB+qxvdIHUfXR8OXLCUlWAI6K3DKt6PTG1XttPoBXV3GcGHbKOOeMtTs7NNZQVQ2noecjQbVZzQNsXO5sJ5IAXNdbO+WuFwH59USjJ/MVXMoGJcYlAEiR3mcwRnNRSxrNK8xigy4VMEDrHQucVVV4tfWX8pdwVJlLikPk+93BEwKEMGEvaf2dysFqCZILg1GPg+pRoAricdSDPiTSCpGUR6tbgPfcrtVe8PsEGrbZeNo0RVGBVzdDRljzo8inJZJXH4DQ/V+AsjB6M82IojsDFJUOHWa5e0Lyhjl1EpL7QpROMI5CiDgIYn2cHtVBuo0qlX4ERA9kBx8n8iTnI3SaTrlNvqFtLY++RAIdca0sawavA2+zAzpfeAbXA14qNc9mlQv1MdSu8mXs8bab++qrouPEzsiBAkWWpMtyT6bkF3vLtMM0B8LVZiTpMnvdV2IFxPhu7WPamgLpzrFP/rIOWe6L+aJWhubnV9vsG57a21owkr5PEuFKRnhkDTlgQZa1PDXaJT9QJiCAMaUUlwDJ0il24ZpbCHeessQ/5K477IlXbAQKj+SuxXahAWFtc0JvGaipEdfiTFzA0RE4piZv8sK/d8Om6xeQJ0X+Y/wBG81xvaJPOooAAAAASUVORK5CYII=
+[Compose]: https://img.shields.io/badge/Compose%20Desktop-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white
 
-[JavaFX-url]: https://openjfx.io/
+[Compose-url]: https://www.jetbrains.com/lp/compose-multiplatform/
+
+[ORTools]: https://img.shields.io/badge/OR--Tools%20CP--SAT-EA4335?style=for-the-badge&logo=google&logoColor=white
+
+[ORTools-url]: https://developers.google.com/optimization

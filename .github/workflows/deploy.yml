@@ -2,7 +2,7 @@ name: Deploy
 on: [ workflow_dispatch ]
 jobs:
     build:
-        # Use the Build workflow described above
+        # Reuse the Build workflow (./gradlew test) as a gate.
         uses: ./.github/workflows/build.yml
     deploy:
         needs: [ build ]
@@ -17,12 +17,15 @@ jobs:
             -   name: Create Jars
                 run: ./gradlew jar
 
+            # Single-host cross-build: the per-machine Compose/OR-Tools deps in gui-compose/build.gradle.kts
+            # make Conveyor package each OS with its own Skiko + native (needs Compose >= 1.11 / Skiko
+            # >= 0.144 so the JVM Skiko variant resolves unambiguously — SKIKO-1013).
             -   name: Run Conveyor
                 uses: hydraulic-software/conveyor/actions/build@v21.1
                 env:
                     OAUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                 with:
-                    extra_flags: '-f ./gui/conveyor.conf'
+                    extra_flags: '-f ./gui-compose/conveyor.conf'
                     command: make copied-site
                     signing_key: ${{ secrets.SIGNING_KEY }}
                     agree_to_license: 1

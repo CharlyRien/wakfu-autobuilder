@@ -7,15 +7,18 @@ it is imported below so both files stay in sync.
 
 ## Claude Code working notes (project-specific)
 
-- **Verify the branch before engine work.** `main` uses a genetic algorithm; `linear-programming`
-  replaces it with an OR-Tools CP-SAT solver and bumps the JVM toolchain 21 → 25. The two share
-  types and the output `Flow`, but almost nothing else. See `AGENTS.md` §4.
-- **Build is heavy.** A cold `./gradlew build` resolves JavaFX + (on the LP branch) the native
-  OR-Tools library. Prefer module-scoped tasks (`:autobuilder:test`, `:gui:run`) while iterating.
-- **Don't hand-edit generated code.** `gui/src/main/kotlin/generated/I18nKey.kt` is produced from
-  `i18n_*.properties` by the `generateKotlinI18nKeys` Gradle task. Edit the `.properties` files.
+- **Engine.** The default solver is the Google OR-Tools CP-SAT solver
+  (`autobuilder/.../WakfuBuildSolver.kt`, deterministic & optimal); the original genetic algorithm
+  is still selectable via the `WakfuSolver` parameter. Both stream the same
+  `Flow<GeneticAlgorithmResult<BuildCombination>>`. See `AGENTS.md` §4.
+- **OR-Tools is native.** It loads a native library at runtime, so running/testing the engine needs
+  extra JVM args (`--enable-native-access=ALL-UNNAMED`, `--add-opens …`) — already wired in the
+  `autobuilder` and `gui-compose` build scripts. The first search pays a one-time cold start; the
+  GUI hides it behind a loading screen (`gui-compose/.../WarmupTiming.kt`, `BuildSearchModel`).
+- **Build is heavy.** A cold `./gradlew build` resolves Compose Desktop + the native OR-Tools
+  library. Prefer module-scoped tasks (`:autobuilder:test`, `:gui-compose:run`) while iterating.
+- **GUI is Compose Desktop** (`gui-compose` module) — built programmatically in Kotlin, no FXML.
+  i18n is the hand-written `Tr` enum in `gui-compose/.../i18n/I18n.kt` (EN/FR); there is **no**
+  generated i18n code. `docs/design-reference/` is the visual source of truth.
 - **Run `./gradlew ktlintFormat`** before finishing a change; CI style is strict.
-- **UI redesign in progress (JavaFX → Compose Desktop)** — for any GUI task, start from
-  `docs/COMPOSE_MIGRATION_PLAN.md`, with `docs/UI_REDESIGN_HANDOFF.md` for context and
-  `docs/design-reference/` as the visual source of truth.
 - Don't commit/push unless asked; this repo's default branch is `main`.

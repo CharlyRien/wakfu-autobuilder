@@ -6,7 +6,6 @@ import com.github.kittinunf.fuel.coroutines.awaitObjectResponse
 import com.github.kittinunf.fuel.httpGet
 import com.github.kittinunf.fuel.httpPost
 import com.github.kittinunf.fuel.serialization.kotlinxDeserializerOf
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -21,8 +20,8 @@ import kotlinx.serialization.json.put
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 
-private const val urlAddEquipment = "$baseAPIUrl/equipment/add"
-private const val urlGetEquipments = "$baseAPIUrl/equipment"
+private const val ADD_EQUIPMENT_URL = "$BASE_API_URL/equipment/add"
+private const val GET_EQUIPMENT_URL = "$BASE_API_URL/equipment"
 
 private val elements =
     buildJsonArray {
@@ -66,7 +65,7 @@ internal suspend fun addEquipment(
         ) + itemTypesZenithId.map { "type[]" to it }
 
     val (request, _, result) =
-        urlGetEquipments
+        GET_EQUIPMENT_URL
             .httpGet(parameters = parameters)
             .header(apiZenithWakfuHeaders)
             .awaitObjectResponse(kotlinxDeserializerOf<JsonArray>())
@@ -100,12 +99,12 @@ internal suspend fun addEquipment(
                     buildJsonObject {
                         put("side", sideValue)
                     }
-                ) + (
+            ) + (
                 "effects" to
                     JsonArray(
                         effects
                     )
-                )
+            )
         )
     val jsonPayloadAddEquipment: JsonObject =
         buildJsonObject {
@@ -113,7 +112,7 @@ internal suspend fun addEquipment(
             put("id_build", buildId)
         }
 
-    urlAddEquipment
+    ADD_EQUIPMENT_URL
         .httpPost()
         .header(apiZenithWakfuHeaders)
         .jsonBody(Json.encodeToString<JsonObject>(jsonPayloadAddEquipment))

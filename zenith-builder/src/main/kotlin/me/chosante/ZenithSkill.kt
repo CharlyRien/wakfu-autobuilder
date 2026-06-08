@@ -3,7 +3,6 @@ package me.chosante
 import com.github.kittinunf.fuel.core.awaitUnit
 import com.github.kittinunf.fuel.core.extensions.jsonBody
 import com.github.kittinunf.fuel.httpPost
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -15,7 +14,7 @@ import me.chosante.common.skills.MajorCharacteristic
 import me.chosante.common.skills.SkillCharacteristic
 import me.chosante.common.skills.StrengthCharacteristic
 
-private const val urlUpdateSkill = "$baseAPIUrl/aptitude/update"
+private const val UPDATE_SKILL_URL = "$BASE_API_URL/aptitude/update"
 
 internal suspend fun addSkill(
     skillCharacteristic: SkillCharacteristic,
@@ -27,7 +26,7 @@ internal suspend fun addSkill(
             put("id_aptitude", skillCharacteristic.toZenithWakfuAptitudeId())
             put("aptitude_value", skillCharacteristic.pointsAssigned)
         }
-    urlUpdateSkill
+    UPDATE_SKILL_URL
         .httpPost()
         .header(apiZenithWakfuHeaders)
         .jsonBody(Json.encodeToString<JsonObject>(jsonPayload))

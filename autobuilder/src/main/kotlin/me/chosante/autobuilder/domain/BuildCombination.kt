@@ -12,8 +12,8 @@ data class BuildCombination(
     fun isValid(): Boolean {
         val numberOfEquipmentByType = equipments.groupingBy { it.itemType }.eachCount()
         if (numberOfEquipmentByType.any { (key, count) ->
-            count > 1 && key != ItemType.RING || count > 2
-        }
+                count > 1 && key != ItemType.RING || count > 2
+            }
         ) {
             return false
         }

@@ -50,88 +50,88 @@ sealed class LuckCharacteristic(
     class CriticalHit(
         pointsAssigned: Int,
     ) : LuckCharacteristic(
-        pointsAssigned = pointsAssigned,
-        maxPointsAssignable = 20,
-        unitValue = 1,
-        unitType = UnitType.FIXED,
-        characteristic = Characteristic.CRITICAL_HIT,
-        name = "% Critical Hit"
-    )
+            pointsAssigned = pointsAssigned,
+            maxPointsAssignable = 20,
+            unitValue = 1,
+            unitType = UnitType.FIXED,
+            characteristic = Characteristic.CRITICAL_HIT,
+            name = "% Critical Hit"
+        )
 
     class Block(
         pointsAssigned: Int,
     ) : LuckCharacteristic(
-        pointsAssigned = pointsAssigned,
-        maxPointsAssignable = 20,
-        unitValue = 1,
-        unitType = UnitType.FIXED,
-        characteristic = Characteristic.BLOCK_PERCENTAGE,
-        name = "% Block"
-    )
+            pointsAssigned = pointsAssigned,
+            maxPointsAssignable = 20,
+            unitValue = 1,
+            unitType = UnitType.FIXED,
+            characteristic = Characteristic.BLOCK_PERCENTAGE,
+            name = "% Block"
+        )
 
     class MasteryCritical(
         pointsAssigned: Int,
     ) : LuckCharacteristic(
-        pointsAssigned = pointsAssigned,
-        maxPointsAssignable = Int.MAX_VALUE,
-        unitValue = 4,
-        unitType = UnitType.FIXED,
-        characteristic = Characteristic.MASTERY_CRITICAL,
-        name = "Mastery Critical"
-    )
+            pointsAssigned = pointsAssigned,
+            maxPointsAssignable = Int.MAX_VALUE,
+            unitValue = 4,
+            unitType = UnitType.FIXED,
+            characteristic = Characteristic.MASTERY_CRITICAL,
+            name = "Mastery Critical"
+        )
 
     class MasteryBack(
         pointsAssigned: Int,
     ) : LuckCharacteristic(
-        pointsAssigned = pointsAssigned,
-        maxPointsAssignable = Int.MAX_VALUE,
-        unitValue = 6,
-        unitType = UnitType.FIXED,
-        characteristic = Characteristic.MASTERY_BACK,
-        name = "Mastery Back"
-    )
+            pointsAssigned = pointsAssigned,
+            maxPointsAssignable = Int.MAX_VALUE,
+            unitValue = 6,
+            unitType = UnitType.FIXED,
+            characteristic = Characteristic.MASTERY_BACK,
+            name = "Mastery Back"
+        )
 
     class MasteryBerserk(
         pointsAssigned: Int,
     ) : LuckCharacteristic(
-        pointsAssigned = pointsAssigned,
-        maxPointsAssignable = Int.MAX_VALUE,
-        unitValue = 8,
-        unitType = UnitType.FIXED,
-        characteristic = Characteristic.MASTERY_BERSERK,
-        name = "Mastery Berserk"
-    )
+            pointsAssigned = pointsAssigned,
+            maxPointsAssignable = Int.MAX_VALUE,
+            unitValue = 8,
+            unitType = UnitType.FIXED,
+            characteristic = Characteristic.MASTERY_BERSERK,
+            name = "Mastery Berserk"
+        )
 
     class MasteryHealing(
         pointsAssigned: Int,
     ) : LuckCharacteristic(
-        pointsAssigned = pointsAssigned,
-        maxPointsAssignable = Int.MAX_VALUE,
-        unitValue = 6,
-        unitType = UnitType.FIXED,
-        characteristic = Characteristic.MASTERY_HEALING,
-        name = "Mastery Healing"
-    )
+            pointsAssigned = pointsAssigned,
+            maxPointsAssignable = Int.MAX_VALUE,
+            unitValue = 6,
+            unitType = UnitType.FIXED,
+            characteristic = Characteristic.MASTERY_HEALING,
+            name = "Mastery Healing"
+        )
 
     class ResistanceBack(
         pointsAssigned: Int,
     ) : LuckCharacteristic(
-        pointsAssigned = pointsAssigned,
-        maxPointsAssignable = 20,
-        unitValue = 4,
-        unitType = UnitType.FIXED,
-        characteristic = Characteristic.RESISTANCE_BACK,
-        name = "Resistance Back"
-    )
+            pointsAssigned = pointsAssigned,
+            maxPointsAssignable = 20,
+            unitValue = 4,
+            unitType = UnitType.FIXED,
+            characteristic = Characteristic.RESISTANCE_BACK,
+            name = "Resistance Back"
+        )
 
     class ResistanceCritical(
         pointsAssigned: Int,
     ) : LuckCharacteristic(
-        pointsAssigned = pointsAssigned,
-        maxPointsAssignable = 20,
-        unitValue = 4,
-        unitType = UnitType.FIXED,
-        characteristic = Characteristic.RESISTANCE_CRITICAL,
-        name = "Resistance Critical"
-    )
+            pointsAssigned = pointsAssigned,
+            maxPointsAssignable = 20,
+            unitValue = 4,
+            unitType = UnitType.FIXED,
+            characteristic = Characteristic.RESISTANCE_CRITICAL,
+            name = "Resistance Critical"
+        )
 }

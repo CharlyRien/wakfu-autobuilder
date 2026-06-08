@@ -54,75 +54,75 @@ sealed class AgilityCharacteristic(
     class Lock(
         pointsAssigned: Int,
     ) : AgilityCharacteristic(
-        pointsAssigned = pointsAssigned,
-        maxPointsAssignable = Int.MAX_VALUE,
-        unitValue = 6,
-        unitType = UnitType.FIXED,
-        characteristic = Characteristic.LOCK,
-        name = "Lock"
-    )
+            pointsAssigned = pointsAssigned,
+            maxPointsAssignable = Int.MAX_VALUE,
+            unitValue = 6,
+            unitType = UnitType.FIXED,
+            characteristic = Characteristic.LOCK,
+            name = "Lock"
+        )
 
     class Dodge(
         pointsAssigned: Int,
     ) : AgilityCharacteristic(
-        pointsAssigned = pointsAssigned,
-        maxPointsAssignable = Int.MAX_VALUE,
-        unitValue = 6,
-        unitType = UnitType.FIXED,
-        characteristic = Characteristic.DODGE,
-        name = "Dodge"
-    )
+            pointsAssigned = pointsAssigned,
+            maxPointsAssignable = Int.MAX_VALUE,
+            unitValue = 6,
+            unitType = UnitType.FIXED,
+            characteristic = Characteristic.DODGE,
+            name = "Dodge"
+        )
 
     class Initiative(
         pointsAssigned: Int,
     ) : AgilityCharacteristic(
-        pointsAssigned = pointsAssigned,
-        maxPointsAssignable = 20,
-        unitValue = 4,
-        unitType = UnitType.FIXED,
-        characteristic = Characteristic.INITIATIVE,
-        name = "Initiative"
-    )
+            pointsAssigned = pointsAssigned,
+            maxPointsAssignable = 20,
+            unitValue = 4,
+            unitType = UnitType.FIXED,
+            characteristic = Characteristic.INITIATIVE,
+            name = "Initiative"
+        )
 
     class DodgeAndLock(
         pointsAssigned: Int,
     ) : PairedCharacteristic(
-        "Dodge and lock",
-        first = Dodge(pointsAssigned),
-        second = Lock(pointsAssigned),
-        maxPointsAssignable = Int.MAX_VALUE
-    ) {
+            "Dodge and lock",
+            first = Dodge(pointsAssigned),
+            second = Lock(pointsAssigned),
+            maxPointsAssignable = Int.MAX_VALUE
+        ) {
         class Dodge(
             pointsAssigned: Int,
         ) : AgilityCharacteristic(
-            pointsAssigned = pointsAssigned,
-            maxPointsAssignable = Int.MAX_VALUE,
-            unitValue = 4,
-            unitType = UnitType.FIXED,
-            characteristic = Characteristic.DODGE,
-            name = ""
-        )
+                pointsAssigned = pointsAssigned,
+                maxPointsAssignable = Int.MAX_VALUE,
+                unitValue = 4,
+                unitType = UnitType.FIXED,
+                characteristic = Characteristic.DODGE,
+                name = ""
+            )
 
         class Lock(
             pointsAssigned: Int,
         ) : AgilityCharacteristic(
-            pointsAssigned = pointsAssigned,
-            maxPointsAssignable = Int.MAX_VALUE,
-            unitValue = 4,
-            unitType = UnitType.FIXED,
-            characteristic = Characteristic.LOCK,
-            name = ""
-        )
+                pointsAssigned = pointsAssigned,
+                maxPointsAssignable = Int.MAX_VALUE,
+                unitValue = 4,
+                unitType = UnitType.FIXED,
+                characteristic = Characteristic.LOCK,
+                name = ""
+            )
     }
 
     class Willpower(
         pointsAssigned: Int,
     ) : AgilityCharacteristic(
-        pointsAssigned = pointsAssigned,
-        maxPointsAssignable = 20,
-        unitValue = 1,
-        unitType = UnitType.FIXED,
-        characteristic = Characteristic.WILLPOWER,
-        name = "Willpower"
-    )
+            pointsAssigned = pointsAssigned,
+            maxPointsAssignable = 20,
+            unitValue = 1,
+            unitType = UnitType.FIXED,
+            characteristic = Characteristic.WILLPOWER,
+            name = "Willpower"
+        )
 }

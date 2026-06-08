@@ -1,7 +1,7 @@
 package me.chosante.autobuilder.domain
 
-import java.math.RoundingMode
 import me.chosante.common.Characteristic
+import java.math.RoundingMode
 
 class TargetStats(
     targetStats: List<TargetStat>,

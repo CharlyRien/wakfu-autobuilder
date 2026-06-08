@@ -29,6 +29,8 @@ ij_kotlin_align_multiline_binary_operation = false
 ij_kotlin_align_multiline_extends_list = false
 ij_kotlin_align_multiline_method_parentheses = false
 ij_kotlin_align_multiline_parameters = true
+# @Composable functions are PascalCase by convention; exempt them from ktlint's function-naming rule.
+ktlint_function_naming_ignore_when_annotated_with = Composable
 ij_kotlin_align_multiline_parameters_in_calls = false
 ij_kotlin_allow_trailing_comma = true
 ij_kotlin_allow_trailing_comma_on_call_site = false

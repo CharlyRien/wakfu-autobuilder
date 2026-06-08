@@ -31,9 +31,6 @@ import com.github.ajalt.mordant.widgets.progress.progressBar
 import com.github.ajalt.mordant.widgets.progress.progressBarContextLayout
 import com.github.ajalt.mordant.widgets.progress.text
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlin.system.exitProcess
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.channels.Channel.Factory.CONFLATED
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.buffer
@@ -88,6 +85,9 @@ import me.chosante.common.Equipment
 import me.chosante.common.Rarity
 import me.chosante.common.skills.Assignable
 import me.chosante.createZenithBuild
+import kotlin.system.exitProcess
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 private val logger = KotlinLogging.logger {}
 internal const val VERSION = "1.91.1.54"
@@ -192,21 +192,21 @@ HUPPERMAGE"""
         "--items-a-force",
         "--forced-items",
         help =
-        """
+            """
             Used to tell the algorithm to force specific items to be in the final build,
              the names have to be French for now, can be used like that:
               --forced-items 'Gelano','Amulette du Bouftou',...
-        """.trimIndent()
+            """.trimIndent()
     ).split(",").default(listOf())
 
     private val excludedItems: List<String> by option(
         "--items-a-exclure",
         "--excluded-items",
         help =
-        """
+            """
             Used to tell the algorithm to exclude specific items to not be in the final build,
             the names have to be in french for now, can be used like that: --excluded-items 'Gelano','Amulette du Bouftou',...
-        """.trimIndent()
+            """.trimIndent()
     ).split(",").default(listOf())
 
     private val paWanted: TargetStat? by option(
