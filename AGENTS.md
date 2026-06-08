@@ -19,13 +19,14 @@ It is a **build *discoverer / searcher***, not a build editor:
 
 Two front-ends ship from the same engine:
 - a **CLI** (`autobuilder` module)
-- a **JavaFX desktop GUI** (`gui` module)
+- a **Compose Desktop GUI** (`gui-compose` module)
 
 ---
 
 ## 2. Module map
 
-Gradle multi-module, Kotlin, JVM toolchain pinned in the version catalog (`settings.gradle.kts`).
+Gradle multi-module, Kotlin, JVM toolchain pinned to **JDK 25** in the version catalog
+(`settings.gradle.kts`).
 
 ```
 common-lib            Pure domain model. No project deps. Everyone depends on it.
@@ -36,7 +37,7 @@ common-lib            Pure domain model. No project deps. Everyone depends on it
   │     ▲
   ├── autobuilder            CLI + the SEARCH ENGINE. Depends on common-lib + zenith-builder.
   │     ▲                    Embeds the equipments-vX.Y.Z.json data file as a resource.
-  └── gui                    JavaFX desktop app. Depends on autobuilder + zenith-builder + common-lib.
+  └── gui-compose            Compose Desktop app. Depends on autobuilder + zenith-builder + common-lib.
 ```
 
 | Module | Type | Entry point | Key libs |
@@ -44,8 +45,12 @@ common-lib            Pure domain model. No project deps. Everyone depends on it
 | `common-lib` | library | — | kotlinx-serialization |
 | `equipments-extractor` | app | `me.chosante.equipmentextractor.MainKt` | Fuel (HTTP), serialization |
 | `zenith-builder` | library | — | Fuel, coroutines, serialization |
-| `autobuilder` | app | `me.chosante.autobuilder.MainKt` | Clikt + Mordant (CLI), coroutines |
-| `gui` | app | `me.chosante.WakfuAutobuilderGUIKt` | JavaFX 21, AtlantaFX, Ikonli, Conveyor |
+| `autobuilder` | app | `me.chosante.autobuilder.MainKt` | Clikt + Mordant (CLI), OR-Tools, coroutines |
+| `gui-compose` | app | `me.chosante.ui.MainKt` | Compose Multiplatform (Desktop), Conveyor |
+
+> A legacy JavaFX GUI module (`gui`) used to exist; it has been removed — `gui-compose` is the
+> only GUI. If you find a doc/reference still mentioning `gui`, AtlantaFX, Ikonli, FXML or
+> `WakfuAutobuilderGUIKt`, it is stale.
 
 ---
 
@@ -77,42 +82,54 @@ enforcing slot/rarity/weapon rules.
 
 ## 4. The search engine (`autobuilder`)
 
-### Current approach on `main`: **genetic algorithm**
+The engine exposes **two interchangeable solvers** behind the `WakfuSolver` enum (a field on
+`WakfuBestBuildParams`). Both stream their best-so-far build as a
+`Flow<GeneticAlgorithmResult<BuildCombination>>`, so the CLI and GUI consume them identically.
+
+`WakfuBestBuildFinderAlgorithm.run(params)` is the entry point: it filters & groups the embedded
+equipments by `ItemType` (applying level/rarity/forced/excluded filters), then dispatches to the
+chosen solver.
+
+### `OR_TOOLS` — Google OR-Tools CP-SAT (default)
+- `genetic/wakfu/WakfuBuildSolver.kt`: models the build as a constraint-optimization problem and
+  solves it with CP-SAT for a **deterministic, provably optimal** result. Streams improving
+  solutions via `callbackFlow`.
+- **Native**: OR-Tools ships a native library loaded at runtime via `Loader.loadNativeLibraries()`
+  (`WakfuBuildSolver`'s `init` / `warmUp()`). The **first** solve pays a one-time cold start
+  (library extraction + load); the GUI hides this behind a loading screen (see §6).
+- Running/testing the solver needs extra JVM args — see §9.
+
+### `GENETIC_ALGORITHM` — the original GA (alternative)
 - `genetic/GeneticAlgorithm.kt`: generic GA — population → score → select → cross → mutate, looped
-  until a time budget elapses (or 100 % match if `stopWhenBuildMatch`). Runs scoring in parallel
-  coroutines. Emits a `Flow<GeneticAlgorithmResult<BuildCombination>>` carrying the best-so-far
-  individual, `matchPercentage`, and `progressPercentage`.
+  until a time budget elapses (or 100 % match if `stopWhenBuildMatch`), scoring in parallel
+  coroutines.
 - `genetic/wakfu/`: the Wakfu specialization — `Population`, `Cross`, `Mutation`, `Selection`
-  (tournament), and the two scorers.
-- `WakfuBestBuildFinderAlgorithm.run(params)` is the entry point: it filters & groups the embedded
-  equipments by `ItemType` (applying level/rarity/forced/excluded filters) and runs the GA.
+  (tournament), and the two scorers. Still selectable; the GUI exposes a solver toggle.
 
 ### Two scoring modes (`ScoreComputationMode`)
 - `FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT` ("most-masteries") — default. Constrain AP/MP/range/
   crit to exact targets, then **maximize** the requested masteries. Scorer:
-  `FindMostMasteriesFromInputScoring`.
+  `FindMostMasteriesFromInputScoring`. (`Characteristic.isMaximizableMastery()` /
+  `isRequiredMostMasteriesTarget()` split the maximized masteries from the hard constraints, and are
+  shared by both the scorer and the CP-SAT solver so they stay in lockstep.)
 - `FIND_CLOSEST_BUILD_FROM_INPUT` ("precision") — hit exact target values for *every* requested
   characteristic. Scorer: `FindClosestBuildFromInputScoring`.
 
 ### Inputs: `WakfuBestBuildParams`
 `character`, `targetStats: TargetStats`, `searchDuration`, `stopWhenBuildMatch`, `maxRarity`,
-`forcedItems`, `excludedItems`, `scoreComputationMode`. `TargetStats` normalizes per-stat weights
-and expands `MASTERY_ELEMENTARY` / `RESISTANCE_ELEMENTARY` into their four elements.
+`forcedItems`, `excludedItems`, `scoreComputationMode`, `solver`. `TargetStats` normalizes per-stat
+weights and expands `MASTERY_ELEMENTARY` / `RESISTANCE_ELEMENTARY` into their four elements.
 
-### ⚠️ `linear-programming` branch rewrites the engine
-The `linear-programming` branch replaces the GA with a **Google OR-Tools CP-SAT solver**
-(`genetic/wakfu/WakfuBuildSolver.kt`, ~880 LOC) for a *deterministic, optimal* search:
-- Adds `com.google.ortools:ortools-java`; **bumps the JVM toolchain 21 → 25**; ktlint 11 → 14;
-  Wakfu data `1.89.1.41 → 1.91.1.53`.
-- `WakfuBestBuildFinderAlgorithm.run()` becomes non-suspend and delegates to
-  `WakfuBuildSolver.optimize()`, which streams solutions via `callbackFlow` — **the
-  `Flow<GeneticAlgorithmResult<BuildCombination>>` contract is preserved**, so the CLI/GUI keep
-  working. Currently only the "most-masteries" mode is supported by the solver.
-- Tests need extra JVM args (`--enable-native-access=ALL-UNNAMED`, `--add-opens …`) and the native
-  OR-Tools library is loaded at runtime (`Loader.loadNativeLibraries()`).
-
-When touching the engine, check **which branch you are on** — the two implementations are very
-different even though they share types and the output Flow.
+### Why the solver can leave slots empty (mount/pet/…) — *not a bug*
+"Most-masteries" mode maximizes **only the requested** masteries (under the required-stat
+constraints) and has no tie-breaker to fill otherwise-empty slots. So if no item in a slot can
+improve any requested stat, the proven optimum leaves that slot empty. Concrete case: the default
+request (distance mastery + AP/MP/HP/…) returns **no mount**, because every mount in the data
+carries only `MASTERY_ELEMENTARY` — which matches none of those targets. The GA *appears* to fill
+the mount only because its individuals start with all slots filled and nothing forces it to drop a
+zero-value item; that mount does not raise the GA score either. Both solvers reach the same optimum
+for the requested stats. (A lexicographic secondary objective — "max total elemental mastery among
+optimal builds" — would fill such slots and was considered, but deliberately not implemented.)
 
 ---
 
@@ -124,67 +141,71 @@ Item data is **not** fetched at runtime by the apps — it is baked in:
    `recipeCategories.json` from `https://wakfu.cdn.ankama.com/gamedata/:version`.
 2. It writes `autobuilder/src/main/resources/equipments-v<version>.json` (the `Equipment` list).
 3. `WakfuBestBuildFinderAlgorithm` loads that resource via the classpath at startup
-   (`equipments-v$VERSION.json`, where `VERSION` is a const in `autobuilder/Main.kt`).
-4. The GUI's `generateAssets` Gradle task downloads matching item icons from the
+   (`equipments-v$VERSION.json`, where `VERSION` is a const in `autobuilder/Main.kt` — currently
+   `1.91.1.54`).
+4. The GUI's `generateAssets` Gradle task (`gui-compose`) downloads matching item icons from the
    [`Vertylo/wakassets`](https://github.com/Vertylo/wakassets) repo into
-   `gui/src/main/resources/assets/items/<guiId>.png`.
+   `gui-compose/src/main/resources/assets/items/<guiId>.png`.
 
-**Updating to a new Wakfu version** = run the extractor, bump `VERSION` in `autobuilder/Main.kt`
-(and the version string used to locate the resource), then run `generateAssets`.
+**Updating to a new Wakfu version** = run the extractor, bump `VERSION` in `autobuilder/Main.kt`,
+then run `./gradlew :gui-compose:generateAssets`.
 
 ---
 
-## 6. GUI architecture (`gui`)
+## 6. GUI architecture (`gui-compose`)
 
-JavaFX 21, themed with **AtlantaFX** (`NordDark`) + **Ikonli** (feather icons). The UI is built
-**programmatically in Kotlin — there is no FXML.**
+**Compose Multiplatform (Desktop)** on JDK 25. The UI is built **programmatically in Kotlin — there
+is no FXML/XML.** Package root `me.chosante.ui`, organized by feature: `shell`, `request`,
+`paperdoll`, `stats`, `state`, `components`, `i18n`, `theme`, `testing`.
 
-- `WakfuAutobuilderGUI` (`Application`): splash screen → `BorderPane` with
-  `top = SearchBox`, `center = SplitPane(Accordion | BuildViewer)`, `bottom = disclaimer`.
-- Left **`Accordion`** of four panes: `BuildParamsBox` (class, mode, level, duration, rarity…),
-  `CharacteristicTable` (editable *desired vs actual* stat grid; rows go green/coral on match),
-  `SkillsTable` (TreeTable of the 5 skill branches), `ItemsForcedTable`.
-- Right **`BuildViewer`**: a 2-column grid of 14 `EquipmentCard`s, blurred behind a placeholder
-  until a search runs.
-- Top **`SearchBox`**: search / cancel buttons, progress bar, match-% label, "create Zenith build"
-  button, resulting build hyperlink.
+- **`Main.kt`** — `application { Window(...) }`. `App()` gates on `BuildSearchModel.isReady`: it
+  shows a **`LoadingScreen`** (`shell/`) — app wordmark + a self-calibrating warm-up `%`/ETA — while
+  OR-Tools' native cold start is paid off the UI thread, then **`Crossfade`s** into the main UI. It
+  also sets the window / macOS dock icon from `assets/branding/app-icon.png`.
+- **`BuildSearchModel`** (`state/`) — the **single shared view-model** (Compose `mutableStateOf`
+  `UiState`). It runs the search off-thread (`Dispatchers.Default`), collects the engine `Flow`,
+  and owns warm-up state (`WarmupTiming`), background icon preloading, the equipment catalog, and
+  Zenith build creation. (Unlike the old JavaFX GUI, state is centralized here — not in the widgets.)
+- **`AppShell`** (`shell/`) — `TopBar` (brand logo, language toggle, class, level/min-level, the
+  progress + match/mastery meters, Search button) above a 3-column body:
+  - **`RequestPanel`** (`request/`) — search mode, target-stats editor, constraints (rarity,
+    duration, solver toggle…), forced / excluded item chips.
+  - **`PaperdollPanel`** (`paperdoll/`) — the 14 equipment slots of the discovered build.
+  - **`StatsPanel`** (`stats/`) — the headline hero (match `%` in precision mode, **cumulated
+    requested mastery** in most-masteries mode), mastery summary, desired-vs-achieved grid, skill
+    tree, and the Zenith open/copy actions.
+  Long panels show conditional **scroll-hint** badges (`components/ScrollHints.kt`).
+- **Visuals** (`components/`): `IconPreloader` decodes item icons off-thread into a cache;
+  `rememberClasspathBitmap` loads PNGs from the classpath. `theme/` holds the dark palette
+  (`WColor`/`WTypography`/`WDimens`). Branding assets live in `assets/branding/` (a translucent
+  wordmark + a rounded-square "squircle" app icon).
+- **i18n** (`i18n/I18n.kt`): a **hand-written `Tr` enum** carrying EN/FR strings; `tr(Tr.X)` resolves
+  through the `LocalLang` composition local. **There is no generated i18n code.**
+- **Screenshot smoke test**: setting `WAKFU_COMPOSE_SCREENSHOT=/path` (or the `wakfu.compose.screenshot`
+  system property) renders the app to a PNG and exits (`testing/ScreenshotCapture`); in this mode
+  warm-up gating is skipped so the real UI renders immediately.
 
-**Communication is a custom event bus** (`eventbus/DefaultEventBus`, `@Listener`, `Event.publish`).
-The search runs off-thread (`AutobuilderComputation`, `Dispatchers.Default`); each component
-subscribes to `AutobuildStart/Update/End/Cancel`, `ZenithBuildCreated`, `Browse` events and updates
-itself on `Dispatchers.JavaFx`. There is **no shared view-model** — state lives inside the widgets.
-
-**i18n**: `i18n_en.properties` / `i18n_fr.properties` → a Gradle task (`generateKotlinI18nKeys`)
-generates the `generated.I18nKey` enum at compile time; `I18n.valueOf(key)` resolves at runtime.
-i18n is **incomplete** — `GuiCharacteristic` stat names are hardcoded English (`// TODO: I18N`) and
-several UI strings ("Minimum Level", "Weapon 2", "Level $level", …) bypass the bundle.
-
-> **A complete UI redesign to Compose Desktop is underway.** For any GUI work, read in order:
-> 1. `docs/COMPOSE_MIGRATION_PLAN.md` — the step-by-step JavaFX → Compose plan (start here).
-> 2. `docs/UI_REDESIGN_HANDOFF.md` — product framing + the engine/UI contract.
-> 3. `docs/design-reference/` — the Claude Design mockups (HTML/CSS/JSX + screenshots) = visual
->    source of truth. `styles-clean.css` + `Wakfu Autobuilder.html` are the primary design.
+> `docs/design-reference/` (HTML/CSS/JSX mockups + screenshots) is the **visual source of truth**.
+> `styles-clean.css` + `Wakfu Autobuilder.html` are the primary design.
 
 ---
 
 ## 7. Build, run, test
 
-Java 21+ required (Java 25 on the `linear-programming` branch). Use the Gradle wrapper.
+JDK 25 required. Use the Gradle wrapper.
 
 ```sh
 ./gradlew build                                   # build everything
 ./gradlew test                                    # run all tests (this is what CI runs)
 ./gradlew ktlintCheck                             # lint  (ktlintFormat to auto-fix)
 
-./gradlew :gui:run                                # launch the JavaFX GUI (legacy, kept until cutover)
-./gradlew :gui-compose:run                        # launch the new Compose Desktop GUI (migration in progress)
+./gradlew :gui-compose:run                        # launch the Compose Desktop GUI
 ./gradlew :autobuilder:run --args="--help"        # CLI help
 ./gradlew :equipments-extractor:run               # regenerate the equipments JSON from Ankama CDN
+./gradlew :gui-compose:generateAssets             # (on demand) download item icons from wakassets
 
 # Compose GUI screenshot smoke-check (renders the app, writes a PNG, exits):
 WAKFU_COMPOSE_SCREENSHOT=/tmp/out.png ./gradlew :gui-compose:run
-# Conveyor packaging is wired for gui-compose too (gui-compose/conveyor.conf):
-./gradlew :gui-compose:printConveyorConfig        # validates the Conveyor/Gradle wiring offline
 
 # Example CLI search:
 ./gradlew :autobuilder:run --args="--level 110 --action-point 11 --movement-point 5 \
@@ -198,28 +219,38 @@ WAKFU_COMPOSE_SCREENSHOT=/tmp/out.png ./gradlew :gui-compose:run
 ## 8. Packaging & release
 
 - The GUI is packaged with **Conveyor** (`dev.hydraulic.conveyor`) into native installers for
-  Windows / macOS / Linux. Config: `gui/conveyor.conf` (release, publishes to the `gh-pages`
-  branch) and `gui/conveyor-local.conf` (local). Root task `./gradlew conveyorRun` runs it locally.
-- Builds are **unsigned** (no paid signing certificate) — users must bypass OS security on first
-  launch; keep that constraint in mind for any packaging change.
+  Windows / macOS / Linux. Config: `gui-compose/conveyor.conf` (release, publishes to the `gh-pages`
+  branch) and `gui-compose/conveyor-local.conf` (local builds, no GitHub/OAuth). The app icon is
+  generated by Conveyor from `assets/branding/app-icon.png`.
+- Local: `./gradlew conveyorRun` (root task; targets `gui-compose`) — requires the `conveyor` CLI
+  installed. Offline wiring check: `./gradlew :gui-compose:printConveyorConfig`. Single-platform
+  build, e.g.: `conveyor -f gui-compose/conveyor-local.conf -Kapp.machines=mac.aarch64 make mac-app`.
+- Builds are **unsigned** (no paid signing certificate; macOS gets an ad-hoc signature) — users must
+  bypass OS security on first launch; keep that constraint in mind for any packaging change.
 - CI: `.github/workflows/build.yml` runs `./gradlew test` on every push.
-  `.github/workflows/deploy.yml` (manual dispatch) builds jars + runs Conveyor.
+  `.github/workflows/deploy.yml` (manual `workflow_dispatch`) builds jars + runs Conveyor against
+  `gui-compose/conveyor.conf` (`make copied-site`).
 - Dependencies are kept current by Dependabot (grouped Gradle + GitHub Actions PRs).
 
 ---
 
 ## 9. Conventions & gotchas
 
-- **Kotlin official code style** (`gradle.properties`), enforced by **ktlint**. Run `ktlintFormat`
+- **Kotlin official code style** (`gradle.properties`), enforced by **ktlint 14**. Run `ktlintFormat`
   before committing. The `generated/` package is excluded from linting.
-- Package root is `me.chosante`. Versioning: the CLI version string tracks the **Wakfu data
-  version**; the GUI has its own semver (`gui/build.gradle.kts`).
+- **OR-Tools native args.** The engine loads a native library, so any module that runs it
+  (`autobuilder`, `gui-compose`) configures these JVM args in its `build.gradle.kts` for `run` and
+  `test`: `--enable-native-access=ALL-UNNAMED`, `--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED`,
+  `--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED`. Engine tests will fail to load the native
+  lib without them.
+- Package root is `me.chosante`. Versioning: the **CLI** version string tracks the **Wakfu data
+  version** (`VERSION` in `autobuilder/Main.kt`); the **GUI** has its own semver
+  (`gui-compose/build.gradle.kts`, currently `1.0.0`).
 - Item names in `--forced-items` / `--excluded-items` and in the engine's filtering are matched in
   **French** (`equipment.name.fr`), regardless of UI language.
-- The `gui` `generateAssets` task hits the network (downloads the wakassets zip) — it is not part of
-  the normal build and is run on demand.
-- Tests use JUnit 5 + AssertJ (`autobuilder` also uses `kotlin-test`). On `linear-programming`,
-  engine tests require the OR-Tools JVM args noted in §4.
+- The `gui-compose` `generateAssets` task hits the network (downloads the wakassets zip) — it is not
+  part of the normal build and is run on demand.
+- Tests use JUnit 5 + AssertJ (`autobuilder` also uses `kotlin-test`).
 - There is no `LICENSE` file yet despite README references; contact is Discord `Chosante`.
 
 ---
@@ -228,8 +259,6 @@ WAKFU_COMPOSE_SCREENSHOT=/tmp/out.png ./gradlew :gui-compose:run
 
 | Branch | Purpose |
 |---|---|
-| `main` | Stable. Genetic-algorithm engine, Wakfu data `1.89.1.41`, JVM 21. |
-| `linear-programming` | **Major engine rewrite** to OR-Tools CP-SAT (deterministic optimal). JVM 25, data `1.91.1.53`. See §4. |
-| `update-1.89` | Wakfu data/version bump work. |
+| `main` | Stable line: OR-Tools CP-SAT engine (GA still selectable) + Compose Desktop GUI, JDK 25. |
 | `gh-pages` | Conveyor download site (generated). |
 | `dependabot/*` | Automated dependency bumps. |

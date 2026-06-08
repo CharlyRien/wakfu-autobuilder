@@ -42,44 +42,44 @@ sealed class StrengthCharacteristic(
     class MasteryElementary(
         pointsAssigned: Int,
     ) : StrengthCharacteristic(
-        pointsAssigned = pointsAssigned,
-        maxPointsAssignable = Int.MAX_VALUE,
-        unitValue = 5,
-        unitType = UnitType.FIXED,
-        characteristic = Characteristic.MASTERY_ELEMENTARY,
-        name = "Mastery Elementary"
-    )
+            pointsAssigned = pointsAssigned,
+            maxPointsAssignable = Int.MAX_VALUE,
+            unitValue = 5,
+            unitType = UnitType.FIXED,
+            characteristic = Characteristic.MASTERY_ELEMENTARY,
+            name = "Mastery Elementary"
+        )
 
     class MasteryDistance(
         pointsAssigned: Int,
     ) : StrengthCharacteristic(
-        pointsAssigned = pointsAssigned,
-        maxPointsAssignable = 40,
-        unitValue = 8,
-        unitType = UnitType.FIXED,
-        characteristic = Characteristic.MASTERY_DISTANCE,
-        name = "Mastery Distance"
-    )
+            pointsAssigned = pointsAssigned,
+            maxPointsAssignable = 40,
+            unitValue = 8,
+            unitType = UnitType.FIXED,
+            characteristic = Characteristic.MASTERY_DISTANCE,
+            name = "Mastery Distance"
+        )
 
     class MasteryMelee(
         pointsAssigned: Int,
     ) : StrengthCharacteristic(
-        pointsAssigned = pointsAssigned,
-        maxPointsAssignable = 40,
-        unitValue = 8,
-        unitType = UnitType.FIXED,
-        characteristic = Characteristic.MASTERY_MELEE,
-        name = "Mastery Melee"
-    )
+            pointsAssigned = pointsAssigned,
+            maxPointsAssignable = 40,
+            unitValue = 8,
+            unitType = UnitType.FIXED,
+            characteristic = Characteristic.MASTERY_MELEE,
+            name = "Mastery Melee"
+        )
 
     class Hp(
         pointsAssigned: Int,
     ) : StrengthCharacteristic(
-        pointsAssigned = pointsAssigned,
-        maxPointsAssignable = Int.MAX_VALUE,
-        unitValue = 20,
-        unitType = UnitType.FIXED,
-        characteristic = Characteristic.HP,
-        name = "HP"
-    )
+            pointsAssigned = pointsAssigned,
+            maxPointsAssignable = Int.MAX_VALUE,
+            unitValue = 20,
+            unitType = UnitType.FIXED,
+            characteristic = Characteristic.HP,
+            name = "HP"
+        )
 }

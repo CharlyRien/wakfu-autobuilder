@@ -2,12 +2,6 @@ package me.chosante.ui.state
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
-import java.awt.Desktop
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
-import java.net.URI
-import java.util.concurrent.CancellationException
-import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,6 +9,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.swing.Swing
 import kotlinx.coroutines.withContext
@@ -26,12 +21,36 @@ import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildParams
+import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver
+import me.chosante.autobuilder.genetic.wakfu.WakfuSolver
 import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
+import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.common.Character
 import me.chosante.common.Rarity
 import me.chosante.createZenithBuild
+import me.chosante.ui.components.IconPreloader
+import me.chosante.ui.components.warmUpPaths
+import me.chosante.ui.history.HistoryRepository
+import me.chosante.ui.history.restoredClass
+import me.chosante.ui.history.restoredMode
+import me.chosante.ui.history.restoredSolver
+import me.chosante.ui.history.suggestedBuildName
+import me.chosante.ui.history.toBuildCombination
+import me.chosante.ui.history.toExcludedChips
+import me.chosante.ui.history.toForcedChips
+import me.chosante.ui.history.toHistoryEntry
+import me.chosante.ui.history.toTargetRows
+import me.chosante.ui.i18n.Tr
+import java.awt.Desktop
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
+import java.net.URI
+import java.util.concurrent.CancellationException
+import kotlin.math.ceil
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
-private typealias BuildFinder = suspend (WakfuBestBuildParams) -> Flow<GeneticAlgorithmResult<BuildCombination>>
+private typealias BuildFinder = (WakfuBestBuildParams) -> Flow<GeneticAlgorithmResult<BuildCombination>>
 private typealias ZenithBuilder = suspend (ZenithInputParameters) -> String
 
 class BuildSearchModel(
@@ -41,14 +60,120 @@ class BuildSearchModel(
     private val openBrowser: (String) -> Unit = { link -> Desktop.getDesktop().browse(URI(link)) },
     private val copyToClipboard: (String) -> Unit = { link -> Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(link), null) },
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Swing,
+    private val historyRepository: HistoryRepository = HistoryRepository(),
+    /** Wakfu game-data version stamped onto saved builds (injectable for tests). */
+    private val dataVersion: String = WakfuBestBuildFinderAlgorithm.dataVersion,
+    private val idGenerator: () -> String = {
+        java.util.UUID
+            .randomUUID()
+            .toString()
+    },
+    private val clock: () -> Long = { System.currentTimeMillis() },
 ) {
     var ui by androidx.compose.runtime.mutableStateOf(UiState())
         private set
 
+    /**
+     * `true` once the app is ready to show its main UI: OR-Tools' one-time cold start has been paid
+     * (or we're in screenshot mode). Until then a [me.chosante.ui.shell.LoadingScreen] is shown
+     * instead of the heavy main UI — mounting that UI *during* native-library loading is what made
+     * the window appear to hang.
+     */
+    var isReady by androidx.compose.runtime.mutableStateOf(false)
+        private set
+
+    /** Estimated warm-up progress (0..1) for the loading screen. See [WarmupTiming]. */
+    var warmupProgress by androidx.compose.runtime.mutableStateOf(0f)
+        private set
+
+    /** Estimated seconds left on the warm-up, or `null` once the estimate is exhausted/done. */
+    var warmupEtaSeconds by androidx.compose.runtime.mutableStateOf<Int?>(null)
+        private set
+
     private var job: Job? = null
 
+    /** Mirrors [me.chosante.ui.SCREENSHOT_PATH_PROPERTY] / `WAKFU_COMPOSE_SCREENSHOT` (see Main.kt). */
+    private val isScreenshotMode =
+        System.getProperty("wakfu.compose.screenshot") != null ||
+            System.getenv("WAKFU_COMPOSE_SCREENSHOT") != null
+
+    init {
+        // Decode item icons into the cache off the UI thread so they're ready (and decoded once)
+        // by the time a build is shown. Purely background work: it never gates startup — items
+        // simply appear as they decode, so we don't make the user wait on ~thousands of PNGs.
+        scope.launch(Dispatchers.Default) {
+            val paths = warmUpPaths(WakfuBestBuildFinderAlgorithm.equipments)
+            IconPreloader.warmUp(scope, paths) { _, _ -> }
+        }
+
+        // Load the saved-build library off the UI thread. A read failure must never block startup —
+        // it just yields an empty library that fills in as the user saves builds.
+        scope.launch(Dispatchers.IO) {
+            val all = runCatching { historyRepository.loadAll() }.getOrDefault(emptyList())
+            withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all) }
+        }
+
+        if (isScreenshotMode) {
+            // Screenshots want the real UI immediately, with no warm-up gating.
+            isReady = true
+        } else {
+            // Pay OR-Tools' one-time cold start behind the loading screen, so the first real search
+            // starts warm and the heavy main UI only mounts once the native library is loaded (no
+            // CPU/IO contention with Compose's first render). The short delay lets the loader paint.
+            scope.launch(Dispatchers.Default) {
+                val estimateMs = WarmupTiming.estimatedDurationMs()
+                val start = System.currentTimeMillis()
+                // The native load reports no real progress, so animate an estimated %/ETA from the
+                // elapsed time vs. the last measured duration. The bar caps below 100% until warm-up
+                // actually finishes, then snaps full — never claims "done" early.
+                val ticker =
+                    launch {
+                        while (isActive) {
+                            val elapsed = System.currentTimeMillis() - start
+                            val remainingMs = estimateMs - elapsed
+                            withContext(mainDispatcher) {
+                                warmupProgress = (elapsed.toFloat() / estimateMs).coerceIn(0f, 0.92f)
+                                warmupEtaSeconds = if (remainingMs > 0) ceil(remainingMs / 1000.0).toInt() else null
+                            }
+                            delay(80.milliseconds)
+                        }
+                    }
+                delay(200.milliseconds)
+                try {
+                    WakfuBuildSolver.warmUp()
+                    WarmupTiming.record(System.currentTimeMillis() - start)
+                } finally {
+                    // Always reveal the UI: a warm-up failure should degrade to a cold first search,
+                    // never leave the app stuck on the loading screen.
+                    ticker.cancel()
+                    withContext(mainDispatcher) {
+                        warmupProgress = 1f
+                        warmupEtaSeconds = null
+                        isReady = true
+                    }
+                }
+            }
+        }
+    }
+
     fun setMode(mode: ScoreComputationMode) {
-        ui = ui.copy(mode = mode)
+        val normalizedTargets =
+            if (mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) {
+                ui.targets.map { target ->
+                    if (target.characteristic.isMaximizableMastery()) {
+                        target.copy(value = "1")
+                    } else {
+                        target
+                    }
+                }
+            } else {
+                ui.targets
+            }
+        ui = ui.copy(mode = mode, targets = normalizedTargets)
+    }
+
+    fun setSolver(solver: WakfuSolver) {
+        ui = ui.copy(solver = solver)
     }
 
     fun setLang(lang: me.chosante.ui.i18n.Lang) {
@@ -60,12 +185,22 @@ class BuildSearchModel(
     }
 
     fun setLevel(level: String) {
-        val parsed = level.onlyDigits().take(3).toIntOrNull()?.coerceIn(1, 245) ?: return
-        ui = ui.copy(level = parsed, minLevel = ui.minLevel.coerceAtMost(parsed))
+        val parsed =
+            level
+                .onlyDigits()
+                .take(3)
+                .toIntOrNull()
+                ?.coerceIn(1, 245) ?: return
+        ui = ui.copy(level = parsed)
     }
 
     fun setMinLevel(minLevel: String) {
-        val parsed = minLevel.onlyDigits().take(3).toIntOrNull()?.coerceIn(0, ui.level) ?: return
+        val parsed =
+            minLevel
+                .onlyDigits()
+                .take(3)
+                .toIntOrNull()
+                ?.coerceIn(0, 245) ?: return
         ui = ui.copy(minLevel = parsed)
     }
 
@@ -86,8 +221,26 @@ class BuildSearchModel(
             return
         }
         statDefFor(characteristic)?.let { def ->
-            ui = ui.copy(targets = ui.targets + def.toRow("0"), modal = null)
+            ui =
+                ui.copy(
+                    targets = ui.targets + def.toRow(if (characteristic.isMaximizableMastery()) "1" else "0"),
+                    modal = null
+                )
         }
+    }
+
+    fun toggleMaximizedMastery(characteristic: me.chosante.common.Characteristic) {
+        if (!characteristic.isMaximizableMastery()) {
+            return
+        }
+        val existing = ui.targets.firstOrNull { it.characteristic == characteristic }
+        ui =
+            if (existing == null) {
+                val row = statDefFor(characteristic)?.toRow("1") ?: return
+                ui.copy(targets = ui.targets + row)
+            } else {
+                ui.copy(targets = ui.targets.filterNot { it.characteristic == characteristic })
+            }
     }
 
     fun setMaxRarity(rarity: Rarity) {
@@ -108,6 +261,26 @@ class BuildSearchModel(
 
     fun removeExcludedItem(item: ItemChip) {
         ui = ui.copy(excludedItems = ui.excludedItems - item)
+    }
+
+    /**
+     * Force this exact item into the next searched build. Driven by the center paperdoll's per-slot
+     * action; mirrors [pickItem]'s dedup but is independent of the picker modal and, like the modal,
+     * does **not** re-run the search.
+     */
+    fun forceItem(equipment: me.chosante.common.Equipment) {
+        val chip = equipment.toChip()
+        if (ui.forcedItems.none { it.matchName == chip.matchName }) {
+            ui = ui.copy(forcedItems = ui.forcedItems + chip)
+        }
+    }
+
+    /** Exclude this exact item from the next search. Paperdoll counterpart to [forceItem]. */
+    fun excludeItem(equipment: me.chosante.common.Equipment) {
+        val chip = equipment.toChip()
+        if (ui.excludedItems.none { it.matchName == chip.matchName }) {
+            ui = ui.copy(excludedItems = ui.excludedItems + chip)
+        }
     }
 
     fun openModal(modal: Modal) {
@@ -171,7 +344,8 @@ class BuildSearchModel(
     fun search() {
         job?.cancel()
         val snapshot = ui
-        val character = Character(snapshot.clazz, snapshot.level, snapshot.minLevel)
+        val effectiveMinLevel = snapshot.minLevel.coerceAtMost(snapshot.level)
+        val character = Character(snapshot.clazz, snapshot.level, effectiveMinLevel)
         val targetStats = snapshot.toTargetStats()
         val params =
             WakfuBestBuildParams(
@@ -182,7 +356,8 @@ class BuildSearchModel(
                 maxRarity = snapshot.maxRarity,
                 forcedItems = snapshot.forcedItems.map { it.matchName },
                 excludedItems = snapshot.excludedItems.map { it.matchName },
-                scoreComputationMode = snapshot.mode
+                scoreComputationMode = snapshot.mode,
+                solver = snapshot.solver
             )
 
         ui =
@@ -190,6 +365,7 @@ class BuildSearchModel(
                 phase = Phase.Searching,
                 progress = 0,
                 match = java.math.BigDecimal.ZERO,
+                optimal = false,
                 build = null,
                 achieved = emptyMap(),
                 lastLandedEquipmentId = null,
@@ -201,9 +377,11 @@ class BuildSearchModel(
         job =
             scope.launch(Dispatchers.Default) {
                 try {
+                    var hasResult = false
                     buildFinder(params)
                         .conflate()
                         .collect { result ->
+                            hasResult = true
                             val achieved =
                                 computeCharacteristicsValues(
                                     buildCombination = result.individual,
@@ -217,6 +395,7 @@ class BuildSearchModel(
                                     ui.copy(
                                         progress = result.progressPercentage,
                                         match = result.matchPercentage,
+                                        optimal = result.isOptimal,
                                         build = result.individual,
                                         achieved = achieved,
                                         lastLandedEquipmentId = landedEquipmentId ?: ui.lastLandedEquipmentId
@@ -227,15 +406,28 @@ class BuildSearchModel(
                             }
                         }
                     withContext(mainDispatcher) {
-                        if (ui.phase == Phase.Searching) {
+                        if (ui.phase == Phase.Searching && hasResult) {
                             ui = ui.copy(phase = Phase.Done, lastLandedEquipmentId = null)
+                        } else if (ui.phase == Phase.Searching) {
+                            ui =
+                                ui.copy(
+                                    phase = Phase.Idle,
+                                    progress = 0,
+                                    error = Tr.SEARCH_NO_RESULT.value(ui.lang),
+                                    lastLandedEquipmentId = null
+                                )
                         }
                     }
                 } catch (exception: CancellationException) {
                     throw exception
-                } catch (exception: Exception) {
+                } catch (throwable: Throwable) {
+                    // Catch Throwable (not just Exception): the solver can raise fatal Errors
+                    // (e.g. native-access / linkage issues) that would otherwise crash the event
+                    // thread with a masked coroutines error instead of surfacing here.
+                    throwable.printStackTrace()
+                    val message = throwable.message ?: throwable::class.qualifiedName ?: "Search failed"
                     withContext(mainDispatcher) {
-                        ui = ui.copy(phase = Phase.Idle, error = exception.message ?: "Search failed")
+                        ui = ui.copy(phase = Phase.Idle, error = message)
                     }
                 }
             }
@@ -260,7 +452,11 @@ class BuildSearchModel(
     fun copyZenithLink() {
         createZenithLink { link ->
             copyToClipboard(link)
-            ui = ui.copy(toast = me.chosante.ui.i18n.Tr.TOAST_ZENITH_COPIED.value(ui.lang))
+            ui =
+                ui.copy(
+                    toast =
+                        Tr.TOAST_ZENITH_COPIED.value(ui.lang)
+                )
         }
     }
 
@@ -282,7 +478,13 @@ class BuildSearchModel(
                         )
                     )
                 withContext(mainDispatcher) {
-                    ui = ui.copy(zenith = ZenithState.Ready, zenithUrl = link, toast = me.chosante.ui.i18n.Tr.TOAST_ZENITH_READY.value(ui.lang))
+                    ui =
+                        ui.copy(
+                            zenith = ZenithState.Ready,
+                            zenithUrl = link,
+                            toast =
+                                Tr.TOAST_ZENITH_READY.value(ui.lang)
+                        )
                     onReady(link)
                 }
             } catch (exception: Exception) {
@@ -293,8 +495,7 @@ class BuildSearchModel(
         }
     }
 
-    private fun UiState.toTargetStats(): TargetStats =
-        TargetStats(targets.map { TargetStat(it.characteristic, it.value.toIntOrNull() ?: 0) })
+    private fun UiState.toTargetStats(): TargetStats = TargetStats(targets.map { TargetStat(it.characteristic, it.value.toIntOrNull() ?: 0) })
 
     private fun newlyLandedEquipmentId(
         previous: BuildCombination?,
@@ -306,11 +507,224 @@ class BuildSearchModel(
 
     private fun clearLandedMarkerLater(equipmentId: Int) {
         scope.launch {
-            delay(560)
+            delay(560.milliseconds)
             withContext(mainDispatcher) {
                 if (ui.lastLandedEquipmentId == equipmentId) {
                     ui = ui.copy(lastLandedEquipmentId = null)
                 }
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Build history / comparison
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * The search button's click handler. When a saved build is loaded the button is *locked*: the
+     * first click asks for confirmation (so re-optimizing a saved build is a deliberate act) rather
+     * than silently recomputing it. Otherwise it runs the search straight away.
+     */
+    fun onSearchPressed() {
+        if (ui.searchLocked) {
+            ui = ui.copy(modal = Modal.ConfirmReSearch)
+        } else {
+            search()
+        }
+    }
+
+    /** Confirms the guarded re-search: unlock and run. The active build identity is kept so the user
+     * can save the recomputed result back over the same entry. */
+    fun confirmReSearch() {
+        ui = ui.copy(modal = null, searchLocked = false)
+        search()
+    }
+
+    fun goToScreen(screen: Screen) {
+        ui = ui.copy(screen = screen)
+    }
+
+    /** Opens the save dialog, pre-filling the name (existing name when editing a loaded build). */
+    fun requestSaveBuild() {
+        if (ui.build == null) return
+        ui = ui.copy(modal = Modal.SaveBuild)
+    }
+
+    /** Default text for the save dialog's name field. */
+    fun suggestedSaveName(): String = ui.activeBuildName ?: ui.suggestedBuildName()
+
+    /**
+     * Names already used by *other* saved builds (the active build's own name is excluded so updating
+     * it isn't blocked). The save dialog rejects these so two builds never share a name — which would
+     * make the library and the compare view ambiguous.
+     */
+    fun takenBuildNames(): Set<String> =
+        ui.savedBuilds
+            .filter { it.id != ui.activeBuildId }
+            .map { it.name.trim().lowercase() }
+            .toSet()
+
+    /**
+     * Persists the current workspace build. When [asNew] is false and a build is already loaded, it
+     * overwrites that entry (same id); otherwise it creates a new entry. Local write is the source of
+     * truth and is done off the UI thread; the in-memory library is refreshed afterwards.
+     */
+    fun saveBuild(
+        name: String,
+        note: String?,
+        asNew: Boolean,
+    ) {
+        val trimmedName = name.trim().ifBlank { ui.suggestedBuildName() }
+        val id = if (!asNew && ui.activeBuildId != null) ui.activeBuildId!! else idGenerator()
+        val entry = ui.toHistoryEntry(id = id, name = trimmedName, note = note, createdAt = clock(), dataVersion = dataVersion) ?: return
+        // Note: saving does NOT lock search. The lock guards *revisiting* a build loaded from the
+        // library (a deliberate act); right after saving you should stay free to keep iterating.
+        ui = ui.copy(modal = null, activeBuildId = id, activeBuildName = trimmedName)
+        scope.launch(Dispatchers.IO) {
+            runCatching { historyRepository.save(entry) }
+                .onSuccess {
+                    val all = historyRepository.loadAll()
+                    withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all, toast = Tr.TOAST_BUILD_SAVED.value(ui.lang)) }
+                }.onFailure { throwable ->
+                    withContext(mainDispatcher) { ui = ui.copy(error = throwable.message ?: "Could not save build") }
+                }
+        }
+    }
+
+    /**
+     * Loads a saved build into the workspace: restores its request (so it can be tweaked & re-run)
+     * and its result (shown without re-running), marks it as the active build, and locks the search
+     * button. Returns to the Builder screen.
+     */
+    fun loadBuild(id: String) {
+        val entry = ui.savedBuilds.firstOrNull { it.id == id } ?: return
+        job?.cancel()
+        ui =
+            ui.copy(
+                screen = Screen.Builder,
+                modal = null,
+                clazz = entry.restoredClass(),
+                level = entry.request.level,
+                minLevel = entry.request.minLevel,
+                mode = entry.restoredMode(),
+                solver = entry.restoredSolver(),
+                maxRarity = entry.request.maxRarity,
+                duration = entry.request.duration,
+                stopAtMatch = entry.request.stopAtMatch,
+                targets = entry.toTargetRows(),
+                forcedItems = entry.toForcedChips(),
+                excludedItems = entry.toExcludedChips(),
+                phase = Phase.Done,
+                progress = 100,
+                match = entry.result.match.toBigDecimal(),
+                optimal = entry.result.optimal,
+                build = entry.toBuildCombination(),
+                achieved = entry.result.achieved,
+                lastLandedEquipmentId = null,
+                zenith = if (entry.zenithUrl != null) ZenithState.Ready else ZenithState.Idle,
+                zenithUrl = entry.zenithUrl,
+                error = null,
+                toast = null,
+                activeBuildId = entry.id,
+                activeBuildName = entry.name,
+                searchLocked = true
+            )
+    }
+
+    /** Clears the active-build identity (the workspace becomes an "unsaved build" again, unlocked). */
+    fun clearActiveBuild() {
+        ui = ui.copy(activeBuildId = null, activeBuildName = null, searchLocked = false)
+    }
+
+    /**
+     * Starts a fresh, blank build: resets the whole workspace to defaults (request + result), drops
+     * any active-build link, and unlocks search. Keeps the language and the saved-build library.
+     * This is the explicit "New build" escape from editing a loaded build.
+     */
+    fun newBuild() {
+        job?.cancel()
+        ui = UiState(lang = ui.lang, savedBuilds = ui.savedBuilds, screen = Screen.Builder)
+    }
+
+    fun requestRename(
+        id: String,
+        currentName: String,
+    ) {
+        ui = ui.copy(modal = Modal.RenameBuild(id, currentName))
+    }
+
+    fun renameBuild(
+        id: String,
+        newName: String,
+    ) {
+        val trimmed = newName.trim()
+        val entry = ui.savedBuilds.firstOrNull { it.id == id }
+        if (trimmed.isBlank() || entry == null) {
+            ui = ui.copy(modal = null)
+            return
+        }
+        // Reject a rename that would collide with a *different* build's name, keeping names unique.
+        val collides = ui.savedBuilds.any { it.id != id && it.name.trim().equals(trimmed, ignoreCase = true) }
+        if (collides) {
+            ui = ui.copy(modal = null, toast = Tr.SAVE_NAME_TAKEN.value(ui.lang))
+            return
+        }
+        val renamed = entry.copy(name = trimmed)
+        ui = ui.copy(modal = null, activeBuildName = if (ui.activeBuildId == id) trimmed else ui.activeBuildName)
+        scope.launch(Dispatchers.IO) {
+            runCatching { historyRepository.save(renamed) }
+            val all = historyRepository.loadAll()
+            withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all) }
+        }
+    }
+
+    fun requestDelete(
+        id: String,
+        name: String,
+    ) {
+        ui = ui.copy(modal = Modal.ConfirmDelete(id, name))
+    }
+
+    /** Opens the compare view with [id] pre-selected as side A. */
+    fun startCompare(id: String) {
+        ui = ui.copy(screen = Screen.Compare, compareA = id, compareB = null, modal = null)
+    }
+
+    fun setCompareSlot(
+        slot: CompareSlot,
+        id: String,
+    ) {
+        ui =
+            when (slot) {
+                CompareSlot.A -> ui.copy(compareA = id)
+                CompareSlot.B -> ui.copy(compareB = id)
+            }
+    }
+
+    fun clearCompareSlot(slot: CompareSlot) {
+        ui =
+            when (slot) {
+                CompareSlot.A -> ui.copy(compareA = null)
+                CompareSlot.B -> ui.copy(compareB = null)
+            }
+    }
+
+    fun deleteBuild(id: String) {
+        ui = ui.copy(modal = null)
+        scope.launch(Dispatchers.IO) {
+            runCatching { historyRepository.delete(id) }
+            val all = historyRepository.loadAll()
+            withContext(mainDispatcher) {
+                val wasActive = ui.activeBuildId == id
+                ui =
+                    ui.copy(
+                        savedBuilds = all,
+                        activeBuildId = if (wasActive) null else ui.activeBuildId,
+                        activeBuildName = if (wasActive) null else ui.activeBuildName,
+                        searchLocked = if (wasActive) false else ui.searchLocked,
+                        compareA = if (ui.compareA == id) null else ui.compareA,
+                        compareB = if (ui.compareB == id) null else ui.compareB
+                    )
             }
         }
     }

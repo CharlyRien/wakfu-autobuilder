@@ -1,6 +1,7 @@
 package me.chosante.ui.shell
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,6 +25,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,16 +33,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.common.CharacterClass
+import me.chosante.ui.components.rememberClasspathBitmap
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.tr
 import me.chosante.ui.state.Phase
+import me.chosante.ui.state.Screen
 import me.chosante.ui.state.UiState
+import me.chosante.ui.state.formatCompact
+import me.chosante.ui.state.onlyDigits
+import me.chosante.ui.state.requestedMasteryTotal
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WType
 import me.chosante.ui.theme.WTypography
@@ -55,33 +66,170 @@ fun TopBar(
     onLevelChange: (String) -> Unit,
     onMinLevelChange: (String) -> Unit,
     onLangChange: (Lang) -> Unit,
+    onNavigate: (Screen) -> Unit,
+    onNewBuild: () -> Unit,
+    onDetachActiveBuild: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val onBuilder = ui.screen == Screen.Builder
     Column(modifier = modifier.fillMaxWidth().background(WColor.bg)) {
         Row(
             modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 22.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Brand()
-            Spacer(modifier = Modifier.weight(1f))
-            LangToggle(current = ui.lang, onSelect = onLangChange)
-            Spacer(modifier = Modifier.width(14.dp))
-            ClassDropdown(selected = ui.clazz, onSelect = onClassChange)
-            Spacer(modifier = Modifier.width(10.dp))
-            NumberControl(label = tr(Tr.LEVEL_SHORT), value = ui.level.toString(), onValueChange = onLevelChange)
-            Spacer(modifier = Modifier.width(10.dp))
-            NumberControl(label = tr(Tr.MIN_SHORT), value = ui.minLevel.toString(), onValueChange = onMinLevelChange)
-            Spacer(modifier = Modifier.width(22.dp))
-            TopMeter(label = tr(Tr.PROGRESS), value = "${ui.progress}%", fill = ui.progress / 100f, color = WColor.accent2)
-            Spacer(modifier = Modifier.width(16.dp))
-            TopMeter(label = tr(Tr.MATCH), value = "${ui.match.toInt()}%", fill = ui.match.toFloat() / 100f, color = WColor.success)
             Spacer(modifier = Modifier.width(18.dp))
-            SearchButton(
-                searching = ui.phase == Phase.Searching,
-                onClick = if (ui.phase == Phase.Searching) onCancel else onSearch
-            )
+            NavTabs(current = ui.screen, onNavigate = onNavigate)
+            if (onBuilder) {
+                Spacer(modifier = Modifier.width(10.dp))
+                NewBuildButton(onClick = onNewBuild)
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            if (onBuilder && ui.activeBuildName != null) {
+                ActiveBuildChip(name = ui.activeBuildName, onDetach = onDetachActiveBuild)
+                Spacer(modifier = Modifier.width(14.dp))
+            }
+            LangToggle(current = ui.lang, onSelect = onLangChange)
+            if (onBuilder) {
+                Spacer(modifier = Modifier.width(14.dp))
+                ClassDropdown(selected = ui.clazz, onSelect = onClassChange)
+                Spacer(modifier = Modifier.width(10.dp))
+                NumberControl(label = tr(Tr.LEVEL_SHORT), value = ui.level.toString(), onValueChange = onLevelChange)
+                Spacer(modifier = Modifier.width(10.dp))
+                NumberControl(label = tr(Tr.MIN_SHORT), value = ui.minLevel.toString(), onValueChange = onMinLevelChange)
+                Spacer(modifier = Modifier.width(22.dp))
+                TopMeter(label = tr(Tr.PROGRESS), value = "${ui.progress}%", fill = ui.progress / 100f, color = WColor.accent2)
+                Spacer(modifier = Modifier.width(16.dp))
+                if (ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) {
+                    // Most-masteries: no exact-target "% match"; show the cumulated requested mastery.
+                    TopMeter(label = tr(Tr.MASTERY_SHORT), value = ui.requestedMasteryTotal().formatCompact(), fill = null, color = WColor.success)
+                } else {
+                    TopMeter(label = tr(Tr.MATCH), value = "${ui.match.toInt()}%", fill = ui.match.toFloat() / 100f, color = WColor.success)
+                }
+                Spacer(modifier = Modifier.width(18.dp))
+                SearchButton(
+                    searching = ui.phase == Phase.Searching,
+                    locked = ui.searchLocked,
+                    onClick = if (ui.phase == Phase.Searching) onCancel else onSearch
+                )
+            }
         }
         Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
+    }
+}
+
+@Composable
+private fun NavTabs(
+    current: Screen,
+    onNavigate: (Screen) -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .height(34.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(WColor.bg)
+                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        NavTab(label = tr(Tr.NAV_BUILDER), selected = current == Screen.Builder, onClick = { onNavigate(Screen.Builder) })
+        NavTab(label = tr(Tr.NAV_LIBRARY), selected = current == Screen.Library || current == Screen.Compare, onClick = { onNavigate(Screen.Library) })
+    }
+}
+
+@Composable
+private fun NewBuildButton(onClick: () -> Unit) {
+    Box(
+        modifier =
+            Modifier
+                .height(34.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(WColor.raised)
+                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text = tr(Tr.NEW_BUILD), style = WTypography.labelMedium.copy(color = WColor.text))
+    }
+}
+
+@Composable
+private fun NavTab(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .background(if (selected) WColor.raised else androidx.compose.ui.graphics.Color.Transparent)
+                .clickable(onClick = onClick)
+                .padding(horizontal = 12.dp, vertical = 5.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = WTypography.labelMedium.copy(color = if (selected) WColor.text else WColor.muted)
+        )
+    }
+}
+
+@Composable
+private fun ActiveBuildChip(
+    name: String,
+    onDetach: () -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .height(34.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(WColor.accent.copy(alpha = 0.12f))
+                .border(1.dp, WColor.accent.copy(alpha = 0.45f), RoundedCornerShape(9.dp))
+                .padding(start = 11.dp, end = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(text = tr(Tr.ACTIVE_BUILD_EDITING), style = WTypography.labelSmall.copy(color = WColor.accent))
+        Text(
+            text = name,
+            style = WTypography.labelMedium.copy(color = WColor.text, fontFamily = WType.mono),
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 180.dp)
+        )
+        Box(
+            modifier =
+                Modifier
+                    .size(22.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(onClick = onDetach),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = "✕", style = WTypography.labelSmall.copy(color = WColor.muted))
+        }
+    }
+}
+
+@Composable
+private fun Brand() {
+    val wordmark = rememberClasspathBitmap("assets/branding/wordmark.png")
+    if (wordmark != null) {
+        Image(
+            bitmap = wordmark,
+            contentDescription = "Wakfu Auto-Builder",
+            contentScale = ContentScale.Fit,
+            // The wordmark is downscaled hard (large bitmap -> ~46dp tall); High filtering resamples
+            // it smoothly instead of the default Low, which looked aliased on the fine lettering.
+            filterQuality = FilterQuality.High,
+            modifier = Modifier.height(46.dp).aspectRatio(wordmark.width.toFloat() / wordmark.height)
+        )
+    } else {
+        Text(text = "Wakfu Auto-Builder", style = WTypography.headlineLarge)
     }
 }
 
@@ -92,12 +240,12 @@ private fun LangToggle(
 ) {
     Row(
         modifier =
-        Modifier
-            .height(34.dp)
-            .clip(RoundedCornerShape(9.dp))
-            .background(WColor.bg)
-            .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-            .padding(3.dp),
+            Modifier
+                .height(34.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(WColor.bg)
+                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -105,52 +253,22 @@ private fun LangToggle(
             val selected = lang == current
             Box(
                 modifier =
-                Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(if (selected) WColor.raised else androidx.compose.ui.graphics.Color.Transparent)
-                    .clickable { onSelect(lang) }
-                    .padding(horizontal = 9.dp, vertical = 4.dp),
+                    Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (selected) WColor.raised else androidx.compose.ui.graphics.Color.Transparent)
+                        .clickable { onSelect(lang) }
+                        .padding(horizontal = 9.dp, vertical = 4.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = lang.label,
                     style =
-                    WTypography.labelMedium.copy(
-                        color = if (selected) WColor.text else WColor.muted,
-                        fontFamily = WType.mono
-                    )
+                        WTypography.labelMedium.copy(
+                            color = if (selected) WColor.text else WColor.muted,
+                            fontFamily = WType.mono
+                        )
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun Brand() {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier =
-            Modifier
-                .size(32.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(WColor.accent),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = "W",
-                style = WTypography.titleMedium.copy(color = WColor.bg)
-            )
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column {
-            Text(
-                text = "Wakfu Autobuilder",
-                style = WTypography.headlineLarge
-            )
-            Text(
-                text = tr(Tr.BRAND_SUBTITLE),
-                style = WTypography.labelSmall
-            )
         }
     }
 }
@@ -165,13 +283,13 @@ private fun ClassDropdown(
     Box {
         Row(
             modifier =
-            Modifier
-                .height(38.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(WColor.raised)
-                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-                .clickable { expanded = true }
-                .padding(horizontal = 13.dp),
+                Modifier
+                    .height(38.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(WColor.raised)
+                    .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                    .clickable { expanded = true }
+                    .padding(horizontal = 13.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(text = tr(Tr.CLASS), style = WTypography.labelMedium)
@@ -195,9 +313,9 @@ private fun ClassDropdown(
                             Text(
                                 text = item.displayName(),
                                 style =
-                                WTypography.bodyMedium.copy(
-                                    color = if (item == selected) WColor.accent else WColor.text
-                                )
+                                    WTypography.bodyMedium.copy(
+                                        color = if (item == selected) WColor.accent else WColor.text
+                                    )
                             )
                         },
                         onClick = {
@@ -216,37 +334,53 @@ private fun NumberControl(
     value: String,
     onValueChange: (String) -> Unit,
 ) {
+    var draft by remember { mutableStateOf(value) }
+    // Keep the box in lockstep with the model's canonical (already-coerced) value. When the user types
+    // something the model clamps or rejects — e.g. "999" -> 245, or a value that coerces to the one
+    // already shown — snap back instead of leaving an out-of-range number on screen. Blank is left
+    // untouched so the field can be cleared mid-edit.
+    LaunchedEffect(value, draft) {
+        if (draft.isNotBlank() && draft != value) {
+            draft = value
+        }
+    }
+
     Row(
         modifier =
-        Modifier
-            .height(38.dp)
-            .clip(RoundedCornerShape(9.dp))
-            .background(WColor.raised)
-            .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-            .padding(horizontal = 9.dp),
+            Modifier
+                .height(38.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(WColor.raised)
+                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                .padding(horizontal = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(text = label, style = WTypography.labelMedium)
         Spacer(modifier = Modifier.width(8.dp))
         BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
+            value = draft,
+            onValueChange = { next ->
+                draft = next.onlyDigits().take(3)
+                if (draft.isNotBlank()) {
+                    onValueChange(draft)
+                }
+            },
             singleLine = true,
             cursorBrush = SolidColor(WColor.accent),
             textStyle =
-            WTypography.bodyMedium.copy(
-                fontFamily = WType.mono,
-                color = WColor.text,
-                textAlign = TextAlign.Center,
-                lineHeight = 16.sp
-            ),
+                WTypography.bodyMedium.copy(
+                    fontFamily = WType.mono,
+                    color = WColor.text,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 16.sp
+                ),
             modifier =
-            Modifier
-                .width(56.dp)
-                .height(28.dp)
-                .clip(RoundedCornerShape(7.dp))
-                .background(WColor.bg)
-                .border(1.dp, WColor.border, RoundedCornerShape(7.dp)),
+                Modifier
+                    .width(56.dp)
+                    .height(28.dp)
+                    .clip(RoundedCornerShape(7.dp))
+                    .background(WColor.bg)
+                    .border(1.dp, WColor.border, RoundedCornerShape(7.dp)),
             decorationBox = { innerTextField ->
                 Box(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 6.dp),
@@ -263,7 +397,7 @@ private fun NumberControl(
 private fun TopMeter(
     label: String,
     value: String,
-    fill: Float,
+    fill: Float?,
     color: androidx.compose.ui.graphics.Color,
 ) {
     Column(modifier = Modifier.width(112.dp)) {
@@ -273,29 +407,35 @@ private fun TopMeter(
             Text(
                 text = value,
                 style =
-                WTypography.labelMedium.copy(
-                    fontFamily = WType.mono,
-                    color = WColor.text
-                )
+                    WTypography.labelMedium.copy(
+                        fontFamily = WType.mono,
+                        color = WColor.text
+                    )
             )
         }
         Spacer(modifier = Modifier.height(6.dp))
-        Box(
-            modifier =
-            Modifier
-                .fillMaxWidth()
-                .height(6.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(WColor.raised)
-        ) {
+        if (fill != null) {
             Box(
                 modifier =
-                Modifier
-                    .fillMaxWidth(fill.coerceIn(0f, 1f))
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(color)
-            )
+                    Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(WColor.raised)
+            ) {
+                Box(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth(fill.coerceIn(0f, 1f))
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(color)
+                )
+            }
+        } else {
+            // No meaningful 0-100 fill (e.g. a cumulated mastery total); keep the column height
+            // aligned with the neighbouring meters by reserving the bar's space.
+            Spacer(modifier = Modifier.height(6.dp))
         }
     }
 }
@@ -303,28 +443,38 @@ private fun TopMeter(
 @Composable
 private fun SearchButton(
     searching: Boolean,
+    locked: Boolean,
     onClick: () -> Unit,
 ) {
+    // When a saved build is loaded the button is "locked": it stays clickable (it pops a confirm
+    // dialog) but is styled to signal that searching will re-optimize an existing build.
+    val showLock = locked && !searching
+    val background = if (searching) WColor.raised else WColor.accent
     Box(
         modifier =
-        Modifier
-            .height(38.dp)
-            .widthIn(min = 86.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(if (searching) WColor.raised else WColor.accent)
-            .border(1.dp, if (searching) WColor.border else WColor.accentPress, RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp),
+            Modifier
+                .height(38.dp)
+                .widthIn(min = 86.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(background)
+                .border(1.dp, if (searching) WColor.border else WColor.accentPress, RoundedCornerShape(10.dp))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 18.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = if (searching) tr(Tr.STOP) else tr(Tr.SEARCH),
-            style =
-            WTypography.labelLarge.copy(
-                color = if (searching) WColor.text else WColor.bg,
-                textAlign = TextAlign.Center,
-                lineHeight = 16.sp
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (showLock) {
+                Text(text = "🔒", style = WTypography.labelSmall.copy(lineHeight = 16.sp))
+            }
+            Text(
+                text = if (searching) tr(Tr.STOP) else tr(Tr.SEARCH),
+                style =
+                    WTypography.labelLarge.copy(
+                        color = if (searching) WColor.text else WColor.bg,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 16.sp
+                    )
             )
-        )
+        }
     }
 }

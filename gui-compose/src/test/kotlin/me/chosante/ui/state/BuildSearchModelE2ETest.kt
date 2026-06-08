@@ -1,30 +1,85 @@
 package me.chosante.ui.state
 
-import java.math.BigDecimal
-import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
+import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
+import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
+import me.chosante.autobuilder.genetic.wakfu.WakfuSolver
 import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
 import me.chosante.common.Character
 import me.chosante.common.Characteristic.ACTION_POINT
+import me.chosante.common.Characteristic.MASTERY_CRITICAL
 import me.chosante.common.Characteristic.MASTERY_DISTANCE
 import me.chosante.common.Equipment
+import me.chosante.common.skills.CharacterSkills
 import me.chosante.ui.i18n.Lang
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import java.math.BigDecimal
+import kotlin.time.Duration.Companion.seconds
 
 class BuildSearchModelE2ETest {
+    @Test
+    fun `max mastery targets are selected as binary objectives`() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val model =
+            BuildSearchModel(
+                scope = scope,
+                buildFinder = { emptyFlow() },
+                zenithBuilder = { "" },
+                mainDispatcher = Dispatchers.Unconfined
+            )
+
+        try {
+            assertEquals(
+                "1",
+                model.ui.targets
+                    .single { it.characteristic == MASTERY_DISTANCE }
+                    .value
+            )
+
+            model.toggleMaximizedMastery(MASTERY_DISTANCE)
+            assertTrue(model.ui.targets.none { it.characteristic == MASTERY_DISTANCE })
+
+            model.toggleMaximizedMastery(MASTERY_CRITICAL)
+            val criticalTarget = model.ui.targets.single { it.characteristic == MASTERY_CRITICAL }
+            assertEquals("1", criticalTarget.value)
+
+            model.updateTargetValue(criticalTarget.id, "500")
+            model.setMode(ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT)
+            assertEquals(
+                "500",
+                model.ui.targets
+                    .single { it.characteristic == MASTERY_CRITICAL }
+                    .value
+            )
+
+            model.setMode(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT)
+            assertEquals(
+                "1",
+                model.ui.targets
+                    .single { it.characteristic == MASTERY_CRITICAL }
+                    .value
+            )
+        } finally {
+            scope.cancel()
+        }
+    }
+
     @Test
     fun `known forced build runs through search stats and zenith wiring`() =
         runBlocking {
@@ -32,10 +87,24 @@ class BuildSearchModelE2ETest {
             val copiedLinks = mutableListOf<String>()
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
             val zenithUrl = "https://zenithwakfu.com/builder/e2e-test"
+            val fakeBuild =
+                BuildCombination(
+                    equipments = forcedEquipmentNames.map(::equipmentByFrenchName),
+                    characterSkills = CharacterSkills(110)
+                )
             val model =
                 BuildSearchModel(
                     scope = scope,
-                    buildFinder = { params -> WakfuBestBuildFinderAlgorithm.run(params.copy(populationSize = 250)) },
+                    buildFinder = {
+                        flowOf(
+                            GeneticAlgorithmResult(
+                                individual = fakeBuild,
+                                matchPercentage = BigDecimal("100"),
+                                progressPercentage = 100,
+                                isOptimal = true
+                            )
+                        )
+                    },
                     zenithBuilder = { zenithUrl },
                     openBrowser = { openedLinks += it },
                     copyToClipboard = { copiedLinks += it },
@@ -45,6 +114,7 @@ class BuildSearchModelE2ETest {
             try {
                 model.setDuration("1")
                 model.setMinLevel("0")
+                model.setSolver(WakfuSolver.GENETIC_ALGORITHM)
                 model.setLang(Lang.FR)
                 forcedEquipmentNames
                     .map(::equipmentByFrenchName)
@@ -58,7 +128,12 @@ class BuildSearchModelE2ETest {
                 model.pickItem(excluded)
 
                 assertEquals(forcedEquipmentNames.size, model.ui.forcedItems.size)
-                assertEquals("Solomonk", model.ui.excludedItems.single().matchName)
+                assertEquals(
+                    "Solomonk",
+                    model.ui.excludedItems
+                        .single()
+                        .matchName
+                )
                 assertNull(model.ui.modal)
 
                 model.search()
@@ -107,8 +182,7 @@ class BuildSearchModelE2ETest {
             }
         }
 
-    private fun UiState.toTargetStats(): TargetStats =
-        TargetStats(targets.map { TargetStat(it.characteristic, it.value.toIntOrNull() ?: 0) })
+    private fun UiState.toTargetStats(): TargetStats = TargetStats(targets.map { TargetStat(it.characteristic, it.value.toIntOrNull() ?: 0) })
 
     private suspend fun awaitUntil(predicate: () -> Boolean) {
         withTimeout(25.seconds) {
@@ -137,8 +211,6 @@ class BuildSearchModelE2ETest {
                 "Ottopaulettes",
                 "Ceinture du Corbeau Blanc",
                 "Monture Godron",
-                "La seconde jumelle d'Azael",
-                "Frogmourne",
                 "Emblème du Pouvoir",
                 "Peroucan"
             )

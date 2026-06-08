@@ -1,39 +1,34 @@
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.tasks.JavaExec
-import org.gradle.api.tasks.testing.Test
 import org.gradle.buildconfiguration.tasks.UpdateDaemonJvm
 import org.gradle.jvm.toolchain.JavaLanguageVersion
-import org.gradle.jvm.toolchain.JavaToolchainService
 
 plugins {
-    kotlin("jvm") version "2.3.21" apply false
-    kotlin("plugin.serialization") version "2.3.21" apply false
+    alias(libs.plugins.kotlin.jvm) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.ktlint) apply false
 }
 
 val projectJvmLanguageVersion = JavaLanguageVersion.of(libs.versions.jvm.get())
 
-// Regenerate gradle/gradle-daemon-jvm.properties from the shared JVM version.
 tasks.named<UpdateDaemonJvm>("updateDaemonJvm") {
     languageVersion.set(projectJvmLanguageVersion)
 }
 
 subprojects {
     plugins.withType<JavaBasePlugin> {
-        val javaToolchains = extensions.getByType<JavaToolchainService>()
-        val projectJvmLauncher =
-            javaToolchains.launcherFor {
-                languageVersion.set(projectJvmLanguageVersion)
-            }
-
-        // Run Gradle-launched apps and tests with the same JVM as the project toolchain.
+        // Enable native access (OR-Tools) for Gradle-launched apps. The JVM version itself is fixed
+        // by each module's `kotlin { jvmToolchain(...) }`; we intentionally do NOT set javaLauncher
+        // here. Forcing it conflicts with the `executable` the IDE injects when launching a task
+        // ("Toolchain from `executable` does not match toolchain from `javaLauncher`"), which broke
+        // running apps (e.g. equipments-extractor) from the IDE.
         tasks.withType<JavaExec>().configureEach {
-            javaLauncher.set(projectJvmLauncher)
-            jvmArgs("--enable-native-access=ALL-UNNAMED")
-        }
-
-        tasks.withType<Test>().configureEach {
-            javaLauncher.set(projectJvmLauncher)
+            jvmArgs(
+                "--enable-native-access=ALL-UNNAMED",
+                // Silence protobuf-java's "deprecated sun.misc.Unsafe::arrayBaseOffset" warnings
+                // (transitive via OR-Tools) on launched apps (CLI / equipments-extractor).
+                "--sun-misc-unsafe-memory-access=allow"
+            )
         }
     }
 }
@@ -41,8 +36,8 @@ subprojects {
 tasks.register<Exec>("conveyorRun") {
     group = "conveyor"
     description = "Run the wakfu autobuilder gui through conveyor"
-    workingDir = file("$projectDir/gui")
-    dependsOn(":gui:build")
+    workingDir = file("$projectDir/gui-compose")
+    dependsOn(":gui-compose:build")
 
     commandLine("bash", "-c", "conveyor -f conveyor-local.conf run")
 }

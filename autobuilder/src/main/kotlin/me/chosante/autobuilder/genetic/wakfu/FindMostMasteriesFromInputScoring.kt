@@ -1,31 +1,12 @@
 package me.chosante.autobuilder.genetic.wakfu
 
-import java.math.BigDecimal
-import java.math.RoundingMode
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.common.Characteristic
+import java.math.BigDecimal
+import java.math.RoundingMode
 
 object FindMostMasteriesFromInputScoring {
-    private val characteristicsToCheckBeforeCheckingMasteries =
-        listOf(
-            Characteristic.ACTION_POINT,
-            Characteristic.CONTROL,
-            Characteristic.MOVEMENT_POINT,
-            Characteristic.RANGE,
-            Characteristic.WAKFU_POINT,
-            Characteristic.CRITICAL_HIT,
-            Characteristic.HP,
-            Characteristic.LOCK,
-            Characteristic.DODGE,
-            Characteristic.BLOCK_PERCENTAGE,
-            Characteristic.GIVEN_ARMOR_PERCENTAGE,
-            Characteristic.RECEIVED_ARMOR_PERCENTAGE,
-            Characteristic.INITIATIVE,
-            Characteristic.RESISTANCE_BACK,
-            Characteristic.RESISTANCE_CRITICAL
-        )
-
     private val masteryCharacteristicsWithoutElementaries =
         listOf(
             Characteristic.MASTERY_BACK,
@@ -62,7 +43,7 @@ object FindMostMasteriesFromInputScoring {
                 .sumOf { targetStat ->
                     val weight = targetStats.weight(targetStat)
                     val actualScore =
-                        if (targetStat.characteristic in characteristicsToCheckBeforeCheckingMasteries) {
+                        if (targetStat.characteristic.isRequiredMostMasteriesTarget()) {
                             (actualCharacteristicsValues[targetStat.characteristic] ?: 0) * weight
                         } else {
                             0.0
@@ -73,7 +54,7 @@ object FindMostMasteriesFromInputScoring {
 
         val totalExpectedScore =
             targetStats
-                .filter { it.characteristic in characteristicsToCheckBeforeCheckingMasteries }
+                .filter { it.characteristic.isRequiredMostMasteriesTarget() }
                 .sumOf { it.target * targetStats.weight(it) }
                 .toBigDecimal()
                 .setScale(4, RoundingMode.FLOOR)
@@ -98,7 +79,8 @@ object FindMostMasteriesFromInputScoring {
                             Characteristic.MASTERY_BACK,
                             Characteristic.MASTERY_CRITICAL,
                             Characteristic.MASTERY_BERSERK
-                        ) && characteristic !in targetCharacteristics
+                        ) &&
+                        characteristic !in targetCharacteristics
                 }.filterValues { it < 0 }
                 .values
                 .sum()

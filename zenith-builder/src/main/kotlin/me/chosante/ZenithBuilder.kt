@@ -1,17 +1,15 @@
 package me.chosante
 
-import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withTimeout
 import me.chosante.common.Character
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
+import kotlin.time.Duration.Companion.seconds
 
-internal const val baseAPIUrl = "https://api.zenithwakfu.com/builder/api"
+internal const val BASE_API_URL = "https://api.zenithwakfu.com/builder/api"
 internal val apiZenithWakfuHeaders =
     mapOf(
         "Host" to "api.zenithwakfu.com",
@@ -26,7 +24,7 @@ data class ZenithInputParameters(
 )
 
 suspend fun ZenithInputParameters.createZenithBuild() =
-    withContext(Dispatchers.IO + SupervisorJob()) {
+    supervisorScope {
         withTimeout(10.seconds) {
             with(this@createZenithBuild) {
                 val zenithBuild = createBuild(character)

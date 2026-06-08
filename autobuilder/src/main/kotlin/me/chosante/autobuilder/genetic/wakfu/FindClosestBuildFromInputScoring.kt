@@ -1,14 +1,14 @@
 package me.chosante.autobuilder.genetic.wakfu
 
+import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.domain.TargetStat
+import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.common.Characteristic
 import java.math.BigDecimal
 import java.math.MathContext
 import java.math.RoundingMode
 import kotlin.math.min
 import kotlin.math.roundToInt
-import me.chosante.autobuilder.domain.BuildCombination
-import me.chosante.autobuilder.domain.TargetStat
-import me.chosante.autobuilder.domain.TargetStats
-import me.chosante.common.Characteristic
 
 object FindClosestBuildFromInputScoring {
     fun computeScore(
@@ -151,11 +151,11 @@ fun computeCharacteristicsValues(
             Characteristic.ACTION_POINT to (
                 characteristicsGivenByEquipmentCombination[Characteristic.MAX_ACTION_POINT]
                     ?: 0
-                ),
+            ),
             Characteristic.MOVEMENT_POINT to (
                 characteristicsGivenByEquipmentCombination[Characteristic.MAX_MOVEMENT_POINT]
                     ?: 0
-                ),
+            ),
             Characteristic.WAKFU_POINT to (characteristicsGivenByEquipmentCombination[Characteristic.MAX_WAKFU_POINTS] ?: 0)
         )
 
@@ -204,6 +204,15 @@ fun computeCharacteristicsValues(
         }
     }
 
+    // Percent skills are applied per characteristic key, at the very end, on the accumulated value.
+    // NOTE: this makes the Major "% Inflicted Damage" aptitude (10% on MASTERY_ELEMENTARY) effectively
+    // inert for scoring. It only scales the *aggregate* MASTERY_ELEMENTARY key, but every scorer reads
+    // elemental mastery through the four specific element keys (FIRE/WATER/EARTH/WIND) — which carry no
+    // percent — so the bonus never reaches the score. This mirrors the game: a flat "% damage inflicted"
+    // does not change your displayed cumulated mastery either; it only matters inside the actual damage
+    // formula. Left intentionally inert (decision: 2026-06) — wiring it in would require a future
+    // damage-formula-based scoring mode (alongside most-masteries) rather than folding it into mastery.
+    // The OR-Tools solver mirrors this on purpose (see WakfuBuildSolver.buildSkillTerms / elementVars).
     val actualCharacteristics =
         mutableActualCharacteristics.mapValues { (key, value) ->
             characteristicGivenBySkillsPercentValues[key]?.let { percent ->

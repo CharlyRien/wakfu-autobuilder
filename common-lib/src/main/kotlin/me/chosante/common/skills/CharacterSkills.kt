@@ -1,9 +1,8 @@
 package me.chosante.common.skills
 
+import me.chosante.common.Characteristic
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.random.Random.Default.nextInt
-import me.chosante.common.Characteristic
 
 class CharacterSkills(
     val level: Int,
@@ -30,13 +29,13 @@ class CharacterSkills(
         major =
             Major(
                 maxPointsToAssign =
-                when {
-                    level >= 175 -> 4
-                    level >= 125 -> 3
-                    level >= 75 -> 2
-                    level >= 25 -> 1
-                    else -> 0
-                }
+                    when {
+                        level >= 175 -> 4
+                        level >= 125 -> 3
+                        level >= 75 -> 2
+                        level >= 25 -> 1
+                        else -> 0
+                    }
             )
     }
 
@@ -65,31 +64,21 @@ class CharacterSkills(
             this.intelligence = intelligence
         }
 
+    // Value-based on the *net* skill allocation rather than the skill objects: the underlying
+    // SkillCharacteristic instances have no value equality (and must keep identity semantics — they
+    // are used as map keys in the solver), so comparing them directly made two structurally identical
+    // allocations compare unequal. Comparing allCharacteristicValues fixes equality for BuildCombination
+    // (a data class) — two builds with the same resulting stats are equal regardless of object identity.
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
 
         other as CharacterSkills
 
-        if (level != other.level) return false
-        if (strength != other.strength) return false
-        if (agility != other.agility) return false
-        if (luck != other.luck) return false
-        if (major != other.major) return false
-        if (intelligence != other.intelligence) return false
-
-        return true
+        return level == other.level && allCharacteristicValues == other.allCharacteristicValues
     }
 
-    override fun hashCode(): Int {
-        var result = level
-        result = 31 * result + strength.hashCode()
-        result = 31 * result + agility.hashCode()
-        result = 31 * result + luck.hashCode()
-        result = 31 * result + major.hashCode()
-        result = 31 * result + intelligence.hashCode()
-        return result
-    }
+    override fun hashCode(): Int = 31 * level + allCharacteristicValues.hashCode()
 }
 
 enum class UnitType {
@@ -123,7 +112,7 @@ sealed class SkillCharacteristic(
     pointsAssigned: Int,
     val name: String,
     val maxPointsAssignable: Int,
-    private val unitValue: Int,
+    val unitValue: Int,
     val characteristic: Characteristic?,
     val unitType: UnitType,
 ) {
@@ -153,13 +142,13 @@ sealed class SkillCharacteristic(
         val second: SkillCharacteristic,
         maxPointsAssignable: Int,
     ) : SkillCharacteristic(
-        pointsAssigned = 0,
-        maxPointsAssignable = maxPointsAssignable,
-        unitValue = 0,
-        characteristic = null,
-        unitType = first.unitType,
-        name = name
-    ) {
+            pointsAssigned = 0,
+            maxPointsAssignable = maxPointsAssignable,
+            unitValue = 0,
+            characteristic = null,
+            unitType = first.unitType,
+            name = name
+        ) {
         override fun setPointAssigned(pointsToAssign: Int) {
             pointsAssigned = pointsToAssign
             first.setPointAssigned(pointsToAssign)
@@ -216,6 +205,7 @@ interface Assignable<T> {
 fun <T : Assignable<T>> T.assignRandomPoints(
     pointsToAssign: Int,
     targetCharacteristics: List<Characteristic>,
+    random: kotlin.random.Random = kotlin.random.Random.Default,
 ): T {
     check(pointsToAssign in 0..maxPointsToAssign)
     val skillCharacteristics = filterOnlyWantedTargetCharacteristics(targetCharacteristics)
@@ -234,9 +224,9 @@ fun <T : Assignable<T>> T.assignRandomPoints(
             return this
         }
         skillCharacteristics
-            .random()
+            .random(random)
             .let { characteristic ->
-                val assignedPoints = assignPointsToCharacteristic(characteristic, remainingPoints)
+                val assignedPoints = assignPointsToCharacteristic(characteristic, remainingPoints, random)
                 remainingPoints -= assignedPoints
             }
     }
@@ -267,13 +257,14 @@ private fun <T : Assignable<T>> T.filterOnlyWantedTargetCharacteristics(targetCh
 private fun <T : Assignable<T>> T.assignPointsToCharacteristic(
     characteristic: SkillCharacteristic,
     points: Int,
+    random: kotlin.random.Random,
 ): Int {
     val maxCharacteristicPointsAssignable =
         min(characteristic.maxPointsAssignable - characteristic.pointsAssigned, points)
     val maxCategoryPointsAssignable = maxPointsToAssign - pointsAssigned()
     return if (maxCharacteristicPointsAssignable > 0 && maxCategoryPointsAssignable > 0) {
         val maxPointsAssignable = min(maxCharacteristicPointsAssignable, maxCategoryPointsAssignable)
-        val randomPointsToAssign = nextInt(1, maxPointsAssignable + 1)
+        val randomPointsToAssign = random.nextInt(1, maxPointsAssignable + 1)
         characteristic.setPointAssigned(characteristic.pointsAssigned + randomPointsToAssign)
         randomPointsToAssign
     } else {

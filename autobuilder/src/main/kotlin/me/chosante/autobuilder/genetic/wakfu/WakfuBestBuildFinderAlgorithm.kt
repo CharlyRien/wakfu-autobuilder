@@ -1,9 +1,9 @@
 package me.chosante.autobuilder.genetic.wakfu
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kotlin.system.exitProcess
-import kotlin.time.Duration
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.Json
 import me.chosante.autobuilder.VERSION
 import me.chosante.autobuilder.domain.BuildCombination
@@ -11,22 +11,29 @@ import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.GeneticAlgorithm
 import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
 import me.chosante.autobuilder.genetic.tournamentSelection
-import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
-import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
 import me.chosante.common.Character
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
+import java.math.BigDecimal
+import kotlin.time.Duration
 
 object WakfuBestBuildFinderAlgorithm {
     private val logger = KotlinLogging.logger {}
+
+    /**
+     * The embedded Wakfu game-data version (e.g. `1.91.1.54`). Exposed publicly so callers outside
+     * this module (the GUI's build-history persistence) can stamp saved builds with the exact data
+     * set they were computed against — crucial for reproducibility across data bumps.
+     */
+    val dataVersion: String = VERSION
 
     val equipments =
         this.javaClass.classLoader.getResourceAsStream("equipments-v$VERSION.json")?.readAllBytes()!!.let {
             Json.decodeFromString<List<Equipment>>(String(it))
         }
 
-    suspend fun run(params: WakfuBestBuildParams): Flow<GeneticAlgorithmResult<BuildCombination>> {
+    fun run(params: WakfuBestBuildParams): Flow<GeneticAlgorithmResult<BuildCombination>> {
         val equipmentsByItemType =
             groupAndFilterEquipments(
                 excludedItems = params.excludedItems,
@@ -35,50 +42,69 @@ object WakfuBestBuildFinderAlgorithm {
                 character = params.character
             )
 
-        val targetStats = params.targetStats
         return try {
-            val mutationProbability = 0.20
-            GeneticAlgorithm(
-                population =
-                generateRandomPopulations(
-                    numberOfIndividual = params.populationSize.coerceAtLeast(1),
-                    equipmentsByItemType = equipmentsByItemType,
-                    character = params.character,
-                    targetStats = targetStats
-                ),
-                score = { combination ->
-                    when (params.scoreComputationMode) {
-                        FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
-                            FindMostMasteriesFromInputScoring.computeScore(
-                                targetStats = targetStats,
-                                buildCombination = combination,
-                                characterBaseCharacteristics = params.character.baseCharacteristicValues
-                            )
-
-                        FIND_CLOSEST_BUILD_FROM_INPUT ->
-                            FindClosestBuildFromInputScoring.computeScore(
-                                targetStats = targetStats,
-                                buildCombination = combination,
-                                characterBaseCharacteristics = params.character.baseCharacteristicValues
-                            )
-                    }
-                },
-                select = ::tournamentSelection,
-                cross = ::cross,
-                mutate = { combination ->
-                    mutateCombination(
-                        individual = combination,
-                        mutationProbability = mutationProbability,
-                        equipmentsByItemType = equipmentsByItemType,
-                        targetStats = targetStats
-                    )
-                }
-            ).run(duration = params.searchDuration, stopWhenBuildMatch = params.stopWhenBuildMatch)
+            when (params.solver) {
+                WakfuSolver.OR_TOOLS -> WakfuBuildSolver.optimize(params, equipmentsByItemType)
+                WakfuSolver.GENETIC_ALGORITHM -> runGeneticAlgorithm(params, equipmentsByItemType)
+            }
         } catch (exception: Exception) {
+            // Surface the failure to the caller instead of killing the JVM: the CLI's runBlocking
+            // turns it into a visible crash, while the GUI can catch it and show an error rather than
+            // having the whole desktop app terminated by exitProcess.
             logger.error(exception) { "Exception occurred during the process of finding the best equipments." }
-            exitProcess(1)
+            throw exception
         }
     }
+
+    private fun runGeneticAlgorithm(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+    ): Flow<GeneticAlgorithmResult<BuildCombination>> =
+        flow {
+            val population =
+                generateRandomPopulations(
+                    numberOfIndividual = params.populationSize,
+                    equipmentsByItemType = equipmentsByItemType,
+                    character = params.character,
+                    targetStats = params.targetStats
+                )
+            val score = scoreFn(params)
+            val algorithm =
+                GeneticAlgorithm(
+                    population = population,
+                    score = score,
+                    cross = { parents -> cross(parents) },
+                    mutate = { individual ->
+                        mutateCombination(
+                            individual = individual,
+                            mutationProbability = 0.2,
+                            equipmentsByItemType = equipmentsByItemType,
+                            targetStats = params.targetStats
+                        )
+                    },
+                    select = { scoredPopulation -> tournamentSelection(scoredPopulation) }
+                )
+            emitAll(algorithm.run(params.searchDuration, params.stopWhenBuildMatch))
+        }
+
+    private fun scoreFn(params: WakfuBestBuildParams): (BuildCombination) -> BigDecimal =
+        { build ->
+            when (params.scoreComputationMode) {
+                ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
+                    FindMostMasteriesFromInputScoring.computeScore(
+                        targetStats = params.targetStats,
+                        buildCombination = build,
+                        characterBaseCharacteristics = params.character.baseCharacteristicValues
+                    )
+
+                ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
+                    FindClosestBuildFromInputScoring.computeScore(
+                        targetStats = params.targetStats,
+                        buildCombination = build,
+                        characterBaseCharacteristics = params.character.baseCharacteristicValues
+                    )
+            }
+        }
 
     private fun groupAndFilterEquipments(
         excludedItems: List<String>,
@@ -127,16 +153,18 @@ internal fun List<Equipment>.replaceRandomlyOneItemWithRarity(
     rarity: Rarity,
     replacementResearchZone: List<Equipment>,
     ringNames: List<String> = listOf(),
+    random: kotlin.random.Random = kotlin.random.Random.Default,
 ): List<Equipment> {
     val equipments = this.toMutableList()
-    val equipmentToRemove = equipments.filter { it.rarity == rarity }.random()
+    val equipmentToRemove = equipments.filter { it.rarity == rarity }.random(random)
 
     val replacementEquipment =
         findReplacementItem(
             equipmentTypeToReplace = equipmentToRemove.itemType,
             researchZone = replacementResearchZone,
             equipmentsToExclude = equipments,
-            ringNamesToExclude = ringNames
+            ringNamesToExclude = ringNames,
+            random = random
         )
 
     if (replacementEquipment == null) {
@@ -148,11 +176,12 @@ internal fun List<Equipment>.replaceRandomlyOneItemWithRarity(
             equipmentTypeToReplace = otherEquipmentToRemove.itemType,
             researchZone = replacementResearchZone,
             equipmentsToExclude = equipments,
-            ringNamesToExclude = ringNames
+            ringNamesToExclude = ringNames,
+            random = random
         )?.let {
             equipments.remove(otherEquipmentToRemove)
             equipments.add(it)
-        } ?: equipments.remove(listOf(otherEquipmentToRemove, equipmentToRemove).random())
+        } ?: equipments.remove(listOf(otherEquipmentToRemove, equipmentToRemove).random(random))
     }
 
     equipments.remove(equipmentToRemove)
@@ -166,6 +195,7 @@ private fun findReplacementItem(
     equipmentsToExclude: List<Equipment>,
     raritiesToExclude: List<Rarity> = listOf(Rarity.EPIC, Rarity.RELIC),
     ringNamesToExclude: List<String>,
+    random: kotlin.random.Random = kotlin.random.Random.Default,
 ): Equipment? =
     researchZone
         .filter {
@@ -173,7 +203,7 @@ private fun findReplacementItem(
                 it !in equipmentsToExclude &&
                 it.rarity !in raritiesToExclude &&
                 (it.itemType != ItemType.RING || it.name.fr !in ringNamesToExclude)
-        }.randomOrNull()
+        }.randomOrNull(random)
 
 data class WakfuBestBuildParams(
     val character: Character,
@@ -184,5 +214,11 @@ data class WakfuBestBuildParams(
     val forcedItems: List<String>,
     val excludedItems: List<String>,
     val scoreComputationMode: ScoreComputationMode,
+    val solver: WakfuSolver = WakfuSolver.OR_TOOLS,
     val populationSize: Int = 20000,
 )
+
+enum class WakfuSolver {
+    OR_TOOLS,
+    GENETIC_ALGORITHM,
+}

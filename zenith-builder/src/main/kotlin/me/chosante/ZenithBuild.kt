@@ -5,7 +5,6 @@ import com.github.kittinunf.fuel.coroutines.awaitObjectResponse
 import com.github.kittinunf.fuel.httpGet
 import com.github.kittinunf.fuel.httpPost
 import com.github.kittinunf.fuel.serialization.kotlinxDeserializerOf
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -82,7 +81,7 @@ internal suspend fun createBuild(character: Character): ZenithBuild {
         }
 
     val (_, _, result) =
-        "$baseAPIUrl/create"
+        "$BASE_API_URL/create"
             .httpPost()
             .header(apiZenithWakfuHeaders)
             .jsonBody(Json.encodeToString<JsonObject>(body))
@@ -93,7 +92,7 @@ internal suspend fun createBuild(character: Character): ZenithBuild {
             .getValue("link")
             .jsonPrimitive.content
     val (_, _, getBuildJsonObject) =
-        "$baseAPIUrl/build/$link"
+        "$BASE_API_URL/build/$link"
             .httpGet()
             .header(apiZenithWakfuHeaders)
             .awaitObjectResponse(kotlinxDeserializerOf<JsonObject>())

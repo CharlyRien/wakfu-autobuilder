@@ -1,5 +1,6 @@
 package me.chosante.ui.stats
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,17 +25,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.text.NumberFormat
-import java.util.Locale
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
+import me.chosante.common.Characteristic
 import me.chosante.common.skills.Assignable
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.common.skills.SkillCharacteristic
+import me.chosante.ui.components.CharacteristicIcon
+import me.chosante.ui.components.StatGlyphIcon
+import me.chosante.ui.components.VerticalScrollHints
+import me.chosante.ui.components.iconResourcePath
+import me.chosante.ui.components.rememberClasspathBitmap
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.label
@@ -43,7 +49,10 @@ import me.chosante.ui.state.Phase
 import me.chosante.ui.state.TargetRow
 import me.chosante.ui.state.UiState
 import me.chosante.ui.state.ZenithState
+import me.chosante.ui.state.formatCompact
+import me.chosante.ui.state.isEngineInternalStat
 import me.chosante.ui.state.isExact
+import me.chosante.ui.state.requestedMasteryTotal
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WDimens
 import me.chosante.ui.theme.WType
@@ -54,68 +63,112 @@ fun StatsPanel(
     ui: UiState,
     onOpenZenith: () -> Unit,
     onCopyZenith: () -> Unit,
+    onSaveBuild: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier =
-        modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(WDimens.gap),
-        verticalArrangement = Arrangement.spacedBy(WDimens.gap)
-    ) {
-        MatchHero(ui)
-        if (ui.phase == Phase.Idle && ui.build == null) {
-            EmptyHint()
-        } else {
-            DesiredVsAchieved(ui)
-            SkillTree(ui.build?.characterSkills ?: CharacterSkills(ui.level))
-            ActionsCard(
-                ui = ui,
-                onOpenZenith = onOpenZenith,
-                onCopyZenith = onCopyZenith
-            )
+    val scroll = rememberScrollState()
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scroll)
+                    .padding(WDimens.gap),
+            verticalArrangement = Arrangement.spacedBy(WDimens.gap)
+        ) {
+            MatchHero(ui)
+            if (ui.phase == Phase.Idle && ui.build == null) {
+                EmptyHint()
+            } else {
+                ActionsCard(
+                    ui = ui,
+                    onOpenZenith = onOpenZenith,
+                    onCopyZenith = onCopyZenith,
+                    onSaveBuild = onSaveBuild
+                )
+                MasterySummary(ui)
+                DesiredVsAchieved(ui)
+                BuildSheet(ui)
+                SkillTree(ui.build?.characterSkills ?: CharacterSkills(ui.level))
+            }
         }
+        VerticalScrollHints(scroll)
     }
 }
 
 @Composable
 private fun MatchHero(ui: UiState) {
+    // Most-masteries maximizes mastery rather than hitting exact targets, so a "% match" is
+    // meaningless there — show the cumulated requested mastery (no %, no progress bar) instead.
+    val masteryMode = ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
     ResultCard {
         Column(
             modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
         ) {
-            Row(verticalAlignment = Alignment.Bottom) {
+            if (masteryMode) {
                 Text(
-                    text = ui.match.toInt().toString(),
+                    text = ui.requestedMasteryTotal().formatCompact(),
                     style =
-                    WTypography.displayLarge.copy(
-                        fontSize = 46.sp,
-                        lineHeight = 46.sp,
-                        color = if (ui.match.toInt() == 100) WColor.success else WColor.text,
-                        fontFamily = WType.display,
-                        textAlign = TextAlign.Center
-                    )
+                        WTypography.displayLarge.copy(
+                            fontSize = 46.sp,
+                            lineHeight = 46.sp,
+                            color = WColor.text,
+                            fontFamily = WType.display,
+                            textAlign = TextAlign.Center
+                        )
                 )
                 Text(
-                    text = "%",
-                    style =
-                    WTypography.headlineMedium.copy(
-                        color = WColor.muted,
-                        lineHeight = 24.sp
+                    text = tr(Tr.BUILD_MASTERY),
+                    style = WTypography.labelMedium,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+                Text(
+                    text = tr(Tr.BUILD_MASTERY_HINT),
+                    style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center),
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            } else {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        text = ui.match.toInt().toString(),
+                        style =
+                            WTypography.displayLarge.copy(
+                                fontSize = 46.sp,
+                                lineHeight = 46.sp,
+                                color = if (ui.match.toInt() == 100) WColor.success else WColor.text,
+                                fontFamily = WType.display,
+                                textAlign = TextAlign.Center
+                            )
                     )
+                    Text(
+                        text = "%",
+                        style =
+                            WTypography.headlineMedium.copy(
+                                color = WColor.muted,
+                                lineHeight = 24.sp
+                            )
+                    )
+                }
+                Text(
+                    text = tr(Tr.BUILD_MATCH),
+                    style = WTypography.labelMedium,
+                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
-            Text(
-                text = tr(Tr.BUILD_MATCH),
-                style = WTypography.labelMedium,
-                modifier = Modifier.padding(top = 4.dp)
-            )
-            Meter(
-                fill = ui.match.toFloat() / 100f,
-                color = if (ui.match.toInt() == 100) WColor.success else WColor.warning,
-                modifier = Modifier.padding(top = 14.dp)
-            )
+            if (ui.build != null) {
+                Text(
+                    text = tr(if (ui.optimal) Tr.OPTIMAL_PROVEN else Tr.BEST_FOUND),
+                    style = WTypography.labelSmall.copy(color = if (ui.optimal) WColor.success else WColor.warning),
+                    modifier = Modifier.padding(top = 3.dp)
+                )
+            }
+            if (!masteryMode) {
+                Meter(
+                    fill = ui.match.toFloat() / 100f,
+                    color = if (ui.match.toInt() == 100) WColor.success else WColor.warning,
+                    modifier = Modifier.padding(top = 14.dp)
+                )
+            }
         }
     }
 }
@@ -123,16 +176,242 @@ private fun MatchHero(ui: UiState) {
 @Composable
 private fun DesiredVsAchieved(ui: UiState) {
     ResultCard(title = tr(Tr.DESIRED_VS_ACHIEVED)) {
-        ui.targets.forEachIndexed { index, target ->
-            if (index > 0) Hairline()
-            StatRow(
-                target = target,
-                achieved = ui.achieved[target.characteristic] ?: 0,
-                mode = ui.mode
+        groupedTargets(ui.targets).forEachIndexed { groupIndex, group ->
+            if (groupIndex > 0) {
+                Hairline()
+            }
+            Text(
+                text = tr(group.title),
+                style = WTypography.labelMedium.copy(color = WColor.muted),
+                modifier = Modifier.padding(top = if (groupIndex == 0) 0.dp else 10.dp, bottom = 2.dp)
             )
+            group.targets.forEachIndexed { index, target ->
+                if (index > 0) Hairline()
+                StatRow(
+                    target = target,
+                    achieved = ui.achieved[target.characteristic] ?: 0,
+                    mode = ui.mode
+                )
+            }
         }
     }
 }
+
+@Composable
+private fun MasterySummary(ui: UiState) {
+    val elementalMasteries =
+        listOf(
+            Characteristic.MASTERY_ELEMENTARY_WATER,
+            Characteristic.MASTERY_ELEMENTARY_FIRE,
+            Characteristic.MASTERY_ELEMENTARY_EARTH,
+            Characteristic.MASTERY_ELEMENTARY_WIND
+        )
+    val specializedMasteries =
+        listOf(
+            Characteristic.MASTERY_DISTANCE,
+            Characteristic.MASTERY_MELEE,
+            Characteristic.MASTERY_CRITICAL,
+            Characteristic.MASTERY_BACK,
+            Characteristic.MASTERY_BERSERK,
+            Characteristic.MASTERY_HEALING
+        )
+    // Only show masteries that are either requested or actually present (non-zero) — hiding the
+    // irrelevant zeros (e.g. Earth/Air on a fire/water build) is what makes the elemental MIN below
+    // meaningful and the total line up with the headline.
+    val requested = ui.targets.map { it.characteristic }.toSet()
+
+    fun shown(characteristic: Characteristic) = characteristic in requested || (ui.achieved[characteristic] ?: 0) != 0
+    val elementalValues = elementalMasteries.filter(::shown).map { it to (ui.achieved[it] ?: 0) }
+    val specializedValues = specializedMasteries.filter(::shown).map { it to (ui.achieved[it] ?: 0) }
+    // The engine-faithful number: requested specialized summed + the weakest *requested* element.
+    val effectiveMastery = ui.requestedMasteryTotal()
+
+    ResultCard(
+        title = tr(Tr.MASTERY_SUMMARY),
+        trailing = effectiveMastery.formatCompact()
+    ) {
+        SummaryMetric(label = tr(Tr.BUILD_MASTERY), value = effectiveMastery)
+        Text(
+            text = tr(Tr.BUILD_MASTERY_HINT),
+            style = WTypography.labelSmall.copy(color = WColor.faint),
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        if (elementalValues.isNotEmpty()) {
+            Hairline()
+            MasteryGroup(title = tr(Tr.MASTERY_ELEMENTALS), values = elementalValues)
+        }
+        if (specializedValues.isNotEmpty()) {
+            Hairline()
+            MasteryGroup(title = tr(Tr.MASTERY_SPECIALIZED), values = specializedValues)
+        }
+    }
+}
+
+@Composable
+private fun SummaryMetric(
+    label: String,
+    value: Int,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = label, style = WTypography.bodyMedium.copy(fontWeight = FontWeight.SemiBold))
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = value.formatCompact(),
+            style = WTypography.headlineMedium.copy(fontFamily = WType.mono, color = WColor.text)
+        )
+    }
+}
+
+/**
+ * The full "rest of the build" sheet: every resulting characteristic the build actually carries that
+ * is **not** one of your requested targets (those are in Desired vs Achieved) and isn't already in the
+ * mastery summary. Surfaces the incidental stats — and especially any negatives the gear introduced on
+ * things you didn't ask for — so you can check the build doesn't quietly break something.
+ */
+@Composable
+private fun BuildSheet(ui: UiState) {
+    val requested = ui.targets.map { it.characteristic }.toSet()
+    val shownMasteries =
+        setOf(
+            Characteristic.MASTERY_ELEMENTARY_WATER,
+            Characteristic.MASTERY_ELEMENTARY_FIRE,
+            Characteristic.MASTERY_ELEMENTARY_EARTH,
+            Characteristic.MASTERY_ELEMENTARY_WIND,
+            Characteristic.MASTERY_DISTANCE,
+            Characteristic.MASTERY_MELEE,
+            Characteristic.MASTERY_CRITICAL,
+            Characteristic.MASTERY_BACK,
+            Characteristic.MASTERY_BERSERK,
+            Characteristic.MASTERY_HEALING
+        ).filter { it in requested || (ui.achieved[it] ?: 0) != 0 }.toSet()
+    val rows =
+        ui.achieved
+            .filterValues { it != 0 }
+            .filterKeys { it !in requested && it !in shownMasteries && !it.isEngineInternalStat() }
+            .entries
+            .sortedBy { it.key.ordinal }
+    ResultCard(title = tr(Tr.BUILD_SHEET_TITLE)) {
+        if (rows.isEmpty()) {
+            Text(
+                text = tr(Tr.BUILD_SHEET_EMPTY),
+                style = WTypography.bodyMedium.copy(color = WColor.muted),
+                modifier = Modifier.padding(vertical = 6.dp)
+            )
+        } else {
+            rows.forEachIndexed { index, (characteristic, value) ->
+                if (index > 0) Hairline()
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CharacteristicIcon(characteristic = characteristic, size = 16.dp)
+                    Spacer(modifier = Modifier.width(9.dp))
+                    Text(
+                        text = characteristic.label(LocalLang.current),
+                        style = WTypography.bodyMedium.copy(color = if (value < 0) WColor.danger else WColor.text),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = if (value > 0) "+${value.formatCompact()}" else value.formatCompact(),
+                        style =
+                            WTypography.bodyMedium.copy(
+                                fontFamily = WType.mono,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (value < 0) WColor.danger else WColor.muted
+                            )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MasteryGroup(
+    title: String,
+    values: List<Pair<Characteristic, Int>>,
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(text = title, style = WTypography.labelSmall.copy(color = WColor.muted))
+        values.forEach { (characteristic, value) ->
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                CharacteristicIcon(characteristic = characteristic, size = 15.dp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = characteristic.label(LocalLang.current),
+                    style = WTypography.bodySmall.copy(color = WColor.text),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = value.formatCompact(),
+                    style = WTypography.bodySmall.copy(fontFamily = WType.mono, color = WColor.muted)
+                )
+            }
+        }
+    }
+}
+
+private data class TargetGroup(
+    val title: Tr,
+    val targets: List<TargetRow>,
+)
+
+private fun groupedTargets(targets: List<TargetRow>): List<TargetGroup> {
+    val groups =
+        listOf(
+            TargetGroup(Tr.STAT_GROUP_CORE, targets.filter { it.characteristic in coreTargetStats }),
+            TargetGroup(Tr.MASTERY_ELEMENTALS, targets.filter { it.characteristic in elementalTargetMasteries }),
+            TargetGroup(Tr.MASTERY_SPECIALIZED, targets.filter { it.characteristic in specializedTargetMasteries }),
+            TargetGroup(Tr.STAT_GROUP_RESISTANCES, targets.filter { it.characteristic.name.startsWith("RESISTANCE") }),
+            TargetGroup(
+                Tr.STAT_GROUP_SECONDARY,
+                targets.filter {
+                    it.characteristic !in coreTargetStats &&
+                        it.characteristic !in allTargetMasteries &&
+                        !it.characteristic.name.startsWith("RESISTANCE")
+                }
+            )
+        )
+    return groups.filter { it.targets.isNotEmpty() }
+}
+
+private val coreTargetStats =
+    setOf(
+        Characteristic.ACTION_POINT,
+        Characteristic.MOVEMENT_POINT,
+        Characteristic.RANGE,
+        Characteristic.WAKFU_POINT,
+        Characteristic.CRITICAL_HIT,
+        Characteristic.HP
+    )
+
+private val elementalTargetMasteries =
+    setOf(
+        Characteristic.MASTERY_ELEMENTARY,
+        Characteristic.MASTERY_ELEMENTARY_WATER,
+        Characteristic.MASTERY_ELEMENTARY_FIRE,
+        Characteristic.MASTERY_ELEMENTARY_EARTH,
+        Characteristic.MASTERY_ELEMENTARY_WIND
+    )
+
+private val specializedTargetMasteries =
+    setOf(
+        Characteristic.MASTERY_DISTANCE,
+        Characteristic.MASTERY_MELEE,
+        Characteristic.MASTERY_CRITICAL,
+        Characteristic.MASTERY_BACK,
+        Characteristic.MASTERY_BERSERK,
+        Characteristic.MASTERY_HEALING
+    )
+
+private val allTargetMasteries = elementalTargetMasteries + specializedTargetMasteries
 
 @Composable
 private fun StatRow(
@@ -157,7 +436,7 @@ private fun StatRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            StatGlyph(label = target.glyph, color = target.color)
+            StatGlyph(characteristic = target.characteristic, label = target.glyph, color = target.color)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = target.characteristic.label(LocalLang.current),
@@ -174,11 +453,11 @@ private fun StatRow(
                 Text(
                     text = achieved.formatCompact(),
                     style =
-                    WTypography.bodyMedium.copy(
-                        fontFamily = WType.mono,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (status == StatStatus.Miss) WColor.warning else WColor.text
-                    )
+                        WTypography.bodyMedium.copy(
+                            fontFamily = WType.mono,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (status == StatStatus.Miss) WColor.warning else WColor.text
+                        )
                 )
                 if (targetValue > 0) {
                     Text(text = " / ", style = WTypography.bodySmall.copy(color = WColor.faint))
@@ -191,11 +470,11 @@ private fun StatRow(
             Text(
                 text = status.icon,
                 style =
-                WTypography.bodyMedium.copy(
-                    color = status.color,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 18.sp
-                ),
+                    WTypography.bodyMedium.copy(
+                        color = status.color,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 18.sp
+                    ),
                 modifier = Modifier.width(18.dp)
             )
         }
@@ -221,10 +500,10 @@ private fun SkillTree(skills: CharacterSkills) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier =
-                        Modifier
-                            .size(8.dp)
-                            .clip(RoundedCornerShape(999.dp))
-                            .background(branch.color)
+                            Modifier
+                                .size(8.dp)
+                                .clip(RoundedCornerShape(999.dp))
+                                .background(branch.color)
                     )
                     Spacer(modifier = Modifier.width(9.dp))
                     Text(
@@ -247,22 +526,37 @@ private fun SkillTree(skills: CharacterSkills) {
                             verticalAlignment = Alignment.Top,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text(
-                                text = line.name,
-                                style =
-                                WTypography.bodySmall.copy(
-                                    color = if (line.points > 0) WColor.text else WColor.muted,
-                                    lineHeight = 15.sp
-                                ),
-                                modifier = Modifier.weight(1f)
-                            )
+                            Row(
+                                modifier = Modifier.weight(1f),
+                                verticalAlignment = Alignment.Top,
+                                horizontalArrangement = Arrangement.spacedBy(7.dp)
+                            ) {
+                                val bitmap = line.iconPath?.let { rememberClasspathBitmap(it) }
+                                if (bitmap != null) {
+                                    Image(
+                                        bitmap = bitmap,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Fit,
+                                        modifier = Modifier.padding(top = 1.dp).size(15.dp)
+                                    )
+                                }
+                                Text(
+                                    text = line.name,
+                                    style =
+                                        WTypography.bodySmall.copy(
+                                            color = if (line.points > 0) WColor.text else WColor.muted,
+                                            lineHeight = 15.sp
+                                        ),
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
                             Text(
                                 text = "${line.points}/${line.maxText}",
                                 style =
-                                WTypography.bodySmall.copy(
-                                    fontFamily = WType.mono,
-                                    color = if (line.points > 0) WColor.muted else WColor.faint
-                                )
+                                    WTypography.bodySmall.copy(
+                                        fontFamily = WType.mono,
+                                        color = if (line.points > 0) WColor.muted else WColor.faint
+                                    )
                             )
                         }
                     }
@@ -277,12 +571,21 @@ private fun ActionsCard(
     ui: UiState,
     onOpenZenith: () -> Unit,
     onCopyZenith: () -> Unit,
+    onSaveBuild: () -> Unit,
 ) {
     ResultCard {
         if (ui.error != null) {
             ErrorBanner(error = ui.error)
             Spacer(modifier = Modifier.height(10.dp))
         }
+        ActionButton(
+            text = if (ui.activeBuildId != null) tr(Tr.UPDATE_BUILD) else tr(Tr.SAVE_BUILD),
+            color = WColor.accent,
+            contentColor = WColor.bg,
+            enabled = ui.phase == Phase.Done && ui.build != null,
+            onClick = onSaveBuild
+        )
+        Spacer(modifier = Modifier.height(9.dp))
         ActionButton(
             text = if (ui.zenith == ZenithState.Loading) tr(Tr.OPENING) else tr(Tr.OPEN_IN_ZENITH),
             color = WColor.accent2,
@@ -333,11 +636,11 @@ private fun EmptyHint() {
             Text(
                 text = tr(Tr.NO_BUILD_HINT),
                 style =
-                WTypography.bodyMedium.copy(
-                    color = WColor.muted,
-                    lineHeight = 20.sp,
-                    textAlign = TextAlign.Center
-                ),
+                    WTypography.bodyMedium.copy(
+                        color = WColor.muted,
+                        lineHeight = 20.sp,
+                        textAlign = TextAlign.Center
+                    ),
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
@@ -355,25 +658,25 @@ private fun ActionButton(
 ) {
     Box(
         modifier =
-        Modifier
-            .fillMaxWidth()
-            .height(42.dp)
-            .alpha(if (enabled) 1f else 0.5f)
-            .clip(RoundedCornerShape(10.dp))
-            .background(color)
-            .border(1.dp, borderColor, RoundedCornerShape(10.dp))
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 12.dp),
+            Modifier
+                .fillMaxWidth()
+                .height(42.dp)
+                .alpha(if (enabled) 1f else 0.5f)
+                .clip(RoundedCornerShape(10.dp))
+                .background(color)
+                .border(1.dp, borderColor, RoundedCornerShape(10.dp))
+                .clickable(enabled = enabled, onClick = onClick)
+                .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
             style =
-            WTypography.labelLarge.copy(
-                color = contentColor,
-                textAlign = TextAlign.Center,
-                lineHeight = 16.sp
-            )
+                WTypography.labelLarge.copy(
+                    color = contentColor,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 16.sp
+                )
         )
     }
 }
@@ -382,12 +685,12 @@ private fun ActionButton(
 private fun ErrorBanner(error: String) {
     Row(
         modifier =
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(WColor.danger.copy(alpha = 0.1f))
-            .border(1.dp, WColor.danger.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
-            .padding(11.dp),
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(WColor.danger.copy(alpha = 0.1f))
+                .border(1.dp, WColor.danger.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+                .padding(11.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.Top
     ) {
@@ -408,12 +711,12 @@ private fun ResultCard(
 ) {
     Column(
         modifier =
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(WDimens.radius))
-            .background(WColor.surface)
-            .border(1.dp, WColor.hairline, RoundedCornerShape(WDimens.radius))
-            .padding(WDimens.pad)
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(WDimens.radius))
+                .background(WColor.surface)
+                .border(1.dp, WColor.hairline, RoundedCornerShape(WDimens.radius))
+                .padding(WDimens.pad)
     ) {
         if (title != null) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -433,29 +736,20 @@ private fun ResultCard(
 
 @Composable
 private fun StatGlyph(
+    characteristic: Characteristic,
     label: String,
     color: Color,
 ) {
     Box(
         modifier =
-        Modifier
-            .size(24.dp)
-            .clip(RoundedCornerShape(7.dp))
-            .background(WColor.raised)
-            .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(7.dp)),
+            Modifier
+                .size(24.dp)
+                .clip(RoundedCornerShape(7.dp))
+                .background(WColor.raised)
+                .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(7.dp)),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = label,
-            style =
-            WTypography.labelSmall.copy(
-                color = color,
-                fontFamily = WType.mono,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-                lineHeight = 11.sp
-            )
-        )
+        StatGlyphIcon(characteristic = characteristic, glyph = label, color = color, iconSize = 18.dp)
     }
 }
 
@@ -467,19 +761,19 @@ private fun Meter(
 ) {
     Box(
         modifier =
-        modifier
-            .fillMaxWidth()
-            .height(6.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(WColor.raised)
+            modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(WColor.raised)
     ) {
         Box(
             modifier =
-            Modifier
-                .fillMaxWidth(fill.coerceIn(0f, 1f))
-                .height(6.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(color)
+                Modifier
+                    .fillMaxWidth(fill.coerceIn(0f, 1f))
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(color)
         )
     }
 }
@@ -510,6 +804,7 @@ private data class SkillLine(
     val name: String,
     val points: Int,
     val maxText: String,
+    val iconPath: String?,
 )
 
 private fun skillBranches(skills: CharacterSkills): List<SkillBranch> =
@@ -538,12 +833,6 @@ private fun SkillCharacteristic.toSkillLine(): SkillLine =
     SkillLine(
         name = name,
         points = pointsAssigned,
-        maxText = if (maxPointsAssignable == Int.MAX_VALUE) "∞" else maxPointsAssignable.toString()
+        maxText = if (maxPointsAssignable == Int.MAX_VALUE) "∞" else maxPointsAssignable.toString(),
+        iconPath = iconResourcePath()
     )
-
-private fun Int.formatCompact(): String =
-    if (this >= 1000) {
-        NumberFormat.getIntegerInstance(Locale.US).format(this)
-    } else {
-        toString()
-    }

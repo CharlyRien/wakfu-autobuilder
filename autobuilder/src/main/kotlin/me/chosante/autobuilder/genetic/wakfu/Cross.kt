@@ -1,11 +1,14 @@
 package me.chosante.autobuilder.genetic.wakfu
 
-import kotlin.random.Random
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
+import kotlin.random.Random
 
-fun cross(parents: Pair<BuildCombination, BuildCombination>): BuildCombination {
+fun cross(
+    parents: Pair<BuildCombination, BuildCombination>,
+    random: Random = Random.Default,
+): BuildCombination {
     val (parent1, parent2) = parents
     var crossEquipments =
         buildList {
@@ -17,7 +20,7 @@ fun cross(parents: Pair<BuildCombination, BuildCombination>): BuildCombination {
                     equipmentParent1.isEmpty() && equipmentParent2.isEmpty() -> continue
                     equipmentParent1.isEmpty() -> addAll(equipmentParent2)
                     equipmentParent2.isEmpty() -> addAll(equipmentParent1)
-                    else -> addAll(if (Random.nextBoolean()) equipmentParent1 else equipmentParent2)
+                    else -> addAll(if (random.nextBoolean()) equipmentParent1 else equipmentParent2)
                 }
             }
         }
@@ -31,7 +34,7 @@ fun cross(parents: Pair<BuildCombination, BuildCombination>): BuildCombination {
         crossEquipments =
             buildList {
                 addAll(crossEquipments)
-                val randomBoolean = Random.nextBoolean()
+                val randomBoolean = random.nextBoolean()
                 removeIf {
                     when {
                         randomBoolean -> it.itemType == ItemType.OFF_HAND_WEAPONS || it.itemType == ItemType.ONE_HANDED_WEAPONS
@@ -44,19 +47,21 @@ fun cross(parents: Pair<BuildCombination, BuildCombination>): BuildCombination {
         crossEquipments =
             crossEquipments.replaceRandomlyOneItemWithRarity(
                 rarity = Rarity.RELIC,
-                replacementResearchZone = parent1.equipments + parent2.equipments
+                replacementResearchZone = parent1.equipments + parent2.equipments,
+                random = random
             )
     }
     if (crossEquipments.count { it.rarity == Rarity.EPIC } > 1) {
         crossEquipments =
             crossEquipments.replaceRandomlyOneItemWithRarity(
                 rarity = Rarity.EPIC,
-                replacementResearchZone = parent1.equipments + parent2.equipments
+                replacementResearchZone = parent1.equipments + parent2.equipments,
+                random = random
             )
     }
 
     return BuildCombination(
         crossEquipments,
-        if (Random.nextBoolean()) parent1.characterSkills else parent2.characterSkills
+        if (random.nextBoolean()) parent1.characterSkills else parent2.characterSkills
     )
 }
