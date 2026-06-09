@@ -68,8 +68,7 @@ constraints (level, class, target characteristics, max rarity, forced/excluded i
 **search engine** explores the item space to return the best build it found (14 equipment slots +
 skill-point allocation), which it can publish as a shareable [zenithwakfu.com](https://zenithwakfu.com) link.
 
-The engine uses a **Google OR-Tools CP-SAT solver** by default, which finds a *provably optimal*
-build (a genetic-algorithm solver remains available as an alternative).
+The engine uses a **Google OR-Tools CP-SAT solver**, which finds a *provably optimal* build.
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
