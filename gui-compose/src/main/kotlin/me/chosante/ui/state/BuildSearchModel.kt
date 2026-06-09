@@ -141,6 +141,16 @@ class BuildSearchModel(
         System.getProperty("wakfu.compose.screenshot.forceFirst") != null ||
             System.getenv("WAKFU_COMPOSE_SCREENSHOT_FORCE_FIRST") != null
 
+    /** Screenshot-only: start in precision mode so a capture can show that screen's target editor (#123). */
+    private val screenshotPrecisionMode =
+        System.getProperty("wakfu.compose.screenshot.precision") != null ||
+            System.getenv("WAKFU_COMPOSE_SCREENSHOT_PRECISION") != null
+
+    /** Screenshot-only: spread ascending 1..5 priorities across targets so a capture shows the priority bars at different levels (#123). */
+    private val screenshotVaryPriority =
+        System.getProperty("wakfu.compose.screenshot.varyPriority") != null ||
+            System.getenv("WAKFU_COMPOSE_SCREENSHOT_VARY_PRIORITY") != null
+
     init {
         // Decode item icons into the cache off the UI thread so they're ready (and decoded once)
         // by the time a build is shown. Purely background work: it never gates startup — items
@@ -163,6 +173,11 @@ class BuildSearchModel(
             // stats, skill tree) instead of an empty shell. The first solve pays OR-Tools' cold
             // start inline; ScreenshotCapture waits for the build before grabbing pixels.
             isReady = true
+            if (screenshotPrecisionMode) setMode(ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT)
+            if (screenshotVaryPriority) {
+                // Vary the constraint priority bars across levels so a capture shows the gradient.
+                ui = ui.copy(targets = ui.targets.mapIndexed { index, target -> target.copy(weight = (index % 5) + 1) })
+            }
             screenshotExcludedRarities()?.let { ui = ui.copy(excludedRarities = it) }
             search()
         } else {
@@ -254,6 +269,14 @@ class BuildSearchModel(
         value: String,
     ) {
         ui = ui.copy(targets = ui.targets.map { if (it.id == id) it.copy(value = value.onlyDigits()) else it })
+    }
+
+    /** Sets a constraint's priority (#123), clamped to 1..5 — the segmented bar. See [TargetRow.weight]. */
+    fun updateTargetWeight(
+        id: String,
+        weight: Int,
+    ) {
+        ui = ui.copy(targets = ui.targets.map { if (it.id == id) it.copy(weight = weight.coerceIn(1, 5)) else it })
     }
 
     fun removeTarget(id: String) {
@@ -351,18 +374,35 @@ class BuildSearchModel(
      * does **not** re-run the search.
      */
     fun forceItem(equipment: me.chosante.common.Equipment) {
-        val chip = equipment.toChip()
-        if (ui.forcedItems.none { it.matchName == chip.matchName }) {
-            ui = ui.copy(forcedItems = ui.forcedItems + chip)
-        }
+        pinForced(equipment.toChip())
     }
 
     /** Exclude this exact item from the next search. Paperdoll counterpart to [forceItem]. */
     fun excludeItem(equipment: me.chosante.common.Equipment) {
-        val chip = equipment.toChip()
-        if (ui.excludedItems.none { it.matchName == chip.matchName }) {
-            ui = ui.copy(excludedItems = ui.excludedItems + chip)
-        }
+        pinExcluded(equipment.toChip())
+    }
+
+    /**
+     * Pin [chip] as required. Forcing and excluding are contradictory constraints, so this also drops
+     * the item from the excluded list ([pinExcluded] is the mirror): the same item can never sit in
+     * both lists — otherwise the engine's exclude filter wins and silently ignores the force, leaving
+     * the item invisible yet still listed as forced. Re-pinning an already-forced item is a no-op.
+     */
+    private fun pinForced(chip: ItemChip) {
+        ui =
+            ui.copy(
+                forcedItems = if (ui.forcedItems.any { it.matchName == chip.matchName }) ui.forcedItems else ui.forcedItems + chip,
+                excludedItems = ui.excludedItems.filterNot { it.matchName == chip.matchName }
+            )
+    }
+
+    /** Pin [chip] as excluded, dropping it from the forced list. Mirror of [pinForced]. */
+    private fun pinExcluded(chip: ItemChip) {
+        ui =
+            ui.copy(
+                excludedItems = if (ui.excludedItems.any { it.matchName == chip.matchName }) ui.excludedItems else ui.excludedItems + chip,
+                forcedItems = ui.forcedItems.filterNot { it.matchName == chip.matchName }
+            )
     }
 
     fun openModal(modal: Modal) {
@@ -379,22 +419,11 @@ class BuildSearchModel(
     fun pickItem(equipment: me.chosante.common.Equipment) {
         val chip = equipment.toChip()
         when ((ui.modal as? Modal.ItemPicker)?.mode) {
-            PickerMode.Forced ->
-                if (ui.forcedItems.none { it.matchName == chip.matchName }) {
-                    ui = ui.copy(forcedItems = ui.forcedItems + chip, modal = null)
-                } else {
-                    ui = ui.copy(modal = null)
-                }
-
-            PickerMode.Excluded ->
-                if (ui.excludedItems.none { it.matchName == chip.matchName }) {
-                    ui = ui.copy(excludedItems = ui.excludedItems + chip, modal = null)
-                } else {
-                    ui = ui.copy(modal = null)
-                }
-
-            null -> ui = ui.copy(modal = null)
+            PickerMode.Forced -> pinForced(chip)
+            PickerMode.Excluded -> pinExcluded(chip)
+            null -> {}
         }
+        ui = ui.copy(modal = null)
     }
 
     /**
@@ -586,7 +615,7 @@ class BuildSearchModel(
     }
 
     private fun UiState.toTargetStats(): TargetStats {
-        val raw = targets.map { TargetStat(it.characteristic, it.value.toIntOrNull() ?: 0) }
+        val raw = targets.map { TargetStat(it.characteristic, it.value.toIntOrNull() ?: 0, it.weight) }
         // Most-masteries only: split a single "all resistances" target into the four per-element ones
         // so the solver gets four graceful constraints instead of one brittle min-over-four. The UI
         // keeps a single editable row; the split happens here, on the way to the engine.

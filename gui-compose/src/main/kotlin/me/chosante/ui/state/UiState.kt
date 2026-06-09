@@ -215,6 +215,13 @@ data class TargetRow(
     val glyph: String,
     val color: Color,
     val value: String,
+    /**
+     * Per-stat priority (#123), 1..5, for the *constraints* (the segmented bar). Flows into
+     * [me.chosante.autobuilder.domain.TargetStat.userDefinedWeight], which weights the soft, penalized
+     * constraint targets so the solver favours the higher-priority ones when they can't all be met.
+     * Default 1 = neutral. (Priority on the maximized masteries was reverted; their weight stays 1.)
+     */
+    val weight: Int = 1,
 )
 
 data class ItemChip(
@@ -289,8 +296,8 @@ val statCatalog: List<StatDef> =
         StatDef(Characteristic.MASTERY_ELEMENTARY_EARTH, "Ea", WColor.earth),
         StatDef(Characteristic.MASTERY_ELEMENTARY_WIND, "Ai", WColor.air),
         StatDef(Characteristic.MASTERY_DISTANCE, "◆", WColor.earth),
-        StatDef(Characteristic.MASTERY_CRITICAL, "✷", WRarityColor.legendary),
         StatDef(Characteristic.MASTERY_MELEE, "Me", WColor.fire),
+        StatDef(Characteristic.MASTERY_CRITICAL, "✷", WRarityColor.legendary),
         StatDef(Characteristic.MASTERY_BACK, "Re", WColor.accent),
         StatDef(Characteristic.MASTERY_BERSERK, "Be", WColor.danger),
         StatDef(Characteristic.MASTERY_HEALING, "He", WColor.success),

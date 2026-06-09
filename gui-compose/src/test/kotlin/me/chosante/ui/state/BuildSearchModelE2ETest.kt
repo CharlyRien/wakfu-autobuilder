@@ -230,6 +230,124 @@ class BuildSearchModelE2ETest {
             }
         }
 
+    @Test
+    fun `target priority is clamped to 1-5 and flows into the search params`() =
+        runBlocking {
+            var capturedApWeight: Int? = null
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val model =
+                BuildSearchModel(
+                    scope = scope,
+                    buildFinder = { params ->
+                        capturedApWeight = params.targetStats.firstOrNull { it.characteristic == ACTION_POINT }?.userDefinedWeight
+                        emptyFlow()
+                    },
+                    zenithBuilder = { "" },
+                    mainDispatcher = Dispatchers.Unconfined
+                )
+
+            try {
+                val apId =
+                    model.ui.targets
+                        .single { it.characteristic == ACTION_POINT }
+                        .id
+                // Default priority is the neutral 1.
+                assertEquals(
+                    1,
+                    model.ui.targets
+                        .single { it.characteristic == ACTION_POINT }
+                        .weight
+                )
+
+                // Out-of-range values are clamped to 1..5.
+                model.updateTargetWeight(apId, 50)
+                assertEquals(
+                    5,
+                    model.ui.targets
+                        .single { it.characteristic == ACTION_POINT }
+                        .weight
+                )
+                model.updateTargetWeight(apId, 0)
+                assertEquals(
+                    1,
+                    model.ui.targets
+                        .single { it.characteristic == ACTION_POINT }
+                        .weight
+                )
+
+                // An in-range priority reaches the engine as TargetStat.userDefinedWeight.
+                model.updateTargetWeight(apId, 4)
+                model.search()
+                awaitUntil { capturedApWeight != null }
+                assertEquals(4, capturedApWeight)
+            } finally {
+                scope.cancel()
+            }
+        }
+
+    @Test
+    fun `paperdoll force and exclude of the same item are mutually exclusive`() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val model =
+            BuildSearchModel(
+                scope = scope,
+                buildFinder = { emptyFlow() },
+                zenithBuilder = { "" },
+                mainDispatcher = Dispatchers.Unconfined
+            )
+
+        try {
+            val item = equipmentByFrenchName("Solomonk")
+
+            // Forcing an item lists it as forced, and not as excluded.
+            model.forceItem(item)
+            assertEquals(listOf("Solomonk"), model.ui.forcedItems.map { it.matchName })
+            assertTrue(model.ui.excludedItems.isEmpty())
+
+            // Excluding that same item must drop it from forced (else the engine's exclude filter
+            // wins, the item is invisible, yet it lingers in the forced list).
+            model.excludeItem(item)
+            assertTrue(model.ui.forcedItems.isEmpty(), "Excluding a forced item must drop it from forced")
+            assertEquals(listOf("Solomonk"), model.ui.excludedItems.map { it.matchName })
+
+            // ...and forcing it again moves it back, clearing the exclusion.
+            model.forceItem(item)
+            assertEquals(listOf("Solomonk"), model.ui.forcedItems.map { it.matchName })
+            assertTrue(model.ui.excludedItems.isEmpty())
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `item picker enforces the same force-exclude exclusivity`() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val model =
+            BuildSearchModel(
+                scope = scope,
+                buildFinder = { emptyFlow() },
+                zenithBuilder = { "" },
+                mainDispatcher = Dispatchers.Unconfined
+            )
+
+        try {
+            val item = equipmentByFrenchName("Solomonk")
+
+            model.openModal(Modal.ItemPicker(PickerMode.Forced))
+            model.pickItem(item)
+            assertEquals(listOf("Solomonk"), model.ui.forcedItems.map { it.matchName })
+            assertNull(model.ui.modal)
+
+            model.openModal(Modal.ItemPicker(PickerMode.Excluded))
+            model.pickItem(item)
+            assertTrue(model.ui.forcedItems.isEmpty())
+            assertEquals(listOf("Solomonk"), model.ui.excludedItems.map { it.matchName })
+            assertNull(model.ui.modal)
+        } finally {
+            scope.cancel()
+        }
+    }
+
     private fun UiState.toTargetStats(): TargetStats = TargetStats(targets.map { TargetStat(it.characteristic, it.value.toIntOrNull() ?: 0) })
 
     private suspend fun awaitUntil(predicate: () -> Boolean) {
