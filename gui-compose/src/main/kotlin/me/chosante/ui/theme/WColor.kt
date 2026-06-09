@@ -21,4 +21,12 @@ object WColor {
     val fire = Color(0xFFD9655C)
     val earth = Color(0xFF7FAE5C)
     val air = Color(0xFFA6B6C2)
+
+    /**
+     * Light neutral backdrop for the small HUD icons that are dark, near-monochrome line-art (skill
+     * tree: shield/armor/heal, lock, control, …). On the dark theme those icons would otherwise melt
+     * into the background; a light tile behind every skill icon guarantees contrast regardless of the
+     * individual asset's colours.
+     */
+    val iconTile = Color(0xFFDDDBD5)
 }

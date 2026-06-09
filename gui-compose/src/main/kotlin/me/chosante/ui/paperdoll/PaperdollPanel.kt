@@ -15,6 +15,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -39,15 +40,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.PopupPositionProvider
 import me.chosante.autobuilder.genetic.wakfu.WakfuSolver
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
@@ -130,6 +138,8 @@ fun PaperdollPanel(
                                 rightAlign = false,
                                 onForceItem = onForceItem,
                                 onExcludeItem = onExcludeItem,
+                                forced = ui.isForcedEquipment(slots[slot.id]),
+                                excluded = ui.isExcludedEquipment(slots[slot.id]),
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
@@ -211,21 +221,32 @@ private fun SlotColumn(
     onExcludeItem: (Equipment) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
-    ) {
-        slots.forEach { slot ->
-            EquipmentSlot(
-                slot = slot,
-                equipment = assignments[slot.id],
-                idle = ui.phase == Phase.Idle,
-                justLanded = assignments[slot.id]?.equipmentId == ui.lastLandedEquipmentId,
-                rightAlign = rightAlign,
-                onForceItem = onForceItem,
-                onExcludeItem = onExcludeItem,
-                modifier = Modifier.fillMaxWidth()
-            )
+    // Size the slots to the available height so all of them fit uniformly. With a hard-coded
+    // per-slot height the column overflowed on shorter windows and Compose squeezed only the *last*
+    // slot (cape / boots) into the leftover space — they then rendered tiny. Splitting the height
+    // evenly (clamped) makes the slots shrink together instead.
+    val spacing = 14.dp
+    BoxWithConstraints(modifier = modifier) {
+        val cardHeight = ((maxHeight - spacing * (slots.size - 1)) / slots.size).coerceIn(64.dp, 84.dp)
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterVertically)
+        ) {
+            slots.forEach { slot ->
+                EquipmentSlot(
+                    slot = slot,
+                    equipment = assignments[slot.id],
+                    idle = ui.phase == Phase.Idle,
+                    justLanded = assignments[slot.id]?.equipmentId == ui.lastLandedEquipmentId,
+                    rightAlign = rightAlign,
+                    onForceItem = onForceItem,
+                    onExcludeItem = onExcludeItem,
+                    forced = ui.isForcedEquipment(assignments[slot.id]),
+                    excluded = ui.isExcludedEquipment(assignments[slot.id]),
+                    cardHeight = cardHeight,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }
@@ -240,10 +261,13 @@ private fun EquipmentSlot(
     rightAlign: Boolean,
     onForceItem: (Equipment) -> Unit,
     onExcludeItem: (Equipment) -> Unit,
+    forced: Boolean = false,
+    excluded: Boolean = false,
+    cardHeight: Dp = 84.dp,
     modifier: Modifier = Modifier,
 ) {
     if (equipment == null) {
-        SlotRowContent(slot, null, idle, justLanded, rightAlign, modifier)
+        SlotRowContent(slot, null, idle, justLanded, rightAlign, forced = false, excluded = false, cardHeight = cardHeight, modifier = modifier)
         return
     }
     val forceLabel = tr(Tr.REQUIRE)
@@ -261,30 +285,95 @@ private fun EquipmentSlot(
         TooltipArea(
             modifier = modifier,
             delayMillis = 350,
-            tooltipPlacement = TooltipPlacement.CursorPoint(offset = DpOffset(0.dp, 18.dp)),
+            tooltipPlacement = SlotTooltipPlacement,
             tooltip = { ItemTooltip(slot = slot, equipment = equipment) }
         ) {
             Box(modifier = Modifier.fillMaxWidth().hoverable(interaction)) {
-                SlotRowContent(slot, equipment, idle, justLanded, rightAlign, Modifier.fillMaxWidth())
+                SlotRowContent(slot, equipment, idle, justLanded, rightAlign, forced, excluded, cardHeight, Modifier.fillMaxWidth())
+                val cornerAlign = if (rightAlign) Alignment.TopStart else Alignment.TopEnd
                 if (hovered) {
                     SlotActions(
                         onForce = { onForceItem(equipment) },
                         onExclude = { onExcludeItem(equipment) },
-                        modifier =
-                            Modifier
-                                .align(if (rightAlign) Alignment.TopStart else Alignment.TopEnd)
-                                .padding(5.dp)
+                        forced = forced,
+                        excluded = excluded,
+                        modifier = Modifier.align(cornerAlign).padding(5.dp)
                     )
+                } else if (forced || excluded) {
+                    // Persistent feedback (#125): the green/red slot actions add the item to the
+                    // required/excluded lists silently; show a badge so the click visibly "sticks".
+                    SlotStatusBadge(forced = forced, modifier = Modifier.align(cornerAlign).padding(7.dp))
                 }
             }
         }
     }
 }
 
+/**
+ * Tooltip placement that anchors the item card to the *slot row* instead of the moving cursor.
+ *
+ * The stock [TooltipPlacement.CursorPoint] positions the popup relative to the pointer; for a tall
+ * tooltip near the bottom of the window its built-in clamp flips the popup *up over the cursor*. The
+ * pointer then rests on the popup, [TooltipArea] sees it leave the slot and hides the tooltip, the
+ * pointer is back on the slot so it re-shows — a position-dependent flicker (notably on Windows,
+ * where the enter/exit event ordering differs). Anchoring the card below the slot — or above it when
+ * there is no room below — keeps it clear of the pointer, so that loop can never start.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+private object SlotTooltipPlacement : TooltipPlacement {
+    @Composable
+    override fun positionProvider(cursorPosition: Offset): PopupPositionProvider {
+        val density = LocalDensity.current
+        val gapPx = with(density) { 6.dp.roundToPx() }
+        val marginPx = with(density) { 8.dp.roundToPx() }
+        return remember(gapPx, marginPx) {
+            object : PopupPositionProvider {
+                override fun calculatePosition(
+                    anchorBounds: IntRect,
+                    windowSize: IntSize,
+                    layoutDirection: LayoutDirection,
+                    popupContentSize: IntSize,
+                ): IntOffset = slotTooltipOffset(anchorBounds, windowSize, popupContentSize, gapPx, marginPx)
+            }
+        }
+    }
+}
+
+/**
+ * Pure geometry behind [SlotTooltipPlacement]: place the [popupContentSize] card below the slot
+ * ([anchorBounds]) — or above it when the side below has less room — and clamp it horizontally into
+ * the window. The card's top edge is always at/below the slot's bottom (below case) or its bottom
+ * edge at/above the slot's top (above case): it never covers the pointer sitting inside the slot,
+ * which is precisely what stops the hover-flicker loop. Window-edge clipping is preferred over ever
+ * overlapping the slot. Kept side-effect free so it can be unit-tested without Compose.
+ */
+internal fun slotTooltipOffset(
+    anchorBounds: IntRect,
+    windowSize: IntSize,
+    popupContentSize: IntSize,
+    gapPx: Int,
+    marginPx: Int,
+): IntOffset {
+    val maxX = (windowSize.width - popupContentSize.width - marginPx).coerceAtLeast(marginPx)
+    val x = anchorBounds.left.coerceIn(marginPx, maxX)
+    val roomBelow = windowSize.height - marginPx - anchorBounds.bottom
+    val roomAbove = anchorBounds.top - marginPx
+    val fitsBelow = roomBelow >= popupContentSize.height + gapPx
+    val y =
+        if (fitsBelow || roomBelow >= roomAbove) {
+            anchorBounds.bottom + gapPx
+        } else {
+            anchorBounds.top - gapPx - popupContentSize.height
+        }
+    return IntOffset(x, y)
+}
+
 @Composable
 private fun SlotActions(
     onForce: () -> Unit,
     onExclude: () -> Unit,
+    forced: Boolean,
+    excluded: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -297,8 +386,8 @@ private fun SlotActions(
         horizontalArrangement = Arrangement.spacedBy(3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        SlotActionButton(glyph = "＋", color = WColor.success, onClick = onForce)
-        SlotActionButton(glyph = "⊘", color = WColor.danger, onClick = onExclude)
+        SlotActionButton(glyph = "＋", color = WColor.success, active = forced, onClick = onForce)
+        SlotActionButton(glyph = "⊘", color = WColor.danger, active = excluded, onClick = onExclude)
     }
 }
 
@@ -306,15 +395,18 @@ private fun SlotActions(
 private fun SlotActionButton(
     glyph: String,
     color: Color,
+    active: Boolean,
     onClick: () -> Unit,
 ) {
+    // `active` = this item is already required/excluded: render the button filled so the user sees
+    // the current state (and that clicking again was registered). See #125.
     Box(
         modifier =
             Modifier
                 .size(24.dp)
                 .clip(RoundedCornerShape(7.dp))
-                .background(color.copy(alpha = 0.18f))
-                .border(1.dp, color.copy(alpha = 0.55f), RoundedCornerShape(7.dp))
+                .background(color.copy(alpha = if (active) 0.9f else 0.18f))
+                .border(1.dp, color.copy(alpha = if (active) 0.95f else 0.55f), RoundedCornerShape(7.dp))
                 .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -322,10 +414,42 @@ private fun SlotActionButton(
             text = glyph,
             style =
                 WTypography.labelMedium.copy(
-                    color = color,
+                    color = if (active) WColor.bg else color,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
                     lineHeight = 13.sp
+                )
+        )
+    }
+}
+
+/**
+ * Small persistent corner badge shown on a slot whose item is currently required (green ＋) or
+ * excluded (red ⊘). Sits where the hover actions appear, so it reads as the lasting result of having
+ * clicked them — the missing feedback from #125.
+ */
+@Composable
+private fun SlotStatusBadge(
+    forced: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val color = if (forced) WColor.success else WColor.danger
+    Box(
+        modifier =
+            modifier
+                .size(18.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(color.copy(alpha = 0.95f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = if (forced) "＋" else "⊘",
+            style =
+                WTypography.labelSmall.copy(
+                    color = WColor.bg,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 12.sp
                 )
         )
     }
@@ -338,6 +462,9 @@ private fun SlotRowContent(
     idle: Boolean,
     justLanded: Boolean,
     rightAlign: Boolean,
+    forced: Boolean,
+    excluded: Boolean,
+    cardHeight: Dp = 84.dp,
     modifier: Modifier = Modifier,
 ) {
     val filled = equipment != null
@@ -346,7 +473,7 @@ private fun SlotRowContent(
     Row(
         modifier =
             modifier
-                .height(84.dp)
+                .height(cardHeight)
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
@@ -354,8 +481,14 @@ private fun SlotRowContent(
                 .clip(RoundedCornerShape(13.dp))
                 .background(WColor.surface)
                 .border(
-                    width = 1.dp,
-                    color = if (filled) WColor.hairline else WColor.border.copy(alpha = 0.75f),
+                    width = if (forced || excluded) 1.5.dp else 1.dp,
+                    color =
+                        when {
+                            excluded -> WColor.danger
+                            forced -> WColor.success
+                            filled -> WColor.hairline
+                            else -> WColor.border.copy(alpha = 0.75f)
+                        },
                     shape = RoundedCornerShape(13.dp)
                 ).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -363,9 +496,9 @@ private fun SlotRowContent(
     ) {
         if (rightAlign) {
             SlotMeta(slot = slot, equipment = equipment, modifier = Modifier.weight(1f), align = TextAlign.End)
-            SlotIcon(slot = slot, equipment = equipment, color = color)
+            SlotIcon(slot = slot, equipment = equipment, color = color, cardHeight = cardHeight)
         } else {
-            SlotIcon(slot = slot, equipment = equipment, color = color)
+            SlotIcon(slot = slot, equipment = equipment, color = color, cardHeight = cardHeight)
             SlotMeta(slot = slot, equipment = equipment, modifier = Modifier.weight(1f), align = TextAlign.Start)
         }
     }
@@ -507,11 +640,15 @@ private fun SlotIcon(
     slot: DollSlot,
     equipment: Equipment?,
     color: androidx.compose.ui.graphics.Color,
+    cardHeight: Dp = 84.dp,
 ) {
+    // Scale the icon tile with the card so it always fits inside the (12.dp) padding, even when the
+    // slots shrink to share a shorter column.
+    val iconSize = (cardHeight - 26.dp).coerceIn(38.dp, 58.dp)
     Box(
         modifier =
             Modifier
-                .size(58.dp)
+                .size(iconSize)
                 .clip(RoundedCornerShape(11.dp))
                 .background(if (equipment == null) WColor.raised else color.copy(alpha = 0.14f))
                 .border(1.dp, if (equipment == null) WColor.border else color.copy(alpha = 0.35f), RoundedCornerShape(11.dp)),
@@ -654,6 +791,12 @@ private fun MutableMap<String, Equipment>.putFirst(
 ) {
     equipments.firstOrNull { it.itemType == type }?.let { put(key, it) }
 }
+
+/** True when [equipment] is currently pinned as required. Matched on the French name, like ItemChip. */
+private fun UiState.isForcedEquipment(equipment: Equipment?): Boolean = equipment != null && forcedItems.any { it.matchName == equipment.name.fr }
+
+/** True when [equipment] is currently excluded from the next search. */
+private fun UiState.isExcludedEquipment(equipment: Equipment?): Boolean = equipment != null && excludedItems.any { it.matchName == equipment.name.fr }
 
 private fun Equipment.localizedName(lang: Lang): String =
     when (lang) {

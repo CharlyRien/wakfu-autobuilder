@@ -1,6 +1,7 @@
 package me.chosante.ui.shell
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,7 +11,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
@@ -30,6 +41,7 @@ import me.chosante.ui.state.Screen
 import me.chosante.ui.state.statCatalog
 import me.chosante.ui.stats.StatsPanel
 import me.chosante.ui.theme.WColor
+import java.awt.Cursor
 
 @Composable
 fun AppShell(
@@ -47,6 +59,21 @@ fun AppShell(
             } else {
                 emptySet()
             }
+
+    // User-resizable side columns (#128). Kept at AppShell scope so the chosen widths survive
+    // navigating to the library/compare screens and back; the middle build column takes the rest.
+    var requestWidth by remember {
+        mutableStateOf(
+            me.chosante.ui.testing
+                .screenshotInitialDp("request_width", 320.dp)
+        )
+    }
+    var statsWidth by remember {
+        mutableStateOf(
+            me.chosante.ui.testing
+                .screenshotInitialDp("stats_width", 360.dp)
+        )
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         CompositionLocalProvider(LocalLang provides ui.lang) {
@@ -67,7 +94,14 @@ fun AppShell(
                 )
                 Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
                     when (ui.screen) {
-                        Screen.Builder -> BuilderBody(model = model)
+                        Screen.Builder ->
+                            BuilderBody(
+                                model = model,
+                                requestWidth = requestWidth,
+                                statsWidth = statsWidth,
+                                onRequestWidthDelta = { requestWidth = (requestWidth + it).coerceIn(260.dp, 440.dp) },
+                                onStatsWidthDelta = { statsWidth = (statsWidth - it).coerceIn(300.dp, 460.dp) }
+                            )
                         Screen.Library ->
                             LibraryScreen(
                                 ui = ui,
@@ -109,7 +143,13 @@ fun AppShell(
 }
 
 @Composable
-private fun BuilderBody(model: BuildSearchModel) {
+private fun BuilderBody(
+    model: BuildSearchModel,
+    requestWidth: Dp,
+    statsWidth: Dp,
+    onRequestWidthDelta: (Dp) -> Unit,
+    onStatsWidthDelta: (Dp) -> Unit,
+) {
     val ui = model.ui
     Row(
         modifier = Modifier.fillMaxSize().background(WColor.hairline)
@@ -117,7 +157,7 @@ private fun BuilderBody(model: BuildSearchModel) {
         ShellColumn(
             title = tr(Tr.ZONE_REQUEST),
             hint = tr(Tr.ZONE_REQUEST_HINT),
-            modifier = Modifier.width(320.dp)
+            modifier = Modifier.width(requestWidth)
         ) {
             RequestPanel(
                 ui = ui,
@@ -136,7 +176,7 @@ private fun BuilderBody(model: BuildSearchModel) {
                 onRemoveExcludedItem = model::removeExcludedItem
             )
         }
-        VerticalSeparator()
+        ResizableSeparator(onDelta = onRequestWidthDelta)
         ShellColumn(
             title = tr(Tr.ZONE_BUILD),
             hint =
@@ -153,11 +193,11 @@ private fun BuilderBody(model: BuildSearchModel) {
                 onExcludeItem = model::excludeItem
             )
         }
-        VerticalSeparator()
+        ResizableSeparator(onDelta = onStatsWidthDelta)
         ShellColumn(
             title = tr(Tr.ZONE_STATS),
             hint = tr(Tr.ZONE_STATS_HINT),
-            modifier = Modifier.width(360.dp)
+            modifier = Modifier.width(statsWidth)
         ) {
             StatsPanel(
                 ui = ui,
@@ -188,9 +228,28 @@ private fun ShellColumn(
     }
 }
 
+/**
+ * Draggable column divider (#128). Renders as the same hairline rule as before but inside a wider,
+ * invisible drag hit area with a horizontal-resize cursor; dragging reports the delta (as [Dp]) to
+ * [onDelta], which the caller applies to the adjacent column width.
+ */
 @Composable
-private fun VerticalSeparator() {
+private fun ResizableSeparator(onDelta: (Dp) -> Unit) {
+    val density = LocalDensity.current
     Box(
-        modifier = Modifier.width(1.dp).fillMaxHeight().background(WColor.hairline)
-    )
+        modifier =
+            Modifier
+                .width(7.dp)
+                .fillMaxHeight()
+                .pointerHoverIcon(PointerIcon(Cursor(Cursor.E_RESIZE_CURSOR)))
+                .pointerInput(Unit) {
+                    detectHorizontalDragGestures { change, dragAmount ->
+                        change.consume()
+                        onDelta(with(density) { dragAmount.toDp() })
+                    }
+                },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(modifier = Modifier.width(1.dp).fillMaxHeight().background(WColor.hairline))
+    }
 }
