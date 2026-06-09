@@ -12,6 +12,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
 import me.chosante.ui.components.loadClasspathBitmap
@@ -21,6 +22,7 @@ import me.chosante.ui.shell.LoadingScreen
 import me.chosante.ui.state.BuildSearchModel
 import me.chosante.ui.testing.ScreenshotCapture
 import me.chosante.ui.theme.WTheme
+import java.awt.GraphicsEnvironment
 import java.awt.Taskbar
 import javax.imageio.ImageIO
 
@@ -34,26 +36,60 @@ fun main() {
     application {
         val screenshotPath = System.getProperty(SCREENSHOT_PATH_PROPERTY) ?: System.getenv("WAKFU_COMPOSE_SCREENSHOT")
         val appIcon = remember { loadClasspathBitmap(APP_ICON_PATH)?.let(::BitmapPainter) }
+        // Hoisted here (instead of inside App()) so the screenshot smoke test can observe the search
+        // state and capture once a build has landed.
+        val scope = rememberCoroutineScope()
+        val model = remember { BuildSearchModel(scope) }
         Window(
             onCloseRequest = { exitApplication() },
             title = "Wakfu Autobuilder",
             icon = appIcon,
             state =
                 WindowState(
-                    position =
-                        androidx.compose.ui.window.WindowPosition
-                            .Aligned(Alignment.Center),
-                    size = DpSize(1440.dp, 900.dp)
+                    position = WindowPosition.Aligned(Alignment.Center),
+                    size = fittedWindowSize(DpSize(1440.dp, 900.dp))
                 )
         ) {
             ScreenshotCapture(
                 path = screenshotPath,
+                ready = { model.ui.build != null },
                 onFinished = { exitApplication() }
             )
-            App()
+            App(model)
         }
     }
 }
+
+/**
+ * Clamps the desired window size to the usable screen so the title bar and window controls always
+ * land on-screen. Compose sizes the window in [androidx.compose.ui.unit.Dp], which it multiplies by
+ * the OS display scaling — so the hard-coded 1440×900 becomes e.g. ~2160×1350 px at 150 % scaling (a
+ * common Windows-laptop default) and overflows a 1080p screen on every side, pushing the title bar
+ * out of reach: the window then can't be dragged or maximised.
+ * [GraphicsEnvironment.getMaximumWindowBounds] is reported in the same logical units as `Dp` (device
+ * px ÷ scaling) and already excludes the taskbar, so clamping against it keeps the default fitting on
+ * small/scaled displays while leaving roomy screens untouched. Best-effort: falls back to [desired]
+ * if the screen can't be queried (e.g. headless CI).
+ */
+private fun fittedWindowSize(desired: DpSize): DpSize =
+    try {
+        val usable = GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds
+        clampToUsable(desired, usable.width, usable.height)
+    } catch (_: Exception) {
+        desired
+    }
+
+/** Pure part of [fittedWindowSize]: clamp [desired] to [margin] of the usable screen (logical px). */
+internal fun clampToUsable(
+    desired: DpSize,
+    usableWidthPx: Int,
+    usableHeightPx: Int,
+    margin: Float = 0.92f,
+): DpSize =
+    DpSize(
+        width = minOf(desired.width.value, usableWidthPx * margin).dp,
+        height = minOf(desired.height.value, usableHeightPx * margin).dp
+    )
 
 /**
  * Sets the macOS dock icon for the `:gui-compose:run` dev launch. Compose's `Window(icon = …)`
@@ -75,10 +111,8 @@ private fun setDockIcon() {
 }
 
 @Composable
-fun App() {
+fun App(model: BuildSearchModel) {
     WTheme {
-        val scope = rememberCoroutineScope()
-        val model = remember { BuildSearchModel(scope) }
         CompositionLocalProvider(LocalLang provides model.ui.lang) {
             // Sober crossfade from the loader to the main UI once warm-up is done — by this point
             // the native load is finished, so mounting AppShell during the fade is contention-free.
@@ -100,5 +134,6 @@ fun App() {
 @Preview
 @Composable
 fun AppPreview() {
-    App()
+    val scope = rememberCoroutineScope()
+    App(remember { BuildSearchModel(scope) })
 }

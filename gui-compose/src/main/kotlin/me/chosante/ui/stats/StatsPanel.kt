@@ -67,6 +67,8 @@ fun StatsPanel(
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
+    me.chosante.ui.testing
+        .ScreenshotAutoScrollToBottom(scroll, ui.build != null)
     Box(modifier = modifier.fillMaxSize()) {
         Column(
             modifier =
@@ -533,12 +535,25 @@ private fun SkillTree(skills: CharacterSkills) {
                             ) {
                                 val bitmap = line.iconPath?.let { rememberClasspathBitmap(it) }
                                 if (bitmap != null) {
-                                    Image(
-                                        bitmap = bitmap,
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Fit,
-                                        modifier = Modifier.padding(top = 1.dp).size(15.dp)
-                                    )
+                                    // Light tile behind the icon: several skill-line icons are dark,
+                                    // near-monochrome line-art (shield/armor/heal, lock, control, …)
+                                    // that would otherwise be invisible on the dark theme. See #127.
+                                    Box(
+                                        modifier =
+                                            Modifier
+                                                .padding(top = 1.dp)
+                                                .size(20.dp)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(WColor.iconTile),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Image(
+                                            bitmap = bitmap,
+                                            contentDescription = null,
+                                            contentScale = ContentScale.Fit,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
                                 }
                                 Text(
                                     text = line.name,
