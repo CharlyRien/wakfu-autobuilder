@@ -802,15 +802,21 @@ object WakfuBuildSolver {
                     }
             val negativePenalty = model.sumVar("negMasteryPenalty", negativePenaltyVars, -MASTERY_SCORE_ABS_MAX, 0)
 
-            val wantedElements = targetStats.masteryElementsWanted.keys.toList()
+            // Fold the generic "+all elements" stat into every wanted element (matching the scorer's
+            // computeCharacteristicsValues), but take the minimum over only the elements the user
+            // actually asked for: a co-requested MASTERY_ELEMENTARY no longer forces balancing the
+            // off-elements. minElements is always a subset of foldElements — see
+            // TargetStats.masteryElementsToMinimize.
+            val foldElements = targetStats.masteryElementsWanted.keys.toList()
+            val minElements = targetStats.masteryElementsToMinimize
 
             val lowestElementMastery =
-                if (wantedElements.isEmpty()) {
+                if (minElements.isEmpty()) {
                     model.newConstant(0L)
                 } else {
-                    val elementVars = elementMasteryVars(wantedElements)
+                    val elementVars = elementMasteryVars(foldElements)
                     val minVar = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, STAT_WITH_PERCENT_ABS_MAX, "minElementMastery")
-                    model.addMinEquality(minVar, elementVars.values.toTypedArray())
+                    model.addMinEquality(minVar, minElements.map { elementVars.getValue(it) }.toTypedArray())
                     minVar
                 }
 
