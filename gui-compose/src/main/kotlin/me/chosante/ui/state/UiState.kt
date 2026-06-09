@@ -3,7 +3,6 @@ package me.chosante.ui.state
 import androidx.compose.ui.graphics.Color
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
-import me.chosante.autobuilder.genetic.wakfu.WakfuSolver
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.autobuilder.genetic.wakfu.isRandomElementStat
 import me.chosante.common.CharacterClass
@@ -86,7 +85,6 @@ data class UiState(
     val level: Int = 110,
     val minLevel: Int = 80,
     val mode: ScoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
-    val solver: WakfuSolver = WakfuSolver.OR_TOOLS,
     val targets: List<TargetRow> = defaultTargets(),
     val maxRarity: Rarity = Rarity.EPIC,
     /** Rarities the user toggled off; excluded from the search. At least one rarity always stays allowed. */

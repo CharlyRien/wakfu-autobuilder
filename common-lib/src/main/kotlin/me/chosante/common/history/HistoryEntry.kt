@@ -23,8 +23,9 @@ import me.chosante.common.Rarity
  *
  * Note on enum storage: [Characteristic], [Rarity] and [Equipment] are `@Serializable`, so they are
  * stored directly (as their names in JSON). The engine/class enums (`CharacterClass`,
- * `ScoreComputationMode`, `WakfuSolver`) are not serializable and live in other modules, so they are
- * stored as plain [String] names and resolved with a safe fallback on load — see the GUI's mappers.
+ * `ScoreComputationMode`) are not serializable and live in other modules, so they are stored as plain
+ * [String] names and resolved with a safe fallback on load — see the GUI's mappers. (Old saves may
+ * still carry a `solver` key from the removed genetic-algorithm engine; it is ignored on load.)
  */
 @Serializable
 data class HistoryEntry(
@@ -57,8 +58,6 @@ data class RequestSnapshot(
     val minLevel: Int,
     /** `ScoreComputationMode` name. */
     val mode: String,
-    /** `WakfuSolver` name. */
-    val solver: String,
     val maxRarity: Rarity,
     val duration: String,
     val stopAtMatch: Boolean,

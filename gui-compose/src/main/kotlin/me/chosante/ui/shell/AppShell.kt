@@ -169,7 +169,6 @@ private fun BuilderBody(
                 onToggleRarity = model::toggleRarity,
                 onDurationChange = model::setDuration,
                 onStopAtMatchChange = model::setStopAtMatch,
-                onSolverChange = model::setSolver,
                 onAddForcedItem = { model.openModal(Modal.ItemPicker(PickerMode.Forced)) },
                 onRemoveForcedItem = model::removeForcedItem,
                 onAddExcludedItem = { model.openModal(Modal.ItemPicker(PickerMode.Excluded)) },

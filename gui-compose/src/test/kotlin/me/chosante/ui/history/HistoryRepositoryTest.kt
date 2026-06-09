@@ -128,7 +128,6 @@ class HistoryRepositoryTest {
                     level = 110,
                     minLevel = 80,
                     mode = "FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT",
-                    solver = "OR_TOOLS",
                     maxRarity = Rarity.EPIC,
                     duration = "20",
                     stopAtMatch = false,

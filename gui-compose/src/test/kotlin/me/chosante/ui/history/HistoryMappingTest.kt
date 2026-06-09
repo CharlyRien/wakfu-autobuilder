@@ -2,7 +2,6 @@ package me.chosante.ui.history
 
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
-import me.chosante.autobuilder.genetic.wakfu.WakfuSolver
 import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
@@ -75,7 +74,6 @@ class HistoryMappingTest {
                 level = 110,
                 minLevel = 90,
                 mode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
-                solver = WakfuSolver.OR_TOOLS,
                 maxRarity = Rarity.RELIC,
                 duration = "30",
                 stopAtMatch = true,
@@ -95,7 +93,6 @@ class HistoryMappingTest {
         assertThat(entry.dataVersion).isEqualTo("1.91.1.54")
         assertThat(entry.request.clazz).isEqualTo("IOP")
         assertThat(entry.request.mode).isEqualTo("FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT")
-        assertThat(entry.request.solver).isEqualTo("OR_TOOLS")
         assertThat(entry.request.maxRarity).isEqualTo(Rarity.RELIC)
         assertThat(entry.request.duration).isEqualTo("30")
         assertThat(entry.request.stopAtMatch).isTrue()
@@ -111,7 +108,6 @@ class HistoryMappingTest {
         // Restoration helpers reflect the stored request.
         assertThat(entry.restoredClass()).isEqualTo(CharacterClass.IOP)
         assertThat(entry.restoredMode()).isEqualTo(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT)
-        assertThat(entry.restoredSolver()).isEqualTo(WakfuSolver.OR_TOOLS)
         assertThat(entry.toForcedChips().single().matchName).isEqualTo("Cape")
 
         // The discovered build reconstructs with identical equipment and skill values.
