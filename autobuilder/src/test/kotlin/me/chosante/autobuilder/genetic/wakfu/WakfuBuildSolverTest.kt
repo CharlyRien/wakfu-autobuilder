@@ -8,6 +8,7 @@ import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.GeneticAlgorithm
+import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
 import me.chosante.autobuilder.genetic.ScoredIndividual
 import me.chosante.autobuilder.genetic.tournamentSelection
 import me.chosante.common.Character
@@ -610,6 +611,197 @@ class WakfuBuildSolverTest {
         assertThat(Characteristic.MASTERY_MELEE.isRequiredMostMasteriesTarget()).isFalse()
         assertThat(Characteristic.MASTERY_ELEMENTARY.isRequiredMostMasteriesTarget()).isFalse()
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // Regression: requesting the aggregate "all elements" mastery alongside specific elements must
+    // not turn the most-masteries objective into "balance all four elements" (min over fire/water/
+    // earth/air). The specific elements win; "all elements" only contributes by folding its generic
+    // gear into them. Before the fix the min-over-four objective starved the requested fire/earth.
+    // ---------------------------------------------------------------------------------------------
+
+    @Test
+    fun `most-masteries honours specific elements when all-elements is also requested`(): Unit =
+        runBlocking {
+            val equipments =
+                listOf(
+                    equipment(
+                        1,
+                        ItemType.AMULET,
+                        "FireEarth",
+                        mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 60, Characteristic.MASTERY_ELEMENTARY_EARTH to 60)
+                    ),
+                    equipment(
+                        2,
+                        ItemType.AMULET,
+                        "Balanced",
+                        mapOf(
+                            Characteristic.MASTERY_ELEMENTARY_FIRE to 20,
+                            Characteristic.MASTERY_ELEMENTARY_WATER to 20,
+                            Characteristic.MASTERY_ELEMENTARY_EARTH to 20,
+                            Characteristic.MASTERY_ELEMENTARY_WIND to 20
+                        )
+                    )
+                )
+            val targetStats =
+                TargetStats(
+                    listOf(
+                        TargetStat(Characteristic.MASTERY_ELEMENTARY, 1),
+                        TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 1),
+                        TargetStat(Characteristic.MASTERY_ELEMENTARY_EARTH, 1)
+                    )
+                )
+
+            // Lockstep: the solver still reaches the matching scorer's exhaustive optimum.
+            assertSolverReachesExhaustiveOptimum(
+                equipments,
+                targetStats,
+                ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+            )
+
+            // And that optimum is the fire/earth-stacked amulet, not the spread-thin balanced one.
+            val best = solve(equipments, targetStats)
+            assertThat(best.individual.equipments.map { it.name.fr }).contains("FireEarth")
+        }
+
+    @Test
+    fun `most-masteries with only all-elements still balances across the four elements`(): Unit =
+        runBlocking {
+            // Guard the other direction: with NO specific element requested, "all elements" keeps the
+            // balanced (min-over-four) objective — the spread item that lifts every element wins over
+            // one that stacks two and leaves the others at zero.
+            val equipments =
+                listOf(
+                    equipment(
+                        1,
+                        ItemType.AMULET,
+                        "FireEarth",
+                        mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 60, Characteristic.MASTERY_ELEMENTARY_EARTH to 60)
+                    ),
+                    equipment(
+                        2,
+                        ItemType.AMULET,
+                        "Balanced",
+                        mapOf(
+                            Characteristic.MASTERY_ELEMENTARY_FIRE to 20,
+                            Characteristic.MASTERY_ELEMENTARY_WATER to 20,
+                            Characteristic.MASTERY_ELEMENTARY_EARTH to 20,
+                            Characteristic.MASTERY_ELEMENTARY_WIND to 20
+                        )
+                    )
+                )
+            val targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY, 1)))
+
+            assertSolverReachesExhaustiveOptimum(
+                equipments,
+                targetStats,
+                ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+            )
+
+            val best = solve(equipments, targetStats)
+            assertThat(best.individual.equipments.map { it.name.fr }).contains("Balanced")
+        }
+
+    @Test
+    fun `most-masteries folds generic all-elements gear into the requested specific elements`(): Unit =
+        runBlocking {
+            // The generic "+all elements" item must still be valued in the combined case: its +10
+            // folds into both fire and earth, lifting the minimised pair, so it is selected on top of
+            // the fire/earth amulet.
+            val equipments =
+                listOf(
+                    equipment(
+                        1,
+                        ItemType.AMULET,
+                        "FireEarth",
+                        mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 50, Characteristic.MASTERY_ELEMENTARY_EARTH to 50)
+                    ),
+                    equipment(2, ItemType.BELT, "Generic", mapOf(Characteristic.MASTERY_ELEMENTARY to 10))
+                )
+            val targetStats =
+                TargetStats(
+                    listOf(
+                        TargetStat(Characteristic.MASTERY_ELEMENTARY, 1),
+                        TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 1),
+                        TargetStat(Characteristic.MASTERY_ELEMENTARY_EARTH, 1)
+                    )
+                )
+
+            assertSolverReachesExhaustiveOptimum(
+                equipments,
+                targetStats,
+                ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+            )
+
+            val best = solve(equipments, targetStats)
+            assertThat(best.individual.equipments.map { it.name.fr }).contains("FireEarth", "Generic")
+        }
+
+    @Test
+    fun `most-masteries prefers a strictly stronger same-slot upgrade for the requested elements`(): Unit =
+        runBlocking {
+            // The reported "it picked a weaker item over its stronger evolution" case. With "all
+            // elements" co-requested, the old min-over-four objective scored BOTH the base and its
+            // upgrade at min = 0 (water/air stay 0), so the upgrade was objective-neutral and the
+            // solver had no reason not to park the weaker one. Minimising over the requested
+            // {fire, earth} makes the upgrade strictly better, so it must win.
+            val equipments =
+                listOf(
+                    equipment(
+                        1,
+                        ItemType.AMULET,
+                        "Base",
+                        mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 40, Characteristic.MASTERY_ELEMENTARY_EARTH to 40)
+                    ),
+                    equipment(
+                        2,
+                        ItemType.AMULET,
+                        "Evolution",
+                        mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 60, Characteristic.MASTERY_ELEMENTARY_EARTH to 60)
+                    )
+                )
+            val targetStats =
+                TargetStats(
+                    listOf(
+                        TargetStat(Characteristic.MASTERY_ELEMENTARY, 1),
+                        TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 1),
+                        TargetStat(Characteristic.MASTERY_ELEMENTARY_EARTH, 1)
+                    )
+                )
+
+            assertSolverReachesExhaustiveOptimum(
+                equipments,
+                targetStats,
+                ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+            )
+
+            val best = solve(equipments, targetStats)
+            assertThat(best.individual.equipments.map { it.name.fr }).contains("Evolution")
+        }
+
+    /** Runs the real most-masteries solver over the given pool and returns its best emitted build. */
+    private fun solve(
+        equipments: List<Equipment>,
+        targetStats: TargetStats,
+        level: Int = 1,
+    ): GeneticAlgorithmResult<BuildCombination> =
+        runBlocking {
+            val character = Character(clazz = CharacterClass.CRA, level = level, minLevel = level, CharacterSkills(level))
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = targetStats,
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+                )
+            WakfuBuildSolver
+                .optimize(params, equipments.groupBy { it.itemType })
+                .toList()
+                .maxByOrNull { it.matchPercentage }!!
+        }
 
     private fun assertSolverReachesExhaustiveOptimum(
         equipments: List<Equipment>,

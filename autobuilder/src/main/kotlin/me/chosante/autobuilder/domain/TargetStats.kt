@@ -52,6 +52,40 @@ class TargetStats(
                     Characteristic.RESISTANCE_ELEMENTARY_FIRE
                 )
         }.associate { it.characteristic to it.target }
+
+    /**
+     * Elements the "most-masteries" objective takes the *minimum* elemental mastery over. Specific
+     * elements win: if the user asked for any of fire/earth/water/air, those define the set, so a
+     * co-requested [Characteristic.MASTERY_ELEMENTARY] ("all elements") only lifts them via generic
+     * gear instead of forcing the solver to also balance the elements they never asked for. The
+     * aggregate expands to all four only when no specific element was requested. Always a subset of
+     * [masteryElementsWanted]'s keys (which stays the full fold set), and mirrored by both the scorer
+     * and the OR-Tools objective so the two engines optimise the same thing.
+     */
+    val masteryElementsToMinimize: List<Characteristic> =
+        elementsToMinimizeOver(ELEMENTAL_MASTERIES, Characteristic.MASTERY_ELEMENTARY)
+
+    private fun elementsToMinimizeOver(
+        elements: List<Characteristic>,
+        aggregate: Characteristic,
+    ): List<Characteristic> {
+        val requestedSpecifics = elements.filter { element -> any { it.characteristic == element } }
+        return when {
+            requestedSpecifics.isNotEmpty() -> requestedSpecifics
+            any { it.characteristic == aggregate } -> elements
+            else -> emptyList()
+        }
+    }
+
+    companion object {
+        private val ELEMENTAL_MASTERIES =
+            listOf(
+                Characteristic.MASTERY_ELEMENTARY_WATER,
+                Characteristic.MASTERY_ELEMENTARY_FIRE,
+                Characteristic.MASTERY_ELEMENTARY_EARTH,
+                Characteristic.MASTERY_ELEMENTARY_WIND
+            )
+    }
 }
 
 fun List<TargetStat>.associateWeights(normalizeValue: Int): Map<TargetStat, Double> {

@@ -17,14 +17,6 @@ object FindMostMasteriesFromInputScoring {
             Characteristic.MASTERY_MELEE
         )
 
-    private val elementaryMasteries =
-        listOf(
-            Characteristic.MASTERY_ELEMENTARY_WATER,
-            Characteristic.MASTERY_ELEMENTARY_FIRE,
-            Characteristic.MASTERY_ELEMENTARY_EARTH,
-            Characteristic.MASTERY_ELEMENTARY_WIND
-        )
-
     fun computeScore(
         targetStats: TargetStats,
         buildCombination: BuildCombination,
@@ -85,14 +77,13 @@ object FindMostMasteriesFromInputScoring {
                 .values
                 .sum()
 
+        // Specific elements win over a co-requested "all elements" (MASTERY_ELEMENTARY): minimise
+        // over the elements the user actually asked for, so adding "all elements" no longer drags the
+        // objective onto off-elements they never wanted. Mirrors the OR-Tools objective via the shared
+        // TargetStats.masteryElementsToMinimize so both engines optimise the same value.
         val lowestWantedElementaryMasteryValue =
-            if (targetStats.any { it.characteristic == Characteristic.MASTERY_ELEMENTARY }) {
-                elementaryMasteries.minOfOrNull { actualCharacteristicsValues[it] ?: 0 } ?: 0
-            } else {
-                targetStats
-                    .filter { it.characteristic in elementaryMasteries }
-                    .minOfOrNull { actualCharacteristicsValues[it.characteristic] ?: 0 } ?: 0
-            }
+            targetStats.masteryElementsToMinimize
+                .minOfOrNull { actualCharacteristicsValues[it] ?: 0 } ?: 0
 
         // Combine sums and adjust for negative mastery penalties
         val finalMasteryScore = sumOfMasteriesWithoutElementary + lowestWantedElementaryMasteryValue + removeNegativeMasteries
