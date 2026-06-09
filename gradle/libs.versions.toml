@@ -1,0 +1,56 @@
+# Gradle version catalog — the single source of truth for dependency versions.
+#
+# This is the STANDARD `gradle/libs.versions.toml` location, which Gradle auto-loads as the `libs`
+# catalog and which Dependabot's Gradle updater fully understands: it bumps the [versions] table and
+# follows every `version.ref`, so Kotlin / OR-Tools / Compose / coroutines / Fuel now all receive
+# automated update PRs. (Previously this catalog lived as an inline `versionCatalogs {}` block in
+# settings.gradle.kts, where Dependabot could not read the `version(...)` refs nor the `val`
+# version variables — only the few full-coordinate string literals.)
+
+[versions]
+# JDK toolchain — consumed via libs.versions.jvm in each module's kotlin { jvmToolchain(...) }.
+jvm = "25"
+# Kotlin: drives the kotlin-jvm / kotlin-serialization / compose-compiler plugins (they are released
+# in lockstep with the Kotlin version) across every module.
+kotlin = "2.3.21"
+# OR-Tools: the JVM lib (autobuilder) and the per-OS native artifacts (gui-compose packaging) share
+# this version, also read via libs.versions.ortools for the Conveyor machine configs.
+ortools = "9.15.6755"
+coroutines = "1.11.0"
+fuel = "2.3.1"
+kotlinxSerialization = "1.11.0"
+assertj = "3.27.7"
+junit = "6.0.3"
+ktlint = "14.2.0"
+# Compose Multiplatform: `compose` drives the org.jetbrains.compose plugin and the per-OS Desktop
+# artifacts (they share that version). Material3 ships on a separate cadence, hence its own version.
+compose = "1.11.1"
+composeMaterial3 = "1.9.0"
+
+[libraries]
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+kotlinx-coroutine-bom = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-bom", version.ref = "coroutines" }
+kotlinx-coroutine-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutine-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "coroutines" }
+fuel-core = { module = "com.github.kittinunf.fuel:fuel", version.ref = "fuel" }
+fuel-coroutines = { module = "com.github.kittinunf.fuel:fuel-coroutines", version.ref = "fuel" }
+fuel-kotlinx = { module = "com.github.kittinunf.fuel:fuel-kotlinx-serialization", version.ref = "fuel" }
+ortools-java = { module = "com.google.ortools:ortools-java", version.ref = "ortools" }
+assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "composeMaterial3" }
+compose-desktop-macos-arm64 = { module = "org.jetbrains.compose.desktop:desktop-jvm-macos-arm64", version.ref = "compose" }
+compose-desktop-macos-x64 = { module = "org.jetbrains.compose.desktop:desktop-jvm-macos-x64", version.ref = "compose" }
+compose-desktop-linux-x64 = { module = "org.jetbrains.compose.desktop:desktop-jvm-linux-x64", version.ref = "compose" }
+compose-desktop-windows-x64 = { module = "org.jetbrains.compose.desktop:desktop-jvm-windows-x64", version.ref = "compose" }
+
+[plugins]
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+kotlin-compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+compose = { id = "org.jetbrains.compose", version.ref = "compose" }
+
+[bundles]
+fuel = ["fuel-core", "fuel-coroutines", "fuel-kotlinx"]
