@@ -32,7 +32,7 @@ dependencyResolutionManagement {
             library("ortools-java", "com.google.ortools", "ortools-java").versionRef("ortools")
             library("assertj-core", "org.assertj:assertj-core:3.27.7")
 
-            library("junit-bom", "org.junit:junit-bom:6.0.3")
+            library("junit-bom", "org.junit:junit-bom:6.1.0")
             library("junit-jupiter", "org.junit.jupiter", "junit-jupiter").withoutVersion()
             plugin("ktlint", "org.jlleitschuh.gradle.ktlint").version("14.2.0")
             plugin("kotlin-jvm", "org.jetbrains.kotlin.jvm").versionRef("kotlin")
