@@ -68,10 +68,9 @@ fun ScreenshotCapture(
 fun ScreenshotAutoScrollToBottom(
     scroll: ScrollState,
     enabled: Boolean,
+    key: String = "STATS_BOTTOM",
 ) {
-    val active =
-        System.getProperty("wakfu.compose.screenshot.statsBottom") != null ||
-            System.getenv("WAKFU_COMPOSE_SCREENSHOT_STATS_BOTTOM") != null
+    val active = System.getenv("WAKFU_COMPOSE_SCREENSHOT_$key") != null
     if (!active) {
         return
     }

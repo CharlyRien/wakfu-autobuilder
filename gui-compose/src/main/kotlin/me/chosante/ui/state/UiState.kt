@@ -89,6 +89,8 @@ data class UiState(
     val solver: WakfuSolver = WakfuSolver.OR_TOOLS,
     val targets: List<TargetRow> = defaultTargets(),
     val maxRarity: Rarity = Rarity.EPIC,
+    /** Rarities the user toggled off; excluded from the search. At least one rarity always stays allowed. */
+    val excludedRarities: Set<Rarity> = emptySet(),
     val duration: String = "20",
     val stopAtMatch: Boolean = false,
     val forcedItems: List<ItemChip> = emptyList(),

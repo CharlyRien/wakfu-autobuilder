@@ -39,6 +39,7 @@ object WakfuBestBuildFinderAlgorithm {
                 excludedItems = params.excludedItems,
                 forcedItems = params.forcedItems,
                 maxRarity = params.maxRarity,
+                excludedRarities = params.excludedRarities,
                 character = params.character
             )
 
@@ -110,6 +111,7 @@ object WakfuBestBuildFinderAlgorithm {
         excludedItems: List<String>,
         forcedItems: List<String>,
         maxRarity: Rarity,
+        excludedRarities: Set<Rarity>,
         character: Character,
     ): Map<ItemType, List<Equipment>> {
         val itemsExcluded = excludedItems.map { it.lowercase() }
@@ -118,7 +120,7 @@ object WakfuBestBuildFinderAlgorithm {
             equipments
                 .asSequence()
                 .filter { equipment ->
-                    equipment.rarity <= maxRarity
+                    equipment.rarity <= maxRarity && equipment.rarity !in excludedRarities
                 }.filter { equipment ->
                     (equipment.level <= character.level && equipment.level >= character.minLevel) ||
                         (equipment.itemType == ItemType.PETS || equipment.itemType == ItemType.MOUNTS)
@@ -211,6 +213,8 @@ data class WakfuBestBuildParams(
     val searchDuration: Duration,
     val stopWhenBuildMatch: Boolean,
     val maxRarity: Rarity,
+    /** Rarities the build may not use at all (independent of [maxRarity]); empty allows every rarity. */
+    val excludedRarities: Set<Rarity> = emptySet(),
     val forcedItems: List<String>,
     val excludedItems: List<String>,
     val scoreComputationMode: ScoreComputationMode,
