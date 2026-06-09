@@ -97,6 +97,11 @@ class BuildSearchModel(
         System.getProperty("wakfu.compose.screenshot") != null ||
             System.getenv("WAKFU_COMPOSE_SCREENSHOT") != null
 
+    /** Screenshot-only: pin the 1st build item as required and exclude the 2nd, to capture the #125 badges. */
+    private val screenshotForceFirst =
+        System.getProperty("wakfu.compose.screenshot.forceFirst") != null ||
+            System.getenv("WAKFU_COMPOSE_SCREENSHOT_FORCE_FIRST") != null
+
     init {
         // Decode item icons into the cache off the UI thread so they're ready (and decoded once)
         // by the time a build is shown. Purely background work: it never gates startup — items
@@ -114,8 +119,12 @@ class BuildSearchModel(
         }
 
         if (isScreenshotMode) {
-            // Screenshots want the real UI immediately, with no warm-up gating.
+            // Screenshots want the real UI immediately, with no warm-up gating. Kick off a search
+            // with the default request so the captured frame shows a populated build (paperdoll,
+            // stats, skill tree) instead of an empty shell. The first solve pays OR-Tools' cold
+            // start inline; ScreenshotCapture waits for the build before grabbing pixels.
             isReady = true
+            search()
         } else {
             // Pay OR-Tools' one-time cold start behind the loading screen, so the first real search
             // starts warm and the heavy main UI only mounts once the native library is loaded (no
@@ -402,6 +411,14 @@ class BuildSearchModel(
                                     )
                                 if (landedEquipmentId != null) {
                                     clearLandedMarkerLater(landedEquipmentId)
+                                }
+                                if (screenshotForceFirst && ui.forcedItems.isEmpty() && ui.excludedItems.isEmpty()) {
+                                    result.individual.equipments
+                                        .getOrNull(0)
+                                        ?.let { forceItem(it) }
+                                    result.individual.equipments
+                                        .getOrNull(1)
+                                        ?.let { excludeItem(it) }
                                 }
                             }
                         }
