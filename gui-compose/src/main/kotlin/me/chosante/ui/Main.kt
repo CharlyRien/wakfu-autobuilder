@@ -4,6 +4,7 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -12,6 +13,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
@@ -22,6 +24,7 @@ import me.chosante.ui.shell.LoadingScreen
 import me.chosante.ui.state.BuildSearchModel
 import me.chosante.ui.testing.ScreenshotCapture
 import me.chosante.ui.theme.WTheme
+import java.awt.Desktop
 import java.awt.GraphicsEnvironment
 import java.awt.Taskbar
 import javax.imageio.ImageIO
@@ -46,10 +49,37 @@ fun main() {
             icon = appIcon,
             state =
                 WindowState(
+                    // Open maximised so the app fills the screen from the first frame. This also avoids
+                    // the macOS freeze that hit when the window was zoomed/full-screened *during* OR-Tools'
+                    // native cold start: that resize transition has to keep rendering while every core is
+                    // busy paying the one-time startup cost behind the loading screen, so it stalls and the
+                    // app appears frozen. Opening already maximised means there is no zoom to trigger while
+                    // warm-up runs. (Must pair with a resizable window — AWT can refuse to maximise a
+                    // non-resizable frame on macOS, and Compose applies the placement only once.)
+                    placement = WindowPlacement.Maximized,
+                    // Un-maximised (restore) size/position, clamped so the title bar stays reachable.
                     position = WindowPosition.Aligned(Alignment.Center),
                     size = fittedWindowSize(DpSize(1440.dp, 900.dp))
                 )
         ) {
+            // Pull the window to the front as soon as it is shown. Two reasons:
+            //  • Launched via `gradle run` (an un-bundled JVM) the window can open *behind* the
+            //    launching app, hiding the loading screen so the warm-up progress isn't visible.
+            //  • macOS pauses rendering for an occluded window, so raising a *maximised* window later
+            //    forces the first full-surface render of the big window at that moment — which stalled
+            //    when it coincided with the native warm-up. Rendering it in the foreground now, while
+            //    the cheap loading screen is up, avoids that deferred heavy first paint entirely.
+            // Best-effort: a window-ordering hint must never break startup, so failures are swallowed.
+            LaunchedEffect(Unit) {
+                runCatching {
+                    window.toFront()
+                    window.requestFocus()
+                    val desktop = Desktop.getDesktop()
+                    if (desktop.isSupported(Desktop.Action.APP_REQUEST_FOREGROUND)) {
+                        desktop.requestForeground(true)
+                    }
+                }
+            }
             ScreenshotCapture(
                 path = screenshotPath,
                 ready = { model.ui.build != null },
