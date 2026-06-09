@@ -57,6 +57,28 @@ class EngineMasteryScoreTest {
     }
 
     @Test
+    fun `specific elements win over a co-requested all-elements`() {
+        // Combined request: the headline minimises over the requested fire/earth only, not all four —
+        // matching the engine fix (TargetStats.masteryElementsToMinimize) so "what you see" equals
+        // "what the solver maximised". Before the fix this returned min over all four = 50.
+        val requestedCombined =
+            setOf(
+                Characteristic.MASTERY_ELEMENTARY,
+                Characteristic.MASTERY_ELEMENTARY_FIRE,
+                Characteristic.MASTERY_ELEMENTARY_EARTH
+            )
+        val achieved =
+            mapOf(
+                Characteristic.MASTERY_ELEMENTARY_FIRE to 800,
+                Characteristic.MASTERY_ELEMENTARY_EARTH to 900,
+                Characteristic.MASTERY_ELEMENTARY_WATER to 100,
+                Characteristic.MASTERY_ELEMENTARY_WIND to 50
+            )
+
+        assertThat(engineMasteryScore(achieved, requestedCombined)).isEqualTo(800)
+    }
+
+    @Test
     fun `specialized masteries are summed`() {
         val achieved = mapOf(Characteristic.MASTERY_DISTANCE to 1000, Characteristic.MASTERY_CRITICAL to 500)
         assertThat(engineMasteryScore(achieved, setOf(Characteristic.MASTERY_DISTANCE, Characteristic.MASTERY_CRITICAL))).isEqualTo(1500)
