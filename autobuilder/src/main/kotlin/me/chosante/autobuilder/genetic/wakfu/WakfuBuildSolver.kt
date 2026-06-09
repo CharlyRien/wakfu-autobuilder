@@ -407,11 +407,9 @@ object WakfuBuildSolver {
      * slots, so a slot whose items cannot improve any requested stat is left empty in the proven
      * optimum. This is why, e.g., an item set asking only for distance mastery + AP/MP/HP comes
      * back with no mount: every mount in the data carries only [Characteristic.MASTERY_ELEMENTARY],
-     * which contributes to none of those targets. The genetic algorithm appears to "find" a mount
-     * only because each of its individuals starts with every slot filled and nothing pushes it to
-     * drop a zero-value item — that mount does not raise the GA score either. Both engines reach
-     * the same optimum for the requested stats; only the empty slot differs. (Decision: keep as-is;
-     * see the engine discussion in AGENTS.md §4.)
+     * which contributes to none of those targets, so adding one cannot raise the objective and the
+     * proven optimum leaves the slot empty. (Decision: keep as-is; see the engine discussion in
+     * AGENTS.md §4.)
      */
     private fun CpModel.buildMostMasteriesObjective(
         params: WakfuBestBuildParams,
