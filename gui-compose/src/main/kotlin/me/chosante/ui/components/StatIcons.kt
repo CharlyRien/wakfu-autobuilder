@@ -5,11 +5,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -112,24 +115,43 @@ internal fun CharacteristicIcon(
     characteristic: Characteristic,
     modifier: Modifier = Modifier,
     size: Dp = 16.dp,
+    tile: Boolean = true,
     fallbackColor: Color = WColor.muted,
 ) {
     val bitmap = characteristic.iconResourcePath()?.let { rememberClasspathBitmap(it) }
-    if (bitmap != null) {
-        Image(
-            bitmap = bitmap,
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
-            modifier = modifier.size(size)
-        )
-    } else {
-        Box(
-            modifier =
-                modifier
-                    .size(size * 0.5f)
-                    .clip(CircleShape)
-                    .background(fallbackColor.copy(alpha = 0.6f))
-        )
+    when {
+        bitmap == null ->
+            Box(
+                modifier =
+                    modifier
+                        .size(size * 0.5f)
+                        .clip(CircleShape)
+                        .background(fallbackColor.copy(alpha = 0.6f))
+            )
+        // Light tile keeps dark, near-monochrome line-art icons legible on the dark theme (same
+        // rationale as the skill tree / mastery chips, #127); colored icons read fine on it too.
+        // Source icons are tiny and scale on HiDPI, so resample with High to avoid aliased edges.
+        tile ->
+            Box(
+                modifier = modifier.size(size + 6.dp).clip(RoundedCornerShape(6.dp)).background(WColor.iconTile),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    bitmap = bitmap,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    filterQuality = FilterQuality.High,
+                    modifier = Modifier.size(size)
+                )
+            }
+        else ->
+            Image(
+                bitmap = bitmap,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                filterQuality = FilterQuality.High,
+                modifier = modifier.size(size)
+            )
     }
 }
 
@@ -158,6 +180,9 @@ internal fun StatGlyphIcon(
             bitmap = bitmap,
             contentDescription = null,
             contentScale = ContentScale.Fit,
+            // High-quality resampling for the small HUD icons (see CharacteristicIcon): the default
+            // Low filter left visible aliasing when these are scaled into chips/tiles on HiDPI.
+            filterQuality = FilterQuality.High,
             modifier = modifier.size(iconSize)
         )
     } else {

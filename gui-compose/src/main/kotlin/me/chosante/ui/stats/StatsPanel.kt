@@ -53,6 +53,7 @@ import me.chosante.ui.state.formatCompact
 import me.chosante.ui.state.isEngineInternalStat
 import me.chosante.ui.state.isExact
 import me.chosante.ui.state.requestedMasteryTotal
+import me.chosante.ui.state.statCatalog
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WDimens
 import me.chosante.ui.theme.WType
@@ -360,21 +361,25 @@ private fun MasteryGroup(
     }
 }
 
-private data class TargetGroup(
+internal data class TargetGroup(
     val title: Tr,
     val targets: List<TargetRow>,
 )
 
-private fun groupedTargets(targets: List<TargetRow>): List<TargetGroup> {
+internal fun groupedTargets(targets: List<TargetRow>): List<TargetGroup> {
+    // Display targets in the catalog's canonical order (mirroring the request panel on the left)
+    // rather than the user's insertion order — otherwise removing and re-adding a constraint would
+    // shuffle it to the bottom of its group. Sort once; the per-group filters preserve that order.
+    val ordered = targets.sortedBy { statCatalogOrder[it.characteristic] ?: Int.MAX_VALUE }
     val groups =
         listOf(
-            TargetGroup(Tr.STAT_GROUP_CORE, targets.filter { it.characteristic in coreTargetStats }),
-            TargetGroup(Tr.MASTERY_ELEMENTALS, targets.filter { it.characteristic in elementalTargetMasteries }),
-            TargetGroup(Tr.MASTERY_SPECIALIZED, targets.filter { it.characteristic in specializedTargetMasteries }),
-            TargetGroup(Tr.STAT_GROUP_RESISTANCES, targets.filter { it.characteristic.name.startsWith("RESISTANCE") }),
+            TargetGroup(Tr.STAT_GROUP_CORE, ordered.filter { it.characteristic in coreTargetStats }),
+            TargetGroup(Tr.MASTERY_ELEMENTALS, ordered.filter { it.characteristic in elementalTargetMasteries }),
+            TargetGroup(Tr.MASTERY_SPECIALIZED, ordered.filter { it.characteristic in specializedTargetMasteries }),
+            TargetGroup(Tr.STAT_GROUP_RESISTANCES, ordered.filter { it.characteristic.name.startsWith("RESISTANCE") }),
             TargetGroup(
                 Tr.STAT_GROUP_SECONDARY,
-                targets.filter {
+                ordered.filter {
                     it.characteristic !in coreTargetStats &&
                         it.characteristic !in allTargetMasteries &&
                         !it.characteristic.name.startsWith("RESISTANCE")
@@ -383,6 +388,10 @@ private fun groupedTargets(targets: List<TargetRow>): List<TargetGroup> {
         )
     return groups.filter { it.targets.isNotEmpty() }
 }
+
+/** Canonical display rank per characteristic, from the shared [statCatalog] order. */
+private val statCatalogOrder: Map<Characteristic, Int> =
+    statCatalog.withIndex().associate { (index, def) -> def.characteristic to index }
 
 private val coreTargetStats =
     setOf(
@@ -760,7 +769,8 @@ private fun StatGlyph(
             Modifier
                 .size(24.dp)
                 .clip(RoundedCornerShape(7.dp))
-                .background(WColor.raised)
+                // Light tile so dark line-art stat symbols stay legible on the dark theme (see WColor.iconTile).
+                .background(WColor.iconTile)
                 .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(7.dp)),
         contentAlignment = Alignment.Center
     ) {

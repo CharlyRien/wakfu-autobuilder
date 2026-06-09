@@ -295,7 +295,8 @@ private fun CatalogTile(
                 Modifier
                     .size(26.dp)
                     .clip(RoundedCornerShape(7.dp))
-                    .background(WColor.surface)
+                    // Light tile so dark line-art stat symbols stay legible on the dark theme (see WColor.iconTile).
+                    .background(WColor.iconTile)
                     .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(7.dp)),
             contentAlignment = Alignment.Center
         ) {
