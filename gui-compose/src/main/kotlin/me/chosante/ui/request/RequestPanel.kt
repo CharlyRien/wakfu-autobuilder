@@ -1,8 +1,12 @@
 package me.chosante.ui.request
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +33,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -64,6 +70,7 @@ fun RequestPanel(
     ui: UiState,
     onModeChange: (ScoreComputationMode) -> Unit,
     onTargetValueChange: (String, String) -> Unit,
+    onTargetWeightChange: (String, Int) -> Unit,
     onRemoveTarget: (String) -> Unit,
     onAddTarget: () -> Unit,
     onToggleMastery: (Characteristic) -> Unit,
@@ -96,6 +103,7 @@ fun RequestPanel(
                 mode = ui.mode,
                 targets = ui.targets,
                 onValueChange = onTargetValueChange,
+                onWeightChange = onTargetWeightChange,
                 onRemove = onRemoveTarget,
                 onAdd = onAddTarget,
                 onToggleMastery = onToggleMastery
@@ -204,6 +212,7 @@ private fun TargetStatsCard(
     mode: ScoreComputationMode,
     targets: List<TargetRow>,
     onValueChange: (String, String) -> Unit,
+    onWeightChange: (String, Int) -> Unit,
     onRemove: (String) -> Unit,
     onAdd: () -> Unit,
     onToggleMastery: (Characteristic) -> Unit,
@@ -213,6 +222,12 @@ private fun TargetStatsCard(
         title = tr(Tr.TARGET_STATS),
         trailing = targets.size.toString()
     ) {
+        // One-line legend so the per-row priority bars read as priority without crowding each row.
+        Text(
+            text = tr(Tr.PRIORITY_HINT),
+            style = WTypography.labelSmall.copy(color = WColor.faint),
+            modifier = Modifier.padding(bottom = 10.dp)
+        )
         val sections =
             if (maximizedMasteriesMode) {
                 maxMasteryInputSections
@@ -242,6 +257,7 @@ private fun TargetStatsCard(
                         mode = mode,
                         targets = rows,
                         onValueChange = onValueChange,
+                        onWeightChange = onWeightChange,
                         onRemove = onRemove
                     )
                 }
@@ -286,9 +302,7 @@ private fun SelectedMasteriesSummary(targets: List<TargetRow>) {
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                selected.forEach { def ->
-                    SelectedMasteryPill(def = def)
-                }
+                selected.forEach { def -> SelectedMasteryPill(def = def) }
             }
         }
     }
@@ -299,15 +313,25 @@ private fun SelectedMasteryPill(def: StatDef) {
     Row(
         modifier =
             Modifier
-                .height(26.dp)
+                .height(28.dp)
                 .clip(RoundedCornerShape(7.dp))
                 .background(def.color.copy(alpha = 0.14f))
                 .border(1.dp, def.color.copy(alpha = 0.45f), RoundedCornerShape(7.dp))
-                .padding(horizontal = 7.dp),
+                .padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp)
     ) {
-        StatGlyphIcon(characteristic = def.characteristic, glyph = def.glyph, color = def.color, iconSize = 15.dp)
+        // Light tile behind the dark line-art mastery glyph (#127) so it stays visible on the card.
+        Box(
+            modifier =
+                Modifier
+                    .size(20.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(WColor.iconTile),
+            contentAlignment = Alignment.Center
+        ) {
+            StatGlyphIcon(characteristic = def.characteristic, glyph = def.glyph, color = def.color, iconSize = 15.dp)
+        }
         Text(
             text = def.characteristic.masteryOptionLabel(LocalLang.current),
             style = WTypography.labelSmall.copy(color = WColor.text, lineHeight = 10.sp),
@@ -332,6 +356,7 @@ private fun TargetRowList(
     mode: ScoreComputationMode,
     targets: List<TargetRow>,
     onValueChange: (String, String) -> Unit,
+    onWeightChange: (String, Int) -> Unit,
     onRemove: (String) -> Unit,
 ) {
     targets.forEachIndexed { index, target ->
@@ -340,6 +365,7 @@ private fun TargetRowList(
             target = target,
             kind = tr(if (target.isExact(mode)) Tr.KIND_EXACT else Tr.KIND_MAXIMIZE),
             onValueChange = { onValueChange(target.id, it) },
+            onWeightChange = { onWeightChange(target.id, it) },
             onRemove = { onRemove(target.id) }
         )
     }
@@ -388,12 +414,16 @@ private fun MasteryCheckboxChip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
+        // Light tile behind the symbol: the Specialized masteries (distance/melee/crit/back/berserk/
+        // heal) and the "all elements" icon are dark, near-monochrome line-art that melts into the
+        // dark tile; the elemental icons carry their own coloured disc and read fine on it. A constant
+        // light backdrop guarantees contrast in both states — same treatment as the skill icons (#127).
         Box(
             modifier =
                 Modifier
                     .size(24.dp)
                     .clip(RoundedCornerShape(7.dp))
-                    .background(if (checked) def.color.copy(alpha = 0.24f) else WColor.surface)
+                    .background(WColor.iconTile)
                     .border(
                         width = 1.dp,
                         color = def.color.copy(alpha = if (checked) 0.85f else 0.35f),
@@ -465,6 +495,7 @@ private fun TargetStatRow(
     target: TargetRow,
     kind: String,
     onValueChange: (String) -> Unit,
+    onWeightChange: (Int) -> Unit,
     onRemove: () -> Unit,
 ) {
     Row(
@@ -472,16 +503,23 @@ private fun TargetStatRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         GlyphChip(characteristic = target.characteristic, label = target.glyph, color = target.color)
-        Spacer(modifier = Modifier.width(10.dp))
+        Spacer(modifier = Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = target.characteristic.label(LocalLang.current), style = WTypography.bodyLarge)
+            Text(
+                text = target.characteristic.label(LocalLang.current),
+                style = WTypography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
             Text(text = kind, style = WTypography.labelSmall)
         }
         NumberField(
             value = target.value,
             onValueChange = onValueChange,
-            width = 66.dp
+            width = 62.dp
         )
+        Spacer(modifier = Modifier.width(10.dp))
+        PriorityMeter(weight = target.weight, onChange = onWeightChange)
         Spacer(modifier = Modifier.width(8.dp))
         Box(
             modifier =
@@ -500,6 +538,89 @@ private fun TargetStatRow(
                         lineHeight = 14.sp
                     )
             )
+        }
+    }
+}
+
+private const val PRIORITY_MAX = 5
+
+/** Gradient ends for the priority bar: yellow = least important, red = most important. */
+private val PriorityLow = Color(0xFFE6C34A)
+private val PriorityHigh = Color(0xFFD9655C)
+
+/** Yellow→red colour for segment [level] (1..[PRIORITY_MAX]). */
+private fun priorityColor(level: Int): Color = lerp(PriorityLow, PriorityHigh, if (PRIORITY_MAX <= 1) 0f else (level - 1f) / (PRIORITY_MAX - 1))
+
+/** Maps a pointer x (px) on a [width]-px bar to a 1..[PRIORITY_MAX] level. */
+private fun levelForX(
+    x: Float,
+    width: Int,
+): Int {
+    if (width <= 0) return 1
+    return ((x / width) * PRIORITY_MAX).toInt().coerceIn(0, PRIORITY_MAX - 1) + 1
+}
+
+/**
+ * Priority meter (#123): a segmented level bar of [PRIORITY_MAX] blocks, filled from the left up to
+ * [weight] on a yellow→red gradient (1 = a single yellow block, [PRIORITY_MAX] = the full red-tipped
+ * bar — higher is more important). Click or drag anywhere on the bar to set the level — the whole bar
+ * is one forgiving target, so there are no tiny per-segment hit areas. A hover tooltip spells out what
+ * the control is and means. Used on both constraint rows and the maximized-mastery summary so priority
+ * is set the same way everywhere.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun PriorityMeter(
+    weight: Int,
+    onChange: (Int) -> Unit,
+) {
+    val level = weight.coerceIn(1, PRIORITY_MAX)
+    TooltipArea(
+        delayMillis = 350,
+        tooltip = {
+            Column(
+                modifier =
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(WColor.raised)
+                        .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = "${tr(Tr.PRIORITY)} · $level/$PRIORITY_MAX",
+                    style = WTypography.labelMedium.copy(color = WColor.text, fontWeight = FontWeight.SemiBold)
+                )
+                Text(text = tr(Tr.PRIORITY_HINT), style = WTypography.labelSmall.copy(color = WColor.muted))
+            }
+        }
+    ) {
+        Row(
+            modifier =
+                Modifier
+                    .pointerInput(Unit) {
+                        detectTapGestures { offset -> onChange(levelForX(offset.x, size.width)) }
+                    }.pointerInput(Unit) {
+                        detectHorizontalDragGestures(
+                            onDragStart = { offset -> onChange(levelForX(offset.x, size.width)) }
+                        ) { change, _ ->
+                            change.consume()
+                            onChange(levelForX(change.position.x, size.width))
+                        }
+                    },
+            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            for (segment in 1..PRIORITY_MAX) {
+                val lit = segment <= level
+                Box(
+                    modifier =
+                        Modifier
+                            .size(width = 13.dp, height = 16.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (lit) priorityColor(segment) else WColor.raised)
+                            .then(if (lit) Modifier else Modifier.border(1.dp, WColor.border, RoundedCornerShape(4.dp)))
+                )
+            }
         }
     }
 }
@@ -760,7 +881,8 @@ private fun GlyphChip(
             Modifier
                 .size(28.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(WColor.raised)
+                // Light tile so dark line-art stat symbols stay legible on the dark theme (see WColor.iconTile).
+                .background(WColor.iconTile)
                 .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(8.dp)),
         contentAlignment = Alignment.Center
     ) {

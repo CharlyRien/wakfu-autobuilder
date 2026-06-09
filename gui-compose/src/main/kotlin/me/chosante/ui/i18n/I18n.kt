@@ -56,6 +56,11 @@ enum class Tr(
     TARGET_STATS("Target Stats", "Stats cibles"),
     MAXIMIZED_MASTERIES("Maximized Masteries", "Maîtrises à maximiser"),
     NO_MASTERY_SELECTED("None selected", "Aucune sélection"),
+    PRIORITY("Priority", "Priorité"),
+    PRIORITY_HINT(
+        "Priority (1–5): higher targets win when they can't all be met",
+        "Priorité (1–5) : les cibles prioritaires l'emportent si tout n'est pas atteignable"
+    ),
     ADD_TARGET_STAT("＋ Add target stat", "＋ Ajouter une stat"),
     KIND_EXACT("minimum", "minimum"),
     KIND_MAXIMIZE("maximize", "maximiser"),

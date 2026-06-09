@@ -757,6 +757,43 @@ class WakfuBuildSolverTest {
             assertThat(best.individual.equipments.map { it.name.fr }).contains("Evolution")
         }
 
+    // ---------------------------------------------------------------------------------------------
+    // Per-stat priority on the required CONSTRAINTS (#123): a higher userDefinedWeight makes a
+    // constraint's shortfall hurt the weighted success ratio more, so when the targets can't all be met
+    // the solver prefers satisfying the higher-priority one. The exhaustive oracle uses the SAME scorer,
+    // so this also asserts solver/scorer lockstep. (Priority on the *maximized masteries* was reverted —
+    // it produced winner-take-all builds that dropped lower-priority masteries; see AGENTS.md / memory.)
+    // ---------------------------------------------------------------------------------------------
+
+    @Test
+    fun `most-masteries prefers the higher-priority constraint when they cannot all be met`(): Unit =
+        runBlocking {
+            // The issue author's case: an over-constrained request, priority decides which target is met.
+            // A level-1 CRA has base AP 6 / MP 3. One amulet slot, two candidates each adding +1 to one
+            // resource plus an *equal* melee bonus, so the maximized masteries tie and only constraint
+            // satisfaction breaks it. AP target 7 and MP target 4 can't both be met from one slot. With AP
+            // at priority 5 the solver satisfies AP; at equal priority MP's smaller target gives it the
+            // higher per-unit weight and it would win instead — so the priority genuinely flips the choice.
+            val equipments =
+                listOf(
+                    equipment(1, ItemType.AMULET, "ApAmulet", mapOf(Characteristic.ACTION_POINT to 1, Characteristic.MASTERY_MELEE to 10)),
+                    equipment(2, ItemType.AMULET, "MpAmulet", mapOf(Characteristic.MOVEMENT_POINT to 1, Characteristic.MASTERY_MELEE to 10))
+                )
+            val targetStats =
+                TargetStats(
+                    listOf(
+                        TargetStat(Characteristic.ACTION_POINT, 7, userDefinedWeight = 5),
+                        TargetStat(Characteristic.MOVEMENT_POINT, 4, userDefinedWeight = 1),
+                        TargetStat(Characteristic.MASTERY_MELEE, 1, userDefinedWeight = 1)
+                    )
+                )
+
+            assertSolverReachesExhaustiveOptimum(equipments, targetStats, ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT)
+
+            val best = solve(equipments, targetStats)
+            assertThat(best.individual.equipments.map { it.name.fr }).contains("ApAmulet")
+        }
+
     /** Runs the real most-masteries solver over the given pool and returns its best emitted build. */
     private fun solve(
         equipments: List<Equipment>,

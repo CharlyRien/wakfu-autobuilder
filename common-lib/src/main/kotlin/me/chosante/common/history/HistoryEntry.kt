@@ -70,6 +70,8 @@ data class RequestSnapshot(
 data class TargetSnapshot(
     val characteristic: Characteristic,
     val value: String,
+    /** Per-stat priority (#123), 1..10. Defaulted so saves written before the feature load as neutral. */
+    val weight: Int = 1,
 )
 
 /** A forced/excluded item, mirroring the GUI's `ItemChip`. */

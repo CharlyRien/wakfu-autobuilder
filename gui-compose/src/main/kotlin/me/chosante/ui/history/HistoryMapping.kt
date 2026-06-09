@@ -50,7 +50,7 @@ fun UiState.toHistoryEntry(
                 maxRarity = maxRarity,
                 duration = duration,
                 stopAtMatch = stopAtMatch,
-                targets = targets.map { TargetSnapshot(it.characteristic, it.value) },
+                targets = targets.map { TargetSnapshot(it.characteristic, it.value, it.weight) },
                 forcedItems = forcedItems.map { ItemRef(it.name, it.rarity, it.matchName) },
                 excludedItems = excludedItems.map { ItemRef(it.name, it.rarity, it.matchName) }
             ),
@@ -98,7 +98,7 @@ fun HistoryEntry.toBuildCombination(): BuildCombination =
     )
 
 /** Restores the saved target list into displayable [TargetRow]s (catalog-backed, like defaults). */
-fun HistoryEntry.toTargetRows(): List<TargetRow> = request.targets.mapNotNull { statDefFor(it.characteristic)?.toRow(it.value) }
+fun HistoryEntry.toTargetRows(): List<TargetRow> = request.targets.mapNotNull { statDefFor(it.characteristic)?.toRow(it.value)?.copy(weight = it.weight) }
 
 fun HistoryEntry.toForcedChips(): List<ItemChip> = request.forcedItems.map { ItemChip(it.name, it.rarity, it.matchName) }
 

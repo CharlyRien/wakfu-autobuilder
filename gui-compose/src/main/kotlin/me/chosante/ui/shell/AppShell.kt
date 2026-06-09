@@ -163,6 +163,7 @@ private fun BuilderBody(
                 ui = ui,
                 onModeChange = model::setMode,
                 onTargetValueChange = model::updateTargetValue,
+                onTargetWeightChange = model::updateTargetWeight,
                 onRemoveTarget = model::removeTarget,
                 onAddTarget = { model.openModal(Modal.AddStat) },
                 onToggleMastery = model::toggleMaximizedMastery,
