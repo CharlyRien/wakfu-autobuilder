@@ -124,6 +124,7 @@ class BuildSearchModel(
             // stats, skill tree) instead of an empty shell. The first solve pays OR-Tools' cold
             // start inline; ScreenshotCapture waits for the build before grabbing pixels.
             isReady = true
+            screenshotExcludedRarities()?.let { ui = ui.copy(excludedRarities = it) }
             search()
         } else {
             // Pay OR-Tools' one-time cold start behind the loading screen, so the first real search
@@ -256,6 +257,34 @@ class BuildSearchModel(
         ui = ui.copy(maxRarity = rarity)
     }
 
+    /** Screenshot-only: seed excluded rarities from WAKFU_COMPOSE_SCREENSHOT_EXCLUDE_RARITIES (comma list). */
+    private fun screenshotExcludedRarities(): Set<Rarity>? {
+        val raw =
+            System.getProperty("wakfu.compose.screenshot.excludeRarities")
+                ?: System.getenv("WAKFU_COMPOSE_SCREENSHOT_EXCLUDE_RARITIES") ?: return null
+        return raw
+            .split(",")
+            .mapNotNull { token -> runCatching { Rarity.valueOf(token.trim().uppercase()) }.getOrNull() }
+            .toSet()
+            .ifEmpty { null }
+    }
+
+    /**
+     * Toggle whether [rarity] is allowed in the search (#124). Excluding the last still-allowed rarity
+     * is refused — an all-excluded set would leave the solver no items at all.
+     */
+    fun toggleRarity(rarity: Rarity) {
+        val excluded = ui.excludedRarities
+        ui =
+            if (rarity in excluded) {
+                ui.copy(excludedRarities = excluded - rarity)
+            } else if (excluded.size < Rarity.entries.size - 1) {
+                ui.copy(excludedRarities = excluded + rarity)
+            } else {
+                return
+            }
+    }
+
     fun setDuration(duration: String) {
         ui = ui.copy(duration = duration.onlyDigits().take(3))
     }
@@ -363,6 +392,7 @@ class BuildSearchModel(
                 searchDuration = (snapshot.duration.toIntOrNull() ?: 20).coerceAtLeast(1).seconds,
                 stopWhenBuildMatch = snapshot.stopAtMatch,
                 maxRarity = snapshot.maxRarity,
+                excludedRarities = snapshot.excludedRarities,
                 forcedItems = snapshot.forcedItems.map { it.matchName },
                 excludedItems = snapshot.excludedItems.map { it.matchName },
                 scoreComputationMode = snapshot.mode,

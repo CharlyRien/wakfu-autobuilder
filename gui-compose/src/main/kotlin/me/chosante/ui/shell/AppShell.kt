@@ -166,7 +166,7 @@ private fun BuilderBody(
                 onRemoveTarget = model::removeTarget,
                 onAddTarget = { model.openModal(Modal.AddStat) },
                 onToggleMastery = model::toggleMaximizedMastery,
-                onMaxRarityChange = model::setMaxRarity,
+                onToggleRarity = model::toggleRarity,
                 onDurationChange = model::setDuration,
                 onStopAtMatchChange = model::setStopAtMatch,
                 onSolverChange = model::setSolver,

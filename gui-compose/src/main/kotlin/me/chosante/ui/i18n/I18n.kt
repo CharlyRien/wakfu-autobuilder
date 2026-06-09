@@ -61,6 +61,8 @@ enum class Tr(
     KIND_MAXIMIZE("maximize", "maximiser"),
     CONSTRAINTS("Constraints", "Contraintes"),
     MAX_RARITY("Max rarity", "Rareté max"),
+    RARITIES("Rarities", "Raretés"),
+    RARITIES_SUB("tap to allow / exclude", "clic pour autoriser / exclure"),
     SEARCH_DURATION("Search duration", "Durée de recherche"),
     SEARCH_DURATION_SUB("genetic search window", "fenêtre de recherche génétique"),
     SECONDS_SHORT("sec", "sec"),

@@ -1,6 +1,5 @@
 package me.chosante.ui.request
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,16 +20,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -56,6 +52,7 @@ import me.chosante.ui.state.ItemChip
 import me.chosante.ui.state.StatDef
 import me.chosante.ui.state.TargetRow
 import me.chosante.ui.state.UiState
+import me.chosante.ui.state.color
 import me.chosante.ui.state.isExact
 import me.chosante.ui.state.statCatalog
 import me.chosante.ui.state.statDefFor
@@ -72,7 +69,7 @@ fun RequestPanel(
     onRemoveTarget: (String) -> Unit,
     onAddTarget: () -> Unit,
     onToggleMastery: (Characteristic) -> Unit,
-    onMaxRarityChange: (Rarity) -> Unit,
+    onToggleRarity: (Rarity) -> Unit,
     onDurationChange: (String) -> Unit,
     onStopAtMatchChange: (Boolean) -> Unit,
     onSolverChange: (WakfuSolver) -> Unit,
@@ -83,6 +80,8 @@ fun RequestPanel(
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
+    me.chosante.ui.testing
+        .ScreenshotAutoScrollToBottom(scroll, enabled = true, key = "REQUEST_BOTTOM")
     Box(modifier = modifier.fillMaxSize()) {
         Column(
             modifier =
@@ -105,11 +104,11 @@ fun RequestPanel(
                 onToggleMastery = onToggleMastery
             )
             ConstraintsCard(
-                maxRarity = ui.maxRarity,
+                excludedRarities = ui.excludedRarities,
                 duration = ui.duration,
                 stopAtMatch = ui.stopAtMatch,
                 solver = ui.solver,
-                onRarityChange = onMaxRarityChange,
+                onToggleRarity = onToggleRarity,
                 onDurationChange = onDurationChange,
                 onStopAtMatchChange = onStopAtMatchChange,
                 onSolverChange = onSolverChange
@@ -512,22 +511,17 @@ private fun TargetStatRow(
 
 @Composable
 private fun ConstraintsCard(
-    maxRarity: Rarity,
+    excludedRarities: Set<Rarity>,
     duration: String,
     stopAtMatch: Boolean,
     solver: WakfuSolver,
-    onRarityChange: (Rarity) -> Unit,
+    onToggleRarity: (Rarity) -> Unit,
     onDurationChange: (String) -> Unit,
     onStopAtMatchChange: (Boolean) -> Unit,
     onSolverChange: (WakfuSolver) -> Unit,
 ) {
     RequestCard(title = tr(Tr.CONSTRAINTS)) {
-        ConstraintRow(label = tr(Tr.MAX_RARITY)) {
-            RarityDropdown(
-                rarity = maxRarity,
-                onRarityChange = onRarityChange
-            )
-        }
+        RarityFilter(excludedRarities = excludedRarities, onToggleRarity = onToggleRarity)
         Hairline()
         ConstraintRow(label = tr(Tr.SEARCH_DURATION), sublabel = tr(Tr.SEARCH_DURATION_SUB)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -618,58 +612,60 @@ private fun SolverSegment(
 }
 
 @Composable
-private fun RarityDropdown(
-    rarity: Rarity,
-    onRarityChange: (Rarity) -> Unit,
+private fun RarityFilter(
+    excludedRarities: Set<Rarity>,
+    onToggleRarity: (Rarity) -> Unit,
 ) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Box {
-        Row(
-            modifier =
-                Modifier
-                    .height(34.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(WColor.raised)
-                    .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
-                    .clickable { expanded = true }
-                    .padding(horizontal = 11.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            RarityIcon(rarity = rarity, size = 13.dp)
-            Spacer(modifier = Modifier.width(7.dp))
-            Text(text = rarity.label(LocalLang.current), style = WTypography.labelMedium.copy(color = WColor.text))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(text = "▾", style = WTypography.labelSmall.copy(textAlign = TextAlign.Center, lineHeight = 10.sp))
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
+        verticalArrangement = Arrangement.spacedBy(9.dp)
+    ) {
+        Column {
+            Text(text = tr(Tr.RARITIES), style = WTypography.bodyLarge)
+            Text(text = tr(Tr.RARITIES_SUB), style = WTypography.labelSmall)
         }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            containerColor = WColor.surface,
-            border = BorderStroke(1.dp, WColor.border)
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Rarity.entries.forEach { item ->
-                DropdownMenuItem(
-                    text = {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            RarityIcon(rarity = item, size = 13.dp)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = item.label(LocalLang.current),
-                                style =
-                                    WTypography.bodyMedium.copy(
-                                        color = if (item == rarity) WColor.accent else WColor.text
-                                    )
-                            )
-                        }
-                    },
-                    onClick = {
-                        onRarityChange(item)
-                        expanded = false
-                    }
+            Rarity.entries.forEach { rarity ->
+                RarityToggleChip(
+                    rarity = rarity,
+                    allowed = rarity !in excludedRarities,
+                    onClick = { onToggleRarity(rarity) }
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun RarityToggleChip(
+    rarity: Rarity,
+    allowed: Boolean,
+    onClick: () -> Unit,
+) {
+    val color = rarity.color()
+    Row(
+        modifier =
+            Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (allowed) color.copy(alpha = 0.16f) else WColor.surface)
+                .border(1.dp, if (allowed) color.copy(alpha = 0.5f) else WColor.border, RoundedCornerShape(8.dp))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 8.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        RarityIcon(rarity = rarity, size = 12.dp, modifier = Modifier.alpha(if (allowed) 1f else 0.4f))
+        Text(
+            text = rarity.label(LocalLang.current),
+            style =
+                WTypography.labelSmall.copy(
+                    color = if (allowed) color else WColor.faint,
+                    fontWeight = if (allowed) FontWeight.SemiBold else FontWeight.Normal
+                )
+        )
     }
 }
 
