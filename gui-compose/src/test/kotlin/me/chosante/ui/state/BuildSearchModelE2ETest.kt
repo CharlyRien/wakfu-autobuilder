@@ -15,7 +15,6 @@ import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
-import me.chosante.autobuilder.genetic.wakfu.WakfuSolver
 import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
 import me.chosante.common.Character
 import me.chosante.common.Characteristic.ACTION_POINT
@@ -164,7 +163,6 @@ class BuildSearchModelE2ETest {
             try {
                 model.setDuration("1")
                 model.setMinLevel("0")
-                model.setSolver(WakfuSolver.GENETIC_ALGORITHM)
                 model.setLang(Lang.FR)
                 forcedEquipmentNames
                     .map(::equipmentByFrenchName)

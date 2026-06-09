@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -37,7 +36,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
-import me.chosante.autobuilder.genetic.wakfu.WakfuSolver
 import me.chosante.common.Characteristic
 import me.chosante.common.Rarity
 import me.chosante.ui.components.RarityIcon
@@ -72,7 +70,6 @@ fun RequestPanel(
     onToggleRarity: (Rarity) -> Unit,
     onDurationChange: (String) -> Unit,
     onStopAtMatchChange: (Boolean) -> Unit,
-    onSolverChange: (WakfuSolver) -> Unit,
     onAddForcedItem: () -> Unit,
     onRemoveForcedItem: (ItemChip) -> Unit,
     onAddExcludedItem: () -> Unit,
@@ -107,11 +104,9 @@ fun RequestPanel(
                 excludedRarities = ui.excludedRarities,
                 duration = ui.duration,
                 stopAtMatch = ui.stopAtMatch,
-                solver = ui.solver,
                 onToggleRarity = onToggleRarity,
                 onDurationChange = onDurationChange,
-                onStopAtMatchChange = onStopAtMatchChange,
-                onSolverChange = onSolverChange
+                onStopAtMatchChange = onStopAtMatchChange
             )
             ItemChipsCard(
                 title = tr(Tr.FORCED_ITEMS),
@@ -514,11 +509,9 @@ private fun ConstraintsCard(
     excludedRarities: Set<Rarity>,
     duration: String,
     stopAtMatch: Boolean,
-    solver: WakfuSolver,
     onToggleRarity: (Rarity) -> Unit,
     onDurationChange: (String) -> Unit,
     onStopAtMatchChange: (Boolean) -> Unit,
-    onSolverChange: (WakfuSolver) -> Unit,
 ) {
     RequestCard(title = tr(Tr.CONSTRAINTS)) {
         RarityFilter(excludedRarities = excludedRarities, onToggleRarity = onToggleRarity)
@@ -537,77 +530,6 @@ private fun ConstraintsCard(
                 onCheckedChange = onStopAtMatchChange
             )
         }
-        Hairline()
-        ConstraintRow(label = tr(Tr.DEBUG_SOLVER)) {
-            SolverSegmentedControl(
-                selected = solver,
-                onSelect = onSolverChange
-            )
-        }
-    }
-}
-
-@Composable
-private fun SolverSegmentedControl(
-    selected: WakfuSolver,
-    onSelect: (WakfuSolver) -> Unit,
-) {
-    Row(
-        modifier =
-            Modifier
-                .width(146.dp)
-                .height(34.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(WColor.bg)
-                .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
-                .padding(3.dp),
-        horizontalArrangement = Arrangement.spacedBy(3.dp)
-    ) {
-        SolverSegment(
-            title = tr(Tr.SOLVER_OR_TOOLS),
-            subtitle = tr(Tr.SOLVER_OR_TOOLS_SUB),
-            selected = selected == WakfuSolver.OR_TOOLS,
-            onClick = { onSelect(WakfuSolver.OR_TOOLS) },
-            modifier = Modifier.weight(1f)
-        )
-        SolverSegment(
-            title = tr(Tr.SOLVER_GA),
-            subtitle = tr(Tr.SOLVER_GA_SUB),
-            selected = selected == WakfuSolver.GENETIC_ALGORITHM,
-            onClick = { onSelect(WakfuSolver.GENETIC_ALGORITHM) },
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-@Composable
-private fun SolverSegment(
-    title: String,
-    subtitle: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier =
-            modifier
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(6.dp))
-                .background(if (selected) WColor.raised else Color.Transparent)
-                .clickable(onClick = onClick),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = title,
-            style = WTypography.labelSmall.copy(color = if (selected) WColor.text else WColor.muted, lineHeight = 10.sp),
-            maxLines = 1
-        )
-        Text(
-            text = subtitle,
-            style = WTypography.labelSmall.copy(fontSize = 9.sp, lineHeight = 9.sp),
-            maxLines = 1
-        )
     }
 }
 

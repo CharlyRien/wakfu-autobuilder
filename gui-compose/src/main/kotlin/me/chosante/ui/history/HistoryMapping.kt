@@ -2,7 +2,6 @@ package me.chosante.ui.history
 
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
-import me.chosante.autobuilder.genetic.wakfu.WakfuSolver
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.common.CharacterClass
 import me.chosante.common.history.HistoryEntry
@@ -48,7 +47,6 @@ fun UiState.toHistoryEntry(
                 level = level,
                 minLevel = minLevel,
                 mode = mode.name,
-                solver = solver.name,
                 maxRarity = maxRarity,
                 duration = duration,
                 stopAtMatch = stopAtMatch,
@@ -110,8 +108,6 @@ fun HistoryEntry.restoredClass(): CharacterClass = CharacterClass.fromValue(requ
 
 fun HistoryEntry.restoredMode(): ScoreComputationMode =
     runCatching { ScoreComputationMode.valueOf(request.mode) }.getOrDefault(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT)
-
-fun HistoryEntry.restoredSolver(): WakfuSolver = runCatching { WakfuSolver.valueOf(request.solver) }.getOrDefault(WakfuSolver.OR_TOOLS)
 
 /** True if the build was searched in most-masteries mode (where "% match" is not the headline number). */
 fun HistoryEntry.isMasteryMode(): Boolean = restoredMode() == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT

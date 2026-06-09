@@ -56,7 +56,6 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.PopupPositionProvider
-import me.chosante.autobuilder.genetic.wakfu.WakfuSolver
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.ui.components.RarityIcon
@@ -171,12 +170,7 @@ private fun SolverLoadingOverlay(
     ui: UiState,
     modifier: Modifier = Modifier,
 ) {
-    val title =
-        if (ui.solver == WakfuSolver.OR_TOOLS) {
-            tr(Tr.PREPARING_OR_TOOLS_MODEL)
-        } else {
-            tr(Tr.SEARCHING_FIRST_BUILD)
-        }
+    val title = tr(Tr.PREPARING_OR_TOOLS_MODEL)
     Column(
         modifier =
             modifier

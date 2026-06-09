@@ -7,10 +7,7 @@ import me.chosante.autobuilder.VERSION
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
-import me.chosante.autobuilder.genetic.GeneticAlgorithm
 import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
-import me.chosante.autobuilder.genetic.ScoredIndividual
-import me.chosante.autobuilder.genetic.tournamentSelection
 import me.chosante.common.Character
 import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
@@ -22,13 +19,11 @@ import me.chosante.common.skills.CharacterSkills
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
-import kotlin.random.Random
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 class WakfuBuildSolverTest {
     @Test
-    fun `lp solver matches genetic algorithm scoring on a deterministic pool`(): Unit =
+    fun `lp solver reaches the exhaustive optimum on a deterministic pool`(): Unit =
         runBlocking {
             val level = 1
             val characterSkills = CharacterSkills(level)
@@ -149,17 +144,14 @@ class WakfuBuildSolverTest {
             val exhaustiveBest = allCombinations.maxByOrNull { scoreFn(it) }!!
             val exhaustiveScore = scoreFn(exhaustiveBest)
 
-            val gaResult = runDeterministicGeneticAlgorithm(allCombinations, scoreFn)
-
             val lpBest = WakfuBuildSolver.optimize(params, equipmentsByItemType).toList().maxByOrNull { it.matchPercentage }!!
 
-            assertThat(gaResult.matchPercentage).isEqualByComparingTo(exhaustiveScore)
             assertThat(lpBest.matchPercentage).isEqualByComparingTo(exhaustiveScore)
             assertThat(lpBest.individual.isValid()).isTrue
         }
 
     @Test
-    fun `lp solver matches genetic algorithm when targets are impossible`(): Unit =
+    fun `lp solver reaches the exhaustive optimum when targets are impossible`(): Unit =
         runBlocking {
             val level = 1
             val characterSkills = CharacterSkills(level)
@@ -236,10 +228,8 @@ class WakfuBuildSolverTest {
                 val exhaustiveBest = allCombinations.maxByOrNull { scoreFn(it) }!!
                 val exhaustiveScore = scoreFn(exhaustiveBest)
 
-                val gaResult = runDeterministicGeneticAlgorithm(allCombinations, scoreFn)
                 val lpBest = WakfuBuildSolver.optimize(params, equipmentsByItemType).toList().maxByOrNull { it.matchPercentage }!!
 
-                assertThat(gaResult.matchPercentage).isEqualByComparingTo(exhaustiveScore)
                 assertThat(lpBest.matchPercentage).isEqualByComparingTo(exhaustiveScore)
             }
         }
@@ -326,17 +316,6 @@ class WakfuBuildSolverTest {
                         .describedAs("required constraint ${required.characteristic}")
                         .isGreaterThanOrEqualTo(required.target)
                 }
-
-            // And it is at least as good as a quick deterministic GA baseline.
-            val gaBest =
-                runSequentialGeneticSearch(
-                    params = params.copy(searchDuration = 5.seconds),
-                    equipmentsByItemType = equipmentsByItemType,
-                    populationSize = 1000,
-                    mutationProbability = 0.2,
-                    seed = 42L
-                )
-            assertThat(lpBest.matchPercentage).isGreaterThanOrEqualTo(gaBest.score)
         }
 
     // ---------------------------------------------------------------------------------------------
@@ -851,76 +830,6 @@ class WakfuBuildSolverTest {
             ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
                 FindClosestBuildFromInputScoring.computeScore(targetStats, build, character.baseCharacteristicValues)
         }
-
-    private fun runDeterministicGeneticAlgorithm(
-        population: List<BuildCombination>,
-        scoreFn: (BuildCombination) -> BigDecimal,
-    ) = runBlocking {
-        val ga =
-            GeneticAlgorithm(
-                population = population,
-                score = scoreFn,
-                cross = { parents -> parents.first },
-                mutate = { it },
-                select = { scoredPopulation -> scoredPopulation.first().individual }
-            )
-
-        ga.run(Duration.ZERO, stopWhenBuildMatch = false).toList().last()
-    }
-
-    private data class ScoredBuild(
-        val build: BuildCombination,
-        val score: BigDecimal,
-    )
-
-    private fun runSequentialGeneticSearch(
-        params: WakfuBestBuildParams,
-        equipmentsByItemType: Map<ItemType, List<Equipment>>,
-        populationSize: Int,
-        mutationProbability: Double,
-        seed: Long,
-    ): ScoredBuild {
-        val random = Random(seed)
-        val population =
-            generateRandomPopulations(
-                numberOfIndividual = populationSize,
-                equipmentsByItemType = equipmentsByItemType,
-                character = params.character,
-                targetStats = params.targetStats,
-                random = random
-            )
-
-        val scoreFn = scoreFn(params.targetStats, params.character)
-        var scoredPopulation =
-            population
-                .map { ScoredIndividual(scoreFn(it), it) }
-                .sortedByDescending { it.score }
-        var best = scoredPopulation.first()
-        val endTime = System.currentTimeMillis() + params.searchDuration.inWholeMilliseconds
-
-        while (System.currentTimeMillis() < endTime) {
-            scoredPopulation =
-                scoredPopulation
-                    .map {
-                        val parents = tournamentSelection(scoredPopulation, random) to tournamentSelection(scoredPopulation, random)
-                        val crossed = cross(parents, random)
-                        val mutated =
-                            mutateCombination(
-                                individual = crossed,
-                                mutationProbability = mutationProbability,
-                                equipmentsByItemType = equipmentsByItemType,
-                                targetStats = params.targetStats,
-                                random = random
-                            )
-                        ScoredIndividual(scoreFn(mutated), mutated)
-                    }.sortedByDescending { it.score }
-            if (scoredPopulation.first().score > best.score) {
-                best = scoredPopulation.first()
-            }
-        }
-
-        return ScoredBuild(best.individual, best.score)
-    }
 
     private fun scoreFn(
         targetStats: TargetStats,

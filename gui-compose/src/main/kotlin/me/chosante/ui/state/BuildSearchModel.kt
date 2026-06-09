@@ -22,7 +22,6 @@ import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildParams
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver
-import me.chosante.autobuilder.genetic.wakfu.WakfuSolver
 import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.common.Character
@@ -34,7 +33,6 @@ import me.chosante.ui.components.warmUpPaths
 import me.chosante.ui.history.HistoryRepository
 import me.chosante.ui.history.restoredClass
 import me.chosante.ui.history.restoredMode
-import me.chosante.ui.history.restoredSolver
 import me.chosante.ui.history.suggestedBuildName
 import me.chosante.ui.history.toBuildCombination
 import me.chosante.ui.history.toExcludedChips
@@ -221,10 +219,6 @@ class BuildSearchModel(
                 ui.targets
             }
         ui = ui.copy(mode = mode, targets = normalizedTargets)
-    }
-
-    fun setSolver(solver: WakfuSolver) {
-        ui = ui.copy(solver = solver)
     }
 
     fun setLang(lang: me.chosante.ui.i18n.Lang) {
@@ -445,8 +439,7 @@ class BuildSearchModel(
                 excludedRarities = snapshot.excludedRarities,
                 forcedItems = snapshot.forcedItems.map { it.matchName },
                 excludedItems = snapshot.excludedItems.map { it.matchName },
-                scoreComputationMode = snapshot.mode,
-                solver = snapshot.solver
+                scoreComputationMode = snapshot.mode
             )
 
         ui =
@@ -716,7 +709,6 @@ class BuildSearchModel(
                 level = entry.request.level,
                 minLevel = entry.request.minLevel,
                 mode = entry.restoredMode(),
-                solver = entry.restoredSolver(),
                 maxRarity = entry.request.maxRarity,
                 duration = entry.request.duration,
                 stopAtMatch = entry.request.stopAtMatch,
