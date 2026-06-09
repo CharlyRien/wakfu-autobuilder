@@ -82,3 +82,6 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# Claude Code local files: per-machine settings and git worktrees — never committed
+.claude/
