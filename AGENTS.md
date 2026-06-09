@@ -83,15 +83,19 @@ enforcing slot/rarity/weapon rules.
 
 ## 4. The search engine (`autobuilder`)
 
-The engine exposes **two interchangeable solvers** behind the `WakfuSolver` enum (a field on
-`WakfuBestBuildParams`). Both stream their best-so-far build as a
-`Flow<GeneticAlgorithmResult<BuildCombination>>`, so the CLI and GUI consume them identically.
+The engine is the **Google OR-Tools CP-SAT solver**. It streams its best-so-far build as a
+`Flow<GeneticAlgorithmResult<BuildCombination>>` — a legacy type name; there is now a single engine,
+so the CLI and GUI consume it identically.
 
 `WakfuBestBuildFinderAlgorithm.run(params)` is the entry point: it filters & groups the embedded
-equipments by `ItemType` (applying level/rarity/forced/excluded filters), then dispatches to the
-chosen solver.
+equipments by `ItemType` (applying level/rarity/forced/excluded filters), then hands them to the
+solver.
 
-### `OR_TOOLS` — Google OR-Tools CP-SAT (default)
+> A genetic-algorithm engine used to be selectable via a `WakfuSolver` enum. **It has been removed —
+> OR-Tools is the only solver.** Any reference to a GA, a `WakfuSolver` enum / solver toggle, or
+> `genetic/{GeneticAlgorithm,Selection}.kt` / `genetic/wakfu/{Population,Cross,Mutation}.kt` is stale.
+
+### Google OR-Tools CP-SAT
 - `genetic/wakfu/WakfuBuildSolver.kt`: models the build as a constraint-optimization problem and
   solves it with CP-SAT for a **deterministic, provably optimal** result. Streams improving
   solutions via `callbackFlow`.
@@ -99,13 +103,6 @@ chosen solver.
   (`WakfuBuildSolver`'s `init` / `warmUp()`). The **first** solve pays a one-time cold start
   (library extraction + load); the GUI hides this behind a loading screen (see §6).
 - Running/testing the solver needs extra JVM args — see §9.
-
-### `GENETIC_ALGORITHM` — the original GA (alternative)
-- `genetic/GeneticAlgorithm.kt`: generic GA — population → score → select → cross → mutate, looped
-  until a time budget elapses (or 100 % match if `stopWhenBuildMatch`), scoring in parallel
-  coroutines.
-- `genetic/wakfu/`: the Wakfu specialization — `Population`, `Cross`, `Mutation`, `Selection`
-  (tournament), and the two scorers. Still selectable; the GUI exposes a solver toggle.
 
 ### Two scoring modes (`ScoreComputationMode`)
 - `FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT` ("most-masteries") — default. Constrain AP/MP/range/
@@ -118,19 +115,18 @@ chosen solver.
 
 ### Inputs: `WakfuBestBuildParams`
 `character`, `targetStats: TargetStats`, `searchDuration`, `stopWhenBuildMatch`, `maxRarity`,
-`forcedItems`, `excludedItems`, `scoreComputationMode`, `solver`. `TargetStats` normalizes per-stat
-weights and expands `MASTERY_ELEMENTARY` / `RESISTANCE_ELEMENTARY` into their four elements.
+`forcedItems`, `excludedItems`, `excludedRarities`, `scoreComputationMode`. `TargetStats` normalizes
+per-stat weights and expands `MASTERY_ELEMENTARY` / `RESISTANCE_ELEMENTARY` into their four elements.
 
 ### Why the solver can leave slots empty (mount/pet/…) — *not a bug*
 "Most-masteries" mode maximizes **only the requested** masteries (under the required-stat
 constraints) and has no tie-breaker to fill otherwise-empty slots. So if no item in a slot can
 improve any requested stat, the proven optimum leaves that slot empty. Concrete case: the default
 request (distance mastery + AP/MP/HP/…) returns **no mount**, because every mount in the data
-carries only `MASTERY_ELEMENTARY` — which matches none of those targets. The GA *appears* to fill
-the mount only because its individuals start with all slots filled and nothing forces it to drop a
-zero-value item; that mount does not raise the GA score either. Both solvers reach the same optimum
-for the requested stats. (A lexicographic secondary objective — "max total elemental mastery among
-optimal builds" — would fill such slots and was considered, but deliberately not implemented.)
+carries only `MASTERY_ELEMENTARY` — which matches none of those targets, so adding one cannot raise
+the objective and the proven optimum leaves the slot empty. (A lexicographic secondary objective —
+"max total elemental mastery among optimal builds" — would fill such slots and was considered, but
+deliberately not implemented.)
 
 ---
 
@@ -169,8 +165,8 @@ is no FXML/XML.** Package root `me.chosante.ui`, organized by feature: `shell`, 
   Zenith build creation. (Unlike the old JavaFX GUI, state is centralized here — not in the widgets.)
 - **`AppShell`** (`shell/`) — `TopBar` (brand logo, language toggle, class, level/min-level, the
   progress + match/mastery meters, Search button) above a 3-column body:
-  - **`RequestPanel`** (`request/`) — search mode, target-stats editor, constraints (rarity,
-    duration, solver toggle…), forced / excluded item chips.
+  - **`RequestPanel`** (`request/`) — search mode, target-stats editor, constraints (per-rarity
+    allow/exclude toggle chips, search duration…), forced / excluded item chips.
   - **`PaperdollPanel`** (`paperdoll/`) — the 14 equipment slots of the discovered build.
   - **`StatsPanel`** (`stats/`) — the headline hero (match `%` in precision mode, **cumulated
     requested mastery** in most-masteries mode), mastery summary, desired-vs-achieved grid, skill
@@ -260,6 +256,6 @@ WAKFU_COMPOSE_SCREENSHOT=/tmp/out.png ./gradlew :gui-compose:run
 
 | Branch | Purpose |
 |---|---|
-| `main` | Stable line: OR-Tools CP-SAT engine (GA still selectable) + Compose Desktop GUI, JDK 25. |
+| `main` | Stable line: OR-Tools CP-SAT engine + Compose Desktop GUI, JDK 25. |
 | `gh-pages` | Conveyor download site (generated). |
 | `dependabot/*` | Automated dependency bumps. |
