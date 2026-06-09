@@ -26,7 +26,8 @@ Two front-ends ship from the same engine:
 ## 2. Module map
 
 Gradle multi-module, Kotlin, JVM toolchain pinned to **JDK 25** in the version catalog
-(`settings.gradle.kts`).
+(`gradle/libs.versions.toml`, the standard location Gradle auto-loads as `libs` — and that
+Dependabot can parse for automated dependency-update PRs).
 
 ```
 common-lib            Pure domain model. No project deps. Everyone depends on it.
