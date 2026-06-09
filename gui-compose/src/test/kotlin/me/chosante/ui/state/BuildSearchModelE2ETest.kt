@@ -21,6 +21,11 @@ import me.chosante.common.Character
 import me.chosante.common.Characteristic.ACTION_POINT
 import me.chosante.common.Characteristic.MASTERY_CRITICAL
 import me.chosante.common.Characteristic.MASTERY_DISTANCE
+import me.chosante.common.Characteristic.MASTERY_ELEMENTARY
+import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_EARTH
+import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_FIRE
+import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_WATER
+import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_WIND
 import me.chosante.common.Equipment
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.ui.i18n.Lang
@@ -75,6 +80,51 @@ class BuildSearchModelE2ETest {
                     .single { it.characteristic == MASTERY_CRITICAL }
                     .value
             )
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `all-elements and specific elemental masteries are mutually exclusive`() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val model =
+            BuildSearchModel(
+                scope = scope,
+                buildFinder = { emptyFlow() },
+                zenithBuilder = { "" },
+                mainDispatcher = Dispatchers.Unconfined
+            )
+
+        fun elementalMasteries() =
+            model.ui.targets
+                .map { it.characteristic }
+                .filter {
+                    it == MASTERY_ELEMENTARY ||
+                        it in setOf(MASTERY_ELEMENTARY_FIRE, MASTERY_ELEMENTARY_EARTH, MASTERY_ELEMENTARY_WATER, MASTERY_ELEMENTARY_WIND)
+                }.toSet()
+
+        try {
+            // No elemental mastery is selected by default.
+            assertTrue(elementalMasteries().isEmpty())
+
+            model.toggleMaximizedMastery(MASTERY_ELEMENTARY_FIRE)
+            model.toggleMaximizedMastery(MASTERY_ELEMENTARY_EARTH)
+            assertEquals(setOf(MASTERY_ELEMENTARY_FIRE, MASTERY_ELEMENTARY_EARTH), elementalMasteries())
+
+            // Selecting "all elements" clears the specific elements.
+            model.toggleMaximizedMastery(MASTERY_ELEMENTARY)
+            assertEquals(setOf(MASTERY_ELEMENTARY), elementalMasteries())
+
+            // Selecting a specific element clears "all elements".
+            model.toggleMaximizedMastery(MASTERY_ELEMENTARY_WATER)
+            assertEquals(setOf(MASTERY_ELEMENTARY_WATER), elementalMasteries())
+
+            // A non-elemental mastery is untouched by the exclusivity rule.
+            model.toggleMaximizedMastery(MASTERY_CRITICAL)
+            model.toggleMaximizedMastery(MASTERY_ELEMENTARY)
+            assertTrue(model.ui.targets.any { it.characteristic == MASTERY_CRITICAL })
+            assertEquals(setOf(MASTERY_ELEMENTARY), elementalMasteries())
         } finally {
             scope.cancel()
         }

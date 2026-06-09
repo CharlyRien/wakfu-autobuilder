@@ -26,6 +26,7 @@ import me.chosante.autobuilder.genetic.wakfu.WakfuSolver
 import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.common.Character
+import me.chosante.common.Characteristic
 import me.chosante.common.Rarity
 import me.chosante.createZenithBuild
 import me.chosante.ui.components.IconPreloader
@@ -52,6 +53,46 @@ import kotlin.time.Duration.Companion.seconds
 
 private typealias BuildFinder = (WakfuBestBuildParams) -> Flow<GeneticAlgorithmResult<BuildCombination>>
 private typealias ZenithBuilder = suspend (ZenithInputParameters) -> String
+
+/** The four specific elemental masteries, mutually exclusive with the aggregate "all elements". */
+private val ELEMENTAL_MASTERY_ELEMENTS =
+    setOf(
+        Characteristic.MASTERY_ELEMENTARY_WATER,
+        Characteristic.MASTERY_ELEMENTARY_FIRE,
+        Characteristic.MASTERY_ELEMENTARY_EARTH,
+        Characteristic.MASTERY_ELEMENTARY_WIND
+    )
+
+private val ELEMENTAL_RESISTANCES =
+    listOf(
+        Characteristic.RESISTANCE_ELEMENTARY_WATER,
+        Characteristic.RESISTANCE_ELEMENTARY_FIRE,
+        Characteristic.RESISTANCE_ELEMENTARY_EARTH,
+        Characteristic.RESISTANCE_ELEMENTARY_WIND
+    )
+
+/**
+ * Splits a single "all resistances" target ([Characteristic.RESISTANCE_ELEMENTARY]) into the four
+ * per-element resistance targets, keeping any element the user already set explicitly. The solver
+ * models the aggregate as one min-over-four constraint, which the score's power-6 penalty makes
+ * brittle — one short element craters the whole build; four independent per-element constraints
+ * degrade gracefully (the "400 in each" form that works). Applied only when handing off to the
+ * engine, so the UI keeps a single editable row.
+ */
+internal fun expandGlobalResistance(targets: List<TargetStat>): List<TargetStat> {
+    val global = targets.firstOrNull { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY } ?: return targets
+    // A meaningful (non-zero) per-element resistance keeps its own value; a zero one is an inert
+    // placeholder (e.g. the default wind=0) the global must override, so all four really get the value.
+    val explicit = targets.filter { it.characteristic in ELEMENTAL_RESISTANCES && it.target != 0 }.map { it.characteristic }.toSet()
+    val perElement =
+        ELEMENTAL_RESISTANCES
+            .filter { it !in explicit }
+            .map { TargetStat(it, global.target, global.userDefinedWeight) }
+    return targets.filterNot {
+        it.characteristic == Characteristic.RESISTANCE_ELEMENTARY ||
+            (it.characteristic in ELEMENTAL_RESISTANCES && it.target == 0)
+    } + perElement
+}
 
 class BuildSearchModel(
     private val scope: CoroutineScope,
@@ -239,18 +280,27 @@ class BuildSearchModel(
         }
     }
 
-    fun toggleMaximizedMastery(characteristic: me.chosante.common.Characteristic) {
+    fun toggleMaximizedMastery(characteristic: Characteristic) {
         if (!characteristic.isMaximizableMastery()) {
             return
         }
-        val existing = ui.targets.firstOrNull { it.characteristic == characteristic }
-        ui =
-            if (existing == null) {
-                val row = statDefFor(characteristic)?.toRow("1") ?: return
-                ui.copy(targets = ui.targets + row)
-            } else {
-                ui.copy(targets = ui.targets.filterNot { it.characteristic == characteristic })
+        val alreadySelected = ui.targets.any { it.characteristic == characteristic }
+        if (alreadySelected) {
+            ui = ui.copy(targets = ui.targets.filterNot { it.characteristic == characteristic })
+            return
+        }
+        val row = statDefFor(characteristic)?.toRow("1") ?: return
+        // "All elements" and the specific elements are mutually exclusive: they express two distinct
+        // intents (a build balanced over the four vs. one focused on those elements), and combining
+        // them is what made the engine optimise the wrong thing. Selecting one clears the other;
+        // non-elemental masteries (distance/crit/…) are never cleared.
+        val conflicting =
+            when (characteristic) {
+                Characteristic.MASTERY_ELEMENTARY -> ELEMENTAL_MASTERY_ELEMENTS
+                in ELEMENTAL_MASTERY_ELEMENTS -> setOf(Characteristic.MASTERY_ELEMENTARY)
+                else -> emptySet()
             }
+        ui = ui.copy(targets = ui.targets.filterNot { it.characteristic in conflicting } + row)
     }
 
     fun setMaxRarity(rarity: Rarity) {
@@ -542,7 +592,19 @@ class BuildSearchModel(
         }
     }
 
-    private fun UiState.toTargetStats(): TargetStats = TargetStats(targets.map { TargetStat(it.characteristic, it.value.toIntOrNull() ?: 0) })
+    private fun UiState.toTargetStats(): TargetStats {
+        val raw = targets.map { TargetStat(it.characteristic, it.value.toIntOrNull() ?: 0) }
+        // Most-masteries only: split a single "all resistances" target into the four per-element ones
+        // so the solver gets four graceful constraints instead of one brittle min-over-four. The UI
+        // keeps a single editable row; the split happens here, on the way to the engine.
+        val forEngine =
+            if (mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) {
+                expandGlobalResistance(raw)
+            } else {
+                raw
+            }
+        return TargetStats(forEngine)
+    }
 
     private fun newlyLandedEquipmentId(
         previous: BuildCombination?,

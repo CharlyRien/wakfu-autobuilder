@@ -175,11 +175,14 @@ fun engineMasteryScore(
     requestedMasteries: Set<Characteristic>,
 ): Int {
     val specialized = requestedMasteries.filter { it in SPECIALIZED_MASTERIES }.sumOf { achieved[it] ?: 0 }
+    // Specific elements win over a co-requested "all elements" — mirrors the engine's
+    // TargetStats.masteryElementsToMinimize so the headline equals what the solver maximised.
+    val specificElements = requestedMasteries.filter { it in ELEMENTARY_MASTERIES }
     val wantedElements =
-        if (Characteristic.MASTERY_ELEMENTARY in requestedMasteries) {
-            ELEMENTARY_MASTERIES.toList()
-        } else {
-            requestedMasteries.filter { it in ELEMENTARY_MASTERIES }
+        when {
+            specificElements.isNotEmpty() -> specificElements
+            Characteristic.MASTERY_ELEMENTARY in requestedMasteries -> ELEMENTARY_MASTERIES.toList()
+            else -> emptyList()
         }
     val elemental = wantedElements.minOfOrNull { achieved[it] ?: 0 } ?: 0
     return specialized + elemental
