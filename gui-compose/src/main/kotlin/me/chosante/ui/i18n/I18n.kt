@@ -116,7 +116,7 @@ enum class Tr(
 
     // Stats panel
     BUILD_MATCH("Build Match", "Correspondance"),
-    BUILD_MASTERY("Effective mastery", "Maîtrise effective"),
+    BUILD_MASTERY("Requested mastery", "Maîtrise demandée"),
     BUILD_MASTERY_HINT("specialized summed + weakest requested element", "spécialisées sommées + élément demandé le plus faible"),
     MASTERY_SHORT("Mastery", "Maîtrise"),
     OPTIMAL_PROVEN("Optimal proven", "Optimal prouvé"),
@@ -127,6 +127,7 @@ enum class Tr(
     BUILD_SHEET_EMPTY("No other notable stats on this build.", "Aucune autre stat notable sur ce build."),
     MASTERY_ELEMENTALS("Elementals", "Élémentaires"),
     MASTERY_SPECIALIZED("Specialized", "Spécialisées"),
+    MASTERY_INCIDENTAL("Also on the build (not requested)", "Aussi sur le build (non demandé)"),
     DESIRED_VS_ACHIEVED("Desired vs Achieved", "Désiré vs Obtenu"),
     TAG_EXACT("minimum", "minimum"),
     TAG_MAXIMIZE("maximize", "maximiser"),
