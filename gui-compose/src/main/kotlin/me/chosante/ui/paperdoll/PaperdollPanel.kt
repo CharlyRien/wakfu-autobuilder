@@ -42,6 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
@@ -268,7 +269,7 @@ private fun EquipmentSlot(
     modifier: Modifier = Modifier,
 ) {
     if (equipment == null) {
-        SlotRowContent(slot, null, idle, justLanded, rightAlign, forced = false, excluded = false, cardHeight = cardHeight, modifier = modifier)
+        SlotRowContent(slot, null, emptyList(), idle, justLanded, rightAlign, forced = false, excluded = false, cardHeight = cardHeight, modifier = modifier)
         return
     }
     val forceLabel = tr(Tr.REQUIRE)
@@ -290,7 +291,7 @@ private fun EquipmentSlot(
             tooltip = { ItemTooltip(slot = slot, equipment = equipment, runes = runes) }
         ) {
             Box(modifier = Modifier.fillMaxWidth().hoverable(interaction)) {
-                SlotRowContent(slot, equipment, idle, justLanded, rightAlign, forced, excluded, cardHeight, Modifier.fillMaxWidth())
+                SlotRowContent(slot, equipment, runes, idle, justLanded, rightAlign, forced, excluded, cardHeight, Modifier.fillMaxWidth())
                 val cornerAlign = if (rightAlign) Alignment.TopStart else Alignment.TopEnd
                 if (hovered) {
                     SlotActions(
@@ -460,6 +461,7 @@ private fun SlotStatusBadge(
 private fun SlotRowContent(
     slot: DollSlot,
     equipment: Equipment?,
+    runes: List<RuneType> = emptyList(),
     idle: Boolean,
     justLanded: Boolean,
     rightAlign: Boolean,
@@ -497,9 +499,9 @@ private fun SlotRowContent(
     ) {
         if (rightAlign) {
             SlotMeta(slot = slot, equipment = equipment, modifier = Modifier.weight(1f), align = TextAlign.End)
-            SlotIcon(slot = slot, equipment = equipment, color = color, cardHeight = cardHeight)
+            SlotIcon(slot = slot, equipment = equipment, runes = runes, color = color, cardHeight = cardHeight)
         } else {
-            SlotIcon(slot = slot, equipment = equipment, color = color, cardHeight = cardHeight)
+            SlotIcon(slot = slot, equipment = equipment, runes = runes, color = color, cardHeight = cardHeight)
             SlotMeta(slot = slot, equipment = equipment, modifier = Modifier.weight(1f), align = TextAlign.Start)
         }
     }
@@ -585,6 +587,47 @@ private fun RuneColor.displayColor(): Color =
         RuneColor.BLUE -> Color(0xFF5A8FE0)
     }
 
+/**
+ * The visual "symbol" of a socketed rune: its stat icon on a light tile (so the dark line-art icon
+ * stays legible, like the stat chips) ringed in the rune's socket colour. Falls back to a plain
+ * colour dot if the stat has no mapped icon (none of the 15 modeled runes currently lack one).
+ */
+@Composable
+private fun RuneSymbol(
+    rune: RuneType,
+    size: Dp,
+    modifier: Modifier = Modifier,
+) {
+    val bitmap = rune.characteristic.iconResourcePath()?.let { rememberClasspathBitmap(it) }
+    Box(
+        modifier =
+            modifier
+                .size(size)
+                .clip(RoundedCornerShape(5.dp))
+                .background(WColor.iconTile)
+                .border(1.5.dp, rune.color.displayColor(), RoundedCornerShape(5.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                filterQuality = FilterQuality.High,
+                modifier = Modifier.size(size * 0.66f)
+            )
+        } else {
+            Box(
+                modifier =
+                    Modifier
+                        .size(size * 0.45f)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(rune.color.displayColor())
+            )
+        }
+    }
+}
+
 @Composable
 private fun TooltipRuneRow(
     rune: RuneType,
@@ -595,13 +638,7 @@ private fun TooltipRuneRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp)
     ) {
-        Box(
-            modifier =
-                Modifier
-                    .size(8.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(rune.color.displayColor())
-        )
+        RuneSymbol(rune = rune, size = 18.dp)
         Text(
             text = "${count}x",
             style =
@@ -696,6 +733,7 @@ private fun RarityPill(
 private fun SlotIcon(
     slot: DollSlot,
     equipment: Equipment?,
+    runes: List<RuneType> = emptyList(),
     color: androidx.compose.ui.graphics.Color,
     cardHeight: Dp = 84.dp,
 ) {
@@ -736,6 +774,18 @@ private fun SlotIcon(
                 modifier = Modifier.align(Alignment.BottomEnd),
                 size = 14.dp
             )
+            // Socketed runes, summarised as one symbol per distinct stat in the top-left corner
+            // (away from the bottom-end rarity badge); the per-rune counts live in the tooltip.
+            if (runes.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.align(Alignment.TopStart).padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    runes.distinctBy { it.characteristic }.take(4).forEach { rune ->
+                        RuneSymbol(rune = rune, size = 12.dp)
+                    }
+                }
+            }
         }
     }
 }
