@@ -356,6 +356,56 @@ class WakfuBuildSolverTest {
     }
 
     @Test
+    fun `most-masteries spends an objective-neutral skill point to overshoot a required target`(): Unit =
+        runBlocking {
+            // Issue #126: once HP is fully covered by gear, extra HP from skills is worth 0 to the
+            // maximized masteries, so the solver used to leave those points unassigned. The lexicographic
+            // overshoot tie-breaker now spends them — free in-game value — WITHOUT changing the (mastery)
+            // score. A level-1 CRA has a single Intelligence point whose only scored lever is % HP, and
+            // the HP target is met by gear alone, so assigning it is a pure overshoot gain.
+            val level = 1
+            val characterSkills = CharacterSkills(level)
+            val character = Character(clazz = CharacterClass.CRA, level = level, minLevel = level, characterSkills)
+            val equipments =
+                listOf(
+                    equipment(1, ItemType.AMULET, "HpAmulet", mapOf(Characteristic.HP to 200, Characteristic.MASTERY_MELEE to 10)),
+                    equipment(2, ItemType.AMULET, "DmgAmulet", mapOf(Characteristic.MASTERY_MELEE to 100)),
+                    equipment(3, ItemType.BELT, "Belt", mapOf(Characteristic.MASTERY_MELEE to 40))
+                )
+            val targetStats = TargetStats(listOf(TargetStat(Characteristic.HP, 200), TargetStat(Characteristic.MASTERY_MELEE, 1)))
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = targetStats,
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+                )
+
+            // Deterministic solve so the *proven* optimum (carrying the tie-breaker's allocation) is emitted.
+            val optimal =
+                WakfuBuildSolver
+                    .optimize(params, equipments.groupBy { it.itemType }, WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .last { it.isOptimal }
+
+            // The mastery score is still exactly the exhaustive (unskilled) optimum — overshoot never inflates it.
+            val exhaustiveScore =
+                allValidCombinations(equipments, characterSkills)
+                    .maxOf { FindMostMasteriesFromInputScoring.computeScore(targetStats, it, character.baseCharacteristicValues) }
+            assertThat(optimal.matchPercentage).isEqualByComparingTo(exhaustiveScore)
+            assertThat(optimal.individual.equipments.map { it.name.fr }).containsExactlyInAnyOrder("HpAmulet", "Belt")
+
+            // ...but the otherwise-idle Intelligence point is now spent overshooting HP (was 0 before #126).
+            assertThat(optimal.individual.characterSkills.intelligence.hpPercentage.pointsAssigned)
+                .describedAs("objective-neutral Intelligence point should be spent overshooting HP")
+                .isGreaterThan(0)
+        }
+
+    @Test
     fun `precision solver hits exact AP and mastery targets`() {
         val equipments =
             listOf(
