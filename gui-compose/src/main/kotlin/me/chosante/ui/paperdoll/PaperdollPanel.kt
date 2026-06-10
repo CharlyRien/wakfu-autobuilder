@@ -819,14 +819,20 @@ private fun SlotMeta(
             )
             if (runes.isNotEmpty()) {
                 // The socketed runes' shapes (one per socket): the at-a-glance "rune loadout" of the
-                // item. Their stats/counts are spelled out in the tooltip.
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(3.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 4.dp)
-                ) {
-                    runes.take(4).forEach { rune ->
-                        RuneShape(color = rune.color, size = 14.dp)
+                // item. They shrink uniformly to fit the card width — so the row never overflows and
+                // clips the last shape when the window narrows — capped so they don't balloon when wide.
+                val shapeCount = runes.size.coerceAtMost(4)
+                val gap = 3.dp
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                    val shapeSize = ((maxWidth - gap * (shapeCount - 1)) / shapeCount).coerceIn(0.dp, 16.dp)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(gap, if (align == TextAlign.End) Alignment.End else Alignment.Start),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        runes.take(4).forEach { rune ->
+                            RuneShape(color = rune.color, size = shapeSize)
+                        }
                     }
                 }
             }
