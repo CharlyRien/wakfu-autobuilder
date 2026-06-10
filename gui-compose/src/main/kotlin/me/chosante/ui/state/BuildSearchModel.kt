@@ -593,7 +593,8 @@ class BuildSearchModel(
                     zenithBuilder(
                         ZenithInputParameters(
                             character = character,
-                            equipments = build.equipments
+                            equipments = build.equipments,
+                            runes = build.runes
                         )
                     )
                 withContext(mainDispatcher) {

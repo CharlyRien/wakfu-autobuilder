@@ -22,6 +22,7 @@ import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
+import me.chosante.common.RuneType
 import me.chosante.common.skills.Assignable
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.common.skills.SkillCharacteristic
@@ -258,11 +259,19 @@ object WakfuBuildSolver {
     fun optimize(
         params: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
-    ): Flow<GeneticAlgorithmResult<BuildCombination>> = optimize(params, equipmentsByItemType, tuning = null)
+        runes: List<RuneType> = emptyList(),
+    ): Flow<GeneticAlgorithmResult<BuildCombination>> = optimize(params, equipmentsByItemType, runes, tuning = null)
 
     internal fun optimize(
         params: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        tuning: SolverTuning?,
+    ): Flow<GeneticAlgorithmResult<BuildCombination>> = optimize(params, equipmentsByItemType, emptyList(), tuning)
+
+    internal fun optimize(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
         tuning: SolverTuning?,
     ): Flow<GeneticAlgorithmResult<BuildCombination>> =
         callbackFlow {
@@ -281,20 +290,21 @@ object WakfuBuildSolver {
                 val allEquips = orderEquipments(pool)
                 val equipVars = model.createEquipmentVariables(allEquips)
                 val skillVars = model.createSkillVariables(params.character.characterSkills)
+                val runeModel = model.createRuneModel(params, allEquips, equipVars, runes)
 
                 model.addBuildValidityConstraints(allEquips, equipVars)
 
                 val objective =
                     when (params.scoreComputationMode) {
                         ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
-                            model.buildMostMasteriesObjective(params, allEquips, equipVars, skillVars)
+                            model.buildMostMasteriesObjective(params, allEquips, equipVars, skillVars, runeModel)
 
                         ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
-                            model.buildPrecisionObjective(params, allEquips, equipVars, skillVars)
+                            model.buildPrecisionObjective(params, allEquips, equipVars, skillVars, runeModel)
                     }
                 model.maximize(objective)
 
-                executeSolverAndEmitResults(model, params, allEquips, equipVars, skillVars, this@callbackFlow, tuning)
+                executeSolverAndEmitResults(model, params, allEquips, equipVars, skillVars, runeModel, this@callbackFlow, tuning)
             }
             close()
             awaitClose { }
@@ -330,6 +340,61 @@ object WakfuBuildSolver {
         allEquips.associateWith { equip ->
             newBoolVar("equip_${equip.equipmentId}")
         }
+
+    /**
+     * Models runes as extra per-item allocatable stats. For each socketable equipped item and each
+     * requested rune-coverable stat, an integer var counts how many runes of that stat sit in the
+     * item's sockets; the per-item sum is capped at the item's socket count and forced to 0 when the
+     * item is not equipped. The rune *value* per (stat, item slot, character level) is a constant
+     * (best-achievable: max rune level + WakForge doubling), so runes plug straight into the stat term
+     * loop in [StatBuilder.prePercentStat] and need no special-casing in the objective or scorer.
+     */
+    private fun CpModel.createRuneModel(
+        params: WakfuBestBuildParams,
+        allEquips: List<Equipment>,
+        equipVars: Map<Equipment, IntVar>,
+        runes: List<RuneType>,
+    ): RuneModel {
+        if (!params.useRunes || runes.isEmpty()) return RuneModel.EMPTY
+        val runeByCharacteristic = runes.associateBy { it.characteristic }
+        val runeStats = relevantRuneStats(params, runeByCharacteristic.keys)
+        if (runeStats.isEmpty()) return RuneModel.EMPTY
+
+        val runeVars = mutableMapOf<Equipment, Map<Characteristic, IntVar>>()
+        for (equip in allEquips) {
+            val slots = equip.maxShardSlots
+            if (slots <= 0) continue
+            val perStat = runeStats.associateWith { stat -> newIntVar(0, slots.toLong(), "rune_${equip.equipmentId}_${stat.name}") }
+            // Sockets only count when the item is equipped: Σ runeCount ≤ slots · selected (linear).
+            val capExpr = LinearExpr.newBuilder()
+            perStat.values.forEach { capExpr.addTerm(it, 1L) }
+            capExpr.addTerm(equipVars.getValue(equip), -slots.toLong())
+            addLessOrEqual(capExpr.build(), 0L)
+            runeVars[equip] = perStat
+        }
+        return RuneModel(runeByCharacteristic, runeVars, params.character.level)
+    }
+
+    /**
+     * The rune-coverable stats worth modelling for this request: requested stats that have a rune.
+     * Elemental masteries (specific or generic) all route to the single generic elemental-mastery rune
+     * (there is no per-element mastery rune); the aggregate resistance request expands to the four
+     * per-element resistance runes. Mirrors the elemental folding the scorers/solver already do.
+     */
+    private fun relevantRuneStats(
+        params: WakfuBestBuildParams,
+        runeCharacteristics: Set<Characteristic>,
+    ): Set<Characteristic> {
+        val result = mutableSetOf<Characteristic>()
+        for (targetStat in params.targetStats) {
+            when (val characteristic = targetStat.characteristic) {
+                Characteristic.MASTERY_ELEMENTARY, in ELEMENTARY_MASTERIES -> result.add(Characteristic.MASTERY_ELEMENTARY)
+                Characteristic.RESISTANCE_ELEMENTARY -> result.addAll(ELEMENTARY_RESISTANCES)
+                else -> result.add(characteristic)
+            }
+        }
+        return result.intersect(runeCharacteristics)
+    }
 
     private fun CpModel.addBuildValidityConstraints(
         allEquips: List<Equipment>,
@@ -423,8 +488,9 @@ object WakfuBuildSolver {
         allEquips: List<Equipment>,
         equipVars: Map<Equipment, IntVar>,
         skillVars: Map<SkillCharacteristic, IntVar>,
+        runeModel: RuneModel,
     ): IntVar {
-        val statBuilder = StatBuilder(this, params, allEquips, equipVars, skillVars)
+        val statBuilder = StatBuilder(this, params, allEquips, equipVars, skillVars, runeModel)
         val targetStats = params.targetStats
         val targetCharacteristics = targetStats.map { it.characteristic }.toSet()
 
@@ -504,8 +570,9 @@ object WakfuBuildSolver {
         allEquips: List<Equipment>,
         equipVars: Map<Equipment, IntVar>,
         skillVars: Map<SkillCharacteristic, IntVar>,
+        runeModel: RuneModel,
     ): IntVar {
-        val statBuilder = StatBuilder(this, params, allEquips, equipVars, skillVars)
+        val statBuilder = StatBuilder(this, params, allEquips, equipVars, skillVars, runeModel)
         return statBuilder.precisionScore(params.targetStats)
     }
 
@@ -536,6 +603,7 @@ object WakfuBuildSolver {
         allEquips: List<Equipment>,
         equipVars: Map<Equipment, IntVar>,
         skillVars: Map<SkillCharacteristic, IntVar>,
+        runeModel: RuneModel,
         scope: ProducerScope<GeneticAlgorithmResult<BuildCombination>>,
         tuning: SolverTuning?,
     ) {
@@ -573,7 +641,7 @@ object WakfuBuildSolver {
                         return
                     }
 
-                    val combination = solutionToBuild(params, allEquips, equipVars, skillVars) { value(it) }
+                    val combination = solutionToBuild(params, allEquips, equipVars, skillVars, runeModel) { value(it) }
                     val actualScore = scoreFor(params, combination)
 
                     val progress = ((System.currentTimeMillis() - startTime).toDouble() / params.searchDuration.inWholeMilliseconds.toDouble() * 100).toInt()
@@ -587,7 +655,7 @@ object WakfuBuildSolver {
             logger.debug { "Solver response stats:\n${solver.responseStats()}" }
 
             if (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL || status == com.google.ortools.sat.CpSolverStatus.FEASIBLE) {
-                val finalComb = solutionToBuild(params, allEquips, equipVars, skillVars) { solver.value(it) }
+                val finalComb = solutionToBuild(params, allEquips, equipVars, skillVars, runeModel) { solver.value(it) }
                 val finalScore = scoreFor(params, finalComb)
                 // Guaranteed delivery (suspending send, not trySend): intermediate best-so-far
                 // emissions are best-effort progress and may be dropped under back-pressure, but the
@@ -620,6 +688,7 @@ object WakfuBuildSolver {
         allEquips: List<Equipment>,
         equipVars: Map<Equipment, IntVar>,
         skillVars: Map<SkillCharacteristic, IntVar>,
+        runeModel: RuneModel,
         valueOf: (IntVar) -> Long,
     ): BuildCombination {
         val equippedItems = allEquips.filter { valueOf(equipVars.getValue(it)) > 0L }
@@ -630,7 +699,17 @@ object WakfuBuildSolver {
             skillVars[originalSkills[index]]?.let { skill.setPointAssigned(valueOf(it).toInt()) }
         }
 
-        return BuildCombination(equippedItems, optimizedSkills)
+        val runes =
+            equippedItems
+                .associateWith { equip ->
+                    runeModel.runeVars[equip].orEmpty().flatMap { (stat, runeVar) ->
+                        val count = valueOf(runeVar).toInt()
+                        val rune = runeModel.runeByCharacteristic[stat]
+                        if (count > 0 && rune != null) List(count) { rune } else emptyList()
+                    }
+                }.filterValues { it.isNotEmpty() }
+
+        return BuildCombination(equippedItems, optimizedSkills, runes)
     }
 
     private class StatBuilder(
@@ -639,6 +718,7 @@ object WakfuBuildSolver {
         private val allEquips: List<Equipment>,
         private val equipVars: Map<Equipment, IntVar>,
         skillVars: Map<SkillCharacteristic, IntVar>,
+        private val runeModel: RuneModel,
     ) {
         private val baseValues = params.character.baseCharacteristicValues
         private val skillTerms = buildSkillTerms(skillVars)
@@ -1193,6 +1273,19 @@ object WakfuBuildSolver {
                     }
                 }
 
+                // Runes contribute exactly like item stats: a constant value per socketed rune of this
+                // stat (max rune level + WakForge doubling on favoured slots), times the per-item rune
+                // count var. The socket-cap / equipped-only constraints live on those vars (createRuneModel).
+                runeModel.runeByCharacteristic[char]?.let { rune ->
+                    for ((equip, perStat) in runeModel.runeVars) {
+                        val runeVar = perStat[char] ?: continue
+                        val coefficient = rune.valueOn(equip.itemType, runeModel.characterLevel).toLong()
+                        if (coefficient != 0L) {
+                            terms.add(Term(runeVar, coefficient))
+                        }
+                    }
+                }
+
                 terms.addAll(skillTerms.fixed[char].orEmpty())
 
                 val base = baseValues[char]?.toLong() ?: 0L
@@ -1211,6 +1304,21 @@ object WakfuBuildSolver {
         val count: Int,
         val nameSuffix: String,
     )
+
+    /**
+     * Per-search rune modelling: the rune for each covered [Characteristic], the per-(item, stat) count
+     * variables (only for socketable items), and the character level the rune values were computed for.
+     * [EMPTY] means runes are disabled or no requested stat has a rune.
+     */
+    private class RuneModel(
+        val runeByCharacteristic: Map<Characteristic, RuneType>,
+        val runeVars: Map<Equipment, Map<Characteristic, IntVar>>,
+        val characterLevel: Int,
+    ) {
+        companion object {
+            val EMPTY = RuneModel(emptyMap(), emptyMap(), 0)
+        }
+    }
 
     private data class SkillTerms(
         val fixed: Map<Characteristic, List<Term>>,

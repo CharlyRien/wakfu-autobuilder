@@ -3,11 +3,14 @@ package me.chosante.autobuilder.domain
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
+import me.chosante.common.RuneType
 import me.chosante.common.skills.CharacterSkills
 
 data class BuildCombination(
     val equipments: List<Equipment>,
     val characterSkills: CharacterSkills,
+    // Runes socketed per equipped item (best-achievable model). Empty when runes are disabled.
+    val runes: Map<Equipment, List<RuneType>> = emptyMap(),
 ) {
     fun isValid(): Boolean {
         val numberOfEquipmentByType = equipments.groupingBy { it.itemType }.eachCount()

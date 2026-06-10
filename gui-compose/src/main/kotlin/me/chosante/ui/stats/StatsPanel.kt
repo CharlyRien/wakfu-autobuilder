@@ -218,34 +218,47 @@ private fun MasterySummary(ui: UiState) {
             Characteristic.MASTERY_BERSERK,
             Characteristic.MASTERY_HEALING
         )
-    // Only show masteries that are either requested or actually present (non-zero) — hiding the
-    // irrelevant zeros (e.g. Earth/Air on a fire/water build) is what makes the elemental MIN below
-    // meaningful and the total line up with the headline.
     val requested = ui.targets.map { it.characteristic }.toSet()
 
-    fun shown(characteristic: Characteristic) = characteristic in requested || (ui.achieved[characteristic] ?: 0) != 0
-    val elementalValues = elementalMasteries.filter(::shown).map { it to (ui.achieved[it] ?: 0) }
-    val specializedValues = specializedMasteries.filter(::shown).map { it to (ui.achieved[it] ?: 0) }
+    // Requested masteries are what the headline score is built from; everything else the build carries
+    // (via gear/runes) is real but incidental — shown in its own muted group so the lists don't look
+    // like they should sum to the headline. Requested ones always show (even at 0); incidental ones
+    // only when non-zero.
+    fun valuesFor(
+        masteries: List<Characteristic>,
+        requestedOnes: Boolean,
+    ) = masteries
+        .filter { (it in requested) == requestedOnes && (requestedOnes || (ui.achieved[it] ?: 0) != 0) }
+        .map { it to (ui.achieved[it] ?: 0) }
+
+    val requestedElementals = valuesFor(elementalMasteries, requestedOnes = true)
+    val requestedSpecialized = valuesFor(specializedMasteries, requestedOnes = true)
+    val incidental = valuesFor(elementalMasteries + specializedMasteries, requestedOnes = false)
+
     // The engine-faithful number: requested specialized summed + the weakest *requested* element.
-    val effectiveMastery = ui.requestedMasteryTotal()
+    val requestedMastery = ui.requestedMasteryTotal()
 
     ResultCard(
         title = tr(Tr.MASTERY_SUMMARY),
-        trailing = effectiveMastery.formatCompact()
+        trailing = requestedMastery.formatCompact()
     ) {
-        SummaryMetric(label = tr(Tr.BUILD_MASTERY), value = effectiveMastery)
+        SummaryMetric(label = tr(Tr.BUILD_MASTERY), value = requestedMastery)
         Text(
             text = tr(Tr.BUILD_MASTERY_HINT),
             style = WTypography.labelSmall.copy(color = WColor.faint),
             modifier = Modifier.padding(bottom = 4.dp)
         )
-        if (elementalValues.isNotEmpty()) {
+        if (requestedElementals.isNotEmpty()) {
             Hairline()
-            MasteryGroup(title = tr(Tr.MASTERY_ELEMENTALS), values = elementalValues)
+            MasteryGroup(title = tr(Tr.MASTERY_ELEMENTALS), values = requestedElementals)
         }
-        if (specializedValues.isNotEmpty()) {
+        if (requestedSpecialized.isNotEmpty()) {
             Hairline()
-            MasteryGroup(title = tr(Tr.MASTERY_SPECIALIZED), values = specializedValues)
+            MasteryGroup(title = tr(Tr.MASTERY_SPECIALIZED), values = requestedSpecialized)
+        }
+        if (incidental.isNotEmpty()) {
+            Hairline()
+            MasteryGroup(title = tr(Tr.MASTERY_INCIDENTAL), values = incidental, muted = true)
         }
     }
 }
@@ -338,6 +351,7 @@ private fun BuildSheet(ui: UiState) {
 private fun MasteryGroup(
     title: String,
     values: List<Pair<Characteristic, Int>>,
+    muted: Boolean = false,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(text = title, style = WTypography.labelSmall.copy(color = WColor.muted))
@@ -347,7 +361,7 @@ private fun MasteryGroup(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = characteristic.label(LocalLang.current),
-                    style = WTypography.bodySmall.copy(color = WColor.text),
+                    style = WTypography.bodySmall.copy(color = if (muted) WColor.faint else WColor.text),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
