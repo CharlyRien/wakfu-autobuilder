@@ -1,6 +1,5 @@
 package me.chosante.autobuilder.genetic.wakfu
 
-import com.google.ortools.Loader
 import com.google.ortools.sat.CpModel
 import com.google.ortools.sat.CpSolver
 import com.google.ortools.sat.CpSolverSolutionCallback
@@ -85,7 +84,7 @@ object WakfuBuildSolver {
         )
 
     init {
-        Loader.loadNativeLibraries()
+        OrToolsNativeLoader.load()
     }
 
     private val warmedUp =
@@ -103,7 +102,7 @@ object WakfuBuildSolver {
      */
     fun warmUp() {
         if (!warmedUp.compareAndSet(false, true)) return
-        // Referencing this object already ran `init { Loader.loadNativeLibraries() }`.
+        // Referencing this object already ran `init { OrToolsNativeLoader.load() }`.
         val model = CpModel()
         val a = model.newBoolVar("warmup_a")
         val b = model.newBoolVar("warmup_b")
@@ -118,10 +117,14 @@ object WakfuBuildSolver {
         val solver = CpSolver()
         solver.parameters.maxTimeInSeconds = 1.0
         solver.parameters.logSearchProgress = false
-        // Use the full core count, exactly like the real search, so the multi-worker portfolio is
-        // spun up here too. The CPU spike is safe because warm-up runs behind the lightweight
-        // loading screen — the heavy main UI only mounts once this has finished.
-        solver.parameters.numSearchWorkers = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
+        // Deliberately NOT the full core count. What warm-up actually pays off is the native-library
+        // load, JNI/class initialization and the first solve's code paths — none of which need many
+        // workers (CpSolver spins its worker pool up per solve, so nothing about a big pool persists
+        // anyway). Saturating every core here starved the GUI's AWT event thread during startup: on
+        // macOS any window operation (zoom, raise, resize) then stalled until warm-up finished and
+        // the whole app appeared frozen. Two workers still exercise the multi-worker portfolio path
+        // while leaving the UI thread (and the OS) breathing room.
+        solver.parameters.numSearchWorkers = 2
         solver.solve(model)
     }
 

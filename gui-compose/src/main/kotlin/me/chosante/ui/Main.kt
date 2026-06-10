@@ -34,6 +34,7 @@ import java.awt.Desktop
 import java.awt.GraphicsEnvironment
 import java.awt.Taskbar
 import javax.imageio.ImageIO
+import kotlin.time.Duration.Companion.milliseconds
 
 const val SCREENSHOT_PATH_PROPERTY = "wakfu.compose.screenshot"
 
@@ -49,33 +50,29 @@ fun main() {
         // state and capture once a build has landed.
         val scope = rememberCoroutineScope()
         val model = remember { BuildSearchModel(scope) }
+        // The window opens *floating* (small, centered) and is only maximised once warm-up is done —
+        // see the LaunchedEffect below. Opening maximised looked attractive but reintroduced the
+        // startup freeze it was meant to fix: applying Maximized runs the macOS zoom transition the
+        // moment the window appears, i.e. exactly while OR-Tools' native cold start is competing for
+        // CPU — the same starvation the user hit by double-clicking the title bar during warm-up.
+        // A small floating loader, by contrast, paints its first frame instantly.
+        val windowState =
+            remember {
+                WindowState(
+                    position = WindowPosition.Aligned(Alignment.Center),
+                    size = fittedWindowSize(DpSize(1440.dp, 900.dp))
+                )
+            }
         Window(
             onCloseRequest = { exitApplication() },
             title = "Wakfu Autobuilder",
             icon = appIcon,
-            state =
-                WindowState(
-                    // Open maximised so the app fills the screen from the first frame. This also avoids
-                    // the macOS freeze that hit when the window was zoomed/full-screened *during* OR-Tools'
-                    // native cold start: that resize transition has to keep rendering while every core is
-                    // busy paying the one-time startup cost behind the loading screen, so it stalls and the
-                    // app appears frozen. Opening already maximised means there is no zoom to trigger while
-                    // warm-up runs. (Must pair with a resizable window — AWT can refuse to maximise a
-                    // non-resizable frame on macOS, and Compose applies the placement only once.)
-                    placement = WindowPlacement.Maximized,
-                    // Un-maximised (restore) size/position, clamped so the title bar stays reachable.
-                    position = WindowPosition.Aligned(Alignment.Center),
-                    size = fittedWindowSize(DpSize(1440.dp, 900.dp))
-                )
+            state = windowState
         ) {
-            // Pull the window to the front as soon as it is shown. Two reasons:
-            //  • Launched via `gradle run` (an un-bundled JVM) the window can open *behind* the
-            //    launching app, hiding the loading screen so the warm-up progress isn't visible.
-            //  • macOS pauses rendering for an occluded window, so raising a *maximised* window later
-            //    forces the first full-surface render of the big window at that moment — which stalled
-            //    when it coincided with the native warm-up. Rendering it in the foreground now, while
-            //    the cheap loading screen is up, avoids that deferred heavy first paint entirely.
-            // Best-effort: a window-ordering hint must never break startup, so failures are swallowed.
+            // Pull the window to the front as soon as it is shown: launched via `gradle run` (an
+            // un-bundled JVM) the window can open *behind* the launching app, hiding the loading
+            // screen so the warm-up progress isn't visible. Best-effort: a window-ordering hint must
+            // never break startup, so failures are swallowed.
             LaunchedEffect(Unit) {
                 runCatching {
                     window.toFront()
@@ -84,6 +81,27 @@ fun main() {
                     if (desktop.isSupported(Desktop.Action.APP_REQUEST_FOREGROUND)) {
                         desktop.requestForeground(true)
                     }
+                }
+            }
+            // Tell the model once the window is actually on screen — this releases the native
+            // warm-up, whose macOS first-launch code-sign validation stalls the UI thread (see
+            // BuildSearchModel.windowShown). Polling is fine: it resolves within a frame or two.
+            LaunchedEffect(Unit) {
+                while (!window.isShowing) {
+                    kotlinx.coroutines.delay(16.milliseconds)
+                }
+                model.windowShown.complete(Unit)
+            }
+            // Maximise only once the engine is warm: the user wants the app full-screen without
+            // doing anything, and by now the cores are free so the zoom transition renders smoothly
+            // (doing this at launch is what froze startup — see windowState above). Skipped in
+            // screenshot mode (captures need the deterministic fitted size) and when the user
+            // resized the loader themselves — on a long first launch their explicit choice must not
+            // be yanked to full screen.
+            val initialSize = remember { windowState.size }
+            LaunchedEffect(model.isReady) {
+                if (model.isReady && screenshotPath == null && windowState.size == initialSize) {
+                    windowState.placement = WindowPlacement.Maximized
                 }
             }
             ScreenshotCapture(

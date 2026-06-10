@@ -24,19 +24,26 @@ object WakfuBestBuildFinderAlgorithm {
      */
     val dataVersion: String = VERSION
 
-    val equipments =
+    // Both data sets are `lazy` on purpose: touching ANY member of this object (e.g. [dataVersion]
+    // from the GUI view-model's constructor, which runs on the AWT event thread) used to trigger
+    // these multi-MB JSON parses eagerly — blocking the UI thread before the first frame could even
+    // paint. Lazy init moves the parse to the first real use (icon preloading / the first search),
+    // which always happens on a background thread in the GUI and on the main thread in the CLI.
+    val equipments: List<Equipment> by lazy {
         this.javaClass.classLoader.getResourceAsStream("equipments-v$VERSION.json")?.readAllBytes()!!.let {
             Json.decodeFromString<List<Equipment>>(String(it))
         }
+    }
 
     /**
      * The embedded runes ([RuneType]) for the current data version, or empty if the resource is
      * absent. The OR-Tools solver socket-fills equipped items with these when [WakfuBestBuildParams.useRunes].
      */
-    val runes: List<RuneType> =
+    val runes: List<RuneType> by lazy {
         this.javaClass.classLoader.getResourceAsStream("runes-v$VERSION.json")?.readAllBytes()?.let {
             Json.decodeFromString<List<RuneType>>(String(it))
         } ?: emptyList()
+    }
 
     fun run(params: WakfuBestBuildParams): Flow<GeneticAlgorithmResult<BuildCombination>> {
         val equipmentsByItemType =
