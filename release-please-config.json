@@ -1,0 +1,17 @@
+{
+    "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+    "release-type": "simple",
+    "include-v-in-tag": false,
+    "bootstrap-sha": "9248dbcb5ec45b0e2646677ad2661f50daf9d0d1",
+    "packages": {
+        ".": {
+            "package-name": "wakfu-autobuilder",
+            "extra-files": [
+                {
+                    "type": "generic",
+                    "path": "gui-compose/build.gradle.kts"
+                }
+            ]
+        }
+    }
+}

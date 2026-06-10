@@ -1,5 +1,5 @@
 name: Deploy
-on: [ workflow_dispatch ]
+on: [ workflow_dispatch, workflow_call ]
 jobs:
     build:
         # Reuse the Build workflow (./gradlew test) as a gate.
