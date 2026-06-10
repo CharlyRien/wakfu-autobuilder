@@ -15,6 +15,8 @@ import me.chosante.common.Equipment
 import me.chosante.common.I18nText
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
+import me.chosante.common.RuneColor
+import me.chosante.common.RuneType
 import me.chosante.common.skills.CharacterSkills
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -844,6 +846,151 @@ class WakfuBuildSolverTest {
             assertThat(best.individual.equipments.map { it.name.fr }).contains("ApAmulet")
         }
 
+    // ---------------------------------------------------------------------------------------------
+    // Runes: the solver socket-fills equipped items with the best runes for the requested stats
+    // (best-achievable model: max rune level + WakForge doubling on favoured slots).
+    // ---------------------------------------------------------------------------------------------
+
+    @Test
+    fun `rune value uses max level for the character and doubles only on favoured slots`() {
+        // Distance-mastery rune: favoured slots (doubleBonusPosition) are belt (rawId 10) and the
+        // primary weapon (rawId 15). It doubles only there.
+        val distanceRune =
+            RuneType(
+                id = 27098,
+                name = I18nText("d", "d", "d", "d"),
+                color = RuneColor.RED,
+                characteristic = Characteristic.MASTERY_DISTANCE,
+                doubleBonusPosition = listOf(10, 15),
+                gfxId = 0
+            )
+        // Level 245 -> max rune level 11 -> base mastery value 33.
+        assertThat(distanceRune.valueOn(ItemType.AMULET, 245)).isEqualTo(33)
+        assertThat(distanceRune.valueOn(ItemType.BELT, 245)).isEqualTo(66)
+        assertThat(distanceRune.valueOn(ItemType.TWO_HANDED_WEAPONS, 245)).isEqualTo(66)
+        // Level gating: at level 1 only rune level 1 is usable -> base value 1 (doubled to 2 on a belt).
+        assertThat(distanceRune.valueOn(ItemType.AMULET, 1)).isEqualTo(1)
+        assertThat(distanceRune.valueOn(ItemType.BELT, 1)).isEqualTo(2)
+    }
+
+    @Test
+    fun `solver socket-fills runes and the recomputed score matches the objective`(): Unit =
+        runBlocking {
+            val level = 245
+            val characterSkills = CharacterSkills(level)
+            val character = Character(CharacterClass.CRA, level, level, characterSkills)
+            val amulet = equipment(1, ItemType.AMULET, "Amu", mapOf(Characteristic.MASTERY_DISTANCE to 50), maxShardSlots = 4)
+            val distanceRune =
+                RuneType(27098, I18nText("d", "d", "d", "d"), RuneColor.RED, Characteristic.MASTERY_DISTANCE, listOf(10, 15), 0)
+            val targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1)))
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = targetStats,
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+                )
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(params, listOf(amulet).groupBy { it.itemType }, listOf(distanceRune))
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            val socketedRunes =
+                best.individual.runes.values
+                    .flatten()
+            // All four sockets are filled with the only beneficial (distance) rune.
+            assertThat(socketedRunes).hasSize(4)
+            assertThat(socketedRunes).allMatch { it.characteristic == Characteristic.MASTERY_DISTANCE }
+
+            // Self-consistency: the rune-aware scorer recomputes exactly the solver's reported score.
+            val recomputed =
+                FindMostMasteriesFromInputScoring.computeScore(targetStats, best.individual, character.baseCharacteristicValues)
+            assertThat(best.matchPercentage).isEqualByComparingTo(recomputed)
+
+            // Item 50 + four amulet runes (not doubled on an amulet) at 33 each = 182.
+            val achieved =
+                computeCharacteristicsValues(best.individual, character.baseCharacteristicValues, emptyMap(), emptyMap())
+            assertThat(achieved[Characteristic.MASTERY_DISTANCE]).isGreaterThanOrEqualTo(50 + 4 * 33)
+        }
+
+    @Test
+    fun `solver doubles a rune on its favoured slot and respects the 4-socket cap`(): Unit =
+        runBlocking {
+            // Level 1 keeps skills inert (no distance from aptitudes), so the achieved value isolates
+            // the runes: a belt (rawId 10, favoured by the distance rune) doubles each level-1 rune
+            // 1 -> 2, and the 4-socket cap bounds it to exactly 4 * 2 = 8.
+            val level = 1
+            val characterSkills = CharacterSkills(level)
+            val character = Character(CharacterClass.CRA, level, level, characterSkills)
+            val belt = equipment(1, ItemType.BELT, "Belt", emptyMap(), maxShardSlots = 4)
+            val distanceRune =
+                RuneType(27098, I18nText("d", "d", "d", "d"), RuneColor.RED, Characteristic.MASTERY_DISTANCE, listOf(10, 15), 0)
+            val targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1)))
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = targetStats,
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+                )
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(params, listOf(belt).groupBy { it.itemType }, listOf(distanceRune))
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(
+                best.individual.runes.values
+                    .flatten()
+            ).hasSize(4)
+            val achieved =
+                computeCharacteristicsValues(best.individual, character.baseCharacteristicValues, emptyMap(), emptyMap())
+            assertThat(achieved[Characteristic.MASTERY_DISTANCE]).isEqualTo(8)
+        }
+
+    @Test
+    fun `runes are disabled when useRunes is false`(): Unit =
+        runBlocking {
+            val level = 245
+            val characterSkills = CharacterSkills(level)
+            val character = Character(CharacterClass.CRA, level, level, characterSkills)
+            val amulet = equipment(1, ItemType.AMULET, "Amu", mapOf(Characteristic.MASTERY_DISTANCE to 50), maxShardSlots = 4)
+            val distanceRune =
+                RuneType(27098, I18nText("d", "d", "d", "d"), RuneColor.RED, Characteristic.MASTERY_DISTANCE, listOf(10, 15), 0)
+            val targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1)))
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = targetStats,
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                    useRunes = false
+                )
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(params, listOf(amulet).groupBy { it.itemType }, listOf(distanceRune))
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(best.individual.runes).isEmpty()
+        }
+
     /** Runs the real most-masteries solver over the given pool and returns its best emitted build. */
     private fun solve(
         equipments: List<Equipment>,
@@ -959,6 +1106,7 @@ class WakfuBuildSolverTest {
         type: ItemType,
         name: String,
         stats: Map<Characteristic, Int>,
+        maxShardSlots: Int = 0,
     ): Equipment =
         Equipment(
             equipmentId = id,
@@ -967,6 +1115,7 @@ class WakfuBuildSolverTest {
             name = I18nText(name, name, name, name),
             rarity = Rarity.COMMON,
             itemType = type,
-            characteristics = stats
+            characteristics = stats,
+            maxShardSlots = maxShardSlots
         )
 }

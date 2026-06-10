@@ -43,6 +43,9 @@ data class Equipment(
     val rarity: Rarity,
     val itemType: ItemType,
     val characteristics: Map<Characteristic, Int>,
+    // Number of enchantment sockets ("châsses") on this item, 0..4. Defaults to 0 so equipments
+    // resources generated before runes were modeled still deserialize (they simply carry no sockets).
+    val maxShardSlots: Int = 0,
 )
 
 @Serializable

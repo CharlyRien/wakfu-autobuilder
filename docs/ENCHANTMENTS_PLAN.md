@@ -17,8 +17,8 @@ combination/epic/relic effects). This document is the research + the concrete, p
 
 **Read first:**
 - `AGENTS.md` §4 (the OR-Tools CP-SAT solver) and §5 (the data pipeline).
-- The **OR-Tools CP-SAT** engine (`autobuilder/.../genetic/wakfu/WakfuBuildSolver.kt`) is the only
-  solver.
+- This branch (`ortools-engine-integration`) uses the **OR-Tools CP-SAT** engine
+  (`autobuilder/.../genetic/wakfu/WakfuBuildSolver.kt`), not the genetic algorithm.
 
 > **Headline finding:** the data is *already downloaded*. Your `equipments-extractor` pulls
 > `items.json`, which **already contains runes and sublimations** — it parses them and then throws
