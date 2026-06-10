@@ -162,6 +162,7 @@ enum class Tr(
     NO_MATCHING_ITEM("No matching item", "Aucun objet correspondant"),
     REQUIRE("Require", "Imposer"),
     BAN("Ban", "Exclure"),
+    RUNES("Runes", "Châsses"),
     LOADING_ITEMS("Loading item database…", "Chargement de la base d'objets…"),
 
     // Toasts (read off the composition by the state holder)

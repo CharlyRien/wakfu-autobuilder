@@ -58,6 +58,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.PopupPositionProvider
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
+import me.chosante.common.RuneColor
+import me.chosante.common.RuneType
 import me.chosante.ui.components.RarityIcon
 import me.chosante.ui.components.iconResourcePath
 import me.chosante.ui.components.itemResourcePath
@@ -129,11 +131,13 @@ fun PaperdollPanel(
                         // content in ContextMenuArea (no modifier param), which would otherwise
                         // swallow the weight and let the weapon expand over its neighbours.
                         Box(modifier = Modifier.weight(1f)) {
+                            val weaponEquipment = slots[slot.id]
                             EquipmentSlot(
                                 slot = slot,
-                                equipment = slots[slot.id],
+                                equipment = weaponEquipment,
+                                runes = weaponEquipment?.let { ui.build?.runes?.get(it) }.orEmpty(),
                                 idle = ui.phase == Phase.Idle,
-                                justLanded = slots[slot.id]?.equipmentId == ui.lastLandedEquipmentId,
+                                justLanded = weaponEquipment?.equipmentId == ui.lastLandedEquipmentId,
                                 rightAlign = false,
                                 onForceItem = onForceItem,
                                 onExcludeItem = onExcludeItem,
@@ -227,11 +231,13 @@ private fun SlotColumn(
             verticalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterVertically)
         ) {
             slots.forEach { slot ->
+                val equipment = assignments[slot.id]
                 EquipmentSlot(
                     slot = slot,
-                    equipment = assignments[slot.id],
+                    equipment = equipment,
+                    runes = equipment?.let { ui.build?.runes?.get(it) }.orEmpty(),
                     idle = ui.phase == Phase.Idle,
-                    justLanded = assignments[slot.id]?.equipmentId == ui.lastLandedEquipmentId,
+                    justLanded = equipment?.equipmentId == ui.lastLandedEquipmentId,
                     rightAlign = rightAlign,
                     onForceItem = onForceItem,
                     onExcludeItem = onExcludeItem,
@@ -250,6 +256,7 @@ private fun SlotColumn(
 private fun EquipmentSlot(
     slot: DollSlot,
     equipment: Equipment?,
+    runes: List<RuneType>,
     idle: Boolean,
     justLanded: Boolean,
     rightAlign: Boolean,
@@ -280,7 +287,7 @@ private fun EquipmentSlot(
             modifier = modifier,
             delayMillis = 350,
             tooltipPlacement = SlotTooltipPlacement,
-            tooltip = { ItemTooltip(slot = slot, equipment = equipment) }
+            tooltip = { ItemTooltip(slot = slot, equipment = equipment, runes = runes) }
         ) {
             Box(modifier = Modifier.fillMaxWidth().hoverable(interaction)) {
                 SlotRowContent(slot, equipment, idle, justLanded, rightAlign, forced, excluded, cardHeight, Modifier.fillMaxWidth())
@@ -502,6 +509,7 @@ private fun SlotRowContent(
 private fun ItemTooltip(
     slot: DollSlot,
     equipment: Equipment,
+    runes: List<RuneType>,
 ) {
     val lang = LocalLang.current
     val shape = RoundedCornerShape(10.dp)
@@ -555,6 +563,61 @@ private fun ItemTooltip(
                 }
             }
         }
+        if (runes.isNotEmpty()) {
+            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
+            Text(
+                text = tr(Tr.RUNES),
+                style = WTypography.labelSmall.copy(color = WColor.faint, fontWeight = FontWeight.SemiBold)
+            )
+            runes
+                .groupBy { it.characteristic }
+                .forEach { (_, sameStatRunes) ->
+                    TooltipRuneRow(rune = sameStatRunes.first(), count = sameStatRunes.size, lang = lang)
+                }
+        }
+    }
+}
+
+private fun RuneColor.displayColor(): Color =
+    when (this) {
+        RuneColor.RED -> Color(0xFFE05A5A)
+        RuneColor.GREEN -> Color(0xFF5FB76A)
+        RuneColor.BLUE -> Color(0xFF5A8FE0)
+    }
+
+@Composable
+private fun TooltipRuneRow(
+    rune: RuneType,
+    count: Int,
+    lang: Lang,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .size(8.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(rune.color.displayColor())
+        )
+        Text(
+            text = "${count}x",
+            style =
+                WTypography.bodySmall.copy(
+                    fontFamily = WType.mono,
+                    fontWeight = FontWeight.SemiBold,
+                    color = rune.color.displayColor()
+                )
+        )
+        Text(
+            text = rune.characteristic.label(lang),
+            style = WTypography.bodySmall.copy(color = WColor.muted),
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
