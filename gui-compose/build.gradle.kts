@@ -78,6 +78,33 @@ ktlint {
     }
 }
 
+// What's-new resources: the app version (for the once-per-version gate) and the release-please
+// CHANGELOG rendered by the in-app "What's new" dialog (ui/state/WhatsNew.kt). The changelog only
+// exists once the first release PR has merged, so its copy tolerates absence.
+val generateVersionResource by tasks.registering {
+    val appVersion = version.toString()
+    val outputDir = layout.buildDirectory.dir("generated-resources/version")
+    inputs.property("appVersion", appVersion)
+    outputs.dir(outputDir)
+    doLast {
+        outputDir
+            .get()
+            .asFile
+            .resolve("app-version.txt")
+            .writeText(appVersion)
+    }
+}
+
+sourceSets {
+    main {
+        resources.srcDir(generateVersionResource)
+    }
+}
+
+tasks.processResources {
+    from(rootDir.resolve("CHANGELOG.md"))
+}
+
 val javaToolchains = project.extensions.getByType<JavaToolchainService>()
 val projectJvmLauncher =
     javaToolchains.launcherFor {

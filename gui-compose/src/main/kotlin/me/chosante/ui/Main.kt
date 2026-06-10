@@ -2,11 +2,15 @@ package me.chosante.ui
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.tooling.preview.Preview
@@ -17,11 +21,13 @@ import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
+import me.chosante.ui.components.WhatsNewDialog
 import me.chosante.ui.components.loadClasspathBitmap
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.shell.AppShell
 import me.chosante.ui.shell.LoadingScreen
 import me.chosante.ui.state.BuildSearchModel
+import me.chosante.ui.state.WhatsNew
 import me.chosante.ui.testing.ScreenshotCapture
 import me.chosante.ui.theme.WTheme
 import java.awt.Desktop
@@ -144,17 +150,42 @@ private fun setDockIcon() {
 fun App(model: BuildSearchModel) {
     WTheme {
         CompositionLocalProvider(LocalLang provides model.ui.lang) {
-            // Sober crossfade from the loader to the main UI once warm-up is done — by this point
-            // the native load is finished, so mounting AppShell during the fade is contention-free.
-            Crossfade(
-                targetState = model.isReady,
-                animationSpec = tween(durationMillis = 320),
-                label = "loader-to-app"
-            ) { ready ->
-                if (ready) {
-                    AppShell(model = model)
-                } else {
-                    LoadingScreen(progress = model.warmupProgress, etaSeconds = model.warmupEtaSeconds)
+            Box {
+                // Sober crossfade from the loader to the main UI once warm-up is done — by this point
+                // the native load is finished, so mounting AppShell during the fade is contention-free.
+                Crossfade(
+                    targetState = model.isReady,
+                    animationSpec = tween(durationMillis = 320),
+                    label = "loader-to-app"
+                ) { ready ->
+                    if (ready) {
+                        AppShell(model = model)
+                    } else {
+                        LoadingScreen(progress = model.warmupProgress, etaSeconds = model.warmupEtaSeconds)
+                    }
+                }
+                // Once-per-version release notes, over the shell on the first launch after an
+                // update. Skipped in screenshot mode, where it would cover the captured UI — unless
+                // the what's-new knob asks for exactly that shot (needs a CHANGELOG.md present).
+                val screenshotMode =
+                    remember {
+                        System.getProperty(SCREENSHOT_PATH_PROPERTY) != null || System.getenv("WAKFU_COMPOSE_SCREENSHOT") != null
+                    }
+                val forceWhatsNew =
+                    remember {
+                        System.getProperty("wakfu.compose.screenshot.whatsnew") != null ||
+                            System.getenv("WAKFU_COMPOSE_SCREENSHOT_WHATSNEW") != null
+                    }
+                var showWhatsNew by remember { mutableStateOf(forceWhatsNew || (!screenshotMode && WhatsNew.shouldShow())) }
+                val notes = remember { WhatsNew.releaseNotes }
+                if (showWhatsNew && model.isReady && notes != null) {
+                    WhatsNewDialog(
+                        notes = notes,
+                        onDismiss = {
+                            WhatsNew.markSeen()
+                            showWhatsNew = false
+                        }
+                    )
                 }
             }
         }

@@ -129,7 +129,7 @@ fun ModalHost(
 }
 
 @Composable
-private fun Scrim(
+internal fun Scrim(
     onDismiss: () -> Unit,
     content: @Composable () -> Unit,
 ) {
@@ -423,7 +423,7 @@ private fun ItemResultRow(
 }
 
 @Composable
-private fun ModalCard(
+internal fun ModalCard(
     title: String,
     content: @Composable () -> Unit,
 ) {
@@ -628,7 +628,7 @@ private fun LabeledField(
 }
 
 @Composable
-private fun DialogButton(
+internal fun DialogButton(
     text: String,
     filled: Boolean,
     color: Color,
