@@ -498,11 +498,11 @@ private fun SlotRowContent(
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         if (rightAlign) {
-            SlotMeta(slot = slot, equipment = equipment, modifier = Modifier.weight(1f), align = TextAlign.End)
-            SlotIcon(slot = slot, equipment = equipment, runes = runes, color = color, cardHeight = cardHeight)
+            SlotMeta(slot = slot, equipment = equipment, runes = runes, modifier = Modifier.weight(1f), align = TextAlign.End)
+            SlotIcon(slot = slot, equipment = equipment, color = color, cardHeight = cardHeight)
         } else {
-            SlotIcon(slot = slot, equipment = equipment, runes = runes, color = color, cardHeight = cardHeight)
-            SlotMeta(slot = slot, equipment = equipment, modifier = Modifier.weight(1f), align = TextAlign.Start)
+            SlotIcon(slot = slot, equipment = equipment, color = color, cardHeight = cardHeight)
+            SlotMeta(slot = slot, equipment = equipment, runes = runes, modifier = Modifier.weight(1f), align = TextAlign.Start)
         }
     }
 }
@@ -588,43 +588,40 @@ private fun RuneColor.displayColor(): Color =
     }
 
 /**
- * The visual "symbol" of a socketed rune: its stat icon on a light tile (so the dark line-art icon
- * stays legible, like the stat chips) ringed in the rune's socket colour. Falls back to a plain
- * colour dot if the stat has no mapped icon (none of the 15 modeled runes currently lack one).
+ * A socketed rune's "symbol" = its official socket-shape shard, by socket colour: red = square,
+ * green = pentagon, blue = triangle. These are the same shard PNGs WakForge uses (sourced from Wakfu's
+ * assets into assets/runes/). The stat each rune carries is read from the tooltip text; the shape +
+ * colour identify it at a glance. Falls back to a plain colour dot if an asset is missing.
  */
 @Composable
-private fun RuneSymbol(
-    rune: RuneType,
+private fun RuneShape(
+    color: RuneColor,
     size: Dp,
     modifier: Modifier = Modifier,
 ) {
-    val bitmap = rune.characteristic.iconResourcePath()?.let { rememberClasspathBitmap(it) }
-    Box(
-        modifier =
-            modifier
-                .size(size)
-                .clip(RoundedCornerShape(5.dp))
-                .background(WColor.iconTile)
-                .border(1.5.dp, rune.color.displayColor(), RoundedCornerShape(5.dp)),
-        contentAlignment = Alignment.Center
-    ) {
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap,
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                filterQuality = FilterQuality.High,
-                modifier = Modifier.size(size * 0.66f)
-            )
-        } else {
-            Box(
-                modifier =
-                    Modifier
-                        .size(size * 0.45f)
-                        .clip(RoundedCornerShape(999.dp))
-                        .background(rune.color.displayColor())
-            )
+    val asset =
+        when (color) {
+            RuneColor.RED -> "assets/runes/shard_red.png"
+            RuneColor.GREEN -> "assets/runes/shard_green.png"
+            RuneColor.BLUE -> "assets/runes/shard_blue.png"
         }
+    val bitmap = rememberClasspathBitmap(asset)
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap,
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            filterQuality = FilterQuality.High,
+            modifier = modifier.size(size)
+        )
+    } else {
+        Box(
+            modifier =
+                modifier
+                    .size(size)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(color.displayColor())
+        )
     }
 }
 
@@ -638,7 +635,7 @@ private fun TooltipRuneRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp)
     ) {
-        RuneSymbol(rune = rune, size = 18.dp)
+        RuneShape(color = rune.color, size = 16.dp)
         Text(
             text = "${count}x",
             style =
@@ -733,7 +730,6 @@ private fun RarityPill(
 private fun SlotIcon(
     slot: DollSlot,
     equipment: Equipment?,
-    runes: List<RuneType> = emptyList(),
     color: androidx.compose.ui.graphics.Color,
     cardHeight: Dp = 84.dp,
 ) {
@@ -774,18 +770,6 @@ private fun SlotIcon(
                 modifier = Modifier.align(Alignment.BottomEnd),
                 size = 14.dp
             )
-            // Socketed runes, summarised as one symbol per distinct stat in the top-left corner
-            // (away from the bottom-end rarity badge); the per-rune counts live in the tooltip.
-            if (runes.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.align(Alignment.TopStart).padding(3.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    runes.distinctBy { it.characteristic }.take(4).forEach { rune ->
-                        RuneSymbol(rune = rune, size = 12.dp)
-                    }
-                }
-            }
         }
     }
 }
@@ -794,6 +778,7 @@ private fun SlotIcon(
 private fun SlotMeta(
     slot: DollSlot,
     equipment: Equipment?,
+    runes: List<RuneType> = emptyList(),
     align: TextAlign,
     modifier: Modifier = Modifier,
 ) {
@@ -832,6 +817,19 @@ private fun SlotMeta(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            if (runes.isNotEmpty()) {
+                // The socketed runes' shapes (one per socket): the at-a-glance "rune loadout" of the
+                // item. Their stats/counts are spelled out in the tooltip.
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 4.dp)
+                ) {
+                    runes.take(4).forEach { rune ->
+                        RuneShape(color = rune.color, size = 14.dp)
+                    }
+                }
+            }
         }
     }
 }
