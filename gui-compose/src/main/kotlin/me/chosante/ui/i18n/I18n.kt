@@ -233,6 +233,13 @@ enum class Tr(
     COMPARE_EMPTY("Pick two builds to compare them side by side.", "Choisis deux builds à comparer côte à côte."),
     COMPARE_STAT("Stat", "Stat"),
     COMPARE_ENGINE_SCORE("Mastery score (engine)", "Score maîtrises (moteur)"),
+
+    // What's-new dialog (once-per-version release notes)
+    WHATS_NEW_TITLE("What's new in", "Nouveautés de la version"),
+    WHATS_NEW_FEATURES("Features", "Fonctionnalités"),
+    WHATS_NEW_FIXES("Bug Fixes", "Corrections"),
+    WHATS_NEW_PERF("Performance Improvements", "Améliorations de performance"),
+    WHATS_NEW_GOT_IT("Got it", "Compris"),
     ;
 
     fun value(lang: Lang): String =
