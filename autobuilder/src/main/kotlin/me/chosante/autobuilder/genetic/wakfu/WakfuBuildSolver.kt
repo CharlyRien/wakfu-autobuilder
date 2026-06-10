@@ -43,6 +43,13 @@ object WakfuBuildSolver {
     private const val MAX_POWER_TABLE_INDEX = 2_000
     private const val MAX_PENALTY_MULTIPLIER = 1_000_000L
 
+    // Lexicographic scale for the "most masteries" overshoot tie-breaker. The primary objective tops
+    // out at MASTERY_SCORE_ABS_MAX * MAX_PENALTY_MULTIPLIER = 1e14; multiplying it by this scale and
+    // adding a bonus in [0, OVERSHOOT_SCALE) keeps the combined objective (~1e18) well under
+    // Long.MAX/2 (~4.6e18) while guaranteeing one unit of primary always beats any overshoot bonus.
+    // See [withOvershootTieBreaker].
+    private const val OVERSHOOT_SCALE = 10_000L
+
     // The GA scorers weight each target by a Double = (100 / target) * userDefinedWeight, which is
     // almost always < 1 for high targets (e.g. HP target 2000 -> 0.05). Truncating that to Long with
     // .toLong() collapsed those weights to 0, silently dropping HP and any target > 100 from the
@@ -444,10 +451,52 @@ object WakfuBuildSolver {
 
         val maxObjective = safeMultiply(MASTERY_SCORE_ABS_MAX, powerTable.maxValue)
         val objectiveBound = maxObjective.coerceAtMost(Long.MAX_VALUE / 2)
-        val objective = newIntVar(-objectiveBound, objectiveBound, "objectiveScore")
-        addMultiplicationEquality(objective, masteryScore, multiplier)
+        val primaryObjective = newIntVar(-objectiveBound, objectiveBound, "objectiveScore")
+        addMultiplicationEquality(primaryObjective, masteryScore, multiplier)
 
-        return objective
+        // Lexicographic tie-breaker: among builds the primary objective ranks equally, prefer the one
+        // that exceeds the required targets the most (weighted by the same per-constraint priorities).
+        // This is what makes the solver spend otherwise objective-neutral skill points into HP/CC%
+        // (and, among ties, pick gear that overshoots) instead of leaving them unused — free in-game
+        // value the player would always take. It can never trade a maximized-mastery point for
+        // overshoot; see [withOvershootTieBreaker].
+        val overshoot = statBuilder.overshootScore(requiredTargets, totalExpectedScore, targetStats)
+        return withOvershootTieBreaker(primaryObjective, objectiveBound, overshoot, totalExpectedScore)
+    }
+
+    /**
+     * Folds a lexicographic overshoot tie-breaker under [primaryObjective], returning
+     * `primaryObjective * OVERSHOOT_SCALE + bonus` where `bonus ∈ [0, OVERSHOOT_SCALE)` is the
+     * weighted overshoot normalised into that range. Because `bonus < OVERSHOOT_SCALE`, even a
+     * one-unit improvement in the (integer) primary objective — worth `OVERSHOOT_SCALE` after scaling
+     * — always dominates any overshoot gain. So this never sacrifices a maximized-mastery point for
+     * overshoot; it only ranks builds the primary objective already considers tied. [totalExpectedScore]
+     * (≥ 1) is the same denominator the penalty uses, so the bonus is proportional to how far the
+     * build exceeds its targets relative to what was asked.
+     */
+    private fun CpModel.withOvershootTieBreaker(
+        primaryObjective: IntVar,
+        primaryBound: Long,
+        rawOvershoot: IntVar,
+        totalExpectedScore: Long,
+    ): IntVar {
+        val scaledRaw = newIntVar(0, safeMultiply(totalExpectedScore, OVERSHOOT_SCALE - 1), "overshootScaled")
+        addEquality(scaledRaw, LinearExpr.term(rawOvershoot, OVERSHOOT_SCALE - 1))
+
+        val bonus = newIntVar(0, OVERSHOOT_SCALE - 1, "overshootBonus")
+        addDivisionEquality(bonus, scaledRaw, newConstant(totalExpectedScore))
+
+        val combinedBound = safeMultiply(primaryBound, OVERSHOOT_SCALE) + OVERSHOOT_SCALE
+        val combined = newIntVar(-combinedBound, combinedBound, "objectiveWithOvershoot")
+        addEquality(
+            combined,
+            LinearExpr
+                .newBuilder()
+                .addTerm(primaryObjective, OVERSHOOT_SCALE)
+                .addTerm(bonus, 1)
+                .build()
+        )
+        return combined
     }
 
     private fun CpModel.buildPrecisionObjective(
@@ -629,6 +678,49 @@ object WakfuBuildSolver {
                 }
 
             return model.sumVar("totalActualScore", contributions, -totalExpectedScore, totalExpectedScore)
+        }
+
+        /**
+         * Weighted amount by which a build *exceeds* its required targets — the raw input to the
+         * lexicographic overshoot tie-breaker (see [WakfuBuildSolver.withOvershootTieBreaker]). Mirrors
+         * [totalActualScore] (same `requiredActualStat` values, same per-constraint weights), but scores
+         * `weight * clamp(actual - target, 0, target)`: only the part above the target, and capped at
+         * one extra target's worth so the whole sum stays ≤ [totalExpectedScore] and no single stat can
+         * dominate. The shared weights mean leftover skill points flow to the highest-priority stat
+         * exactly like the constraints themselves decide, with no separate distribution policy to encode.
+         */
+        fun overshootScore(
+            requiredTargets: List<TargetStat>,
+            totalExpectedScore: Long,
+            targetStats: TargetStats,
+        ): IntVar {
+            val contributions =
+                requiredTargets.map { targetStat ->
+                    val actual = requiredActualStat(targetStat.characteristic)
+                    val weight = targetStats.scaledWeight(targetStat)
+                    val target = targetStat.target.toLong().coerceAtLeast(0)
+                    val name = targetStat.characteristic.name
+
+                    val excess = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, STAT_WITH_PERCENT_ABS_MAX, "excess_$name")
+                    model.addEquality(
+                        excess,
+                        LinearExpr
+                            .newBuilder()
+                            .addTerm(actual, 1)
+                            .add(-target)
+                            .build()
+                    )
+                    val cappedExcess = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, target, "excessCap_$name")
+                    model.addMinEquality(cappedExcess, arrayOf(excess, model.newConstant(target)))
+                    val positiveExcess = model.newIntVar(0, target, "excessPos_$name")
+                    model.addMaxEquality(positiveExcess, arrayOf(cappedExcess, model.newConstant(0L)))
+
+                    val contribution = model.newIntVar(0, target * weight, "overshoot_$name")
+                    model.addEquality(contribution, LinearExpr.term(positiveExcess, weight))
+                    contribution
+                }
+
+            return model.sumVar("overshootScore", contributions, 0, totalExpectedScore)
         }
 
         /**
