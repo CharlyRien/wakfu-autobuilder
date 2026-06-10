@@ -7,6 +7,7 @@ import kotlinx.coroutines.withTimeout
 import me.chosante.common.Character
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
+import me.chosante.common.RuneType
 import kotlin.time.Duration.Companion.seconds
 
 internal const val BASE_API_URL = "https://api.zenithwakfu.com/builder/api"
@@ -21,6 +22,8 @@ internal val apiZenithWakfuHeaders =
 data class ZenithInputParameters(
     val character: Character,
     val equipments: List<Equipment>,
+    // Runes socketed per equipped item (from BuildCombination.runes); empty when runes are disabled.
+    val runes: Map<Equipment, List<RuneType>> = emptyMap(),
 )
 
 suspend fun ZenithInputParameters.createZenithBuild() =
@@ -30,16 +33,27 @@ suspend fun ZenithInputParameters.createZenithBuild() =
                 val zenithBuild = createBuild(character)
                 val ringSideIds = listOf(23, 24).iterator()
                 val everyEquipmentCalls =
-                    equipments.map {
+                    equipments.map { equipment ->
                         async {
                             val sideValue =
-                                when (it.itemType) {
+                                when (equipment.itemType) {
                                     ItemType.RING -> ringSideIds.next()
                                     ItemType.TWO_HANDED_WEAPONS, ItemType.ONE_HANDED_WEAPONS -> 540
                                     ItemType.OFF_HAND_WEAPONS -> 520
-                                    else -> it.itemType.id
+                                    else -> equipment.itemType.id
                                 }
-                            addEquipment(it, zenithBuild.id, sideValue)
+                            addEquipment(equipment, zenithBuild.id, sideValue)
+                            // Socket this item's runes once it exists on the build; the shard's `side`
+                            // must match the item's, and `position` is the 0-based socket index.
+                            runes[equipment].orEmpty().forEachIndexed { index, rune ->
+                                addShard(
+                                    buildId = zenithBuild.id,
+                                    runeId = rune.id,
+                                    position = index,
+                                    side = sideValue,
+                                    level = rune.maxLevel(character.level)
+                                )
+                            }
                         }
                     }
 

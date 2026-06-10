@@ -11,6 +11,7 @@ import me.chosante.common.Character
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
+import me.chosante.common.RuneType
 import kotlin.time.Duration
 
 object WakfuBestBuildFinderAlgorithm {
@@ -28,6 +29,15 @@ object WakfuBestBuildFinderAlgorithm {
             Json.decodeFromString<List<Equipment>>(String(it))
         }
 
+    /**
+     * The embedded runes ([RuneType]) for the current data version, or empty if the resource is
+     * absent. The OR-Tools solver socket-fills equipped items with these when [WakfuBestBuildParams.useRunes].
+     */
+    val runes: List<RuneType> =
+        this.javaClass.classLoader.getResourceAsStream("runes-v$VERSION.json")?.readAllBytes()?.let {
+            Json.decodeFromString<List<RuneType>>(String(it))
+        } ?: emptyList()
+
     fun run(params: WakfuBestBuildParams): Flow<GeneticAlgorithmResult<BuildCombination>> {
         val equipmentsByItemType =
             groupAndFilterEquipments(
@@ -39,7 +49,7 @@ object WakfuBestBuildFinderAlgorithm {
             )
 
         return try {
-            WakfuBuildSolver.optimize(params, equipmentsByItemType)
+            WakfuBuildSolver.optimize(params, equipmentsByItemType, runes)
         } catch (exception: Exception) {
             // Surface the failure to the caller instead of killing the JVM: the CLI's runBlocking
             // turns it into a visible crash, while the GUI can catch it and show an error rather than
@@ -104,4 +114,7 @@ data class WakfuBestBuildParams(
     val forcedItems: List<String>,
     val excludedItems: List<String>,
     val scoreComputationMode: ScoreComputationMode,
+    // When true (default), the OR-Tools solver socket-fills equipped items with the best runes for the
+    // requested stats (best-achievable model). See RuneType / WakfuBuildSolver.createRuneModel.
+    val useRunes: Boolean = true,
 )

@@ -42,6 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
@@ -58,6 +59,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.PopupPositionProvider
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
+import me.chosante.common.RuneColor
+import me.chosante.common.RuneType
 import me.chosante.ui.components.RarityIcon
 import me.chosante.ui.components.iconResourcePath
 import me.chosante.ui.components.itemResourcePath
@@ -129,11 +132,13 @@ fun PaperdollPanel(
                         // content in ContextMenuArea (no modifier param), which would otherwise
                         // swallow the weight and let the weapon expand over its neighbours.
                         Box(modifier = Modifier.weight(1f)) {
+                            val weaponEquipment = slots[slot.id]
                             EquipmentSlot(
                                 slot = slot,
-                                equipment = slots[slot.id],
+                                equipment = weaponEquipment,
+                                runes = weaponEquipment?.let { ui.build?.runes?.get(it) }.orEmpty(),
                                 idle = ui.phase == Phase.Idle,
-                                justLanded = slots[slot.id]?.equipmentId == ui.lastLandedEquipmentId,
+                                justLanded = weaponEquipment?.equipmentId == ui.lastLandedEquipmentId,
                                 rightAlign = false,
                                 onForceItem = onForceItem,
                                 onExcludeItem = onExcludeItem,
@@ -227,11 +232,13 @@ private fun SlotColumn(
             verticalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterVertically)
         ) {
             slots.forEach { slot ->
+                val equipment = assignments[slot.id]
                 EquipmentSlot(
                     slot = slot,
-                    equipment = assignments[slot.id],
+                    equipment = equipment,
+                    runes = equipment?.let { ui.build?.runes?.get(it) }.orEmpty(),
                     idle = ui.phase == Phase.Idle,
-                    justLanded = assignments[slot.id]?.equipmentId == ui.lastLandedEquipmentId,
+                    justLanded = equipment?.equipmentId == ui.lastLandedEquipmentId,
                     rightAlign = rightAlign,
                     onForceItem = onForceItem,
                     onExcludeItem = onExcludeItem,
@@ -250,6 +257,7 @@ private fun SlotColumn(
 private fun EquipmentSlot(
     slot: DollSlot,
     equipment: Equipment?,
+    runes: List<RuneType>,
     idle: Boolean,
     justLanded: Boolean,
     rightAlign: Boolean,
@@ -261,7 +269,7 @@ private fun EquipmentSlot(
     modifier: Modifier = Modifier,
 ) {
     if (equipment == null) {
-        SlotRowContent(slot, null, idle, justLanded, rightAlign, forced = false, excluded = false, cardHeight = cardHeight, modifier = modifier)
+        SlotRowContent(slot, null, emptyList(), idle, justLanded, rightAlign, forced = false, excluded = false, cardHeight = cardHeight, modifier = modifier)
         return
     }
     val forceLabel = tr(Tr.REQUIRE)
@@ -280,10 +288,10 @@ private fun EquipmentSlot(
             modifier = modifier,
             delayMillis = 350,
             tooltipPlacement = SlotTooltipPlacement,
-            tooltip = { ItemTooltip(slot = slot, equipment = equipment) }
+            tooltip = { ItemTooltip(slot = slot, equipment = equipment, runes = runes) }
         ) {
             Box(modifier = Modifier.fillMaxWidth().hoverable(interaction)) {
-                SlotRowContent(slot, equipment, idle, justLanded, rightAlign, forced, excluded, cardHeight, Modifier.fillMaxWidth())
+                SlotRowContent(slot, equipment, runes, idle, justLanded, rightAlign, forced, excluded, cardHeight, Modifier.fillMaxWidth())
                 val cornerAlign = if (rightAlign) Alignment.TopStart else Alignment.TopEnd
                 if (hovered) {
                     SlotActions(
@@ -453,6 +461,7 @@ private fun SlotStatusBadge(
 private fun SlotRowContent(
     slot: DollSlot,
     equipment: Equipment?,
+    runes: List<RuneType> = emptyList(),
     idle: Boolean,
     justLanded: Boolean,
     rightAlign: Boolean,
@@ -489,11 +498,11 @@ private fun SlotRowContent(
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         if (rightAlign) {
-            SlotMeta(slot = slot, equipment = equipment, modifier = Modifier.weight(1f), align = TextAlign.End)
+            SlotMeta(slot = slot, equipment = equipment, runes = runes, modifier = Modifier.weight(1f), align = TextAlign.End)
             SlotIcon(slot = slot, equipment = equipment, color = color, cardHeight = cardHeight)
         } else {
             SlotIcon(slot = slot, equipment = equipment, color = color, cardHeight = cardHeight)
-            SlotMeta(slot = slot, equipment = equipment, modifier = Modifier.weight(1f), align = TextAlign.Start)
+            SlotMeta(slot = slot, equipment = equipment, runes = runes, modifier = Modifier.weight(1f), align = TextAlign.Start)
         }
     }
 }
@@ -502,6 +511,7 @@ private fun SlotRowContent(
 private fun ItemTooltip(
     slot: DollSlot,
     equipment: Equipment,
+    runes: List<RuneType>,
 ) {
     val lang = LocalLang.current
     val shape = RoundedCornerShape(10.dp)
@@ -555,6 +565,93 @@ private fun ItemTooltip(
                 }
             }
         }
+        if (runes.isNotEmpty()) {
+            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
+            Text(
+                text = tr(Tr.RUNES),
+                style = WTypography.labelSmall.copy(color = WColor.faint, fontWeight = FontWeight.SemiBold)
+            )
+            runes
+                .groupBy { it.characteristic }
+                .forEach { (_, sameStatRunes) ->
+                    TooltipRuneRow(rune = sameStatRunes.first(), count = sameStatRunes.size, lang = lang)
+                }
+        }
+    }
+}
+
+private fun RuneColor.displayColor(): Color =
+    when (this) {
+        RuneColor.RED -> Color(0xFFE05A5A)
+        RuneColor.GREEN -> Color(0xFF5FB76A)
+        RuneColor.BLUE -> Color(0xFF5A8FE0)
+    }
+
+/**
+ * A socketed rune's "symbol" = its official socket-shape shard, by socket colour: red = square,
+ * green = pentagon, blue = triangle. These are the same shard PNGs WakForge uses (sourced from Wakfu's
+ * assets into assets/runes/). The stat each rune carries is read from the tooltip text; the shape +
+ * colour identify it at a glance. Falls back to a plain colour dot if an asset is missing.
+ */
+@Composable
+private fun RuneShape(
+    color: RuneColor,
+    size: Dp,
+    modifier: Modifier = Modifier,
+) {
+    val asset =
+        when (color) {
+            RuneColor.RED -> "assets/runes/shard_red.png"
+            RuneColor.GREEN -> "assets/runes/shard_green.png"
+            RuneColor.BLUE -> "assets/runes/shard_blue.png"
+        }
+    val bitmap = rememberClasspathBitmap(asset)
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap,
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            filterQuality = FilterQuality.High,
+            modifier = modifier.size(size)
+        )
+    } else {
+        Box(
+            modifier =
+                modifier
+                    .size(size)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(color.displayColor())
+        )
+    }
+}
+
+@Composable
+private fun TooltipRuneRow(
+    rune: RuneType,
+    count: Int,
+    lang: Lang,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        RuneShape(color = rune.color, size = 16.dp)
+        Text(
+            text = "${count}x",
+            style =
+                WTypography.bodySmall.copy(
+                    fontFamily = WType.mono,
+                    fontWeight = FontWeight.SemiBold,
+                    color = rune.color.displayColor()
+                )
+        )
+        Text(
+            text = rune.characteristic.label(lang),
+            style = WTypography.bodySmall.copy(color = WColor.muted),
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -681,6 +778,7 @@ private fun SlotIcon(
 private fun SlotMeta(
     slot: DollSlot,
     equipment: Equipment?,
+    runes: List<RuneType> = emptyList(),
     align: TextAlign,
     modifier: Modifier = Modifier,
 ) {
@@ -719,6 +817,25 @@ private fun SlotMeta(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            if (runes.isNotEmpty()) {
+                // The socketed runes' shapes (one per socket): the at-a-glance "rune loadout" of the
+                // item. They shrink uniformly to fit the card width — so the row never overflows and
+                // clips the last shape when the window narrows — capped so they don't balloon when wide.
+                val shapeCount = runes.size.coerceAtMost(4)
+                val gap = 3.dp
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                    val shapeSize = ((maxWidth - gap * (shapeCount - 1)) / shapeCount).coerceIn(0.dp, 16.dp)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(gap, if (align == TextAlign.End) Alignment.End else Alignment.Start),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        runes.take(4).forEach { rune ->
+                            RuneShape(color = rune.color, size = shapeSize)
+                        }
+                    }
+                }
+            }
         }
     }
 }
