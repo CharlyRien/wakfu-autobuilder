@@ -99,6 +99,7 @@ class BuildSearchModel(
     private val openBrowser: (String) -> Unit = { link -> Desktop.getDesktop().browse(URI(link)) },
     private val copyToClipboard: (String) -> Unit = { link -> Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(link), null) },
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Swing,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val historyRepository: HistoryRepository = HistoryRepository(),
     /** Wakfu game-data version stamped onto saved builds (injectable for tests). */
     private val dataVersion: String = WakfuBestBuildFinderAlgorithm.dataVersion,
@@ -163,7 +164,7 @@ class BuildSearchModel(
     init {
         // Load the saved-build library off the UI thread. A read failure must never block startup —
         // it just yields an empty library that fills in as the user saves builds.
-        scope.launch(Dispatchers.IO) {
+        scope.launch(ioDispatcher) {
             val all = runCatching { historyRepository.loadAll() }.getOrDefault(emptyList())
             withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all) }
         }
