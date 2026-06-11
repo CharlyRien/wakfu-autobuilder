@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -15,6 +16,7 @@ import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
+import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildParams
 import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
 import me.chosante.common.Character
 import me.chosante.common.Characteristic.ACTION_POINT
@@ -27,6 +29,7 @@ import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_WATER
 import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_WIND
 import me.chosante.common.Equipment
 import me.chosante.common.skills.CharacterSkills
+import me.chosante.ui.history.HistoryRepository
 import me.chosante.ui.i18n.Lang
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -34,19 +37,14 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
+import java.nio.file.Files
 import kotlin.time.Duration.Companion.seconds
 
 class BuildSearchModelE2ETest {
     @Test
     fun `max mastery targets are selected as binary objectives`() {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val model =
-            BuildSearchModel(
-                scope = scope,
-                buildFinder = { emptyFlow() },
-                zenithBuilder = { "" },
-                mainDispatcher = Dispatchers.Unconfined
-            )
+        val model = newModel(scope)
 
         try {
             assertEquals(
@@ -87,13 +85,7 @@ class BuildSearchModelE2ETest {
     @Test
     fun `all-elements and specific elemental masteries are mutually exclusive`() {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val model =
-            BuildSearchModel(
-                scope = scope,
-                buildFinder = { emptyFlow() },
-                zenithBuilder = { "" },
-                mainDispatcher = Dispatchers.Unconfined
-            )
+        val model = newModel(scope)
 
         fun elementalMasteries() =
             model.ui.targets
@@ -142,7 +134,7 @@ class BuildSearchModelE2ETest {
                     characterSkills = CharacterSkills(110)
                 )
             val model =
-                BuildSearchModel(
+                newModel(
                     scope = scope,
                     buildFinder = {
                         flowOf(
@@ -156,8 +148,7 @@ class BuildSearchModelE2ETest {
                     },
                     zenithBuilder = { zenithUrl },
                     openBrowser = { openedLinks += it },
-                    copyToClipboard = { copiedLinks += it },
-                    mainDispatcher = Dispatchers.Unconfined
+                    copyToClipboard = { copiedLinks += it }
                 )
 
             try {
@@ -236,14 +227,12 @@ class BuildSearchModelE2ETest {
             var capturedApWeight: Int? = null
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
             val model =
-                BuildSearchModel(
+                newModel(
                     scope = scope,
                     buildFinder = { params ->
                         capturedApWeight = params.targetStats.firstOrNull { it.characteristic == ACTION_POINT }?.userDefinedWeight
                         emptyFlow()
-                    },
-                    zenithBuilder = { "" },
-                    mainDispatcher = Dispatchers.Unconfined
+                    }
                 )
 
             try {
@@ -288,13 +277,7 @@ class BuildSearchModelE2ETest {
     @Test
     fun `paperdoll force and exclude of the same item are mutually exclusive`() {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val model =
-            BuildSearchModel(
-                scope = scope,
-                buildFinder = { emptyFlow() },
-                zenithBuilder = { "" },
-                mainDispatcher = Dispatchers.Unconfined
-            )
+        val model = newModel(scope)
 
         try {
             val item = equipmentByFrenchName("Solomonk")
@@ -322,13 +305,7 @@ class BuildSearchModelE2ETest {
     @Test
     fun `item picker enforces the same force-exclude exclusivity`() {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val model =
-            BuildSearchModel(
-                scope = scope,
-                buildFinder = { emptyFlow() },
-                zenithBuilder = { "" },
-                mainDispatcher = Dispatchers.Unconfined
-            )
+        val model = newModel(scope)
 
         try {
             val item = equipmentByFrenchName("Solomonk")
@@ -347,6 +324,34 @@ class BuildSearchModelE2ETest {
             scope.cancel()
         }
     }
+
+    /**
+     * Constructs a [BuildSearchModel] wired for deterministic tests: both the IO and main
+     * dispatchers are [Dispatchers.Unconfined] so the init savedBuilds load runs synchronously
+     * inside the constructor, before the test touches [BuildSearchModel.ui]. A temp directory
+     * isolates tests from the developer's real saved-build library.
+     */
+    private fun newModel(
+        scope: CoroutineScope,
+        buildFinder: (WakfuBestBuildParams) -> Flow<GeneticAlgorithmResult<BuildCombination>> = { emptyFlow() },
+        zenithBuilder: suspend (me.chosante.ZenithInputParameters) -> String = { "" },
+        openBrowser: (String) -> Unit = {},
+        copyToClipboard: (String) -> Unit = {},
+    ): BuildSearchModel =
+        BuildSearchModel(
+            scope = scope,
+            buildFinder = buildFinder,
+            zenithBuilder = zenithBuilder,
+            openBrowser = openBrowser,
+            copyToClipboard = copyToClipboard,
+            mainDispatcher = Dispatchers.Unconfined,
+            ioDispatcher = Dispatchers.Unconfined,
+            historyRepository =
+                HistoryRepository(
+                    baseDir = Files.createTempDirectory("wakfu-test-history"),
+                    ioDispatcher = Dispatchers.Unconfined
+                )
+        )
 
     private fun UiState.toTargetStats(): TargetStats = TargetStats(targets.map { TargetStat(it.characteristic, it.value.toIntOrNull() ?: 0) })
 
