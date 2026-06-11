@@ -494,8 +494,15 @@ class BuildSearchModel(
     fun search() {
         job?.cancel()
         val snapshot = ui
-        val effectiveMinLevel = snapshot.minLevel.coerceAtMost(snapshot.level)
-        val character = Character(snapshot.clazz, snapshot.level, effectiveMinLevel)
+        // Contradictory level bounds (min above the character level) match no normal item — the
+        // engine keeps items with minLevel <= itemLevel <= level — so the solver would fall back to
+        // the only level-agnostic slots (pets/mounts) and surface a near-empty nonsense build. Fail
+        // fast with a clear, visible error instead of silently coercing the bounds and searching.
+        if (snapshot.minLevel > snapshot.level) {
+            ui = snapshot.copy(error = Tr.LEVEL_RANGE_INVALID.value(snapshot.lang))
+            return
+        }
+        val character = Character(snapshot.clazz, snapshot.level, snapshot.minLevel)
         val targetStats = snapshot.toTargetStats()
         val params =
             WakfuBestBuildParams(

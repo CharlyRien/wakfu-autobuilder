@@ -31,6 +31,7 @@ import me.chosante.common.Equipment
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.ui.history.HistoryRepository
 import me.chosante.ui.i18n.Lang
+import me.chosante.ui.i18n.Tr
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
@@ -320,6 +321,37 @@ class BuildSearchModelE2ETest {
             assertTrue(model.ui.forcedItems.isEmpty())
             assertEquals(listOf("Solomonk"), model.ui.excludedItems.map { it.matchName })
             assertNull(model.ui.modal)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `a min level above the character level is rejected before the solver runs`() {
+        var solverInvocations = 0
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val model =
+            newModel(
+                scope = scope,
+                buildFinder = {
+                    solverInvocations++
+                    emptyFlow()
+                }
+            )
+
+        try {
+            // Default character level is 110; push the min above it to make the range impossible.
+            model.setMinLevel("120")
+            assertTrue(model.ui.minLevel > model.ui.level)
+
+            model.search()
+
+            // The solver is never invoked, and a clear localized error is surfaced instead of the
+            // engine silently returning a near-empty pets/mounts-only build.
+            assertEquals(0, solverInvocations)
+            assertEquals(Tr.LEVEL_RANGE_INVALID.value(Lang.EN), model.ui.error)
+            assertEquals(Phase.Idle, model.ui.phase)
+            assertNull(model.ui.build)
         } finally {
             scope.cancel()
         }

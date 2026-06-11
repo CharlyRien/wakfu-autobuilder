@@ -127,8 +127,8 @@ private class WakfuAutobuild :
         "--min-niveau",
         help = "The min level of the character (no items selected will be under this level)"
     ).int()
-        .default(1)
-        .check("Level should be between 1 and 245") { it in 1..245 }
+        .default(0)
+        .check("Min level should be between 0 and 245") { it in 0..245 }
 
     private val characterClass: CharacterClass? by option(
         "--class",
@@ -424,6 +424,18 @@ HUPPERMAGE"""
     ).flag(default = false, defaultForHelp = "disabled")
 
     override fun run() {
+        // Contradictory level bounds (min above max) match no normal item — the engine's level
+        // filter keeps items with min <= itemLevel <= max — so the solver would silently fall back
+        // to the only level-agnostic slots (pets/mounts) and return a near-empty nonsense build.
+        // Fail fast with a clear message instead of running the solver on impossible constraints.
+        if (minLevelWanted > maxLevelWanted) {
+            throw PrintMessage(
+                message =
+                    "The min level ($minLevelWanted) cannot be greater than the max level ($maxLevelWanted). " +
+                        "Lower --min-level or raise --max-level.",
+                printError = true
+            )
+        }
         val character = Character(characterClass ?: CharacterClass.UNKNOWN, maxLevelWanted, minLevelWanted)
         val targetStats =
             TargetStats(

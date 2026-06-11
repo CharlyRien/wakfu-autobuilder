@@ -30,6 +30,10 @@ enum class Tr(
     CLASS("Class", "Classe"),
     LEVEL_SHORT("Lvl", "Niv"),
     MIN_SHORT("Min", "Min"),
+    LEVEL_RANGE_INVALID(
+        "Min level can't be higher than the character level. Lower the min, or raise the level.",
+        "Le niveau min ne peut pas dépasser le niveau du personnage. Baisse le min, ou augmente le niveau."
+    ),
     PROGRESS("Progress", "Progression"),
     PRELOAD_ICONS("Preloading item icons…", "Préchargement des icônes d'objets…"),
     PRELOAD_WARMUP("Starting the engine…", "Démarrage du moteur…"),

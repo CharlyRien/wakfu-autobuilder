@@ -81,6 +81,9 @@ fun StatsPanel(
         ) {
             MatchHero(ui)
             if (ui.phase == Phase.Idle && ui.build == null) {
+                // No build yet: the ActionsCard (which normally carries the error banner) isn't shown,
+                // so surface a pre-search error — e.g. an invalid min/max level range — here instead.
+                ui.error?.let { ErrorBanner(error = it) }
                 EmptyHint()
             } else {
                 ActionsCard(

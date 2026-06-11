@@ -96,7 +96,14 @@ fun TopBar(
                 Spacer(modifier = Modifier.width(10.dp))
                 NumberControl(label = tr(Tr.LEVEL_SHORT), value = ui.level.toString(), onValueChange = onLevelChange)
                 Spacer(modifier = Modifier.width(10.dp))
-                NumberControl(label = tr(Tr.MIN_SHORT), value = ui.minLevel.toString(), onValueChange = onMinLevelChange)
+                // Flag the field red the moment min exceeds the character level — an impossible
+                // range the search will refuse (see BuildSearchModel.search).
+                NumberControl(
+                    label = tr(Tr.MIN_SHORT),
+                    value = ui.minLevel.toString(),
+                    onValueChange = onMinLevelChange,
+                    isError = ui.minLevel > ui.level
+                )
                 Spacer(modifier = Modifier.width(22.dp))
                 TopMeter(label = tr(Tr.PROGRESS), value = "${ui.progress}%", fill = ui.progress / 100f, color = WColor.accent2)
                 Spacer(modifier = Modifier.width(16.dp))
@@ -333,6 +340,7 @@ private fun NumberControl(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
+    isError: Boolean = false,
 ) {
     var draft by remember { mutableStateOf(value) }
     // Keep the box in lockstep with the model's canonical (already-coerced) value. When the user types
@@ -351,7 +359,7 @@ private fun NumberControl(
                 .height(38.dp)
                 .clip(RoundedCornerShape(9.dp))
                 .background(WColor.raised)
-                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                .border(1.dp, if (isError) WColor.danger else WColor.border, RoundedCornerShape(9.dp))
                 .padding(horizontal = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
