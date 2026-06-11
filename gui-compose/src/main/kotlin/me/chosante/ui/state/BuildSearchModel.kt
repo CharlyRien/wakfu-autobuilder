@@ -121,6 +121,15 @@ class BuildSearchModel(
     var isReady by androidx.compose.runtime.mutableStateOf(false)
         private set
 
+    /**
+     * Completed by the UI once the window is actually on screen. Gates the native warm-up: on its
+     * very first launch macOS spends seconds validating the freshly extracted OR-Tools dylibs and
+     * stalls the UI thread for the whole load (see `OrToolsNativeLoader`), so the load must never
+     * start before the loading screen has had its first frame. Awaited with a timeout so headless
+     * usage (tests) can never hang on it.
+     */
+    val windowShown: kotlinx.coroutines.CompletableDeferred<Unit> = kotlinx.coroutines.CompletableDeferred()
+
     /** Estimated warm-up progress (0..1) for the loading screen. See [WarmupTiming]. */
     var warmupProgress by androidx.compose.runtime.mutableStateOf(0f)
         private set
@@ -152,14 +161,6 @@ class BuildSearchModel(
             System.getenv("WAKFU_COMPOSE_SCREENSHOT_VARY_PRIORITY") != null
 
     init {
-        // Decode item icons into the cache off the UI thread so they're ready (and decoded once)
-        // by the time a build is shown. Purely background work: it never gates startup — items
-        // simply appear as they decode, so we don't make the user wait on ~thousands of PNGs.
-        scope.launch(Dispatchers.Default) {
-            val paths = warmUpPaths(WakfuBestBuildFinderAlgorithm.equipments)
-            IconPreloader.warmUp(scope, paths) { _, _ -> }
-        }
-
         // Load the saved-build library off the UI thread. A read failure must never block startup —
         // it just yields an empty library that fills in as the user saves builds.
         scope.launch(Dispatchers.IO) {
@@ -172,6 +173,7 @@ class BuildSearchModel(
             // with the default request so the captured frame shows a populated build (paperdoll,
             // stats, skill tree) instead of an empty shell. The first solve pays OR-Tools' cold
             // start inline; ScreenshotCapture waits for the build before grabbing pixels.
+            startIconPreload()
             isReady = true
             if (screenshotPrecisionMode) setMode(ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT)
             if (screenshotVaryPriority) {
@@ -202,13 +204,29 @@ class BuildSearchModel(
                             delay(80.milliseconds)
                         }
                     }
-                delay(200.milliseconds)
+                // Wait for the loading screen's first frame before touching the native engine: the
+                // load can stall the UI thread (macOS first-launch code-sign validation), and a
+                // stall behind a painted window is invisible while one before it looks like the app
+                // failed to start. Generous bound: on a cold first packaged launch the window itself
+                // can take seconds to appear (Skiko's freshly extracted dylib pays the same macOS
+                // validation), and guessing low here would start the native load before the first
+                // frame — the exact failure this gate prevents. Nothing user-visible ever waits on
+                // the timeout (tests cancel their scope; the GUI completes the gate within ~200ms),
+                // it only exists so a headless run can never hang.
+                kotlinx.coroutines.withTimeoutOrNull(15.seconds) { windowShown.await() }
+                delay(100.milliseconds)
                 try {
                     WakfuBuildSolver.warmUp()
                     WarmupTiming.record(System.currentTimeMillis() - start)
+                } catch (cancellation: CancellationException) {
+                    throw cancellation
+                } catch (throwable: Throwable) {
+                    // Swallow (Throwable: native loading raises Errors, not Exceptions): a warm-up
+                    // failure should degrade to a cold first search, never crash the app.
+                    throwable.printStackTrace()
                 } finally {
-                    // Always reveal the UI: a warm-up failure should degrade to a cold first search,
-                    // never leave the app stuck on the loading screen.
+                    // Always reveal the UI: a warm-up failure must never leave the app stuck on the
+                    // loading screen.
                     ticker.cancel()
                     withContext(mainDispatcher) {
                         warmupProgress = 1f
@@ -216,7 +234,27 @@ class BuildSearchModel(
                         isReady = true
                     }
                 }
+                // Only start decoding item icons once the engine is warm. During warm-up every core
+                // counts: running the preloader (thousands of PNG decodes + the equipments JSON parse
+                // it triggers) concurrently with the native cold start starved the AWT event thread,
+                // which on macOS froze any window operation until warm-up finished. Icons are not
+                // needed before the first build is shown, so starting late costs nothing visible.
+                startIconPreload()
             }
+        }
+    }
+
+    /**
+     * Decodes item icons into the cache off the UI thread so they're ready (and decoded once) by the
+     * time a build is shown. Purely background work: it never gates startup — items simply appear as
+     * they decode, so we don't make the user wait on ~thousands of PNGs. First touch of
+     * [WakfuBestBuildFinderAlgorithm.equipments] also pays its (lazy) JSON parse, here on a
+     * background thread — never on the UI thread.
+     */
+    private fun startIconPreload() {
+        scope.launch(Dispatchers.Default) {
+            val paths = warmUpPaths(WakfuBestBuildFinderAlgorithm.equipments)
+            IconPreloader.warmUp(scope, paths) { _, _ -> }
         }
     }
 

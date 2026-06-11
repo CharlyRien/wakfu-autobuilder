@@ -99,9 +99,14 @@ solver.
 - `genetic/wakfu/WakfuBuildSolver.kt`: models the build as a constraint-optimization problem and
   solves it with CP-SAT for a **deterministic, provably optimal** result. Streams improving
   solutions via `callbackFlow`.
-- **Native**: OR-Tools ships a native library loaded at runtime via `Loader.loadNativeLibraries()`
-  (`WakfuBuildSolver`'s `init` / `warmUp()`). The **first** solve pays a one-time cold start
-  (library extraction + load); the GUI hides this behind a loading screen (see §6).
+- **Native**: OR-Tools ships ~100 native dylibs loaded at runtime via `OrToolsNativeLoader.load()`
+  (`WakfuBuildSolver`'s `init` / `warmUp()`). On macOS that loader extracts them **once** into
+  `~/Library/Caches/WakfuAutobuilder/ortools-native/<fingerprint>/` and reuses them: the stock
+  `Loader.loadNativeLibraries()` re-extracts to a fresh temp dir every launch, and macOS's
+  code-sign validation of freshly written dylibs (~10–25 s) stalls the whole UI thread — the
+  startup-freeze root cause. Only the **first** launch (or first after an OR-Tools bump) pays the
+  validation; later launches load in ~0.1 s. Other OSes keep the stock loader. The GUI hides the
+  cold start behind a loading screen (see §6).
 - Running/testing the solver needs extra JVM args — see §9.
 
 ### Two scoring modes (`ScoreComputationMode`)
@@ -155,14 +160,20 @@ then run `./gradlew :gui-compose:generateAssets`.
 is no FXML/XML.** Package root `me.chosante.ui`, organized by feature: `shell`, `request`,
 `paperdoll`, `stats`, `state`, `components`, `i18n`, `theme`, `testing`.
 
-- **`Main.kt`** — `application { Window(...) }`. `App()` gates on `BuildSearchModel.isReady`: it
-  shows a **`LoadingScreen`** (`shell/`) — app wordmark + a self-calibrating warm-up `%`/ETA — while
-  OR-Tools' native cold start is paid off the UI thread, then **`Crossfade`s** into the main UI. It
-  also sets the window / macOS dock icon from `assets/branding/app-icon.png`.
+- **`Main.kt`** — `application { Window(...) }`. The window opens **floating** (centered, clamped to
+  the usable screen) so the loading screen paints instantly, is pulled to the foreground (useful for
+  un-bundled `gradle run` launches), and is **maximised only once warm-up completes** — maximising at
+  launch ran the macOS zoom transition during the native load and froze startup. `App()` gates on
+  `BuildSearchModel.isReady`: it shows a **`LoadingScreen`** (`shell/`) — app wordmark + a
+  self-calibrating warm-up `%`/ETA — while OR-Tools' native cold start is paid off the UI thread,
+  then **`Crossfade`s** into the main UI. It also sets the window / macOS dock icon from
+  `assets/branding/app-icon.png`.
 - **`BuildSearchModel`** (`state/`) — the **single shared view-model** (Compose `mutableStateOf`
   `UiState`). It runs the search off-thread (`Dispatchers.Default`), collects the engine `Flow`,
-  and owns warm-up state (`WarmupTiming`), background icon preloading, the equipment catalog, and
-  Zenith build creation. (Unlike the old JavaFX GUI, state is centralized here — not in the widgets.)
+  and owns warm-up state (`WarmupTiming`), background icon preloading (started **after** warm-up so
+  the two never compete during startup), the equipment catalog, and Zenith build creation. The
+  warm-up itself waits for the window's first frame (`windowShown`) before touching the native
+  engine. (Unlike the old JavaFX GUI, state is centralized here — not in the widgets.)
 - **`AppShell`** (`shell/`) — `TopBar` (brand logo, language toggle, class, level/min-level, the
   progress + match/mastery meters, Search button) above a 3-column body:
   - **`RequestPanel`** (`request/`) — search mode, target-stats editor, constraints (per-rarity
