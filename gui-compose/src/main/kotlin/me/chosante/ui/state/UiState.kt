@@ -83,7 +83,8 @@ data class UiState(
     val lang: Lang = Lang.EN,
     val clazz: CharacterClass = CharacterClass.CRA,
     val level: Int = 110,
-    val minLevel: Int = 80,
+    /** Lower item-level bound for the search; 0 = no minimum (consider every item up to [level]). */
+    val minLevel: Int = 0,
     val mode: ScoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
     val targets: List<TargetRow> = defaultTargets(),
     val maxRarity: Rarity = Rarity.EPIC,
