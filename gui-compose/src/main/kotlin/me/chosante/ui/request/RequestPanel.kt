@@ -26,6 +26,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -352,7 +355,7 @@ private fun SectionHeader(title: String) {
 }
 
 @Composable
-private fun TargetRowList(
+internal fun TargetRowList(
     mode: ScoreComputationMode,
     targets: List<TargetRow>,
     onValueChange: (String, String) -> Unit,
@@ -360,14 +363,20 @@ private fun TargetRowList(
     onRemove: (String) -> Unit,
 ) {
     targets.forEachIndexed { index, target ->
-        if (index > 0) Hairline()
-        TargetStatRow(
-            target = target,
-            kind = tr(if (target.isExact(mode)) Tr.KIND_EXACT else Tr.KIND_MAXIMIZE),
-            onValueChange = { onValueChange(target.id, it) },
-            onWeightChange = { onWeightChange(target.id, it) },
-            onRemove = { onRemove(target.id) }
-        )
+        // Stable per-row identity: without it Compose tracks rows positionally, so adding/removing a row
+        // leaves each slot's remembered state (notably the PriorityMeter gesture coroutine) bound to the
+        // row that *used* to sit there — clicks then land on the wrong row. `target.id` is the unique,
+        // stable characteristic name, the same key the state model updates by.
+        key(target.id) {
+            if (index > 0) Hairline()
+            TargetStatRow(
+                target = target,
+                kind = tr(if (target.isExact(mode)) Tr.KIND_EXACT else Tr.KIND_MAXIMIZE),
+                onValueChange = { onValueChange(target.id, it) },
+                onWeightChange = { onWeightChange(target.id, it) },
+                onRemove = { onRemove(target.id) }
+            )
+        }
     }
 }
 
@@ -519,7 +528,11 @@ private fun TargetStatRow(
             width = 62.dp
         )
         Spacer(modifier = Modifier.width(10.dp))
-        PriorityMeter(weight = target.weight, onChange = onWeightChange)
+        PriorityMeter(
+            weight = target.weight,
+            onChange = onWeightChange,
+            modifier = Modifier.testTag(priorityMeterTestTag(target.id))
+        )
         Spacer(modifier = Modifier.width(8.dp))
         Box(
             modifier =
@@ -543,6 +556,9 @@ private fun TargetStatRow(
 }
 
 private const val PRIORITY_MAX = 5
+
+/** Test tag for a row's priority meter, keyed by the row id so UI tests can target one specific row. */
+internal fun priorityMeterTestTag(rowId: String): String = "priority-meter-$rowId"
 
 /** Gradient ends for the priority bar: yellow = least important, red = most important. */
 private val PriorityLow = Color(0xFFE6C34A)
@@ -573,8 +589,13 @@ private fun levelForX(
 private fun PriorityMeter(
     weight: Int,
     onChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val level = weight.coerceIn(1, PRIORITY_MAX)
+    // `pointerInput(Unit)` launches its gesture coroutine once and captures `onChange` from that first
+    // composition only. When this meter is reused for a different row (rows added/removed), a captured
+    // stale lambda would drive clicks to the wrong row, so read the latest one via rememberUpdatedState.
+    val currentOnChange by rememberUpdatedState(onChange)
     TooltipArea(
         delayMillis = 350,
         tooltip = {
@@ -596,15 +617,15 @@ private fun PriorityMeter(
     ) {
         Row(
             modifier =
-                Modifier
+                modifier
                     .pointerInput(Unit) {
-                        detectTapGestures { offset -> onChange(levelForX(offset.x, size.width)) }
+                        detectTapGestures { offset -> currentOnChange(levelForX(offset.x, size.width)) }
                     }.pointerInput(Unit) {
                         detectHorizontalDragGestures(
-                            onDragStart = { offset -> onChange(levelForX(offset.x, size.width)) }
+                            onDragStart = { offset -> currentOnChange(levelForX(offset.x, size.width)) }
                         ) { change, _ ->
                             change.consume()
-                            onChange(levelForX(change.position.x, size.width))
+                            currentOnChange(levelForX(change.position.x, size.width))
                         }
                     },
             horizontalArrangement = Arrangement.spacedBy(3.dp),
