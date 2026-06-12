@@ -1,5 +1,8 @@
 package me.chosante.ui.history
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,6 +23,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,6 +62,7 @@ fun LibraryScreen(
     ui: UiState,
     onLoad: (String) -> Unit,
     onCompare: (String) -> Unit,
+    onDuplicate: (String) -> Unit,
     onRename: (String, String) -> Unit,
     onDelete: (String, String) -> Unit,
     onGoBuilder: () -> Unit,
@@ -74,6 +79,10 @@ fun LibraryScreen(
             }
         }
     val scroll = rememberScrollState()
+    // A fresh duplicate lands at the top (newest first); bring it into view so the highlight is seen.
+    LaunchedEffect(ui.lastDuplicatedBuildId) {
+        if (ui.lastDuplicatedBuildId != null) scroll.animateScrollTo(0)
+    }
     Column(
         modifier =
             modifier
@@ -104,8 +113,10 @@ fun LibraryScreen(
                                 BuildCard(
                                     entry = entry,
                                     isActive = entry.id == ui.activeBuildId,
+                                    isJustDuplicated = entry.id == ui.lastDuplicatedBuildId,
                                     onLoad = { onLoad(entry.id) },
                                     onCompare = { onCompare(entry.id) },
+                                    onDuplicate = { onDuplicate(entry.id) },
                                     onRename = { onRename(entry.id, entry.name) },
                                     onDelete = { onDelete(entry.id, entry.name) }
                                 )
@@ -138,8 +149,10 @@ private fun Header(count: Int) {
 private fun BuildCard(
     entry: HistoryEntry,
     isActive: Boolean,
+    isJustDuplicated: Boolean,
     onLoad: () -> Unit,
     onCompare: () -> Unit,
+    onDuplicate: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -152,26 +165,41 @@ private fun BuildCard(
                 .toLocalDate()
                 .format(dateFormatter)
         }
+    // A freshly duplicated card pulses an accent border + tint, then fades back as the marker clears.
+    val borderColor by animateColorAsState(
+        targetValue =
+            when {
+                isJustDuplicated -> WColor.accent
+                isActive -> WColor.accent.copy(alpha = 0.6f)
+                else -> WColor.hairline
+            },
+        label = "buildCardBorder"
+    )
+    val highlightTint by animateColorAsState(
+        targetValue = if (isJustDuplicated) WColor.accent.copy(alpha = 0.10f) else Color.Transparent,
+        label = "buildCardTint"
+    )
     Column(
         modifier =
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(WDimens.radius))
                 .background(WColor.surface)
-                .border(
-                    1.dp,
-                    if (isActive) WColor.accent.copy(alpha = 0.6f) else WColor.hairline,
-                    RoundedCornerShape(WDimens.radius)
-                ).padding(WDimens.pad)
+                .background(highlightTint)
+                .border(1.dp, borderColor, RoundedCornerShape(WDimens.radius))
+                .padding(WDimens.pad)
     ) {
         Row(verticalAlignment = Alignment.Top) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = entry.name,
-                    style = WTypography.titleMedium.copy(color = WColor.text, fontWeight = FontWeight.SemiBold),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                // Full name on hover — long names (and the "(copy)" suffix) get ellipsized in the card.
+                LabelTooltip(text = entry.name, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = entry.name,
+                        style = WTypography.titleMedium.copy(color = WColor.text, fontWeight = FontWeight.SemiBold),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 Text(
                     text = "${entry.classDisplayName()} · ${tr(Tr.LEVEL_SHORT)} ${entry.request.level} · $date",
                     style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
@@ -191,11 +219,14 @@ private fun BuildCard(
             )
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+        // One compact row: the two primary actions stay labelled; the rest are tooltipped icons so
+        // more cards fit on screen at once.
+        Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
             CardButton(text = tr(Tr.ACTION_LOAD), filled = true, color = WColor.accent, onClick = onLoad, modifier = Modifier.weight(1f))
             CardButton(text = tr(Tr.ACTION_COMPARE), filled = false, color = WColor.accent2, onClick = onCompare, modifier = Modifier.weight(1f))
-            IconButton(glyph = "✎", onClick = onRename)
-            IconButton(glyph = "🗑", onClick = onDelete)
+            IconButton(glyph = "🗐", tooltip = tr(Tr.ACTION_DUPLICATE), onClick = onDuplicate)
+            IconButton(glyph = "✎", tooltip = tr(Tr.ACTION_RENAME), onClick = onRename)
+            IconButton(glyph = "🗑", tooltip = tr(Tr.ACTION_DELETE), onClick = onDelete)
         }
     }
 }
@@ -262,20 +293,54 @@ private fun CardButton(
 @Composable
 private fun IconButton(
     glyph: String,
+    tooltip: String,
     onClick: () -> Unit,
 ) {
-    Box(
-        modifier =
-            Modifier
-                .size(34.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(WColor.raised)
-                .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
-                .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(text = glyph, style = WTypography.labelMedium.copy(color = WColor.muted, lineHeight = 14.sp))
+    LabelTooltip(text = tooltip) {
+        Box(
+            modifier =
+                Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(WColor.raised)
+                    .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
+                    .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = glyph, style = WTypography.labelMedium.copy(color = WColor.muted, lineHeight = 14.sp))
+        }
     }
+}
+
+/**
+ * Wraps [content] with a hover tooltip showing a short [text] label, styled like the rest of the app
+ * (raised pill, hairline border). Used to name the icon-only card actions and to spell out a build's
+ * full name when the card ellipsizes it.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun LabelTooltip(
+    text: String,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    TooltipArea(
+        modifier = modifier,
+        delayMillis = 350,
+        tooltip = {
+            Text(
+                text = text,
+                style = WTypography.labelSmall.copy(color = WColor.text),
+                modifier =
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(WColor.raised)
+                        .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 9.dp, vertical = 6.dp)
+            )
+        },
+        content = content
+    )
 }
 
 @Composable
