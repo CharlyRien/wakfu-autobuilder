@@ -99,7 +99,7 @@ class BuildSearchModel(
     private val openBrowser: (String) -> Unit = { link -> Desktop.getDesktop().browse(URI(link)) },
     private val copyToClipboard: (String) -> Unit = { link -> Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(link), null) },
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Swing,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val historyRepository: HistoryRepository = HistoryRepository(),
     /** Wakfu game-data version stamped onto saved builds (injectable for tests). */
     private val dataVersion: String = WakfuBestBuildFinderAlgorithm.dataVersion,
@@ -322,7 +322,7 @@ class BuildSearchModel(
         ui = ui.copy(targets = ui.targets.filterNot { it.id == id })
     }
 
-    fun addTarget(characteristic: me.chosante.common.Characteristic) {
+    fun addTarget(characteristic: Characteristic) {
         if (ui.targets.any { it.characteristic == characteristic }) {
             ui = ui.copy(modal = null)
             return
@@ -357,10 +357,6 @@ class BuildSearchModel(
                 else -> emptySet()
             }
         ui = ui.copy(targets = ui.targets.filterNot { it.characteristic in conflicting } + row)
-    }
-
-    fun setMaxRarity(rarity: Rarity) {
-        ui = ui.copy(maxRarity = rarity)
     }
 
     /** Screenshot-only: seed excluded rarities from WAKFU_COMPOSE_SCREENSHOT_EXCLUDE_RARITIES (comma list). */
@@ -625,10 +621,6 @@ class BuildSearchModel(
         }
     }
 
-    fun clearToast() {
-        ui = ui.copy(toast = null)
-    }
-
     private fun createZenithLink(onReady: (String) -> Unit) {
         val build = ui.build ?: return
         ui = ui.copy(zenith = ZenithState.Loading, error = null, toast = null)
@@ -853,6 +845,63 @@ class BuildSearchModel(
             val all = historyRepository.loadAll()
             withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all) }
         }
+    }
+
+    /**
+     * Duplicates a saved build (#141): persists a brand-new library entry carrying the same request +
+     * result but a fresh id and a unique "(copy)" name, leaving the original untouched. This lets the
+     * user tweak the copy and compare it against the source without overwriting it. Stays on the
+     * current screen; the copy lands at the top of the library (newest first). Written off the UI
+     * thread, like every other history write.
+     */
+    fun duplicateBuild(id: String) {
+        val source = ui.savedBuilds.firstOrNull { it.id == id } ?: return
+        val copy = source.copy(id = idGenerator(), name = uniqueCopyName(source.name), createdAt = clock())
+        scope.launch(Dispatchers.IO) {
+            runCatching { historyRepository.save(copy) }
+                .onSuccess {
+                    val all = historyRepository.loadAll()
+                    withContext(mainDispatcher) {
+                        ui =
+                            ui.copy(
+                                savedBuilds = all,
+                                lastDuplicatedBuildId = copy.id,
+                                toast = Tr.TOAST_BUILD_DUPLICATED.value(ui.lang)
+                            )
+                        clearDuplicatedMarkerLater(copy.id)
+                    }
+                }.onFailure { throwable ->
+                    withContext(mainDispatcher) { ui = ui.copy(error = throwable.message ?: "Could not duplicate build") }
+                }
+        }
+    }
+
+    /** Drops the just-duplicated highlight after a beat, so the cue fades on its own. */
+    private fun clearDuplicatedMarkerLater(id: String) {
+        scope.launch {
+            delay(2200.milliseconds)
+            withContext(mainDispatcher) {
+                if (ui.lastDuplicatedBuildId == id) {
+                    ui = ui.copy(lastDuplicatedBuildId = null)
+                }
+            }
+        }
+    }
+
+    /**
+     * A unique "<name> (copy)" — falling back to "(copy 2)", "(copy 3)", … when needed — so a
+     * duplicate never collides with an existing build name. Names are kept unique so the library and
+     * compare view stay unambiguous, mirroring the [renameBuild]/[saveBuild] guards.
+     */
+    private fun uniqueCopyName(baseName: String): String {
+        val suffix = Tr.DUPLICATE_SUFFIX.value(ui.lang)
+        val base = baseName.trim()
+        val taken = ui.savedBuilds.map { it.name.trim().lowercase() }.toSet()
+        val first = "$base ($suffix)"
+        if (first.lowercase() !in taken) return first
+        var n = 2
+        while ("$base ($suffix $n)".lowercase() in taken) n++
+        return "$base ($suffix $n)"
     }
 
     fun requestDelete(

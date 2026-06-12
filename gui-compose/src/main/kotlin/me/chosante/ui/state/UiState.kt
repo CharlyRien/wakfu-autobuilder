@@ -122,6 +122,12 @@ data class UiState(
     /** The two builds pinned for the side-by-side compare view (entry ids), A then B. */
     val compareA: String? = null,
     val compareB: String? = null,
+    /**
+     * Id of the build just created by [me.chosante.ui.state.BuildSearchModel.duplicateBuild]. The
+     * library briefly highlights that card (and scrolls it into view) so it's obvious where the copy
+     * landed; cleared after a short delay.
+     */
+    val lastDuplicatedBuildId: String? = null,
 )
 
 /**

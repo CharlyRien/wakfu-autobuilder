@@ -26,7 +26,6 @@ enum class Tr(
     val fr: String,
 ) {
     // Brand / top bar
-    BRAND_SUBTITLE("BUILD DISCOVERER", "DÉCOUVREUR DE BUILD"),
     CLASS("Class", "Classe"),
     LEVEL_SHORT("Lvl", "Niv"),
     MIN_SHORT("Min", "Min"),
@@ -35,7 +34,6 @@ enum class Tr(
         "Le niveau min ne peut pas dépasser le niveau du personnage. Baisse le min, ou augmente le niveau."
     ),
     PROGRESS("Progress", "Progression"),
-    PRELOAD_ICONS("Preloading item icons…", "Préchargement des icônes d'objets…"),
     PRELOAD_WARMUP("Starting the engine…", "Démarrage du moteur…"),
     MATCH("Match", "Correspondance"),
     SEARCH("Search", "Rechercher"),
@@ -76,11 +74,6 @@ enum class Tr(
     SEARCH_DURATION_SUB("genetic search window", "fenêtre de recherche génétique"),
     SECONDS_SHORT("sec", "sec"),
     STOP_AT_MATCH("Stop at 100% match", "Arrêter à 100%"),
-    DEBUG_SOLVER("Debug solver", "Solveur debug"),
-    SOLVER_OR_TOOLS("OR-Tools", "OR-Tools"),
-    SOLVER_OR_TOOLS_SUB("optimal", "optimal"),
-    SOLVER_GA("GA", "AG"),
-    SOLVER_GA_SUB("legacy", "historique"),
     SEARCH_NO_RESULT(
         "No build produced in this time window. Narrow the level range, increase duration, or switch to GA.",
         "Aucun build produit dans cette fenêtre. Réduis la plage de niveaux, augmente la durée, ou passe en AG."
@@ -92,7 +85,6 @@ enum class Tr(
 
     // Paperdoll
     PREPARING_OR_TOOLS_MODEL("Preparing OR-Tools model", "Préparation du modèle OR-Tools"),
-    SEARCHING_FIRST_BUILD("Searching first build", "Recherche du premier build"),
     FIRST_RESULT_HINT(
         "The first build will appear here as soon as the solver has one.",
         "Le premier build apparaîtra ici dès que le solveur en a un."
@@ -174,16 +166,13 @@ enum class Tr(
     TOAST_ZENITH_COPIED("Zenith link copied", "Lien Zenith copié"),
     TOAST_ZENITH_READY("Zenith build ready", "Build Zenith prêt"),
     TOAST_BUILD_SAVED("Build saved", "Build enregistré"),
+    TOAST_BUILD_DUPLICATED("Build duplicated", "Build dupliqué"),
 
     // Navigation / active build
     NAV_BUILDER("Builder", "Builder"),
     NAV_LIBRARY("My Builds", "Mes builds"),
     NEW_BUILD("＋ New", "＋ Nouveau"),
-    NEW_BUILD_FULL("New build", "Nouveau build"),
-    ACTIVE_BUILD_UNSAVED("Unsaved build", "Build non enregistré"),
     ACTIVE_BUILD_EDITING("Editing", "Édition"),
-    SEARCH_LOCKED_HINT("Saved build loaded — click to re-optimize", "Build enregistré chargé — clique pour ré-optimiser"),
-    UNLINK_BUILD("Detach", "Détacher"),
     BACK("Back", "Retour"),
 
     // Save dialog
@@ -211,8 +200,12 @@ enum class Tr(
     LIBRARY_COUNT("saved", "enregistrés"),
     ACTION_LOAD("Load", "Charger"),
     ACTION_COMPARE("Compare", "Comparer"),
+    ACTION_DUPLICATE("Duplicate", "Dupliquer"),
     ACTION_RENAME("Rename", "Renommer"),
     ACTION_DELETE("Delete", "Supprimer"),
+
+    /** Suffix appended to a duplicated build's name, e.g. "Cra 110 (copy)". */
+    DUPLICATE_SUFFIX("copy", "copie"),
 
     // Rename / delete dialogs
     RENAME_TITLE("Rename build", "Renommer le build"),
@@ -233,7 +226,6 @@ enum class Tr(
     COMPARE_TITLE("Compare builds", "Comparer les builds"),
     COMPARE_PICK_A("Pick build A", "Choisir le build A"),
     COMPARE_PICK_B("Pick build B", "Choisir le build B"),
-    COMPARE_WORKSPACE("Current workspace", "Build courant"),
     COMPARE_BETTER("Best", "Meilleur"),
     COMPARE_EQUAL("=", "="),
     COMPARE_EMPTY("Pick two builds to compare them side by side.", "Choisis deux builds à comparer côte à côte."),
