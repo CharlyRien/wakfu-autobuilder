@@ -107,6 +107,7 @@ fun AppShell(
                                 ui = ui,
                                 onLoad = model::loadBuild,
                                 onCompare = model::startCompare,
+                                onDuplicate = model::duplicateBuild,
                                 onRename = model::requestRename,
                                 onDelete = model::requestDelete,
                                 onGoBuilder = { model.goToScreen(Screen.Builder) }

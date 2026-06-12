@@ -28,6 +28,11 @@ import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_FIRE
 import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_WATER
 import me.chosante.common.Characteristic.MASTERY_ELEMENTARY_WIND
 import me.chosante.common.Equipment
+import me.chosante.common.Rarity
+import me.chosante.common.history.HistoryEntry
+import me.chosante.common.history.RequestSnapshot
+import me.chosante.common.history.ResultSnapshot
+import me.chosante.common.history.TargetSnapshot
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.ui.history.HistoryRepository
 import me.chosante.ui.i18n.Lang
@@ -37,8 +42,11 @@ import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 import java.math.BigDecimal
 import java.nio.file.Files
+import java.nio.file.Path
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 class BuildSearchModelE2ETest {
@@ -93,7 +101,7 @@ class BuildSearchModelE2ETest {
                 .map { it.characteristic }
                 .filter {
                     it == MASTERY_ELEMENTARY ||
-                        it in setOf(MASTERY_ELEMENTARY_FIRE, MASTERY_ELEMENTARY_EARTH, MASTERY_ELEMENTARY_WATER, MASTERY_ELEMENTARY_WIND)
+                            it in setOf(MASTERY_ELEMENTARY_FIRE, MASTERY_ELEMENTARY_EARTH, MASTERY_ELEMENTARY_WATER, MASTERY_ELEMENTARY_WIND)
                 }.toSet()
 
         try {
@@ -357,6 +365,94 @@ class BuildSearchModelE2ETest {
         }
     }
 
+    @Test
+    fun `duplicate saves an independent copy with a unique name`(
+        @TempDir tempDir: Path,
+    ) = runBlocking {
+        val repo = HistoryRepository(baseDir = tempDir, ioDispatcher = Dispatchers.Unconfined)
+        repo.save(historyEntry(id = "orig", name = "Cra 110 · Distance"))
+
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        var nextId = 0
+        val model =
+            BuildSearchModel(
+                scope = scope,
+                buildFinder = { emptyFlow() },
+                zenithBuilder = { "" },
+                mainDispatcher = Dispatchers.Unconfined,
+                historyRepository = repo,
+                idGenerator = { "copy-${nextId++}" },
+                clock = { 9_000L }
+            )
+
+        try {
+            awaitUntil { model.ui.savedBuilds.any { it.id == "orig" } }
+
+            // First duplicate → "(copy)": a fresh id, a faithful copy of the request + result.
+            model.duplicateBuild("orig")
+            awaitUntil { model.ui.savedBuilds.size == 2 }
+            val original = model.ui.savedBuilds.single { it.id == "orig" }
+            val firstCopy = model.ui.savedBuilds.single { it.id != "orig" }
+            assertEquals("copy-0", firstCopy.id)
+            assertEquals("Cra 110 · Distance (copy)", firstCopy.name)
+            assertEquals(9_000L, firstCopy.createdAt)
+            assertEquals(original.request, firstCopy.request)
+            assertEquals(original.result, firstCopy.result)
+            assertEquals("Build duplicated", model.ui.toast)
+            // The new copy is flagged for the library's highlight/scroll feedback.
+            assertEquals(firstCopy.id, model.ui.lastDuplicatedBuildId)
+            // The source is left untouched.
+            assertEquals("Cra 110 · Distance", original.name)
+
+            // Duplicating the same source again must not collide → "(copy 2)".
+            model.duplicateBuild("orig")
+            awaitUntil { model.ui.savedBuilds.size == 3 }
+            val names =
+                model.ui.savedBuilds
+                    .map { it.name }
+                    .toSet()
+            assertTrue(
+                names.contains("Cra 110 · Distance (copy 2)"),
+                "Expected a uniquely-suffixed second copy, got $names"
+            )
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    private fun historyEntry(
+        id: String,
+        name: String,
+    ): HistoryEntry =
+        HistoryEntry(
+            id = id,
+            name = name,
+            createdAt = 1_000L,
+            dataVersion = "test",
+            request =
+                RequestSnapshot(
+                    clazz = "CRA",
+                    level = 110,
+                    minLevel = 80,
+                    mode = "FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT",
+                    maxRarity = Rarity.EPIC,
+                    duration = "20",
+                    stopAtMatch = false,
+                    targets = listOf(TargetSnapshot(MASTERY_DISTANCE, "1")),
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList()
+                ),
+            result =
+                ResultSnapshot(
+                    equipments = emptyList(),
+                    skills = emptyMap(),
+                    achieved = mapOf(MASTERY_DISTANCE to 1280),
+                    match = 100.0,
+                    optimal = true
+                ),
+            zenithUrl = "https://zenithwakfu.com/builder/orig"
+        )
+
     /**
      * Constructs a [BuildSearchModel] wired for deterministic tests: both the IO and main
      * dispatchers are [Dispatchers.Unconfined] so the init savedBuilds load runs synchronously
@@ -390,7 +486,7 @@ class BuildSearchModelE2ETest {
     private suspend fun awaitUntil(predicate: () -> Boolean) {
         withTimeout(25.seconds) {
             while (!predicate()) {
-                delay(50)
+                delay(50.milliseconds)
             }
         }
     }
