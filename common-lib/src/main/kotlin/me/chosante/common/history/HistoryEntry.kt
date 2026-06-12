@@ -40,6 +40,10 @@ data class HistoryEntry(
     val result: ResultSnapshot,
     /** Cached Zenith share URL, if one was ever generated for this build. */
     val zenithUrl: String? = null,
+    /** Free-form user tags (trimmed, case-insensitively unique). Empty for pre-feature saves. */
+    val tags: List<String> = emptyList(),
+    /** User folder name, or null = unfiled. Folders are implicit (they exist via membership). */
+    val folder: String? = null,
 ) {
     companion object {
         const val CURRENT_SCHEMA_VERSION = 1
