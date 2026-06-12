@@ -198,6 +198,30 @@ enum class Tr(
     LIBRARY_SEARCH("Search builds…", "Rechercher un build…"),
     LIBRARY_NO_MATCH("No build matches your search", "Aucun build ne correspond"),
     LIBRARY_COUNT("saved", "enregistrés"),
+    LIBRARY_ALL_BUILDS("All builds", "Tous les builds"),
+    LIBRARY_CLASSES("Classes", "Classes"),
+    LIBRARY_TAGS("Tags", "Tags"),
+    LIBRARY_SORT("Sort", "Tri"),
+    SORT_NEWEST("Newest", "Plus récents"),
+    SORT_OLDEST("Oldest", "Plus anciens"),
+    SORT_NAME("Name (A–Z)", "Nom (A–Z)"),
+    SORT_LEVEL("Level", "Niveau"),
+    LIBRARY_GROUP_BY_CLASS("Group by class", "Grouper par classe"),
+    LIBRARY_CLEAR_FILTERS("Clear filters", "Effacer les filtres"),
+    LIBRARY_FOLDERS("Folders", "Dossiers"),
+    LIBRARY_UNFILED("Unfiled", "Sans dossier"),
+    FOLDER_LABEL("Folder", "Dossier"),
+    FOLDER_NONE("None", "Aucun"),
+    FOLDER_NEW("New folder…", "Nouveau dossier…"),
+    RENAME_FOLDER_TITLE("Rename folder", "Renommer le dossier"),
+    DELETE_FOLDER_TITLE("Delete folder", "Supprimer le dossier"),
+    DELETE_FOLDER_HINT(
+        "The builds inside are kept and become unfiled.",
+        "Les builds qu'il contient sont conservés et redeviennent sans dossier."
+    ),
+    TOAST_FOLDER_RENAMED("Folder renamed", "Dossier renommé"),
+    TOAST_FOLDERS_MERGED("Folders merged", "Dossiers fusionnés"),
+    TOAST_FOLDER_DELETED("Folder deleted — builds kept", "Dossier supprimé — builds conservés"),
     ACTION_LOAD("Load", "Charger"),
     ACTION_COMPARE("Compare", "Comparer"),
     ACTION_DUPLICATE("Duplicate", "Dupliquer"),
@@ -207,8 +231,24 @@ enum class Tr(
     /** Suffix appended to a duplicated build's name, e.g. "Cra 110 (copy)". */
     DUPLICATE_SUFFIX("copy", "copie"),
 
-    // Rename / delete dialogs
-    RENAME_TITLE("Rename build", "Renommer le build"),
+    // Edit / delete dialogs
+    EDIT_BUILD_TITLE("Edit build", "Modifier le build"),
+    TAGS_LABEL("Tags", "Tags"),
+    TAG_ADD_PLACEHOLDER("Type or pick a tag…", "Tape ou choisis un tag…"),
+    TAG_ADD("Add", "Ajouter"),
+    TAG_CREATE("Create", "Créer"),
+    TAG_NONE_LEFT("No tag matches — type to create one", "Aucun tag — tape pour en créer un"),
+    TAG_NEW("New tag", "Nouveau tag"),
+    CREATE_TAG_TITLE("New tag", "Nouveau tag"),
+    RENAME_TAG_TITLE("Rename tag", "Renommer le tag"),
+    DELETE_TAG_TITLE("Delete tag", "Supprimer le tag"),
+    DELETE_TAG_HINT(
+        "The tag is removed from every build. The builds themselves are kept.",
+        "Le tag est retiré de tous les builds. Les builds eux-mêmes sont conservés."
+    ),
+    TOAST_TAG_RENAMED("Tag renamed", "Tag renommé"),
+    TOAST_TAGS_MERGED("Tags merged", "Tags fusionnés"),
+    TOAST_TAG_DELETED("Tag deleted from all builds", "Tag supprimé de tous les builds"),
     DELETE_TITLE("Delete this build?", "Supprimer ce build ?"),
     DELETE_HINT("This permanently removes it from your local library.", "Le retire définitivement de ta bibliothèque locale."),
 

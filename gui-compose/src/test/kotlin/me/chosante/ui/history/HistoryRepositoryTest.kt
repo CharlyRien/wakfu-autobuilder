@@ -16,6 +16,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
+import kotlin.io.path.createDirectories
 
 // NB: each @Test uses a *block body* (not `= runBlocking { … }`). An expression body returns the
 // lambda's value, giving the test a non-Unit return type that JUnit 5 silently skips — block bodies
@@ -96,6 +97,59 @@ class HistoryRepositoryTest {
 
             val loaded = repo.loadAll()
             assertThat(loaded.map { it.name }).containsExactly("good")
+        }
+    }
+
+    @Test
+    fun `save then loadAll round-trips tags and folder`(
+        @TempDir tempDir: Path,
+    ) {
+        runBlocking {
+            val repo = HistoryRepository(baseDir = tempDir, ioDispatcher = Dispatchers.Unconfined)
+            val entry = sampleEntry(id = "t", name = "tagged").copy(tags = listOf("PvP", "Solo"), folder = "Mes builds")
+
+            repo.save(entry)
+
+            val loaded = repo.loadAll().single()
+            assertThat(loaded.tags).containsExactly("PvP", "Solo")
+            assertThat(loaded.folder).isEqualTo("Mes builds")
+        }
+    }
+
+    @Test
+    fun `loadAll defaults tags to empty for a pre-feature JSON without the key`(
+        @TempDir tempDir: Path,
+    ) {
+        runBlocking {
+            val repo = HistoryRepository(baseDir = tempDir, ioDispatcher = Dispatchers.Unconfined)
+            // Hand-written entry JSON predating the tags field — no "tags" key at all.
+            val legacy =
+                """
+                {
+                  "id": "legacy",
+                  "name": "Legacy build",
+                  "createdAt": 1700000000000,
+                  "dataVersion": "1.91.1.54",
+                  "request": {
+                    "clazz": "CRA", "level": 110, "minLevel": 80,
+                    "mode": "FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT",
+                    "maxRarity": "EPIC", "duration": "20", "stopAtMatch": false,
+                    "targets": [], "forcedItems": [], "excludedItems": []
+                  },
+                  "result": { "equipments": [], "skills": {}, "achieved": {}, "match": 90.0, "optimal": false }
+                }
+                """.trimIndent()
+            repo.directory().createDirectories()
+            repo
+                .directory()
+                .resolve("legacy.json")
+                .toFile()
+                .writeText(legacy)
+
+            val loaded = repo.loadAll().single()
+            assertThat(loaded.tags).isEmpty()
+            assertThat(loaded.folder).isNull()
+            assertThat(loaded.name).isEqualTo("Legacy build")
         }
     }
 

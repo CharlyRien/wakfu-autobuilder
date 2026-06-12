@@ -33,6 +33,8 @@ fun UiState.toHistoryEntry(
     note: String?,
     createdAt: Long,
     dataVersion: String,
+    tags: List<String> = emptyList(),
+    folder: String? = null,
 ): HistoryEntry? {
     val build = this.build ?: return null
     return HistoryEntry(
@@ -62,8 +64,19 @@ fun UiState.toHistoryEntry(
                 match = match.toDouble(),
                 optimal = optimal
             ),
-        zenithUrl = zenithUrl
+        zenithUrl = zenithUrl,
+        tags = tags,
+        folder = folder
     )
+}
+
+/** Trim, drop blanks, dedupe case-insensitively keeping the first-seen casing for display. */
+fun normalizeTags(raw: List<String>): List<String> {
+    val seen = HashSet<String>()
+    return raw
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .filter { seen.add(it.lowercase()) }
 }
 
 /** Flattens a skill allocation to `skill name → points` for storage. */
