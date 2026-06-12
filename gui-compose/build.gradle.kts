@@ -46,6 +46,7 @@ dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
+    testImplementation(compose.desktop.uiTestJUnit4) // Compose UI test harness (runComposeUiTest) for widget tests
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     // Per-machine artifacts Conveyor packages for each target: that OS's Compose Desktop (Skiko) +
