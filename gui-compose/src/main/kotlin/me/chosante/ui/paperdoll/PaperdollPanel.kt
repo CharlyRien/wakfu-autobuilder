@@ -58,7 +58,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.PopupPositionProvider
 import me.chosante.common.Equipment
-import me.chosante.common.ItemType
 import me.chosante.common.RuneColor
 import me.chosante.common.RuneType
 import me.chosante.ui.components.RarityIcon
@@ -838,69 +837,6 @@ private fun SlotMeta(
             }
         }
     }
-}
-
-private data class DollSlot(
-    val id: String,
-    val labelKey: Tr,
-    val glyph: String,
-)
-
-private val leftSlots =
-    listOf(
-        DollSlot("helmet", Tr.SLOT_HELMET, "⛨"),
-        DollSlot("amulet", Tr.SLOT_AMULET, "◌"),
-        DollSlot("epaul", Tr.SLOT_EPAULETTES, "▱"),
-        DollSlot("chest", Tr.SLOT_BREASTPLATE, "▢"),
-        DollSlot("cape", Tr.SLOT_CAPE, "⊳")
-    )
-
-private val rightSlots =
-    listOf(
-        DollSlot("emblem", Tr.SLOT_EMBLEM, "✦"),
-        DollSlot("belt", Tr.SLOT_BELT, "═"),
-        DollSlot("ring1", Tr.SLOT_RING_I, "◯"),
-        DollSlot("ring2", Tr.SLOT_RING_II, "◯"),
-        DollSlot("boots", Tr.SLOT_BOOTS, "⊓")
-    )
-
-private val bottomSlots =
-    listOf(
-        DollSlot("weapon", Tr.SLOT_WEAPON, "⚔"),
-        DollSlot("weapon2", Tr.SLOT_SECOND_WEAPON, "⛉"),
-        DollSlot("pet", Tr.SLOT_PET, "❀"),
-        DollSlot("mount", Tr.SLOT_MOUNT, "≋")
-    )
-
-private fun slotAssignments(equipments: List<Equipment>): Map<String, Equipment> {
-    val rings = equipments.filter { it.itemType == ItemType.RING }
-    val twoHanded = equipments.firstOrNull { it.itemType == ItemType.TWO_HANDED_WEAPONS }
-    val oneHanded = equipments.firstOrNull { it.itemType == ItemType.ONE_HANDED_WEAPONS }
-    val offHand = equipments.firstOrNull { it.itemType == ItemType.OFF_HAND_WEAPONS }
-    return buildMap {
-        putFirst("helmet", equipments, ItemType.HELMET)
-        putFirst("amulet", equipments, ItemType.AMULET)
-        putFirst("epaul", equipments, ItemType.SHOULDER_PADS)
-        putFirst("chest", equipments, ItemType.CHEST_PLATE)
-        putFirst("cape", equipments, ItemType.CAPE)
-        putFirst("emblem", equipments, ItemType.EMBLEM)
-        putFirst("belt", equipments, ItemType.BELT)
-        rings.getOrNull(0)?.let { put("ring1", it) }
-        rings.getOrNull(1)?.let { put("ring2", it) }
-        putFirst("boots", equipments, ItemType.BOOTS)
-        (twoHanded ?: oneHanded)?.let { put("weapon", it) }
-        (if (twoHanded != null) twoHanded else offHand)?.let { put("weapon2", it) }
-        putFirst("pet", equipments, ItemType.PETS)
-        putFirst("mount", equipments, ItemType.MOUNTS)
-    }
-}
-
-private fun MutableMap<String, Equipment>.putFirst(
-    key: String,
-    equipments: List<Equipment>,
-    type: ItemType,
-) {
-    equipments.firstOrNull { it.itemType == type }?.let { put(key, it) }
 }
 
 /** True when [equipment] is currently pinned as required. Matched on the French name, like ItemChip. */

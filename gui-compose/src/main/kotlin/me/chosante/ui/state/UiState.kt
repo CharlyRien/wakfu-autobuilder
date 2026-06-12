@@ -50,6 +50,25 @@ enum class CompareSlot {
     B,
 }
 
+/** Ordering options for the build library. See [organizeLibrary]. */
+enum class LibrarySort {
+    NEWEST,
+    OLDEST,
+    NAME,
+    LEVEL,
+}
+
+/** Folder-scoped view of the library: everything, only unfiled, or one named folder. */
+sealed interface LibraryFolderFilter {
+    data object All : LibraryFolderFilter
+
+    data object Unfiled : LibraryFolderFilter
+
+    data class Named(
+        val name: String,
+    ) : LibraryFolderFilter
+}
+
 sealed interface Modal {
     data object AddStat : Modal
 
@@ -60,15 +79,37 @@ sealed interface Modal {
     /** Save-the-current-build dialog (name + optional note). */
     data object SaveBuild : Modal
 
-    /** Rename an existing saved build. */
-    data class RenameBuild(
+    /** Edit a saved build's metadata (name, note, tags, folder). Resolves the entry at render time. */
+    data class EditBuild(
         val id: String,
-        val currentName: String,
     ) : Modal
 
     /** Confirm deleting a saved build. */
     data class ConfirmDelete(
         val id: String,
+        val name: String,
+    ) : Modal
+
+    /** Rename (or merge) a folder. */
+    data class RenameFolder(
+        val name: String,
+    ) : Modal
+
+    /** Confirm deleting a folder (members are kept, become unfiled). */
+    data class ConfirmDeleteFolder(
+        val name: String,
+    ) : Modal
+
+    /** Create a new, standalone tag (added to the registry, assignable later). */
+    data object CreateTag : Modal
+
+    /** Rename (or merge) a tag across every build that carries it. */
+    data class RenameTag(
+        val name: String,
+    ) : Modal
+
+    /** Confirm deleting a tag from every build (the builds are kept). */
+    data class ConfirmDeleteTag(
         val name: String,
     ) : Modal
 
@@ -128,6 +169,23 @@ data class UiState(
      * landed; cleared after a short delay.
      */
     val lastDuplicatedBuildId: String? = null,
+    /** Library: free-text search (matches name, class display name, or any tag). In-memory only. */
+    val librarySearch: String = "",
+    /** Active library ordering; persisted across launches via [LibraryPreferences]. */
+    val librarySort: LibrarySort = LibrarySort.NEWEST,
+    /** Single-class filter, or null for all classes. In-memory only (reset each launch). */
+    val libraryClassFilter: CharacterClass? = null,
+    /** Active tag filter (lowercase keys); OR semantics. In-memory only (reset each launch). */
+    val librarySelectedTags: Set<String> = emptySet(),
+    /**
+     * All known tags (the persisted registry ∪ tags currently on builds), display casing, A–Z. Tags
+     * are first-class: a tag stays here even when no build uses it, until explicitly deleted.
+     */
+    val knownTags: List<String> = emptyList(),
+    /** Active folder scope. In-memory only (reset each launch). */
+    val libraryFolder: LibraryFolderFilter = LibraryFolderFilter.All,
+    /** Whether the library groups its cards by class; persisted across launches. */
+    val libraryGroupByClass: Boolean = false,
 )
 
 /**

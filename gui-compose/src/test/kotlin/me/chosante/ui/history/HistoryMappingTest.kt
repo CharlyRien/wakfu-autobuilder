@@ -120,4 +120,10 @@ class HistoryMappingTest {
     fun `toHistoryEntry returns null without a build`() {
         assertThat(UiState().toHistoryEntry("id", "name", null, 0L, "v")).isNull()
     }
+
+    @Test
+    fun `normalizeTags trims, drops blanks, and dedupes case-insensitively keeping first casing`() {
+        val normalized = normalizeTags(listOf("  PvP ", "pvp", "", "   ", "Solo", "PVP", "solo"))
+        assertThat(normalized).containsExactly("PvP", "Solo")
+    }
 }

@@ -31,6 +31,7 @@ import me.chosante.createZenithBuild
 import me.chosante.ui.components.IconPreloader
 import me.chosante.ui.components.warmUpPaths
 import me.chosante.ui.history.HistoryRepository
+import me.chosante.ui.history.normalizeTags
 import me.chosante.ui.history.restoredClass
 import me.chosante.ui.history.restoredMode
 import me.chosante.ui.history.suggestedBuildName
@@ -99,8 +100,10 @@ class BuildSearchModel(
     private val openBrowser: (String) -> Unit = { link -> Desktop.getDesktop().browse(URI(link)) },
     private val copyToClipboard: (String) -> Unit = { link -> Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(link), null) },
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Swing,
-    ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val historyRepository: HistoryRepository = HistoryRepository(),
+    /** Persisted library view options (sort + group-by-class). Injectable for tests. */
+    private val libraryPreferences: LibraryPreferences = LibraryPreferences(),
     /** Wakfu game-data version stamped onto saved builds (injectable for tests). */
     private val dataVersion: String = WakfuBestBuildFinderAlgorithm.dataVersion,
     private val idGenerator: () -> String = {
@@ -141,6 +144,17 @@ class BuildSearchModel(
 
     private var job: Job? = null
 
+    /** Persisted tag registry (display casing). Tags here survive having no build, until deleted. */
+    private var tagRegistry: List<String> = emptyList()
+
+    /** Union of the registry and tags currently on [builds], de-duped case-insensitively, A–Z. */
+    private fun computeKnownTags(builds: List<me.chosante.common.history.HistoryEntry>): List<String> =
+        (tagRegistry + builds.flatMap { it.tags })
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase() }
+            .sortedBy { it.lowercase() }
+
     /** Mirrors [me.chosante.ui.SCREENSHOT_PATH_PROPERTY] / `WAKFU_COMPOSE_SCREENSHOT` (see Main.kt). */
     private val isScreenshotMode =
         System.getProperty("wakfu.compose.screenshot") != null ||
@@ -162,11 +176,15 @@ class BuildSearchModel(
             System.getenv("WAKFU_COMPOSE_SCREENSHOT_VARY_PRIORITY") != null
 
     init {
+        // Seed the persisted library view options + tag registry before any UI reads them.
+        tagRegistry = libraryPreferences.loadTags()
+        ui = ui.copy(librarySort = libraryPreferences.loadSort(), libraryGroupByClass = libraryPreferences.loadGroupByClass())
+
         // Load the saved-build library off the UI thread. A read failure must never block startup —
         // it just yields an empty library that fills in as the user saves builds.
         scope.launch(ioDispatcher) {
             val all = runCatching { historyRepository.loadAll() }.getOrDefault(emptyList())
-            withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all) }
+            withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all, knownTags = computeKnownTags(all)) }
         }
 
         if (isScreenshotMode) {
@@ -714,6 +732,48 @@ class BuildSearchModel(
         ui = ui.copy(screen = screen)
     }
 
+    // --- Library organize (search / sort / filter / group) ---
+
+    fun setLibrarySearch(query: String) {
+        ui = ui.copy(librarySearch = query)
+    }
+
+    fun setLibrarySort(sort: LibrarySort) {
+        ui = ui.copy(librarySort = sort)
+        libraryPreferences.saveSort(sort)
+    }
+
+    /** Single-select class filter; passing the already-selected class (or null) clears it. */
+    fun setLibraryClassFilter(clazz: me.chosante.common.CharacterClass?) {
+        ui = ui.copy(libraryClassFilter = clazz)
+    }
+
+    /** Toggles a tag in the active filter (OR semantics: builds matching any selected tag are shown). */
+    fun toggleLibraryTag(tag: String) {
+        val key = tag.lowercase()
+        ui =
+            ui.copy(
+                librarySelectedTags = if (key in ui.librarySelectedTags) ui.librarySelectedTags - key else ui.librarySelectedTags + key
+            )
+    }
+
+    fun toggleLibraryGroupByClass() {
+        val next = !ui.libraryGroupByClass
+        ui = ui.copy(libraryGroupByClass = next)
+        libraryPreferences.saveGroupByClass(next)
+    }
+
+    /** Resets the in-memory library filters (search + class + tags + folder). Sort/group are durable. */
+    fun clearLibraryFilters() {
+        ui =
+            ui.copy(
+                librarySearch = "",
+                libraryClassFilter = null,
+                librarySelectedTags = emptySet(),
+                libraryFolder = LibraryFolderFilter.All
+            )
+    }
+
     /** Opens the save dialog, pre-filling the name (existing name when editing a loaded build). */
     fun requestSaveBuild() {
         if (ui.build == null) return
@@ -745,16 +805,29 @@ class BuildSearchModel(
         asNew: Boolean,
     ) {
         val trimmedName = name.trim().ifBlank { ui.suggestedBuildName() }
-        val id = if (!asNew && ui.activeBuildId != null) ui.activeBuildId!! else idGenerator()
-        val entry = ui.toHistoryEntry(id = id, name = trimmedName, note = note, createdAt = clock(), dataVersion = dataVersion) ?: return
+        val overwrite = !asNew && ui.activeBuildId != null
+        val id = if (overwrite) ui.activeBuildId!! else idGenerator()
+        // Overwriting rebuilds the entry from the workspace, which doesn't carry user metadata (tags,
+        // folder) — re-read them from the existing entry so an "Update build" never silently wipes them.
+        val existing = if (overwrite) ui.savedBuilds.firstOrNull { it.id == id } else null
+        val entry =
+            ui.toHistoryEntry(
+                id = id,
+                name = trimmedName,
+                note = note,
+                createdAt = clock(),
+                dataVersion = dataVersion,
+                tags = existing?.tags ?: emptyList(),
+                folder = existing?.folder
+            ) ?: return
         // Note: saving does NOT lock search. The lock guards *revisiting* a build loaded from the
         // library (a deliberate act); right after saving you should stay free to keep iterating.
         ui = ui.copy(modal = null, activeBuildId = id, activeBuildName = trimmedName)
-        scope.launch(Dispatchers.IO) {
+        scope.launch(ioDispatcher) {
             runCatching { historyRepository.save(entry) }
                 .onSuccess {
                     val all = historyRepository.loadAll()
-                    withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all, toast = Tr.TOAST_BUILD_SAVED.value(ui.lang)) }
+                    withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all, knownTags = computeKnownTags(all), toast = Tr.TOAST_BUILD_SAVED.value(ui.lang)) }
                 }.onFailure { throwable ->
                     withContext(mainDispatcher) { ui = ui.copy(error = throwable.message ?: "Could not save build") }
                 }
@@ -815,16 +888,22 @@ class BuildSearchModel(
         ui = UiState(lang = ui.lang, savedBuilds = ui.savedBuilds, screen = Screen.Builder)
     }
 
-    fun requestRename(
-        id: String,
-        currentName: String,
-    ) {
-        ui = ui.copy(modal = Modal.RenameBuild(id, currentName))
+    /** Opens the Edit-build dialog (name + note + tags + folder). The dialog resolves the entry by id. */
+    fun requestEdit(id: String) {
+        ui = ui.copy(modal = Modal.EditBuild(id))
     }
 
-    fun renameBuild(
+    /**
+     * Saves edited metadata for a saved build (name, note, tags, folder). This is also how a build
+     * moves between folders and how a new folder is created (a folder exists iff a build references
+     * it). Keeps names unique and updates the active-build name.
+     */
+    fun editBuild(
         id: String,
         newName: String,
+        note: String?,
+        tags: List<String>,
+        folder: String?,
     ) {
         val trimmed = newName.trim()
         val entry = ui.savedBuilds.firstOrNull { it.id == id }
@@ -832,18 +911,35 @@ class BuildSearchModel(
             ui = ui.copy(modal = null)
             return
         }
-        // Reject a rename that would collide with a *different* build's name, keeping names unique.
+        // Reject an edit that would collide with a *different* build's name, keeping names unique.
         val collides = ui.savedBuilds.any { it.id != id && it.name.trim().equals(trimmed, ignoreCase = true) }
         if (collides) {
             ui = ui.copy(modal = null, toast = Tr.SAVE_NAME_TAKEN.value(ui.lang))
             return
         }
-        val renamed = entry.copy(name = trimmed)
+        val normalizedTags = normalizeTags(tags)
+        val edited =
+            entry.copy(
+                name = trimmed,
+                note = note?.takeIf { it.isNotBlank() },
+                tags = normalizedTags,
+                folder = canonicalFolder(folder)
+            )
+        // Assigning a tag also registers it (so it persists even once removed from every build).
+        registerTags(normalizedTags)
         ui = ui.copy(modal = null, activeBuildName = if (ui.activeBuildId == id) trimmed else ui.activeBuildName)
-        scope.launch(Dispatchers.IO) {
-            runCatching { historyRepository.save(renamed) }
+        scope.launch(ioDispatcher) {
+            runCatching { historyRepository.save(edited) }
             val all = historyRepository.loadAll()
-            withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all) }
+            withContext(mainDispatcher) {
+                ui =
+                    ui.copy(
+                        savedBuilds = all,
+                        knownTags = computeKnownTags(all),
+                        libraryFolder = ui.libraryFolder.coercedTo(all),
+                        librarySelectedTags = ui.librarySelectedTags.coercedToTags(all)
+                    )
+            }
         }
     }
 
@@ -857,7 +953,7 @@ class BuildSearchModel(
     fun duplicateBuild(id: String) {
         val source = ui.savedBuilds.firstOrNull { it.id == id } ?: return
         val copy = source.copy(id = idGenerator(), name = uniqueCopyName(source.name), createdAt = clock())
-        scope.launch(Dispatchers.IO) {
+        scope.launch(ioDispatcher) {
             runCatching { historyRepository.save(copy) }
                 .onSuccess {
                     val all = historyRepository.loadAll()
@@ -891,7 +987,7 @@ class BuildSearchModel(
     /**
      * A unique "<name> (copy)" — falling back to "(copy 2)", "(copy 3)", … when needed — so a
      * duplicate never collides with an existing build name. Names are kept unique so the library and
-     * compare view stay unambiguous, mirroring the [renameBuild]/[saveBuild] guards.
+     * compare view stay unambiguous, mirroring the [editBuild]/[saveBuild] guards.
      */
     private fun uniqueCopyName(baseName: String): String {
         val suffix = Tr.DUPLICATE_SUFFIX.value(ui.lang)
@@ -902,6 +998,183 @@ class BuildSearchModel(
         var n = 2
         while ("$base ($suffix $n)".lowercase() in taken) n++
         return "$base ($suffix $n)"
+    }
+
+    /** Adds [tags] to the persisted registry (case-insensitively de-duped) and saves it. */
+    private fun registerTags(tags: List<String>) {
+        val merged = (tagRegistry + tags).map { it.trim() }.filter { it.isNotBlank() }.distinctBy { it.lowercase() }
+        if (merged.size != tagRegistry.size) {
+            tagRegistry = merged
+            libraryPreferences.saveTags(merged)
+        }
+    }
+
+    // --- Folders (implicit: a folder exists iff ≥1 build references it) ---
+
+    fun setLibraryFolderFilter(filter: LibraryFolderFilter) {
+        ui = ui.copy(libraryFolder = filter)
+    }
+
+    fun requestRenameFolder(name: String) {
+        ui = ui.copy(modal = Modal.RenameFolder(name))
+    }
+
+    fun requestDeleteFolder(name: String) {
+        ui = ui.copy(modal = Modal.ConfirmDeleteFolder(name))
+    }
+
+    /**
+     * Renames [oldName] to [newNameRaw] across every member. If another folder already matches
+     * case-insensitively, this **merges** into that folder's canonical casing. No-op when blank or
+     * unchanged. Runs as a single IO pass with one reload at the end.
+     */
+    fun renameFolder(
+        oldName: String,
+        newNameRaw: String,
+    ) {
+        val newName = newNameRaw.trim()
+        if (newName.isBlank() || newName == oldName) {
+            ui = ui.copy(modal = null)
+            return
+        }
+        // Merge when the target name already exists (case-insensitively): adopt its canonical casing.
+        val existingMatch = ui.savedBuilds.mapNotNull { it.folder }.firstOrNull { it.equals(newName, ignoreCase = true) && it != oldName }
+        val canonical = existingMatch ?: newName
+        val merged = existingMatch != null
+        val members = ui.savedBuilds.filter { it.folder == oldName }
+        ui =
+            ui.copy(
+                modal = null,
+                toast = (if (merged) Tr.TOAST_FOLDERS_MERGED else Tr.TOAST_FOLDER_RENAMED).value(ui.lang),
+                libraryFolder = if (ui.libraryFolder == LibraryFolderFilter.Named(oldName)) LibraryFolderFilter.Named(canonical) else ui.libraryFolder,
+                activeBuildName = ui.activeBuildName
+            )
+        scope.launch(ioDispatcher) {
+            members.forEach { runCatching { historyRepository.save(it.copy(folder = canonical)) } }
+            val all = historyRepository.loadAll()
+            withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all, libraryFolder = ui.libraryFolder.coercedTo(all)) }
+        }
+    }
+
+    /** Deletes [name] by unfiling its members (the builds themselves are kept). */
+    fun deleteFolder(name: String) {
+        val members = ui.savedBuilds.filter { it.folder == name }
+        ui =
+            ui.copy(
+                modal = null,
+                toast = Tr.TOAST_FOLDER_DELETED.value(ui.lang),
+                libraryFolder = if (ui.libraryFolder == LibraryFolderFilter.Named(name)) LibraryFolderFilter.All else ui.libraryFolder
+            )
+        scope.launch(ioDispatcher) {
+            members.forEach { runCatching { historyRepository.save(it.copy(folder = null)) } }
+            val all = historyRepository.loadAll()
+            withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all, libraryFolder = ui.libraryFolder.coercedTo(all)) }
+        }
+    }
+
+    /** If a Named filter points at a folder no build references anymore, fall back to All. */
+    private fun LibraryFolderFilter.coercedTo(builds: List<me.chosante.common.history.HistoryEntry>): LibraryFolderFilter =
+        if (this is LibraryFolderFilter.Named && builds.none { it.folder == name }) LibraryFolderFilter.All else this
+
+    /**
+     * Normalizes a folder name on assignment: blank → null, and a case-variant of an existing folder
+     * adopts that folder's canonical casing (so picking "pvp" when "PvP" exists doesn't split them).
+     */
+    private fun canonicalFolder(raw: String?): String? {
+        val trimmed = raw?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        return ui.savedBuilds.mapNotNull { it.folder }.firstOrNull { it.equals(trimmed, ignoreCase = true) } ?: trimmed
+    }
+
+    // --- Tags (first-class: a registry of named tags, assignable to builds, persisted) ---
+
+    fun requestCreateTag() {
+        ui = ui.copy(modal = Modal.CreateTag)
+    }
+
+    fun requestRenameTag(name: String) {
+        ui = ui.copy(modal = Modal.RenameTag(name))
+    }
+
+    fun requestDeleteTag(name: String) {
+        ui = ui.copy(modal = Modal.ConfirmDeleteTag(name))
+    }
+
+    /** Creates a standalone tag in the registry (no build assignment). No-op on blank/duplicate. */
+    fun createTag(nameRaw: String) {
+        val name = nameRaw.trim()
+        if (name.isBlank() || tagRegistry.any { it.equals(name, ignoreCase = true) }) {
+            ui = ui.copy(modal = null)
+            return
+        }
+        tagRegistry = tagRegistry + name
+        libraryPreferences.saveTags(tagRegistry)
+        ui = ui.copy(modal = null, knownTags = computeKnownTags(ui.savedBuilds))
+    }
+
+    /**
+     * Renames tag [oldName] to [newNameRaw] across every build that carries it. If another tag already
+     * matches case-insensitively, this **merges** into that tag's canonical casing (de-duped per build).
+     * No-op when blank or unchanged. One IO pass, one reload.
+     */
+    fun renameTag(
+        oldName: String,
+        newNameRaw: String,
+    ) {
+        val newName = newNameRaw.trim()
+        if (newName.isBlank() || newName.equals(oldName, ignoreCase = true)) {
+            ui = ui.copy(modal = null)
+            return
+        }
+        val existingMatch = tagRegistry.firstOrNull { it.equals(newName, ignoreCase = true) && !it.equals(oldName, ignoreCase = true) }
+        val canonical = existingMatch ?: newName
+        val merged = existingMatch != null
+        // Update the registry: drop the old name, ensure the canonical one is present.
+        tagRegistry = (tagRegistry.filterNot { it.equals(oldName, ignoreCase = true) } + canonical).distinctBy { it.lowercase() }
+        libraryPreferences.saveTags(tagRegistry)
+        val members = ui.savedBuilds.filter { entry -> entry.tags.any { it.equals(oldName, ignoreCase = true) } }
+        ui =
+            ui.copy(
+                modal = null,
+                toast = (if (merged) Tr.TOAST_TAGS_MERGED else Tr.TOAST_TAG_RENAMED).value(ui.lang),
+                knownTags = computeKnownTags(ui.savedBuilds)
+            )
+        scope.launch(ioDispatcher) {
+            members.forEach { entry ->
+                val renamed = entry.tags.map { if (it.equals(oldName, ignoreCase = true)) canonical else it }
+                runCatching { historyRepository.save(entry.copy(tags = normalizeTags(renamed))) }
+            }
+            val all = historyRepository.loadAll()
+            withContext(mainDispatcher) {
+                ui = ui.copy(savedBuilds = all, knownTags = computeKnownTags(all), librarySelectedTags = ui.librarySelectedTags.coercedToTags(all))
+            }
+        }
+    }
+
+    /** Deletes tag [name] entirely: from the registry and from every build (the builds are kept). */
+    fun deleteTag(name: String) {
+        tagRegistry = tagRegistry.filterNot { it.equals(name, ignoreCase = true) }
+        libraryPreferences.saveTags(tagRegistry)
+        val members = ui.savedBuilds.filter { entry -> entry.tags.any { it.equals(name, ignoreCase = true) } }
+        ui = ui.copy(modal = null, toast = Tr.TOAST_TAG_DELETED.value(ui.lang), knownTags = computeKnownTags(ui.savedBuilds))
+        scope.launch(ioDispatcher) {
+            members.forEach { entry ->
+                runCatching { historyRepository.save(entry.copy(tags = entry.tags.filterNot { it.equals(name, ignoreCase = true) })) }
+            }
+            val all = historyRepository.loadAll()
+            withContext(mainDispatcher) {
+                ui = ui.copy(savedBuilds = all, knownTags = computeKnownTags(all), librarySelectedTags = ui.librarySelectedTags.coercedToTags(all))
+            }
+        }
+    }
+
+    /**
+     * Drops any active tag-filter key that no longer exists — neither carried by a build nor in the
+     * registry. A renamed/deleted tag is cleared, but a still-valid standalone (0-build) tag the user
+     * is filtering by is kept.
+     */
+    private fun Set<String>.coercedToTags(builds: List<me.chosante.common.history.HistoryEntry>): Set<String> {
+        val present = (builds.flatMap { it.tags } + tagRegistry).map { it.lowercase() }.toSet()
+        return this intersect present
     }
 
     fun requestDelete(
@@ -937,7 +1210,7 @@ class BuildSearchModel(
 
     fun deleteBuild(id: String) {
         ui = ui.copy(modal = null)
-        scope.launch(Dispatchers.IO) {
+        scope.launch(ioDispatcher) {
             runCatching { historyRepository.delete(id) }
             val all = historyRepository.loadAll()
             withContext(mainDispatcher) {
@@ -949,7 +1222,10 @@ class BuildSearchModel(
                         activeBuildName = if (wasActive) null else ui.activeBuildName,
                         searchLocked = if (wasActive) false else ui.searchLocked,
                         compareA = if (ui.compareA == id) null else ui.compareA,
-                        compareB = if (ui.compareB == id) null else ui.compareB
+                        compareB = if (ui.compareB == id) null else ui.compareB,
+                        knownTags = computeKnownTags(all),
+                        libraryFolder = ui.libraryFolder.coercedTo(all),
+                        librarySelectedTags = ui.librarySelectedTags.coercedToTags(all)
                     )
             }
         }

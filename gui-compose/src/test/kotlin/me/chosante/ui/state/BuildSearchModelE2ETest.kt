@@ -101,7 +101,7 @@ class BuildSearchModelE2ETest {
                 .map { it.characteristic }
                 .filter {
                     it == MASTERY_ELEMENTARY ||
-                            it in setOf(MASTERY_ELEMENTARY_FIRE, MASTERY_ELEMENTARY_EARTH, MASTERY_ELEMENTARY_WATER, MASTERY_ELEMENTARY_WIND)
+                        it in setOf(MASTERY_ELEMENTARY_FIRE, MASTERY_ELEMENTARY_EARTH, MASTERY_ELEMENTARY_WATER, MASTERY_ELEMENTARY_WIND)
                 }.toSet()
 
         try {

@@ -38,6 +38,7 @@ import me.chosante.ui.state.Modal
 import me.chosante.ui.state.Phase
 import me.chosante.ui.state.PickerMode
 import me.chosante.ui.state.Screen
+import me.chosante.ui.state.folderCounts
 import me.chosante.ui.state.statCatalog
 import me.chosante.ui.stats.StatsPanel
 import me.chosante.ui.theme.WColor
@@ -108,9 +109,21 @@ fun AppShell(
                                 onLoad = model::loadBuild,
                                 onCompare = model::startCompare,
                                 onDuplicate = model::duplicateBuild,
-                                onRename = model::requestRename,
+                                onEdit = model::requestEdit,
                                 onDelete = model::requestDelete,
-                                onGoBuilder = { model.goToScreen(Screen.Builder) }
+                                onToggleTag = model::toggleLibraryTag,
+                                onCreateTag = model::requestCreateTag,
+                                onRenameTag = model::requestRenameTag,
+                                onDeleteTag = model::requestDeleteTag,
+                                onFolderFilterChange = model::setLibraryFolderFilter,
+                                onRenameFolder = model::requestRenameFolder,
+                                onDeleteFolder = model::requestDeleteFolder,
+                                onGoBuilder = { model.goToScreen(Screen.Builder) },
+                                onSearchChange = model::setLibrarySearch,
+                                onSortChange = model::setLibrarySort,
+                                onClassFilterChange = model::setLibraryClassFilter,
+                                onToggleGroup = model::toggleLibraryGroupByClass,
+                                onClearFilters = model::clearLibraryFilters
                             )
 
                         Screen.Compare ->
@@ -133,10 +146,27 @@ fun AppShell(
                 onDismiss = model::closeModal,
                 suggestedSaveName = model.suggestedSaveName(),
                 isEditingExisting = ui.activeBuildId != null,
-                takenNames = model.takenBuildNames(),
+                // Save dialog excludes the *active* build's name; the Edit dialog must exclude the
+                // *edited* build's name (it may differ from the active build) so its inline
+                // duplicate-name warning matches what editBuild() will actually accept.
+                takenNames =
+                    (ui.modal as? Modal.EditBuild)?.let { m ->
+                        ui.savedBuilds
+                            .filter { it.id != m.id }
+                            .map { it.name.trim().lowercase() }
+                            .toSet()
+                    } ?: model.takenBuildNames(),
+                editingEntry = (ui.modal as? Modal.EditBuild)?.let { m -> ui.savedBuilds.firstOrNull { it.id == m.id } },
+                existingFolders = folderCounts(ui.savedBuilds).map { it.first },
+                existingTags = ui.knownTags,
                 onSaveBuild = model::saveBuild,
-                onRenameBuild = model::renameBuild,
+                onEditBuild = model::editBuild,
                 onDeleteBuild = model::deleteBuild,
+                onRenameFolder = model::renameFolder,
+                onDeleteFolder = model::deleteFolder,
+                onCreateTag = model::createTag,
+                onRenameTag = model::renameTag,
+                onDeleteTag = model::deleteTag,
                 onConfirmReSearch = model::confirmReSearch
             )
         }
