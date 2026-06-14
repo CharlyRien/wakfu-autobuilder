@@ -1,5 +1,6 @@
 package me.chosante.ui.history
 
+import kotlinx.serialization.json.Json
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
@@ -22,6 +23,19 @@ import me.chosante.ui.state.toRow
 // Mappers between the live UiState / engine objects and the persisted HistoryEntry DTO. Kept in one
 // place so the (de)serialization rules — and the deliberate decoupling from the engine graph — live
 // next to the format they serve.
+
+/**
+ * The single JSON codec for [HistoryEntry] — shared by the on-disk library
+ * ([HistoryRepository]) and the clipboard export/import (see `BuildSearchModel.exportBuild` /
+ * `importBuild`) so the two never drift. `prettyPrint` keeps an exported build readable when pasted
+ * into a chat; `ignoreUnknownKeys` lets a build exported by a newer/older app version still load.
+ */
+internal val historyJson: Json =
+    Json {
+        prettyPrint = true
+        ignoreUnknownKeys = true
+        encodeDefaults = true
+    }
 
 /**
  * Snapshots the current workspace into a savable [HistoryEntry]. Returns `null` when there is no

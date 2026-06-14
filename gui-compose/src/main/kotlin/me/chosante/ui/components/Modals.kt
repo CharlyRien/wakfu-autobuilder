@@ -85,6 +85,9 @@ fun ModalHost(
     onRenameTag: (oldName: String, newName: String) -> Unit = { _, _ -> },
     onDeleteTag: (name: String) -> Unit = {},
     onConfirmReSearch: () -> Unit = {},
+    onImportBuild: (json: String) -> Unit = {},
+    validateImport: (json: String) -> Boolean = { false },
+    onClipboardText: () -> String = { "" },
 ) {
     if (modal == null) return
     Scrim(onDismiss = onDismiss) {
@@ -108,6 +111,14 @@ fun ModalHost(
                     isEditingExisting = isEditingExisting,
                     takenNames = takenNames,
                     onSave = onSaveBuild,
+                    onCancel = onDismiss
+                )
+
+            Modal.ImportBuild ->
+                ImportBuildModal(
+                    validate = validateImport,
+                    clipboardText = onClipboardText,
+                    onImport = onImportBuild,
                     onCancel = onDismiss
                 )
 
@@ -627,6 +638,76 @@ private fun SaveBuildModal(
                     modifier = Modifier.weight(1f)
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ImportBuildModal(
+    validate: (String) -> Boolean,
+    clipboardText: () -> String,
+    onImport: (String) -> Unit,
+    onCancel: () -> Unit,
+) {
+    var text by remember { mutableStateOf("") }
+    val valid = remember(text) { validate(text) }
+    val showInvalid = text.isNotBlank() && !valid
+    ModalCard(title = tr(Tr.IMPORT_DIALOG_TITLE)) {
+        Text(
+            text = tr(Tr.IMPORT_DIALOG_HINT),
+            style = WTypography.bodyMedium.copy(color = WColor.muted, lineHeight = 19.sp)
+        )
+        Spacer(modifier = Modifier.height(WDimens.gap))
+        MultilineField(value = text, onValueChange = { text = it }, placeholder = tr(Tr.IMPORT_PLACEHOLDER))
+        if (showInvalid) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(text = tr(Tr.IMPORT_INVALID), style = WTypography.labelSmall.copy(color = WColor.danger))
+        }
+        Spacer(modifier = Modifier.height(WDimens.gap))
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Convenience: fill the field straight from the clipboard (paste also works via the field).
+            DialogButton(text = tr(Tr.IMPORT_PASTE), filled = false, color = WColor.accent2, onClick = { text = clipboardText() })
+            Spacer(modifier = Modifier.weight(1f))
+            DialogButton(text = tr(Tr.CANCEL), filled = false, color = WColor.border, onClick = onCancel)
+            DialogButton(
+                text = tr(Tr.IMPORT_CONFIRM),
+                filled = true,
+                color = WColor.accent,
+                enabled = valid,
+                onClick = { onImport(text) }
+            )
+        }
+    }
+}
+
+/** Scrollable, monospace multi-line input — used by the import dialog to paste an exported build. */
+@Composable
+private fun MultilineField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+) {
+    val scroll = rememberScrollState()
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(150.dp)
+                .clip(RoundedCornerShape(9.dp))
+                .background(WColor.bg)
+                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                .padding(horizontal = 11.dp, vertical = 9.dp)
+    ) {
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = false,
+            cursorBrush = SolidColor(WColor.accent),
+            textStyle = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.text, lineHeight = 16.sp),
+            modifier = Modifier.fillMaxSize().verticalScroll(scroll)
+        )
+        if (value.isEmpty()) {
+            Text(text = placeholder, style = WTypography.bodyMedium.copy(color = WColor.faint))
         }
     }
 }

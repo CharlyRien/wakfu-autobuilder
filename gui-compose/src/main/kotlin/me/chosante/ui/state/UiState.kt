@@ -79,6 +79,12 @@ sealed interface Modal {
     /** Save-the-current-build dialog (name + optional note). */
     data object SaveBuild : Modal
 
+    /**
+     * Paste a build exported from this app (a [me.chosante.common.history.HistoryEntry] JSON, input +
+     * result) to add it to the library and open it — so testers can share a build without a screenshot.
+     */
+    data object ImportBuild : Modal
+
     /** Edit a saved build's metadata (name, note, tags, folder). Resolves the entry at render time. */
     data class EditBuild(
         val id: String,
