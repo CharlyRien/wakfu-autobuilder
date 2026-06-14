@@ -49,6 +49,19 @@ class SpellScraperTest {
     }
 
     @Test
+    fun `parses a resistance-reduction debuff on a damage spell (Sudden Chill)`() {
+        // Sudden Chill deals Air damage AND applies "-50 Elemental Resistance" to the target.
+        val d = SpellScraper.parseSpellPage(fixture("sudden-chill.html"))
+        assertEquals(SpellElement.AIR, d.element)
+        assertEquals(50, d.targetResistanceReductionFlat)
+    }
+
+    @Test
+    fun `a pure damage spell carries no resistance reduction`() {
+        assertEquals(null, SpellScraper.parseSpellPage(fixture("blazing-arrow.html")).targetResistanceReductionFlat)
+    }
+
+    @Test
     fun `reads a lowercase damage line (Piercing Arrow)`() {
         // Some pages write "damage:" in lowercase — the parser is case-insensitive.
         val d = SpellScraper.parseSpellPage(fixture("piercing-arrow.html"))

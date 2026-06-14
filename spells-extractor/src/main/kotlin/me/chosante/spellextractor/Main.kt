@@ -117,6 +117,11 @@ private fun toSpell(
         if (detail.apCost == null) missing += "apCost"
         if (detail.rangeMin == null) missing += "range"
     }
+    // A captured resistance debuff whose target picto we couldn't confirm is kept but flagged — assumed
+    // enemy (it's an active targeted spell) but not certain, so the gap is auditable, never invented.
+    if (detail.targetResistanceReductionFlat != null && !detail.resistanceTargetEnemyConfirmed) {
+        missing += "resistanceTarget?"
+    }
     return Spell(
         id = stub.id,
         clazz = ref.clazz,
@@ -135,6 +140,7 @@ private fun toSpell(
         cooldown = null,
         iconId = stub.iconId,
         description = detail.description?.let { I18nText(fr = it, en = it, es = it, pt = it) },
+        targetResistanceReductionFlat = detail.targetResistanceReductionFlat,
         missingFields = missing
     )
 }
@@ -171,6 +177,13 @@ private fun printReport(
     classReports.forEach { r ->
         println("  ${r.clazz.name.padEnd(11)} ${r.total.toString().padStart(3)} / ${r.withDamage.toString().padStart(3)} / ${r.incompleteCount}")
     }
+    val debuffs = spells.filter { it.isResistanceDebuff }
+    println("\nActive resistance-debuff spells (flat all-element reduction): ${debuffs.size}")
+    debuffs.forEach { spell ->
+        val uncertain = if ("resistanceTarget?" in spell.missingFields) " (target unconfirmed)" else ""
+        println("  - [${spell.clazz.name}] ${spell.name.en}: -${spell.targetResistanceReductionFlat} flat res, ${spell.apCost} AP$uncertain")
+    }
+
     val allIncomplete = classReports.flatMap { it.incomplete }
     if (allIncomplete.isNotEmpty()) {
         println("\nSpells with missing/unreadable fields (no value invented):")

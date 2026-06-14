@@ -84,6 +84,14 @@ data class SpellDetail(
     val requiresLineOfSight: Boolean?,
     val category: SpellCategory,
     val description: String?,
+    /**
+     * Flat all-element resistance this spell removes from the target (a vulnerability debuff), or null.
+     * Only captured for active spells; the value is the magnitude (e.g. 50 for "-50 Elemental
+     * Resistance"). [resistanceTargetEnemyConfirmed] is true only when an `[enemy]` picto sits next to
+     * the effect — otherwise the target is assumed enemy but flagged as uncertain (never invented).
+     */
+    val targetResistanceReductionFlat: Int?,
+    val resistanceTargetEnemyConfirmed: Boolean = false,
 )
 
 /**
@@ -115,6 +123,12 @@ object SpellScraper {
     // raw so they are reported, not silently dropped. CIRCLE/VLINE/… pictos are area shapes, not elements.
     private val ELEMENT_PICTO = Regex("""element/(FIRE|WATER|EARTH|AIR|LIGHT|STASIS)\.png""")
     private val DAMAGE = Regex("""damage:\s*(\d+)""", RegexOption.IGNORE_CASE)
+
+    // Resistance-reduction debuff: "-N Elemental Resistance" (all four elements; element-specific
+    // reductions don't occur in this data version). Captured from the effect blocks; the target is
+    // read from the nearest preceding [enemy]/[caster]/[ally] picto marker.
+    private val NEG_RES_REDUCTION = Regex("""-\s*(\d+)\s*Elemental\s+Resistance""", RegexOption.IGNORE_CASE)
+    private val PICTO_TAG = Regex("""<img[^>]*?element/(\w+)\.png[^>]*>""")
     private val AP_RANGE = Regex("""^(\d+)\s+(\d+)\s*-\s*(\d+)""")
     private val AP_RANGE_SINGLE = Regex("""^(\d+)\s+(\d+)\b""")
 
@@ -203,6 +217,10 @@ object SpellScraper {
 
         val category = if (apCost != null) SpellCategory.ACTIVE else SpellCategory.PASSIVE
 
+        // Only active spells can be sequenced as a debuff; passives' resistance lines are self/state buffs.
+        val (resistanceReduction, resistanceConfirmed) =
+            if (apCost != null) parseResistanceReduction(normalBlock + critBlock) else null to false
+
         return SpellDetail(
             name = name,
             element = element,
@@ -216,8 +234,27 @@ object SpellScraper {
             area = area,
             requiresLineOfSight = requiresLineOfSight,
             category = category,
-            description = description
+            description = description,
+            targetResistanceReductionFlat = resistanceReduction,
+            resistanceTargetEnemyConfirmed = resistanceConfirmed
         )
+    }
+
+    /**
+     * Flat all-element resistance the spell removes from the target, read from its [rawEffects] HTML.
+     * Returns `(magnitude, enemyConfirmed)`: magnitude is null when there is no `-N Elemental Resistance`
+     * effect; enemyConfirmed is true only when an `[enemy]` picto precedes it (else the target is assumed
+     * enemy but uncertain). A reduction clearly tagged on the caster/ally (with no [enemy]) is dropped.
+     */
+    private fun parseResistanceReduction(rawEffects: String): Pair<Int?, Boolean> {
+        val tagged = PICTO_TAG.replace(rawEffects) { "[${it.groupValues[1].lowercase()}]" }
+        val cleaned = WS.replace(TAGS.replace(tagged, " "), " ")
+        val match = NEG_RES_REDUCTION.find(cleaned) ?: return null to false
+        val before = cleaned.substring(maxOf(0, match.range.first - 80), match.range.first)
+        val enemy = "[enemy]" in before
+        val selfOrAlly = "[caster]" in before || "[ally]" in before
+        if (selfOrAlly && !enemy) return null to false
+        return match.groupValues[1].toInt() to enemy
     }
 
     private val AREA_KEYWORDS =

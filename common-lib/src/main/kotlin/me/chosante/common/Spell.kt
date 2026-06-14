@@ -72,9 +72,21 @@ data class Spell(
     val cooldown: Int? = null,
     val iconId: Int? = null,
     val description: I18nText? = null,
+    /**
+     * Flat **all-element** resistance this spell removes from the target when cast — a vulnerability
+     * debuff (e.g. 100 = "-100 Elemental Resistance"), or null if it applies none. Reducing the target's
+     * resistance raises every subsequent hit, so a rotation casts this first; the magnitude is FLAT (the
+     * unit the boss profile and `flatResistanceToPercent` use). Only enemy-applied reductions on active
+     * spells are captured; duration/conditions and element-specific reductions are not modeled (the
+     * latter don't occur in this data version) — see docs/SPELL_ROTATION.md.
+     */
+    val targetResistanceReductionFlat: Int? = null,
     val source: String = "ankama-encyclopedia",
     val missingFields: List<String> = emptyList(),
 ) {
     /** True when the spell carries a readable base hit, i.e. it can be fed to [SpellDamage]. */
     val hasDamage: Boolean get() = element != null && baseDamage != null
+
+    /** True when this active spell removes resistance from the target (usable as a rotation-opening debuff). */
+    val isResistanceDebuff: Boolean get() = (targetResistanceReductionFlat ?: 0) > 0
 }
