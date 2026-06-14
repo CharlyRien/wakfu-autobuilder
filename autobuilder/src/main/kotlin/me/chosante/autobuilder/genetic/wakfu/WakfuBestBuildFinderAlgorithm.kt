@@ -57,7 +57,13 @@ object WakfuBestBuildFinderAlgorithm {
             )
 
         return try {
-            WakfuBuildSolver.optimize(params, equipmentsByItemType, runes)
+            // Max-damage routes through the external loop (AP-breakpoint probes + debuff-aware
+            // sequencing valuation). Every other mode is a single CP-SAT solve, unchanged.
+            if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+                MaxDamageSearch.run(params, equipmentsByItemType, runes)
+            } else {
+                WakfuBuildSolver.optimize(params, equipmentsByItemType, runes)
+            }
         } catch (exception: Exception) {
             // Surface the failure to the caller instead of killing the JVM: the CLI's runBlocking
             // turns it into a visible crash, while the GUI can catch it and show an error rather than
@@ -128,4 +134,8 @@ data class WakfuBestBuildParams(
     // The attack scenario optimized by ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE (ignored by the
     // other modes).
     val damageScenario: DamageScenario = DamageScenario(),
+    // Max-damage external loop only: when set, the solver is hard-constrained to **exactly** this many
+    // AP, so the loop can probe each AP breakpoint (the CP-SAT objective alone can't see a breakpoint
+    // that only pays off once resistance debuffs are sequenced). Ignored by the other modes.
+    val maxDamageApTarget: Int? = null,
 )

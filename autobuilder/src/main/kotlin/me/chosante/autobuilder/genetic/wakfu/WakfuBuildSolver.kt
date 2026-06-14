@@ -583,6 +583,8 @@ object WakfuBuildSolver {
         runeModel: RuneModel,
     ): IntVar {
         val statBuilder = StatBuilder(this, params, allEquips, equipVars, skillVars, runeModel)
+        // External-loop AP probe: pin the build to exactly N AP so each breakpoint can be evaluated.
+        params.maxDamageApTarget?.let { addEquality(statBuilder.actionPointVar(), newConstant(it.toLong())) }
         val damageScore = statBuilder.perTurnDamageScore(params.damageScenario, params.character.clazz)
         return applyConstraintPenalty(params, statBuilder, damageScore, DAMAGE_PERTURN_ABS_MAX).objective
     }
@@ -1138,6 +1140,9 @@ object WakfuBuildSolver {
             model.addEquality(total, sumExpr)
             return total
         }
+
+        // The build's resolved Action Points variable (base + gear + skills), for the external-loop AP probe.
+        fun actionPointVar(): IntVar = actualStat(Characteristic.ACTION_POINT)
 
         /**
          * Spell-aware / boss-aware per-turn damage objective for [scenario] (max-damage mode only).

@@ -1133,6 +1133,43 @@ class WakfuBuildSolverTest {
         }
 
     @Test
+    fun `the max-damage AP target pins the build to exactly that many AP`(): Unit =
+        runBlocking {
+            // The external loop's probe mechanism: maxDamageApTarget hard-constrains the build's AP.
+            val level = 200
+            val character = Character(CharacterClass.SRAM, level, 1, CharacterSkills(level))
+            val apAmulet = equipment(1, ItemType.AMULET, "ApStuff", mapOf(Characteristic.ACTION_POINT to 2))
+            val masteryAmulet = equipment(2, ItemType.AMULET, "MasteryStuff", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300))
+            val pool = listOf(apAmulet, masteryAmulet).groupBy { it.itemType }
+
+            fun apOf(build: BuildCombination): Int =
+                computeCharacteristicsValues(build, character.baseCharacteristicValues, emptyMap(), emptyMap())[Characteristic.ACTION_POINT] ?: 0
+
+            for (target in listOf(6, 8)) { // 6 = no AP gear (base), 8 = base 6 + the +2 amulet
+                val params =
+                    WakfuBestBuildParams(
+                        character = character,
+                        targetStats = TargetStats(emptyList()),
+                        searchDuration = 5.seconds,
+                        stopWhenBuildMatch = false,
+                        maxRarity = Rarity.EPIC,
+                        forcedItems = emptyList(),
+                        excludedItems = emptyList(),
+                        scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                        useRunes = false,
+                        damageScenario = DamageScenario(element = SpellElement.FIRE),
+                        maxDamageApTarget = target
+                    )
+                val best =
+                    WakfuBuildSolver
+                        .optimize(params, pool, WakfuBuildSolver.SolverTuning())
+                        .toList()
+                        .maxByOrNull { it.matchPercentage }!!
+                assertThat(apOf(best.individual)).describedAs("AP pinned to $target").isEqualTo(target)
+            }
+        }
+
+    @Test
     fun `max-damage solver reaches the exhaustive optimum on a small pool`(): Unit =
         runBlocking {
             val level = 1
