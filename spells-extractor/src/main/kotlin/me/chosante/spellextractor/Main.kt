@@ -4,7 +4,6 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import me.chosante.common.I18nText
 import me.chosante.common.Spell
-import me.chosante.common.SpellCategory
 import java.io.File
 
 /**
@@ -89,7 +88,14 @@ suspend fun main(args: Array<String>) {
     printReport(sorted, classReports, outputFile)
 }
 
-/** Builds the [Spell], flagging only fields that are genuinely *expected but unreadable*. */
+/**
+ * Builds the [Spell], flagging only fields that are genuinely *expected but unreadable*.
+ *
+ * "Is this a damage spell" can only be told from the detail page (the listing tags every spell the
+ * same), so it is derived from the parse: a "damage:" line ([SpellDetail.baseDamage]) or an element
+ * picto ([SpellDetail.rawElement]). Only such spells get their missing damage fields flagged — utility
+ * and passive spells legitimately have no element/damage and are never flagged for it.
+ */
 private fun toSpell(
     ref: ClassRef,
     stub: SpellStub,
@@ -97,9 +103,16 @@ private fun toSpell(
     frNames: Map<Int, String>,
 ): Spell {
     val missing = mutableListOf<String>()
-    // An elementary spell is a damage spell: element, AP, range and base damage are all expected.
-    if (stub.isElementary) {
-        if (detail.element == null) missing += "element"
+    // A damage spell carries a "damage:" number or a standard 4-element picto. A LIGHT/STASIS picto
+    // alone is NOT a reliable signal — the encyclopedia reuses the Light picto as a generic marker on
+    // heals/passives — so it only counts when a damage number is also present (handled by baseDamage).
+    val looksLikeDamage = detail.baseDamage != null || detail.element != null
+    if (looksLikeDamage) {
+        if (detail.element == null) {
+            // Either nothing parsed, or a real element with no 4-element mapping (LIGHT / STASIS) —
+            // name it so the gap is specific and honest.
+            missing += detail.rawElement?.let { "element($it)" } ?: "element"
+        }
         if (detail.baseDamage == null) missing += "baseDamage"
         if (detail.apCost == null) missing += "apCost"
         if (detail.rangeMin == null) missing += "range"
@@ -109,7 +122,7 @@ private fun toSpell(
         clazz = ref.clazz,
         name = nameOf(stub, frNames, detail.name),
         element = detail.element,
-        category = if (stub.isElementary) SpellCategory.ACTIVE else detail.category,
+        category = detail.category,
         apCost = detail.apCost,
         wpCost = detail.wpCost,
         rangeMin = detail.rangeMin,

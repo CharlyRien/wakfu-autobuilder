@@ -55,15 +55,25 @@ data class SpellStub(
     val slug: String,
     val name: String,
     val iconId: Int?,
-    val isElementary: Boolean,
 ) {
     fun detailPath(ref: ClassRef): String = "/en/mmorpg/encyclopedia/classes/${ref.encyclopediaId}-${ref.slug}/$id-$slug"
 }
 
-/** The mechanics parsed off a single spell's detail page. Any field may be null (never invented). */
+/**
+ * The mechanics parsed off a single spell's detail page. Any field may be null (never invented).
+ *
+ * Whether a spell *is* a damage spell can only be told from the detail page (the listing tags every
+ * spell identically), so it is derived here:
+ * - [baseDamage] non-null ⇒ the page carried a "damage:" line;
+ * - [rawElement] is the raw element token on the damage line — `null` if absent, or a non-standard
+ *   element name (e.g. `LIGHT`, `STASIS`) that has no [SpellElement] mapping, in which case [element]
+ *   is null while [rawElement] preserves what was there. This keeps Eliotrope/Foggernaut-style spells
+ *   honest instead of silently dropping them.
+ */
 data class SpellDetail(
     val name: String?,
     val element: SpellElement?,
+    val rawElement: String?,
     val apCost: Int?,
     val wpCost: Int?,
     val rangeMin: Int?,
@@ -85,7 +95,11 @@ object SpellScraper {
 
     private val LIST_ROW =
         Regex(
-            """<a[^>]+href="/en/mmorpg/encyclopedia/classes/\d+-[^/"]+/(\d+)-([^"]+)"[^>]*class="([^"]*)"[^>]*title="([^"]*)"[^>]*>\s*<img[^>]+src="[^"]*spell/(\d+)\.png"""",
+            // Locale-agnostic (`/fr/…/encyclopedie/…` as well as `/en/…/encyclopedia/…`) so the same
+            // parser reads the localized class pages for name enrichment. The class-slug segment is
+            // `[^/"]*` (not `+`): some classes (e.g. Ouginak) emit links with an empty slug —
+            // `/classes/15-/6256-weigh-down` — and would otherwise be dropped entirely.
+            """<a[^>]+href="/[a-z]{2}/mmorpg/[a-z]+/classes/\d+-[^/"]*/(\d+)-([^"]+)"[^>]*class="([^"]*)"[^>]*title="([^"]*)"[^>]*>\s*<img[^>]+src="[^"]*spell/(\d+)\.png"""",
             DOTALL
         )
 
@@ -95,16 +109,25 @@ object SpellScraper {
     private val NORMAL_EFFECT =
         Regex("""spell-normal-effect.*?(?=spell-critical-effect|ak-spell-details-illu|$)""", DOTALL)
     private val CRIT_EFFECT = Regex("""spell-critical-effect.*?(?=ak-spell-details-illu|$)""", DOTALL)
-    private val ELEMENT_PICTO = Regex("""element/(FIRE|WATER|EARTH|AIR)\.png""")
-    private val DAMAGE = Regex("""Damage:\s*(\d+)""")
+
+    // Element pictos sit on the damage line. The first FOUR are the modelled elements; LIGHT / STASIS
+    // (Eliotrope / Foggernaut etc.) are real elements with no mastery in our 4-element model — captured
+    // raw so they are reported, not silently dropped. CIRCLE/VLINE/… pictos are area shapes, not elements.
+    private val ELEMENT_PICTO = Regex("""element/(FIRE|WATER|EARTH|AIR|LIGHT|STASIS)\.png""")
+    private val DAMAGE = Regex("""damage:\s*(\d+)""", RegexOption.IGNORE_CASE)
     private val AP_RANGE = Regex("""^(\d+)\s+(\d+)\s*-\s*(\d+)""")
     private val AP_RANGE_SINGLE = Regex("""^(\d+)\s+(\d+)\b""")
+
+    // Some spells show an AP cost but no range (self / touch / special) — "4 This spell's damage…".
+    // Bounded to a plausible AP so it can't grab a stray effect number ("100 Resistance") off a passive.
+    private val AP_ONLY = Regex("""^(\d+)\b""")
+    private val PLAUSIBLE_AP = 1..12
     private val TAGS = Regex("""<[^>]+>""")
     private val WS = Regex("""\s+""")
 
     private fun text(html: String): String = WS.replace(TAGS.replace(html, " "), " ").trim()
 
-    /** Parses the `(id, name, icon, isElementary)` stubs from a class listing page. */
+    /** Parses the `(id, name, icon)` stubs from a class listing page. */
     fun parseClassListing(html: String): List<SpellStub> =
         LIST_ROW
             .findAll(html)
@@ -113,8 +136,7 @@ object SpellScraper {
                     id = m.groupValues[1].toInt(),
                     slug = m.groupValues[2],
                     name = m.groupValues[4].trim(),
-                    iconId = m.groupValues[5].toIntOrNull(),
-                    isElementary = m.groupValues[3].contains("ak-elementary-spell")
+                    iconId = m.groupValues[5].toIntOrNull()
                 )
             }.distinctBy { it.id }
             .toList()
@@ -133,9 +155,16 @@ object SpellScraper {
                 if (name != null && raw.startsWith(name)) raw.removePrefix(name).trim() else raw
             } ?: ""
         val apRange = AP_RANGE.find(infosText) ?: AP_RANGE_SINGLE.find(infosText)
-        val apCost = apRange?.groupValues?.get(1)?.toIntOrNull()
         val rangeMin = apRange?.groupValues?.get(2)?.toIntOrNull()
         val rangeMax = apRange?.groupValues?.getOrNull(3)?.toIntOrNull() ?: rangeMin
+        val apCost =
+            apRange?.groupValues?.get(1)?.toIntOrNull()
+                ?: AP_ONLY
+                    .find(infosText)
+                    ?.groupValues
+                    ?.get(1)
+                    ?.toIntOrNull()
+                    ?.takeIf { it in PLAUSIBLE_AP }
 
         val description =
             DESC
@@ -147,12 +176,8 @@ object SpellScraper {
 
         val normalBlock = NORMAL_EFFECT.find(html)?.value ?: ""
         val critBlock = CRIT_EFFECT.find(html)?.value ?: ""
-        val element =
-            ELEMENT_PICTO
-                .find(normalBlock)
-                ?.groupValues
-                ?.get(1)
-                ?.let { runCatching { SpellElement.valueOf(it) }.getOrNull() }
+        val rawElement = ELEMENT_PICTO.find(normalBlock)?.groupValues?.get(1)
+        val element = rawElement?.let { runCatching { SpellElement.valueOf(it) }.getOrNull() }
         val baseDamage =
             DAMAGE
                 .find(normalBlock)
@@ -167,7 +192,7 @@ object SpellScraper {
                 ?.toIntOrNull()
 
         val descLower = (description ?: "").lowercase()
-        val isDamage = element != null && baseDamage != null
+        val isDamage = baseDamage != null
         val area =
             when {
                 !isDamage -> null
@@ -181,6 +206,7 @@ object SpellScraper {
         return SpellDetail(
             name = name,
             element = element,
+            rawElement = rawElement,
             apCost = apCost,
             wpCost = null,
             rangeMin = rangeMin,

@@ -24,8 +24,15 @@ class SpellScraperTest {
 
         val blazing = stubs.first { it.id == 4769 }
         assertEquals("Blazing Arrow", blazing.name)
-        assertTrue(blazing.isElementary)
         assertNotNull(blazing.iconId)
+    }
+
+    @Test
+    fun `parses a class whose spell links carry an empty slug (Ouginak)`() {
+        // Ouginak emits `/classes/15-/6256-weigh-down` (empty class slug) — must still be parsed.
+        val stubs = SpellScraper.parseClassListing(fixture("ouginak-listing.html"))
+        assertTrue(stubs.size >= 38, "expected the full Ouginak deck, got ${stubs.size}")
+        assertTrue(stubs.any { it.id == 6256 })
     }
 
     @Test
@@ -39,6 +46,24 @@ class SpellScraperTest {
         assertEquals(60, d.baseDamage)
         assertEquals(76, d.critDamage)
         assertEquals(SpellArea.SINGLE_TARGET, d.area)
+    }
+
+    @Test
+    fun `reads a lowercase damage line (Piercing Arrow)`() {
+        // Some pages write "damage:" in lowercase — the parser is case-insensitive.
+        val d = SpellScraper.parseSpellPage(fixture("piercing-arrow.html"))
+        assertEquals(SpellElement.EARTH, d.element)
+        assertEquals(139, d.baseDamage)
+    }
+
+    @Test
+    fun `a Light spell keeps its base hit but maps to no 4-element and is flagged raw`() {
+        // Light / Stasis are real elements with no mastery in the 4-element model: element is null,
+        // but rawElement preserves the token so the gap is reported rather than silently dropped.
+        val d = SpellScraper.parseSpellPage(fixture("light-arrow.html"))
+        assertEquals(null, d.element)
+        assertEquals("LIGHT", d.rawElement)
+        assertNotNull(d.baseDamage)
     }
 
     @Test
