@@ -201,7 +201,7 @@ fun computeCharacteristicsValues(
     // the sub-excluded stats above, mirroring the solver's preSubStat, so scoreFor matches the objective.
     val sublimationContributions =
         sublimationFixedContributions(
-            buildCombination.sublimations,
+            buildCombination.sublimations.values.flatten(),
             sumOfCharacteristicFixedValuesWithoutSublimations,
             scoreComputationMode,
             damageScenario,

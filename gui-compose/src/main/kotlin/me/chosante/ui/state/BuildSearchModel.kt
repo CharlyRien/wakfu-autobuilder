@@ -448,6 +448,42 @@ class BuildSearchModel(
         ui = ui.copy(excludedItems = ui.excludedItems - item)
     }
 
+    /** All sublimation names (French) the user can force, sorted for the picker. */
+    val sublimationCatalog: List<String> by lazy {
+        WakfuBestBuildFinderAlgorithm.sublimations
+            .map { it.name.fr }
+            .distinct()
+            .sorted()
+    }
+
+    /** All rune names (French) the user can force, sorted for the picker. */
+    val runeCatalog: List<String> by lazy {
+        WakfuBestBuildFinderAlgorithm.runes
+            .map { it.name.fr }
+            .distinct()
+            .sorted()
+    }
+
+    fun setUseSublimations(enabled: Boolean) {
+        ui = ui.copy(useSublimations = enabled)
+    }
+
+    fun addForcedSublimation(name: String) {
+        if (name.isNotBlank() && name !in ui.forcedSublimations) ui = ui.copy(forcedSublimations = ui.forcedSublimations + name)
+    }
+
+    fun removeForcedSublimation(name: String) {
+        ui = ui.copy(forcedSublimations = ui.forcedSublimations - name)
+    }
+
+    fun addForcedRune(name: String) {
+        if (name.isNotBlank() && name !in ui.forcedRunes) ui = ui.copy(forcedRunes = ui.forcedRunes + name)
+    }
+
+    fun removeForcedRune(name: String) {
+        ui = ui.copy(forcedRunes = ui.forcedRunes - name)
+    }
+
     /**
      * Force this exact item into the next searched build. Driven by the center paperdoll's per-slot
      * action; mirrors [pickItem]'s dedup but is independent of the picker modal and, like the modal,
@@ -556,6 +592,9 @@ class BuildSearchModel(
                 forcedItems = snapshot.forcedItems.map { it.matchName },
                 excludedItems = snapshot.excludedItems.map { it.matchName },
                 scoreComputationMode = snapshot.mode,
+                useSublimations = snapshot.useSublimations,
+                forcedSublimations = snapshot.forcedSublimations,
+                forcedRunes = snapshot.forcedRunes,
                 damageScenario = snapshot.scenario
             )
 

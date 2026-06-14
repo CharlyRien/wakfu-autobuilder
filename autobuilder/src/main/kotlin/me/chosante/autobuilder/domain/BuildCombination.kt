@@ -5,6 +5,7 @@ import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
+import me.chosante.common.SublimationRarity
 import me.chosante.common.skills.CharacterSkills
 
 data class BuildCombination(
@@ -12,8 +13,10 @@ data class BuildCombination(
     val characterSkills: CharacterSkills,
     // Runes socketed per equipped item (best-achievable model). Empty when runes are disabled.
     val runes: Map<Equipment, List<RuneType>> = emptyMap(),
-    // Sublimations chosen by the solver (epic/relic/normal) or forced by the user.
-    val sublimations: List<Sublimation> = emptyList(),
+    // Sublimations chosen/forced, keyed by their CARRIER item (epic → the epic item, relic → the relic
+    // item, normal → its assigned ≥3-socket item). Mirrors [runes] so the GUI can show each item's
+    // sublimation + rune colour pattern. Flatten with `.values.flatten()` for the effect set.
+    val sublimations: Map<Equipment, List<Sublimation>> = emptyMap(),
 ) {
     fun isValid(): Boolean {
         val numberOfEquipmentByType = equipments.groupingBy { it.itemType }.eachCount()
@@ -47,6 +50,32 @@ data class BuildCombination(
             return false
         }
 
-        return numberOfTwoHandsWeapon + numberOfSecondHandsWeapon <= 1
+        if (numberOfTwoHandsWeapon + numberOfSecondHandsWeapon > 1) {
+            return false
+        }
+
+        return hasLegalSublimations()
+    }
+
+    /**
+     * Sublimation legality, mirroring the solver constraints: at most 10 sublimations, at most 1 epic and
+     * 1 relic, and each one on a valid carrier item — epic on an epic item, relic on a relic item, a normal
+     * sub on a ≥3-socket item with at most one normal sub per item, and `runes + 3·normalSubs ≤ sockets` so
+     * a sub's three sockets aren't double-booked with runes.
+     */
+    private fun hasLegalSublimations(): Boolean {
+        val allSubs = sublimations.values.flatten()
+        if (allSubs.size > 10) return false
+        if (allSubs.count { it.rarity == SublimationRarity.EPIC } > 1) return false
+        if (allSubs.count { it.rarity == SublimationRarity.RELIC } > 1) return false
+        for ((carrier, hosted) in sublimations) {
+            val normalSubCount = hosted.count { it.rarity == SublimationRarity.NORMAL }
+            if (normalSubCount > 1) return false
+            if (normalSubCount > 0 && carrier.maxShardSlots < 3) return false
+            if (hosted.any { it.rarity == SublimationRarity.EPIC } && carrier.rarity != Rarity.EPIC) return false
+            if (hosted.any { it.rarity == SublimationRarity.RELIC } && carrier.rarity != Rarity.RELIC) return false
+            if ((runes[carrier]?.size ?: 0) + 3 * normalSubCount > carrier.maxShardSlots) return false
+        }
+        return true
     }
 }
