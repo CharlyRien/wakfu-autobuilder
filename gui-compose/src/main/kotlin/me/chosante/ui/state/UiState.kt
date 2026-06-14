@@ -3,6 +3,7 @@ package me.chosante.ui.state
 import androidx.compose.ui.graphics.Color
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.SpellRotation
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.autobuilder.genetic.wakfu.isRandomElementStat
@@ -150,6 +151,8 @@ data class UiState(
     val optimal: Boolean = false,
     val build: BuildCombination? = null,
     val achieved: Map<Characteristic, Int> = emptyMap(),
+    /** Best spells to cast for the build's AP, in max-damage mode only (else null). Computed off-thread. */
+    val spellRotation: SpellRotation? = null,
     val lastLandedEquipmentId: Int? = null,
     val zenith: ZenithState = ZenithState.Idle,
     val zenithUrl: String? = null,

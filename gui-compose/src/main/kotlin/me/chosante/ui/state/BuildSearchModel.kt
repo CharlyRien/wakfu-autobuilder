@@ -16,6 +16,7 @@ import kotlinx.coroutines.withContext
 import me.chosante.ZenithInputParameters
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.SpellRotationOptimizer
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
@@ -552,6 +553,7 @@ class BuildSearchModel(
                 optimal = false,
                 build = null,
                 achieved = emptyMap(),
+                spellRotation = null,
                 lastLandedEquipmentId = null,
                 zenith = ZenithState.Idle,
                 zenithUrl = null,
@@ -590,6 +592,14 @@ class BuildSearchModel(
                                     masteryElementsWanted = targetStats.masteryElementsWanted,
                                     resistanceElementsWanted = targetStats.resistanceElementsWanted
                                 )
+                            // Best spells to cast for this build's AP — only in max-damage mode, computed
+                            // here off the UI thread (like `achieved`) so the panel just reads it.
+                            val spellRotation =
+                                if (snapshot.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+                                    SpellRotationOptimizer.forBuild(result.individual, character, character.clazz, snapshot.scenario)
+                                } else {
+                                    null
+                                }
                             withContext(mainDispatcher) {
                                 val landedEquipmentId = newlyLandedEquipmentId(ui.build, result.individual)
                                 ui =
@@ -600,6 +610,7 @@ class BuildSearchModel(
                                         optimal = result.isOptimal,
                                         build = result.individual,
                                         achieved = achieved,
+                                        spellRotation = spellRotation,
                                         lastLandedEquipmentId = landedEquipmentId ?: ui.lastLandedEquipmentId
                                     )
                                 if (landedEquipmentId != null) {

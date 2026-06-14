@@ -66,6 +66,17 @@ enum class Tr(
     SCENARIO_CRIT_CAP("Crit cap %", "Plafond crit %"),
     SCENARIO_ENEMY_RES("Enemy res %", "Rés. ennemi %"),
     EXPECTED_DAMAGE("Expected damage", "Dégâts attendus"),
+    SPELL_ROTATION("Spell Rotation", "Rotation de sorts"),
+    SPELL_ROTATION_SUB("best spells for this build's AP", "meilleurs sorts pour les PA du build"),
+    SPELL_ROTATION_PER_TURN("expected damage / turn", "dégâts attendus / tour"),
+    SPELL_ROTATION_EMPTY(
+        "No playable spells in this element for this class — try another attack element.",
+        "Aucun sort jouable dans cet élément pour cette classe — essaie un autre élément d'attaque."
+    ),
+    SPELL_ROTATION_NOTE(
+        "Per-turn cast limits aren't modeled yet — treat as an upper bound.",
+        "Les limites de lancers par tour ne sont pas encore modélisées — à prendre comme borne haute."
+    ),
     TARGET_STATS("Target Stats", "Stats cibles"),
     MAXIMIZED_MASTERIES("Maximized Masteries", "Maîtrises à maximiser"),
     NO_MASTERY_SELECTED("None selected", "Aucune sélection"),
