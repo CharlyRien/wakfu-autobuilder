@@ -19,6 +19,8 @@ java {
 
 dependencies {
     implementation(libs.kotlinx.serialization.json)
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
 }
 
 kotlin {
@@ -27,4 +29,8 @@ kotlin {
             .get()
             .toInt()
     )
+}
+
+tasks.test {
+    useJUnitPlatform()
 }

@@ -1,0 +1,75 @@
+package me.chosante.common
+
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+
+class SpellDamageTest {
+    private val blazingArrow =
+        Spell(
+            id = 4769,
+            clazz = CharacterClass.CRA,
+            name = I18nText(fr = "Flèche Enflammée", en = "Blazing Arrow", es = "", pt = ""),
+            element = SpellElement.FIRE,
+            apCost = 2,
+            rangeMin = 2,
+            rangeMax = 5,
+            baseDamage = 60,
+            critDamage = 76,
+            area = SpellArea.SINGLE_TARGET
+        )
+
+    @Test
+    fun `no fire mastery and no crit yields the raw base hit`() {
+        val result = SpellDamage.expectedDamage(blazingArrow, stats = emptyMap())!!
+        assertEquals(60.0, result.expected, 1e-9)
+        assertEquals(60.0, result.nonCrit, 1e-9)
+    }
+
+    @Test
+    fun `fire mastery scales the hit and generic elemental mastery folds in`() {
+        val stats =
+            mapOf(
+                Characteristic.MASTERY_ELEMENTARY_FIRE to 800,
+                Characteristic.MASTERY_ELEMENTARY to 200
+            )
+        // base × (1 + (800+200)/100) = 60 × 11 = 660
+        val result = SpellDamage.expectedDamage(blazingArrow, stats)!!
+        assertEquals(660.0, result.nonCrit, 1e-9)
+    }
+
+    @Test
+    fun `expected blends crit and non-crit by the usable crit rate`() {
+        val stats =
+            mapOf(
+                Characteristic.MASTERY_ELEMENTARY_FIRE to 500,
+                Characteristic.CRITICAL_HIT to 50,
+                Characteristic.MASTERY_CRITICAL to 100
+            )
+        val r = SpellDamage.expectedDamage(blazingArrow, stats)!!
+        // nonCrit = 60 × (1+5) = 360 ; crit = 76 × 1.25 × (1 + (500+100)/100) = 76 × 1.25 × 7 = 665
+        assertEquals(360.0, r.nonCrit, 1e-9)
+        assertEquals(665.0, r.crit, 1e-9)
+        assertEquals(0.5 * 360.0 + 0.5 * 665.0, r.expected, 1e-9)
+    }
+
+    @Test
+    fun `damage inflicted and a boss weakness both raise the hit`() {
+        val stats =
+            mapOf(
+                Characteristic.MASTERY_ELEMENTARY_FIRE to 100,
+                Characteristic.DAMAGE_INFLICTED to 25
+            )
+        // 60 × (1+1) × (1+0.25) × (1 − (−50)/100) = 60 × 2 × 1.25 × 1.5 = 225
+        val r = SpellDamage.expectedDamage(blazingArrow, stats, targetResistancePercent = -50)!!
+        assertEquals(225.0, r.nonCrit, 1e-9)
+    }
+
+    @Test
+    fun `a spell without a readable base hit returns null rather than a made-up number`() {
+        val passive = blazingArrow.copy(element = null, baseDamage = null)
+        assertNull(SpellDamage.expectedDamage(passive, stats = emptyMap()))
+        assertTrue(!passive.hasDamage)
+    }
+}
