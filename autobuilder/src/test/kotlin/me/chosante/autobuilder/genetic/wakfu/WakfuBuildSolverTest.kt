@@ -21,6 +21,12 @@ import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import me.chosante.common.RuneColor
 import me.chosante.common.RuneType
+import me.chosante.common.Sublimation
+import me.chosante.common.SublimationCondition
+import me.chosante.common.SublimationConditionType
+import me.chosante.common.SublimationEffect
+import me.chosante.common.SublimationKind
+import me.chosante.common.SublimationRarity
 import me.chosante.common.skills.CharacterSkills
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -1278,6 +1284,231 @@ class WakfuBuildSolverTest {
                     .bestAcrossElements(best.individual, character, CharacterClass.CRA, scenario)
             assertThat(chosen.element).isNotEqualTo(me.chosante.common.SpellElement.WATER)
             assertThat(chosen.totalExpectedDamage).isGreaterThan(0.0)
+        }
+
+    @Test
+    fun `a forced rune is socketed at least once even when it matches no requested stat`(): Unit =
+        runBlocking {
+            val level = 245
+            val character = Character(CharacterClass.CRA, level, level, CharacterSkills(level))
+            // Request distance mastery only; force an HP rune that the auto-fill would never pick.
+            val amulet = equipment(1, ItemType.AMULET, "Amu", mapOf(Characteristic.MASTERY_DISTANCE to 50), maxShardSlots = 4)
+            val distanceRune = RuneType(1, I18nText("Dist", "Dist", "Dist", "Dist"), RuneColor.RED, Characteristic.MASTERY_DISTANCE, listOf(10, 15), 0)
+            val hpRune = RuneType(2, I18nText("Vita", "Vita", "Vita", "Vita"), RuneColor.GREEN, Characteristic.HP, emptyList(), 0)
+            val targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1)))
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = targetStats,
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                    forcedRunes = listOf("vita")
+                )
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(params, listOf(amulet).groupBy { it.itemType }, listOf(distanceRune, hpRune), WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            val socketed =
+                best.individual.runes.values
+                    .flatten()
+            assertThat(socketed.count { it.characteristic == Characteristic.HP }).isGreaterThanOrEqualTo(1)
+        }
+
+    // ---------------------------------------------------------------------------------------------
+    // Sublimations (Lot 3): the solver chooses statically-modelable subs (epic/relic/normal) and
+    // applies forced ones. Effects fold into the same stat term loop as items/runes.
+    // ---------------------------------------------------------------------------------------------
+
+    private fun sublimation(
+        stateId: Int,
+        rarity: SublimationRarity,
+        kind: SublimationKind,
+        name: String,
+        effects: List<SublimationEffect> = emptyList(),
+        condition: SublimationCondition? = null,
+        slotColorPattern: List<Int> = emptyList(),
+        solverChoosable: Boolean = true,
+    ): Sublimation =
+        Sublimation(
+            stateId = stateId,
+            name = I18nText(name, name, name, name),
+            rarity = rarity,
+            slotColorPattern = slotColorPattern,
+            maxLevel = 1,
+            kind = kind,
+            solverChoosable = solverChoosable,
+            condition = condition,
+            effects = effects,
+            conversion = null,
+            rawText = name
+        )
+
+    private fun maxDamageParams(
+        character: Character,
+        forcedSublimations: List<String> = emptyList(),
+    ): WakfuBestBuildParams =
+        WakfuBestBuildParams(
+            character = character,
+            targetStats = TargetStats(emptyList()),
+            searchDuration = 5.seconds,
+            stopWhenBuildMatch = false,
+            maxRarity = Rarity.EPIC,
+            forcedItems = emptyList(),
+            excludedItems = emptyList(),
+            scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+            useRunes = false,
+            forcedSublimations = forcedSublimations,
+            damageScenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+        )
+
+    @Test
+    fun `solver chooses a static-conditional DI epic when its condition is satisfiable`(): Unit =
+        runBlocking {
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            val amulet = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100))
+            // Inflexible-like: AP <= 10 -> +15% damage inflicted. Base AP is 6, so condition holds.
+            val inflexible =
+                sublimation(
+                    5073,
+                    SublimationRarity.EPIC,
+                    SublimationKind.STATIC_CONDITIONAL,
+                    "Inflexibility",
+                    effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 15)),
+                    condition = SublimationCondition(SublimationConditionType.AP_AT_MOST, 10)
+                )
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(maxDamageParams(character), listOf(amulet).groupBy { it.itemType }, emptyList(), listOf(inflexible), WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(best.individual.sublimations.map { it.name.en }).contains("Inflexibility")
+            val scenario = maxDamageParams(character).damageScenario
+            val stats =
+                computeCharacteristicsValues(
+                    best.individual,
+                    character.baseCharacteristicValues,
+                    emptyMap(),
+                    emptyMap(),
+                    ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                    scenario
+                )
+            assertThat(stats[Characteristic.DAMAGE_INFLICTED]).isEqualTo(15)
+        }
+
+    @Test
+    fun `solver declines a static-conditional sub whose condition is unreachable`(): Unit =
+        runBlocking {
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            val amulet = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100))
+            // Requires AP >= 99, unreachable at level 1 (base 6, no AP gear) -> never chosen.
+            val unreachable =
+                sublimation(
+                    9001,
+                    SublimationRarity.EPIC,
+                    SublimationKind.STATIC_CONDITIONAL,
+                    "Unreachable",
+                    effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 50)),
+                    condition = SublimationCondition(SublimationConditionType.AP_AT_LEAST, 99)
+                )
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(maxDamageParams(character), listOf(amulet).groupBy { it.itemType }, emptyList(), listOf(unreachable), WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(best.individual.sublimations).isEmpty()
+        }
+
+    @Test
+    fun `at most one epic sublimation is chosen`(): Unit =
+        runBlocking {
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            val amulet = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100))
+            val epicA =
+                sublimation(1, SublimationRarity.EPIC, SublimationKind.FLAT, "EpicA", effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 10)))
+            val epicB =
+                sublimation(2, SublimationRarity.EPIC, SublimationKind.FLAT, "EpicB", effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 12)))
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(maxDamageParams(character), listOf(amulet).groupBy { it.itemType }, emptyList(), listOf(epicA, epicB), WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(best.individual.sublimations.count { it.rarity == SublimationRarity.EPIC }).isEqualTo(1)
+            // It picks the stronger one.
+            assertThat(
+                best.individual.sublimations
+                    .single()
+                    .name.en
+            ).isEqualTo("EpicB")
+        }
+
+    @Test
+    fun `a forced relic sublimation is always in the build and applies its flat effect`(): Unit =
+        runBlocking {
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            val amulet = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100))
+            val relic =
+                sublimation(7, SublimationRarity.RELIC, SublimationKind.FLAT, "Directives", effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 15)))
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(
+                        maxDamageParams(character, forcedSublimations = listOf("directives")),
+                        listOf(amulet).groupBy {
+                            it.itemType
+                        },
+                        emptyList(),
+                        listOf(relic),
+                        WakfuBuildSolver.SolverTuning()
+                    ).toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(best.individual.sublimations.map { it.name.en }).contains("Directives")
+        }
+
+    @Test
+    fun `a normal sublimation is chosen only when enough sockets are free (socket budget)`(): Unit =
+        runBlocking {
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            val normalDi =
+                sublimation(
+                    10,
+                    SublimationRarity.NORMAL,
+                    SublimationKind.FLAT,
+                    "DiNormal",
+                    effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 10)),
+                    slotColorPattern = listOf(1, 2, 3)
+                )
+
+            // Carrier with 4 sockets: 3 reserved for the normal sub is fine -> chosen.
+            val bigCarrier = equipment(1, ItemType.AMULET, "Fire4", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100), maxShardSlots = 4)
+            val chosen =
+                WakfuBuildSolver
+                    .optimize(maxDamageParams(character), listOf(bigCarrier).groupBy { it.itemType }, emptyList(), listOf(normalDi), WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+            assertThat(chosen.individual.sublimations.map { it.name.en }).contains("DiNormal")
+
+            // Carrier with only 2 sockets: cannot host a 3-socket normal sub -> not chosen.
+            val smallCarrier = equipment(1, ItemType.AMULET, "Fire2", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100), maxShardSlots = 2)
+            val declined =
+                WakfuBuildSolver
+                    .optimize(maxDamageParams(character), listOf(smallCarrier).groupBy { it.itemType }, emptyList(), listOf(normalDi), WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+            assertThat(declined.individual.sublimations).isEmpty()
         }
 
     private fun assertSolverReachesExhaustiveOptimum(

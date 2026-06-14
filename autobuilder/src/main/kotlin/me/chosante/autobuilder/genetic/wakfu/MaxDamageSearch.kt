@@ -17,6 +17,7 @@ import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.RuneType
+import me.chosante.common.Sublimation
 import java.math.BigDecimal
 import java.math.RoundingMode
 import kotlin.time.Duration.Companion.seconds
@@ -48,7 +49,16 @@ object MaxDamageSearch {
         baseParams: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         runes: List<RuneType>,
-    ): Flow<GeneticAlgorithmResult<BuildCombination>> = run(baseParams, equipmentsByItemType, runes, tuning = null)
+        sublimations: List<Sublimation>,
+    ): Flow<GeneticAlgorithmResult<BuildCombination>> = run(baseParams, equipmentsByItemType, runes, sublimations, tuning = null)
+
+    /** Back-compat for tests that drive the loop deterministically without sublimations. */
+    internal fun run(
+        baseParams: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        tuning: WakfuBuildSolver.SolverTuning?,
+    ): Flow<GeneticAlgorithmResult<BuildCombination>> = run(baseParams, equipmentsByItemType, runes, emptyList(), tuning)
 
     /**
      * [tuning] is for tests only: when supplied, every underlying solve runs the deterministic CP-SAT
@@ -59,6 +69,7 @@ object MaxDamageSearch {
         baseParams: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         runes: List<RuneType>,
+        sublimations: List<Sublimation>,
         tuning: WakfuBuildSolver.SolverTuning?,
     ): Flow<GeneticAlgorithmResult<BuildCombination>> =
         callbackFlow {
@@ -82,7 +93,7 @@ object MaxDamageSearch {
                 launch {
                     // Phase 1 (0–50%): the unconstrained solve, streamed live but re-scored debuff-aware.
                     WakfuBuildSolver
-                        .optimize(baseParams.copy(searchDuration = phaseBudget), equipmentsByItemType, runes, tuning)
+                        .optimize(baseParams.copy(searchDuration = phaseBudget), equipmentsByItemType, runes, sublimations, tuning)
                         .collect { consider(it, (it.progressPercentage / 2).coerceIn(0, 50)) }
 
                     val a0 = best?.individual?.let { actualActionPoints(baseParams, it) } ?: BASE_ACTION_POINTS
@@ -111,6 +122,7 @@ object MaxDamageSearch {
                                                 baseParams.copy(searchDuration = phaseBudget, maxDamageApTarget = target, solverWorkers = probeWorkers),
                                                 equipmentsByItemType,
                                                 runes,
+                                                sublimations,
                                                 tuning
                                             ).toList()
                                             .maxByOrNull { it.matchPercentage }
