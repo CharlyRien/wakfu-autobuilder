@@ -10,6 +10,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
+import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.I18nText
@@ -460,6 +461,80 @@ class BuildSearchModelLibraryTest {
                     .mapNotNull { it.folder }
                     .toSet()
             ).containsExactly("PvP")
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `export then import round-trips a build through the clipboard`(
+        @TempDir tempDir: Path,
+    ) = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        var clipboard = ""
+        val model =
+            BuildSearchModel(
+                scope = scope,
+                buildFinder = {
+                    flowOf(
+                        GeneticAlgorithmResult(
+                            individual = fakeBuild(),
+                            matchPercentage = BigDecimal("100"),
+                            progressPercentage = 100,
+                            isOptimal = true
+                        )
+                    )
+                },
+                zenithBuilder = { "" },
+                copyToClipboard = { clipboard = it },
+                readClipboard = { clipboard },
+                mainDispatcher = Dispatchers.Unconfined,
+                historyRepository = HistoryRepository(baseDir = tempDir, ioDispatcher = Dispatchers.Unconfined),
+                libraryPreferences = LibraryPreferences(null)
+            )
+        try {
+            // A non-default class so the round-trip is observable (defaults are CRA).
+            model.setClass(CharacterClass.IOP)
+            model.setDuration("1")
+            model.search()
+            awaitUntil { model.ui.phase == Phase.Done }
+
+            // Export copies a parseable HistoryEntry (input + result) to the clipboard.
+            model.exportBuild()
+            assertThat(clipboard).isNotBlank()
+            assertThat(model.canParseImport(clipboard)).isTrue()
+            assertThat(model.ui.toast).isNotNull()
+
+            // Importing that exact payload adds it to the library and opens it in the workspace.
+            model.importBuild(clipboard)
+            awaitUntil { model.ui.savedBuilds.isNotEmpty() && model.ui.build != null }
+
+            assertThat(model.ui.savedBuilds).hasSize(1)
+            val imported = model.ui.savedBuilds.single()
+            assertThat(imported.request.clazz).isEqualTo("IOP")
+            assertThat(imported.result.equipments.map { it.equipmentId }).contains(1)
+            assertThat(model.ui.activeBuildId).isEqualTo(imported.id)
+            assertThat(model.ui.clazz).isEqualTo(CharacterClass.IOP)
+            assertThat(model.ui.screen).isEqualTo(Screen.Builder)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `importBuild rejects malformed json without touching the library`(
+        @TempDir tempDir: Path,
+    ) = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val model = model(scope, tempDir)
+        try {
+            assertThat(model.canParseImport("not a build")).isFalse()
+
+            model.importBuild("not a build")
+
+            assertThat(model.ui.savedBuilds).isEmpty()
+            assertThat(model.ui.modal).isNull()
+            assertThat(model.ui.toast).isNotNull()
         } finally {
             scope.cancel()
         }

@@ -27,10 +27,12 @@ import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.common.Character
 import me.chosante.common.Characteristic
 import me.chosante.common.Rarity
+import me.chosante.common.history.HistoryEntry
 import me.chosante.createZenithBuild
 import me.chosante.ui.components.IconPreloader
 import me.chosante.ui.components.warmUpPaths
 import me.chosante.ui.history.HistoryRepository
+import me.chosante.ui.history.historyJson
 import me.chosante.ui.history.normalizeTags
 import me.chosante.ui.history.restoredClass
 import me.chosante.ui.history.restoredMode
@@ -43,6 +45,7 @@ import me.chosante.ui.history.toTargetRows
 import me.chosante.ui.i18n.Tr
 import java.awt.Desktop
 import java.awt.Toolkit
+import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
 import java.net.URI
 import java.util.concurrent.CancellationException
@@ -99,6 +102,9 @@ class BuildSearchModel(
     private val zenithBuilder: ZenithBuilder = { it.createZenithBuild() },
     private val openBrowser: (String) -> Unit = { link -> Desktop.getDesktop().browse(URI(link)) },
     private val copyToClipboard: (String) -> Unit = { link -> Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(link), null) },
+    private val readClipboard: () -> String = {
+        runCatching { Toolkit.getDefaultToolkit().systemClipboard.getData(DataFlavor.stringFlavor) as? String }.getOrNull().orEmpty()
+    },
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Swing,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val historyRepository: HistoryRepository = HistoryRepository(),
@@ -661,6 +667,29 @@ class BuildSearchModel(
         }
     }
 
+    /**
+     * Copies the current build — its full request (input) *and* discovered result (output) — to the
+     * clipboard as a [HistoryEntry] JSON, so a tester can hand you a build without a screenshot. The
+     * same payload re-imports losslessly via [importBuild]. Reflects the live workspace; when a saved
+     * build is loaded its metadata (note/tags/folder/created date) is preserved.
+     */
+    fun exportBuild() {
+        if (ui.build == null) return
+        val active = ui.activeBuildId?.let { id -> ui.savedBuilds.firstOrNull { it.id == id } }
+        val entry =
+            ui.toHistoryEntry(
+                id = active?.id ?: idGenerator(),
+                name = ui.activeBuildName ?: ui.suggestedBuildName(),
+                note = active?.note,
+                createdAt = active?.createdAt ?: clock(),
+                dataVersion = dataVersion,
+                tags = active?.tags ?: emptyList(),
+                folder = active?.folder
+            ) ?: return
+        copyToClipboard(historyJson.encodeToString(HistoryEntry.serializer(), entry))
+        ui = ui.copy(toast = Tr.TOAST_BUILD_EXPORTED.value(ui.lang))
+    }
+
     private fun createZenithLink(onReady: (String) -> Unit) {
         val build = ui.build ?: return
         ui = ui.copy(zenith = ZenithState.Loading, error = null, toast = null)
@@ -893,6 +922,56 @@ class BuildSearchModel(
                 activeBuildName = entry.name,
                 searchLocked = true
             )
+    }
+
+    /** Opens the import dialog, where a build exported via [exportBuild] is pasted. See [importBuild]. */
+    fun requestImport() {
+        ui = ui.copy(modal = Modal.ImportBuild)
+    }
+
+    /** Best-effort read of the system clipboard for the import dialog's "Paste" button. */
+    fun clipboardText(): String = readClipboard()
+
+    /** True when [rawJson] decodes to a valid exported build — gates the import dialog's confirm button. */
+    fun canParseImport(rawJson: String): Boolean = rawJson.isNotBlank() && runCatching { historyJson.decodeFromString(HistoryEntry.serializer(), rawJson.trim()) }.isSuccess
+
+    /**
+     * Imports a build exported via [exportBuild]: parses the pasted [HistoryEntry] JSON, saves it as a
+     * fresh library entry (new id + a name made unique, so it never overwrites an existing build), then
+     * loads it into the workspace so it's visible at once. The denormalized result lets it display even
+     * if its items left the catalog or the data version differs. Invalid JSON is a no-op (toast only).
+     */
+    fun importBuild(rawJson: String) {
+        val parsed = runCatching { historyJson.decodeFromString(HistoryEntry.serializer(), rawJson.trim()) }.getOrNull()
+        if (parsed == null) {
+            ui = ui.copy(modal = null, toast = Tr.IMPORT_INVALID.value(ui.lang))
+            return
+        }
+        val entry = parsed.copy(id = idGenerator(), name = uniqueLibraryName(parsed.name), createdAt = clock())
+        ui = ui.copy(modal = null)
+        scope.launch(ioDispatcher) {
+            runCatching { historyRepository.save(entry) }
+                .onSuccess {
+                    val all = historyRepository.loadAll()
+                    withContext(mainDispatcher) {
+                        ui = ui.copy(savedBuilds = all, knownTags = computeKnownTags(all))
+                        loadBuild(entry.id)
+                        ui = ui.copy(toast = Tr.TOAST_BUILD_IMPORTED.value(ui.lang))
+                    }
+                }.onFailure { throwable ->
+                    withContext(mainDispatcher) { ui = ui.copy(error = throwable.message ?: "Could not import build") }
+                }
+        }
+    }
+
+    /** A library name unique against existing builds: keeps [base] if free, else appends " (2)", " (3)"… */
+    private fun uniqueLibraryName(base: String): String {
+        val trimmed = base.trim().ifBlank { Tr.IMPORTED_BUILD_NAME.value(ui.lang) }
+        val taken = ui.savedBuilds.map { it.name.trim().lowercase() }.toSet()
+        if (trimmed.lowercase() !in taken) return trimmed
+        var n = 2
+        while ("$trimmed ($n)".lowercase() in taken) n++
+        return "$trimmed ($n)"
     }
 
     /** Clears the active-build identity (the workspace becomes an "unsaved build" again, unlocked). */

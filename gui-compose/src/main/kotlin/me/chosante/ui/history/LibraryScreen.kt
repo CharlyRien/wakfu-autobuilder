@@ -83,6 +83,7 @@ import java.time.format.FormatStyle
 @Composable
 fun LibraryScreen(
     ui: UiState,
+    onImport: () -> Unit,
     onLoad: (String) -> Unit,
     onCompare: (String) -> Unit,
     onDuplicate: (String) -> Unit,
@@ -113,7 +114,7 @@ fun LibraryScreen(
                     .padding(WDimens.pad),
             verticalArrangement = Arrangement.spacedBy(WDimens.gap)
         ) {
-            Header(count = 0)
+            Header(count = 0, onImport = onImport)
             EmptyState(onGoBuilder = onGoBuilder)
         }
         return
@@ -167,7 +168,7 @@ fun LibraryScreen(
                     .padding(WDimens.pad),
             verticalArrangement = Arrangement.spacedBy(WDimens.gap)
         ) {
-            Header(count = ui.savedBuilds.size)
+            Header(count = ui.savedBuilds.size, onImport = onImport)
             LibraryToolbar(
                 ui = ui,
                 onSearchChange = onSearchChange,
@@ -630,7 +631,10 @@ private fun GroupToggle(
 }
 
 @Composable
-private fun Header(count: Int) {
+private fun Header(
+    count: Int,
+    onImport: () -> Unit,
+) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
             Text(text = tr(Tr.LIBRARY_TITLE), style = WTypography.headlineLarge.copy(fontWeight = FontWeight.Bold))
@@ -641,6 +645,20 @@ private fun Header(count: Int) {
                 text = "$count ${tr(Tr.LIBRARY_COUNT)}",
                 style = WTypography.labelMedium.copy(fontFamily = WType.mono, color = WColor.muted)
             )
+            Spacer(modifier = Modifier.width(14.dp))
+        }
+        // Paste a build a tester exported (input + result) — added to the library and opened.
+        Box(
+            modifier =
+                Modifier
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(WColor.raised)
+                    .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                    .clickable(onClick = onImport)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = tr(Tr.IMPORT_BUILD), style = WTypography.labelMedium.copy(color = WColor.text))
         }
     }
 }
