@@ -89,11 +89,6 @@ enum class Characteristic {
     RESISTANCE_ELEMENTARY_WIND,
     HP,
     CRITICAL_HIT,
-
-    // "% Damage Inflicted" — a multiplicative damage bonus used by the spell-damage helper
-    // (SpellDamage). Equipment that grants it is not yet mapped by the extractor, so it stays a
-    // forward-looking key; it reconciles 1:1 with the same constant on the max-damage branch.
-    DAMAGE_INFLICTED,
     WAKFU_POINT,
     MAX_WAKFU_POINTS,
     ACTION_POINT,
