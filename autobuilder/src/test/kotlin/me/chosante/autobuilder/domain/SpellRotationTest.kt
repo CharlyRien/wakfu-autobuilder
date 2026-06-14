@@ -60,6 +60,34 @@ class SpellRotationTest {
     }
 
     @Test
+    fun `sequencing opens with the resistance debuff when there's AP room to profit, and skips it when there isn't`() {
+        // Sram's Assassination (-100 flat resistance, 1 AP, pure debuff) should be cast FIRST against a
+        // resistant boss — it raises every following hit — when there's AP left to benefit.
+        val character = Character(clazz = CharacterClass.SRAM, level = 200, minLevel = 1)
+        val build = BuildCombination(equipments = emptyList(), characterSkills = CharacterSkills(200))
+        val base = DamageScenario(element = me.chosante.autobuilder.domain.SpellElement.FIRE)
+
+        val highRes = base.copy(targetResistancePercent = 60)
+        val seqHigh = SpellRotationOptimizer.bestSequencedRotation(build, character, CharacterClass.SRAM, highRes, apBudget = 12)
+        val noDebuffHigh = SpellRotationOptimizer.bestAcrossElements(build, character, CharacterClass.SRAM, highRes, apBudget = 12)
+        assertThat(seqHigh.debuffCasts).describedAs("should open with Assassination vs a resistant boss").isNotEmpty
+        assertThat(
+            seqHigh.debuffCasts
+                .single()
+                .spell.name.en
+        ).isEqualTo("Assassination")
+        assertThat(seqHigh.totalExpectedDamage)
+            .describedAs("debuff-sequenced damage beats the no-debuff rotation")
+            .isGreaterThan(noDebuffHigh.totalExpectedDamage)
+        assertThat(seqHigh.effectiveResistancePercent!!).isLessThan(60)
+
+        // With only 1 AP there's no room left after the 1-AP debuff for any 2+-AP damage spell to profit,
+        // so the pure debuff (0 own damage) isn't worth it — spend the AP elsewhere.
+        val seqTight = SpellRotationOptimizer.bestSequencedRotation(build, character, CharacterClass.SRAM, highRes, apBudget = 1)
+        assertThat(seqTight.debuffCasts).describedAs("no AP room to profit ⇒ no debuff").isEmpty()
+    }
+
+    @Test
     fun `forBuild gates the rotation to the class's playable element — Cra has no Water spells`() {
         val character = Character(clazz = CharacterClass.CRA, level = 230, minLevel = 1)
         val build = BuildCombination(equipments = emptyList(), characterSkills = CharacterSkills(230))

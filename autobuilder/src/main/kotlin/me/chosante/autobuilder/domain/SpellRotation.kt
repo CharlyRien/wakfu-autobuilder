@@ -4,6 +4,7 @@ import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
 import me.chosante.common.Character
 import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
+import me.chosante.common.Resistances
 import me.chosante.common.Spell
 import me.chosante.common.SpellDamage
 import me.chosante.common.SpellElement
@@ -36,8 +37,16 @@ data class SpellRotation(
     val apUsed: Int,
     val casts: List<SpellCast>,
     val totalExpectedDamage: Double,
+    /**
+     * Resistance-reduction debuffs cast **first** this turn (each lowers the target's resistance for the
+     * damage [casts] that follow). Empty when no debuff is worth its AP. Their AP and own-damage are
+     * already included in [apUsed] and [totalExpectedDamage].
+     */
+    val debuffCasts: List<SpellCast> = emptyList(),
+    /** Target's effective resistance % the damage [casts] are dealt at (after [debuffCasts]); null = unknown. */
+    val effectiveResistancePercent: Int? = null,
 ) {
-    val isEmpty: Boolean get() = casts.isEmpty()
+    val isEmpty: Boolean get() = casts.isEmpty() && debuffCasts.isEmpty()
     val apLeftOver: Int get() = apBudget - apUsed
 }
 
@@ -153,29 +162,127 @@ object SpellRotationOptimizer {
     ): SpellRotation {
         val element = SpellElement.valueOf(scenario.element.name)
         val budget = apBudget ?: resolvedActionPoints(build, character, scenario)
-
-        val scored =
-            SpellCatalog
-                .damageSpells(clazz)
-                .filter { it.element == element }
-                .mapNotNull { spell ->
-                    val ap = spell.apCost ?: return@mapNotNull null
-                    val damage =
-                        BuildSpellDamage
-                            .expectedDamage(
-                                spell = spell,
-                                build = build,
-                                character = character,
-                                rangeBand = scenario.rangeBand.toSpellDamageRangeBand(),
-                                rearMastery = scenario.orientation.grantsRearMastery,
-                                berserkMastery = scenario.berserk,
-                                targetResistancePercent = scenario.targetResistancePercent,
-                                critCapPercent = scenario.critCapPercent
-                            )?.expected ?: return@mapNotNull null
-                    ScoredSpell(spell, ap, damage)
-                }
+        val damageSpells = SpellCatalog.damageSpells(clazz).filter { it.element == element }
+        val scored = scoreSpells(damageSpells, build, character, scenario, scenario.targetResistancePercent)
         return bestRotation(scored, budget, element, maxCastsPerSpell)
     }
+
+    /** A [Spell] scored at a specific [resistancePercent] (overriding the scenario's), or null if it deals no damage. */
+    private fun scoreSpells(
+        spells: List<Spell>,
+        build: BuildCombination,
+        character: Character,
+        scenario: DamageScenario,
+        resistancePercent: Int,
+    ): List<ScoredSpell> =
+        spells.mapNotNull { spell ->
+            val ap = spell.apCost ?: return@mapNotNull null
+            val damage =
+                BuildSpellDamage
+                    .expectedDamage(
+                        spell = spell,
+                        build = build,
+                        character = character,
+                        rangeBand = scenario.rangeBand.toSpellDamageRangeBand(),
+                        rearMastery = scenario.orientation.grantsRearMastery,
+                        berserkMastery = scenario.berserk,
+                        targetResistancePercent = resistancePercent,
+                        critCapPercent = scenario.critCapPercent
+                    )?.expected ?: return@mapNotNull null
+            ScoredSpell(spell, ap, damage)
+        }
+
+    /**
+     * Best per-turn rotation **including resistance-reduction debuff sequencing**, over all candidate
+     * elements ([DamageScenario.candidateElements]). For each element it considers casting the class's
+     * resistance debuffs **first** (each lowers the target's flat resistance for everything that
+     * follows), then filling the remaining AP with that element's damage rotation at the reduced
+     * resistance — and keeps whichever debuff subset (possibly none) maximizes total damage. This is the
+     * precise, sequencing-aware valuation the external loop ranks builds by; debuffs are modelled in
+     * FLAT (the unit they're applied in) via [Resistances].
+     */
+    fun bestSequencedRotation(
+        build: BuildCombination,
+        character: Character,
+        clazz: CharacterClass,
+        scenario: DamageScenario,
+        apBudget: Int? = null,
+    ): SpellRotation {
+        val budget = apBudget ?: resolvedActionPoints(build, character, scenario)
+        val debuffSpells =
+            SpellCatalog
+                .forClass(clazz)
+                .filter { it.isResistanceDebuff && (it.apCost ?: 0) in 1..budget }
+                // Keep the few strongest (reduction per AP) to bound the subset enumeration.
+                .sortedByDescending { (it.targetResistanceReductionFlat ?: 0).toDouble() / (it.apCost ?: 1) }
+                .take(MAX_DEBUFFS_CONSIDERED)
+
+        return scenario
+            .candidateElements()
+            .map { (element, resistance) ->
+                bestSequencedForElement(build, character, clazz, scenario, element, resistance, budget, debuffSpells)
+            }.maxByOrNull { it.totalExpectedDamage }
+            ?: SpellRotation(null, budget, 0, emptyList(), 0.0)
+    }
+
+    private fun bestSequencedForElement(
+        build: BuildCombination,
+        character: Character,
+        clazz: CharacterClass,
+        scenario: DamageScenario,
+        element: me.chosante.autobuilder.domain.SpellElement,
+        resistancePercent: Int,
+        budget: Int,
+        debuffSpells: List<Spell>,
+    ): SpellRotation {
+        val commonElement = SpellElement.valueOf(element.name)
+        val damageSpells = SpellCatalog.damageSpells(clazz).filter { it.element == commonElement }
+        val baseFlat = Resistances.percentToFlat(resistancePercent)
+
+        var best: SpellRotation? = null
+        // Each debuff applies at most once (its state doesn't stack with itself); enumerate subsets.
+        for (subset in subsetsOf(debuffSpells)) {
+            val apDebuff = subset.sumOf { it.apCost ?: 0 }
+            if (apDebuff > budget) continue
+            val reducedFlat = baseFlat - subset.sumOf { it.targetResistanceReductionFlat ?: 0 }
+            val effectiveResistance = Resistances.flatToPercent(reducedFlat)
+
+            // Damage rotation in the remaining AP, at the post-debuff resistance.
+            val scored = scoreSpells(damageSpells, build, character, scenario, effectiveResistance)
+            val rotation = bestRotation(scored, budget - apDebuff, commonElement)
+
+            // The debuff casts' own damage (if any), at the post-debuff resistance.
+            val debuffCasts =
+                subset.map { debuff ->
+                    val own =
+                        scoreSpells(listOf(debuff), build, character, scenario, effectiveResistance).firstOrNull()?.expectedDamagePerCast ?: 0.0
+                    SpellCast(debuff, count = 1, apCost = debuff.apCost ?: 0, expectedDamagePerCast = own)
+                }
+
+            val total = rotation.totalExpectedDamage + debuffCasts.sumOf { it.totalExpectedDamage }
+            if (best == null || total > best!!.totalExpectedDamage) {
+                best =
+                    SpellRotation(
+                        element = commonElement,
+                        apBudget = budget,
+                        apUsed = rotation.apUsed + apDebuff,
+                        casts = rotation.casts,
+                        totalExpectedDamage = total,
+                        debuffCasts = debuffCasts,
+                        effectiveResistancePercent = effectiveResistance
+                    )
+            }
+        }
+        return best ?: SpellRotation(commonElement, budget, 0, emptyList(), 0.0)
+    }
+
+    /** All subsets of [items] (each item at most once). [items] is kept tiny ([MAX_DEBUFFS_CONSIDERED]). */
+    private fun <T> subsetsOf(items: List<T>): List<List<T>> =
+        (0 until (1 shl items.size)).map { mask ->
+            items.filterIndexed { index, _ -> (mask shr index) and 1 == 1 }
+        }
+
+    private const val MAX_DEBUFFS_CONSIDERED = 3
 
     /**
      * Best rotation over **all candidate elements** of [scenario] (see [DamageScenario.candidateElements]):
