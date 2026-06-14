@@ -106,16 +106,19 @@ fun StatsPanel(
 
 @Composable
 private fun MatchHero(ui: UiState) {
-    // Most-masteries maximizes mastery rather than hitting exact targets, so a "% match" is
-    // meaningless there — show the cumulated requested mastery (no %, no progress bar) instead.
+    // Most-masteries maximizes mastery and max-damage maximizes expected damage, so a "% match" is
+    // meaningless for both — show the headline number (no %, no progress bar) instead. Only precision
+    // mode keeps the % match + meter.
     val masteryMode = ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+    val damageMode = ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE
+    val headlineNumberMode = masteryMode || damageMode
     ResultCard {
         Column(
             modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
         ) {
-            if (masteryMode) {
+            if (headlineNumberMode) {
                 Text(
-                    text = ui.requestedMasteryTotal().formatCompact(),
+                    text = if (damageMode) ui.match.toInt().formatCompact() else ui.requestedMasteryTotal().formatCompact(),
                     style =
                         WTypography.displayLarge.copy(
                             fontSize = 46.sp,
@@ -126,15 +129,17 @@ private fun MatchHero(ui: UiState) {
                         )
                 )
                 Text(
-                    text = tr(Tr.BUILD_MASTERY),
+                    text = tr(if (damageMode) Tr.EXPECTED_DAMAGE else Tr.BUILD_MASTERY),
                     style = WTypography.labelMedium,
                     modifier = Modifier.padding(top = 4.dp)
                 )
-                Text(
-                    text = tr(Tr.BUILD_MASTERY_HINT),
-                    style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center),
-                    modifier = Modifier.padding(top = 2.dp)
-                )
+                if (!damageMode) {
+                    Text(
+                        text = tr(Tr.BUILD_MASTERY_HINT),
+                        style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center),
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
             } else {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
@@ -170,7 +175,7 @@ private fun MatchHero(ui: UiState) {
                     modifier = Modifier.padding(top = 3.dp)
                 )
             }
-            if (!masteryMode) {
+            if (!headlineNumberMode) {
                 Meter(
                     fill = ui.match.toFloat() / 100f,
                     color = if (ui.match.toInt() == 100) WColor.success else WColor.warning,

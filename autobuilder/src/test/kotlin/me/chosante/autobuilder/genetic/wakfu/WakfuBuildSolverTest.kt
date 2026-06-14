@@ -5,6 +5,10 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import me.chosante.autobuilder.VERSION
 import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.Orientation
+import me.chosante.autobuilder.domain.RangeBand
+import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
@@ -1040,6 +1044,136 @@ class WakfuBuildSolverTest {
                 .maxByOrNull { it.matchPercentage }!!
         }
 
+    // ---------------------------------------------------------------------------------------------
+    // Max-damage mode: expected-damage scorer + solver objective (Wakfu formula).
+    // ---------------------------------------------------------------------------------------------
+
+    @Test
+    fun `max-damage scorer matches a hand-computed non-crit hit`() {
+        val level = 1
+        val character = Character(CharacterClass.CRA, level, level, CharacterSkills(level))
+        val amulet =
+            equipment(1, ItemType.AMULET, "A", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 50, Characteristic.MASTERY_DISTANCE to 100))
+        val build = BuildCombination(listOf(amulet), CharacterSkills(level))
+        // FIRE/DISTANCE, face (×1.0, no rear mastery), no crit: dmg = 100 × (1 + (50+100)/100) = 250.
+        val scenario =
+            DamageScenario(
+                element = SpellElement.FIRE,
+                rangeBand = RangeBand.DISTANCE,
+                orientation = Orientation.FACE,
+                critCapPercent = 0,
+                baseDamage = 100
+            )
+        val score = FindMaxDamageScoring.computeScore(TargetStats(emptyList()), build, character.baseCharacteristicValues, scenario)
+        assertThat(score).isEqualByComparingTo("250.0000")
+    }
+
+    @Test
+    fun `max-damage scorer applies the crit expectation and critical mastery`() {
+        val level = 1
+        val character = Character(CharacterClass.CRA, level, level, CharacterSkills(level))
+        // +47 crit over the base 3 = 50% crit rate.
+        val amulet =
+            equipment(
+                1,
+                ItemType.AMULET,
+                "A",
+                mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100, Characteristic.MASTERY_CRITICAL to 20, Characteristic.CRITICAL_HIT to 47)
+            )
+        val build = BuildCombination(listOf(amulet), CharacterSkills(level))
+        val scenario =
+            DamageScenario(
+                element = SpellElement.FIRE,
+                rangeBand = RangeBand.DISTANCE,
+                orientation = Orientation.FACE,
+                critCapPercent = 100,
+                baseDamage = 100
+            )
+        // nonCrit = 100×(1+100/100) = 200 ; crit = 100×1.25×(1+(100+20)/100) = 275 ; E = .5×200 + .5×275 = 237.5
+        val score = FindMaxDamageScoring.computeScore(TargetStats(emptyList()), build, character.baseCharacteristicValues, scenario)
+        assertThat(score).isEqualByComparingTo("237.5000")
+    }
+
+    @Test
+    fun `max-damage solver stacks distance vs melee mastery according to the scenario`(): Unit =
+        runBlocking {
+            val level = 1
+            val character = Character(CharacterClass.CRA, level, level, CharacterSkills(level))
+            val distAmulet = equipment(1, ItemType.AMULET, "Dist", mapOf(Characteristic.MASTERY_DISTANCE to 100))
+            val meleeAmulet = equipment(2, ItemType.AMULET, "Melee", mapOf(Characteristic.MASTERY_MELEE to 100))
+            val pool = listOf(distAmulet, meleeAmulet).groupBy { it.itemType }
+
+            fun bestFor(rangeBand: RangeBand): String {
+                val params =
+                    WakfuBestBuildParams(
+                        character = character,
+                        targetStats = TargetStats(emptyList()),
+                        searchDuration = 5.seconds,
+                        stopWhenBuildMatch = false,
+                        maxRarity = Rarity.EPIC,
+                        forcedItems = emptyList(),
+                        excludedItems = emptyList(),
+                        scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                        useRunes = false,
+                        damageScenario = DamageScenario(element = SpellElement.FIRE, rangeBand = rangeBand, orientation = Orientation.FACE)
+                    )
+                return runBlocking {
+                    WakfuBuildSolver
+                        .optimize(params, pool, WakfuBuildSolver.SolverTuning())
+                        .toList()
+                        .maxByOrNull { it.matchPercentage }!!
+                        .individual.equipments
+                        .single()
+                        .name.fr
+                }
+            }
+
+            assertThat(bestFor(RangeBand.DISTANCE)).isEqualTo("Dist")
+            assertThat(bestFor(RangeBand.MELEE)).isEqualTo("Melee")
+        }
+
+    @Test
+    fun `max-damage solver reaches the exhaustive optimum on a small pool`(): Unit =
+        runBlocking {
+            val level = 1
+            val characterSkills = CharacterSkills(level)
+            val character = Character(CharacterClass.CRA, level, level, characterSkills)
+            val equipments =
+                listOf(
+                    equipment(1, ItemType.AMULET, "FireBig", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 120)),
+                    equipment(2, ItemType.AMULET, "Crit", mapOf(Characteristic.CRITICAL_HIT to 40, Characteristic.MASTERY_CRITICAL to 30)),
+                    equipment(3, ItemType.BELT, "Generic", mapOf(Characteristic.MASTERY_ELEMENTARY to 60)),
+                    equipment(4, ItemType.BELT, "Distance", mapOf(Characteristic.MASTERY_DISTANCE to 80))
+                )
+            val scenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.BACK)
+            val targetStats = TargetStats(emptyList())
+            val exhaustive =
+                allValidCombinations(equipments, characterSkills)
+                    .maxOf { FindMaxDamageScoring.computeScore(targetStats, it, character.baseCharacteristicValues, scenario) }
+
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = targetStats,
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                    useRunes = false,
+                    damageScenario = scenario
+                )
+            val solverBest =
+                WakfuBuildSolver
+                    .optimize(params, equipments.groupBy { it.itemType }, WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(solverBest.individual.isValid()).isTrue()
+            assertThat(solverBest.matchPercentage).isGreaterThanOrEqualTo(exhaustive)
+        }
+
     private fun assertSolverReachesExhaustiveOptimum(
         equipments: List<Equipment>,
         targetStats: TargetStats,
@@ -1087,6 +1221,9 @@ class WakfuBuildSolverTest {
 
             ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
                 FindClosestBuildFromInputScoring.computeScore(targetStats, build, character.baseCharacteristicValues)
+
+            ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE ->
+                FindMaxDamageScoring.computeScore(targetStats, build, character.baseCharacteristicValues, DamageScenario())
         }
 
     private fun scoreFn(

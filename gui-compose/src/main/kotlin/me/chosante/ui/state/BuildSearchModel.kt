@@ -15,6 +15,7 @@ import kotlinx.coroutines.swing.Swing
 import kotlinx.coroutines.withContext
 import me.chosante.ZenithInputParameters
 import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
@@ -36,6 +37,7 @@ import me.chosante.ui.history.historyJson
 import me.chosante.ui.history.normalizeTags
 import me.chosante.ui.history.restoredClass
 import me.chosante.ui.history.restoredMode
+import me.chosante.ui.history.restoredScenario
 import me.chosante.ui.history.suggestedBuildName
 import me.chosante.ui.history.toBuildCombination
 import me.chosante.ui.history.toExcludedChips
@@ -299,6 +301,10 @@ class BuildSearchModel(
         ui = ui.copy(mode = mode, targets = normalizedTargets)
     }
 
+    fun setScenario(scenario: DamageScenario) {
+        ui = ui.copy(scenario = scenario)
+    }
+
     fun setLang(lang: me.chosante.ui.i18n.Lang) {
         ui = ui.copy(lang = lang)
     }
@@ -534,7 +540,8 @@ class BuildSearchModel(
                 excludedRarities = snapshot.excludedRarities,
                 forcedItems = snapshot.forcedItems.map { it.matchName },
                 excludedItems = snapshot.excludedItems.map { it.matchName },
-                scoreComputationMode = snapshot.mode
+                scoreComputationMode = snapshot.mode,
+                damageScenario = snapshot.scenario
             )
 
         ui =
@@ -901,6 +908,7 @@ class BuildSearchModel(
                 level = entry.request.level,
                 minLevel = entry.request.minLevel,
                 mode = entry.restoredMode(),
+                scenario = entry.restoredScenario(),
                 maxRarity = entry.request.maxRarity,
                 duration = entry.request.duration,
                 stopAtMatch = entry.request.stopAtMatch,

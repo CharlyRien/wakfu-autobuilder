@@ -2,6 +2,7 @@ package me.chosante.ui.state
 
 import androidx.compose.ui.graphics.Color
 import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.autobuilder.genetic.wakfu.isRandomElementStat
@@ -133,6 +134,8 @@ data class UiState(
     /** Lower item-level bound for the search; 0 = no minimum (consider every item up to [level]). */
     val minLevel: Int = 0,
     val mode: ScoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+    // Attack scenario for the max-damage mode (ignored by the other modes).
+    val scenario: DamageScenario = DamageScenario(),
     val targets: List<TargetRow> = defaultTargets(),
     val maxRarity: Rarity = Rarity.EPIC,
     /** Rarities the user toggled off; excluded from the search. At least one rarity always stays allowed. */

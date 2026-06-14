@@ -55,6 +55,17 @@ enum class Tr(
     MODE_MASTERIES_SUB("minimum constraints, max masteries", "contraintes min, max maîtrises"),
     MODE_PRECISION("Precision", "Précision"),
     MODE_PRECISION_SUB("hit every target exactly", "vise chaque cible exactement"),
+    MODE_MAX_DAMAGE("Max Damage", "Dégâts max"),
+    MODE_MAX_DAMAGE_SUB("maximize expected damage", "maximise les dégâts attendus"),
+    DAMAGE_SCENARIO("Attack scenario", "Scénario d'attaque"),
+    SCENARIO_ELEMENT("Element", "Élément"),
+    SCENARIO_RANGE("Range", "Portée"),
+    SCENARIO_ORIENTATION("Orientation", "Orientation"),
+    SCENARIO_BERSERK("Berserk (≤50% HP)", "Berserk (≤50% PV)"),
+    SCENARIO_HEALING("Healing", "Soin"),
+    SCENARIO_CRIT_CAP("Crit cap %", "Plafond crit %"),
+    SCENARIO_ENEMY_RES("Enemy res %", "Rés. ennemi %"),
+    EXPECTED_DAMAGE("Expected damage", "Dégâts attendus"),
     TARGET_STATS("Target Stats", "Stats cibles"),
     MAXIMIZED_MASTERIES("Maximized Masteries", "Maîtrises à maximiser"),
     NO_MASTERY_SELECTED("None selected", "Aucune sélection"),
@@ -329,6 +340,7 @@ fun Characteristic.label(lang: Lang): String {
         Characteristic.MASTERY_MELEE -> if (fr) "Maîtrise Mêlée" else "Melee Mastery"
         Characteristic.MASTERY_BERSERK -> if (fr) "Maîtrise Berserk" else "Berserk Mastery"
         Characteristic.MASTERY_HEALING -> if (fr) "Maîtrise Soin" else "Healing Mastery"
+        Characteristic.DAMAGE_INFLICTED -> if (fr) "Dommages infligés" else "Damage Inflicted"
         Characteristic.RESISTANCE_CRITICAL -> if (fr) "Résistance Critique" else "Critical Resist"
         Characteristic.RESISTANCE_BACK -> if (fr) "Résistance Dos" else "Rear Resist"
         Characteristic.RESISTANCE_ELEMENTARY -> if (fr) "Résistance Élémentaire" else "Elemental Resist"

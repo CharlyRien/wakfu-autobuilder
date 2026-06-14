@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.Json
 import me.chosante.autobuilder.VERSION
 import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
 import me.chosante.common.Character
@@ -124,4 +125,7 @@ data class WakfuBestBuildParams(
     // When true (default), the OR-Tools solver socket-fills equipped items with the best runes for the
     // requested stats (best-achievable model). See RuneType / WakfuBuildSolver.createRuneModel.
     val useRunes: Boolean = true,
+    // The attack scenario optimized by ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE (ignored by the
+    // other modes).
+    val damageScenario: DamageScenario = DamageScenario(),
 )

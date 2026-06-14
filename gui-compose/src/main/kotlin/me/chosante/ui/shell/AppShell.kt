@@ -197,6 +197,7 @@ private fun BuilderBody(
             RequestPanel(
                 ui = ui,
                 onModeChange = model::setMode,
+                onScenarioChange = model::setScenario,
                 onTargetValueChange = model::updateTargetValue,
                 onTargetWeightChange = model::updateTargetWeight,
                 onRemoveTarget = model::removeTarget,
