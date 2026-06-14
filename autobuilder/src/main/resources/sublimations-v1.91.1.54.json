@@ -1,0 +1,4858 @@
+[
+ {
+  "stateId": 5073,
+  "name": {
+   "fr": "Inflexibilité",
+   "en": "Inflexibility",
+   "es": "Inflexibilidad",
+   "pt": "Inflexibilidade"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": true,
+  "rawText": "At the start of combat, if the state bearer has 10 AP or less: | 15% damage inflicted | 10 Force of Will (if the character is at level 100 or greater)",
+  "condition": {
+   "type": "AP_AT_MOST",
+   "value": 10
+  },
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 15
+   },
+   {
+    "characteristic": "WILLPOWER",
+    "value": 10,
+    "scenarioGate": {
+     "minCharacterLevel": 100
+    }
+   }
+  ]
+ },
+ {
+  "stateId": 5074,
+  "name": {
+   "fr": "Constance",
+   "en": "Steadfast",
+   "es": "Constancia",
+   "pt": "Constância"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": true,
+  "rawText": "At the start of combat, if the state bearer has 10% Critical Hit or less: | 20% damage inflicted | 50 Critical Resistance",
+  "condition": {
+   "type": "CRIT_AT_MOST",
+   "value": 10
+  },
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 20
+   },
+   {
+    "characteristic": "RESISTANCE_CRITICAL",
+    "value": 50
+   }
+  ]
+ },
+ {
+  "stateId": 5075,
+  "name": {
+   "fr": "Mesure",
+   "en": "Measure",
+   "es": "Medida",
+   "pt": "Medida"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": true,
+  "rawText": "At the start of combat, if the state bearer has 40% Block or greater: | 10% Critical Hit | 10% damage inflicted on critical hit",
+  "condition": {
+   "type": "BLOCK_AT_LEAST",
+   "value": 40
+  },
+  "effects": [
+   {
+    "characteristic": "CRITICAL_HIT",
+    "value": 10
+   },
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 10
+   }
+  ]
+ },
+ {
+  "stateId": 5076,
+  "name": {
+   "fr": "Précision chirurgicale",
+   "en": "Surgical Precision",
+   "es": "Precisión quirúrgica",
+   "pt": "Precisão Cirúrgica"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, if the state bearer has 1 Range or less: | 20% Heals performed | 15% Armor given and received",
+  "condition": {
+   "type": "RANGE_AT_MOST",
+   "value": 1
+  },
+  "effects": [
+   {
+    "characteristic": "MASTERY_HEALING",
+    "value": 20
+   }
+  ]
+ },
+ {
+  "stateId": 5077,
+  "name": {
+   "fr": "Dénouement",
+   "en": "Unraveling",
+   "es": "Desenlace",
+   "pt": "Desenlace"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "Converts 100% of Critical Mastery to Elemental Mastery at the start of combat if the state bearer has at least 40% Critical Hit.",
+  "condition": {
+   "type": "CRIT_AT_LEAST",
+   "value": 40
+  }
+ },
+ {
+  "stateId": 5078,
+  "name": {
+   "fr": "Fracass'carapace",
+   "en": "Smashell",
+   "es": "Rompecaparazón",
+   "pt": "Despedaça-Carapaça"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "The first spell that inflicts damage this turn removes 30% Armor from the target."
+ },
+ {
+  "stateId": 5079,
+  "name": {
+   "fr": "Alternance",
+   "en": "Alternation",
+   "es": "Alternancia",
+   "pt": "Alternância"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "If the bearer has only used one element to cause damage during their turn, they gain +20% to their Elemental Mastery in their other elements."
+ },
+ {
+  "stateId": 5080,
+  "name": {
+   "fr": "Confiance",
+   "en": "Trust",
+   "es": "Confianza",
+   "pt": "Confiança"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "30% Block if the bearer did not receive healing in the previous turn."
+ },
+ {
+  "stateId": 5081,
+  "name": {
+   "fr": "Brasero",
+   "en": "Brazier",
+   "es": "Brasero",
+   "pt": "Braseiro"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When a spell is cast: 10% extra damage inflicted for each condition met (conditions vary each turn). | Turn 1: The bearer is in melee or the spell is single-target | Turn 2: The bearer is at a distance or the spell is single-target | Turn 3: The bearer is at a distance or the spell is area-of-effect | Turn 4: The bearer is in melee or the spell is area-of-effect | The cycle starts over every 4 turns."
+ },
+ {
+  "stateId": 5082,
+  "name": {
+   "fr": "Robuste",
+   "en": "Robust",
+   "es": "Robusto",
+   "pt": "Robusto"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "100% of level in Barrier against long-range damage (permanent)."
+ },
+ {
+  "stateId": 5158,
+  "name": {
+   "fr": "Maniement : Deux mains",
+   "en": "Wield type: Two-handed",
+   "es": "Manejo: Dos manos",
+   "pt": "Manejo: Duas mãos"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, if the state bearer has a two-handed weapon equipped (maximum 12 AP before the sublimation's effect): | -2 max MP | 2 AP max",
+  "effects": [
+   {
+    "characteristic": "MAX_MOVEMENT_POINT",
+    "value": -2
+   },
+   {
+    "characteristic": "ACTION_POINT",
+    "value": 2
+   }
+  ]
+ },
+ {
+  "stateId": 5174,
+  "name": {
+   "fr": "Alternance II",
+   "en": "Alternation II",
+   "es": "Alternancia II",
+   "pt": "Runa Relíquia de Alternância II"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "If the bearer inflicts damage in an element, they gain +15% Elemental Mastery in the other elements for the next spell. | Only the first line of damage caused by the spell is taken into account."
+ },
+ {
+  "stateId": 5175,
+  "name": {
+   "fr": "Brise",
+   "en": "Breeze",
+   "es": "Brisa",
+   "pt": "Brisa"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "25% to area-of-effect spell damage on the spell's direct target. | -25% to area-of-effect spell damage on other targets."
+ },
+ {
+  "stateId": 5216,
+  "name": {
+   "fr": "Directives",
+   "en": "Directives",
+   "es": "Directivas",
+   "pt": "Diretivas"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "15% damage inflicted by area-of-effect spells on targets in line with the state bearer"
+ },
+ {
+  "stateId": 5248,
+  "name": {
+   "fr": "Maniement : Bouclier",
+   "en": "Wield type: Shield",
+   "es": "Manejo: Escudo",
+   "pt": "Manejo: Escudo"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, if the state bearer has a Shield equipped: | 1 max MP | Positive Range is set at 0",
+  "condition": {
+   "type": "WEAPON_TYPE_EQUIPPED",
+   "text": "shield"
+  },
+  "effects": [
+   {
+    "characteristic": "MAX_MOVEMENT_POINT",
+    "value": 1
+   }
+  ]
+ },
+ {
+  "stateId": 5249,
+  "name": {
+   "fr": "Maniement : Dague",
+   "en": "Wield type: Dagger",
+   "es": "Manejo: Daga",
+   "pt": "Manejo: Adaga"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, if the state bearer has a Dagger equipped: | 25% damage inflicted on targets hit from the front | 15% from the side | -30% from behind",
+  "condition": {
+   "type": "WEAPON_TYPE_EQUIPPED",
+   "text": "dagger"
+  },
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 25,
+    "scenarioGate": {
+     "orientation": "FRONT"
+    }
+   }
+  ]
+ },
+ {
+  "stateId": 5250,
+  "name": {
+   "fr": "Excès",
+   "en": "Excess",
+   "es": "Exceso",
+   "pt": "Runa Relíquia de Excesso"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "-10% damage inflicted | Every 10 spells cast, the state bearer gains 100% Damage inflicted for the next spell | Spells cast must cost at least 1 AP | Once the state is at level 10, the next spell gets the damage bonus",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": -10
+   }
+  ]
+ },
+ {
+  "stateId": 5252,
+  "name": {
+   "fr": "Sang de la Déchirure",
+   "en": "Heartbreaking Blood",
+   "es": "Sangre del Martirio",
+   "pt": "Runa Relíquia de Sangue do Talho"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "In an uneven round: | The bearer inflicts 25% more damage, and suffers 15% of the damage they inflict."
+ },
+ {
+  "stateId": 5253,
+  "name": {
+   "fr": "Wé",
+   "en": "Yeah",
+   "es": "Seh",
+   "pt": "Nhé"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "Even Turn: After using a WP-based spell, the state bearer regains 2 AP (max of 1/turn). | Odd Turn: After using a WP-based spell, the state bearer loses 2 AP (max 1/turn)."
+ },
+ {
+  "stateId": 5370,
+  "name": {
+   "fr": "Pacte Wakfu",
+   "en": "Wakfu Pact",
+   "es": "Pacto Wakfu",
+   "pt": "Pacto Wakfu"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, if the state bearer has 8 WP or greater: | 10 Force of Will | 15% Block",
+  "effects": [
+   {
+    "characteristic": "WILLPOWER",
+    "value": 10
+   },
+   {
+    "characteristic": "BLOCK_PERCENTAGE",
+    "value": 15
+   }
+  ]
+ },
+ {
+  "stateId": 5443,
+  "name": {
+   "fr": "Santé de fer",
+   "en": "Robust Health",
+   "es": "Salud de hierro",
+   "pt": "Runa Épica de Saúde de Ferro"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, for the state bearer: | -30% HP (penalty to the HP modifier) | 30% Heals and Armor from {img_ally} received",
+  "effects": [
+   {
+    "characteristic": "HP",
+    "value": -30
+   }
+  ]
+ },
+ {
+  "stateId": 5444,
+  "name": {
+   "fr": "Science du placement",
+   "en": "Positioning Knowledge",
+   "es": "Ciencia del Posicionamiento",
+   "pt": "Runa Épica de Arte do Posicionamento"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": true,
+  "rawText": "50 Elemental Resistance,  -200 Rear Resistance for the bearer at the start of combat.",
+  "effects": [
+   {
+    "characteristic": "RESISTANCE_BACK",
+    "value": 50
+   }
+  ]
+ },
+ {
+  "stateId": 5445,
+  "name": {
+   "fr": "Anatomie",
+   "en": "Anatomy",
+   "es": "Anatomía",
+   "pt": "Runa Épica de Anatomia"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "Converts 50% of Elemental Mastery into Rear Mastery (at the rate of 1 to 1.3) at the start of combat."
+ },
+ {
+  "stateId": 5446,
+  "name": {
+   "fr": "Brutalité",
+   "en": "Brutality",
+   "es": "Brutalidad",
+   "pt": "Runa Épica de Brutalidade"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, if the bearer has exactly 0 Range: | +20% damage inflicted in melee and area of effect simultaneously",
+  "condition": {
+   "type": "RANGE_EXACT",
+   "value": 0
+  }
+ },
+ {
+  "stateId": 5448,
+  "name": {
+   "fr": "Force Herculéenne",
+   "en": "Herculean Strength",
+   "es": "Fuerza Hercúlea",
+   "pt": "Runa Épica de Força Hercúlea"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": true,
+  "rawText": "At the start of combat, if the state bearer has an odd number of AP: | 250% of level as Lock and Dodge",
+  "condition": {
+   "type": "AP_ODD"
+  },
+  "effects": [
+   {
+    "characteristic": "LOCK",
+    "value": 250
+   }
+  ]
+ },
+ {
+  "stateId": 5449,
+  "name": {
+   "fr": "Concentration Elémentaire",
+   "en": "Elemental Concentration",
+   "es": "Concentración Elemental",
+   "pt": "Concentração Elementar"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "Increases the bearer's highest Elemental Mastery by 20%, and decreases the others by 30% at the start of combat"
+ },
+ {
+  "stateId": 5450,
+  "name": {
+   "fr": "Stasification",
+   "en": "Stasification",
+   "es": "Stasificación",
+   "pt": "Estasificação"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "The state bearer increases their damage inflicted by 2% per turn (permanent) (max 20)"
+ },
+ {
+  "stateId": 5452,
+  "name": {
+   "fr": "Aura de Flammes",
+   "en": "Flame Aura",
+   "es": "Aura de Llamas",
+   "pt": "Runa Relíquia de Aura de Chamas"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "Flaming | Flaming"
+ },
+ {
+  "stateId": 5453,
+  "name": {
+   "fr": "Garde levée",
+   "en": "Guard Up",
+   "es": "Guardia Levantada",
+   "pt": "Runa Relíquia de Guarda Baixada"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "-30% damage received during their own turn."
+ },
+ {
+  "stateId": 5976,
+  "name": {
+   "fr": "Arme de Lumière",
+   "en": "Light Weapon",
+   "es": "Arma de Luz",
+   "pt": "Arma de Luz"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "Light Weapon"
+ },
+ {
+  "stateId": 5980,
+  "name": {
+   "fr": "Ruine II",
+   "en": "Ruin II",
+   "es": "Ruina II",
+   "pt": "Ruína II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   1,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "25% indirect Damage"
+ },
+ {
+  "stateId": 5981,
+  "name": {
+   "fr": "Dévastation II",
+   "en": "Devastation II",
+   "es": "Devastación II",
+   "pt": "Devastação II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   3,
+   3
+  ],
+  "maxLevel": 3,
+  "kind": "FLAT",
+  "solverChoosable": true,
+  "rawText": "1 WP | -20 Force of Will",
+  "effects": [
+   {
+    "characteristic": "WAKFU_POINT",
+    "value": 1
+   },
+   {
+    "characteristic": "WILLPOWER",
+    "value": -20
+   }
+  ]
+ },
+ {
+  "stateId": 5982,
+  "name": {
+   "fr": "Ravage II",
+   "en": "Devastate II",
+   "es": "Estragos II",
+   "pt": "Assolação II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   2,
+   2
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of fight: | All Masteries: 15% of level | All Resistances: 9"
+ },
+ {
+  "stateId": 5983,
+  "name": {
+   "fr": "Carnage II",
+   "en": "Carnage II",
+   "es": "Carnicería II",
+   "pt": "Carnificina II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   1,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When HP are above 90%: | 75% of level in Elemental Mastery",
+  "effects": [
+   {
+    "characteristic": "MASTERY_ELEMENTARY",
+    "value": 75
+   }
+  ]
+ },
+ {
+  "stateId": 5984,
+  "name": {
+   "fr": "Cicatrisation II",
+   "en": "Healing II",
+   "es": "Cicatrización II",
+   "pt": "Cicatrização II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   1,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "25% health points (bonus on HP modifier)"
+ },
+ {
+  "stateId": 5985,
+  "name": {
+   "fr": "Embuscade II",
+   "en": "Ambush II",
+   "es": "Emboscada II",
+   "pt": "Emboscada II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   3,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "10% Damage Inflicted on targets in close combat"
+ },
+ {
+  "stateId": 5986,
+  "name": {
+   "fr": "Dérobade II",
+   "en": "Escape II",
+   "es": "Escapatoria II",
+   "pt": "Evasão II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   3,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of fight: | 25% Block (1 turn)"
+ },
+ {
+  "stateId": 5987,
+  "name": {
+   "fr": "Détermination II",
+   "en": "Determination II",
+   "es": "Determinación II",
+   "pt": "Determinação II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   2,
+   1
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "-22% indirect Damage received"
+ },
+ {
+  "stateId": 5988,
+  "name": {
+   "fr": "Ténacité II",
+   "en": "Tenacity II",
+   "es": "Tenacidad II",
+   "pt": "Tenacidade II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   2,
+   3
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At end of turn, if the state bearer has 2 or more AP: | 37 Elemental Resistance (1 turn)"
+ },
+ {
+  "stateId": 5989,
+  "name": {
+   "fr": "Solidité II",
+   "en": "Solidity II",
+   "es": "Solidez II",
+   "pt": "Solidez II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   1
+  ],
+  "maxLevel": 2,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "Reduces direct damage received greater than 20% of max HP by 200% of level (once per round)"
+ },
+ {
+  "stateId": 5990,
+  "name": {
+   "fr": "Fermeté II",
+   "en": "Resolute II",
+   "es": "Firmeza II",
+   "pt": "Firmeza II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   3,
+   1
+  ],
+  "maxLevel": 3,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "After suffering a loss of 3 AP: | 20 Force of Will (3 turns)"
+ },
+ {
+  "stateId": 5991,
+  "name": {
+   "fr": "Légèreté II",
+   "en": "Lightness II",
+   "es": "Ligereza II",
+   "pt": "Leveza II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   1,
+   3
+  ],
+  "maxLevel": 3,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "After suffering a loss of 3 MP: | 20 Force of Will (3 turns)"
+ },
+ {
+  "stateId": 5992,
+  "name": {
+   "fr": "Topologie II",
+   "en": "Topology II",
+   "es": "Topología II",
+   "pt": "Topologia II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   2,
+   3
+  ],
+  "maxLevel": 3,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "At the start of combat: | All of the state bearer's Dodge is converted into Armor at a ratio of ? for ?. | Converted Dodge is lost."
+ },
+ {
+  "stateId": 5993,
+  "name": {
+   "fr": "Réprobation II",
+   "en": "Condemnation II",
+   "es": "Reprobación II",
+   "pt": "Reprovação II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   1,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "-20 Force of Will | Reduces the 1 next AP losses suffered by ? | The effect is reapplied every turn",
+  "effects": [
+   {
+    "characteristic": "WILLPOWER",
+    "value": -20
+   }
+  ]
+ },
+ {
+  "stateId": 5994,
+  "name": {
+   "fr": "Frénésie II",
+   "en": "Frenzy II",
+   "es": "Frenesí II",
+   "pt": "Frenesi II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   3
+  ],
+  "maxLevel": 2,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of turn: | 10% Damage inflicted per enemy hit in the previous turn."
+ },
+ {
+  "stateId": 5999,
+  "name": {
+   "fr": "Dimensionnalité II",
+   "en": "Dimensionality II",
+   "es": "Dimensionalidad II",
+   "pt": "Dimensionalidade II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   3,
+   2
+  ],
+  "maxLevel": 2,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "On the state bearer's first turn: | 1 WP (non-regenerable)"
+ },
+ {
+  "stateId": 6000,
+  "name": {
+   "fr": "Théorie de la matière II",
+   "en": "Theory of Matter II",
+   "es": "Teoría de la materia II",
+   "pt": "Teoria da Matéria II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   2,
+   1
+  ],
+  "maxLevel": 2,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "50% Critical Hit | -50% Damage and Heals",
+  "effects": [
+   {
+    "characteristic": "CRITICAL_HIT",
+    "value": 50
+   }
+  ]
+ },
+ {
+  "stateId": 6001,
+  "name": {
+   "fr": "Retour PA II",
+   "en": "AP Return II",
+   "es": "Devolución de PA II",
+   "pt": "Volta PA II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   1,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "Recovers 1 AP on killing an enemy (2 activations per turn)"
+ },
+ {
+  "stateId": 6002,
+  "name": {
+   "fr": "Endurance II",
+   "en": "Endurance II",
+   "es": "Aguante II",
+   "pt": "Resistência II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   1,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "-25% to characteristic penalties received. | Affects all characteristic penalties (Mastery, Resistances, Armor, Critical Hits, etc.) received in combat and cast by an entity other than the state bearer. | The value is always rounded down."
+ },
+ {
+  "stateId": 6004,
+  "name": {
+   "fr": "Ecailles de lune II",
+   "en": "Moon Scales II",
+   "es": "Fragmentos de luna II",
+   "pt": "Escamas de Lua II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   3,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "15% Armor received"
+ },
+ {
+  "stateId": 6005,
+  "name": {
+   "fr": "Vélocité II",
+   "en": "Swiftness II",
+   "es": "Velocidad II",
+   "pt": "Presteza II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   1,
+   1
+  ],
+  "maxLevel": 2,
+  "kind": "FLAT",
+  "solverChoosable": true,
+  "rawText": "1 MP | -20% damage inflicted",
+  "effects": [
+   {
+    "characteristic": "MOVEMENT_POINT",
+    "value": 1
+   },
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": -20
+   }
+  ]
+ },
+ {
+  "stateId": 6006,
+  "name": {
+   "fr": "Sauvegarde II",
+   "en": "Save II",
+   "es": "Guardado II",
+   "pt": "Salvaguarda II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   1,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At end of turn: | Unused AP are carried over to the next turn | Max 2 PA"
+ },
+ {
+  "stateId": 6007,
+  "name": {
+   "fr": "Bonne action",
+   "en": "Good Deed",
+   "es": "Buena acción",
+   "pt": "Boa Ação"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   3,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At end of turn, the state bearer transmits 1 unused AP to the nearest ally"
+ },
+ {
+  "stateId": 6008,
+  "name": {
+   "fr": "Vivacité II",
+   "en": "Vivacity II",
+   "es": "Vivacidad II",
+   "pt": "Vivacidade II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   3,
+   3
+  ],
+  "maxLevel": 2,
+  "kind": "FLAT",
+  "solverChoosable": true,
+  "rawText": "1 AP | -150 Elemental Resistance",
+  "effects": [
+   {
+    "characteristic": "ACTION_POINT",
+    "value": 1
+   },
+   {
+    "characteristic": "RESISTANCE_ELEMENTARY",
+    "value": -150
+   }
+  ]
+ },
+ {
+  "stateId": 6009,
+  "name": {
+   "fr": "Critique Berserk II",
+   "en": "Berserk Critical II",
+   "es": "Crítico berserker II",
+   "pt": "Crítico Berserk II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When HP are at less than 50%: | 25% Critical Hit",
+  "effects": [
+   {
+    "characteristic": "CRITICAL_HIT",
+    "value": 25
+   }
+  ]
+ },
+ {
+  "stateId": 6010,
+  "name": {
+   "fr": "Visibilité II",
+   "en": "Visibility II",
+   "es": "Visibilidad II",
+   "pt": "Visibilidade II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   2,
+   2
+  ],
+  "maxLevel": 2,
+  "kind": "FLAT",
+  "solverChoosable": true,
+  "rawText": "1 Range | -300 Lock | -300 Dodge",
+  "effects": [
+   {
+    "characteristic": "RANGE",
+    "value": 1
+   },
+   {
+    "characteristic": "LOCK",
+    "value": -300
+   },
+   {
+    "characteristic": "DODGE",
+    "value": -300
+   }
+  ]
+ },
+ {
+  "stateId": 6011,
+  "name": {
+   "fr": "Ruine cyclique II",
+   "en": "Cyclical Ruin II",
+   "es": "Ruina cíclica II",
+   "pt": "Ruína Cíclica II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   1,
+   1
+  ],
+  "maxLevel": 2,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "10% indirect Damage in even rounds"
+ },
+ {
+  "stateId": 6012,
+  "name": {
+   "fr": "Tacle Berserk II",
+   "en": "Berserk Lock II",
+   "es": "Placaje berserker II",
+   "pt": "Bloqueio Berserk II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   3,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When HP are at less than 50%: | 250% of level as Lock",
+  "effects": [
+   {
+    "characteristic": "LOCK",
+    "value": 250
+   }
+  ]
+ },
+ {
+  "stateId": 6013,
+  "name": {
+   "fr": "Ravage secondaire II",
+   "en": "Secondary Devastation II",
+   "es": "Estragos secundarios II",
+   "pt": "Assolação Secundária II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   2,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of fight: | 7% Critical Hit,  7% Block,  7 Force of Will"
+ },
+ {
+  "stateId": 6014,
+  "name": {
+   "fr": "Dérobade lente II",
+   "en": "Slow Escape II",
+   "es": "Escapatoria lenta II",
+   "pt": "Evasão Lenta II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   1,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "4% Blocks per turn (max 40)"
+ },
+ {
+  "stateId": 6016,
+  "name": {
+   "fr": "Embuscade écartée II",
+   "en": "Distant Ambush II",
+   "es": "Emboscada alejada II",
+   "pt": "Emboscada Afastada II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   1,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "20% Damage Inflicted on targets 2 cells away (1 cell between the state bearer and the target)"
+ },
+ {
+  "stateId": 6017,
+  "name": {
+   "fr": "Epines II",
+   "en": "Spines II",
+   "es": "Espinas II",
+   "pt": "Espinhos II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   3,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "Preparation"
+ },
+ {
+  "stateId": 6018,
+  "name": {
+   "fr": "Esquive Berserk II",
+   "en": "Berserk Dodge II",
+   "es": "Esquiva berserker II",
+   "pt": "Esquiva Berserk II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   3,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When HP are at less than 50%: | 250% of level as Dodge",
+  "effects": [
+   {
+    "characteristic": "DODGE",
+    "value": 250
+   }
+  ]
+ },
+ {
+  "stateId": 6019,
+  "name": {
+   "fr": "Barrière Distance II",
+   "en": "Distance Barrier II",
+   "es": "Barrera a distancia II",
+   "pt": "Barreira a Distância II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   2,
+   1
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "Reduces Ranged Damage suffered by 50% of level, 6 times per turn"
+ },
+ {
+  "stateId": 6020,
+  "name": {
+   "fr": "Barrière Mêlée II",
+   "en": "Melee Barrier II",
+   "es": "Barrera en melé II",
+   "pt": "Barreira Curta Distância II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   2,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "Reduces Melee Damage suffered by 50% of level, 6 times per turn"
+ },
+ {
+  "stateId": 6021,
+  "name": {
+   "fr": "Persistance II",
+   "en": "Persistence II",
+   "es": "Persistencia II",
+   "pt": "Persistência I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At end of turn, if the state bearer has 6 or more AP: | 30 Elemental Resistance (2 turns)"
+ },
+ {
+  "stateId": 6022,
+  "name": {
+   "fr": "Opiniâtreté II",
+   "en": "Obstinacy II",
+   "es": "Terquedad II",
+   "pt": "Insistência II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   3,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "After suffering a loss of 2 AP: | 5 Force of Will (3 turns)"
+ },
+ {
+  "stateId": 6023,
+  "name": {
+   "fr": "Aisance II",
+   "en": "Poise II",
+   "es": "Ligereza II",
+   "pt": "Desenvoltura II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   1,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "After suffering a loss of 2 MP: | 5 Force of Will (3 turns)"
+ },
+ {
+  "stateId": 6024,
+  "name": {
+   "fr": "Parade Berserk II",
+   "en": "Berserk Block II",
+   "es": "Anticipación berserker II",
+   "pt": "Parada Berserk II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   2,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When HP are at less than 50%: | 25% Block",
+  "effects": [
+   {
+    "characteristic": "BLOCK_PERCENTAGE",
+    "value": 25
+   }
+  ]
+ },
+ {
+  "stateId": 6025,
+  "name": {
+   "fr": "Puits de Vitalité II",
+   "en": "Vitality Well II",
+   "es": "Pozo de vitalidad II",
+   "pt": "Poço de Vitalidade II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   1,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "Increases Health Steals performed by 25%"
+ },
+ {
+  "stateId": 6026,
+  "name": {
+   "fr": "Influence II",
+   "en": "Influence II",
+   "es": "Influjo II",
+   "pt": "Influência II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   3,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "15% Critical Hit"
+ },
+ {
+  "stateId": 6027,
+  "name": {
+   "fr": "Fureur II",
+   "en": "Fury II",
+   "es": "Furor II",
+   "pt": "Furor II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of turn: | 5% Damage inflicted per entity hit in the previous turn."
+ },
+ {
+  "stateId": 6029,
+  "name": {
+   "fr": "Muraille II",
+   "en": "Wall II",
+   "es": "Muralla II",
+   "pt": "Muralha II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   3,
+   2
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of fight, 450% of level as Armor"
+ },
+ {
+  "stateId": 6030,
+  "name": {
+   "fr": "Cyclothymie II",
+   "en": "Cyclothymia II",
+   "es": "Ciclotimia II",
+   "pt": "Ciclotimia II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   2,
+   1
+  ],
+  "maxLevel": 2,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "Even turns:  10 Force of Will | Odd turns:  -10 Force of Will"
+ },
+ {
+  "stateId": 6031,
+  "name": {
+   "fr": "Retour PM II",
+   "en": "MP Return II",
+   "es": "Devolución de PM II",
+   "pt": "Volta PM II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   1,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "Recovers 1 MP on killing an enemy (2 activations per turn)"
+ },
+ {
+  "stateId": 6032,
+  "name": {
+   "fr": "Prospérité II",
+   "en": "Prosperity II",
+   "es": "Prosperidad II",
+   "pt": "Prosperidade II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   1,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "9% to characteristic bonuses received. | Affects all characteristic bonuses (Masteries, Resistances, Armor) received in combat and cast by an entity other than the state bearer. | The value is always rounded down."
+ },
+ {
+  "stateId": 6033,
+  "name": {
+   "fr": "Clameur II",
+   "en": "Clamor II",
+   "es": "Clamor II",
+   "pt": "Clamor I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   3,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "-20 Force of Will | Reduces the 1 next MP losses suffered by ? | The effect is reapplied every turn",
+  "effects": [
+   {
+    "characteristic": "WILLPOWER",
+    "value": -20
+   }
+  ]
+ },
+ {
+  "stateId": 6034,
+  "name": {
+   "fr": "Focalisation II",
+   "en": "Focalization II",
+   "es": "Focalización II",
+   "pt": "Focalização II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   1,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "-15% damage inflicted | At start of turn: | 25% damage inflicted if a single enemy was hit the previous turn"
+ },
+ {
+  "stateId": 6036,
+  "name": {
+   "fr": "Longueur II",
+   "en": "Length II",
+   "es": "Longitud II",
+   "pt": "Extensão II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   1,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "10% Damage Inflicted on targets in a straight line and 2 or more cells away from the state bearer"
+ },
+ {
+  "stateId": 6037,
+  "name": {
+   "fr": "Expert des Parades II",
+   "en": "Blocking Expert II",
+   "es": "Experto en anticipación II",
+   "pt": "Especialista em Paradas II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   3,
+   3
+  ],
+  "maxLevel": 2,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "-50 Elemental Resistance | -7% Damage received during a Block",
+  "effects": [
+   {
+    "characteristic": "RESISTANCE_ELEMENTARY",
+    "value": -50
+   }
+  ]
+ },
+ {
+  "stateId": 6038,
+  "name": {
+   "fr": "Enveloppe rocheuse II",
+   "en": "Rocky Envelope II",
+   "es": "Envoltorio rocoso II",
+   "pt": "Invólucro Rochoso II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   3,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "15% Armor given"
+ },
+ {
+  "stateId": 6039,
+  "name": {
+   "fr": "Influence lente II",
+   "en": "Slow Influence II",
+   "es": "Influjo lento II",
+   "pt": "Influência Lenta II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "3% Critical Hits per turn (max 30)"
+ },
+ {
+  "stateId": 6041,
+  "name": {
+   "fr": "Expert des Coups critiques II",
+   "en": "Critical Hit Expert II",
+   "es": "Experto en golpes críticos II",
+   "pt": "Especialista em Golpes Críticos II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   2,
+   2
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At end of turn, if a critical hit was performed: | {img_physical}  Heal: 6% of HP lost of the caster {img_ecnbi}"
+ },
+ {
+  "stateId": 6042,
+  "name": {
+   "fr": "Stupéfaction II",
+   "en": "Stupefaction II",
+   "es": "Estupefacción II",
+   "pt": "Espanto II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   3,
+   2
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of fight: | 15% Critical Hit (1 turn) | 15% of level as Critical Mastery (1 turn)"
+ },
+ {
+  "stateId": 6090,
+  "name": {
+   "fr": "Cicatrisation test (cumul 5)",
+   "en": "Healing",
+   "es": "Cicatrización",
+   "pt": "Cicatrização"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   1,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "40% Health Points (bonus on HP modifier)"
+ },
+ {
+  "stateId": 6328,
+  "name": {
+   "fr": "Intégrité II",
+   "en": "Integrity II",
+   "es": "Integridad II",
+   "pt": "Integridade II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   3,
+   1
+  ],
+  "maxLevel": 2,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When healing an ally, if the ally has less than 15% HP: | {img_physical}  Heal: 7% of HP max of the target {img_ecnbi}"
+ },
+ {
+  "stateId": 6329,
+  "name": {
+   "fr": "Loup solitaire II",
+   "en": "Lone Wolf II",
+   "es": "Lobo solitario II",
+   "pt": "Lobo Solitário II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   3,
+   2
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "If there are no allies 1 to 4 cells from the bearer: | 6% damage inflicted",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 6
+   }
+  ]
+ },
+ {
+  "stateId": 6330,
+  "name": {
+   "fr": "Secret de la vie II",
+   "en": "Secret of Life II",
+   "es": "Secreto de la vida II",
+   "pt": "Segredo da Vida II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   3,
+   3
+  ],
+  "maxLevel": 2,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of fight: | Reduces Healing Mastery to 0 | 5% heals performed",
+  "effects": [
+   {
+    "characteristic": "MASTERY_HEALING",
+    "value": 5
+   }
+  ]
+ },
+ {
+  "stateId": 6331,
+  "name": {
+   "fr": "Tolérance II",
+   "en": "Tolerance II",
+   "es": "Tolerancia II",
+   "pt": "Tolerância II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   3,
+   3
+  ],
+  "maxLevel": 2,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At end of turn: | 50% of unused MP are carried over to the next turn | Max 1 MP",
+  "effects": [
+   {
+    "characteristic": "MOVEMENT_POINT",
+    "value": 50
+   }
+  ]
+ },
+ {
+  "stateId": 6705,
+  "name": {
+   "fr": "Furie",
+   "en": "Outrage",
+   "es": "Furia",
+   "pt": "Fúria"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": true,
+  "rawText": "At the start of combat, if the state bearer has less than 100% of their level as Dodge: | 15% damage inflicted as Berserk | 100% of level as Lock",
+  "condition": {
+   "type": "DODGE_LT_PCT_OF_LEVEL",
+   "value": 100
+  },
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 15,
+    "scenarioGate": {
+     "berserk": true
+    }
+   },
+   {
+    "characteristic": "LOCK",
+    "value": 100
+   }
+  ]
+ },
+ {
+  "stateId": 6706,
+  "name": {
+   "fr": "Furie II",
+   "en": "Outrage II",
+   "es": "Furia II",
+   "pt": "Fúria II"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": true,
+  "rawText": "At the start of combat, if the state bearer has 4 Range or greater: | 15% damage inflicted as Berserk and Ranged simultaneously | 1 Range",
+  "condition": {
+   "type": "RANGE_AT_LEAST",
+   "value": 4
+  },
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 15,
+    "scenarioGate": {
+     "berserk": true,
+     "ranged": true
+    }
+   },
+   {
+    "characteristic": "RANGE",
+    "value": 1
+   }
+  ]
+ },
+ {
+  "stateId": 6707,
+  "name": {
+   "fr": "Pilier",
+   "en": "Pillar",
+   "es": "Pilar",
+   "pt": "Pilar"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, if the state bearer has 50% Block or greater: | Bonus to HP modifier: +30% | -50% Armor received",
+  "condition": {
+   "type": "BLOCK_AT_LEAST",
+   "value": 50
+  }
+ },
+ {
+  "stateId": 6708,
+  "name": {
+   "fr": "Contrôle de l'espace",
+   "en": "Controlling Space",
+   "es": "Control del Espacio",
+   "pt": "Controle do Espaço"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, if the state bearer has exactly 1 Range: | 15% damage inflicted and heals performed on targets that are 2, 4, or 4 cells away from the caster",
+  "condition": {
+   "type": "RANGE_EXACT",
+   "value": 1
+  }
+ },
+ {
+  "stateId": 6709,
+  "name": {
+   "fr": "Longévité",
+   "en": "Longevity",
+   "es": "Longevidad",
+   "pt": "Longevidade"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When suffering damage from the front and in melee, once per round: | 10% of missing HP as Armor | 40% Armor given (1 turn)"
+ },
+ {
+  "stateId": 6711,
+  "name": {
+   "fr": "Energie ancestrale",
+   "en": "Ancestral Energy",
+   "es": "Energía ancestral",
+   "pt": "Energia Ancestral"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of turn, with 6 WP or greater: | Ancestral Energy Bonus | The state is lost if the character starts their turn with less than 6 WP"
+ },
+ {
+  "stateId": 6712,
+  "name": {
+   "fr": "Renaissance",
+   "en": "Rebirth",
+   "es": "Salvación",
+   "pt": "Renascimento"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "-50 Elemental Resistance | Once per turn, when falling below 50% HP: | Rebirth Bonus"
+ },
+ {
+  "stateId": 6714,
+  "name": {
+   "fr": "Paisible",
+   "en": "Peaceful",
+   "es": "Apacible",
+   "pt": "Pacífico"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "For each movement, per MP used: | +3% Block (max. 18) (1 turn) | If the state bearer performs a Block when it's not their turn: | The bonus is transformed into Critical Hits on the next turn"
+ },
+ {
+  "stateId": 6811,
+  "name": {
+   "fr": "Arme solide II",
+   "en": "Solid Weapon II",
+   "es": "Arma sólida II",
+   "pt": "Arma Sólida II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   3,
+   3
+  ],
+  "maxLevel": 2,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When inflicting damage on an enemy with a weapon: | That enemy reduces their damage on the state bearer by -5% (1 turn, not stackable) | The state bearer must have a shield equipped"
+ },
+ {
+  "stateId": 6812,
+  "name": {
+   "fr": "Puissance brute II",
+   "en": "Raw Power II",
+   "es": "Potencia bruta II",
+   "pt": "Potência Bruta II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   2,
+   2
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of fight: | -3 max WP | For each WP spent during the turn: | 6% damage inflicted (1 turn) (max 30)",
+  "effects": [
+   {
+    "characteristic": "MAX_WAKFU_POINTS",
+    "value": -3
+   },
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 6
+   }
+  ]
+ },
+ {
+  "stateId": 6813,
+  "name": {
+   "fr": "Retour enflammé II",
+   "en": "Flaming Return II",
+   "es": "Respuesta ardiente II",
+   "pt": "Retorno das Chamas II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   1,
+   2
+  ],
+  "maxLevel": 2,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "Flaming"
+ },
+ {
+  "stateId": 6814,
+  "name": {
+   "fr": "Influence du Wakfu II",
+   "en": "Wakfu Influence II",
+   "es": "Influjo del Wakfu II",
+   "pt": "Influência do Wakfu II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   1,
+   3
+  ],
+  "maxLevel": 2,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When the state bearer starts their turn with all their WP (or all their QB): | 10% Critical Hit (1 turn)",
+  "effects": [
+   {
+    "characteristic": "CRITICAL_HIT",
+    "value": 10
+   }
+  ]
+ },
+ {
+  "stateId": 6815,
+  "name": {
+   "fr": "Wakfu Berserk II",
+   "en": "Berserk Wakfu II",
+   "es": "Wakfu berserker II",
+   "pt": "Wakfu Berserk II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   3,
+   1
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When the state bearer starts their turn with 50% or less of their WP (or their QB): | 9% Critical Damage inflicted (1 turn) | 300% of level as Armor",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 9
+   }
+  ]
+ },
+ {
+  "stateId": 6816,
+  "name": {
+   "fr": "Arme empoisonnée II",
+   "en": "Poisoned Weapon II",
+   "es": "Arma envenenada II",
+   "pt": "Arma Envenenada II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   3,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "-10 Damage inflicted with a Weapon | When inflicting damage on an enemy with a two-handed weapon: | Incurable"
+ },
+ {
+  "stateId": 6817,
+  "name": {
+   "fr": "Vol de Tacle II",
+   "en": "Lock Steal II",
+   "es": "Robo de placaje II",
+   "pt": "Roubo de Bloqueio II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   2,
+   1
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "-10% Damage inflicted with a weapon | When inflicting damage on an enemy with a two-handed weapon: | Steals 45% of level in Lock (1 turn, not stackable)"
+ },
+ {
+  "stateId": 6818,
+  "name": {
+   "fr": "Vol d'Esquive II",
+   "en": "Dodge Steal II",
+   "es": "Robo de esquiva II",
+   "pt": "Roubo de Esquiva II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   2,
+   3
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "-10% Damage inflicted with a weapon | When inflicting damage on an enemy with a two-handed weapon: | Steals 45% of level in Dodge (1 turn, not stackable)"
+ },
+ {
+  "stateId": 6819,
+  "name": {
+   "fr": "Contre-attaque II",
+   "en": "Counterattack II",
+   "es": "Contraataque II",
+   "pt": "Contra-Ataque II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When the state bearer suffers direct close-combat damage, once per turn of the attacker: | The state bearer inflicts light damage on the attacker (50% of level)"
+ },
+ {
+  "stateId": 6821,
+  "name": {
+   "fr": "Expert des armes légères II",
+   "en": "Light Weapons Expert II",
+   "es": "Experto en armas ligeras II",
+   "pt": "Especialista em Armas Leves II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   3,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "If no other shield, dagger or two-handed weapon is equipped, at start of fight: | 125% of level in Elemental Mastery | 10% of Damage inflicted on a target with Armor",
+  "effects": [
+   {
+    "characteristic": "MASTERY_ELEMENTARY",
+    "value": 125
+   }
+  ]
+ },
+ {
+  "stateId": 6822,
+  "name": {
+   "fr": "Arcanes II",
+   "en": "Arcana II",
+   "es": "Arcanos II",
+   "pt": "Arcanos II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   1,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "If the state bearer does not have any armor at end of turn: | 250% of level as Armor"
+ },
+ {
+  "stateId": 6823,
+  "name": {
+   "fr": "Relations sociales II",
+   "en": "Social Relations II",
+   "es": "Relaciones sociales II",
+   "pt": "Relações Sociais II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   2,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "10% Damage from behind on even turns | 10% frontal Damage on odd turns"
+ },
+ {
+  "stateId": 6824,
+  "name": {
+   "fr": "Retour vital II",
+   "en": "Vital Return II",
+   "es": "Vuelta vital II",
+   "pt": "Volta Vital II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   1,
+   2
+  ],
+  "maxLevel": 2,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "{img_physical}  Heal: 10% of HP lost of the caster {img_ecnbi} {img_ecnbr} on killing an enemy (2 activations per turn)"
+ },
+ {
+  "stateId": 6825,
+  "name": {
+   "fr": "Destruction II",
+   "en": "Destruction II",
+   "es": "Destrucción II",
+   "pt": "Destruição II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   3,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "15% Damage from behind | -10% frontal and side Damage"
+ },
+ {
+  "stateId": 6826,
+  "name": {
+   "fr": "Être sensible II",
+   "en": "Sensitivity II",
+   "es": "Ser sensible II",
+   "pt": "Sensibilidade II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   3
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "If there are two or more allies 1 to 4 cells from the bearer: | 6% damage inflicted",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 6
+   }
+  ]
+ },
+ {
+  "stateId": 6827,
+  "name": {
+   "fr": "Longueur d'armure II",
+   "en": "Armor Length II",
+   "es": "Longitud de armadura II",
+   "pt": "Extensão da Armadura II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   3,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "20% Armor given to an aligned ally at a distance"
+ },
+ {
+  "stateId": 6828,
+  "name": {
+   "fr": "Altruisme II",
+   "en": "Altruism II",
+   "es": "Altruismo II",
+   "pt": "Altruísmo II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   2,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "10% Heals performed on an aligned ally at a distance"
+ },
+ {
+  "stateId": 6829,
+  "name": {
+   "fr": "Manie II",
+   "en": "Mania II",
+   "es": "Manía II",
+   "pt": "Mania II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   1,
+   2
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "Melee damage removes 150% of level in Armor from the target | -9% Armor received"
+ },
+ {
+  "stateId": 6830,
+  "name": {
+   "fr": "Nature II",
+   "en": "Nature II",
+   "es": "Naturaleza II",
+   "pt": "Natureza II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   1,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "10% Heals performed on an ally adjacent to another ally"
+ },
+ {
+  "stateId": 6831,
+  "name": {
+   "fr": "Dernier souffle II",
+   "en": "Last Breath II",
+   "es": "Último aliento II",
+   "pt": "Último Suspiro II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   3,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When the bearer starts their turn below 20% HP: | 15% damage inflicted (1 turn) | 250% of level as armor",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 15
+   }
+  ]
+ },
+ {
+  "stateId": 6832,
+  "name": {
+   "fr": "Main forte II",
+   "en": "Strong Hand II",
+   "es": "Mano aliada II",
+   "pt": "Mãozinha II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   1,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "Ending a turn adjacent to an enemy applies -25% Armor received to it (1 turn)"
+ },
+ {
+  "stateId": 6833,
+  "name": {
+   "fr": "Pied ferme II",
+   "en": "Firm Foot II",
+   "es": "Pie firme II",
+   "pt": "Pé Firme II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   1,
+   1
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "Ending a turn adjacent to an enemy applies -15% Heals performed to it (1 turn)"
+ },
+ {
+  "stateId": 6834,
+  "name": {
+   "fr": "Volte-face II",
+   "en": "About-Turn II",
+   "es": "Media vuelta II",
+   "pt": "Meia-Volta II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   3,
+   2
+  ],
+  "maxLevel": 2,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When the state bearer suffers direct close-combat damage, once per turn of the attacker: | The state bearer turns toward them"
+ },
+ {
+  "stateId": 6842,
+  "name": {
+   "fr": "Courage I",
+   "en": "Courage I",
+   "es": "Coraje I",
+   "pt": "Coragem I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   1,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "10% non-critical damage and heals inflicted | -10% critical damage and heals inflicted"
+ },
+ {
+  "stateId": 6926,
+  "name": {
+   "fr": "Revigoration I",
+   "en": "Reinvigoration I",
+   "es": "Revigorización I",
+   "pt": "Revigorada I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   3,
+   1
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "-10% heals performed | The state bearer is healed by 12% of heals performed on their allies",
+  "effects": [
+   {
+    "characteristic": "MASTERY_HEALING",
+    "value": -10
+   }
+  ]
+ },
+ {
+  "stateId": 6927,
+  "name": {
+   "fr": "Précaution I",
+   "en": "Precaution I",
+   "es": "Precaución I",
+   "pt": "Precaução I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   1
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When ending turn with less than 50% HP: | {img_physical} Heals: 15% of missing HP {img_ecnbi}"
+ },
+ {
+  "stateId": 6928,
+  "name": {
+   "fr": "Critique technique I",
+   "en": "Technical Critical I",
+   "es": "Crítico técnico I",
+   "pt": "Crítico Técnico I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   3
+  ],
+  "maxLevel": 2,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "The first critical hit in the turn inflicts 6% additional damage | The following ones inflict -3% less damage"
+ },
+ {
+  "stateId": 6929,
+  "name": {
+   "fr": "Parade offensive I",
+   "en": "Offensive Block I",
+   "es": "Anticipación ofensiva I",
+   "pt": "Parada Ofensiva I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   1,
+   2
+  ],
+  "maxLevel": 2,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When performing a block on a direct enemy attack: | 2% damage inflicted (1 turn) | -10% Block",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 2
+   },
+   {
+    "characteristic": "BLOCK_PERCENTAGE",
+    "value": -10
+   }
+  ]
+ },
+ {
+  "stateId": 6930,
+  "name": {
+   "fr": "Critique tactique I",
+   "en": "Tactical Critical I",
+   "es": "Crítico táctico I",
+   "pt": "Crítico Estratégico I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   2
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "9% critical damage inflicted if the target has > 50% HP | -9% critical damage inflicted if the target has <= 50% HP"
+ },
+ {
+  "stateId": 6931,
+  "name": {
+   "fr": "Neutralité I",
+   "en": "Neutrality I",
+   "es": "Neutralidad I",
+   "pt": "Neutralidade I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   2,
+   1
+  ],
+  "maxLevel": 4,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": true,
+  "rawText": "At the start of the first turn, if secondary masteries are <= 0: | 24% damage inflicted",
+  "condition": {
+   "type": "SECONDARY_MASTERIES_AT_MOST",
+   "value": 0
+  },
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 24
+   }
+  ]
+ },
+ {
+  "stateId": 6932,
+  "name": {
+   "fr": "Abandon I",
+   "en": "Abandon I",
+   "es": "Abandono I",
+   "pt": "Abandono I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   1,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At the start of the first turn, if secondary masteries are <= 0: | 2 max WP and 2 Range | -25% Armor given and received",
+  "condition": {
+   "type": "SECONDARY_MASTERIES_AT_MOST",
+   "value": 0
+  },
+  "effects": [
+   {
+    "characteristic": "MAX_WAKFU_POINTS",
+    "value": 2
+   }
+  ]
+ },
+ {
+  "stateId": 6933,
+  "name": {
+   "fr": "Prétention I",
+   "en": "Pretension I",
+   "es": "Pretensión I",
+   "pt": "Pretensão I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   3,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": true,
+  "rawText": "At the start of the first turn, if secondary masteries are <= 0: | 25% Block",
+  "condition": {
+   "type": "SECONDARY_MASTERIES_AT_MOST",
+   "value": 0
+  },
+  "effects": [
+   {
+    "characteristic": "BLOCK_PERCENTAGE",
+    "value": 25
+   }
+  ]
+ },
+ {
+  "stateId": 7075,
+  "name": {
+   "fr": "Combat rapproché I",
+   "en": "Brawling I",
+   "es": "Combate Cercano I",
+   "pt": "Combate Aproximado I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   3
+  ],
+  "maxLevel": 2,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "-1 Range | 50% of level as Lock and Dodge",
+  "effects": [
+   {
+    "characteristic": "RANGE",
+    "value": -1
+   }
+  ]
+ },
+ {
+  "stateId": 7076,
+  "name": {
+   "fr": "Carapace I",
+   "en": "Carapace I",
+   "es": "Caparazón I",
+   "pt": "Carapaça I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   3,
+   3
+  ],
+  "maxLevel": 2,
+  "kind": "FLAT",
+  "solverChoosable": true,
+  "rawText": "-2 max AP | 75 Elemental Resistance",
+  "effects": [
+   {
+    "characteristic": "MAX_ACTION_POINT",
+    "value": -2
+   },
+   {
+    "characteristic": "RESISTANCE_ELEMENTARY",
+    "value": 75
+   }
+  ]
+ },
+ {
+  "stateId": 7077,
+  "name": {
+   "fr": "Armure lourde I",
+   "en": "Heavy Armor I",
+   "es": "Armadura Pesada I",
+   "pt": "Armadura Pesada I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   3
+  ],
+  "maxLevel": 2,
+  "kind": "FLAT",
+  "solverChoosable": true,
+  "rawText": "-1 max MP | 5% damage inflicted",
+  "effects": [
+   {
+    "characteristic": "MAX_MOVEMENT_POINT",
+    "value": -1
+   },
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 5
+   }
+  ]
+ },
+ {
+  "stateId": 7078,
+  "name": {
+   "fr": "Temporisation I",
+   "en": "Delay I",
+   "es": "Temporización I",
+   "pt": "Temporização I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   1,
+   3
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of turn, if no WP were used during the previous turn: | 12% damage inflicted | 12% heals performed",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 12
+   },
+   {
+    "characteristic": "MASTERY_HEALING",
+    "value": 12
+   }
+  ]
+ },
+ {
+  "stateId": 7079,
+  "name": {
+   "fr": "Préparation critique I",
+   "en": "Critical Preparation I",
+   "es": "Preparación Crítica I",
+   "pt": "Preparação Crítica I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   2
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "Each time a critical hit is performed (5 activations per turn): | Preparation"
+ },
+ {
+  "stateId": 7081,
+  "name": {
+   "fr": "Verrouillage I",
+   "en": "Locking I",
+   "es": "Bloqueo I",
+   "pt": "Trancamento I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   1,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "20% Damage inflicted on targets without line of sight and 3 or more cells away from the state bearer"
+ },
+ {
+  "stateId": 7088,
+  "name": {
+   "fr": "Poids Plume I",
+   "en": "Featherweight I",
+   "es": "Peso Pluma I",
+   "pt": "Peso-pena I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   1,
+   1
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, per MP above 4: | {'|'} 3% damage inflicted*2{'|'}% Damage inflicted (maximum 24)"
+ },
+ {
+  "stateId": 7115,
+  "name": {
+   "fr": "Ambition I",
+   "en": "Ambition I",
+   "es": "Ambición I",
+   "pt": "Ambição I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   3,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": true,
+  "rawText": "At the start of the first turn, if secondary masteries are <= 0: | 25% Critical Hit",
+  "condition": {
+   "type": "SECONDARY_MASTERIES_AT_MOST",
+   "value": 0
+  },
+  "effects": [
+   {
+    "characteristic": "CRITICAL_HIT",
+    "value": 25
+   }
+  ]
+ },
+ {
+  "stateId": 7252,
+  "name": {
+   "fr": "Excès II",
+   "en": "Excess II",
+   "es": "Exceso II",
+   "pt": "Excesso II"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "-10% damage inflicted | Every 5 spells cast, the state bearer gains 50% Damage inflicted for the next spell. | Spells cast must cost at least 1 AP | Once the state is at level 5, the next spell gets the damage bonus",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": -10
+   }
+  ]
+ },
+ {
+  "stateId": 7254,
+  "name": {
+   "fr": "Lunatique",
+   "en": "Lunatic",
+   "es": "Lunático",
+   "pt": "Lunático"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "Odd turns, at start of turn: | 25% Damage inflicted | -25% Heals performed and Armor given | Even turns, at start of turn: | 25% Heals performed and Armor given | -25% Damage inflicted",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 25
+   },
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": -25
+   }
+  ]
+ },
+ {
+  "stateId": 7255,
+  "name": {
+   "fr": "Contrôle de l'espace II",
+   "en": "Controlling Space II",
+   "es": "Control del Espacio II",
+   "pt": "Controle do Espaço II"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, if the state bearer has at least 3 Range: | 30% indirect damage inflicted"
+ },
+ {
+  "stateId": 7256,
+  "name": {
+   "fr": "Inflexibilité II",
+   "en": "Inflexibility II",
+   "es": "Inflexibilidad II",
+   "pt": "Inflexibilidade II"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, if secondary masteries are less than or equal to 0: | +15% elemental masteries"
+ },
+ {
+  "stateId": 7257,
+  "name": {
+   "fr": "Sentinelle",
+   "en": "Sentinel",
+   "es": "Centinela",
+   "pt": "Sentinela"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of turn: | 3 Range | 15% ranged damage | 15% Heals performed | The bonus is lost the first time the character moves (MP) or at end of turn",
+  "effects": [
+   {
+    "characteristic": "RANGE",
+    "value": 3
+   },
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 15,
+    "scenarioGate": {
+     "ranged": true
+    }
+   },
+   {
+    "characteristic": "MASTERY_HEALING",
+    "value": 15
+   }
+  ]
+ },
+ {
+  "stateId": 7258,
+  "name": {
+   "fr": "Assimilation",
+   "en": "Assimilation",
+   "es": "Asimilación",
+   "pt": "Assimilação"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "-50 Elemental Resistance | If the state bearer takes damage from an enemy: | 100 Resistance in the damage element (1 turn)",
+  "effects": [
+   {
+    "characteristic": "RESISTANCE_ELEMENTARY",
+    "value": -50
+   },
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 100
+   }
+  ]
+ },
+ {
+  "stateId": 7711,
+  "name": {
+   "fr": "Art du cachement I",
+   "en": "Art of Concealment I",
+   "es": "Arte del Escondite I",
+   "pt": "Arte do Escondimento I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   3,
+   3
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "-18% Damage received when the bearer is not in line of sight | 9% Damage received when the bearer is in line of sight"
+ },
+ {
+  "stateId": 7712,
+  "name": {
+   "fr": "Folie I",
+   "en": "Madness I",
+   "es": "Locura I",
+   "pt": "Loucura I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   1
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "18% Damage inflicted in a diagonal line"
+ },
+ {
+  "stateId": 7713,
+  "name": {
+   "fr": "Tabass'Carapace I",
+   "en": "Bashell I",
+   "es": "Caparagolpiza I",
+   "pt": "Soca-Carapaça I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   3
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "18% Damage inflicted on a target with armor"
+ },
+ {
+  "stateId": 7714,
+  "name": {
+   "fr": "Témérité I",
+   "en": "Recklessness I",
+   "es": "Temeridad I",
+   "pt": "Temeridade I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   3,
+   2
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When the bearer removes all of a target's armor: | 9% damage inflicted for the rest of the turn | 30% maximum",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 9
+   }
+  ]
+ },
+ {
+  "stateId": 7717,
+  "name": {
+   "fr": "Folie Vampirique I",
+   "en": "Vampiric Madness I",
+   "es": "Palabra Vampírica I",
+   "pt": "Loucura Vampírica I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   1
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "-20% Heals received | When the bearer inflicts damage in a diagonal line: | Steals 12% of damage inflicted"
+ },
+ {
+  "stateId": 7719,
+  "name": {
+   "fr": "Accumulation I",
+   "en": "Accumulation I",
+   "es": "Acumulación I",
+   "pt": "Acumulação I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   2,
+   3
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "-20% Heals performed | For each turn without performing heals: | 15% Heals performed | Stackable up to 40%",
+  "effects": [
+   {
+    "characteristic": "MASTERY_HEALING",
+    "value": 15
+   }
+  ]
+ },
+ {
+  "stateId": 7722,
+  "name": {
+   "fr": "Conservation I",
+   "en": "Conservation I",
+   "es": "Conservación I",
+   "pt": "Conservação I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   2,
+   3
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When HP are above 90%: | 30% Block",
+  "effects": [
+   {
+    "characteristic": "BLOCK_PERCENTAGE",
+    "value": 30
+   }
+  ]
+ },
+ {
+  "stateId": 7853,
+  "name": {
+   "fr": "Carapace sanguine I",
+   "en": "Blood Carapace I",
+   "es": "Caparazón Sanguinario I",
+   "pt": "Carapaça Sanguínea I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   1,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of turn: | Converts 50% of current HP into Armor"
+ },
+ {
+  "stateId": 7855,
+  "name": {
+   "fr": "Retour d'Armure II",
+   "en": "Armor Return II",
+   "es": "Vuelta de Armadura II",
+   "pt": "Retorno da Armadura II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   1,
+   1
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "Regains 7% of max HP as Armor by killing an enemy (2 activations per turn)"
+ },
+ {
+  "stateId": 7856,
+  "name": {
+   "fr": "Profit I",
+   "en": "Profit I",
+   "es": "Provecho I",
+   "pt": "Proveito I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   3,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "Regains 1 AP by removing 2 AP or MP from an enemy (2 max per turn)"
+ },
+ {
+  "stateId": 7859,
+  "name": {
+   "fr": "Force légère I",
+   "en": "Light Strength I",
+   "es": "Fuerza Ligera I",
+   "pt": "Força Branda I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   2,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "As long as the bearer has no Armor: | 15% damage inflicted",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 15
+   }
+  ]
+ },
+ {
+  "stateId": 7860,
+  "name": {
+   "fr": "Agilité vitale II",
+   "en": "Vital Agility II",
+   "es": "Agilidad Vital II",
+   "pt": "Agilidade Vital II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   3,
+   1
+  ],
+  "maxLevel": 2,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of turn, if HP are above 90%: | 1 MP",
+  "effects": [
+   {
+    "characteristic": "MOVEMENT_POINT",
+    "value": 1
+   }
+  ]
+ },
+ {
+  "stateId": 7861,
+  "name": {
+   "fr": "Force vitale II",
+   "en": "Vital Strength II",
+   "es": "Fuerza Vital II",
+   "pt": "Força Vital II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   3
+  ],
+  "maxLevel": 2,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of turn, if HP are above 90%: | 1 AP",
+  "effects": [
+   {
+    "characteristic": "ACTION_POINT",
+    "value": 1
+   }
+  ]
+ },
+ {
+  "stateId": 7862,
+  "name": {
+   "fr": "Influence vitale I",
+   "en": "Vital Influence I",
+   "es": "Influjo Vital I",
+   "pt": "Influência Vital I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   1,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When HP are above 90%: | 20% Critical Hit",
+  "effects": [
+   {
+    "characteristic": "CRITICAL_HIT",
+    "value": 20
+   }
+  ]
+ },
+ {
+  "stateId": 7863,
+  "name": {
+   "fr": "Influence paradoxale I",
+   "en": "Paradoxical Influence I",
+   "es": "Influjo Paradójico I",
+   "pt": "Influência Paradoxal I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   1,
+   3
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "If a non-critical hit is performed with an elemental spell: | 15% Critical Hit on the following turn",
+  "effects": [
+   {
+    "characteristic": "CRITICAL_HIT",
+    "value": 15
+   }
+  ]
+ },
+ {
+  "stateId": 7864,
+  "name": {
+   "fr": "Evasion I",
+   "en": "Evasion I",
+   "es": "Evasión I",
+   "pt": "Evasão I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   3,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of fight: | 250% of level as Dodge",
+  "effects": [
+   {
+    "characteristic": "DODGE",
+    "value": 250
+   }
+  ]
+ },
+ {
+  "stateId": 7865,
+  "name": {
+   "fr": "Interception I",
+   "en": "Interception I",
+   "es": "Interceptación I",
+   "pt": "Interceptação I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of fight: | 250% of level as Lock",
+  "effects": [
+   {
+    "characteristic": "LOCK",
+    "value": 250
+   }
+  ]
+ },
+ {
+  "stateId": 7867,
+  "name": {
+   "fr": "Fuite I",
+   "en": "Flee I",
+   "es": "Huida I",
+   "pt": "Fuga I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   3,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "After dodging (with loss): | 1 MP (2 max per turn)"
+ },
+ {
+  "stateId": 7868,
+  "name": {
+   "fr": "Interposition I",
+   "en": "Interposition I",
+   "es": "Interposición I",
+   "pt": "Interposição I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   2,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "After locking an enemy: | 250% of level as Armor"
+ },
+ {
+  "stateId": 7870,
+  "name": {
+   "fr": "Pétillance",
+   "en": "Sparkle",
+   "es": "Burbujeo",
+   "pt": "Brilhantismo"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of turn, if the bearer has no Armor: | 20% damage inflicted (1 turn) | Otherwise: | -10% damage inflicted (1 turn)",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 20
+   },
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": -10
+   }
+  ]
+ },
+ {
+  "stateId": 7872,
+  "name": {
+   "fr": "Contact",
+   "en": "Contact",
+   "es": "Contacto",
+   "pt": "Contato"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At end of turn, per adjacent enemy: | 5% of max HP as Armor"
+ },
+ {
+  "stateId": 7873,
+  "name": {
+   "fr": "Face-à-face",
+   "en": "Face-to-Face",
+   "es": "Cara-a-cara",
+   "pt": "Cara a Cara"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At end of turn, if the bearer is facing an adjacent enemy: | 10% of max HP as Armor"
+ },
+ {
+  "stateId": 7874,
+  "name": {
+   "fr": "Hypermétrope",
+   "en": "Farsighted",
+   "es": "Hipermétrope",
+   "pt": "Hipermetrope"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "30% damage inflicted on targets 7 or more cells away, otherwise -15%"
+ },
+ {
+  "stateId": 7875,
+  "name": {
+   "fr": "Distribution",
+   "en": "Distribution",
+   "es": "Distribución",
+   "pt": "Distribuição"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When the bearer heals an ally, 25% of the healing is converted into Armor and 25% is lost"
+ },
+ {
+  "stateId": 7876,
+  "name": {
+   "fr": "Constance II",
+   "en": "Steadfast II",
+   "es": "Constancia II",
+   "pt": "Constância II"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, if the state bearer has 10% Critical Hit or less: | 40% indirect damage",
+  "condition": {
+   "type": "CRIT_AT_MOST",
+   "value": 10
+  }
+ },
+ {
+  "stateId": 7877,
+  "name": {
+   "fr": "Elémentalisme",
+   "en": "Elementalism",
+   "es": "Elementalismo",
+   "pt": "Elementalismo"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, if the state bearer has 3 equal elemental masteries: | 20% damage inflicted and heals performed",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 20
+   }
+  ]
+ },
+ {
+  "stateId": 7878,
+  "name": {
+   "fr": "Chaos",
+   "en": "Chaos",
+   "es": "Caos",
+   "pt": "Caos"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, elemental masteries are set to 0 | 20% damage inflicted and heals performed"
+ },
+ {
+  "stateId": 7879,
+  "name": {
+   "fr": "Abnégation",
+   "en": "Abnegation",
+   "es": "Abnegación",
+   "pt": "Abnegação"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, converts 50% of Elemental Mastery into Healing Mastery (at the rate of 1 to 1.3)"
+ },
+ {
+  "stateId": 7880,
+  "name": {
+   "fr": "Engagement",
+   "en": "Engagement",
+   "es": "Compromiso",
+   "pt": "Engajamento"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, if the state bearer has 0 Healing Mastery or less: | 30% Heals performed",
+  "effects": [
+   {
+    "characteristic": "MASTERY_HEALING",
+    "value": 30
+   }
+  ]
+ },
+ {
+  "stateId": 7881,
+  "name": {
+   "fr": "Volonté de fer",
+   "en": "Iron Will",
+   "es": "Voluntad de Hierro",
+   "pt": "Força de Vontade"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": true,
+  "rawText": "At the start of combat, if the state bearer has 3 Range or less: | 20 Force of Will",
+  "condition": {
+   "type": "RANGE_AT_MOST",
+   "value": 3
+  },
+  "effects": [
+   {
+    "characteristic": "WILLPOWER",
+    "value": 20
+   }
+  ]
+ },
+ {
+  "stateId": 7882,
+  "name": {
+   "fr": "Démesuré",
+   "en": "Colossal",
+   "es": "Desmesurado",
+   "pt": "Desmesura"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, if the state bearer has more Block than Critical Hit: | The Block is converted into Critical Hit"
+ },
+ {
+  "stateId": 8131,
+  "name": {
+   "fr": "Allocentrisme I",
+   "en": "Allocentrism I",
+   "es": "Alocentrismo I",
+   "pt": "Alocentrismo I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   2,
+   2
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "If the bearer has no Armor: | 15% Armor given"
+ },
+ {
+  "stateId": 8132,
+  "name": {
+   "fr": "Apprêt I",
+   "en": "Embellishment I",
+   "es": "Adrezo I",
+   "pt": "Enfeite I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   3,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At end of turn, per enemy in close combat: | 5% damage inflicted for the following turn",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 5
+   }
+  ]
+ },
+ {
+  "stateId": 8366,
+  "name": {
+   "fr": "Dernier instant",
+   "en": "Last Moment",
+   "es": "Último instante",
+   "pt": "Último Instante"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When a spell is cast, if it costs 1 or more WP: | 5% damage inflicted per current WP on the bearer (max 30%)",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 5
+   }
+  ]
+ },
+ {
+  "stateId": 8367,
+  "name": {
+   "fr": "Arrogance",
+   "en": "Arrogance",
+   "es": "Arrogancia",
+   "pt": "Arrogância"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "-100 Elemental Resistance | When the bearer inflicts melee damage: | Steals 25% of damage inflicted"
+ },
+ {
+  "stateId": 8368,
+  "name": {
+   "fr": "Modularité",
+   "en": "Modularity",
+   "es": "Modularidad",
+   "pt": "Modularidade"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "After suffering damage: | 50 Elemental Resistance in this element (1 turn) (not stackable) | A new element replaces the previous one",
+  "effects": [
+   {
+    "characteristic": "RESISTANCE_ELEMENTARY",
+    "value": 50
+   }
+  ]
+ },
+ {
+  "stateId": 8370,
+  "name": {
+   "fr": "Calibrage",
+   "en": "Calibration",
+   "es": "Calibrado",
+   "pt": "Calibragem"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "If the bearer inflicted melee damage on an enemy during their turn: | 25% ranged damage inflicted for the following turn",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 25,
+    "scenarioGate": {
+     "ranged": true
+    }
+   }
+  ]
+ },
+ {
+  "stateId": 8372,
+  "name": {
+   "fr": "Véhémence",
+   "en": "Vehemence",
+   "es": "Vehemencia",
+   "pt": "Veemência"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "Each turn, 50% health stolen with the first spell to inflict damage"
+ },
+ {
+  "stateId": 8374,
+  "name": {
+   "fr": "Par-delà la barrière",
+   "en": "Beyond the Barrier",
+   "es": "Mas allá del parapeto",
+   "pt": "Além da Barreira"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "If the spell costs 4 AP or more: | 15% critical damage | If the spell costs 1 WP or more: | 15% critical damage",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 15
+   },
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 15
+   }
+  ]
+ },
+ {
+  "stateId": 8375,
+  "name": {
+   "fr": "Cuirasse singulière",
+   "en": "Single Shared Armor",
+   "es": "Cota singular",
+   "pt": "Couraça Singular"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "30% Armor given on targets with no Armor | Otherwise, -100% Armor given"
+ },
+ {
+  "stateId": 8376,
+  "name": {
+   "fr": "Calibrage II",
+   "en": "Calibration II",
+   "es": "Calibrado II",
+   "pt": "Calibragem II"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "If the bearer inflicted melee damage on an enemy during their turn: | 10% ranged damage inflicted for the following turn (1 time per turn, stackable 5 times)"
+ },
+ {
+  "stateId": 8379,
+  "name": {
+   "fr": "Lunatique II",
+   "en": "Lunatic II",
+   "es": "Lunático II",
+   "pt": "Lunático II"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "After inflicting damage on an enemy, for the following turn: | -30% Damage inflicted | 30% Heals performed | 30% Armor given | After healing or giving Armor to an ally, for the following turn: | 30% Damage inflicted | -30% Heals performed | -30% Armor given",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": -30
+   },
+   {
+    "characteristic": "MASTERY_HEALING",
+    "value": 30
+   },
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 30
+   },
+   {
+    "characteristic": "MASTERY_HEALING",
+    "value": -30
+   }
+  ]
+ },
+ {
+  "stateId": 8380,
+  "name": {
+   "fr": "Aplomb naturel",
+   "en": "Natural Poise",
+   "es": "Aplomo natural",
+   "pt": "Aprumo Natural"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "50 Elemental Resistance if the bearer has no Armor, otherwise -100 Elemental Resistance"
+ },
+ {
+  "stateId": 8381,
+  "name": {
+   "fr": "Pétulance",
+   "en": "Ebullience",
+   "es": "Petulancia",
+   "pt": "Petulância"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "If the bearer uses a spell to move: | 1 AP | 2 max per turn",
+  "effects": [
+   {
+    "characteristic": "ACTION_POINT",
+    "value": 1
+   }
+  ]
+ },
+ {
+  "stateId": 8382,
+  "name": {
+   "fr": "Empressement",
+   "en": "Gusto",
+   "es": "Ahínco",
+   "pt": "Afã"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "If the bearer uses a spell to move: | 1 MP | 2 max per turn",
+  "effects": [
+   {
+    "characteristic": "MOVEMENT_POINT",
+    "value": 1
+   }
+  ]
+ },
+ {
+  "stateId": 8383,
+  "name": {
+   "fr": "Lourdeur involontaire",
+   "en": "Involuntary Heaviness",
+   "es": "Pesadez involuntaria",
+   "pt": "Lentidão Involuntária"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "If the bearer is moved outside of their turn: | Stabilized"
+ },
+ {
+  "stateId": 8384,
+  "name": {
+   "fr": "Pilier II",
+   "en": "Pillar II",
+   "es": "Pilar II",
+   "pt": "Pilar II"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, if the state bearer has 50% Block or greater: | Bonus to HP modifier: -30% | 30% Armor given",
+  "condition": {
+   "type": "BLOCK_AT_LEAST",
+   "value": 50
+  }
+ },
+ {
+  "stateId": 8385,
+  "name": {
+   "fr": "Mesure II",
+   "en": "Measure II",
+   "es": "Medida II",
+   "pt": "Medida II"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "STATIC_CONDITIONAL",
+  "solverChoosable": true,
+  "rawText": "At the start of combat, if the state bearer has 50% Critical Hit or greater: | 20% Block | 10 Force of Will",
+  "condition": {
+   "type": "CRIT_AT_LEAST",
+   "value": 50
+  },
+  "effects": [
+   {
+    "characteristic": "BLOCK_PERCENTAGE",
+    "value": 20
+   },
+   {
+    "characteristic": "WILLPOWER",
+    "value": 10
+   }
+  ]
+ },
+ {
+  "stateId": 8386,
+  "name": {
+   "fr": "Volonté directe I",
+   "en": "Direct Force of Will I",
+   "es": "Voluntad directa I",
+   "pt": "Vontade Direta I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   2,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "Outside the bearer's turn: -20 Force of Will | During the bearer's turn:  15 Force of Will"
+ },
+ {
+  "stateId": 8387,
+  "name": {
+   "fr": "Volonté indirecte I",
+   "en": "Indirect Force of Will I",
+   "es": "Voluntad indirecta I",
+   "pt": "Vontade Indireta I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   3,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "Outside the bearer's turn: 15 Force of Will | During the bearer's turn:  -20 Force of Will"
+ },
+ {
+  "stateId": 8388,
+  "name": {
+   "fr": "Acribie I",
+   "en": "Scrupulosity I",
+   "es": "Acribia I",
+   "pt": "Acribia I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "10% Damage Inflicted on targets 5 cells or further away"
+ },
+ {
+  "stateId": 8389,
+  "name": {
+   "fr": "Vision intermédiaire I",
+   "en": "Intermediate Vision I",
+   "es": "Visión intermedia I",
+   "pt": "Visão Intermediária I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   1,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "15% Damage Inflicted on targets exactly 3 cells away"
+ },
+ {
+  "stateId": 8390,
+  "name": {
+   "fr": "Dérobade continue I",
+   "en": "Constant Evasion I",
+   "es": "Escapatoria continua I",
+   "pt": "Evasão Contínua I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   2,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "15% Block"
+ },
+ {
+  "stateId": 8391,
+  "name": {
+   "fr": "Bouclier critique I",
+   "en": "Critical Shield I",
+   "es": "Escudo crítico I",
+   "pt": "Escudo Crítico I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   2,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "25 Critical Resistance"
+ },
+ {
+  "stateId": 8392,
+  "name": {
+   "fr": "Sauvegarde du Wakfu II",
+   "en": "Wakfu Conservation II",
+   "es": "Guardado del wakfu II",
+   "pt": "Salvaguarda do Wakfu II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   3,
+   3
+  ],
+  "maxLevel": 2,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "-1 max WP | At end of turn, if the bearer has not spent any WP: +1 WP"
+ },
+ {
+  "stateId": 8393,
+  "name": {
+   "fr": "Bouclier dorsal I",
+   "en": "Rear Shield I",
+   "es": "Escudo dorsal I",
+   "pt": "Escudo Dorsal I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "25 Rear Resistance"
+ },
+ {
+  "stateId": 8394,
+  "name": {
+   "fr": "Propagation I",
+   "en": "Propagation I",
+   "es": "Propagación I",
+   "pt": "Propagação I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   2
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When the state bearer inflicts direct damage, once per turn: | Inflicts&nbsp;30% of level as Light damage on enemies aligned with the target"
+ },
+ {
+  "stateId": 8395,
+  "name": {
+   "fr": "Valeur ajoutée I",
+   "en": "Added Value I",
+   "es": "Valor añadido I",
+   "pt": "Valor Adicionado I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   2,
+   2
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "Each time indirect damage is inflicted: | -6% direct damage | 6% indirect damage | Up to 40%, the bonus is lost at start of turn",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": -6
+   }
+  ]
+ },
+ {
+  "stateId": 8398,
+  "name": {
+   "fr": "Sanguinolence I",
+   "en": "Blood Stains I",
+   "es": "Sanguinolencia I",
+   "pt": "Sanguinolência I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   1
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "For each penalty or loss applied to an enemy: | Blood Stains"
+ },
+ {
+  "stateId": 8399,
+  "name": {
+   "fr": "Représailles I",
+   "en": "Reprisal I",
+   "es": "Represalias I",
+   "pt": "Represália I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   1,
+   2
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When the state bearer suffers ranged direct damage: | Inflicts 18% extra damage on the attacker | 1 turn, not stackable"
+ },
+ {
+  "stateId": 8400,
+  "name": {
+   "fr": "Coque I",
+   "en": "Shell I",
+   "es": "Cáscara I",
+   "pt": "Casco I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   2,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "Shell"
+ },
+ {
+  "stateId": 8402,
+  "name": {
+   "fr": "Rupture violente I",
+   "en": "Violent Rupture I",
+   "es": "Ruptura violenta I",
+   "pt": "Ruptura Violenta I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   2,
+   1
+  ],
+  "maxLevel": 2,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When the state bearer causes an enemy to lose Armor: | The state bearer inflicts light damage on the attacker (30% of level) (2 activations per turn)"
+ },
+ {
+  "stateId": 8403,
+  "name": {
+   "fr": "Rupture PA II",
+   "en": "AP Rupture II",
+   "es": "Ruptura de PA II",
+   "pt": "Ruptura de PA II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   3,
+   3
+  ],
+  "maxLevel": 2,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When the state bearer causes an enemy to lose Armor: | The state bearer recovers 1 AP (2 activations per turn)"
+ },
+ {
+  "stateId": 8489,
+  "name": {
+   "fr": "Cuirasse singulière II",
+   "en": "Single Shared Armor II",
+   "es": "Cota singular II",
+   "pt": "Couraça Singular II"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "Each turn,  40% Armor given with the first Armor application;  -50% Armor given with all others"
+ },
+ {
+  "stateId": 8490,
+  "name": {
+   "fr": "Contrôle du temps",
+   "en": "Time Control",
+   "es": "Control del tiempo",
+   "pt": "Controle do Tempo"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "Every 3 spells cast: Critical Hit is set to 100."
+ },
+ {
+  "stateId": 8492,
+  "name": {
+   "fr": "Mesure III",
+   "en": "Measure III",
+   "es": "Medida III",
+   "pt": "Medida III"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, if the state bearer has no more than 50% Critical Hit: | 20% damage inflicted on critical hit",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 20
+   }
+  ]
+ },
+ {
+  "stateId": 8493,
+  "name": {
+   "fr": "Balance critique I",
+   "en": "Critical Scale I",
+   "es": "Balanza crítica I",
+   "pt": "Equilíbrio Crítico I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   3,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "Each time a non-critical spell is cast: | 10% Critical Hit | Bonus is lost on the next critical hit",
+  "effects": [
+   {
+    "characteristic": "CRITICAL_HIT",
+    "value": 10
+   }
+  ]
+ },
+ {
+  "stateId": 8494,
+  "name": {
+   "fr": "Consolation critique I",
+   "en": "Critical Consolation I",
+   "es": "Consuelo crítico I",
+   "pt": "Consolação Crítica I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   2,
+   3
+  ],
+  "maxLevel": 4,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "Each time a non-critical spell is cast: | 6% Critical damage inflicted (stackable up to 40) | Bonus is lost on the next critical hit",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 6
+   }
+  ]
+ },
+ {
+  "stateId": 8496,
+  "name": {
+   "fr": "Dernière armure I",
+   "en": "Last Armor I",
+   "es": "Última armadura I",
+   "pt": "Última Armadura I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   3,
+   1
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When below 20% of max HP (1 time per fight): | 25% of max HP as Armor"
+ },
+ {
+  "stateId": 8497,
+  "name": {
+   "fr": "Dernier soin I",
+   "en": "Last Heal I",
+   "es": "Última cura I",
+   "pt": "Última Cura I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   1,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When below 20% of max HP (1 time per fight): | Healing: 25% of max HP"
+ },
+ {
+  "stateId": 8498,
+  "name": {
+   "fr": "Dernières résistances I",
+   "en": "Last Resistance I",
+   "es": "Últimas resistencias I",
+   "pt": "Últimas Resistências I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   2,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When below 20% of max HP (1 time per fight): | 100 Elemental Resistance (1 turn)",
+  "effects": [
+   {
+    "characteristic": "RESISTANCE_ELEMENTARY",
+    "value": 100
+   }
+  ]
+ },
+ {
+  "stateId": 8499,
+  "name": {
+   "fr": "Brûlure secondaire I",
+   "en": "Secondary Burn I",
+   "es": "Quemadura secundaria I",
+   "pt": "Queimadura Secundária I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   1,
+   2
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "On casting a {img_water}, {img_earth}, or {img_air} spell: | 6% damage inflicted in the Fire element {img_fire} | Stackable up to 30 | Effect is consumed on next direct Fire damage {img_fire}",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 6
+   }
+  ]
+ },
+ {
+  "stateId": 8502,
+  "name": {
+   "fr": "Gel secondaire I",
+   "en": "Secondary Freezing I",
+   "es": "Congelación secundaria I",
+   "pt": "Congelamento Secundário I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   2,
+   3
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "On casting a {img_fire}, {img_earth}, or {img_air} spell: | 6% damage inflicted in the Water element {img_water} | Stackable up to 30 | Effect is consumed on next direct Water damage {img_water}",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 6
+   }
+  ]
+ },
+ {
+  "stateId": 8505,
+  "name": {
+   "fr": "Tellurisme secondaire I",
+   "en": "Secondary Earthbound I",
+   "es": "Telurismo secundario I",
+   "pt": "Telurismo Secundário I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   3,
+   1
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "On casting a {img_fire}, {img_water}, or {img_air} spell: | 6% damage inflicted in the Earth element {img_earth} | Stackable up to 30 | Effect is consumed on next direct Earth damage {img_earth}",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 6
+   }
+  ]
+ },
+ {
+  "stateId": 8508,
+  "name": {
+   "fr": "Ventilation secondaire I",
+   "en": "Secondary Ventilation I",
+   "es": "Ventilación secundaria I",
+   "pt": "Ventilação Secundária I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   2,
+   2
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "On casting a {img_fire}, {img_water}, or {img_earth} spell: | 6% damage inflicted in the Air element {img_air} | Stackable up to 30 | Effect is consumed on next direct Air damage {img_air}",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 6
+   }
+  ]
+ },
+ {
+  "stateId": 8518,
+  "name": {
+   "fr": "Brûlure I",
+   "en": "Burn I",
+   "es": "Quemadura I",
+   "pt": "Queimadura I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   1,
+   3
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "12% damage inflicted in the Fire element {img_fire}"
+ },
+ {
+  "stateId": 8519,
+  "name": {
+   "fr": "Gel I",
+   "en": "Freezing I",
+   "es": "Congelación I",
+   "pt": "Congelamento I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   3,
+   2
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "12% damage inflicted in the Water element {img_water}"
+ },
+ {
+  "stateId": 8520,
+  "name": {
+   "fr": "Tellurisme I",
+   "en": "Earthbound I",
+   "es": "Telurismo I",
+   "pt": "Telurismo I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   2,
+   1
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "12% damage inflicted in the Earth element {img_earth}"
+ },
+ {
+  "stateId": 8521,
+  "name": {
+   "fr": "Ventilation I",
+   "en": "Ventilation I",
+   "es": "Ventilación I",
+   "pt": "Ventilação I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   3,
+   2
+  ],
+  "maxLevel": 4,
+  "kind": "FLAT",
+  "solverChoosable": false,
+  "rawText": "12% damage inflicted in the Air element {img_air}"
+ },
+ {
+  "stateId": 9060,
+  "name": {
+   "fr": "Apprêt secondaire I",
+   "en": "Secondary Embellishment I",
+   "es": "Adrezo secundario I",
+   "pt": "Preparo Secundário I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   1,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At end of turn, if an enemy is adjacent: 12% damage inflicted for the following turn (max level 6)",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 12
+   }
+  ]
+ },
+ {
+  "stateId": 9062,
+  "name": {
+   "fr": "Élan I",
+   "en": "Surge I",
+   "es": "Bote I",
+   "pt": "Impulsão I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   1,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "If the bearer uses a spell to move: Preparation +30 levels (+30% damage on next damage) (max level 6)",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 30
+   }
+  ]
+ },
+ {
+  "stateId": 9064,
+  "name": {
+   "fr": "Jugement I",
+   "en": "Judgment I",
+   "es": "Juicio I",
+   "pt": "Sentença I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   1,
+   1,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When inflicting single-target damage on an enemy: +18 extra damage on this target next turn (max level 6)",
+  "effects": [
+   {
+    "characteristic": "DAMAGE_INFLICTED",
+    "value": 18
+   }
+  ]
+ },
+ {
+  "stateId": 9066,
+  "name": {
+   "fr": "Diagnostic I",
+   "en": "Diagnosis I",
+   "es": "Diagnóstico I",
+   "pt": "Diagnóstico I"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   2,
+   3,
+   2
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When single-target healing an ally: +12 extra heals on this target next turn (max level 6)",
+  "effects": [
+   {
+    "characteristic": "MASTERY_HEALING",
+    "value": 12
+   }
+  ]
+ },
+ {
+  "stateId": 9067,
+  "name": {
+   "fr": "Sauvegarde critique II",
+   "en": "Critical Save II",
+   "es": "Guardado crítico II",
+   "pt": "Salvaguarda Crítica II"
+  },
+  "rarity": "NORMAL",
+  "slotColorPattern": [
+   3,
+   1,
+   3
+  ],
+  "maxLevel": 6,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At end of turn: unused AP carried over as Critical Hit, 10% per AP (max 3 AP) (max level 6)",
+  "effects": [
+   {
+    "characteristic": "CRITICAL_HIT",
+    "value": 30
+   }
+  ]
+ },
+ {
+  "stateId": 9070,
+  "name": {
+   "fr": "Sceau de Wakfu",
+   "en": "Wakfu Seal",
+   "es": "Sello de Wakfu",
+   "pt": "Selo de Wakfu"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "The state bearer increases their heals performed by 2% per turn (Permanent, max 20%)",
+  "effects": [
+   {
+    "characteristic": "MASTERY_HEALING",
+    "value": 20
+   }
+  ]
+ },
+ {
+  "stateId": 9071,
+  "name": {
+   "fr": "Parade unique",
+   "en": "Single Block",
+   "es": "Anticipación única",
+   "pt": "Parada Única"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "When performing a Block: -30% extra damage received, -100% Block"
+ },
+ {
+  "stateId": 9072,
+  "name": {
+   "fr": "Absolution",
+   "en": "Absolution",
+   "es": "Absolución",
+   "pt": "Absolvição"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of turn, if there are at least 2 allies in melee: +1 MP, +1 AP",
+  "effects": [
+   {
+    "characteristic": "MOVEMENT_POINT",
+    "value": 1
+   },
+   {
+    "characteristic": "ACTION_POINT",
+    "value": 1
+   }
+  ]
+ },
+ {
+  "stateId": 9073,
+  "name": {
+   "fr": "Châtiment",
+   "en": "Punishment",
+   "es": "Castigo",
+   "pt": "Castigo"
+  },
+  "rarity": "RELIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At start of turn, if there are at least 2 enemies in melee: +1 MP, +1 AP",
+  "effects": [
+   {
+    "characteristic": "MOVEMENT_POINT",
+    "value": 1
+   },
+   {
+    "characteristic": "ACTION_POINT",
+    "value": 1
+   }
+  ]
+ },
+ {
+  "stateId": 9074,
+  "name": {
+   "fr": "Secret critique",
+   "en": "Critical Secret",
+   "es": "Secreto crítico",
+   "pt": "Segredo Crítico"
+  },
+  "rarity": "EPIC",
+  "slotColorPattern": [],
+  "maxLevel": 1,
+  "kind": "COMBAT_CONDITIONAL",
+  "solverChoosable": false,
+  "rawText": "At the start of combat, if Critical Mastery <= 0: +30% Critical Hit",
+  "effects": [
+   {
+    "characteristic": "CRITICAL_HIT",
+    "value": 30
+   }
+  ]
+ }
+]
