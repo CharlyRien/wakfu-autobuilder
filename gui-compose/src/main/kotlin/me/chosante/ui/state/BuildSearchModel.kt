@@ -596,7 +596,7 @@ class BuildSearchModel(
                             // here off the UI thread (like `achieved`) so the panel just reads it.
                             val spellRotation =
                                 if (snapshot.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
-                                    SpellRotationOptimizer.forBuild(result.individual, character, character.clazz, snapshot.scenario)
+                                    SpellRotationOptimizer.bestSequencedRotation(result.individual, character, character.clazz, snapshot.scenario)
                                 } else {
                                     null
                                 }

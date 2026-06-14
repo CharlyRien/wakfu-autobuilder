@@ -741,21 +741,26 @@ private fun spellRotationReport(
     character: Character,
     scenario: DamageScenario,
 ): String {
-    // bestAcrossElements is boss-aware: with --boss-resistances it picks the best *playable* element
-    // given the boss profile and the class kit; otherwise it's the single --scenario-element.
-    val rotation: SpellRotation = SpellRotationOptimizer.bestAcrossElements(build, character, character.clazz, scenario)
+    // bestSequencedRotation is boss-aware (picks the best playable element vs the boss profile) AND
+    // sequences resistance debuffs first when they raise the turn's total.
+    val rotation: SpellRotation = SpellRotationOptimizer.bestSequencedRotation(build, character, character.clazz, scenario)
     val chosenElement = rotation.element?.name?.lowercase() ?: scenario.element.name.lowercase()
     val header = "Optimal spell rotation ($chosenElement, ${rotation.apBudget} AP)"
     if (rotation.isEmpty) {
         return "$header\n  No playable damage spells for ${character.clazz.name.lowercase()} in the " +
             "candidate element(s) — try another --scenario-element / --boss-resistances."
     }
+    val debuffLines =
+        rotation.debuffCasts.joinToString("") { cast ->
+            "  ↳ debuff: ${cast.spell.name.en} (${cast.apCost} AP, −${cast.spell.targetResistanceReductionFlat} res) " +
+                "→ target res now ${rotation.effectiveResistancePercent}%\n"
+        }
     val lines =
         rotation.casts.joinToString("\n") { cast ->
             "  ${cast.count}× ${cast.spell.name.en} " +
                 "(${cast.apCost} AP, ~${cast.expectedDamagePerCast.toLong()} dmg/cast) → ~${cast.totalExpectedDamage.toLong()}"
         }
-    return "$header\n$lines\n" +
+    return "$header\n$debuffLines$lines\n" +
         "  Total: ~${rotation.totalExpectedDamage.toLong()} expected damage/turn " +
         "(${rotation.apUsed}/${rotation.apBudget} AP used)\n" +
         "  Note: per-turn cast limits aren't modeled yet — treat as an upper-bound suggestion."

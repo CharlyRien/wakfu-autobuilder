@@ -218,6 +218,15 @@ private fun SpellRotationCard(ui: UiState) {
             style = WTypography.labelSmall.copy(color = WColor.faint),
             modifier = Modifier.padding(bottom = 6.dp)
         )
+        rotation.debuffCasts.forEach { cast ->
+            Text(
+                text =
+                    "↳ ${cast.spell.name.let { if (lang == Lang.FR) it.fr else it.en }} " +
+                        "(${cast.apCost} AP, −${cast.spell.targetResistanceReductionFlat} res → ${rotation.effectiveResistancePercent}%)",
+                style = WTypography.labelSmall.copy(color = WColor.accent2),
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+        }
         rotation.casts.forEachIndexed { index, cast ->
             if (index > 0) Hairline()
             Row(
