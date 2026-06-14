@@ -27,7 +27,8 @@ object FindMostMasteriesFromInputScoring {
                 buildCombination,
                 characterBaseCharacteristics,
                 targetStats.masteryElementsWanted,
-                targetStats.resistanceElementsWanted
+                targetStats.resistanceElementsWanted,
+                scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
             )
 
         val totalActualScore =

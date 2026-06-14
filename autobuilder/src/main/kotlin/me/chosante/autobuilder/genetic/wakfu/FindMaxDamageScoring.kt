@@ -40,7 +40,11 @@ object FindMaxDamageScoring {
                 masteryElementsWanted = mapOf(scenario.element.masteryCharacteristic to 1),
                 // Real resistance targets so the penalty's stats include RESISTANCE_ELEMENTARY / per-element
                 // resistances (an emptyMap read them as 0, so a required resistance couldn't rank builds).
-                resistanceElementsWanted = targetStats.resistanceElementsWanted
+                resistanceElementsWanted = targetStats.resistanceElementsWanted,
+                // Mode + scenario let the sublimation fold gate scenario-specific effects (and apply the
+                // build-static conditional ones) for the chosen build's stats.
+                scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                damageScenario = scenario
             )
 
         val expectedDamage = expectedDamage(stats, scenario)

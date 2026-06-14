@@ -14,6 +14,7 @@ import me.chosante.common.ItemType
 import me.chosante.common.Monster
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
+import me.chosante.common.Sublimation
 import kotlin.time.Duration
 
 object WakfuBestBuildFinderAlgorithm {
@@ -79,6 +80,17 @@ object WakfuBestBuildFinderAlgorithm {
                 .firstOrNull()
     }
 
+    /**
+     * The embedded sublimations ([Sublimation]) for the current data version, or empty if the resource
+     * is absent. The solver chooses among the [Sublimation.solverChoosable] subset and applies any the
+     * user [WakfuBestBuildParams.forcedSublimations]; see docs/SUBLIMATIONS_LOT3_RESEARCH.md.
+     */
+    val sublimations: List<Sublimation> by lazy {
+        this.javaClass.classLoader.getResourceAsStream("sublimations-v$VERSION.json")?.readAllBytes()?.let {
+            Json.decodeFromString<List<Sublimation>>(String(it))
+        } ?: emptyList()
+    }
+
     fun run(params: WakfuBestBuildParams): Flow<GeneticAlgorithmResult<BuildCombination>> {
         val equipmentsByItemType =
             groupAndFilterEquipments(
@@ -93,9 +105,9 @@ object WakfuBestBuildFinderAlgorithm {
             // Max-damage routes through the external loop (AP-breakpoint probes + debuff-aware
             // sequencing valuation). Every other mode is a single CP-SAT solve, unchanged.
             if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
-                MaxDamageSearch.run(params, equipmentsByItemType, runes)
+                MaxDamageSearch.run(params, equipmentsByItemType, runes, sublimations)
             } else {
-                WakfuBuildSolver.optimize(params, equipmentsByItemType, runes)
+                WakfuBuildSolver.optimize(params, equipmentsByItemType, runes, sublimations)
             }
         } catch (exception: Exception) {
             // Surface the failure to the caller instead of killing the JVM: the CLI's runBlocking
@@ -164,6 +176,15 @@ data class WakfuBestBuildParams(
     // When true (default), the OR-Tools solver socket-fills equipped items with the best runes for the
     // requested stats (best-achievable model). See RuneType / WakfuBuildSolver.createRuneModel.
     val useRunes: Boolean = true,
+    // Runes the user requires the build to socket at least once (matched on the rune's French name,
+    // like forcedItems). Their stat is added to the modelable rune set. See createRuneModel.
+    val forcedRunes: List<String> = emptyList(),
+    // When true (default), the solver may choose statically-modelable sublimations (epic/relic/normal)
+    // and applies any forcedSublimations. See WakfuBuildSolver.createSublimationModel.
+    val useSublimations: Boolean = true,
+    // Sublimations the user requires the build to carry (matched on the sublimation's French name).
+    // Combat-conditional subs are only usable this way. See createSublimationModel.
+    val forcedSublimations: List<String> = emptyList(),
     // The attack scenario optimized by ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE (ignored by the
     // other modes).
     val damageScenario: DamageScenario = DamageScenario(),

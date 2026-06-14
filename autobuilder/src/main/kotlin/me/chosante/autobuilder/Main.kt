@@ -445,6 +445,35 @@ HUPPERMAGE"""
                 "sockets with the best runes for your requested stats (max-level runes + colour doubling)."
     ).flag(default = false, defaultForHelp = "runes enabled")
 
+    private val forcedRunes: List<String> by option(
+        "--forced-runes",
+        "--chasses-a-forcer",
+        help =
+            """
+            Force specific runes to be socketed at least once in the build (matched on the rune's
+            French name), e.g. --forced-runes 'Eclat de Picole','Eclat de Pa',...
+            """.trimIndent()
+    ).split(",").default(listOf())
+
+    private val noSublimations: Boolean by option(
+        "--no-sublimations",
+        "--sans-sublimations",
+        help =
+            "Use this flag to search without solver-chosen sublimations. By default the solver may pick " +
+                "statically-modelable epic/relic/normal sublimations (e.g. the damage ones in max-damage mode)."
+    ).flag(default = false, defaultForHelp = "sublimations enabled")
+
+    private val forcedSublimations: List<String> by option(
+        "--forced-sublimations",
+        "--sublimations-a-forcer",
+        help =
+            """
+            Force specific sublimations into the build (matched on the French or English name). Use this
+            for combat-conditional sublimations the solver cannot evaluate, e.g.
+            --forced-sublimations 'Inflexibilite','Stasification',...
+            """.trimIndent()
+    ).split(",").default(listOf())
+
     // --- max-damage scenario (only used when --computation-mode max-damage) ---
 
     private val scenarioElement: SpellElement by option(
@@ -663,6 +692,9 @@ HUPPERMAGE"""
                             excludedItems = excludedItems,
                             scoreComputationMode = mode,
                             useRunes = !noRunes,
+                            forcedRunes = forcedRunes,
+                            useSublimations = !noSublimations,
+                            forcedSublimations = forcedSublimations,
                             damageScenario = damageScenario
                         )
                     ).buffer(CONFLATED)
@@ -701,6 +733,10 @@ HUPPERMAGE"""
                         if (it.runes.isNotEmpty()) {
                             terminal.println("Runes")
                             terminal.println(it.runes.asRunesASCIITable())
+                        }
+                        if (it.sublimations.isNotEmpty()) {
+                            terminal.println("Sublimations")
+                            terminal.println(it.sublimations.asSublimationsASCIITable())
                         }
                         terminal.println("Skills")
                         terminal.println("Intelligence")
@@ -910,6 +946,27 @@ private fun bossSummary(
         append("Best element: ${chosenElement.name.lowercase()} → ~${perTurn.toLong()} expected damage/turn, $killLabel")
     }
 }
+
+private fun List<me.chosante.common.Sublimation>.asSublimationsASCIITable() =
+    table {
+        borderType = SQUARE_DOUBLE_SECTION_SEPARATOR
+        borderStyle = rgb("#4b25b9")
+        align = TextAlign.LEFT
+        tableBorders = Borders.NONE
+        header {
+            style = TextColors.brightRed + TextStyles.bold
+            row("Sublimation", "Slot", "Effect") { cellBorders = Borders.BOTTOM }
+        }
+        body {
+            style = TextColors.green
+            column(0) { style = TextColors.brightBlue }
+            rowStyles(TextStyle(), TextStyles.dim.style)
+            cellBorders = Borders.TOP_BOTTOM
+            this@asSublimationsASCIITable.forEach { sub ->
+                row(sub.name.en, sub.rarity, sub.rawText ?: "")
+            }
+        }
+    }
 
 private fun progressBar(terminal: Terminal): ThreadProgressTaskAnimator<String> =
     progressBarContextLayout {

@@ -26,6 +26,10 @@ import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
+import me.chosante.common.Sublimation
+import me.chosante.common.SublimationConditionType
+import me.chosante.common.SublimationKind
+import me.chosante.common.SublimationRarity
 import me.chosante.common.skills.Assignable
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.common.skills.SkillCharacteristic
@@ -294,18 +298,27 @@ object WakfuBuildSolver {
         params: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         runes: List<RuneType> = emptyList(),
-    ): Flow<GeneticAlgorithmResult<BuildCombination>> = optimize(params, equipmentsByItemType, runes, tuning = null)
+        sublimations: List<Sublimation> = emptyList(),
+    ): Flow<GeneticAlgorithmResult<BuildCombination>> = optimize(params, equipmentsByItemType, runes, sublimations, tuning = null)
 
     internal fun optimize(
         params: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         tuning: SolverTuning?,
-    ): Flow<GeneticAlgorithmResult<BuildCombination>> = optimize(params, equipmentsByItemType, emptyList(), tuning)
+    ): Flow<GeneticAlgorithmResult<BuildCombination>> = optimize(params, equipmentsByItemType, emptyList(), emptyList(), tuning)
 
     internal fun optimize(
         params: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         runes: List<RuneType>,
+        tuning: SolverTuning?,
+    ): Flow<GeneticAlgorithmResult<BuildCombination>> = optimize(params, equipmentsByItemType, runes, emptyList(), tuning)
+
+    internal fun optimize(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
         tuning: SolverTuning?,
     ): Flow<GeneticAlgorithmResult<BuildCombination>> =
         callbackFlow {
@@ -325,23 +338,25 @@ object WakfuBuildSolver {
                 val equipVars = model.createEquipmentVariables(allEquips)
                 val skillVars = model.createSkillVariables(params.character.characterSkills)
                 val runeModel = model.createRuneModel(params, allEquips, equipVars, runes)
+                val subModel = model.createSublimationModel(params, allEquips, equipVars, sublimations)
+                model.addNormalSublimationSocketBudget(allEquips, equipVars, runeModel, subModel)
 
                 model.addBuildValidityConstraints(allEquips, equipVars)
 
                 val objective =
                     when (params.scoreComputationMode) {
                         ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
-                            model.buildMostMasteriesObjective(params, allEquips, equipVars, skillVars, runeModel)
+                            model.buildMostMasteriesObjective(params, allEquips, equipVars, skillVars, runeModel, subModel)
 
                         ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
-                            model.buildPrecisionObjective(params, allEquips, equipVars, skillVars, runeModel)
+                            model.buildPrecisionObjective(params, allEquips, equipVars, skillVars, runeModel, subModel)
 
                         ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE ->
-                            model.buildMaxDamageObjective(params, allEquips, equipVars, skillVars, runeModel)
+                            model.buildMaxDamageObjective(params, allEquips, equipVars, skillVars, runeModel, subModel)
                     }
                 model.maximize(objective)
 
-                executeSolverAndEmitResults(model, params, allEquips, equipVars, skillVars, runeModel, this@callbackFlow, tuning)
+                executeSolverAndEmitResults(model, params, allEquips, equipVars, skillVars, runeModel, subModel, this@callbackFlow, tuning)
             }
             close()
             awaitClose { }
@@ -392,9 +407,19 @@ object WakfuBuildSolver {
         equipVars: Map<Equipment, IntVar>,
         runes: List<RuneType>,
     ): RuneModel {
-        if (!params.useRunes || runes.isEmpty()) return RuneModel.EMPTY
+        if (runes.isEmpty()) return RuneModel.EMPTY
+        val forcedNames = params.forcedRunes.map { it.lowercase() }.toSet()
+        val forcedRuneStats =
+            runes
+                .filter { it.name.fr.lowercase() in forcedNames || it.name.en.lowercase() in forcedNames }
+                .map { it.characteristic }
+                .toSet()
+        // Auto-fill runes only when enabled; forced runes are modeled regardless of that toggle.
+        if (!params.useRunes && forcedRuneStats.isEmpty()) return RuneModel.EMPTY
+
         val runeByCharacteristic = runes.associateBy { it.characteristic }
-        val runeStats = relevantRuneStats(params, runeByCharacteristic.keys)
+        val runeStats =
+            (if (params.useRunes) relevantRuneStats(params, runeByCharacteristic.keys) else emptySet()) + forcedRuneStats
         if (runeStats.isEmpty()) return RuneModel.EMPTY
 
         val runeVars = mutableMapOf<Equipment, Map<Characteristic, IntVar>>()
@@ -408,6 +433,18 @@ object WakfuBuildSolver {
             capExpr.addTerm(equipVars.getValue(equip), -slots.toLong())
             addLessOrEqual(capExpr.build(), 0L)
             runeVars[equip] = perStat
+        }
+        // Forced runes must be socketed at least once across the build.
+        for (stat in forcedRuneStats) {
+            val countExpr = LinearExpr.newBuilder()
+            var any = false
+            for ((_, perStat) in runeVars) {
+                perStat[stat]?.let {
+                    countExpr.addTerm(it, 1L)
+                    any = true
+                }
+            }
+            if (any) addGreaterOrEqual(countExpr.build(), 1L)
         }
         return RuneModel(runeByCharacteristic, runeVars)
     }
@@ -442,6 +479,106 @@ object WakfuBuildSolver {
             if (scenario.healing) result.add(Characteristic.MASTERY_HEALING)
         }
         return result.intersect(runeCharacteristics)
+    }
+
+    /** Static-conditional sublimation conditions the solver can reify against build stats (research §4a). */
+    private val SUPPORTED_SUB_CONDITIONS =
+        setOf(
+            SublimationConditionType.AP_AT_MOST,
+            SublimationConditionType.AP_AT_LEAST,
+            SublimationConditionType.AP_EXACT,
+            SublimationConditionType.CRIT_AT_MOST,
+            SublimationConditionType.CRIT_AT_LEAST,
+            SublimationConditionType.BLOCK_AT_LEAST,
+            SublimationConditionType.RANGE_AT_MOST,
+            SublimationConditionType.RANGE_AT_LEAST,
+            SublimationConditionType.RANGE_EXACT,
+            SublimationConditionType.DODGE_LT_PCT_OF_LEVEL,
+            SublimationConditionType.SECONDARY_MASTERIES_AT_MOST
+        )
+
+    /** A solver-choosable sub the engine can correctly model in this request's mode/scenario. */
+    private fun isModelableSublimation(
+        sub: Sublimation,
+        params: WakfuBestBuildParams,
+    ): Boolean {
+        if (!sub.solverChoosable) return false
+        // Conversions are handled by a dedicated path; static-conditionals need a supported condition.
+        when (sub.kind) {
+            SublimationKind.CONVERSION -> if (sub.conversion == null) return false
+            SublimationKind.STATIC_CONDITIONAL ->
+                if (sub.condition == null || sub.condition!!.type !in SUPPORTED_SUB_CONDITIONS) return false
+            SublimationKind.FLAT -> {}
+            SublimationKind.COMBAT_CONDITIONAL -> return false
+        }
+        // It must be able to contribute *something* in this mode/scenario.
+        val hasUsableEffect = sub.effects.any { scenarioGateMatches(it.scenarioGate, params) }
+        return hasUsableEffect || sub.conversion != null
+    }
+
+    /**
+     * Whether a scenario-gated effect can fire for this request. Gates are damage-scenario specific, so
+     * a gated effect only counts in max-damage mode when the configured [DamageScenario] matches. Area is
+     * not modeled by [DamageScenario]; it is treated as satisfiable (best-achievable). Ungated effects
+     * always count.
+     */
+    private fun scenarioGateMatches(
+        gate: me.chosante.common.ScenarioGate?,
+        params: WakfuBestBuildParams,
+    ): Boolean {
+        if (gate == null) return true
+        if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return false
+        val s = params.damageScenario
+        gate.rangeBand?.let { if (s.rangeBand.name != it) return false }
+        gate.orientation?.let { if (s.orientation.name != it) return false }
+        if (gate.berserk == true && !s.berserk) return false
+        if (gate.ranged == true && s.rangeBand.name != "DISTANCE") return false
+        gate.minCharacterLevel?.let { if (params.character.level < it) return false }
+        return true
+    }
+
+    /**
+     * Models the chosen/forced sublimations. Each modeled sub gets a [SublimationModel.subVars] boolean.
+     * Epic and relic subs occupy the character-wide epic/relic sublimation slot (≤1 each). Normal subs
+     * reserve 3 socket slots that then cannot hold runes (best-achievable global socket budget, no colour
+     * pinning — see docs/SUBLIMATIONS_LOT3_RESEARCH.md §5 / §6 P7). Effect contributions are folded into
+     * the stat term loop by [StatBuilder]; forced subs apply unconditionally (the user takes responsibility).
+     */
+    private fun CpModel.createSublimationModel(
+        params: WakfuBestBuildParams,
+        allEquips: List<Equipment>,
+        equipVars: Map<Equipment, IntVar>,
+        sublimations: List<Sublimation>,
+    ): SublimationModel {
+        if (sublimations.isEmpty()) return SublimationModel.EMPTY
+        val forcedNames = params.forcedSublimations.map { it.lowercase() }.toSet()
+        val forcedSubs =
+            sublimations.filter { it.name.fr.lowercase() in forcedNames || it.name.en.lowercase() in forcedNames }
+        val choosableSubs =
+            if (!params.useSublimations) {
+                emptyList()
+            } else {
+                sublimations.filter { it !in forcedSubs && isModelableSublimation(it, params) }
+            }
+        if (forcedSubs.isEmpty() && choosableSubs.isEmpty()) return SublimationModel.EMPTY
+
+        val subVars = LinkedHashMap<Sublimation, IntVar>()
+        for (sub in forcedSubs) {
+            val v = newBoolVar("subForced_${sub.stateId}")
+            addEquality(v, 1L)
+            subVars[sub] = v
+        }
+        for (sub in choosableSubs) {
+            subVars[sub] = newBoolVar("sub_${sub.stateId}")
+        }
+
+        // Character-wide epic / relic sublimation slots: at most one each (forced + chosen together).
+        val epicVars = subVars.filterKeys { it.rarity == SublimationRarity.EPIC }.values
+        if (epicVars.isNotEmpty()) addLessOrEqual(LinearExpr.sum(epicVars.toTypedArray()), 1L)
+        val relicVars = subVars.filterKeys { it.rarity == SublimationRarity.RELIC }.values
+        if (relicVars.isNotEmpty()) addLessOrEqual(LinearExpr.sum(relicVars.toTypedArray()), 1L)
+
+        return SublimationModel(subVars, forcedSubs.toSet(), params.character.level)
     }
 
     private fun CpModel.addBuildValidityConstraints(
@@ -537,8 +674,9 @@ object WakfuBuildSolver {
         equipVars: Map<Equipment, IntVar>,
         skillVars: Map<SkillCharacteristic, IntVar>,
         runeModel: RuneModel,
+        subModel: SublimationModel,
     ): IntVar {
-        val statBuilder = StatBuilder(this, params, allEquips, equipVars, skillVars, runeModel)
+        val statBuilder = StatBuilder(this, params, allEquips, equipVars, skillVars, runeModel, subModel)
         val targetStats = params.targetStats
         val targetCharacteristics = targetStats.map { it.characteristic }.toSet()
 
@@ -581,8 +719,9 @@ object WakfuBuildSolver {
         equipVars: Map<Equipment, IntVar>,
         skillVars: Map<SkillCharacteristic, IntVar>,
         runeModel: RuneModel,
+        subModel: SublimationModel,
     ): IntVar {
-        val statBuilder = StatBuilder(this, params, allEquips, equipVars, skillVars, runeModel)
+        val statBuilder = StatBuilder(this, params, allEquips, equipVars, skillVars, runeModel, subModel)
         // External-loop AP probe: pin the build to exactly N AP so each breakpoint can be evaluated.
         params.maxDamageApTarget?.let { addEquality(statBuilder.actionPointVar(), newConstant(it.toLong())) }
         val damageScore = statBuilder.perTurnDamageScore(params.damageScenario, params.character.clazz)
@@ -675,8 +814,9 @@ object WakfuBuildSolver {
         equipVars: Map<Equipment, IntVar>,
         skillVars: Map<SkillCharacteristic, IntVar>,
         runeModel: RuneModel,
+        subModel: SublimationModel,
     ): IntVar {
-        val statBuilder = StatBuilder(this, params, allEquips, equipVars, skillVars, runeModel)
+        val statBuilder = StatBuilder(this, params, allEquips, equipVars, skillVars, runeModel, subModel)
         return statBuilder.precisionScore(params.targetStats)
     }
 
@@ -741,6 +881,7 @@ object WakfuBuildSolver {
         equipVars: Map<Equipment, IntVar>,
         skillVars: Map<SkillCharacteristic, IntVar>,
         runeModel: RuneModel,
+        subModel: SublimationModel,
         scope: ProducerScope<GeneticAlgorithmResult<BuildCombination>>,
         tuning: SolverTuning?,
     ) {
@@ -784,7 +925,7 @@ object WakfuBuildSolver {
                         return
                     }
 
-                    val combination = solutionToBuild(params, allEquips, equipVars, skillVars, runeModel) { value(it) }
+                    val combination = solutionToBuild(params, allEquips, equipVars, skillVars, runeModel, subModel) { value(it) }
                     val actualScore = scoreFor(params, combination)
 
                     val progress = ((System.currentTimeMillis() - startTime).toDouble() / params.searchDuration.inWholeMilliseconds.toDouble() * 100).toInt()
@@ -798,7 +939,7 @@ object WakfuBuildSolver {
             logger.debug { "Solver response stats:\n${solver.responseStats()}" }
 
             if (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL || status == com.google.ortools.sat.CpSolverStatus.FEASIBLE) {
-                val finalComb = solutionToBuild(params, allEquips, equipVars, skillVars, runeModel) { solver.value(it) }
+                val finalComb = solutionToBuild(params, allEquips, equipVars, skillVars, runeModel, subModel) { solver.value(it) }
                 val finalScore = scoreFor(params, finalComb)
                 // Guaranteed delivery (suspending send, not trySend): intermediate best-so-far
                 // emissions are best-effort progress and may be dropped under back-pressure, but the
@@ -832,6 +973,7 @@ object WakfuBuildSolver {
         equipVars: Map<Equipment, IntVar>,
         skillVars: Map<SkillCharacteristic, IntVar>,
         runeModel: RuneModel,
+        subModel: SublimationModel,
         valueOf: (IntVar) -> Long,
     ): BuildCombination {
         val equippedItems = allEquips.filter { valueOf(equipVars.getValue(it)) > 0L }
@@ -852,7 +994,13 @@ object WakfuBuildSolver {
                     }
                 }.filterValues { it.isNotEmpty() }
 
-        return BuildCombination(equippedItems, optimizedSkills, runes)
+        val chosenSublimations =
+            subModel.subVars
+                .filter { valueOf(it.value) > 0L }
+                .keys
+                .toList()
+
+        return BuildCombination(equippedItems, optimizedSkills, runes, chosenSublimations)
     }
 
     private class StatBuilder(
@@ -862,13 +1010,22 @@ object WakfuBuildSolver {
         private val equipVars: Map<Equipment, IntVar>,
         skillVars: Map<SkillCharacteristic, IntVar>,
         private val runeModel: RuneModel,
+        private val subModel: SublimationModel,
     ) {
         private val baseValues = params.character.baseCharacteristicValues
         private val skillTerms = buildSkillTerms(skillVars)
 
         private val prePercentCache = mutableMapOf<Characteristic, IntVar>()
+        private val preSubCache = mutableMapOf<Characteristic, IntVar>()
         private val actualCache = mutableMapOf<Characteristic, IntVar>()
         private val elementCache = mutableMapOf<Pair<Characteristic, List<Characteristic>>, Map<Characteristic, IntVar>>()
+        private val appliesVarCache = mutableMapOf<Sublimation, IntVar>()
+
+        // Sublimation stat contributions folded into the term loop, grouped by the (AP/MP/WP-folded)
+        // characteristic they feed. Built eagerly so prePercentStat sees them; conversions are excluded
+        // here and applied by [conversionContributions]. Conditions reify against [preSubStat] (the
+        // pre-sublimation stat value) to keep the constraint network acyclic.
+        private val subTermsByStat: Map<Characteristic, List<Term>> = buildSublimationTerms()
 
         fun totalActualScore(
             requiredTargets: List<TargetStat>,
@@ -1530,35 +1687,193 @@ object WakfuBuildSolver {
                 }
             }
 
+        /** Item + rune + fixed-skill terms (and base) for [char], excluding sublimations. */
+        private fun baseTermsFor(char: Characteristic): Pair<MutableList<Term>, Long> {
+            val terms = mutableListOf<Term>()
+
+            for (equip in allEquips) {
+                val value = equip.valueFor(char)
+                if (value != 0) {
+                    terms.add(Term(equipVars.getValue(equip), value.toLong()))
+                }
+            }
+
+            // Runes contribute exactly like item stats: a constant value per socketed rune of this
+            // stat (max rune level + WakForge doubling on favoured slots), times the per-item rune
+            // count var. The socket-cap / equipped-only constraints live on those vars (createRuneModel).
+            runeModel.runeByCharacteristic[char]?.let { rune ->
+                for ((equip, perStat) in runeModel.runeVars) {
+                    val runeVar = perStat[char] ?: continue
+                    // Rune level is capped by the carrier ITEM's level, not the character's (fix 36918746).
+                    val coefficient = rune.valueOn(equip.itemType, equip.level).toLong()
+                    if (coefficient != 0L) {
+                        terms.add(Term(runeVar, coefficient))
+                    }
+                }
+            }
+
+            terms.addAll(skillTerms.fixed[char].orEmpty())
+            val base = baseValues[char]?.toLong() ?: 0L
+            return terms to base
+        }
+
         private fun prePercentStat(char: Characteristic): IntVar =
             prePercentCache.getOrPut(char) {
-                val terms = mutableListOf<Term>()
-
-                for (equip in allEquips) {
-                    val value = equip.valueFor(char)
-                    if (value != 0) {
-                        terms.add(Term(equipVars.getValue(equip), value.toLong()))
-                    }
-                }
-
-                // Runes contribute exactly like item stats: a constant value per socketed rune of this
-                // stat (max rune level + WakForge doubling on favoured slots), times the per-item rune
-                // count var. The socket-cap / equipped-only constraints live on those vars (createRuneModel).
-                runeModel.runeByCharacteristic[char]?.let { rune ->
-                    for ((equip, perStat) in runeModel.runeVars) {
-                        val runeVar = perStat[char] ?: continue
-                        val coefficient = rune.valueOn(equip.itemType, equip.level).toLong()
-                        if (coefficient != 0L) {
-                            terms.add(Term(runeVar, coefficient))
-                        }
-                    }
-                }
-
-                terms.addAll(skillTerms.fixed[char].orEmpty())
-
-                val base = baseValues[char]?.toLong() ?: 0L
+                val (terms, base) = baseTermsFor(char)
+                // Sublimation contributions fold in exactly like item/rune stats (FLAT always, STATIC
+                // under a reified condition, CONVERSION moving value between two stats).
+                terms.addAll(subTermsByStat[char].orEmpty())
                 model.sumVar("pre_${char.name}", terms, base, -STAT_ABS_MAX, STAT_ABS_MAX)
             }
+
+        /** Pre-sublimation actual value of [char] (item + rune + skill + base), used to reify conditions. */
+        private fun preSubStat(char: Characteristic): IntVar =
+            preSubCache.getOrPut(char) {
+                val (terms, base) = baseTermsFor(char)
+                model.sumVar("preSub_${char.name}", terms, base, -STAT_ABS_MAX, STAT_ABS_MAX)
+            }
+
+        /** AP/MP/WP folding: a `MAX_*` sublimation effect feeds the corresponding usable stat. */
+        private fun effectiveStat(char: Characteristic): Characteristic =
+            when (char) {
+                Characteristic.MAX_ACTION_POINT -> Characteristic.ACTION_POINT
+                Characteristic.MAX_MOVEMENT_POINT -> Characteristic.MOVEMENT_POINT
+                Characteristic.MAX_WAKFU_POINTS -> Characteristic.WAKFU_POINT
+                else -> char
+            }
+
+        private fun buildSublimationTerms(): Map<Characteristic, List<Term>> {
+            val map = mutableMapOf<Characteristic, MutableList<Term>>()
+            for ((sub, _) in subModel.subVars) {
+                // Combat-conditional subs (only ever forced) reserve their slot/sockets but their
+                // situational effects are not auto-credited to the build (could be penalties / unmet).
+                if (sub.kind == SublimationKind.COMBAT_CONDITIONAL) continue
+                val applies = appliesVar(sub)
+                if (sub.kind == SublimationKind.CONVERSION) {
+                    val conv = sub.conversion ?: continue
+                    // moved = clamp(percent% of the pre-sub `from` stat, >=0), zeroed when not applied.
+                    val raw = percentOf(preSubStat(conv.from), conv.percent, "subConv_${sub.stateId}")
+                    val moved = model.newIntVar(0L, STAT_ABS_MAX, "subConvMoved_${sub.stateId}")
+                    model.addMultiplicationEquality(moved, arrayOf(raw, applies))
+                    map.getOrPut(effectiveStat(conv.to)) { mutableListOf() }.add(Term(moved, 1L))
+                    map.getOrPut(effectiveStat(conv.from)) { mutableListOf() }.add(Term(moved, -1L))
+                    continue
+                }
+                for (effect in sub.effects) {
+                    if (!scenarioGateMatches(effect.scenarioGate, params)) continue
+                    map
+                        .getOrPut(effectiveStat(effect.characteristic)) { mutableListOf() }
+                        .add(Term(applies, effect.value.toLong()))
+                }
+            }
+            return map
+        }
+
+        /**
+         * Boolean that gates a sub's contributions — always its `subVar`. For a solver-chosen
+         * STATIC_CONDITIONAL/CONVERSION sub with a supported condition we additionally constrain
+         * `subVar ≤ condHolds`, so the solver may only choose the sub when it arranges the build to
+         * satisfy the condition (this is what makes it trade stats to unlock lucrative conditions, and
+         * means a chosen sub's effect always applies). Forced subs apply unconditionally.
+         */
+        private fun appliesVar(sub: Sublimation): IntVar =
+            appliesVarCache.getOrPut(sub) {
+                val subVar = subModel.subVars.getValue(sub)
+                val cond = sub.condition
+                if (sub !in subModel.forced && cond != null && cond.type in SUPPORTED_SUB_CONDITIONS) {
+                    model.addLessOrEqual(subVar, reifyCondition(cond))
+                }
+                subVar
+            }
+
+        private fun reifyLe(
+            value: IntVar,
+            n: Long,
+            tag: String,
+        ): IntVar {
+            val b = model.newBoolVar(tag)
+            model.addLessOrEqual(value, n).onlyEnforceIf(b)
+            model.addGreaterOrEqual(value, n + 1).onlyEnforceIf(b.not())
+            return b
+        }
+
+        private fun reifyGe(
+            value: IntVar,
+            n: Long,
+            tag: String,
+        ): IntVar {
+            val b = model.newBoolVar(tag)
+            model.addGreaterOrEqual(value, n).onlyEnforceIf(b)
+            model.addLessOrEqual(value, n - 1).onlyEnforceIf(b.not())
+            return b
+        }
+
+        private fun and(
+            a: IntVar,
+            b: IntVar,
+            tag: String,
+        ): IntVar {
+            val out = model.newBoolVar(tag)
+            model.addMultiplicationEquality(out, arrayOf(a, b))
+            return out
+        }
+
+        /** A reified boolean for a supported [SublimationCondition] over the pre-sublimation build stats. */
+        private fun reifyCondition(cond: me.chosante.common.SublimationCondition): IntVar {
+            val n = (cond.value ?: 0).toLong()
+            val tag = "subCond_${cond.type}_${n}_${appliesVarCache.size}"
+            return when (cond.type) {
+                SublimationConditionType.AP_AT_MOST -> reifyLe(preSubStat(Characteristic.ACTION_POINT), n, tag)
+                SublimationConditionType.AP_AT_LEAST -> reifyGe(preSubStat(Characteristic.ACTION_POINT), n, tag)
+                SublimationConditionType.AP_EXACT ->
+                    and(
+                        reifyLe(preSubStat(Characteristic.ACTION_POINT), n, "${tag}_le"),
+                        reifyGe(preSubStat(Characteristic.ACTION_POINT), n, "${tag}_ge"),
+                        tag
+                    )
+                SublimationConditionType.CRIT_AT_MOST -> reifyLe(preSubStat(Characteristic.CRITICAL_HIT), n, tag)
+                SublimationConditionType.CRIT_AT_LEAST -> reifyGe(preSubStat(Characteristic.CRITICAL_HIT), n, tag)
+                SublimationConditionType.BLOCK_AT_LEAST -> reifyGe(preSubStat(Characteristic.BLOCK_PERCENTAGE), n, tag)
+                SublimationConditionType.RANGE_AT_MOST -> reifyLe(preSubStat(Characteristic.RANGE), n, tag)
+                SublimationConditionType.RANGE_AT_LEAST -> reifyGe(preSubStat(Characteristic.RANGE), n, tag)
+                SublimationConditionType.RANGE_EXACT ->
+                    and(
+                        reifyLe(preSubStat(Characteristic.RANGE), n, "${tag}_le"),
+                        reifyGe(preSubStat(Characteristic.RANGE), n, "${tag}_ge"),
+                        tag
+                    )
+                SublimationConditionType.DODGE_LT_PCT_OF_LEVEL -> {
+                    val threshold = (n * subModel.characterLevel) / 100L
+                    reifyLe(preSubStat(Characteristic.DODGE), threshold - 1, tag)
+                }
+                SublimationConditionType.SECONDARY_MASTERIES_AT_MOST -> {
+                    val sum =
+                        model.sumVar(
+                            "secMast_$tag",
+                            listOf(preSubStat(Characteristic.MASTERY_MELEE), preSubStat(Characteristic.MASTERY_DISTANCE)),
+                            -STAT_ABS_MAX,
+                            STAT_ABS_MAX
+                        )
+                    reifyLe(sum, n, tag)
+                }
+                else -> model.newConstant(1L) // unsupported -> treated as always-on (best-achievable)
+            }
+        }
+
+        /** Non-negative `percent`% of [value] (integer-floored), as a fresh variable. */
+        private fun percentOf(
+            value: IntVar,
+            percent: Int,
+            name: String,
+        ): IntVar {
+            val scaled = model.newIntVar(-PRODUCT_ABS_MAX, PRODUCT_ABS_MAX, "${name}_scaled")
+            model.addEquality(scaled, LinearExpr.term(value, percent.toLong()))
+            val quotient = model.newIntVar(-(PRODUCT_ABS_MAX / 100) - 1, (PRODUCT_ABS_MAX / 100) + 1, "${name}_q")
+            model.addDivisionEquality(quotient, scaled, model.newConstant(100L))
+            val positive = model.newIntVar(0L, STAT_ABS_MAX, "${name}_pos")
+            model.addMaxEquality(positive, arrayOf(quotient, model.newConstant(0L)))
+            return positive
+        }
     }
 
     private data class Term(
@@ -1585,6 +1900,47 @@ object WakfuBuildSolver {
         companion object {
             val EMPTY = RuneModel(emptyMap(), emptyMap())
         }
+    }
+
+    /**
+     * Per-search sublimation modelling: the chosen/forced boolean for each modeled sub, the set of subs
+     * the user forced (applied unconditionally), and the character level. [EMPTY] means no sub is modeled.
+     */
+    private class SublimationModel(
+        val subVars: Map<Sublimation, IntVar>,
+        val forced: Set<Sublimation>,
+        val characterLevel: Int,
+    ) {
+        companion object {
+            val EMPTY = SublimationModel(emptyMap(), emptySet(), 0)
+        }
+    }
+
+    /**
+     * Best-achievable normal-sublimation ↔ rune socket coupling (research P7): a normal sub reserves 3
+     * socket slots that can no longer hold runes, so `Σ runeCount + 3·Σ normalSubChosen ≤ Σ sockets of
+     * equipped items`. This is a global capacity budget (no per-slot colour / doubling pinning), matching
+     * the engine's existing optimistic re-rollable-colours rune model.
+     */
+    private fun CpModel.addNormalSublimationSocketBudget(
+        allEquips: List<Equipment>,
+        equipVars: Map<Equipment, IntVar>,
+        runeModel: RuneModel,
+        subModel: SublimationModel,
+    ) {
+        val normalSubVars = subModel.subVars.filterKeys { it.rarity == SublimationRarity.NORMAL }.values
+        if (normalSubVars.isEmpty()) return
+        val socketedItems = allEquips.filter { it.maxShardSlots > 0 }
+        if (socketedItems.isEmpty()) {
+            // No sockets at all: no normal sub can be hosted.
+            normalSubVars.forEach { addEquality(it, 0L) }
+            return
+        }
+        val budget = LinearExpr.newBuilder()
+        runeModel.runeVars.values.forEach { perStat -> perStat.values.forEach { budget.addTerm(it, 1L) } }
+        normalSubVars.forEach { budget.addTerm(it, 3L) }
+        socketedItems.forEach { budget.addTerm(equipVars.getValue(it), -it.maxShardSlots.toLong()) }
+        addLessOrEqual(budget.build(), 0L)
     }
 
     private data class SkillTerms(

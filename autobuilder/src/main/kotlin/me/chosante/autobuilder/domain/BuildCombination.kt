@@ -4,6 +4,7 @@ import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
+import me.chosante.common.Sublimation
 import me.chosante.common.skills.CharacterSkills
 
 data class BuildCombination(
@@ -11,6 +12,8 @@ data class BuildCombination(
     val characterSkills: CharacterSkills,
     // Runes socketed per equipped item (best-achievable model). Empty when runes are disabled.
     val runes: Map<Equipment, List<RuneType>> = emptyMap(),
+    // Sublimations chosen by the solver (epic/relic/normal) or forced by the user.
+    val sublimations: List<Sublimation> = emptyList(),
 ) {
     fun isValid(): Boolean {
         val numberOfEquipmentByType = equipments.groupingBy { it.itemType }.eachCount()
