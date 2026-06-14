@@ -88,6 +88,40 @@ class SpellRotationTest {
     }
 
     @Test
+    fun `the debuff-aware valuation flips the AP choice an objective-only solve would make`() {
+        // The breakpoint the external loop exists for. Two builds against a 55%-res boss:
+        //   A = 13 AP, mastery 600        (an odd AP that fits "1-AP debuff + an even damage rotation")
+        //   C = 12 AP, mastery 660        (the 13th AP's slot spent on +60 mastery instead)
+        // A damage-ONLY objective prefers C (more mastery, more per-hit). But once Sram's Assassination
+        // debuff is sequenced, A is better — its extra AP lets the debuff fit without dropping a cast.
+        val character = Character(clazz = CharacterClass.SRAM, level = 200, minLevel = 1)
+        val scenario = DamageScenario(element = me.chosante.autobuilder.domain.SpellElement.FIRE, targetResistancePercent = 55)
+
+        fun amulet(
+            ap: Int,
+            mastery: Int,
+        ) = me.chosante.common.Equipment(
+            1,
+            1,
+            1,
+            I18nText("a", "a", "a", "a"),
+            me.chosante.common.Rarity.COMMON,
+            me.chosante.common.ItemType.AMULET,
+            mapOf(me.chosante.common.Characteristic.ACTION_POINT to ap, me.chosante.common.Characteristic.MASTERY_ELEMENTARY_FIRE to mastery)
+        )
+        // base AP is 6, so +7 → 13 AP and +6 → 12 AP.
+        val a = BuildCombination(listOf(amulet(7, 600)), CharacterSkills(200))
+        val c = BuildCombination(listOf(amulet(6, 660)), CharacterSkills(200))
+
+        fun damageOnly(b: BuildCombination) = SpellRotationOptimizer.bestAcrossElements(b, character, CharacterClass.SRAM, scenario).totalExpectedDamage
+
+        fun debuffAware(b: BuildCombination) = SpellRotationOptimizer.bestSequencedRotation(b, character, CharacterClass.SRAM, scenario).totalExpectedDamage
+
+        assertThat(damageOnly(c)).describedAs("objective-only prefers the 12-AP, higher-mastery build").isGreaterThan(damageOnly(a))
+        assertThat(debuffAware(a)).describedAs("debuff-aware prefers the 13-AP build — the breakpoint").isGreaterThan(debuffAware(c))
+    }
+
+    @Test
     fun `forBuild gates the rotation to the class's playable element — Cra has no Water spells`() {
         val character = Character(clazz = CharacterClass.CRA, level = 230, minLevel = 1)
         val build = BuildCombination(equipments = emptyList(), characterSkills = CharacterSkills(230))
