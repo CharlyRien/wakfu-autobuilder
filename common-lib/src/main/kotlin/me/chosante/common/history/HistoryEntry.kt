@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.Rarity
+import me.chosante.common.RuneType
 
 /**
  * The persisted, on-disk shape of a saved build. **Deliberately decoupled from the live engine
@@ -101,4 +102,11 @@ data class ResultSnapshot(
     /** Match percentage (0..100). Stored as Double to preserve the engine's BigDecimal value. */
     val match: Double,
     val optimal: Boolean,
+    /**
+     * Socketed runes per equipped item, keyed by `equipmentId` (the per-item rune list, in socket
+     * order). [RuneType] is `@Serializable`; the displayed enchantment level is derived from the
+     * carrier item's level (see `RuneType.maxLevel`), so it round-trips for free with the equipment.
+     * Empty for rune-less builds and pre-feature saves.
+     */
+    val runes: Map<Int, List<RuneType>> = emptyMap(),
 )

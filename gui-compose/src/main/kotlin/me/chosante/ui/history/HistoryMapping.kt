@@ -76,7 +76,8 @@ fun UiState.toHistoryEntry(
                 skills = build.characterSkills.toFlatMap(),
                 achieved = achieved,
                 match = match.toDouble(),
-                optimal = optimal
+                optimal = optimal,
+                runes = build.runes.entries.associate { (equip, runes) -> equip.equipmentId to runes }
             ),
         zenithUrl = zenithUrl,
         tags = tags,
@@ -117,12 +118,19 @@ fun reconstructSkills(
     return skills
 }
 
-/** Reconstructs the discovered build (equipment + skills) for display when loading an entry. */
-fun HistoryEntry.toBuildCombination(): BuildCombination =
-    BuildCombination(
+/** Reconstructs the discovered build (equipment + skills + socketed runes) for display when loading an entry. */
+fun HistoryEntry.toBuildCombination(): BuildCombination {
+    val equipmentById = result.equipments.associateBy { it.equipmentId }
+    val runes =
+        result.runes
+            .mapNotNull { (equipmentId, runeList) -> equipmentById[equipmentId]?.let { it to runeList } }
+            .toMap()
+    return BuildCombination(
         equipments = result.equipments,
-        characterSkills = reconstructSkills(request.level, result.skills)
+        characterSkills = reconstructSkills(request.level, result.skills),
+        runes = runes
     )
+}
 
 /** Restores the saved target list into displayable [TargetRow]s (catalog-backed, like defaults). */
 fun HistoryEntry.toTargetRows(): List<TargetRow> = request.targets.mapNotNull { statDefFor(it.characteristic)?.toRow(it.value)?.copy(weight = it.weight) }

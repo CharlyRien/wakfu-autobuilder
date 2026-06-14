@@ -83,6 +83,7 @@ import me.chosante.common.Characteristic.WILLPOWER
 import me.chosante.common.Characteristic.WISDOM
 import me.chosante.common.Equipment
 import me.chosante.common.Rarity
+import me.chosante.common.RuneType
 import me.chosante.common.skills.Assignable
 import me.chosante.createZenithBuild
 import kotlin.system.exitProcess
@@ -526,6 +527,10 @@ HUPPERMAGE"""
                         terminal.println(it.characterSkills.agility.asASCIITable())
                         terminal.println("Major")
                         terminal.println(it.characterSkills.major.asASCIITable())
+                        if (it.runes.isNotEmpty()) {
+                            terminal.println("Runes")
+                            terminal.println(it.runes.asRunesASCIITable())
+                        }
                     }
 
             if (createZenithBuild) {
@@ -575,6 +580,37 @@ HUPPERMAGE"""
                 cellBorders = Borders.TOP_BOTTOM
                 this@asASCIITable.forEach {
                     row(it.name.en, it.itemType, it.level, it.rarity)
+                }
+            }
+        }
+
+    // Socketed runes per item. The enchantment level is capped by the carrier item's level
+    // (Ankama's table), so it is derived per row from RuneType.maxLevel(item level).
+    private fun Map<Equipment, List<RuneType>>.asRunesASCIITable() =
+        table {
+            borderType = SQUARE_DOUBLE_SECTION_SEPARATOR
+            borderStyle = rgb("#4b25b9")
+            align = TextAlign.RIGHT
+            tableBorders = Borders.NONE
+            header {
+                style = TextColors.brightRed + TextStyles.bold
+                row("Item", "Rune", "Count", "Enchant level") { cellBorders = Borders.BOTTOM }
+            }
+            body {
+                style = TextColors.green
+                column(0) {
+                    align = TextAlign.LEFT
+                    cellBorders = Borders.ALL
+                    style = TextColors.brightBlue
+                }
+                rowStyles(TextStyle(), TextStyles.dim.style)
+                cellBorders = Borders.TOP_BOTTOM
+                this@asRunesASCIITable.forEach { (equipment, runes) ->
+                    runes
+                        .groupBy { it.characteristic }
+                        .forEach { (characteristic, sameStat) ->
+                            row(equipment.name.en, characteristic, sameStat.size, sameStat.first().maxLevel(equipment.level))
+                        }
                 }
             }
         }

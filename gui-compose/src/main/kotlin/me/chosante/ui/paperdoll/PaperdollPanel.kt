@@ -573,7 +573,13 @@ private fun ItemTooltip(
             runes
                 .groupBy { it.characteristic }
                 .forEach { (_, sameStatRunes) ->
-                    TooltipRuneRow(rune = sameStatRunes.first(), count = sameStatRunes.size, lang = lang)
+                    TooltipRuneRow(
+                        rune = sameStatRunes.first(),
+                        count = sameStatRunes.size,
+                        // Enchantment level is gated by the carrier item's level (Ankama's table).
+                        level = sameStatRunes.first().maxLevel(equipment.level),
+                        lang = lang
+                    )
                 }
         }
     }
@@ -628,6 +634,7 @@ private fun RuneShape(
 private fun TooltipRuneRow(
     rune: RuneType,
     count: Int,
+    level: Int,
     lang: Lang,
 ) {
     Row(
@@ -650,6 +657,16 @@ private fun TooltipRuneRow(
             modifier = Modifier.weight(1f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
+        )
+        // Enchantment level, capped by the carrier item's level (e.g. "Lv 3").
+        Text(
+            text = "${tr(Tr.LEVEL_PREFIX_SHORT)} $level",
+            style =
+                WTypography.labelSmall.copy(
+                    fontFamily = WType.mono,
+                    fontWeight = FontWeight.SemiBold,
+                    color = WColor.faint
+                )
         )
     }
 }
