@@ -81,7 +81,7 @@ object FindMaxDamageScoring {
      * scorer both prefer constraint-satisfying builds. Returns 1 when every required target is met (or
      * none are requested).
      */
-    private fun requiredConstraintPenaltyFactor(
+    internal fun requiredConstraintPenaltyFactor(
         targetStats: TargetStats,
         stats: Map<Characteristic, Int>,
     ): BigDecimal {

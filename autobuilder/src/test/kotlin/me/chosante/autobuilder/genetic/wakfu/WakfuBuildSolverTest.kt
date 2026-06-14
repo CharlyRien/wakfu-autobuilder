@@ -1147,9 +1147,16 @@ class WakfuBuildSolverTest {
                 )
             val scenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.BACK)
             val targetStats = TargetStats(emptyList())
+            // The objective is now spell-aware (per-turn rotation damage), so the exhaustive reference
+            // uses the same rotation scorer the solver does.
             val exhaustive =
                 allValidCombinations(equipments, characterSkills)
-                    .maxOf { FindMaxDamageScoring.computeScore(targetStats, it, character.baseCharacteristicValues, scenario) }
+                    .maxOf {
+                        me.chosante.autobuilder.domain.SpellRotationOptimizer
+                            .bestAcrossElements(it, character, character.clazz, scenario)
+                            .totalExpectedDamage
+                            .toBigDecimal()
+                    }
 
             val params =
                 WakfuBestBuildParams(
@@ -1172,6 +1179,68 @@ class WakfuBuildSolverTest {
 
             assertThat(solverBest.individual.isValid()).isTrue()
             assertThat(solverBest.matchPercentage).isGreaterThanOrEqualTo(exhaustive)
+        }
+
+    @Test
+    fun `boss-aware max-damage refuses the boss's weak element when the class can't play it`(): Unit =
+        runBlocking {
+            // The headline validation: a Cra vs a WATER-weak boss must NOT be handed a Water build —
+            // Cra has no Water spells. A naive per-hit objective would stack Water mastery to exploit
+            // the weakness; the spell-aware objective gates Water out (zero throughput) and instead
+            // plays an element the Cra actually has spells in.
+            val level = 200
+            val character = Character(CharacterClass.CRA, level, 1, CharacterSkills(level))
+            val waterAmulet = equipment(1, ItemType.AMULET, "WaterStuff", mapOf(Characteristic.MASTERY_ELEMENTARY_WATER to 400))
+            val fireAmulet = equipment(2, ItemType.AMULET, "FireStuff", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 200))
+            val pool = listOf(waterAmulet, fireAmulet).groupBy { it.itemType }
+
+            // Boss is hugely weak to Water (the naive trap) but heavily resists Earth & Air, so among the
+            // elements Cra CAN play (Fire/Earth/Air) Fire is the best — the solver should land there.
+            val scenario =
+                DamageScenario(
+                    rangeBand = RangeBand.DISTANCE,
+                    orientation = Orientation.FACE,
+                    elementResistances =
+                        mapOf(
+                            SpellElement.WATER to -90,
+                            SpellElement.FIRE to 0,
+                            SpellElement.EARTH to 90,
+                            SpellElement.AIR to 90
+                        )
+                )
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = TargetStats(emptyList()),
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                    useRunes = false,
+                    damageScenario = scenario
+                )
+            val best =
+                WakfuBuildSolver
+                    .optimize(params, pool, WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            // Despite the Water weakness + a strong Water-mastery item, the solver picks the Fire item,
+            // because Cra has Fire spells and no Water spells.
+            assertThat(
+                best.individual.equipments
+                    .single()
+                    .name.fr
+            ).isEqualTo("FireStuff")
+
+            // And the chosen playable element is not Water.
+            val chosen =
+                me.chosante.autobuilder.domain.SpellRotationOptimizer
+                    .bestAcrossElements(best.individual, character, CharacterClass.CRA, scenario)
+            assertThat(chosen.element).isNotEqualTo(me.chosante.common.SpellElement.WATER)
+            assertThat(chosen.totalExpectedDamage).isGreaterThan(0.0)
         }
 
     private fun assertSolverReachesExhaustiveOptimum(

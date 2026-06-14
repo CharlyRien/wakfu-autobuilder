@@ -39,6 +39,10 @@ object BuildSpellDamage {
                 masteryElementsWanted = mapOf(element.masteryCharacteristic to 1),
                 resistanceElementsWanted = emptyMap()
             )
+                // The generic "+all elements" mastery is now folded into the element key above, so drop
+                // the standalone entry — otherwise SpellDamage (which also adds it) would count it twice.
+                .toMutableMap()
+                .apply { remove(me.chosante.common.Characteristic.MASTERY_ELEMENTARY) }
         return SpellDamage.expectedDamage(
             spell = spell,
             stats = stats,

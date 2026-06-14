@@ -60,7 +60,23 @@ data class DamageScenario(
     val targetResistancePercent: Int = 0,
     // Spell base hit, used only to scale the displayed expected-damage number into a realistic range.
     val baseDamage: Int = 100,
+    /**
+     * Boss-aware mode: the target's per-element resistance %. When set, the spell-aware max-damage
+     * solver optimizes over **all four elements** (each with its own resistance), so it picks the best
+     * *playable* element given both the boss's weakness and the class's actual spell kit — instead of
+     * the single fixed [element]. Null ⇒ optimize only [element] (with [targetResistancePercent]).
+     */
+    val elementResistances: Map<SpellElement, Int>? = null,
 ) {
+    /**
+     * The (element, resistance%) pairs the max-damage objective/scorer optimize over: every element in
+     * [elementResistances] when boss-aware, else just the single [element] with [targetResistancePercent].
+     */
+    fun candidateElements(): List<Pair<SpellElement, Int>> =
+        elementResistances
+            ?.let { res -> SpellElement.entries.map { it to (res[it] ?: 0) } }
+            ?: listOf(element to targetResistancePercent)
+
     companion object {
         const val MAX_RESISTANCE_PERCENT = 90
     }

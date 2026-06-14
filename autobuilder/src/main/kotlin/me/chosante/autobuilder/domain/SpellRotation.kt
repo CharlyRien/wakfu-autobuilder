@@ -177,6 +177,56 @@ object SpellRotationOptimizer {
         return bestRotation(scored, budget, element, maxCastsPerSpell)
     }
 
+    /**
+     * Best rotation over **all candidate elements** of [scenario] (see [DamageScenario.candidateElements]):
+     * runs [forBuild] per element and keeps the highest-damage one. This is the boss-aware element choice
+     * — the winning rotation's [SpellRotation.element] is the best *playable* element given both the boss's
+     * per-element resistance and the class's spell kit. Used by the max-damage scorer; mirrors the solver
+     * objective's `max over elements`.
+     */
+    fun bestAcrossElements(
+        build: BuildCombination,
+        character: Character,
+        clazz: CharacterClass,
+        scenario: DamageScenario,
+        apBudget: Int? = null,
+    ): SpellRotation =
+        scenario
+            .candidateElements()
+            .map { (element, resistance) ->
+                forBuild(
+                    build = build,
+                    character = character,
+                    clazz = clazz,
+                    scenario = scenario.copy(element = element, targetResistancePercent = resistance),
+                    apBudget = apBudget
+                )
+            }.maxByOrNull { it.totalExpectedDamage }
+            ?: SpellRotation(null, apBudget ?: 0, 0, emptyList(), 0.0)
+
+    /**
+     * Build-independent per-AP throughput table for [spells]: `table[ap]` = the maximum total **base**
+     * damage castable within `ap` AP (unbounded knapsack on each spell's base damage / AP cost). Index
+     * `0..maxAp`. This is the spell-selection the CP-SAT objective looks up by the build's AP variable —
+     * the per-build mastery multiplier is common to all same-element spells, so it factors out and the
+     * knapsack stays build-independent. Spells without an AP cost or base damage are skipped.
+     */
+    fun baseThroughputTable(
+        spells: List<Spell>,
+        maxAp: Int,
+    ): LongArray {
+        val items = spells.mapNotNull { s -> s.apCost?.let { ap -> s.baseDamage?.let { base -> ap to base.toLong() } } }
+        val table = LongArray(maxAp + 1)
+        for (ap in 1..maxAp) {
+            var best = table[ap - 1]
+            for ((cost, base) in items) {
+                if (cost in 1..ap) best = maxOf(best, table[ap - cost] + base)
+            }
+            table[ap] = best
+        }
+        return table
+    }
+
     private fun resolvedActionPoints(
         build: BuildCombination,
         character: Character,
