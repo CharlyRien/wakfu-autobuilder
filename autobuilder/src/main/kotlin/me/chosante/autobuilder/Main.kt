@@ -484,6 +484,31 @@ HUPPERMAGE"""
         help = "max-damage mode: spell base hit used to scale the displayed expected-damage figure (default 100)."
     ).int().default(100)
 
+    private val bossResistances: Map<SpellElement, Int>? by option(
+        "--boss-resistances",
+        help =
+            "max-damage BOSS mode: the target's per-element resistance %, e.g. " +
+                "'fire:0,water:-90,earth:50,air:50' (negative = weakness). When set, the solver optimizes " +
+                "over ALL elements and picks the best one the class can actually play (jointly with gear)."
+    ).convert { raw ->
+        raw
+            .split(",")
+            .mapNotNull { token ->
+                val (name, value) = token.split(":").map { it.trim() }.let { it.getOrNull(0) to it.getOrNull(1) }
+                val element =
+                    when (name?.lowercase()) {
+                        "fire", "feu" -> SpellElement.FIRE
+                        "water", "eau" -> SpellElement.WATER
+                        "earth", "terre" -> SpellElement.EARTH
+                        "air", "wind" -> SpellElement.AIR
+                        else -> null
+                    }
+                val resistance = value?.toIntOrNull()
+                if (element != null && resistance != null) element to resistance else null
+            }.toMap()
+            .ifEmpty { fail("Could not parse --boss-resistances; use e.g. 'fire:0,water:-90,earth:50,air:50'") }
+    }
+
     override fun run() {
         // Contradictory level bounds (min above max) match no normal item — the engine's level
         // filter keeps items with min <= itemLevel <= max — so the solver would silently fall back
@@ -556,7 +581,8 @@ HUPPERMAGE"""
                 healing = scenarioHealing,
                 critCapPercent = scenarioCritCap,
                 targetResistancePercent = scenarioEnemyResistance,
-                baseDamage = scenarioBaseDamage
+                baseDamage = scenarioBaseDamage,
+                elementResistances = bossResistances
             )
 
         runBlocking {
@@ -715,11 +741,14 @@ private fun spellRotationReport(
     character: Character,
     scenario: DamageScenario,
 ): String {
-    val rotation: SpellRotation = SpellRotationOptimizer.forBuild(build, character, character.clazz, scenario)
-    val header = "Optimal spell rotation (${scenario.element.name.lowercase()}, ${rotation.apBudget} AP)"
+    // bestAcrossElements is boss-aware: with --boss-resistances it picks the best *playable* element
+    // given the boss profile and the class kit; otherwise it's the single --scenario-element.
+    val rotation: SpellRotation = SpellRotationOptimizer.bestAcrossElements(build, character, character.clazz, scenario)
+    val chosenElement = rotation.element?.name?.lowercase() ?: scenario.element.name.lowercase()
+    val header = "Optimal spell rotation ($chosenElement, ${rotation.apBudget} AP)"
     if (rotation.isEmpty) {
-        return "$header\n  No playable ${scenario.element.name.lowercase()} damage spells for " +
-            "${character.clazz.name.lowercase()} in the dataset — try another --scenario-element."
+        return "$header\n  No playable damage spells for ${character.clazz.name.lowercase()} in the " +
+            "candidate element(s) — try another --scenario-element / --boss-resistances."
     }
     val lines =
         rotation.casts.joinToString("\n") { cast ->
