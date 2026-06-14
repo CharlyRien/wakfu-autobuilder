@@ -106,6 +106,7 @@ fun AppShell(
                         Screen.Library ->
                             LibraryScreen(
                                 ui = ui,
+                                onImport = model::requestImport,
                                 onLoad = model::loadBuild,
                                 onCompare = model::startCompare,
                                 onDuplicate = model::duplicateBuild,
@@ -167,7 +168,10 @@ fun AppShell(
                 onCreateTag = model::createTag,
                 onRenameTag = model::renameTag,
                 onDeleteTag = model::deleteTag,
-                onConfirmReSearch = model::confirmReSearch
+                onConfirmReSearch = model::confirmReSearch,
+                onImportBuild = model::importBuild,
+                validateImport = model::canParseImport,
+                onClipboardText = model::clipboardText
             )
         }
     }
@@ -234,7 +238,8 @@ private fun BuilderBody(
                 ui = ui,
                 onOpenZenith = model::openZenithBuild,
                 onCopyZenith = model::copyZenithLink,
-                onSaveBuild = model::requestSaveBuild
+                onSaveBuild = model::requestSaveBuild,
+                onExport = model::exportBuild
             )
         }
     }

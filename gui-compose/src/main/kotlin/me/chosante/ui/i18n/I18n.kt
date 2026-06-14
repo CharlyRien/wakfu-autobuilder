@@ -132,6 +132,7 @@ enum class Tr(
     OPEN_IN_ZENITH("Open in Zenith ↗", "Ouvrir dans Zenith ↗"),
     OPENING("Opening...", "Ouverture..."),
     COPY_BUILD_LINK("Copy build link", "Copier le lien"),
+    EXPORT_BUILD("Export build", "Exporter le build"),
     NO_BUILD_YET("No build yet", "Aucun build"),
     NO_BUILD_HINT(
         "Set your target stats & constraints on the left, then hit Search. " +
@@ -162,11 +163,25 @@ enum class Tr(
     RUNES("Runes", "Châsses"),
     LOADING_ITEMS("Loading item database…", "Chargement de la base d'objets…"),
 
+    // Import-build dialog
+    IMPORT_DIALOG_TITLE("Import a build", "Importer un build"),
+    IMPORT_DIALOG_HINT(
+        "Paste a build exported from this app (input + result). It's added to your library and opened.",
+        "Colle un build exporté depuis l'app (entrée + résultat). Il est ajouté à ta bibliothèque et ouvert."
+    ),
+    IMPORT_PLACEHOLDER("Paste the exported build here…", "Colle ici le build exporté…"),
+    IMPORT_PASTE("Paste", "Coller"),
+    IMPORT_INVALID("That doesn't look like an exported build.", "Cela ne ressemble pas à un build exporté."),
+    IMPORT_CONFIRM("Import", "Importer"),
+    IMPORTED_BUILD_NAME("Imported build", "Build importé"),
+
     // Toasts (read off the composition by the state holder)
     TOAST_ZENITH_COPIED("Zenith link copied", "Lien Zenith copié"),
     TOAST_ZENITH_READY("Zenith build ready", "Build Zenith prêt"),
     TOAST_BUILD_SAVED("Build saved", "Build enregistré"),
     TOAST_BUILD_DUPLICATED("Build duplicated", "Build dupliqué"),
+    TOAST_BUILD_EXPORTED("Build copied to clipboard", "Build copié dans le presse-papiers"),
+    TOAST_BUILD_IMPORTED("Build imported", "Build importé"),
 
     // Navigation / active build
     NAV_BUILDER("Builder", "Builder"),
@@ -190,6 +205,7 @@ enum class Tr(
     // Library
     LIBRARY_TITLE("My Builds", "Mes builds"),
     LIBRARY_SUBTITLE("Saved locally on this computer", "Enregistrés localement sur cet ordinateur"),
+    IMPORT_BUILD("⤓ Import", "⤓ Importer"),
     LIBRARY_EMPTY("No saved builds yet", "Aucun build enregistré"),
     LIBRARY_EMPTY_HINT(
         "Run a search in the Builder, then hit Save — your builds show up here.",

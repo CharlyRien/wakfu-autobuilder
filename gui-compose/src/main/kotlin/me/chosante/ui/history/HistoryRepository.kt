@@ -3,7 +3,6 @@ package me.chosante.ui.history
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
 import me.chosante.common.history.HistoryEntry
 import java.nio.file.Files
 import java.nio.file.Path
@@ -58,12 +57,9 @@ class HistoryRepository(
 ) {
     private val historyDir: Path = baseDir.resolve("history")
 
-    private val json =
-        Json {
-            prettyPrint = true
-            ignoreUnknownKeys = true
-            encodeDefaults = true
-        }
+    // Reuses the shared [historyJson] codec (see HistoryMapping) so the on-disk format and the
+    // clipboard export/import stay byte-for-byte compatible.
+    private val json = historyJson
 
     /**
      * Loads every saved build, newest first. Corrupt or unreadable files are skipped (never throw)

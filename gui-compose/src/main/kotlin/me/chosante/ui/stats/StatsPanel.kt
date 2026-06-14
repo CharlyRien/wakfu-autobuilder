@@ -65,6 +65,7 @@ fun StatsPanel(
     onOpenZenith: () -> Unit,
     onCopyZenith: () -> Unit,
     onSaveBuild: () -> Unit,
+    onExport: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
@@ -90,7 +91,8 @@ fun StatsPanel(
                     ui = ui,
                     onOpenZenith = onOpenZenith,
                     onCopyZenith = onCopyZenith,
-                    onSaveBuild = onSaveBuild
+                    onSaveBuild = onSaveBuild,
+                    onExport = onExport
                 )
                 MasterySummary(ui)
                 DesiredVsAchieved(ui)
@@ -613,6 +615,7 @@ private fun ActionsCard(
     onOpenZenith: () -> Unit,
     onCopyZenith: () -> Unit,
     onSaveBuild: () -> Unit,
+    onExport: () -> Unit,
 ) {
     ResultCard {
         if (ui.error != null) {
@@ -642,6 +645,17 @@ private fun ActionsCard(
             enabled = ui.phase == Phase.Done && ui.zenith != ZenithState.Loading,
             borderColor = WColor.border,
             onClick = onCopyZenith
+        )
+        Spacer(modifier = Modifier.height(9.dp))
+        // Copies the whole build (request + result) as JSON so testers can hand it back without a
+        // screenshot; re-imported from the library's Import button. Independent of the Zenith link.
+        ActionButton(
+            text = tr(Tr.EXPORT_BUILD),
+            color = Color.Transparent,
+            contentColor = WColor.accent2,
+            enabled = ui.phase == Phase.Done && ui.build != null,
+            borderColor = WColor.border,
+            onClick = onExport
         )
         ui.zenithUrl?.let { link ->
             Text(
