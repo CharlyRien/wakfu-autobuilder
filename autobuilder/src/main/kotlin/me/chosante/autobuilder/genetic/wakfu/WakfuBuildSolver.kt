@@ -613,13 +613,18 @@ object WakfuBuildSolver {
         val solver = CpSolver()
         solver.parameters.logSearchProgress = false
         if (tuning == null) {
-            // Production: a parallel portfolio across all cores (CP-SAT's equivalent of the GA's
-            // parallel scoring), bounded by the user's wall-clock search duration. Presolve is capped
-            // because full presolve on this objective never terminates within that budget; the
-            // prefiltered (small) model keeps even a light presolve effective.
+            // Production: a parallel portfolio (CP-SAT's equivalent of the GA's parallel scoring),
+            // bounded by the user's wall-clock search duration. Presolve is capped because full
+            // presolve on this objective never terminates within that budget; the prefiltered
+            // (small) model keeps even a light presolve effective.
+            //
+            // We deliberately leave one core for the host: CP-SAT spawns this many *native* threads
+            // and pins them at 100%, which otherwise starves the Compose render thread / EDT and
+            // makes the GUI window visibly freeze during a search. One fewer worker is a negligible
+            // throughput loss next to a responsive UI (and keeps the terminal responsive for the CLI).
             solver.parameters.maxPresolveIterations = 1
             solver.parameters.maxTimeInSeconds = params.searchDuration.inWholeSeconds.toDouble()
-            solver.parameters.numSearchWorkers = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
+            solver.parameters.numSearchWorkers = (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)
         } else {
             // Deterministic, machine-independent solve for tests — see [SolverTuning]. A fixed worker
             // count + seed + a deterministic-time budget (not wall-clock) make CP-SAT reach the same
