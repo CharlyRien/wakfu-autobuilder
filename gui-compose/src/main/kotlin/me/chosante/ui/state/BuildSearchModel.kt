@@ -547,6 +547,23 @@ class BuildSearchModel(
             )
         job =
             scope.launch(Dispatchers.Default) {
+                // The CP-SAT solver only reports progress when it finds a *better* solution, which can
+                // be many seconds apart — or stop entirely once the first good build is found — so the
+                // bar would sit frozen and the app looks dead mid-search. The budget is wall-clock, so
+                // we drive the bar smoothly from elapsed time here; the solver callbacks below keep
+                // refreshing the actual build/mastery. Child of `job`, so it dies with the search.
+                val searchStartMs = clock()
+                val searchDurationMs = params.searchDuration.inWholeMilliseconds.coerceAtLeast(1)
+                val progressTicker =
+                    launch(mainDispatcher) {
+                        while (isActive) {
+                            if (ui.phase == Phase.Searching) {
+                                val pct = ((clock() - searchStartMs).toDouble() / searchDurationMs * 100).toInt().coerceIn(0, 99)
+                                if (pct > ui.progress) ui = ui.copy(progress = pct)
+                            }
+                            delay(120)
+                        }
+                    }
                 try {
                     var hasResult = false
                     buildFinder(params)
@@ -564,7 +581,8 @@ class BuildSearchModel(
                                 val landedEquipmentId = newlyLandedEquipmentId(ui.build, result.individual)
                                 ui =
                                     ui.copy(
-                                        progress = result.progressPercentage,
+                                        // `progress` is driven smoothly by progressTicker (time-based);
+                                        // the solver only emits on improvements, so don't set it here.
                                         match = result.matchPercentage,
                                         optimal = result.isOptimal,
                                         build = result.individual,
@@ -586,7 +604,9 @@ class BuildSearchModel(
                         }
                     withContext(mainDispatcher) {
                         if (ui.phase == Phase.Searching && hasResult) {
-                            ui = ui.copy(phase = Phase.Done, lastLandedEquipmentId = null)
+                            // Snap the time-based bar to a clean 100% on completion (the solver may
+                            // have proven the optimum well before the wall-clock budget ran out).
+                            ui = ui.copy(phase = Phase.Done, progress = 100, lastLandedEquipmentId = null)
                         } else if (ui.phase == Phase.Searching) {
                             ui =
                                 ui.copy(
@@ -608,6 +628,8 @@ class BuildSearchModel(
                     withContext(mainDispatcher) {
                         ui = ui.copy(phase = Phase.Idle, error = message)
                     }
+                } finally {
+                    progressTicker.cancel()
                 }
             }
     }

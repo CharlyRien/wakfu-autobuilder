@@ -1,5 +1,11 @@
 package me.chosante.ui.shell
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -19,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.DropdownMenu
@@ -105,7 +112,15 @@ fun TopBar(
                     isError = ui.minLevel > ui.level
                 )
                 Spacer(modifier = Modifier.width(22.dp))
-                TopMeter(label = tr(Tr.PROGRESS), value = "${ui.progress}%", fill = ui.progress / 100f, color = WColor.accent2)
+                TopMeter(
+                    label = tr(Tr.PROGRESS),
+                    value = "${ui.progress}%",
+                    fill = ui.progress / 100f,
+                    color = WColor.accent2,
+                    // A pulsing dot while the engine runs: the bar already advances on a timer, this is
+                    // a second, always-visible "still working" cue so the app never looks frozen.
+                    pulsing = ui.phase == Phase.Searching
+                )
                 Spacer(modifier = Modifier.width(16.dp))
                 if (ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) {
                     // Most-masteries: no exact-target "% match"; show the cumulated requested mastery.
@@ -407,11 +422,35 @@ private fun TopMeter(
     value: String,
     fill: Float?,
     color: androidx.compose.ui.graphics.Color,
+    pulsing: Boolean = false,
 ) {
     Column(modifier = Modifier.width(112.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(text = label, style = WTypography.labelSmall)
             Spacer(modifier = Modifier.weight(1f))
+            if (pulsing) {
+                // Gently breathing dot — an unmistakable "the search is alive" signal that, unlike the
+                // bar, stays visible even when progress is near 0 or momentarily static.
+                val transition = rememberInfiniteTransition(label = "search-pulse")
+                val dotAlpha by transition.animateFloat(
+                    initialValue = 0.2f,
+                    targetValue = 1f,
+                    animationSpec =
+                        infiniteRepeatable(
+                            animation = tween(durationMillis = 750, easing = LinearEasing),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                    label = "search-pulse-alpha"
+                )
+                Box(
+                    modifier =
+                        Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(color.copy(alpha = dotAlpha))
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+            }
             Text(
                 text = value,
                 style =
