@@ -40,10 +40,13 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.runBlocking
 import me.chosante.ZenithInputParameters
+import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.Orientation
 import me.chosante.autobuilder.domain.RangeBand
 import me.chosante.autobuilder.domain.SpellElement
+import me.chosante.autobuilder.domain.SpellRotation
+import me.chosante.autobuilder.domain.SpellRotationOptimizer
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
@@ -615,6 +618,10 @@ HUPPERMAGE"""
                         }
                     }
 
+            if (computationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+                terminal.println(spellRotationReport(bestCombination, character, damageScenario))
+            }
+
             if (createZenithBuild) {
                 try {
                     val zenithInputParameters =
@@ -696,6 +703,33 @@ HUPPERMAGE"""
                 }
             }
         }
+}
+
+/**
+ * Human-readable "best spells for this build's AP" report appended to the max-damage CLI output.
+ * Uses the build's real AP and the class's actual spells in the scenario element (see
+ * [SpellRotationOptimizer]).
+ */
+private fun spellRotationReport(
+    build: BuildCombination,
+    character: Character,
+    scenario: DamageScenario,
+): String {
+    val rotation: SpellRotation = SpellRotationOptimizer.forBuild(build, character, character.clazz, scenario)
+    val header = "Optimal spell rotation (${scenario.element.name.lowercase()}, ${rotation.apBudget} AP)"
+    if (rotation.isEmpty) {
+        return "$header\n  No playable ${scenario.element.name.lowercase()} damage spells for " +
+            "${character.clazz.name.lowercase()} in the dataset — try another --scenario-element."
+    }
+    val lines =
+        rotation.casts.joinToString("\n") { cast ->
+            "  ${cast.count}× ${cast.spell.name.en} " +
+                "(${cast.apCost} AP, ~${cast.expectedDamagePerCast.toLong()} dmg/cast) → ~${cast.totalExpectedDamage.toLong()}"
+        }
+    return "$header\n$lines\n" +
+        "  Total: ~${rotation.totalExpectedDamage.toLong()} expected damage/turn " +
+        "(${rotation.apUsed}/${rotation.apBudget} AP used)\n" +
+        "  Note: per-turn cast limits aren't modeled yet — treat as an upper-bound suggestion."
 }
 
 private fun Map<Equipment, List<RuneType>>.asRunesASCIITable() =
