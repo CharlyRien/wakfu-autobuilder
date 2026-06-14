@@ -51,7 +51,7 @@ suspend fun ZenithInputParameters.createZenithBuild() =
                                     runeId = rune.id,
                                     position = index,
                                     side = sideValue,
-                                    level = rune.maxLevel(character.level)
+                                    level = rune.maxLevel(equipment.level)
                                 )
                             }
                         }

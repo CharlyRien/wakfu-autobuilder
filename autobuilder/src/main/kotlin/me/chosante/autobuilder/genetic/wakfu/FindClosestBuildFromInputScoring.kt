@@ -168,12 +168,11 @@ fun computeCharacteristicsValues(
     // carrier item's favoured slots), folded into the fixed sum before the elemental folding and the
     // percent pass — exactly as the OR-Tools solver adds them in StatBuilder.prePercentStat, so the
     // recomputed score matches the solver's objective.
-    val characterLevel = buildCombination.characterSkills.level
     val runeContributions =
         buildMap<Characteristic, Int> {
             buildCombination.runes.forEach { (equipment, runes) ->
                 runes.forEach { rune ->
-                    merge(rune.characteristic, rune.valueOn(equipment.itemType, characterLevel), Int::plus)
+                    merge(rune.characteristic, rune.valueOn(equipment.itemType, equipment.level), Int::plus)
                 }
             }
         }
