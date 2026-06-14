@@ -852,7 +852,7 @@ class WakfuBuildSolverTest {
     // ---------------------------------------------------------------------------------------------
 
     @Test
-    fun `rune value uses max level for the character and doubles only on favoured slots`() {
+    fun `rune value uses the item-level-capped max level and doubles only on favoured slots`() {
         // Distance-mastery rune: favoured slots (doubleBonusPosition) are belt (rawId 10) and the
         // primary weapon (rawId 15). It doubles only there.
         val distanceRune =
@@ -864,13 +864,37 @@ class WakfuBuildSolverTest {
                 doubleBonusPosition = listOf(10, 15),
                 gfxId = 0
             )
-        // Level 245 -> max rune level 11 -> base mastery value 33.
+        // Item level 245 -> max enchant level 11 -> base mastery value 33.
         assertThat(distanceRune.valueOn(ItemType.AMULET, 245)).isEqualTo(33)
         assertThat(distanceRune.valueOn(ItemType.BELT, 245)).isEqualTo(66)
         assertThat(distanceRune.valueOn(ItemType.TWO_HANDED_WEAPONS, 245)).isEqualTo(66)
-        // Level gating: at level 1 only rune level 1 is usable -> base value 1 (doubled to 2 on a belt).
+        // Item-level gating: a level-1 item caps at enchant level 1 -> base value 1 (doubled to 2 on a belt).
         assertThat(distanceRune.valueOn(ItemType.AMULET, 1)).isEqualTo(1)
         assertThat(distanceRune.valueOn(ItemType.BELT, 1)).isEqualTo(2)
+    }
+
+    @Test
+    fun `rune max level is capped by the carrier item level, not the character level`() {
+        // Regression for the level-50 amulet getting a level-3 shard: the enchant level cap follows
+        // the item's level per Ankama's table (lvl 2 needs item >= 36, lvl 3 needs item >= 51, ...).
+        val rune =
+            RuneType(27098, I18nText("d", "d", "d", "d"), RuneColor.RED, Characteristic.MASTERY_DISTANCE, listOf(10, 15), 0)
+
+        assertThat(rune.maxLevel(1)).isEqualTo(1)
+        assertThat(rune.maxLevel(35)).isEqualTo(1)
+        assertThat(rune.maxLevel(36)).isEqualTo(2)
+        assertThat(rune.maxLevel(50)).isEqualTo(2) // the reported bug: a level-50 item must cap at 2, not 3
+        assertThat(rune.maxLevel(51)).isEqualTo(3)
+        assertThat(rune.maxLevel(65)).isEqualTo(3)
+        assertThat(rune.maxLevel(66)).isEqualTo(4)
+        assertThat(rune.maxLevel(81)).isEqualTo(5)
+        assertThat(rune.maxLevel(96)).isEqualTo(6)
+        assertThat(rune.maxLevel(126)).isEqualTo(7)
+        assertThat(rune.maxLevel(141)).isEqualTo(8)
+        assertThat(rune.maxLevel(171)).isEqualTo(9)
+        assertThat(rune.maxLevel(186)).isEqualTo(10)
+        assertThat(rune.maxLevel(216)).isEqualTo(11)
+        assertThat(rune.maxLevel(245)).isEqualTo(11)
     }
 
     @Test
@@ -879,7 +903,7 @@ class WakfuBuildSolverTest {
             val level = 245
             val characterSkills = CharacterSkills(level)
             val character = Character(CharacterClass.CRA, level, level, characterSkills)
-            val amulet = equipment(1, ItemType.AMULET, "Amu", mapOf(Characteristic.MASTERY_DISTANCE to 50), maxShardSlots = 4)
+            val amulet = equipment(1, ItemType.AMULET, "Amu", mapOf(Characteristic.MASTERY_DISTANCE to 50), maxShardSlots = 4, level = 245)
             val distanceRune =
                 RuneType(27098, I18nText("d", "d", "d", "d"), RuneColor.RED, Characteristic.MASTERY_DISTANCE, listOf(10, 15), 0)
             val targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1)))
@@ -965,7 +989,7 @@ class WakfuBuildSolverTest {
             val level = 245
             val characterSkills = CharacterSkills(level)
             val character = Character(CharacterClass.CRA, level, level, characterSkills)
-            val amulet = equipment(1, ItemType.AMULET, "Amu", mapOf(Characteristic.MASTERY_DISTANCE to 50), maxShardSlots = 4)
+            val amulet = equipment(1, ItemType.AMULET, "Amu", mapOf(Characteristic.MASTERY_DISTANCE to 50), maxShardSlots = 4, level = 245)
             val distanceRune =
                 RuneType(27098, I18nText("d", "d", "d", "d"), RuneColor.RED, Characteristic.MASTERY_DISTANCE, listOf(10, 15), 0)
             val targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1)))
@@ -1107,11 +1131,12 @@ class WakfuBuildSolverTest {
         name: String,
         stats: Map<Characteristic, Int>,
         maxShardSlots: Int = 0,
+        level: Int = 1,
     ): Equipment =
         Equipment(
             equipmentId = id,
             guiId = id,
-            level = 1,
+            level = level,
             name = I18nText(name, name, name, name),
             rarity = Rarity.COMMON,
             itemType = type,

@@ -27,8 +27,9 @@ enum class RuneColor(
  * modeled here because they have no [Characteristic] equivalent in the current engine.
  *
  * Values follow the **best-achievable / BiS** model (see docs/ENCHANTMENTS_PLAN.md and the
- * `autobuilder-optimistic-modeling` decision): the rune is always at the **max level** the character
- * can equip, and it **doubles** on its favoured equipment slots ([doubleBonusPosition]) exactly as
+ * `autobuilder-optimistic-modeling` decision): the rune is always at the **max level the carrier
+ * item's level allows** (see [maxLevel]), and it **doubles** on its favoured equipment slots
+ * ([doubleBonusPosition]) exactly as
  * WakForge models it — which is also the optimum a committed player can actually reach (socket colours
  * are re-rollable, but a rune can only double on the slots whose native colour matches it).
  *
@@ -45,19 +46,25 @@ data class RuneType(
     val doubleBonusPosition: List<Int>,
     val gfxId: Int,
 ) {
-    /** Best (max) rune level usable at [characterLevel], 1..11, gated by [RUNE_LEVEL_REQUIREMENTS]. */
-    fun maxLevel(characterLevel: Int): Int = RUNE_LEVEL_REQUIREMENTS.count { it <= characterLevel }.coerceIn(1, RUNE_LEVEL_REQUIREMENTS.size)
+    /**
+     * Best (max) enchantment level reachable on an item of [itemLevel], 1..11, gated by
+     * [RUNE_LEVEL_REQUIREMENTS]. The enchantment-level cap is a property of the **item's level** (an
+     * item of level 50 caps at level 2, since level 3 requires an item of level >= 51) — *not* the
+     * character's level. Socketing a rune above this cap is not possible in-game, so the engine and
+     * the Zenith export both feed the carrier item's level here.
+     */
+    fun maxLevel(itemLevel: Int): Int = RUNE_LEVEL_REQUIREMENTS.count { it <= itemLevel }.coerceIn(1, RUNE_LEVEL_REQUIREMENTS.size)
 
     /**
-     * Flat value this rune contributes when socketed on an item of [itemType] for a character of
-     * [characterLevel]: max-level base value, doubled when [itemType]'s slot raw id is one of the
-     * rune's favoured [doubleBonusPosition] slots.
+     * Flat value this rune contributes when socketed on an item of [itemType] and [itemLevel]:
+     * max-level base value (capped by [itemLevel] via [maxLevel]), doubled when [itemType]'s slot
+     * raw id is one of the rune's favoured [doubleBonusPosition] slots.
      */
     fun valueOn(
         itemType: ItemType,
-        characterLevel: Int,
+        itemLevel: Int,
     ): Int {
-        val base = baseValueTable()[maxLevel(characterLevel) - 1]
+        val base = baseValueTable()[maxLevel(itemLevel) - 1]
         val doubled = slotRawIds(itemType).any { it in doubleBonusPosition }
         return if (doubled) base * 2 else base
     }
@@ -86,7 +93,9 @@ data class RuneType(
         }
 
     companion object {
-        // Character level required to equip a rune of level 1..11. Transcribed from WakForge.
+        // Minimum *item* level required for an enchantment of level 1..11 (Ankama's official table:
+        // lvl 1 -> item 1, lvl 2 -> 36, lvl 3 -> 51, 4 -> 66, 5 -> 81, 6 -> 96, 7 -> 126, 8 -> 141,
+        // 9 -> 171, 10 -> 186, 11 -> 216). The cap follows the item's level, not the character's.
         val RUNE_LEVEL_REQUIREMENTS = listOf(0, 36, 51, 66, 81, 96, 126, 141, 171, 186, 216)
 
         // Per-rune-level value tables (index by level-1). WakForge's resistance table carries a 12th
