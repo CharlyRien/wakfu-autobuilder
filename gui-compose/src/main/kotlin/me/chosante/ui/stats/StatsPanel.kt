@@ -101,6 +101,7 @@ fun StatsPanel(
                 MasterySummary(ui)
                 DesiredVsAchieved(ui)
                 BuildSheet(ui)
+                SublimationsResult(ui)
                 SkillTree(ui.build?.characterSkills ?: CharacterSkills(ui.level))
             }
         }
@@ -893,6 +894,33 @@ private fun ResultCard(
             Spacer(modifier = Modifier.height(12.dp))
         }
         content()
+    }
+}
+
+@Composable
+private fun SublimationsResult(ui: UiState) {
+    val subs =
+        ui.build
+            ?.sublimations
+            ?.values
+            ?.flatten()
+            .orEmpty()
+    if (subs.isEmpty()) return
+    ResultCard(title = tr(Tr.CHOSEN_SUBLIMATIONS), trailing = subs.size.toString()) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            subs.forEach { sub ->
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(text = sub.name.let { if (ui.lang == me.chosante.ui.i18n.Lang.FR) it.fr else it.en }, style = WTypography.labelMedium.copy(color = WColor.text))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = sub.rarity.name, style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono))
+                    }
+                    sub.rawText?.takeIf { it.isNotBlank() }?.let {
+                        Text(text = it, style = WTypography.labelSmall.copy(color = WColor.muted))
+                    }
+                }
+            }
+        }
     }
 }
 

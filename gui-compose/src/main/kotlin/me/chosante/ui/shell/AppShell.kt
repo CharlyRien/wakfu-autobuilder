@@ -209,7 +209,14 @@ private fun BuilderBody(
                 onAddForcedItem = { model.openModal(Modal.ItemPicker(PickerMode.Forced)) },
                 onRemoveForcedItem = model::removeForcedItem,
                 onAddExcludedItem = { model.openModal(Modal.ItemPicker(PickerMode.Excluded)) },
-                onRemoveExcludedItem = model::removeExcludedItem
+                onRemoveExcludedItem = model::removeExcludedItem,
+                sublimationCatalog = model.sublimationCatalog,
+                runeCatalog = model.runeCatalog,
+                onToggleSublimations = model::setUseSublimations,
+                onAddForcedSublimation = model::addForcedSublimation,
+                onRemoveForcedSublimation = model::removeForcedSublimation,
+                onAddForcedRune = model::addForcedRune,
+                onRemoveForcedRune = model::removeForcedRune
             )
         }
         ResizableSeparator(onDelta = onRequestWidthDelta)

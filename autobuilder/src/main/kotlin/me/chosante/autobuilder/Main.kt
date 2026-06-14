@@ -736,7 +736,11 @@ HUPPERMAGE"""
                         }
                         if (it.sublimations.isNotEmpty()) {
                             terminal.println("Sublimations")
-                            terminal.println(it.sublimations.asSublimationsASCIITable())
+                            terminal.println(
+                                it.sublimations.values
+                                    .flatten()
+                                    .asSublimationsASCIITable()
+                            )
                         }
                         terminal.println("Skills")
                         terminal.println("Intelligence")

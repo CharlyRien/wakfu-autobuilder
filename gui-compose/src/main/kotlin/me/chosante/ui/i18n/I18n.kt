@@ -104,6 +104,13 @@ enum class Tr(
     REQUIRE_ITEM_CHIP("＋ require item", "＋ imposer un objet"),
     EXCLUDED_ITEMS("Excluded Items", "Objets exclus"),
     BAN_ITEM_CHIP("＋ ban item", "＋ exclure un objet"),
+    SUBLIMATIONS_RUNES("Sublimations & Runes", "Sublimations & Runes"),
+    SOLVER_PICKS_SUBLIMATIONS("Solver picks sublimations", "Le solveur choisit les sublimations"),
+    FORCED_SUBLIMATIONS("Forced Sublimations", "Sublimations imposées"),
+    FORCED_RUNES("Forced Runes", "Runes imposées"),
+    ADD_SUBLIMATION_CHIP("＋ force sublimation", "＋ imposer une sublimation"),
+    ADD_RUNE_CHIP("＋ force rune", "＋ imposer une rune"),
+    CHOSEN_SUBLIMATIONS("Sublimations", "Sublimations"),
 
     // Paperdoll
     PREPARING_OR_TOOLS_MODEL("Preparing OR-Tools model", "Préparation du modèle OR-Tools"),

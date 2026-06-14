@@ -23,6 +23,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -92,6 +94,13 @@ fun RequestPanel(
     onRemoveForcedItem: (ItemChip) -> Unit,
     onAddExcludedItem: () -> Unit,
     onRemoveExcludedItem: (ItemChip) -> Unit,
+    sublimationCatalog: List<String> = emptyList(),
+    runeCatalog: List<String> = emptyList(),
+    onToggleSublimations: (Boolean) -> Unit = {},
+    onAddForcedSublimation: (String) -> Unit = {},
+    onRemoveForcedSublimation: (String) -> Unit = {},
+    onAddForcedRune: (String) -> Unit = {},
+    onRemoveForcedRune: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
@@ -145,6 +154,18 @@ fun RequestPanel(
                 accent = WColor.danger,
                 onAdd = onAddExcludedItem,
                 onRemove = onRemoveExcludedItem
+            )
+            SublimationsRunesCard(
+                useSublimations = ui.useSublimations,
+                forcedSublimations = ui.forcedSublimations,
+                forcedRunes = ui.forcedRunes,
+                sublimationCatalog = sublimationCatalog,
+                runeCatalog = runeCatalog,
+                onToggleSublimations = onToggleSublimations,
+                onAddForcedSublimation = onAddForcedSublimation,
+                onRemoveForcedSublimation = onRemoveForcedSublimation,
+                onAddForcedRune = onAddForcedRune,
+                onRemoveForcedRune = onRemoveForcedRune
             )
         }
         VerticalScrollHints(scroll)
@@ -1026,6 +1047,155 @@ private fun ItemChipsCard(
                             lineHeight = 14.sp
                         )
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SublimationsRunesCard(
+    useSublimations: Boolean,
+    forcedSublimations: List<String>,
+    forcedRunes: List<String>,
+    sublimationCatalog: List<String>,
+    runeCatalog: List<String>,
+    onToggleSublimations: (Boolean) -> Unit,
+    onAddForcedSublimation: (String) -> Unit,
+    onRemoveForcedSublimation: (String) -> Unit,
+    onAddForcedRune: (String) -> Unit,
+    onRemoveForcedRune: (String) -> Unit,
+) {
+    RequestCard(title = tr(Tr.SUBLIMATIONS_RUNES)) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier =
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onToggleSublimations(!useSublimations) }
+                        .padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier =
+                        Modifier
+                            .size(16.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (useSublimations) WColor.success else WColor.bg)
+                            .border(1.dp, if (useSublimations) WColor.success else WColor.border, RoundedCornerShape(4.dp))
+                )
+                Text(text = tr(Tr.SOLVER_PICKS_SUBLIMATIONS), style = WTypography.labelMedium.copy(color = WColor.text))
+            }
+            NameChipsRow(
+                label = tr(Tr.FORCED_SUBLIMATIONS),
+                addLabel = tr(Tr.ADD_SUBLIMATION_CHIP),
+                selected = forcedSublimations,
+                catalog = sublimationCatalog,
+                accent = WColor.success,
+                onAdd = onAddForcedSublimation,
+                onRemove = onRemoveForcedSublimation
+            )
+            NameChipsRow(
+                label = tr(Tr.FORCED_RUNES),
+                addLabel = tr(Tr.ADD_RUNE_CHIP),
+                selected = forcedRunes,
+                catalog = runeCatalog,
+                accent = WColor.accent2,
+                onAdd = onAddForcedRune,
+                onRemove = onRemoveForcedRune
+            )
+        }
+    }
+}
+
+@Composable
+private fun NameChipsRow(
+    label: String,
+    addLabel: String,
+    selected: List<String>,
+    catalog: List<String>,
+    accent: Color,
+    onAdd: (String) -> Unit,
+    onRemove: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(text = label, style = WTypography.labelMedium.copy(color = WColor.muted))
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
+        ) {
+            selected.forEach { name ->
+                Row(
+                    modifier =
+                        Modifier
+                            .height(30.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(WColor.raised)
+                            .border(1.dp, accent.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(text = name, style = WTypography.labelMedium.copy(color = WColor.text))
+                    Spacer(modifier = Modifier.width(7.dp))
+                    Text(
+                        text = "×",
+                        style = WTypography.labelMedium.copy(color = WColor.faint, lineHeight = 14.sp),
+                        modifier = Modifier.clickable { onRemove(name) }
+                    )
+                }
+            }
+            Box {
+                Box(
+                    modifier =
+                        Modifier
+                            .height(30.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
+                            .clickable { expanded = true }
+                            .padding(horizontal = 9.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = addLabel, style = WTypography.labelMedium.copy(color = WColor.accent, lineHeight = 14.sp))
+                }
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = {
+                        expanded = false
+                        query = ""
+                    }
+                ) {
+                    val options =
+                        catalog
+                            .asSequence()
+                            .filter { it !in selected }
+                            .filter { query.isBlank() || it.contains(query, ignoreCase = true) }
+                            .take(50)
+                            .toList()
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        singleLine = true,
+                        textStyle = WTypography.labelMedium.copy(color = WColor.text),
+                        cursorBrush = SolidColor(WColor.accent),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                    options.forEach { name ->
+                        DropdownMenuItem(
+                            text = { Text(text = name, style = WTypography.labelMedium.copy(color = WColor.text)) },
+                            onClick = {
+                                onAdd(name)
+                                expanded = false
+                                query = ""
+                            }
+                        )
+                    }
+                }
             }
         }
     }

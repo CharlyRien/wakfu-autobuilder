@@ -51,6 +51,15 @@ object WakfuBuildSolver {
     private const val MASTERY_SCORE_ABS_MAX = 100_000_000L
     private const val MAX_POWER_TABLE_INDEX = 2_000
     private const val MAX_PENALTY_MULTIPLIER = 1_000_000L
+    private const val MAX_SUBLIMATIONS = 10L // Wakfu: at most 10 sublimations on a build (incl. ≤1 epic, ≤1 relic).
+    private const val NORMAL_SUB_SOCKET_COST = 3L // a normal sublimation occupies 3 sockets on its carrier item.
+
+    // Out-of-combat hardcaps (Wakfu): the equipped sheet can't exceed these. In-combat bonuses — including
+    // start-of-combat sublimations — may go beyond, so the cap is on the PRE-sublimation value.
+    private const val MAX_OUT_OF_COMBAT_AP = 16L
+    private const val MAX_OUT_OF_COMBAT_MP = 8L
+    private const val MAX_OUT_OF_COMBAT_WP = 20L
+    private const val MIN_OUT_OF_COMBAT_CRIT = -9L // negative-crit gear is condition-limited to ≥ −9% total.
 
     // Bounds for the max-damage objective's nonlinear terms. Masteries / DI are clamped into these
     // (well above any real build) so the CP-SAT multiplication variables keep small, stable domains.
@@ -539,10 +548,17 @@ object WakfuBuildSolver {
 
     /**
      * Models the chosen/forced sublimations. Each modeled sub gets a [SublimationModel.subVars] boolean.
-     * Epic and relic subs occupy the character-wide epic/relic sublimation slot (≤1 each). Normal subs
-     * reserve 3 socket slots that then cannot hold runes (best-achievable global socket budget, no colour
-     * pinning — see docs/SUBLIMATIONS_LOT3_RESEARCH.md §5 / §6 P7). Effect contributions are folded into
-     * the stat term loop by [StatBuilder]; forced subs apply unconditionally (the user takes responsibility).
+     * Epic/relic subs are gated to an equipped epic/relic item — their dedicated slot comes from that carrier
+     * ([gateSublimationsOnCarrierItems]); a normal sub is assigned to one ≥3-socket carrier item and consumes
+     * 3 of its sockets ([addNormalSublimationSocketBudget]), so it can't share sockets across items. At most 10
+     * sublimations per build. Socket colours stay optimistic/re-rollable (no per-item colour data); the chosen
+     * carrier + pattern are surfaced in the GUI. Effect contributions fold into the stat term loop by
+     * [StatBuilder]; forced subs apply unconditionally (the user takes responsibility).
+     *
+     * A sub is only ever *chosen* when it improves the active objective. In max-damage mode that includes its
+     * DI and scenario-gated effects; in most-masteries / precision modes (which don't maximize damage) a sub is
+     * taken only when it raises a requested mastery or helps meet a required target — DI-only subs pay off
+     * solely in max-damage mode.
      */
     private fun CpModel.createSublimationModel(
         params: WakfuBestBuildParams,
@@ -572,13 +588,56 @@ object WakfuBuildSolver {
             subVars[sub] = newBoolVar("sub_${sub.stateId}")
         }
 
-        // Character-wide epic / relic sublimation slots: at most one each (forced + chosen together).
-        val epicVars = subVars.filterKeys { it.rarity == SublimationRarity.EPIC }.values
-        if (epicVars.isNotEmpty()) addLessOrEqual(LinearExpr.sum(epicVars.toTypedArray()), 1L)
-        val relicVars = subVars.filterKeys { it.rarity == SublimationRarity.RELIC }.values
-        if (relicVars.isNotEmpty()) addLessOrEqual(LinearExpr.sum(relicVars.toTypedArray()), 1L)
+        // Epic / relic sublimations can ONLY be applied to an epic / relic ITEM — the dedicated sub slot
+        // comes FROM the carrier item (Wakfu: "epic Sublimations can only be applied to epic items, relic
+        // only to relic items"). So Σ epicSub ≤ Σ epicItems and Σ relicSub ≤ Σ relicItems, modeled as
+        // (Σ sub − Σ carrier ≤ 0). This also caps each sub at ≤1 since epic/relic items are themselves ≤1
+        // (addBuildValidityConstraints). Forcing such a sub therefore forces its carrier item to be
+        // equipped; with no carrier in the pool the request is correctly infeasible (it cannot be hosted).
+        gateSublimationsOnCarrierItems(subVars, allEquips, equipVars, SublimationRarity.EPIC, Rarity.EPIC)
+        gateSublimationsOnCarrierItems(subVars, allEquips, equipVars, SublimationRarity.RELIC, Rarity.RELIC)
 
-        return SublimationModel(subVars, forcedSubs.toSet(), params.character.level)
+        // Total cap: at most 10 sublimations on a build.
+        addLessOrEqual(LinearExpr.sum(subVars.values.toTypedArray()), MAX_SUBLIMATIONS)
+
+        // Tie each NORMAL sub to exactly one carrier item with ≥3 sockets (y[sub,item]=1 ⇒ that item hosts it).
+        // The sub then consumes 3 of that item's sockets (addNormalSublimationSocketBudget) — i.e. it changes
+        // that item's enchantment loadout. Epic/relic subs need no socket carrier (gated on the rarity item above).
+        val normalSubs = subVars.keys.filter { it.rarity == SublimationRarity.NORMAL }
+        val carrierItems = allEquips.filter { it.maxShardSlots >= NORMAL_SUB_SOCKET_COST }
+        val carrierVars = LinkedHashMap<Sublimation, Map<Equipment, IntVar>>()
+        for (sub in normalSubs) {
+            val perItem = carrierItems.associateWith { item -> newBoolVar("subCarrier_${sub.stateId}_${item.equipmentId}") }
+            carrierVars[sub] = perItem
+            // Chosen ⇔ assigned to exactly one carrier; a carrier must itself be equipped.
+            val assigned = LinearExpr.newBuilder()
+            perItem.values.forEach { assigned.addTerm(it, 1L) }
+            addEquality(assigned.build(), subVars.getValue(sub))
+            for ((item, y) in perItem) addLessOrEqual(y, equipVars.getValue(item))
+        }
+        // A single ≥3-socket item physically hosts at most one 3-socket normal sublimation.
+        for (item in carrierItems) {
+            val hostsOnItem = normalSubs.mapNotNull { carrierVars[it]?.get(item) }
+            if (hostsOnItem.size > 1) addLessOrEqual(LinearExpr.sum(hostsOnItem.toTypedArray()), 1L)
+        }
+
+        return SublimationModel(subVars, forcedSubs.toSet(), params.character.level, carrierVars)
+    }
+
+    /** Σ(subs of [subRarity]) ≤ Σ(equipped items of [itemRarity]): an epic/relic sub's slot comes from its carrier item. */
+    private fun CpModel.gateSublimationsOnCarrierItems(
+        subVars: Map<Sublimation, IntVar>,
+        allEquips: List<Equipment>,
+        equipVars: Map<Equipment, IntVar>,
+        subRarity: SublimationRarity,
+        itemRarity: Rarity,
+    ) {
+        val subsOfRarity = subVars.filterKeys { it.rarity == subRarity }.values
+        if (subsOfRarity.isEmpty()) return
+        val gate = LinearExpr.newBuilder()
+        subsOfRarity.forEach { gate.addTerm(it, 1L) }
+        allEquips.filter { it.rarity == itemRarity }.forEach { gate.addTerm(equipVars.getValue(it), -1L) }
+        addLessOrEqual(gate.build(), 0L)
     }
 
     private fun CpModel.addBuildValidityConstraints(
@@ -677,6 +736,7 @@ object WakfuBuildSolver {
         subModel: SublimationModel,
     ): IntVar {
         val statBuilder = StatBuilder(this, params, allEquips, equipVars, skillVars, runeModel, subModel)
+        statBuilder.applyOutOfCombatCaps()
         val targetStats = params.targetStats
         val targetCharacteristics = targetStats.map { it.characteristic }.toSet()
 
@@ -722,6 +782,7 @@ object WakfuBuildSolver {
         subModel: SublimationModel,
     ): IntVar {
         val statBuilder = StatBuilder(this, params, allEquips, equipVars, skillVars, runeModel, subModel)
+        statBuilder.applyOutOfCombatCaps()
         // External-loop AP probe: pin the build to exactly N AP so each breakpoint can be evaluated.
         params.maxDamageApTarget?.let { addEquality(statBuilder.actionPointVar(), newConstant(it.toLong())) }
         val damageScore = statBuilder.perTurnDamageScore(params.damageScenario, params.character.clazz)
@@ -817,6 +878,7 @@ object WakfuBuildSolver {
         subModel: SublimationModel,
     ): IntVar {
         val statBuilder = StatBuilder(this, params, allEquips, equipVars, skillVars, runeModel, subModel)
+        statBuilder.applyOutOfCombatCaps()
         return statBuilder.precisionScore(params.targetStats)
     }
 
@@ -994,13 +1056,27 @@ object WakfuBuildSolver {
                     }
                 }.filterValues { it.isNotEmpty() }
 
-        val chosenSublimations =
-            subModel.subVars
-                .filter { valueOf(it.value) > 0L }
-                .keys
-                .toList()
+        // Sublimations keyed by carrier item: a normal sub by its assignment var, an epic/relic sub by the
+        // equipped epic/relic item (whose dedicated slot hosts it). This is what the GUI renders per item.
+        val epicItem = equippedItems.firstOrNull { it.rarity == Rarity.EPIC }
+        val relicItem = equippedItems.firstOrNull { it.rarity == Rarity.RELIC }
+        val sublimationsByItem = mutableMapOf<Equipment, MutableList<Sublimation>>()
+        for ((sub, subVar) in subModel.subVars) {
+            if (valueOf(subVar) <= 0L) continue
+            val carrier =
+                when (sub.rarity) {
+                    SublimationRarity.NORMAL ->
+                        subModel.carrierVars[sub]
+                            ?.entries
+                            ?.firstOrNull { valueOf(it.value) > 0L }
+                            ?.key
+                    SublimationRarity.EPIC -> epicItem
+                    SublimationRarity.RELIC -> relicItem
+                }
+            if (carrier != null) sublimationsByItem.getOrPut(carrier) { mutableListOf() }.add(sub)
+        }
 
-        return BuildCombination(equippedItems, optimizedSkills, runes, chosenSublimations)
+        return BuildCombination(equippedItems, optimizedSkills, runes, sublimationsByItem)
     }
 
     private class StatBuilder(
@@ -1304,6 +1380,19 @@ object WakfuBuildSolver {
 
         // The build's resolved Action Points variable (base + gear + skills), for the external-loop AP probe.
         fun actionPointVar(): IntVar = actualStat(Characteristic.ACTION_POINT)
+
+        /**
+         * Out-of-combat hardcaps: the equipped sheet — gear + skills + runes, i.e. the PRE-sublimation value,
+         * since sublimations activate at start of combat — cannot exceed 16 AP / 8 MP / 20 WP. In-combat
+         * bonuses (those subs, active spells, …) may push past these; they aren't part of the equipped build.
+         */
+        fun applyOutOfCombatCaps() {
+            model.addLessOrEqual(preSubStat(Characteristic.ACTION_POINT), MAX_OUT_OF_COMBAT_AP)
+            model.addLessOrEqual(preSubStat(Characteristic.MOVEMENT_POINT), MAX_OUT_OF_COMBAT_MP)
+            model.addLessOrEqual(preSubStat(Characteristic.WAKFU_POINT), MAX_OUT_OF_COMBAT_WP)
+            // Negative-crit gear is condition-limited: the sheet can't drop below −9% Critical Hit.
+            model.addGreaterOrEqual(preSubStat(Characteristic.CRITICAL_HIT), MIN_OUT_OF_COMBAT_CRIT)
+        }
 
         /**
          * Spell-aware / boss-aware per-turn damage objective for [scenario] (max-damage mode only).
@@ -1910,6 +1999,8 @@ object WakfuBuildSolver {
         val subVars: Map<Sublimation, IntVar>,
         val forced: Set<Sublimation>,
         val characterLevel: Int,
+        // Per NORMAL sublimation: a per-carrier-item bool (1 ⇒ that item hosts the sub). Empty for epic/relic.
+        val carrierVars: Map<Sublimation, Map<Equipment, IntVar>> = emptyMap(),
     ) {
         companion object {
             val EMPTY = SublimationModel(emptyMap(), emptySet(), 0)
@@ -1928,19 +2019,22 @@ object WakfuBuildSolver {
         runeModel: RuneModel,
         subModel: SublimationModel,
     ) {
-        val normalSubVars = subModel.subVars.filterKeys { it.rarity == SublimationRarity.NORMAL }.values
-        if (normalSubVars.isEmpty()) return
-        val socketedItems = allEquips.filter { it.maxShardSlots > 0 }
-        if (socketedItems.isEmpty()) {
-            // No sockets at all: no normal sub can be hosted.
-            normalSubVars.forEach { addEquality(it, 0L) }
-            return
+        val normalSubs = subModel.subVars.keys.filter { it.rarity == SublimationRarity.NORMAL }
+        if (normalSubs.isEmpty()) return
+        // Per item: (runes socketed in it) + 3·(normal subs hosted on it) ≤ its sockets, when equipped. This
+        // ties each sub's 3 sockets to ONE carrier and shares the carrier's sockets with its runes, so hosting
+        // a sub reduces that item's rune capacity (no borrowing sockets across items). A normal sub with no
+        // ≥3-socket carrier is already forced off by the assignment equality in createSublimationModel.
+        for (item in allEquips) {
+            val runeVarsForItem = runeModel.runeVars[item]?.values.orEmpty()
+            val subHostsForItem = normalSubs.mapNotNull { subModel.carrierVars[it]?.get(item) }
+            if (runeVarsForItem.isEmpty() && subHostsForItem.isEmpty()) continue
+            val budget = LinearExpr.newBuilder()
+            runeVarsForItem.forEach { budget.addTerm(it, 1L) }
+            subHostsForItem.forEach { budget.addTerm(it, NORMAL_SUB_SOCKET_COST) }
+            budget.addTerm(equipVars.getValue(item), -item.maxShardSlots.toLong())
+            addLessOrEqual(budget.build(), 0L)
         }
-        val budget = LinearExpr.newBuilder()
-        runeModel.runeVars.values.forEach { perStat -> perStat.values.forEach { budget.addTerm(it, 1L) } }
-        normalSubVars.forEach { budget.addTerm(it, 3L) }
-        socketedItems.forEach { budget.addTerm(equipVars.getValue(it), -it.maxShardSlots.toLong()) }
-        addLessOrEqual(budget.build(), 0L)
     }
 
     private data class SkillTerms(

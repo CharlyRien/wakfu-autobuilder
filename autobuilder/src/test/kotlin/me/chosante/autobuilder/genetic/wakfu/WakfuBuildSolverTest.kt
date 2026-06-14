@@ -1373,6 +1373,8 @@ class WakfuBuildSolverTest {
         runBlocking {
             val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
             val amulet = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100))
+            // An epic sub can only be hosted by an epic ITEM (the slot comes from the carrier).
+            val epicCarrier = equipment(2, ItemType.CAPE, "EpicCarrier", emptyMap(), rarity = Rarity.EPIC)
             // Inflexible-like: AP <= 10 -> +15% damage inflicted. Base AP is 6, so condition holds.
             val inflexible =
                 sublimation(
@@ -1386,11 +1388,15 @@ class WakfuBuildSolverTest {
 
             val best =
                 WakfuBuildSolver
-                    .optimize(maxDamageParams(character), listOf(amulet).groupBy { it.itemType }, emptyList(), listOf(inflexible), WakfuBuildSolver.SolverTuning())
+                    .optimize(maxDamageParams(character), listOf(amulet, epicCarrier).groupBy { it.itemType }, emptyList(), listOf(inflexible), WakfuBuildSolver.SolverTuning())
                     .toList()
                     .maxByOrNull { it.matchPercentage }!!
 
-            assertThat(best.individual.sublimations.map { it.name.en }).contains("Inflexibility")
+            assertThat(
+                best.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).contains("Inflexibility")
             val scenario = maxDamageParams(character).damageScenario
             val stats =
                 computeCharacteristicsValues(
@@ -1409,6 +1415,8 @@ class WakfuBuildSolverTest {
         runBlocking {
             val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
             val amulet = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100))
+            // Provide an epic carrier so the ONLY reason to decline is the condition, not a missing host.
+            val epicCarrier = equipment(2, ItemType.CAPE, "EpicCarrier", emptyMap(), rarity = Rarity.EPIC)
             // Requires AP >= 99, unreachable at level 1 (base 6, no AP gear) -> never chosen.
             val unreachable =
                 sublimation(
@@ -1422,7 +1430,7 @@ class WakfuBuildSolverTest {
 
             val best =
                 WakfuBuildSolver
-                    .optimize(maxDamageParams(character), listOf(amulet).groupBy { it.itemType }, emptyList(), listOf(unreachable), WakfuBuildSolver.SolverTuning())
+                    .optimize(maxDamageParams(character), listOf(amulet, epicCarrier).groupBy { it.itemType }, emptyList(), listOf(unreachable), WakfuBuildSolver.SolverTuning())
                     .toList()
                     .maxByOrNull { it.matchPercentage }!!
 
@@ -1434,6 +1442,8 @@ class WakfuBuildSolverTest {
         runBlocking {
             val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
             val amulet = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100))
+            // A single epic carrier item -> at most one epic sub can be hosted (Σ epicSub ≤ Σ epicItems = 1).
+            val epicCarrier = equipment(2, ItemType.CAPE, "EpicCarrier", emptyMap(), rarity = Rarity.EPIC)
             val epicA =
                 sublimation(1, SublimationRarity.EPIC, SublimationKind.FLAT, "EpicA", effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 10)))
             val epicB =
@@ -1441,14 +1451,19 @@ class WakfuBuildSolverTest {
 
             val best =
                 WakfuBuildSolver
-                    .optimize(maxDamageParams(character), listOf(amulet).groupBy { it.itemType }, emptyList(), listOf(epicA, epicB), WakfuBuildSolver.SolverTuning())
+                    .optimize(maxDamageParams(character), listOf(amulet, epicCarrier).groupBy { it.itemType }, emptyList(), listOf(epicA, epicB), WakfuBuildSolver.SolverTuning())
                     .toList()
                     .maxByOrNull { it.matchPercentage }!!
 
-            assertThat(best.individual.sublimations.count { it.rarity == SublimationRarity.EPIC }).isEqualTo(1)
+            assertThat(
+                best.individual.sublimations.values
+                    .flatten()
+                    .count { it.rarity == SublimationRarity.EPIC }
+            ).isEqualTo(1)
             // It picks the stronger one.
             assertThat(
-                best.individual.sublimations
+                best.individual.sublimations.values
+                    .flatten()
                     .single()
                     .name.en
             ).isEqualTo("EpicB")
@@ -1459,6 +1474,8 @@ class WakfuBuildSolverTest {
         runBlocking {
             val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
             val amulet = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100))
+            // A relic sub needs a relic ITEM to host it; forcing the sub must pull its relic carrier in.
+            val relicCarrier = equipment(2, ItemType.CAPE, "RelicCarrier", emptyMap(), rarity = Rarity.RELIC)
             val relic =
                 sublimation(7, SublimationRarity.RELIC, SublimationKind.FLAT, "Directives", effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 15)))
 
@@ -1466,7 +1483,7 @@ class WakfuBuildSolverTest {
                 WakfuBuildSolver
                     .optimize(
                         maxDamageParams(character, forcedSublimations = listOf("directives")),
-                        listOf(amulet).groupBy {
+                        listOf(amulet, relicCarrier).groupBy {
                             it.itemType
                         },
                         emptyList(),
@@ -1475,7 +1492,13 @@ class WakfuBuildSolverTest {
                     ).toList()
                     .maxByOrNull { it.matchPercentage }!!
 
-            assertThat(best.individual.sublimations.map { it.name.en }).contains("Directives")
+            assertThat(
+                best.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).contains("Directives")
+            // Forcing the relic sub pulled its relic carrier item into the build.
+            assertThat(best.individual.equipments.any { it.rarity == Rarity.RELIC }).isTrue()
         }
 
     @Test
@@ -1499,7 +1522,11 @@ class WakfuBuildSolverTest {
                     .optimize(maxDamageParams(character), listOf(bigCarrier).groupBy { it.itemType }, emptyList(), listOf(normalDi), WakfuBuildSolver.SolverTuning())
                     .toList()
                     .maxByOrNull { it.matchPercentage }!!
-            assertThat(chosen.individual.sublimations.map { it.name.en }).contains("DiNormal")
+            assertThat(
+                chosen.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).contains("DiNormal")
 
             // Carrier with only 2 sockets: cannot host a 3-socket normal sub -> not chosen.
             val smallCarrier = equipment(1, ItemType.AMULET, "Fire2", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100), maxShardSlots = 2)
@@ -1509,6 +1536,241 @@ class WakfuBuildSolverTest {
                     .toList()
                     .maxByOrNull { it.matchPercentage }!!
             assertThat(declined.individual.sublimations).isEmpty()
+        }
+
+    @Test
+    fun `a chosen normal sublimation is keyed to its carrier item`(): Unit =
+        runBlocking {
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            val carrier = equipment(1, ItemType.AMULET, "Carrier", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100), maxShardSlots = 4)
+            val normalDi =
+                sublimation(
+                    10,
+                    SublimationRarity.NORMAL,
+                    SublimationKind.FLAT,
+                    "DiNormal",
+                    effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 10)),
+                    slotColorPattern = listOf(1, 2, 3)
+                )
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(maxDamageParams(character), listOf(carrier).groupBy { it.itemType }, emptyList(), listOf(normalDi), WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            // The sub is recorded UNDER its carrier item (not floating) so the GUI can show it on that item.
+            val (hostItem, hostedSubs) =
+                best.individual.sublimations.entries
+                    .single()
+            assertThat(hostItem.name.en).isEqualTo("Carrier")
+            assertThat(hostedSubs.map { it.name.en }).contains("DiNormal")
+        }
+
+    @Test
+    fun `two normal sublimations cannot be hosted on a single item`(): Unit =
+        runBlocking {
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            // A single 4-socket item physically hosts at most ONE 3-socket normal sublimation.
+            val carrier = equipment(1, ItemType.AMULET, "Carrier", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100), maxShardSlots = 4)
+            val diA =
+                sublimation(
+                    10,
+                    SublimationRarity.NORMAL,
+                    SublimationKind.FLAT,
+                    "DiA",
+                    effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 10)),
+                    slotColorPattern = listOf(1, 2, 3)
+                )
+            val diB =
+                sublimation(
+                    11,
+                    SublimationRarity.NORMAL,
+                    SublimationKind.FLAT,
+                    "DiB",
+                    effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 12)),
+                    slotColorPattern = listOf(1, 2, 3)
+                )
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(maxDamageParams(character), listOf(carrier).groupBy { it.itemType }, emptyList(), listOf(diA, diB), WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(
+                best.individual.sublimations.values
+                    .flatten()
+            ).hasSize(1)
+        }
+
+    @Test
+    fun `an epic sublimation cannot be chosen without an epic item to host it`(): Unit =
+        runBlocking {
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            // The only item is common — no epic carrier, so the epic sublimation slot does not exist.
+            val amulet = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100))
+            val epicDi =
+                sublimation(1, SublimationRarity.EPIC, SublimationKind.FLAT, "EpicDI", effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 50)))
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(maxDamageParams(character), listOf(amulet).groupBy { it.itemType }, emptyList(), listOf(epicDi), WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            // Even a huge +50% DI epic cannot be hosted without an epic item -> never chosen (no impossible build).
+            assertThat(best.individual.sublimations).isEmpty()
+        }
+
+    @Test
+    fun `forcing an epic sublimation pulls its epic carrier item into the build`(): Unit =
+        runBlocking {
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            val amulet = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100))
+            // A blank epic item with no useful stat: the only reason to equip it is to host the forced epic sub.
+            val epicCarrier = equipment(2, ItemType.CAPE, "EpicCarrier", emptyMap(), rarity = Rarity.EPIC)
+            val epicSub =
+                sublimation(1, SublimationRarity.EPIC, SublimationKind.FLAT, "ForcedEpic", effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 10)))
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(
+                        maxDamageParams(character, forcedSublimations = listOf("forcedepic")),
+                        listOf(amulet, epicCarrier).groupBy { it.itemType },
+                        emptyList(),
+                        listOf(epicSub),
+                        WakfuBuildSolver.SolverTuning()
+                    ).toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(
+                best.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).contains("ForcedEpic")
+            // The forced epic sub forced its epic carrier into the build (Σ epicSub ≤ Σ epicItems).
+            assertThat(best.individual.equipments.any { it.rarity == Rarity.EPIC }).isTrue()
+        }
+
+    @Test
+    fun `out-of-combat AP is capped at 16 even with abundant AP gear and a high AP target`(): Unit =
+        runBlocking {
+            val level = 245
+            val character = Character(CharacterClass.CRA, level, level, CharacterSkills(level))
+            // Four different slots each granting +4 AP: uncapped the solver would stack all four
+            // (6 base + 16 = 22 AP) to chase the AP target; the out-of-combat cap holds it to ≤16.
+            val pool =
+                listOf(
+                    equipment(1, ItemType.AMULET, "Ap1", mapOf(Characteristic.MAX_ACTION_POINT to 4)),
+                    equipment(2, ItemType.RING, "Ap2", mapOf(Characteristic.MAX_ACTION_POINT to 4)),
+                    equipment(3, ItemType.CAPE, "Ap3", mapOf(Characteristic.MAX_ACTION_POINT to 4)),
+                    equipment(4, ItemType.BELT, "Ap4", mapOf(Characteristic.MAX_ACTION_POINT to 4))
+                ).groupBy { it.itemType }
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = TargetStats(listOf(TargetStat(Characteristic.ACTION_POINT, 20))),
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+                )
+            val best =
+                WakfuBuildSolver
+                    .optimize(params, pool, WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            val ap =
+                computeCharacteristicsValues(
+                    best.individual,
+                    character.baseCharacteristicValues,
+                    emptyMap(),
+                    emptyMap()
+                )[Characteristic.ACTION_POINT] ?: 0
+            assertThat(ap).isLessThanOrEqualTo(16)
+            assertThat(ap).isGreaterThan(6) // it still stacked AP — it just respected the cap
+        }
+
+    @Test
+    fun `precision mode chooses a sublimation that helps reach a requested stat`(): Unit =
+        runBlocking {
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            // Request Lock; the only source is a normal sub hosted on a socketed carrier.
+            val carrier = equipment(1, ItemType.AMULET, "Carrier", emptyMap(), maxShardSlots = 4)
+            val lockSub =
+                sublimation(
+                    10,
+                    SublimationRarity.NORMAL,
+                    SublimationKind.FLAT,
+                    "LockSub",
+                    effects = listOf(SublimationEffect(Characteristic.LOCK, 250)),
+                    slotColorPattern = listOf(1, 2, 3)
+                )
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = TargetStats(listOf(TargetStat(Characteristic.LOCK, 250))),
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
+                )
+            val best =
+                WakfuBuildSolver
+                    .optimize(params, listOf(carrier).groupBy { it.itemType }, emptyList(), listOf(lockSub), WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(
+                best.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).contains("LockSub")
+        }
+
+    @Test
+    fun `most-masteries mode chooses a sublimation that adds a requested mastery`(): Unit =
+        runBlocking {
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            val carrier = equipment(1, ItemType.AMULET, "Carrier", mapOf(Characteristic.MASTERY_DISTANCE to 50), maxShardSlots = 4)
+            val masterySub =
+                sublimation(
+                    10,
+                    SublimationRarity.NORMAL,
+                    SublimationKind.FLAT,
+                    "DistSub",
+                    effects = listOf(SublimationEffect(Characteristic.MASTERY_DISTANCE, 100)),
+                    slotColorPattern = listOf(1, 2, 3)
+                )
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1))),
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+                )
+            val best =
+                WakfuBuildSolver
+                    .optimize(params, listOf(carrier).groupBy { it.itemType }, emptyList(), listOf(masterySub), WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            // A sub that raises the maximized mastery is taken; DI-only subs (not a maximized stat here) are not.
+            assertThat(
+                best.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).contains("DistSub")
         }
 
     private fun assertSolverReachesExhaustiveOptimum(
@@ -1606,13 +1868,14 @@ class WakfuBuildSolverTest {
         stats: Map<Characteristic, Int>,
         maxShardSlots: Int = 0,
         level: Int = 1,
+        rarity: Rarity = Rarity.COMMON,
     ): Equipment =
         Equipment(
             equipmentId = id,
             guiId = id,
             level = level,
             name = I18nText(name, name, name, name),
-            rarity = Rarity.COMMON,
+            rarity = rarity,
             itemType = type,
             characteristics = stats,
             maxShardSlots = maxShardSlots
