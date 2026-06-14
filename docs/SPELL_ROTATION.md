@@ -145,3 +145,91 @@ builds) are ever worth chasing, the right architecture is an **outer loop**, not
 search across a few `(element, AP-target)` candidates and keep the build whose *post-rotation* total is
 highest — reusing the existing per-element search the boss mode already iterates. That captures the AP
 breakpoint and hybrid wins without touching the solver model.
+
+---
+
+## Resistance-reduction debuffs + sequencing + the external loop
+
+> The outer loop the evaluation above recommended **is now implemented** — and it does more than the
+> AP-breakpoint capture it was first proposed for: it makes the build search aware of **resistance-
+> debuff sequencing**.
+
+### Data (what's extractable)
+
+Resistance reductions on the encyclopedia spell pages are **flat, all-element** ("−N Elemental
+Resistance") and last the turn ("Removed at the start of your turn"). Element-specific reductions do
+**not** occur in this data version. Durations/conditions are mostly not inline (state-tooltip pages are
+fetchable but out of scope). So `Spell.targetResistanceReductionFlat` captures only the **flat
+magnitude**, for **active** spells, with the target read from the nearest `[enemy]`/`[caster]`/`[ally]`
+picto — self/ally reductions dropped, enemy-or-ambiguous kept (ambiguous flagged `resistanceTarget?`).
+Nothing is invented.
+
+**Coverage: 8 active enemy resistance-debuff spells** across 8 classes — Sram *Assassination* (−100),
+Ouginak *Sidekick* (−100), Sadida *Toxines*/*Sudden Chill* (−50), Iop *Focus* (−50), Pandawa *Bamboo
+Blow* (−50), Osamodas *Weakening Cry* (−50), Ecaflip *Three Cards* (−30). 6 have an unconfirmed target
+(active targeted spells, assumed enemy, flagged). Passive/self resistance changes are intentionally not
+captured.
+
+### Why flat, and why order matters
+
+The flat→percent curve `res% = 100·(1 − 0.8^(flat/100))` is **concave**, so a flat debuff must be
+applied in flat then re-converted (`Resistances`): removing 100 flat is a different % swing depending
+on the target's base resistance. And because reducing resistance raises **every following** hit, the
+rotation is no longer just *selection* — it's *sequencing*: cast the debuff first, then the damage.
+
+### Sequencing model (`SpellRotationOptimizer.bestSequencedRotation`)
+
+Per candidate element, enumerate the (tiny) subsets of the class's resistance debuffs — each applied at
+most once — and for each: lower the target's flat resistance, then knapsack the **remaining** AP at the
+post-debuff resistance; credit the debuff casts' own AP and damage; keep the subset (possibly none) with
+the highest turn total. Exact for the single-turn case and trivial (debuffs are ≤ a couple per class).
+
+### The external loop (`MaxDamageSearch`) — why post-processing alone is not enough
+
+A pure post-processing rotation has the flaw the user flagged: the CP-SAT objective picks the build's
+**AP and masteries without knowing the best sequencing**, so it can pick an AP value optimal for
+damage-only throughput but suboptimal once a debuff is sequenced. So max-damage now runs an **external
+loop** (confined to max-damage; other modes unchanged):
+
+1. one unconstrained boss-aware solve → the objective's natural AP `A₀`;
+2. **AP-pinned** probe solves around `A₀` (`maxDamageApTarget` hard-constrains AP to exactly N), run
+   **in parallel**;
+3. every resulting build re-scored with the **debuff-aware** sequenced rotation;
+4. keep the build with the highest real per-turn damage.
+
+This captures the AP breakpoints **and** (by probing the AP-vs-mastery frontier) the cases debuff
+sequencing changes — without fusing the bilinear sequencing term into CP-SAT.
+
+**Proof it catches a breakpoint a single solve misses** (deterministic test, Sram vs a 55%-res boss):
+
+| Build | AP | Fire mastery | Damage-only valuation | Debuff-aware valuation |
+|---|---|---|---|---|
+| **A** | 13 | 600 | 1419 | **1716** |
+| **C** | 12 | 660 (13th AP's slot spent on mastery) | **1470** | 1643 |
+
+A damage-only objective picks **C** (1470 > 1419). With Assassination sequenced, **A** wins (1716 >
+1643) — its 13th AP lets the 1-AP debuff fit without dropping a damage cast. The loop probes AP=13 and
+lands on A.
+
+### Performance
+
+The loop is ~`single-solve wall-clock + ~2 s`: the probes share the search budget and run in parallel,
+so a full-pool level-230 search with a 10 s budget completes in ~19 s (vs ~17 s for one solve) — the
+extra cost is just building the few probe models. Confined to max-damage; the other modes are a single
+solve, unchanged.
+
+### Impact (debuffs, AP choice, boss interaction)
+
+- **Debuffs help whenever there's AP room** — a flat reduction always lowers effective resistance (even
+  creating a *weakness* at 0 res), so opening with one never hurts the following hits. It's *skipped*
+  only when the AP can't be spared for it **plus** enough following hits to profit. The honest rule is
+  "debuff when there's room to profit", not "always".
+- **It changes the optimal AP, not just the rotation.** A debuff costs a fixed AP, so the build's best
+  AP can shift to one that fits "debuff + a clean damage rotation" — which only the **external loop's AP
+  probing** (not post-processing, not the CP-SAT objective) can find.
+- **Boss interaction.** The captured debuffs are all-element, so they lower every element equally and
+  don't *change* the boss-aware element choice — but they raise the chosen element's value, and are
+  worth more AP against a more-resistant boss (more headroom to claw back).
+- **Hybrid (bi-element) builds** are a noted future extension: the loop probes single elements × AP;
+  enumerating element *pairs* would catch split-damage builds (it multiplies the candidate count, hence
+  deferred).
