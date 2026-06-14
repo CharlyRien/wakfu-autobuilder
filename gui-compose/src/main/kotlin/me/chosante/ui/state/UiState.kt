@@ -145,6 +145,12 @@ data class UiState(
     val stopAtMatch: Boolean = false,
     val forcedItems: List<ItemChip> = emptyList(),
     val excludedItems: List<ItemChip> = emptyList(),
+    /** When true (default), the solver may pick statically-modelable sublimations. */
+    val useSublimations: Boolean = true,
+    /** Sublimations the user forces into the build (French names; incl. combat-conditional ones). */
+    val forcedSublimations: List<String> = emptyList(),
+    /** Runes the user forces to be socketed at least once (French names). */
+    val forcedRunes: List<String> = emptyList(),
     val phase: Phase = Phase.Idle,
     val progress: Int = 0,
     val match: BigDecimal = BigDecimal.ZERO,

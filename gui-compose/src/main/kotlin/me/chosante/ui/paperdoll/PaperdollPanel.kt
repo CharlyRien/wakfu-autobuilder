@@ -61,6 +61,8 @@ import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.common.Equipment
 import me.chosante.common.RuneColor
 import me.chosante.common.RuneType
+import me.chosante.common.Sublimation
+import me.chosante.common.SublimationRarity
 import me.chosante.ui.components.RarityIcon
 import me.chosante.ui.components.iconResourcePath
 import me.chosante.ui.components.itemResourcePath
@@ -138,6 +140,7 @@ fun PaperdollPanel(
                                 slot = slot,
                                 equipment = weaponEquipment,
                                 runes = weaponEquipment?.let { ui.build?.runes?.get(it) }.orEmpty(),
+                                subs = weaponEquipment?.let { ui.build?.sublimations?.get(it) }.orEmpty(),
                                 idle = ui.phase == Phase.Idle,
                                 justLanded = weaponEquipment?.equipmentId == ui.lastLandedEquipmentId,
                                 rightAlign = false,
@@ -259,6 +262,7 @@ private fun SlotColumn(
                     slot = slot,
                     equipment = equipment,
                     runes = equipment?.let { ui.build?.runes?.get(it) }.orEmpty(),
+                    subs = equipment?.let { ui.build?.sublimations?.get(it) }.orEmpty(),
                     idle = ui.phase == Phase.Idle,
                     justLanded = equipment?.equipmentId == ui.lastLandedEquipmentId,
                     rightAlign = rightAlign,
@@ -280,6 +284,7 @@ private fun EquipmentSlot(
     slot: DollSlot,
     equipment: Equipment?,
     runes: List<RuneType>,
+    subs: List<Sublimation>,
     idle: Boolean,
     justLanded: Boolean,
     rightAlign: Boolean,
@@ -291,7 +296,7 @@ private fun EquipmentSlot(
     modifier: Modifier = Modifier,
 ) {
     if (equipment == null) {
-        SlotRowContent(slot, null, emptyList(), idle, justLanded, rightAlign, forced = false, excluded = false, cardHeight = cardHeight, modifier = modifier)
+        SlotRowContent(slot, null, emptyList(), emptyList(), idle, justLanded, rightAlign, forced = false, excluded = false, cardHeight = cardHeight, modifier = modifier)
         return
     }
     val forceLabel = tr(Tr.REQUIRE)
@@ -310,10 +315,10 @@ private fun EquipmentSlot(
             modifier = modifier,
             delayMillis = 350,
             tooltipPlacement = SlotTooltipPlacement,
-            tooltip = { ItemTooltip(slot = slot, equipment = equipment, runes = runes) }
+            tooltip = { ItemTooltip(slot = slot, equipment = equipment, runes = runes, subs = subs) }
         ) {
             Box(modifier = Modifier.fillMaxWidth().hoverable(interaction)) {
-                SlotRowContent(slot, equipment, runes, idle, justLanded, rightAlign, forced, excluded, cardHeight, Modifier.fillMaxWidth())
+                SlotRowContent(slot, equipment, runes, subs, idle, justLanded, rightAlign, forced, excluded, cardHeight, Modifier.fillMaxWidth())
                 val cornerAlign = if (rightAlign) Alignment.TopStart else Alignment.TopEnd
                 if (hovered) {
                     SlotActions(
@@ -484,6 +489,7 @@ private fun SlotRowContent(
     slot: DollSlot,
     equipment: Equipment?,
     runes: List<RuneType> = emptyList(),
+    subs: List<Sublimation> = emptyList(),
     idle: Boolean,
     justLanded: Boolean,
     rightAlign: Boolean,
@@ -520,11 +526,11 @@ private fun SlotRowContent(
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         if (rightAlign) {
-            SlotMeta(slot = slot, equipment = equipment, runes = runes, modifier = Modifier.weight(1f), align = TextAlign.End)
+            SlotMeta(slot = slot, equipment = equipment, runes = runes, subs = subs, modifier = Modifier.weight(1f), align = TextAlign.End)
             SlotIcon(slot = slot, equipment = equipment, color = color, cardHeight = cardHeight)
         } else {
             SlotIcon(slot = slot, equipment = equipment, color = color, cardHeight = cardHeight)
-            SlotMeta(slot = slot, equipment = equipment, runes = runes, modifier = Modifier.weight(1f), align = TextAlign.Start)
+            SlotMeta(slot = slot, equipment = equipment, runes = runes, subs = subs, modifier = Modifier.weight(1f), align = TextAlign.Start)
         }
     }
 }
@@ -534,6 +540,7 @@ private fun ItemTooltip(
     slot: DollSlot,
     equipment: Equipment,
     runes: List<RuneType>,
+    subs: List<Sublimation>,
 ) {
     val lang = LocalLang.current
     val shape = RoundedCornerShape(10.dp)
@@ -604,6 +611,40 @@ private fun ItemTooltip(
                         lang = lang
                     )
                 }
+        }
+        if (subs.isNotEmpty()) {
+            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
+            Text(
+                text = "Sublimations",
+                style = WTypography.labelSmall.copy(color = WColor.faint, fontWeight = FontWeight.SemiBold)
+            )
+            subs.forEach { sub ->
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = if (lang == Lang.FR) sub.name.fr else sub.name.en,
+                            style = WTypography.labelSmall.copy(color = WColor.accent, fontWeight = FontWeight.Medium)
+                        )
+                        Text(
+                            text = sub.rarity.name,
+                            style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
+                        )
+                        // A normal sub's required 3-socket colour pattern (epic/relic carry none).
+                        sub.colors.forEach { color -> RuneShape(color = color, size = 13.dp) }
+                    }
+                    sub.rawText?.takeIf { it.isNotBlank() }?.let {
+                        Text(
+                            text = it,
+                            style = WTypography.labelSmall.copy(color = WColor.muted),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -818,9 +859,11 @@ private fun SlotMeta(
     slot: DollSlot,
     equipment: Equipment?,
     runes: List<RuneType> = emptyList(),
+    subs: List<Sublimation> = emptyList(),
     align: TextAlign,
     modifier: Modifier = Modifier,
 ) {
+    val lang = LocalLang.current
     Column(
         modifier = modifier,
         horizontalAlignment = if (align == TextAlign.End) Alignment.End else Alignment.Start
@@ -856,11 +899,22 @@ private fun SlotMeta(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            if (runes.isNotEmpty()) {
-                // The socketed runes' shapes (one per socket): the at-a-glance "rune loadout" of the
-                // item. They shrink uniformly to fit the card width — so the row never overflows and
-                // clips the last shape when the window narrows — capped so they don't balloon when wide.
-                val shapeCount = runes.size.coerceAtMost(4)
+            if (subs.isNotEmpty()) {
+                // The sublimation(s) hosted on this item; a normal sub also pins a 3-socket colour pattern.
+                Text(
+                    text = subs.joinToString("  ") { "✦ ${if (lang == Lang.FR) it.name.fr else it.name.en}" },
+                    style = WTypography.labelSmall.copy(color = WColor.accent, textAlign = align),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+            // Socket loadout: a normal sub's 3 pattern colours first, then the item's runes — the at-a-glance
+            // "rune + sublimation loadout". Shapes shrink uniformly to fit the card width without clipping.
+            val loadout =
+                subs.filter { it.rarity == SublimationRarity.NORMAL }.flatMap { it.colors } + runes.map { it.color }
+            if (loadout.isNotEmpty()) {
+                val shapeCount = loadout.size.coerceAtMost(equipment.maxShardSlots.coerceAtLeast(1))
                 val gap = 3.dp
                 BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
                     val shapeSize = ((maxWidth - gap * (shapeCount - 1)) / shapeCount).coerceIn(0.dp, 16.dp)
@@ -869,8 +923,8 @@ private fun SlotMeta(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        runes.take(4).forEach { rune ->
-                            RuneShape(color = rune.color, size = shapeSize)
+                        loadout.take(shapeCount).forEach { color ->
+                            RuneShape(color = color, size = shapeSize)
                         }
                     }
                 }
