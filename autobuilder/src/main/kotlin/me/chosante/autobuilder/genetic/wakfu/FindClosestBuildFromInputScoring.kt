@@ -1,9 +1,15 @@
 package me.chosante.autobuilder.genetic.wakfu
 
 import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.common.Characteristic
+import me.chosante.common.ScenarioGate
+import me.chosante.common.Sublimation
+import me.chosante.common.SublimationCondition
+import me.chosante.common.SublimationConditionType
+import me.chosante.common.SublimationKind
 import java.math.BigDecimal
 import java.math.MathContext
 import java.math.RoundingMode
@@ -136,6 +142,8 @@ fun computeCharacteristicsValues(
     characterBaseCharacteristics: Map<Characteristic, Int>,
     masteryElementsWanted: Map<Characteristic, Int>,
     resistanceElementsWanted: Map<Characteristic, Int>,
+    scoreComputationMode: ScoreComputationMode? = null,
+    damageScenario: DamageScenario? = null,
 ): Map<Characteristic, Int> {
     val eachCharacteristicValueLineByEquipment =
         buildCombination.equipments
@@ -177,7 +185,7 @@ fun computeCharacteristicsValues(
             }
         }
 
-    val sumOfCharacteristicFixedValues =
+    val sumOfCharacteristicFixedValuesWithoutSublimations =
         mergeAndSumCharacteristicValues(
             characteristicsGivenByEquipmentCombination,
             characteristicGivenBySkillsFixedValues,
@@ -185,6 +193,26 @@ fun computeCharacteristicsValues(
             characterBaseCharacteristics,
             runeContributions
         )
+
+    val characterLevel = buildCombination.characterSkills.level
+    // Sublimation contributions fold into the fixed sum exactly as the OR-Tools solver adds them in
+    // StatBuilder.prePercentStat (FLAT always, STATIC only when the condition holds on the pre-sub
+    // stats, CONVERSION moving value, scenario gates only in max-damage). Conditions are evaluated on
+    // the sub-excluded stats above, mirroring the solver's preSubStat, so scoreFor matches the objective.
+    val sublimationContributions =
+        sublimationFixedContributions(
+            buildCombination.sublimations,
+            sumOfCharacteristicFixedValuesWithoutSublimations,
+            scoreComputationMode,
+            damageScenario,
+            characterLevel
+        )
+    val sumOfCharacteristicFixedValues =
+        if (sublimationContributions.isEmpty()) {
+            sumOfCharacteristicFixedValuesWithoutSublimations
+        } else {
+            mergeAndSumCharacteristicValues(sumOfCharacteristicFixedValuesWithoutSublimations, sublimationContributions)
+        }
 
     val mutableActualCharacteristics = sumOfCharacteristicFixedValues.toMutableMap()
     if (masteryElementsWanted.isNotEmpty()) {
@@ -340,3 +368,104 @@ internal fun getResistanceRandoms(eachCharacteristicValueLineByEquipment: Map<Ch
                 Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT
             )
     }
+
+/** AP/MP/WP folding for sublimation effect characteristics (mirrors StatBuilder.effectiveStat). */
+private fun Characteristic.foldedForSublimation(): Characteristic =
+    when (this) {
+        Characteristic.MAX_ACTION_POINT -> Characteristic.ACTION_POINT
+        Characteristic.MAX_MOVEMENT_POINT -> Characteristic.MOVEMENT_POINT
+        Characteristic.MAX_WAKFU_POINTS -> Characteristic.WAKFU_POINT
+        else -> this
+    }
+
+/** Condition types the solver models; the scorer must agree on which subs are conditionally applied. */
+private val SCORE_SUPPORTED_SUB_CONDITIONS =
+    setOf(
+        SublimationConditionType.AP_AT_MOST,
+        SublimationConditionType.AP_AT_LEAST,
+        SublimationConditionType.AP_EXACT,
+        SublimationConditionType.CRIT_AT_MOST,
+        SublimationConditionType.CRIT_AT_LEAST,
+        SublimationConditionType.BLOCK_AT_LEAST,
+        SublimationConditionType.RANGE_AT_MOST,
+        SublimationConditionType.RANGE_AT_LEAST,
+        SublimationConditionType.RANGE_EXACT,
+        SublimationConditionType.DODGE_LT_PCT_OF_LEVEL,
+        SublimationConditionType.SECONDARY_MASTERIES_AT_MOST
+    )
+
+private fun subConditionHolds(
+    cond: SublimationCondition,
+    preSub: Map<Characteristic, Int>,
+    level: Int,
+): Boolean {
+    fun v(c: Characteristic) = preSub[c] ?: 0
+    val n = cond.value ?: 0
+    return when (cond.type) {
+        SublimationConditionType.AP_AT_MOST -> v(Characteristic.ACTION_POINT) <= n
+        SublimationConditionType.AP_AT_LEAST -> v(Characteristic.ACTION_POINT) >= n
+        SublimationConditionType.AP_EXACT -> v(Characteristic.ACTION_POINT) == n
+        SublimationConditionType.CRIT_AT_MOST -> v(Characteristic.CRITICAL_HIT) <= n
+        SublimationConditionType.CRIT_AT_LEAST -> v(Characteristic.CRITICAL_HIT) >= n
+        SublimationConditionType.BLOCK_AT_LEAST -> v(Characteristic.BLOCK_PERCENTAGE) >= n
+        SublimationConditionType.RANGE_AT_MOST -> v(Characteristic.RANGE) <= n
+        SublimationConditionType.RANGE_AT_LEAST -> v(Characteristic.RANGE) >= n
+        SublimationConditionType.RANGE_EXACT -> v(Characteristic.RANGE) == n
+        SublimationConditionType.DODGE_LT_PCT_OF_LEVEL -> v(Characteristic.DODGE) < (n * level) / 100
+        SublimationConditionType.SECONDARY_MASTERIES_AT_MOST ->
+            v(Characteristic.MASTERY_MELEE) + v(Characteristic.MASTERY_DISTANCE) <= n
+        else -> true
+    }
+}
+
+private fun subScenarioGateMatches(
+    gate: ScenarioGate?,
+    mode: ScoreComputationMode?,
+    scenario: DamageScenario?,
+    level: Int,
+): Boolean {
+    if (gate == null) return true
+    if (mode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE || scenario == null) return false
+    gate.rangeBand?.let { if (scenario.rangeBand.name != it) return false }
+    gate.orientation?.let { if (scenario.orientation.name != it) return false }
+    if (gate.berserk == true && !scenario.berserk) return false
+    if (gate.ranged == true && scenario.rangeBand.name != "DISTANCE") return false
+    gate.minCharacterLevel?.let { if (level < it) return false }
+    return true
+}
+
+/**
+ * The flat per-characteristic value contributed by a build's chosen/forced sublimations, mirroring
+ * [WakfuBuildSolver]'s StatBuilder so the recomputed score matches the solver objective. Combat-conditional
+ * subs are not auto-credited (situational); static conditions are evaluated on [preSub] (the sub-excluded
+ * stats); scenario-gated effects count only in max-damage with a matching scenario.
+ */
+fun sublimationFixedContributions(
+    sublimations: List<Sublimation>,
+    preSub: Map<Characteristic, Int>,
+    mode: ScoreComputationMode?,
+    scenario: DamageScenario?,
+    level: Int,
+): Map<Characteristic, Int> {
+    if (sublimations.isEmpty()) return emptyMap()
+    val out = mutableMapOf<Characteristic, Int>()
+    for (sub in sublimations) {
+        if (sub.kind == SublimationKind.COMBAT_CONDITIONAL) continue
+        val cond = sub.condition
+        val applies =
+            cond == null || cond.type !in SCORE_SUPPORTED_SUB_CONDITIONS || subConditionHolds(cond, preSub, level)
+        if (!applies) continue
+        if (sub.kind == SublimationKind.CONVERSION) {
+            val conv = sub.conversion ?: continue
+            val moved = maxOf(0, (preSub[conv.from] ?: 0) * conv.percent / 100)
+            out.merge(conv.to.foldedForSublimation(), moved, Int::plus)
+            out.merge(conv.from.foldedForSublimation(), -moved, Int::plus)
+            continue
+        }
+        for (effect in sub.effects) {
+            if (!subScenarioGateMatches(effect.scenarioGate, mode, scenario, level)) continue
+            out.merge(effect.characteristic.foldedForSublimation(), effect.value, Int::plus)
+        }
+    }
+    return out
+}
