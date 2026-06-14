@@ -1,6 +1,10 @@
 package me.chosante.ui.history
 
 import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.Orientation
+import me.chosante.autobuilder.domain.RangeBand
+import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
@@ -181,6 +185,42 @@ class HistoryMappingTest {
     @Test
     fun `toHistoryEntry returns null without a build`() {
         assertThat(UiState().toHistoryEntry("id", "name", null, 0L, "v")).isNull()
+    }
+
+    @Test
+    fun `damage scenario round-trips through the history entry`() {
+        val scenario =
+            DamageScenario(
+                element = SpellElement.WATER,
+                rangeBand = RangeBand.MELEE,
+                orientation = Orientation.SIDE,
+                berserk = true,
+                healing = false,
+                critCapPercent = 80,
+                targetResistancePercent = 30,
+                baseDamage = 250
+            )
+        val ui =
+            UiState(
+                mode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                scenario = scenario,
+                build = BuildCombination(equipments = emptyList(), characterSkills = CharacterSkills(110))
+            )
+
+        val entry = ui.toHistoryEntry(id = "id-dmg", name = "Dmg", note = null, createdAt = 1L, dataVersion = "v")!!
+
+        assertThat(entry.request.scenario.element).isEqualTo("WATER")
+        assertThat(entry.request.scenario.orientation).isEqualTo("SIDE")
+        assertThat(entry.restoredScenario()).isEqualTo(scenario)
+    }
+
+    @Test
+    fun `restoredScenario falls back to the default for a pre-feature save`() {
+        // An entry built straight from the DTO with the default scenario (as an old save would
+        // deserialize) restores to the engine default without throwing.
+        val ui = UiState(build = BuildCombination(equipments = emptyList(), characterSkills = CharacterSkills(110)))
+        val entry = ui.toHistoryEntry(id = "id-old", name = "Old", note = null, createdAt = 1L, dataVersion = "v")!!
+        assertThat(entry.restoredScenario()).isEqualTo(DamageScenario())
     }
 
     @Test

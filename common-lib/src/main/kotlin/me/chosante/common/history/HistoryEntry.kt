@@ -69,6 +69,33 @@ data class RequestSnapshot(
     val targets: List<TargetSnapshot>,
     val forcedItems: List<ItemRef>,
     val excludedItems: List<ItemRef>,
+    /**
+     * Attack scenario for the max-damage mode. Defaulted so saves written before this field load with
+     * a neutral scenario (and ignored on load for non max-damage builds). Stored as primitives because
+     * the live `DamageScenario` (and its `SpellElement`/`RangeBand`/`Orientation` enums) live in the
+     * engine module — see the GUI mappers, mirroring how [mode] is stored.
+     */
+    val scenario: DamageScenarioSnapshot = DamageScenarioSnapshot(),
+)
+
+/**
+ * Persisted, primitive-only mirror of the engine's `DamageScenario`. Enum fields are stored as plain
+ * [String] names and resolved with a safe fallback on load (see the GUI mappers). Every field is
+ * defaulted to the engine's default scenario so older saves missing any key load cleanly.
+ */
+@Serializable
+data class DamageScenarioSnapshot(
+    /** `SpellElement` name. */
+    val element: String = "FIRE",
+    /** `RangeBand` name. */
+    val rangeBand: String = "DISTANCE",
+    /** `Orientation` name. */
+    val orientation: String = "BACK",
+    val berserk: Boolean = false,
+    val healing: Boolean = false,
+    val critCapPercent: Int = 100,
+    val targetResistancePercent: Int = 0,
+    val baseDamage: Int = 100,
 )
 
 @Serializable
