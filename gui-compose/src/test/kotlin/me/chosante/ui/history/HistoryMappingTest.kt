@@ -8,6 +8,9 @@ import me.chosante.common.Equipment
 import me.chosante.common.I18nText
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
+import me.chosante.common.RuneColor
+import me.chosante.common.RuneType
+import me.chosante.common.history.HistoryEntry
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.ui.state.ItemChip
 import me.chosante.ui.state.UiState
@@ -114,6 +117,65 @@ class HistoryMappingTest {
         val rebuilt = entry.toBuildCombination()
         assertThat(rebuilt.equipments).isEqualTo(listOf(cape))
         assertThat(rebuilt.characterSkills.allCharacteristicValues).isEqualTo(skills.allCharacteristicValues)
+    }
+
+    @Test
+    fun `socketed runes survive a clipboard export-import round-trip and reattach to their item`() {
+        // A level-50 amulet enchanted with two distance runes: the enchant level is item-level-gated
+        // (item 50 -> level 2), so it must be derivable after a full JSON round-trip.
+        val amulet =
+            Equipment(
+                equipmentId = 7,
+                guiId = 7,
+                level = 50,
+                name = I18nText(fr = "Amulette", en = "Amulet", es = "", pt = ""),
+                rarity = Rarity.RARE,
+                itemType = ItemType.AMULET,
+                characteristics = mapOf(Characteristic.MASTERY_DISTANCE to 30),
+                maxShardSlots = 2
+            )
+        val distanceRune =
+            RuneType(
+                id = 27098,
+                name = I18nText("Distance", "Distance", "", ""),
+                color = RuneColor.RED,
+                characteristic = Characteristic.MASTERY_DISTANCE,
+                doubleBonusPosition = listOf(10, 15),
+                gfxId = 0
+            )
+        val build =
+            BuildCombination(
+                equipments = listOf(amulet),
+                characterSkills = CharacterSkills(110),
+                runes = mapOf(amulet to listOf(distanceRune, distanceRune))
+            )
+        val ui =
+            UiState(
+                clazz = CharacterClass.CRA,
+                level = 110,
+                minLevel = 110,
+                mode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                maxRarity = Rarity.EPIC,
+                duration = "30",
+                stopAtMatch = false,
+                targets = listOfNotNull(statDefFor(Characteristic.MASTERY_DISTANCE)?.toRow("1")),
+                build = build,
+                achieved = mapOf(Characteristic.MASTERY_DISTANCE to 100),
+                match = BigDecimal("100"),
+                optimal = true
+            )
+
+        val entry = ui.toHistoryEntry(id = "id-2", name = "Runed", note = null, createdAt = 1L, dataVersion = "v")!!
+        // Go through the very JSON codec used by the clipboard export/import.
+        val restored = historyJson.decodeFromString(HistoryEntry.serializer(), historyJson.encodeToString(HistoryEntry.serializer(), entry))
+
+        val rebuilt = restored.toBuildCombination()
+        val rebuiltAmulet = rebuilt.equipments.single()
+        val runes = rebuilt.runes[rebuiltAmulet].orEmpty()
+        assertThat(runes).hasSize(2)
+        assertThat(runes).allMatch { it.characteristic == Characteristic.MASTERY_DISTANCE }
+        // Item-level-gated enchant level is preserved (derived from the carrier item's level 50 -> 2).
+        assertThat(runes.first().maxLevel(rebuiltAmulet.level)).isEqualTo(2)
     }
 
     @Test

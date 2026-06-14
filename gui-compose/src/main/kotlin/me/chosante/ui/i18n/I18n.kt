@@ -91,6 +91,7 @@ enum class Tr(
     ),
     EMPTY("empty", "vide"),
     LEVEL_PREFIX_LONG("Level", "Niveau"),
+    LEVEL_PREFIX_SHORT("Lv", "Niv"),
     DISCLAIMER(
         "Unofficial fan tool - not affiliated with Ankama - item art © Ankama (community-sourced)",
         "Outil de fan non officiel - non affilié à Ankama - visuels © Ankama (communautaires)"
