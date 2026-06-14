@@ -1,0 +1,4750 @@
+{
+  "summary": {
+    "distinct_sublimations_by_stateId": 232,
+    "raw_item_rows": 467,
+    "coverage": {
+      "wakforge_structured": "222/232 (95%)",
+      "noredlace_text": "204/232 (87%)",
+      "either_source": "222/232 (95%)",
+      "both_sources": "204/232 (87%)"
+    },
+    "by_kind": {
+      "relic": {
+        "distinct": 47,
+        "wakforge": "43/47",
+        "noredlace": "43/47"
+      },
+      "epic": {
+        "distinct": 32,
+        "wakforge": "31/32",
+        "noredlace": "31/32"
+      },
+      "normal": {
+        "distinct": 153,
+        "wakforge": "148/153",
+        "noredlace": "130/153"
+      }
+    },
+    "unmatched_by_either_source": [
+      {
+        "stateId": 9060,
+        "kind": "normal",
+        "state_name_en": "Secondary Embellishment",
+        "item_names_en": [
+          "Secondary Embellishment I",
+          "Secondary Embellishment II",
+          "Secondary Embellishment III"
+        ]
+      },
+      {
+        "stateId": 9062,
+        "kind": "normal",
+        "state_name_en": "Surge",
+        "item_names_en": [
+          "Surge I",
+          "Surge II",
+          "Surge III"
+        ]
+      },
+      {
+        "stateId": 9064,
+        "kind": "normal",
+        "state_name_en": "Judgment",
+        "item_names_en": [
+          "Judgment I",
+          "Judgment II",
+          "Judgment III"
+        ]
+      },
+      {
+        "stateId": 9066,
+        "kind": "normal",
+        "state_name_en": "Diagnosis",
+        "item_names_en": [
+          "Diagnosis I",
+          "Diagnosis II",
+          "Diagnosis III"
+        ]
+      },
+      {
+        "stateId": 9067,
+        "kind": "normal",
+        "state_name_en": "Critical Save",
+        "item_names_en": [
+          "Critical Save II"
+        ]
+      },
+      {
+        "stateId": 9070,
+        "kind": "relic",
+        "state_name_en": "Wakfu Seal",
+        "item_names_en": [
+          "Wakfu Seal"
+        ]
+      },
+      {
+        "stateId": 9071,
+        "kind": "relic",
+        "state_name_en": "Single Block",
+        "item_names_en": [
+          "Single Block"
+        ]
+      },
+      {
+        "stateId": 9072,
+        "kind": "relic",
+        "state_name_en": "Absolution",
+        "item_names_en": [
+          "Absolution"
+        ]
+      },
+      {
+        "stateId": 9073,
+        "kind": "relic",
+        "state_name_en": "Punishment",
+        "item_names_en": [
+          "Punishment"
+        ]
+      },
+      {
+        "stateId": 9074,
+        "kind": "epic",
+        "state_name_en": "Critical Secret",
+        "item_names_en": [
+          "Critical Secret"
+        ]
+      }
+    ],
+    "noredlace_entries_unmatched_to_game": [
+      {
+        "bucket": "normal",
+        "name": "AP Return (old Return)"
+      },
+      {
+        "bucket": "normal",
+        "name": "Clamor  (old Condemnation II)"
+      },
+      {
+        "bucket": "normal",
+        "name": "Distant Ambush (old Ambush II)"
+      },
+      {
+        "bucket": "normal",
+        "name": "Escape (old Evasion)"
+      },
+      {
+        "bucket": "normal",
+        "name": "Focalization (old Frenzy III)"
+      },
+      {
+        "bucket": "normal",
+        "name": "Fury (old Frenzy II)"
+      },
+      {
+        "bucket": "normal",
+        "name": "Melee Barrier (old Close-Combat Barrier)"
+      },
+      {
+        "bucket": "normal",
+        "name": "MP Return (old Return II)"
+      },
+      {
+        "bucket": "normal",
+        "name": "Nature"
+      },
+      {
+        "bucket": "normal",
+        "name": "Obstinacy (old Resolute II)"
+      },
+      {
+        "bucket": "normal",
+        "name": "Persistence (old Tenacity II)"
+      },
+      {
+        "bucket": "normal",
+        "name": "Poise (old Lightness II)"
+      },
+      {
+        "bucket": "normal",
+        "name": "Poisoned Weapon"
+      },
+      {
+        "bucket": "normal",
+        "name": "Prosperity (old Endurance II)"
+      },
+      {
+        "bucket": "normal",
+        "name": "Secondary Devastation (old Devastate II)"
+      },
+      {
+        "bucket": "normal",
+        "name": "Slow Escape (old Slow Evasion) (old Evasion II)"
+      },
+      {
+        "bucket": "normal",
+        "name": "Slow Influence (old Influence II)"
+      }
+    ]
+  },
+  "distinct": [
+    {
+      "stateId": 5082,
+      "kind": "relic",
+      "item_names_en": [
+        "Robust"
+      ],
+      "item_name_fr": "Robuste",
+      "state_name_en": "Robust",
+      "state_name_fr": "Robuste",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "100% of level in Barrier against long-range damage (permanent)",
+      "noredlace_matched_via": "robust"
+    },
+    {
+      "stateId": 5073,
+      "kind": "epic",
+      "item_names_en": [
+        "Inflexibility"
+      ],
+      "item_name_fr": "Inflexibilité",
+      "state_name_en": "Inflexible",
+      "state_name_fr": "Inflexible",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has 10 AP or less:  15% damage inflicted 10 Force of Will (if the character is at level 100 or greater)",
+      "noredlace_matched_via": "inflexibility"
+    },
+    {
+      "stateId": 5074,
+      "kind": "epic",
+      "item_names_en": [
+        "Steadfast"
+      ],
+      "item_name_fr": "Constance",
+      "state_name_en": "Constant",
+      "state_name_fr": "Constant",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has 10% Critical Hit or less:  20% damage inflicted 50 Critical Resistance",
+      "noredlace_matched_via": "steadfast"
+    },
+    {
+      "stateId": 5077,
+      "kind": "epic",
+      "item_names_en": [
+        "Unraveling"
+      ],
+      "item_name_fr": "Dénouement",
+      "state_name_en": "Unraveling",
+      "state_name_fr": "Dénouement",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has at least 40% Critical Hit converts 100% of Critical Mastery to Elemental Mastery",
+      "noredlace_matched_via": "unraveling"
+    },
+    {
+      "stateId": 5076,
+      "kind": "epic",
+      "item_names_en": [
+        "Surgical Precision"
+      ],
+      "item_name_fr": "Précision chirurgicale",
+      "state_name_en": "Precise",
+      "state_name_fr": "Précis",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has 1 Range or less:  20% heals performed 15% Armor Given and Received",
+      "noredlace_matched_via": "surgical precision"
+    },
+    {
+      "stateId": 5075,
+      "kind": "epic",
+      "item_names_en": [
+        "Measure"
+      ],
+      "item_name_fr": "Mesure",
+      "state_name_en": "Measure",
+      "state_name_fr": "Mesure",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has 40% Block or greater:  10% Critical Hit 10% damage inflicted on critical hit",
+      "noredlace_matched_via": "measure"
+    },
+    {
+      "stateId": 5078,
+      "kind": "relic",
+      "item_names_en": [
+        "Smashell"
+      ],
+      "item_name_fr": "Fracass'carapace",
+      "state_name_en": "Smashmouth",
+      "state_name_fr": "Fracass'carcasse",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "The first spell that inflicts damage this turn removes 30% Armor from the target",
+      "noredlace_matched_via": "smashell"
+    },
+    {
+      "stateId": 5079,
+      "kind": "relic",
+      "item_names_en": [
+        "Alternation"
+      ],
+      "item_name_fr": "Alternance",
+      "state_name_en": "Alternation",
+      "state_name_fr": "Alternance",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "If the bearer has only used one element to cause damage during their turn: they gain +20% to their Elemental Mastery in their other elements",
+      "noredlace_matched_via": "alternation"
+    },
+    {
+      "stateId": 5080,
+      "kind": "relic",
+      "item_names_en": [
+        "Trust"
+      ],
+      "item_name_fr": "Confiance",
+      "state_name_en": "Trust",
+      "state_name_fr": "Confiance",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "30% Block if the bearer did not receive healing in the previous turn.",
+      "noredlace_matched_via": "trust"
+    },
+    {
+      "stateId": 5081,
+      "kind": "relic",
+      "item_names_en": [
+        "Brazier"
+      ],
+      "item_name_fr": "Brasero",
+      "state_name_en": "Brazier",
+      "state_name_fr": "Brasero",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "10% damage inflicted when the bearer meets certain conditions (these change each turn).  Turn 1: The bearer is in melee or the spell is single-target  Turn 2: The bearer is at a distance or the spell is single-target  Turn 3: The bearer is at a distance or the spell is area-of-effect  Turn 4: The bearer is in melee or the spell is area-of-effect",
+      "noredlace_matched_via": "brazier"
+    },
+    {
+      "stateId": 5443,
+      "kind": "epic",
+      "item_names_en": [
+        "Robust Health"
+      ],
+      "item_name_fr": "Santé de fer",
+      "state_name_en": "Robust Health",
+      "state_name_fr": "Santé de fer",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, for the state bearer:  -30% HP (penalty to the HP modifier) 30% Heals and Armor from fighters received",
+      "noredlace_matched_via": "robust health"
+    },
+    {
+      "stateId": 5444,
+      "kind": "epic",
+      "item_names_en": [
+        "Positioning Knowledge"
+      ],
+      "item_name_fr": "Science du placement",
+      "state_name_en": "Positioning Knowledge",
+      "state_name_fr": "Science du placement",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "50 Elemental Resistance  -200 Rear Resistance for the bearer at the start of combat.",
+      "noredlace_matched_via": "positioning knowledge"
+    },
+    {
+      "stateId": 5445,
+      "kind": "epic",
+      "item_names_en": [
+        "Anatomy"
+      ],
+      "item_name_fr": "Anatomie",
+      "state_name_en": "Anatomy",
+      "state_name_fr": "Anatomie",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the highest Elemental Mastery is greater than Rear Mastery:  -20% damage inflicted 40% damage inflicted from behind",
+      "noredlace_matched_via": "anatomy"
+    },
+    {
+      "stateId": 5446,
+      "kind": "epic",
+      "item_names_en": [
+        "Brutality"
+      ],
+      "item_name_fr": "Brutalité",
+      "state_name_en": "Brutality",
+      "state_name_fr": "Brutalité",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the bearer has exactly 0 Range:  +20% damage inflicted in melee and area of effect simultaneously",
+      "noredlace_matched_via": "brutality"
+    },
+    {
+      "stateId": 5448,
+      "kind": "epic",
+      "item_names_en": [
+        "Herculean Strength"
+      ],
+      "item_name_fr": "Force Herculéenne",
+      "state_name_en": "Herculean Strength",
+      "state_name_fr": "Force herculéenne",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has an odd number of AP:  250% of level as Lock and Dodge",
+      "noredlace_matched_via": "herculean strength"
+    },
+    {
+      "stateId": 5174,
+      "kind": "relic",
+      "item_names_en": [
+        "Alternation II"
+      ],
+      "item_name_fr": "Alternance II",
+      "state_name_en": "Alternation II",
+      "state_name_fr": "Alternance II",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "If the bearer inflicts damage in an element:  they gain +15% Elemental Mastery in the other elements for the next spell.  Only the first line of damage caused by the spell is taken into account.",
+      "noredlace_matched_via": "alternation ii"
+    },
+    {
+      "stateId": 5250,
+      "kind": "relic",
+      "item_names_en": [
+        "Excess"
+      ],
+      "item_name_fr": "Excès",
+      "state_name_en": "Excess",
+      "state_name_fr": "Excès",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "-10% Damage inflicted  Every 10 spells cast, the state bearer gains 100% Damage inflicted for the next spell  Spells cast must cost at least 1 AP  Once the state is at level 10, the next spell gets the damage bonus",
+      "noredlace_matched_via": "excess"
+    },
+    {
+      "stateId": 5252,
+      "kind": "relic",
+      "item_names_en": [
+        "Heartbreaking Blood"
+      ],
+      "item_name_fr": "Sang de la Déchirure",
+      "state_name_en": "Heartbreaking Blood",
+      "state_name_fr": "Sang de la déchirure",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "In an uneven round:  The bearer inflicts 25% more damage, and suffers 15% of the damage they inflict",
+      "noredlace_matched_via": "heartbreaking blood"
+    },
+    {
+      "stateId": 5453,
+      "kind": "relic",
+      "item_names_en": [
+        "Guard Up"
+      ],
+      "item_name_fr": "Garde levée",
+      "state_name_en": "Guard Up",
+      "state_name_fr": "Garde Levée",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "-30% damage received during their own turn.",
+      "noredlace_matched_via": "guard up"
+    },
+    {
+      "stateId": 5452,
+      "kind": "relic",
+      "item_names_en": [
+        "Flame Aura"
+      ],
+      "item_name_fr": "Aura de Flammes",
+      "state_name_en": "Flame Aura",
+      "state_name_fr": "Aura de flammes",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "Flaming (+15 Lvls.) (stackable) for the state bearer, for each damage spell received in melee.  100% of level as Flaming at start of turn if no enemies are adjacent.",
+      "noredlace_matched_via": "flame aura"
+    },
+    {
+      "stateId": 5980,
+      "kind": "normal",
+      "item_names_en": [
+        "Ruin I",
+        "Ruin II",
+        "Ruin III"
+      ],
+      "item_name_fr": "Ruine II",
+      "state_name_en": "Ruin",
+      "state_name_fr": "Ruine",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        1,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "5% indirect Damage [+1]",
+      "noredlace_matched_via": "ruin"
+    },
+    {
+      "stateId": 5981,
+      "kind": "normal",
+      "item_names_en": [
+        "Devastation I",
+        "Devastation II",
+        "Devastation III"
+      ],
+      "item_name_fr": "Dévastation II",
+      "state_name_en": "Devastation",
+      "state_name_fr": "Dévastation",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        3,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "1 WP -30 Force of Will [+1]",
+      "noredlace_matched_via": "devastation"
+    },
+    {
+      "stateId": 5982,
+      "kind": "normal",
+      "item_names_en": [
+        "Devastate I",
+        "Devastate II",
+        "Devastate III"
+      ],
+      "item_name_fr": "Ravage II",
+      "state_name_en": "Devastate",
+      "state_name_fr": "Ravage",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        2,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "At start of fight: All Masteries: 5% of level All Resistances: 3  [+1]",
+      "noredlace_matched_via": "devastate"
+    },
+    {
+      "stateId": 5983,
+      "kind": "normal",
+      "item_names_en": [
+        "Carnage I",
+        "Carnage II",
+        "Carnage III"
+      ],
+      "item_name_fr": "Carnage II",
+      "state_name_en": "Carnage",
+      "state_name_fr": "Carnage",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        1,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When HP are above 90%: 15% of level in Elemental Mastery [+1]",
+      "noredlace_matched_via": "carnage"
+    },
+    {
+      "stateId": 5984,
+      "kind": "normal",
+      "item_names_en": [
+        "Healing I",
+        "Healing II",
+        "Healing III"
+      ],
+      "item_name_fr": "Cicatrisation II",
+      "state_name_en": "Healing",
+      "state_name_fr": "Cicatrisation",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        1,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "5% health points (bonus on HP modifier) [+1]",
+      "noredlace_matched_via": "healing"
+    },
+    {
+      "stateId": 5985,
+      "kind": "normal",
+      "item_names_en": [
+        "Ambush I",
+        "Ambush II",
+        "Ambush III"
+      ],
+      "item_name_fr": "Embuscade II",
+      "state_name_en": "Ambush",
+      "state_name_fr": "Embuscade",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        3,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "2% Damage Inflicted on targets in close combat [+1]",
+      "noredlace_matched_via": "ambush"
+    },
+    {
+      "stateId": 5986,
+      "kind": "normal",
+      "item_names_en": [
+        "Escape I",
+        "Escape II",
+        "Escape III"
+      ],
+      "item_name_fr": "Dérobade II",
+      "state_name_en": "Escape",
+      "state_name_fr": "Dérobade",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        3,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 5987,
+      "kind": "normal",
+      "item_names_en": [
+        "Determination II"
+      ],
+      "item_name_fr": "Détermination II",
+      "state_name_en": "Determination",
+      "state_name_fr": "Détermination",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        2,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-",
+      "noredlace_matched_via": "determination"
+    },
+    {
+      "stateId": 5988,
+      "kind": "normal",
+      "item_names_en": [
+        "Tenacity II"
+      ],
+      "item_name_fr": "Ténacité II",
+      "state_name_en": "Tenacity",
+      "state_name_fr": "Ténacité",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        2,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-",
+      "noredlace_matched_via": "tenacity"
+    },
+    {
+      "stateId": 5989,
+      "kind": "normal",
+      "item_names_en": [
+        "Solidity II"
+      ],
+      "item_name_fr": "Solidité II",
+      "state_name_en": "Solidity",
+      "state_name_fr": "Solidité",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        1,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-",
+      "noredlace_matched_via": "solidity"
+    },
+    {
+      "stateId": 5990,
+      "kind": "normal",
+      "item_names_en": [
+        "Resolute I",
+        "Resolute II",
+        "Resolute III"
+      ],
+      "item_name_fr": "Fermeté II",
+      "state_name_en": "Resolute",
+      "state_name_fr": "Fermeté",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        3,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "After suffering a loss of 3 AP: 10 Force of Will (3 turns) [+1]",
+      "noredlace_matched_via": "resolute"
+    },
+    {
+      "stateId": 5991,
+      "kind": "normal",
+      "item_names_en": [
+        "Lightness I",
+        "Lightness II",
+        "Lightness III"
+      ],
+      "item_name_fr": "Légèreté II",
+      "state_name_en": "Lightness",
+      "state_name_fr": "Légèreté",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        1,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "After suffering a loss of 3 MP: 10 Force of Will (3 turns) [+1]",
+      "noredlace_matched_via": "lightness"
+    },
+    {
+      "stateId": 5992,
+      "kind": "normal",
+      "item_names_en": [
+        "Topology I",
+        "Topology II",
+        "Topology III"
+      ],
+      "item_name_fr": "Topologie II",
+      "state_name_en": "Topology",
+      "state_name_fr": "Topologie",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "At the start of combat: All of the state bearers Dodge is converted into Armor at a ratio of 1 for 1. Converted Dodge is lost. [+1]",
+      "noredlace_matched_via": "topology"
+    },
+    {
+      "stateId": 5993,
+      "kind": "normal",
+      "item_names_en": [
+        "Condemnation II"
+      ],
+      "item_name_fr": "Réprobation II",
+      "state_name_en": "Condemnation",
+      "state_name_fr": "Réprobation",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        2,
+        1,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-",
+      "noredlace_matched_via": "condemnation"
+    },
+    {
+      "stateId": 6042,
+      "kind": "normal",
+      "item_names_en": [
+        "Stupefaction I",
+        "Stupefaction II",
+        "Stupefaction III"
+      ],
+      "item_name_fr": "Stupéfaction II",
+      "state_name_en": "Stupefaction",
+      "state_name_fr": "Stupéfaction",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        3,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "At start of fight: 5% Critical Hit (1 turn) 5% of level as Critical Mastery (1 turn) [+1]",
+      "noredlace_matched_via": "stupefaction"
+    },
+    {
+      "stateId": 5994,
+      "kind": "normal",
+      "item_names_en": [
+        "Frenzy II"
+      ],
+      "item_name_fr": "Frénésie II",
+      "state_name_en": "Frenzy",
+      "state_name_fr": "Frénésie",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        1,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-",
+      "noredlace_matched_via": "frenzy"
+    },
+    {
+      "stateId": 5999,
+      "kind": "normal",
+      "item_names_en": [
+        "Dimensionality II"
+      ],
+      "item_name_fr": "Dimensionnalité II",
+      "state_name_en": "Dimensionality",
+      "state_name_fr": "Dimensionnalité",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        1,
+        3,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-",
+      "noredlace_matched_via": "dimensionality"
+    },
+    {
+      "stateId": 6000,
+      "kind": "normal",
+      "item_names_en": [
+        "Theory of Matter I",
+        "Theory of Matter II"
+      ],
+      "item_name_fr": "Théorie de la matière II",
+      "state_name_en": "Theory of Matter",
+      "state_name_fr": "Théorie de la matière",
+      "n_item_rows": 2,
+      "slotColorPattern": [
+        3,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "50% Critical Hit -50% Damage and Heals [+1]",
+      "noredlace_matched_via": "theory of matter"
+    },
+    {
+      "stateId": 6001,
+      "kind": "normal",
+      "item_names_en": [
+        "AP Return II"
+      ],
+      "item_name_fr": "Retour PA II",
+      "state_name_en": "AP Return",
+      "state_name_fr": "Retour PA",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        3,
+        1,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 6002,
+      "kind": "normal",
+      "item_names_en": [
+        "Endurance I",
+        "Endurance II",
+        "Endurance III"
+      ],
+      "item_name_fr": "Endurance II",
+      "state_name_en": "Endurance",
+      "state_name_fr": "Endurance",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        1,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-5% to characteristic penalties received. Affects all characteristic penalties (Masteries, Resistances, Armor, Critical Hits, etc.) received in combat and cast by an entity other than the state bearer. The value is always rounded down. [+1]",
+      "noredlace_matched_via": "endurance"
+    },
+    {
+      "stateId": 6004,
+      "kind": "normal",
+      "item_names_en": [
+        "Moon Scales I",
+        "Moon Scales II",
+        "Moon Scales III"
+      ],
+      "item_name_fr": "Ecailles de lune II",
+      "state_name_en": "Moon Scales",
+      "state_name_fr": "Ecailles de Lune",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        3,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "3% Armor received [+1]",
+      "noredlace_matched_via": "moon scales"
+    },
+    {
+      "stateId": 6005,
+      "kind": "normal",
+      "item_names_en": [
+        "Swiftness I",
+        "Swiftness II"
+      ],
+      "item_name_fr": "Vélocité II",
+      "state_name_en": "Swiftness",
+      "state_name_fr": "Vélocité",
+      "n_item_rows": 2,
+      "slotColorPattern": [
+        2,
+        1,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "1 MP -20% Damage inflicted [+1]",
+      "noredlace_matched_via": "swiftness"
+    },
+    {
+      "stateId": 6006,
+      "kind": "normal",
+      "item_names_en": [
+        "Save II"
+      ],
+      "item_name_fr": "Sauvegarde II",
+      "state_name_en": "Save",
+      "state_name_fr": "Sauvegarde",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        3,
+        1,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-",
+      "noredlace_matched_via": "save"
+    },
+    {
+      "stateId": 6007,
+      "kind": "normal",
+      "item_names_en": [
+        "Good Deed"
+      ],
+      "item_name_fr": "Bonne action",
+      "state_name_en": "Good Deed",
+      "state_name_fr": "Bonne action",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        2,
+        3,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 6008,
+      "kind": "normal",
+      "item_names_en": [
+        "Vivacity I",
+        "Vivacity II"
+      ],
+      "item_name_fr": "Vivacité II",
+      "state_name_en": "Vivacity",
+      "state_name_fr": "Vivacité",
+      "n_item_rows": 2,
+      "slotColorPattern": [
+        1,
+        3,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "1 AP -150 Elemental Resistance [+1]",
+      "noredlace_matched_via": "vivacity"
+    },
+    {
+      "stateId": 6009,
+      "kind": "normal",
+      "item_names_en": [
+        "Berserk Critical I",
+        "Berserk Critical II",
+        "Berserk Critical III"
+      ],
+      "item_name_fr": "Critique Berserk II",
+      "state_name_en": "Berserk Critical",
+      "state_name_fr": "Critique Berserk",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        2,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When HP are at less than 50%: 5% Critical Hit [+1]",
+      "noredlace_matched_via": "berserk critical"
+    },
+    {
+      "stateId": 6010,
+      "kind": "normal",
+      "item_names_en": [
+        "Visibility I",
+        "Visibility II"
+      ],
+      "item_name_fr": "Visibilité II",
+      "state_name_en": "Visibility",
+      "state_name_fr": "Visibilité",
+      "n_item_rows": 2,
+      "slotColorPattern": [
+        3,
+        2,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "1 Range -300 Lock -300 Dodge [+1]",
+      "noredlace_matched_via": "visibility"
+    },
+    {
+      "stateId": 6011,
+      "kind": "normal",
+      "item_names_en": [
+        "Cyclical Ruin II"
+      ],
+      "item_name_fr": "Ruine cyclique II",
+      "state_name_en": "Cyclical Ruin",
+      "state_name_fr": "Ruine cyclique",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        1,
+        1,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-",
+      "noredlace_matched_via": "cyclical ruin"
+    },
+    {
+      "stateId": 6012,
+      "kind": "normal",
+      "item_names_en": [
+        "Berserk Lock I",
+        "Berserk Lock II",
+        "Berserk Lock III"
+      ],
+      "item_name_fr": "Tacle Berserk II",
+      "state_name_en": "Berserk Lock",
+      "state_name_fr": "Tacle Berserk",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        3,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When HP are at less than 50%: 10% Lock [+1]",
+      "noredlace_matched_via": "berserk lock"
+    },
+    {
+      "stateId": 6013,
+      "kind": "normal",
+      "item_names_en": [
+        "Secondary Devastation II"
+      ],
+      "item_name_fr": "Ravage secondaire II",
+      "state_name_en": "Secondary Devastation",
+      "state_name_fr": "Ravage secondaire",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        2,
+        2,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 6014,
+      "kind": "normal",
+      "item_names_en": [
+        "Slow Escape II"
+      ],
+      "item_name_fr": "Dérobade lente II",
+      "state_name_en": "Slow Escape",
+      "state_name_fr": "Dérobade lente",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        1,
+        1,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 6016,
+      "kind": "normal",
+      "item_names_en": [
+        "Distant Ambush I",
+        "Distant Ambush II",
+        "Distant Ambush III"
+      ],
+      "item_name_fr": "Embuscade écartée II",
+      "state_name_en": "Distant Ambush",
+      "state_name_fr": "Embuscade écartée",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        1,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 6017,
+      "kind": "normal",
+      "item_names_en": [
+        "Spines I",
+        "Spines II",
+        "Spines III"
+      ],
+      "item_name_fr": "Epines II",
+      "state_name_en": "Spines",
+      "state_name_fr": "Epines",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        3,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "Performing a Block gives Preparation (+1 Lvl.) [+1]",
+      "noredlace_matched_via": "spines"
+    },
+    {
+      "stateId": 6018,
+      "kind": "normal",
+      "item_names_en": [
+        "Berserk Dodge I",
+        "Berserk Dodge II",
+        "Berserk Dodge III"
+      ],
+      "item_name_fr": "Esquive Berserk II",
+      "state_name_en": "Berserk Dodge",
+      "state_name_fr": "Esquive Berserk",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        3,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When HP are at less than 50%: 10% Dodge [+1]",
+      "noredlace_matched_via": "berserk dodge"
+    },
+    {
+      "stateId": 6019,
+      "kind": "normal",
+      "item_names_en": [
+        "Distance Barrier I",
+        "Distance Barrier II",
+        "Distance Barrier III"
+      ],
+      "item_name_fr": "Barrière Distance II",
+      "state_name_en": "Distance Barrier",
+      "state_name_fr": "Barrière Distance",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "Reduces Ranged Damage suffered by 50% of level, 2 times per turn [+1]",
+      "noredlace_matched_via": "distance barrier"
+    },
+    {
+      "stateId": 6020,
+      "kind": "normal",
+      "item_names_en": [
+        "Melee Barrier I",
+        "Melee Barrier II",
+        "Melee Barrier III"
+      ],
+      "item_name_fr": "Barrière Mêlée II",
+      "state_name_en": "Melee Barrier",
+      "state_name_fr": "Barrière Mêlée",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 6021,
+      "kind": "normal",
+      "item_names_en": [
+        "Persistence II"
+      ],
+      "item_name_fr": "Persistance II",
+      "state_name_en": "Persistence",
+      "state_name_fr": "Persistance",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        1,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 6022,
+      "kind": "normal",
+      "item_names_en": [
+        "Obstinacy I",
+        "Obstinacy II",
+        "Resolute II"
+      ],
+      "item_name_fr": "Opiniâtreté II",
+      "state_name_en": "Obstinacy",
+      "state_name_fr": "Opiniâtreté",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        3,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 6023,
+      "kind": "normal",
+      "item_names_en": [
+        "Poise I",
+        "Poise II"
+      ],
+      "item_name_fr": "Aisance II",
+      "state_name_en": "Poise",
+      "state_name_fr": "Aisance",
+      "n_item_rows": 2,
+      "slotColorPattern": [
+        3,
+        1,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 6024,
+      "kind": "normal",
+      "item_names_en": [
+        "Berserk Block I",
+        "Berserk Block II",
+        "Berserk Block III"
+      ],
+      "item_name_fr": "Parade Berserk II",
+      "state_name_en": "Berserk Block",
+      "state_name_fr": "Parade Berserk",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When HP are at less than 50%: 5% Block [+1]",
+      "noredlace_matched_via": "berserk block"
+    },
+    {
+      "stateId": 6025,
+      "kind": "normal",
+      "item_names_en": [
+        "Vitality Well I",
+        "Vitality Well II",
+        "Vitality Well III"
+      ],
+      "item_name_fr": "Puits de Vitalité II",
+      "state_name_en": "Vitality Well",
+      "state_name_fr": "Puits de Vitalité",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        1,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "Increases Health Steals performed by 5% [+1]",
+      "noredlace_matched_via": "vitality well"
+    },
+    {
+      "stateId": 6026,
+      "kind": "normal",
+      "item_names_en": [
+        "Influence I",
+        "Influence II",
+        "Influence III"
+      ],
+      "item_name_fr": "Influence II",
+      "state_name_en": "Influence",
+      "state_name_fr": "Influence",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        3,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "3% Critical Hit [+1]",
+      "noredlace_matched_via": "influence"
+    },
+    {
+      "stateId": 6027,
+      "kind": "normal",
+      "item_names_en": [
+        "Fury II"
+      ],
+      "item_name_fr": "Fureur II",
+      "state_name_en": "Fury",
+      "state_name_fr": "Fureur",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        1,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 6029,
+      "kind": "normal",
+      "item_names_en": [
+        "Wall I",
+        "Wall II",
+        "Wall III"
+      ],
+      "item_name_fr": "Muraille II",
+      "state_name_en": "Wall",
+      "state_name_fr": "Muraille",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        3,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "At start of fight, 150% of level as Armor [+1]",
+      "noredlace_matched_via": "wall"
+    },
+    {
+      "stateId": 6030,
+      "kind": "normal",
+      "item_names_en": [
+        "Cyclothymia I",
+        "Cyclothymia II"
+      ],
+      "item_name_fr": "Cyclothymie II",
+      "state_name_en": "Cyclothymia",
+      "state_name_fr": "Cyclothymie",
+      "n_item_rows": 2,
+      "slotColorPattern": [
+        3,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "Even turns: 10 Force of Will Odd turns: -10 Force of Will [+1]",
+      "noredlace_matched_via": "cyclothymia"
+    },
+    {
+      "stateId": 6031,
+      "kind": "normal",
+      "item_names_en": [
+        "MP Return II"
+      ],
+      "item_name_fr": "Retour PM II",
+      "state_name_en": "MP Return",
+      "state_name_fr": "Retour PM",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        3,
+        1,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 6032,
+      "kind": "normal",
+      "item_names_en": [
+        "Prosperity I",
+        "Prosperity II",
+        "Prosperity III"
+      ],
+      "item_name_fr": "Prospérité II",
+      "state_name_en": "Prosperity",
+      "state_name_fr": "Prospérité",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        1,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 6033,
+      "kind": "normal",
+      "item_names_en": [
+        "Clamor II"
+      ],
+      "item_name_fr": "Clameur II",
+      "state_name_en": "Clamor",
+      "state_name_fr": "Clameur",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        2,
+        3,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 6034,
+      "kind": "normal",
+      "item_names_en": [
+        "Focalization II"
+      ],
+      "item_name_fr": "Focalisation II",
+      "state_name_en": "Focalization",
+      "state_name_fr": "Focalisation",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        2,
+        1,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 6036,
+      "kind": "normal",
+      "item_names_en": [
+        "Length I",
+        "Length II",
+        "Length III"
+      ],
+      "item_name_fr": "Longueur II",
+      "state_name_en": "Length",
+      "state_name_fr": "Longueur",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        1,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "2% Damage Inflicted on aligned targets 2 or more cells away from the state bearer [+1]",
+      "noredlace_matched_via": "length"
+    },
+    {
+      "stateId": 6037,
+      "kind": "normal",
+      "item_names_en": [
+        "Blocking Expert II"
+      ],
+      "item_name_fr": "Expert des Parades II",
+      "state_name_en": "Blocking Expert",
+      "state_name_fr": "Expert des Parades",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        2,
+        3,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-",
+      "noredlace_matched_via": "blocking expert"
+    },
+    {
+      "stateId": 6038,
+      "kind": "normal",
+      "item_names_en": [
+        "Rocky Envelope I",
+        "Rocky Envelope II",
+        "Rocky Envelope III"
+      ],
+      "item_name_fr": "Enveloppe rocheuse II",
+      "state_name_en": "Rocky Envelope",
+      "state_name_fr": "Enveloppe rocheuse",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        3,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "3% Armor given [+1]",
+      "noredlace_matched_via": "rocky envelope"
+    },
+    {
+      "stateId": 6039,
+      "kind": "normal",
+      "item_names_en": [
+        "Slow Influence I",
+        "Slow Influence II",
+        "Slow Influence III"
+      ],
+      "item_name_fr": "Influence lente II",
+      "state_name_en": "Slow Influence",
+      "state_name_fr": "Influence lente",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        2,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 6041,
+      "kind": "normal",
+      "item_names_en": [
+        "Critical Hit Expert I",
+        "Critical Hit Expert II",
+        "Critical Hit Expert III"
+      ],
+      "item_name_fr": "Expert des Coups critiques II",
+      "state_name_en": "Critical Hit Expert",
+      "state_name_fr": "Expert des Coups critiques",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        2,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "At end of turn, if a critical hit was performed:  Heal: 2% of HP lost of the caster [+1]",
+      "noredlace_matched_via": "critical hit expert"
+    },
+    {
+      "stateId": 5158,
+      "kind": "epic",
+      "item_names_en": [
+        "Wield type: Two-handed"
+      ],
+      "item_name_fr": "Maniement : Deux mains",
+      "state_name_en": "Wield type: two-handed",
+      "state_name_fr": "Maniement : Deux mains",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has a Two-Handed Weapon equipped ( maximum 12 AP before the sublimation effect):  -2 max MP 2 max AP",
+      "noredlace_matched_via": "wield type two handed"
+    },
+    {
+      "stateId": 5249,
+      "kind": "epic",
+      "item_names_en": [
+        "Wield type: Dagger"
+      ],
+      "item_name_fr": "Maniement : Dague",
+      "state_name_en": "Wield type: Dagger",
+      "state_name_fr": "Maniement : Dague",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has a Dagger equipped:  25% damage inflicted on targets hit from the front 15% from the side -30% from behind",
+      "noredlace_matched_via": "wield type dagger"
+    },
+    {
+      "stateId": 5248,
+      "kind": "epic",
+      "item_names_en": [
+        "Wield type: Shield"
+      ],
+      "item_name_fr": "Maniement : Bouclier",
+      "state_name_en": "Wield type: Shield",
+      "state_name_fr": "Maniement : Bouclier",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the bearer has a Shield equipped:  1 max MP Positive Range is set at 0",
+      "noredlace_matched_via": "wield type shield"
+    },
+    {
+      "stateId": 5370,
+      "kind": "epic",
+      "item_names_en": [
+        "Wakfu Pact"
+      ],
+      "item_name_fr": "Pacte Wakfu",
+      "state_name_en": "Wakfu Pact",
+      "state_name_fr": "Pacte Wakfu",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has 8 WP or greater:  10 Force of Will 15% Block",
+      "noredlace_matched_via": "wakfu pact"
+    },
+    {
+      "stateId": 5449,
+      "kind": "epic",
+      "item_names_en": [
+        "Elemental Concentration"
+      ],
+      "item_name_fr": "Concentration Elémentaire",
+      "state_name_en": "Elemental Concentration",
+      "state_name_fr": "Concentration élémentaire",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat: 20% damage inflicted and heals performed  -30% elemental mastery in the 3 weakest elements",
+      "noredlace_matched_via": "elemental concentration"
+    },
+    {
+      "stateId": 5175,
+      "kind": "relic",
+      "item_names_en": [
+        "Breeze"
+      ],
+      "item_name_fr": "Brise",
+      "state_name_en": "Breeze",
+      "state_name_fr": "Brise",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "25% to area-of-effect spell damage on the spell's direct target -25% to area-of-effect spell damage on other targets",
+      "noredlace_matched_via": "breeze"
+    },
+    {
+      "stateId": 5216,
+      "kind": "relic",
+      "item_names_en": [
+        "Directives"
+      ],
+      "item_name_fr": "Directives",
+      "state_name_en": "Directives",
+      "state_name_fr": "Directives",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "15% damage inflicted by area-of-effect spells on targets in line with the state bearer",
+      "noredlace_matched_via": "directives"
+    },
+    {
+      "stateId": 5253,
+      "kind": "relic",
+      "item_names_en": [
+        "Yeah"
+      ],
+      "item_name_fr": "Wé",
+      "state_name_en": "Yeah",
+      "state_name_fr": "Wé",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "Even Turn:  After using a WP-based spell, the state bearer regains 2 AP (max of 1/turn).  Odd Turn:  After using a WP-based spell, the state bearer loses 2 AP (max 1/turn).",
+      "noredlace_matched_via": "yeah"
+    },
+    {
+      "stateId": 5450,
+      "kind": "relic",
+      "item_names_en": [
+        "Stasification"
+      ],
+      "item_name_fr": "Stasification",
+      "state_name_en": "Stasification",
+      "state_name_fr": "Stasification",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "The state bearer increases their damage inflicted by 2% per turn (permanent) (max 20)",
+      "noredlace_matched_via": "stasification"
+    },
+    {
+      "stateId": 5976,
+      "kind": "relic",
+      "item_names_en": [
+        "Light Weapon"
+      ],
+      "item_name_fr": "Arme de Lumière",
+      "state_name_en": "Light Weapon",
+      "state_name_fr": "Arme de Lumière",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "Damage caused by the bearer's weapon is reduced by 20% and applies a poison (Light Weapon) for three turns (second hand excluded) based on the number of AP used by the weapon.",
+      "noredlace_matched_via": "light weapon"
+    },
+    {
+      "stateId": 6090,
+      "kind": "normal",
+      "item_names_en": [
+        "Healing"
+      ],
+      "item_name_fr": "Cicatrisation test (cumul 5)",
+      "state_name_en": "Healing",
+      "state_name_fr": "Cicatrisation",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        1,
+        1,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "5% health points (bonus on HP modifier) [+1]",
+      "noredlace_matched_via": "healing"
+    },
+    {
+      "stateId": 6328,
+      "kind": "normal",
+      "item_names_en": [
+        "Integrity I",
+        "Integrity II"
+      ],
+      "item_name_fr": "Intégrité II",
+      "state_name_en": "Integrity",
+      "state_name_fr": "Intégrité",
+      "n_item_rows": 2,
+      "slotColorPattern": [
+        3,
+        3,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When healing an ally, if the ally has less than 15% HP:  Heal: 7% of HP max of the target [+1]",
+      "noredlace_matched_via": "integrity"
+    },
+    {
+      "stateId": 6329,
+      "kind": "normal",
+      "item_names_en": [
+        "Lone Wolf I",
+        "Lone Wolf II",
+        "Lone Wolf III"
+      ],
+      "item_name_fr": "Loup solitaire II",
+      "state_name_en": "Lone Wolf",
+      "state_name_fr": "Loup Solitaire",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        3,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "If there are no allies 1 to 4 cells from the bearer: 2% Damage Inflicted [+1]",
+      "noredlace_matched_via": "lone wolf"
+    },
+    {
+      "stateId": 6330,
+      "kind": "normal",
+      "item_names_en": [
+        "Secret of Life II"
+      ],
+      "item_name_fr": "Secret de la vie II",
+      "state_name_en": "Secret of Life",
+      "state_name_fr": "Secret de la vie",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        2,
+        3,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-",
+      "noredlace_matched_via": "secret of life"
+    },
+    {
+      "stateId": 6331,
+      "kind": "normal",
+      "item_names_en": [
+        "Tolerance I",
+        "Tolerance II",
+        "Tolerance III"
+      ],
+      "item_name_fr": "Tolérance II",
+      "state_name_en": "Tolerance",
+      "state_name_fr": "Tolérance",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        3,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "At end of turn: 50% of unused MP are carried over to the next turn Max 1 MP [+1]",
+      "noredlace_matched_via": "tolerance"
+    },
+    {
+      "stateId": 6705,
+      "kind": "epic",
+      "item_names_en": [
+        "Outrage"
+      ],
+      "item_name_fr": "Furie",
+      "state_name_en": "Outrage",
+      "state_name_fr": "Furie",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has less that 100% of their level as Dodge:  15% damage inflicted as Berserk 100% of level as Lock",
+      "noredlace_matched_via": "outrage"
+    },
+    {
+      "stateId": 6706,
+      "kind": "epic",
+      "item_names_en": [
+        "Outrage II"
+      ],
+      "item_name_fr": "Furie II",
+      "state_name_en": "Outrage II",
+      "state_name_fr": "Furie II",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has 4 Range or greater:  15% damage inflicter as Berserk and Ranged simultaneously 1 Range",
+      "noredlace_matched_via": "outrage ii"
+    },
+    {
+      "stateId": 6707,
+      "kind": "epic",
+      "item_names_en": [
+        "Pillar"
+      ],
+      "item_name_fr": "Pilier",
+      "state_name_en": "Pillar",
+      "state_name_fr": "Pilier",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has 50% Block or greater:  Bonus to HP modifier +30% -50% Armor Received",
+      "noredlace_matched_via": "pillar"
+    },
+    {
+      "stateId": 6708,
+      "kind": "epic",
+      "item_names_en": [
+        "Controlling Space"
+      ],
+      "item_name_fr": "Contrôle de l'espace",
+      "state_name_en": "Controlling Space",
+      "state_name_fr": "Contrôle de l'espace",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has exactly 1 Range:  15% damage inflicted and heals performed on targets that are 2, 3, or 4 cells away from the caster",
+      "noredlace_matched_via": "controlling space"
+    },
+    {
+      "stateId": 6709,
+      "kind": "relic",
+      "item_names_en": [
+        "Longevity"
+      ],
+      "item_name_fr": "Longévité",
+      "state_name_en": "Longevity",
+      "state_name_fr": "Longévité",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "When suffering damage from the front and in melee, once per round:  10% of missing HP as Armor 40% Armor given (1 turn)",
+      "noredlace_matched_via": "longevity"
+    },
+    {
+      "stateId": 6711,
+      "kind": "relic",
+      "item_names_en": [
+        "Ancestral Energy"
+      ],
+      "item_name_fr": "Energie ancestrale",
+      "state_name_en": "Ancestral Energy",
+      "state_name_fr": "Énergie ancestrale",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "At start of turn, with 6 WP or greater:  Ancestral Energy Bonus (Max. level: 3): 4% Damage inflicted 15 Elemental Resistance The state is lost if the character starts their turn with less than 6 WP",
+      "noredlace_matched_via": "ancestral energy"
+    },
+    {
+      "stateId": 6712,
+      "kind": "relic",
+      "item_names_en": [
+        "Rebirth"
+      ],
+      "item_name_fr": "Renaissance",
+      "state_name_en": "Rebirth",
+      "state_name_fr": "Renaissance",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "-50 Elemental Resistance  Once per turn, when falling below 50% HP:  1 MP 15% Damage inflicted 50 Elemental Resistance",
+      "noredlace_matched_via": "rebirth"
+    },
+    {
+      "stateId": 6714,
+      "kind": "relic",
+      "item_names_en": [
+        "Peaceful"
+      ],
+      "item_name_fr": "Paisible",
+      "state_name_en": "Peaceful",
+      "state_name_fr": "Paisible",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "For each movement, per MP used:  +3% Block (max. 18) (1 turn)  If the state bearer performs a Block when it's not their turn:  The bonus is transformed into Critical Hits on the next turn",
+      "noredlace_matched_via": "peaceful"
+    },
+    {
+      "stateId": 6811,
+      "kind": "normal",
+      "item_names_en": [
+        "Solid Weapon I",
+        "Solid Weapon II"
+      ],
+      "item_name_fr": "Arme solide II",
+      "state_name_en": "Solid Weapon",
+      "state_name_fr": "Arme solide",
+      "n_item_rows": 2,
+      "slotColorPattern": [
+        3,
+        3,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When inflicting damage on an enemy with a weapon: That enemy reduces their damage on the state bearer by -5% (1 turn, not stackable) The state bearer must have a shield equipped [+1]",
+      "noredlace_matched_via": "solid weapon"
+    },
+    {
+      "stateId": 6812,
+      "kind": "normal",
+      "item_names_en": [
+        "Raw Power I",
+        "Raw Power II",
+        "Raw Power III"
+      ],
+      "item_name_fr": "Puissance brute II",
+      "state_name_en": "Raw Power",
+      "state_name_fr": "Puissance brute",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        2,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "At start of fight: -1 max WP For each WP spent during the turn: 2% damage inflicted (1 turn) (max 30) [+1]",
+      "noredlace_matched_via": "raw power"
+    },
+    {
+      "stateId": 6813,
+      "kind": "normal",
+      "item_names_en": [
+        "Flaming Return I",
+        "Flaming Return II"
+      ],
+      "item_name_fr": "Retour enflammé II",
+      "state_name_en": "Flaming Return",
+      "state_name_fr": "Retour enflammé",
+      "n_item_rows": 2,
+      "slotColorPattern": [
+        1,
+        1,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "Gains 50% of level as Flaming on killing an enemy (1 activation per turn) [+1]",
+      "noredlace_matched_via": "flaming return"
+    },
+    {
+      "stateId": 6814,
+      "kind": "normal",
+      "item_names_en": [
+        "Wakfu Influence I",
+        "Wakfu Influence II"
+      ],
+      "item_name_fr": "Influence du Wakfu II",
+      "state_name_en": "Wakfu Influence",
+      "state_name_fr": "Influence du Wakfu",
+      "n_item_rows": 2,
+      "slotColorPattern": [
+        1,
+        1,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When the state bearer starts their turn with all their WP (or all their QB): 10% Critical Hit (1 turn) [+1]",
+      "noredlace_matched_via": "wakfu influence"
+    },
+    {
+      "stateId": 6815,
+      "kind": "normal",
+      "item_names_en": [
+        "Berserk Wakfu I",
+        "Berserk Wakfu II",
+        "Berserk Wakfu III"
+      ],
+      "item_name_fr": "Wakfu Berserk II",
+      "state_name_en": "Berserk Wakfu",
+      "state_name_fr": "Wakfu Berserk",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        3,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When the state bearer starts their turn with 50% or less of their WP (or their QB): 3% Critical Damage inflicted (1 turn) 100% of level as Armor [+1]",
+      "noredlace_matched_via": "berserk wakfu"
+    },
+    {
+      "stateId": 6816,
+      "kind": "normal",
+      "item_names_en": [
+        "Poisoned Weapon I",
+        "Poisoned Weapon II",
+        "Poisoned Weapon III"
+      ],
+      "item_name_fr": "Arme empoisonnée II",
+      "state_name_en": "Incurable Weapon",
+      "state_name_fr": "Arme incurable",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        3,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 6817,
+      "kind": "normal",
+      "item_names_en": [
+        "Lock Steal I",
+        "Lock Steal II",
+        "Lock Steal III"
+      ],
+      "item_name_fr": "Vol de Tacle II",
+      "state_name_en": "Lock Steal",
+      "state_name_fr": "Vol de Tacle",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-10% Damage inflicted with a weapon When inflicting damage on an enemy with a two-handed weapon: Steals 15% of level in Lock (1 turn, not stackable) [+1]",
+      "noredlace_matched_via": "lock steal"
+    },
+    {
+      "stateId": 6818,
+      "kind": "normal",
+      "item_names_en": [
+        "Dodge Steal I",
+        "Dodge Steal II",
+        "Dodge Steal III"
+      ],
+      "item_name_fr": "Vol d'Esquive II",
+      "state_name_en": "Dodge Steal",
+      "state_name_fr": "Vol d'Esquive",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-10% Damage inflicted with a weapon When inflicting damage on an enemy with a two-handed weapon: Steals 15% of level in Dodge (1 turn, not stackable) [+1]",
+      "noredlace_matched_via": "dodge steal"
+    },
+    {
+      "stateId": 6819,
+      "kind": "normal",
+      "item_names_en": [
+        "Counterattack I",
+        "Counterattack II",
+        "Counterattack III"
+      ],
+      "item_name_fr": "Contre-attaque II",
+      "state_name_en": "Counterattack",
+      "state_name_fr": "Contre-attaque",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When the state bearer suffers direct close-combat damage, once per turn of the attacker: The state bearer inflicts light damage on the attacker (10% of level) [+1]",
+      "noredlace_matched_via": "counterattack"
+    },
+    {
+      "stateId": 6821,
+      "kind": "normal",
+      "item_names_en": [
+        "Light Weapons Expert I",
+        "Light Weapons Expert II",
+        "Light Weapons Expert III"
+      ],
+      "item_name_fr": "Expert des armes légères II",
+      "state_name_en": "Light Weapons Expert",
+      "state_name_fr": "Expert des armes légères",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        3,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "If no other shield, dagger or two-handed weapon is equipped, at start of fight: 25% of level in Elemental Mastery 2% of Damage inflicted on a target with Armor [+1]",
+      "noredlace_matched_via": "light weapons expert"
+    },
+    {
+      "stateId": 6822,
+      "kind": "normal",
+      "item_names_en": [
+        "Arcana I",
+        "Arcana II",
+        "Arcana III"
+      ],
+      "item_name_fr": "Arcanes II",
+      "state_name_en": "Arcana",
+      "state_name_fr": "Arcanes",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        1,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "If the state bearer does not have any armor at end of turn: 50% of level as Armor [+1]",
+      "noredlace_matched_via": "arcana"
+    },
+    {
+      "stateId": 6823,
+      "kind": "normal",
+      "item_names_en": [
+        "Social Relations I",
+        "Social Relations II",
+        "Social Relations III"
+      ],
+      "item_name_fr": "Relations sociales II",
+      "state_name_en": "Social Relations",
+      "state_name_fr": "Relations sociales",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "2% Damage from behind on even turns 2% frontal Damage on odd turns [+1]",
+      "noredlace_matched_via": "social relations"
+    },
+    {
+      "stateId": 6824,
+      "kind": "normal",
+      "item_names_en": [
+        "Vital Return I",
+        "Vital Return II"
+      ],
+      "item_name_fr": "Retour vital II",
+      "state_name_en": "Vital Return",
+      "state_name_fr": "Retour vital",
+      "n_item_rows": 2,
+      "slotColorPattern": [
+        2,
+        1,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "Heal: 10% of HP lost of the caster   on killing an enemy (2 activations per turn) [+1]",
+      "noredlace_matched_via": "vital return"
+    },
+    {
+      "stateId": 6825,
+      "kind": "normal",
+      "item_names_en": [
+        "Destruction I",
+        "Destruction II",
+        "Destruction III"
+      ],
+      "item_name_fr": "Destruction II",
+      "state_name_en": "Destruction",
+      "state_name_fr": "Destruction",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        3,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "3% Damage from behind -2% frontal and side Damage [+1]",
+      "noredlace_matched_via": "destruction"
+    },
+    {
+      "stateId": 6826,
+      "kind": "normal",
+      "item_names_en": [
+        "Sensitivity I",
+        "Sensitivity II",
+        "Sensitivity III"
+      ],
+      "item_name_fr": "Être sensible II",
+      "state_name_en": "Sensitivity",
+      "state_name_fr": "Être sensible",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "If there are two or more allies 1 to 4 cells from the bearer: 2% Damage Inflicted [+1]",
+      "noredlace_matched_via": "sensitivity"
+    },
+    {
+      "stateId": 6827,
+      "kind": "normal",
+      "item_names_en": [
+        "Armor Length I",
+        "Armor Length II",
+        "Armor Length III"
+      ],
+      "item_name_fr": "Longueur d'armure II",
+      "state_name_en": "Armor Length",
+      "state_name_fr": "Longueur d'armure",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        3,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "4% Armor given to an aligned ally at a distance [+1]",
+      "noredlace_matched_via": "armor length"
+    },
+    {
+      "stateId": 6828,
+      "kind": "normal",
+      "item_names_en": [
+        "Altruism I",
+        "Altruism II",
+        "Altruism III"
+      ],
+      "item_name_fr": "Altruisme II",
+      "state_name_en": "Altruism",
+      "state_name_fr": "Altruisme",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "2% Heals performed on an aligned ally at a distance [+1]",
+      "noredlace_matched_via": "altruism"
+    },
+    {
+      "stateId": 6829,
+      "kind": "normal",
+      "item_names_en": [
+        "Mania I",
+        "Mania II",
+        "Mania III"
+      ],
+      "item_name_fr": "Manie II",
+      "state_name_en": "Mania",
+      "state_name_fr": "Manie",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        1,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "Close-combat damage removes 50% of level in Armor from the target -3% Armor received [+1]",
+      "noredlace_matched_via": "mania"
+    },
+    {
+      "stateId": 6830,
+      "kind": "normal",
+      "item_names_en": [
+        "Nature I",
+        "Nature II",
+        "Nature III"
+      ],
+      "item_name_fr": "Nature II",
+      "state_name_en": "Natural",
+      "state_name_fr": "Nature",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        1,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 6831,
+      "kind": "normal",
+      "item_names_en": [
+        "Last Breath I",
+        "Last Breath II",
+        "Last Breath III"
+      ],
+      "item_name_fr": "Dernier souffle II",
+      "state_name_en": "Last Breath",
+      "state_name_fr": "Dernier souffle",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        3,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When the bearer starts their turn below 20% HP: 3% Damage inflicted (1 turn) 50% of level as armor [+1]",
+      "noredlace_matched_via": "last breath"
+    },
+    {
+      "stateId": 6832,
+      "kind": "normal",
+      "item_names_en": [
+        "Strong Hand I",
+        "Strong Hand II",
+        "Strong Hand III"
+      ],
+      "item_name_fr": "Main forte II",
+      "state_name_en": "Strong Hand",
+      "state_name_fr": "Main forte",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        1,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "Ending a turn adjacent to an enemy applies -5% Armor received to it (1 turn) [+1]",
+      "noredlace_matched_via": "strong hand"
+    },
+    {
+      "stateId": 6833,
+      "kind": "normal",
+      "item_names_en": [
+        "Firm Foot I",
+        "Firm Foot II",
+        "Firm Foot III"
+      ],
+      "item_name_fr": "Pied ferme II",
+      "state_name_en": "Firm Foot",
+      "state_name_fr": "Pied ferme",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        1,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "Ending a turn adjacent to an enemy applies -5% Heals performed to it (1 turn) [+1]",
+      "noredlace_matched_via": "firm foot"
+    },
+    {
+      "stateId": 6834,
+      "kind": "normal",
+      "item_names_en": [
+        "About-Turn II"
+      ],
+      "item_name_fr": "Volte-face II",
+      "state_name_en": "About-Turn",
+      "state_name_fr": "Volte-face",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        3,
+        3,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-",
+      "noredlace_matched_via": "about turn"
+    },
+    {
+      "stateId": 6842,
+      "kind": "normal",
+      "item_names_en": [
+        "Courage I",
+        "Courage II",
+        "Courage III"
+      ],
+      "item_name_fr": "Courage I",
+      "state_name_en": "Courage",
+      "state_name_fr": "Courage",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        1,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "2% non-critical damage and heals inflicted -2% critical damage and heals inflicted [+1]",
+      "noredlace_matched_via": "courage"
+    },
+    {
+      "stateId": 6926,
+      "kind": "normal",
+      "item_names_en": [
+        "Reinvigoration I",
+        "Reinvigoration II",
+        "Reinvigoration III"
+      ],
+      "item_name_fr": "Revigoration I",
+      "state_name_en": "Reinvigoration",
+      "state_name_fr": "Revigoration",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        3,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-10% Heals Performed 4% of Heals Performed on allies are given back to the state bearer [+1]",
+      "noredlace_matched_via": "reinvigoration"
+    },
+    {
+      "stateId": 6927,
+      "kind": "normal",
+      "item_names_en": [
+        "Precaution I",
+        "Precaution II",
+        "Precaution III"
+      ],
+      "item_name_fr": "Précaution I",
+      "state_name_en": "Precaution",
+      "state_name_fr": "Précaution",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When ending turn with less than 50% HP: Heals 5% of missing HP [+1]",
+      "noredlace_matched_via": "precaution"
+    },
+    {
+      "stateId": 6928,
+      "kind": "normal",
+      "item_names_en": [
+        "Technical Critical I",
+        "Technical Critical II"
+      ],
+      "item_name_fr": "Critique technique I",
+      "state_name_en": "Technical Critical",
+      "state_name_fr": "Critique technique",
+      "n_item_rows": 2,
+      "slotColorPattern": [
+        1,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "The first critical hit in the turn inflicts 6% addititional damage The following ones inflict 3% less damage [+1]",
+      "noredlace_matched_via": "technical critical"
+    },
+    {
+      "stateId": 6929,
+      "kind": "normal",
+      "item_names_en": [
+        "Offensive Block I",
+        "Offensive Block II"
+      ],
+      "item_name_fr": "Parade offensive I",
+      "state_name_en": "Offensive Block",
+      "state_name_fr": "Parade offensive",
+      "n_item_rows": 2,
+      "slotColorPattern": [
+        1,
+        1,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When performing a block on a direct enemy attack: 2% damage inflicted (1 turn) -10% Block (1 turn) [+1]",
+      "noredlace_matched_via": "offensive block"
+    },
+    {
+      "stateId": 6930,
+      "kind": "normal",
+      "item_names_en": [
+        "Tactical Critical I",
+        "Tactical Critical II",
+        "Tactical Critical III"
+      ],
+      "item_name_fr": "Critique tactique I",
+      "state_name_en": "Tactical Critical",
+      "state_name_fr": "Critique tactique",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        2,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "3% critical damage inflicted if the target has > 50% HP -3% critical damage inflicted if the target has ≤ 50% HP [+1]",
+      "noredlace_matched_via": "tactical critical"
+    },
+    {
+      "stateId": 6931,
+      "kind": "normal",
+      "item_names_en": [
+        "Neutrality I",
+        "Neutrality II",
+        "Neutrality III"
+      ],
+      "item_name_fr": "Neutralité I",
+      "state_name_en": "Neutrality",
+      "state_name_fr": "Neutralité",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "At the start of the fight, if secondary masteries are ≤ 0: 8% damage inflicted [+1]",
+      "noredlace_matched_via": "neutrality"
+    },
+    {
+      "stateId": 6932,
+      "kind": "normal",
+      "item_names_en": [
+        "Abandon I",
+        "Abandon II",
+        "Abandon III"
+      ],
+      "item_name_fr": "Abandon I",
+      "state_name_en": "Abandon",
+      "state_name_fr": "Abandon",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        1,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "At the start of the fight, if secondary masteries are ≤ 0: 0 RA and 0 max WP [+1]",
+      "noredlace_matched_via": "abandon"
+    },
+    {
+      "stateId": 6933,
+      "kind": "normal",
+      "item_names_en": [
+        "Pretension I",
+        "Pretension II",
+        "Pretension III"
+      ],
+      "item_name_fr": "Prétention I",
+      "state_name_en": "Pretension",
+      "state_name_fr": "Prétention",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        3,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "At the start of the fight, if secondary masteries are ≤ 0: 5% Block [+1]",
+      "noredlace_matched_via": "pretension"
+    },
+    {
+      "stateId": 7077,
+      "kind": "normal",
+      "item_names_en": [
+        "Heavy Armor I",
+        "Heavy Armor II"
+      ],
+      "item_name_fr": "Armure lourde I",
+      "state_name_en": "Heavy Armor",
+      "state_name_fr": "Armure lourde",
+      "n_item_rows": 2,
+      "slotColorPattern": [
+        1,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-1 max MP 5% Damage inflicted [+1]",
+      "noredlace_matched_via": "heavy armor"
+    },
+    {
+      "stateId": 7076,
+      "kind": "normal",
+      "item_names_en": [
+        "Carapace I",
+        "Carapace II"
+      ],
+      "item_name_fr": "Carapace I",
+      "state_name_en": "Carapace",
+      "state_name_fr": "Carapace",
+      "n_item_rows": 2,
+      "slotColorPattern": [
+        1,
+        3,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-2 max AP 75 Elemental Resistance [+1]",
+      "noredlace_matched_via": "carapace"
+    },
+    {
+      "stateId": 7075,
+      "kind": "normal",
+      "item_names_en": [
+        "Brawling I",
+        "Brawling II"
+      ],
+      "item_name_fr": "Combat rapproché I",
+      "state_name_en": "Brawling",
+      "state_name_fr": "Combat rapproché",
+      "n_item_rows": 2,
+      "slotColorPattern": [
+        1,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-1 Range 50% of level as Lock and Dodge [+1]",
+      "noredlace_matched_via": "brawling"
+    },
+    {
+      "stateId": 7079,
+      "kind": "normal",
+      "item_names_en": [
+        "Critical Preparation I",
+        "Critical Preparation II",
+        "Critical Preparation III"
+      ],
+      "item_name_fr": "Préparation critique I",
+      "state_name_en": "Critical Preparation",
+      "state_name_fr": "Préparation critique",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        2,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "Each time a critical hit is performed (5 activations per turn): Preparation (+2 Lvl.) [+1]",
+      "noredlace_matched_via": "critical preparation"
+    },
+    {
+      "stateId": 7078,
+      "kind": "normal",
+      "item_names_en": [
+        "Delay I",
+        "Delay II",
+        "Delay III"
+      ],
+      "item_name_fr": "Temporisation I",
+      "state_name_en": "Delay",
+      "state_name_fr": "Temporisation",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        1,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "At start of turn, if no WP were used during the previous turn: 4% Damage inflicted 4% Heals performed [+1]",
+      "noredlace_matched_via": "delay"
+    },
+    {
+      "stateId": 7081,
+      "kind": "normal",
+      "item_names_en": [
+        "Locking I",
+        "Locking II",
+        "Locking III"
+      ],
+      "item_name_fr": "Verrouillage I",
+      "state_name_en": "Locking",
+      "state_name_fr": "Verrouillage",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        1,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "4% Damage inflicted on targets without line of sight 3 or more cells away from the state bearer [+1]",
+      "noredlace_matched_via": "locking"
+    },
+    {
+      "stateId": 7088,
+      "kind": "normal",
+      "item_names_en": [
+        "Featherweight I",
+        "Featherweight II",
+        "Featherweight III"
+      ],
+      "item_name_fr": "Poids Plume I",
+      "state_name_en": "Featherweight",
+      "state_name_fr": "Poids plume",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        1,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "At the start of combat, per MP above 4: 2% Damage inflicted (maximum 24) [+1]",
+      "noredlace_matched_via": "featherweight"
+    },
+    {
+      "stateId": 7115,
+      "kind": "normal",
+      "item_names_en": [
+        "Ambition I",
+        "Ambition II",
+        "Ambition III"
+      ],
+      "item_name_fr": "Ambition I",
+      "state_name_en": "Ambition",
+      "state_name_fr": "Ambition",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        3,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "At the start of the first turn, if secondary masteries are <= 0: 5% Critical Hit [+1]",
+      "noredlace_matched_via": "ambition"
+    },
+    {
+      "stateId": 7252,
+      "kind": "relic",
+      "item_names_en": [
+        "Excess II"
+      ],
+      "item_name_fr": "Excès II",
+      "state_name_en": "Excess II",
+      "state_name_fr": "Excès II",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "-10% Damage inflicted  Every 5 spells cast, the state bearer gains 50% Damage inflicted for the next spell  Spells cast must cost at least 1 AP  Once the state is at level 5, the next spell gets the damage bonus",
+      "noredlace_matched_via": "excess ii"
+    },
+    {
+      "stateId": 7254,
+      "kind": "relic",
+      "item_names_en": [
+        "Lunatic"
+      ],
+      "item_name_fr": "Lunatique",
+      "state_name_en": "Lunatic",
+      "state_name_fr": "Lunatique",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "Odd turns, at start of turn:  25% Damage inflicted -25% Heals performed and Armor given  Even turns, at start of turn:  25% Heals performed and Armor given -25% Damage inflicted",
+      "noredlace_matched_via": "lunatic"
+    },
+    {
+      "stateId": 7255,
+      "kind": "epic",
+      "item_names_en": [
+        "Controlling Space II"
+      ],
+      "item_name_fr": "Contrôle de l'espace II",
+      "state_name_en": "Controlling Space II",
+      "state_name_fr": "Contrôle de l'espace II",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has at least 3 Range:  30% indirect damage inflicted",
+      "noredlace_matched_via": "controlling space ii"
+    },
+    {
+      "stateId": 7256,
+      "kind": "epic",
+      "item_names_en": [
+        "Inflexibility II"
+      ],
+      "item_name_fr": "Inflexibilité II",
+      "state_name_en": "Inflexibility II",
+      "state_name_fr": "Inflexibilité II",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if Secondary Masteries are less than or equal to 0:  +20% damage inflicted and heals performed",
+      "noredlace_matched_via": "inflexibility ii"
+    },
+    {
+      "stateId": 7257,
+      "kind": "relic",
+      "item_names_en": [
+        "Sentinel"
+      ],
+      "item_name_fr": "Sentinelle",
+      "state_name_en": "Sentinel",
+      "state_name_fr": "Sentinelle",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "At start of turn:  3 Range 15% ranged damage 15% Heals performed  The bonus is lost the first time the character moves (MP) or at end of turn",
+      "noredlace_matched_via": "sentinel"
+    },
+    {
+      "stateId": 7258,
+      "kind": "relic",
+      "item_names_en": [
+        "Assimilation"
+      ],
+      "item_name_fr": "Assimilation",
+      "state_name_en": "Assimilation",
+      "state_name_fr": "Assimilation",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "-50 Elemental Resistance If the state bearer takes damage from an enemy:  100 Resistance in the damage element (1 turn)",
+      "noredlace_matched_via": "assimilation"
+    },
+    {
+      "stateId": 7711,
+      "kind": "normal",
+      "item_names_en": [
+        "Art of Concealment I",
+        "Art of Concealment II",
+        "Art of Concealment III"
+      ],
+      "item_name_fr": "Art du cachement I",
+      "state_name_en": "Art of Concealment",
+      "state_name_fr": "Art du cachement",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        3,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-6% Damage received when the bearer is not in line of sight 3% Damage received when the bearer is in line of sight [+1]",
+      "noredlace_matched_via": "art of concealment"
+    },
+    {
+      "stateId": 7712,
+      "kind": "normal",
+      "item_names_en": [
+        "Madness I",
+        "Madness II",
+        "Madness III"
+      ],
+      "item_name_fr": "Folie I",
+      "state_name_en": "Madness",
+      "state_name_fr": "Folie",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "6% Damage inflicted in a diagonal line [+1]",
+      "noredlace_matched_via": "madness"
+    },
+    {
+      "stateId": 7713,
+      "kind": "normal",
+      "item_names_en": [
+        "Bashell I",
+        "Bashell II",
+        "Bashell III"
+      ],
+      "item_name_fr": "Tabass'Carapace I",
+      "state_name_en": "Bashell",
+      "state_name_fr": "Tabass'Carapace",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "6% Damage inflicted on a target with armor [+1]",
+      "noredlace_matched_via": "bashell"
+    },
+    {
+      "stateId": 7714,
+      "kind": "normal",
+      "item_names_en": [
+        "Recklessness I",
+        "Recklessness II",
+        "Recklessness III"
+      ],
+      "item_name_fr": "Témérité I",
+      "state_name_en": "Recklessness",
+      "state_name_fr": "Témérité",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        3,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When the bearer removes all of a targets armor: 3% damage inflicted for the rest of the turn 30% maximum [+1]",
+      "noredlace_matched_via": "recklessness"
+    },
+    {
+      "stateId": 7717,
+      "kind": "normal",
+      "item_names_en": [
+        "Vampiric Madness I",
+        "Vampiric Madness II",
+        "Vampiric Madness III"
+      ],
+      "item_name_fr": "Folie Vampirique I",
+      "state_name_en": "Vampiric Madness",
+      "state_name_fr": "Folie vampirique",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-4% Heals received When the bearer inflicts damage in a diagonal line: Steals 4% of damage inflicted [+1]",
+      "noredlace_matched_via": "vampiric madness"
+    },
+    {
+      "stateId": 7719,
+      "kind": "normal",
+      "item_names_en": [
+        "Accumulation I",
+        "Accumulation II",
+        "Accumulation III"
+      ],
+      "item_name_fr": "Accumulation I",
+      "state_name_en": "Accumulation",
+      "state_name_fr": "Accumulation",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-20% Heals performed For each turn without performing heals: 5% Heals performed Stackable up to 40% [+1]",
+      "noredlace_matched_via": "accumulation"
+    },
+    {
+      "stateId": 7722,
+      "kind": "normal",
+      "item_names_en": [
+        "Conservation I",
+        "Conservation II",
+        "Conservation III"
+      ],
+      "item_name_fr": "Conservation I",
+      "state_name_en": "Conservation",
+      "state_name_fr": "Conservation",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When HP are above 90%: 10% Block [+1]",
+      "noredlace_matched_via": "conservation"
+    },
+    {
+      "stateId": 7853,
+      "kind": "normal",
+      "item_names_en": [
+        "Blood Carapace I",
+        "Blood Carapace II",
+        "Blood Carapace III"
+      ],
+      "item_name_fr": "Carapace sanguine I",
+      "state_name_en": "Blood Carapace",
+      "state_name_fr": "Carapace sanguine",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        1,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "At start of turn: Converts 10% of current HP into Armor [+1]",
+      "noredlace_matched_via": "blood carapace"
+    },
+    {
+      "stateId": 7856,
+      "kind": "normal",
+      "item_names_en": [
+        "Profit I",
+        "Profit II",
+        "Profit III"
+      ],
+      "item_name_fr": "Profit I",
+      "state_name_en": "Profit",
+      "state_name_fr": "Profit",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        3,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-",
+      "noredlace_matched_via": "profit"
+    },
+    {
+      "stateId": 7855,
+      "kind": "normal",
+      "item_names_en": [
+        "Armor Return II"
+      ],
+      "item_name_fr": "Retour d'Armure II",
+      "state_name_en": "Armor Return",
+      "state_name_fr": "Retour d'Armure",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        3,
+        1,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-",
+      "noredlace_matched_via": "armor return"
+    },
+    {
+      "stateId": 7859,
+      "kind": "normal",
+      "item_names_en": [
+        "Light Strength I",
+        "Light Strength II",
+        "Light Strength III"
+      ],
+      "item_name_fr": "Force légère I",
+      "state_name_en": "Light Strength",
+      "state_name_fr": "Force légère",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "As long as the bearer has no Armor: 3% Damage inflicted [+1]",
+      "noredlace_matched_via": "light strength"
+    },
+    {
+      "stateId": 7860,
+      "kind": "normal",
+      "item_names_en": [
+        "Vital Agility II"
+      ],
+      "item_name_fr": "Agilité vitale II",
+      "state_name_en": "Vital Agility",
+      "state_name_fr": "Agilité vitale",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        2,
+        3,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-",
+      "noredlace_matched_via": "vital agility"
+    },
+    {
+      "stateId": 7862,
+      "kind": "normal",
+      "item_names_en": [
+        "Vital Influence I",
+        "Vital Influence II",
+        "Vital Influence III"
+      ],
+      "item_name_fr": "Influence vitale I",
+      "state_name_en": "Vital Influence",
+      "state_name_fr": "Influence vitale",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        1,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When HP are above 90%: 4% Critical Hit [+1]",
+      "noredlace_matched_via": "vital influence"
+    },
+    {
+      "stateId": 7861,
+      "kind": "normal",
+      "item_names_en": [
+        "Vital Strength II"
+      ],
+      "item_name_fr": "Force vitale II",
+      "state_name_en": "Vital Strength",
+      "state_name_fr": "Force vitale",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        1,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-",
+      "noredlace_matched_via": "vital strength"
+    },
+    {
+      "stateId": 7864,
+      "kind": "normal",
+      "item_names_en": [
+        "Evasion I",
+        "Evasion II",
+        "Evasion III"
+      ],
+      "item_name_fr": "Evasion I",
+      "state_name_en": "Evasion",
+      "state_name_fr": "Evasion",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        3,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "At start of fight: 50% of level as Dodge [+1]",
+      "noredlace_matched_via": "evasion"
+    },
+    {
+      "stateId": 7867,
+      "kind": "normal",
+      "item_names_en": [
+        "Flee I",
+        "Flee II",
+        "Flee III"
+      ],
+      "item_name_fr": "Fuite I",
+      "state_name_en": "Flee",
+      "state_name_fr": "Fuite",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        3,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-",
+      "noredlace_matched_via": "flee"
+    },
+    {
+      "stateId": 7865,
+      "kind": "normal",
+      "item_names_en": [
+        "Interception I",
+        "Interception II",
+        "Interception III"
+      ],
+      "item_name_fr": "Interception I",
+      "state_name_en": "Interception",
+      "state_name_fr": "Interception",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "At start of fight: 50% of level as Lock [+1]",
+      "noredlace_matched_via": "interception"
+    },
+    {
+      "stateId": 7868,
+      "kind": "normal",
+      "item_names_en": [
+        "Interposition I",
+        "Interposition II",
+        "Interposition III"
+      ],
+      "item_name_fr": "Interposition I",
+      "state_name_en": "Interposition",
+      "state_name_fr": "Interposition",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        2,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "After locking an enemy: 50% of level as Armor [+1]",
+      "noredlace_matched_via": "interposition"
+    },
+    {
+      "stateId": 7863,
+      "kind": "normal",
+      "item_names_en": [
+        "Paradoxical Influence I",
+        "Paradoxical Influence II",
+        "Paradoxical Influence III"
+      ],
+      "item_name_fr": "Influence paradoxale I",
+      "state_name_en": "Paradoxical Influence",
+      "state_name_fr": "Influence paradoxale",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        1,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "If a non-critical hit is performed with an elemental spell: 5% Critical Hit on the following turn [+1]",
+      "noredlace_matched_via": "paradoxical influence"
+    },
+    {
+      "stateId": 7876,
+      "kind": "epic",
+      "item_names_en": [
+        "Steadfast II"
+      ],
+      "item_name_fr": "Constance II",
+      "state_name_en": "Constant II",
+      "state_name_fr": "Constant II",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has 10% Critical Hit or less:  40% indirect damage",
+      "noredlace_matched_via": "steadfast ii"
+    },
+    {
+      "stateId": 7877,
+      "kind": "epic",
+      "item_names_en": [
+        "Elementalism"
+      ],
+      "item_name_fr": "Elémentalisme",
+      "state_name_en": "Elementalism",
+      "state_name_fr": "Élémentalisme",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has 3 equal Elemental Masteries:  20% damage inflicted and heals performed",
+      "noredlace_matched_via": "elementalism"
+    },
+    {
+      "stateId": 7878,
+      "kind": "epic",
+      "item_names_en": [
+        "Chaos"
+      ],
+      "item_name_fr": "Chaos",
+      "state_name_en": "Chaos",
+      "state_name_fr": "Chaos",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, Elemental Masteries are set to 0.  20% damage inflicted and heals performed",
+      "noredlace_matched_via": "chaos"
+    },
+    {
+      "stateId": 7879,
+      "kind": "epic",
+      "item_names_en": [
+        "Abnegation"
+      ],
+      "item_name_fr": "Abnégation",
+      "state_name_en": "Abnegation",
+      "state_name_fr": "Abnégation",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the highest Elemental Mastery is greater than the Healing Mastery:  -15% damage inflicted 30% heals performed",
+      "noredlace_matched_via": "abnegation"
+    },
+    {
+      "stateId": 7880,
+      "kind": "epic",
+      "item_names_en": [
+        "Engagement"
+      ],
+      "item_name_fr": "Engagement",
+      "state_name_en": "Engagement",
+      "state_name_fr": "Engagement",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has 0 Healing Mastery or less:  30% heals performed",
+      "noredlace_matched_via": "engagement"
+    },
+    {
+      "stateId": 7881,
+      "kind": "epic",
+      "item_names_en": [
+        "Iron Will"
+      ],
+      "item_name_fr": "Volonté de fer",
+      "state_name_en": "Iron Will",
+      "state_name_fr": "Volonté de fer",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has 3 range or less:  20 Force of Will",
+      "noredlace_matched_via": "iron will"
+    },
+    {
+      "stateId": 7882,
+      "kind": "epic",
+      "item_names_en": [
+        "Colossal"
+      ],
+      "item_name_fr": "Démesuré",
+      "state_name_en": "Colossal",
+      "state_name_fr": "Démesuré",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the bearer has more Block than Critical Hit:  The Block is converted into Critical Hit",
+      "noredlace_matched_via": "colossal"
+    },
+    {
+      "stateId": 7870,
+      "kind": "relic",
+      "item_names_en": [
+        "Sparkle"
+      ],
+      "item_name_fr": "Pétillance",
+      "state_name_en": "Sparkle",
+      "state_name_fr": "Pétillance",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "At start of turn, if the bearer has no Armor:  20% Damage inflicted (1 turn)  Otherwise: -10% Damage inflicted (1 turn)",
+      "noredlace_matched_via": "sparkle"
+    },
+    {
+      "stateId": 7872,
+      "kind": "relic",
+      "item_names_en": [
+        "Contact"
+      ],
+      "item_name_fr": "Contact",
+      "state_name_en": "Contact",
+      "state_name_fr": "Contact",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "At end of turn, per adjacent enemy:  5% of max HP as Armor",
+      "noredlace_matched_via": "contact"
+    },
+    {
+      "stateId": 7873,
+      "kind": "relic",
+      "item_names_en": [
+        "Face-to-Face"
+      ],
+      "item_name_fr": "Face-à-face",
+      "state_name_en": "Face-to-Face",
+      "state_name_fr": "Face-à-face",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "At end of turn, if the bearer is facing an adjacent enemy:  10% of max HP as Armor",
+      "noredlace_matched_via": "face to face"
+    },
+    {
+      "stateId": 7874,
+      "kind": "relic",
+      "item_names_en": [
+        "Farsighted"
+      ],
+      "item_name_fr": "Hypermétrope",
+      "state_name_en": "Farsighted",
+      "state_name_fr": "Hypermétrope",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "30% damage inflicted on targets 7 or more cells away  otherwise -15%",
+      "noredlace_matched_via": "farsighted"
+    },
+    {
+      "stateId": 7875,
+      "kind": "relic",
+      "item_names_en": [
+        "Distribution"
+      ],
+      "item_name_fr": "Distribution",
+      "state_name_en": "Distribution",
+      "state_name_fr": "Distribution",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "When the bearer heals an ally, 50% of healing is converted into Armor",
+      "noredlace_matched_via": "distribution"
+    },
+    {
+      "stateId": 8131,
+      "kind": "normal",
+      "item_names_en": [
+        "Allocentrism I",
+        "Allocentrism II",
+        "Allocentrism III"
+      ],
+      "item_name_fr": "Allocentrisme I",
+      "state_name_en": "Allocentrism",
+      "state_name_fr": "Allocentrisme",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        2,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "If the bearer has no Armor: 5% Armor given [+1]",
+      "noredlace_matched_via": "allocentrism"
+    },
+    {
+      "stateId": 8132,
+      "kind": "normal",
+      "item_names_en": [
+        "Embellishment I",
+        "Embellishment II",
+        "Embellishment III"
+      ],
+      "item_name_fr": "Apprêt I",
+      "state_name_en": "Embellishment",
+      "state_name_fr": "Apprêt",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        3,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "At end of turn, per enemy in close combat: 1% Damage inflicted for the following turn [+1]",
+      "noredlace_matched_via": "embellishment"
+    },
+    {
+      "stateId": 8366,
+      "kind": "relic",
+      "item_names_en": [
+        "Last Moment"
+      ],
+      "item_name_fr": "Dernier instant",
+      "state_name_en": "Last Moment",
+      "state_name_fr": "Dernier instant",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "If the spell costs 1 WP or more: 5% damage per current WP on the bearer (max. 6)",
+      "noredlace_matched_via": "last moment"
+    },
+    {
+      "stateId": 8367,
+      "kind": "relic",
+      "item_names_en": [
+        "Arrogance"
+      ],
+      "item_name_fr": "Arrogance",
+      "state_name_en": "Arrogance",
+      "state_name_fr": "Arrogance",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "Steals 25% of melee damage inflicted -100 Elemental Resistance",
+      "noredlace_matched_via": "arrogance"
+    },
+    {
+      "stateId": 8368,
+      "kind": "relic",
+      "item_names_en": [
+        "Modularity"
+      ],
+      "item_name_fr": "Modularité",
+      "state_name_en": "Modularity",
+      "state_name_fr": "Modularité",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "After taking damage:  50 Elemental Resistance in this element (1 turn), not stackable A new element replaces the previous one",
+      "noredlace_matched_via": "modularity"
+    },
+    {
+      "stateId": 8370,
+      "kind": "relic",
+      "item_names_en": [
+        "Calibration"
+      ],
+      "item_name_fr": "Calibrage",
+      "state_name_en": "Calibration",
+      "state_name_fr": "Calibrage",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "If the bearer inflicted melee damage on an enemy during their turn:  25% Ranged Damage Inflicted for the following turn",
+      "noredlace_matched_via": "calibration"
+    },
+    {
+      "stateId": 8372,
+      "kind": "relic",
+      "item_names_en": [
+        "Vehemence"
+      ],
+      "item_name_fr": "Véhémence",
+      "state_name_en": "Vehemence",
+      "state_name_fr": "Véhémence",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "Each turn steals 50% of damage inflicted by the first spell that inflicts damage -50% Armor received",
+      "noredlace_matched_via": "vehemence"
+    },
+    {
+      "stateId": 8374,
+      "kind": "relic",
+      "item_names_en": [
+        "Beyond the Barrier"
+      ],
+      "item_name_fr": "Par-delà la barrière",
+      "state_name_en": "Beyond the Barrier",
+      "state_name_fr": "Par-delà la barrière",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "If the spell costs 4 AP or more: 15% critical damage. If the spell costs 1 WP or more: 15% critical damage",
+      "noredlace_matched_via": "beyond the barrier"
+    },
+    {
+      "stateId": 8375,
+      "kind": "relic",
+      "item_names_en": [
+        "Single Shared Armor"
+      ],
+      "item_name_fr": "Cuirasse singulière",
+      "state_name_en": "Single Shared Armor",
+      "state_name_fr": "Cuirasse singulière",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "30% of Armor given to allies who do not have Armor -50% Armor to allies who already have Armor",
+      "noredlace_matched_via": "single shared armor"
+    },
+    {
+      "stateId": 8376,
+      "kind": "relic",
+      "item_names_en": [
+        "Calibration II"
+      ],
+      "item_name_fr": "Calibrage II",
+      "state_name_en": "Calibration II",
+      "state_name_fr": "Calibrage II",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "If the bearer inflicted melee damage on an enemy during their turn:  10% Ranged Damage Inflicted for the following turn Once per turn, stackable up to 5 times",
+      "noredlace_matched_via": "calibration ii"
+    },
+    {
+      "stateId": 8379,
+      "kind": "relic",
+      "item_names_en": [
+        "Lunatic II"
+      ],
+      "item_name_fr": "Lunatique II",
+      "state_name_en": "Lunatic II",
+      "state_name_fr": "Lunatique II",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "After inflicting damage on an enemy:  -30% damage inflicted and 30% heals performed and Armor given for the following turn. After healing or giving armor to an ally:  30% damage inflicted and -30% heals performed and armor given for the following turn.",
+      "noredlace_matched_via": "lunatic ii"
+    },
+    {
+      "stateId": 8380,
+      "kind": "relic",
+      "item_names_en": [
+        "Natural Poise"
+      ],
+      "item_name_fr": "Aplomb naturel",
+      "state_name_en": "Natural Poise",
+      "state_name_fr": "Aplomb naturel",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "50 Elemental Resistance if the bearer has no Armor otherwise -100 Elemental Resistance",
+      "noredlace_matched_via": "natural poise"
+    },
+    {
+      "stateId": 8381,
+      "kind": "relic",
+      "item_names_en": [
+        "Ebullience"
+      ],
+      "item_name_fr": "Pétulance",
+      "state_name_en": "Ebullience",
+      "state_name_fr": "Pétulance",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "If the bearer moves themself using a spell:  1 AP (max 2 per turn)",
+      "noredlace_matched_via": "ebullience"
+    },
+    {
+      "stateId": 8382,
+      "kind": "relic",
+      "item_names_en": [
+        "Gusto"
+      ],
+      "item_name_fr": "Empressement",
+      "state_name_en": "Gusto",
+      "state_name_fr": "Empressement",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "If the bearer moves themself using a spell:  1 MP (max 2 per turn)",
+      "noredlace_matched_via": "gusto"
+    },
+    {
+      "stateId": 8383,
+      "kind": "relic",
+      "item_names_en": [
+        "Involuntary Heaviness"
+      ],
+      "item_name_fr": "Lourdeur involontaire",
+      "state_name_en": "Involuntary Heaviness",
+      "state_name_fr": "Lourdeur involontaire",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "If the bearer is moved outside of their turn: applies Stabilized at the end of their next turn",
+      "noredlace_matched_via": "involuntary heaviness"
+    },
+    {
+      "stateId": 8384,
+      "kind": "epic",
+      "item_names_en": [
+        "Pillar II"
+      ],
+      "item_name_fr": "Pilier II",
+      "state_name_en": "Pillar II",
+      "state_name_fr": "Pilier II",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has 50% Block or more:  -30% HP +30% in Armor given",
+      "noredlace_matched_via": "pillar ii"
+    },
+    {
+      "stateId": 8385,
+      "kind": "epic",
+      "item_names_en": [
+        "Measure II"
+      ],
+      "item_name_fr": "Mesure II",
+      "state_name_en": "Measure II",
+      "state_name_fr": "Mesure II",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has 50% Critical Hits or more:  20 Block 10 Force of Will",
+      "noredlace_matched_via": "measure ii"
+    },
+    {
+      "stateId": 8386,
+      "kind": "normal",
+      "item_names_en": [
+        "Direct Force of Will I",
+        "Direct Force of Will II",
+        "Direct Force of Will III"
+      ],
+      "item_name_fr": "Volonté directe I",
+      "state_name_en": "Direct Force of Will",
+      "state_name_fr": "Volonté directe",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "Outside the bearers turn:  -4 Force of Will During the bearers turn:  3 Force of Will [+1]",
+      "noredlace_matched_via": "direct force of will"
+    },
+    {
+      "stateId": 8387,
+      "kind": "normal",
+      "item_names_en": [
+        "Indirect Force of Will I",
+        "Indirect Force of Will II",
+        "Indirect Force of Will III"
+      ],
+      "item_name_fr": "Volonté indirecte I",
+      "state_name_en": "Indirect Force of Will",
+      "state_name_fr": "Volonté indirecte",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        3,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "Outside the bearers turn:  3 Force of Will During the bearers turn:  -4 Force of Will [+1]",
+      "noredlace_matched_via": "indirect force of will"
+    },
+    {
+      "stateId": 8388,
+      "kind": "normal",
+      "item_names_en": [
+        "Scrupulosity I",
+        "Scrupulosity II",
+        "Scrupulosity III"
+      ],
+      "item_name_fr": "Acribie I",
+      "state_name_en": "Scrupulosity",
+      "state_name_fr": "Acribie",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "2% Damage Inflicted on targets 5 cells or further away [+1]",
+      "noredlace_matched_via": "scrupulosity"
+    },
+    {
+      "stateId": 8389,
+      "kind": "normal",
+      "item_names_en": [
+        "Intermediate Vision I",
+        "Intermediate Vision II",
+        "Intermediate Vision III"
+      ],
+      "item_name_fr": "Vision intermédiaire I",
+      "state_name_en": "Intermediate Vision",
+      "state_name_fr": "Vision intermédiaire",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        1,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "3% Damage Inflicted on targets exactly 3 cells away [+1]",
+      "noredlace_matched_via": "intermediate vision"
+    },
+    {
+      "stateId": 8390,
+      "kind": "normal",
+      "item_names_en": [
+        "Constant Evasion I",
+        "Constant Evasion II",
+        "Constant Evasion III"
+      ],
+      "item_name_fr": "Dérobade continue I",
+      "state_name_en": "Constant Evasion",
+      "state_name_fr": "Dérobade continue",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "3% Block [+1]",
+      "noredlace_matched_via": "constant evasion"
+    },
+    {
+      "stateId": 8391,
+      "kind": "normal",
+      "item_names_en": [
+        "Critical Shield I",
+        "Critical Shield II",
+        "Critical Shield III"
+      ],
+      "item_name_fr": "Bouclier critique I",
+      "state_name_en": "Critical Shield",
+      "state_name_fr": "Bouclier critique",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "5 Critical Resistance [+1]",
+      "noredlace_matched_via": "critical shield"
+    },
+    {
+      "stateId": 8393,
+      "kind": "normal",
+      "item_names_en": [
+        "Rear Shield I",
+        "Rear Shield II",
+        "Rear Shield III"
+      ],
+      "item_name_fr": "Bouclier dorsal I",
+      "state_name_en": "Rear Shield",
+      "state_name_fr": "Bouclier dorsal",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        2,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "5 Rear Resistance [+1]",
+      "noredlace_matched_via": "rear shield"
+    },
+    {
+      "stateId": 8392,
+      "kind": "normal",
+      "item_names_en": [
+        "Wakfu Conservation II"
+      ],
+      "item_name_fr": "Sauvegarde du Wakfu II",
+      "state_name_en": "Wakfu Conservation",
+      "state_name_fr": "Sauvegarde du Wakfu",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        1,
+        3,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-",
+      "noredlace_matched_via": "wakfu conservation"
+    },
+    {
+      "stateId": 8394,
+      "kind": "normal",
+      "item_names_en": [
+        "Propagation I",
+        "Propagation II",
+        "Propagation III"
+      ],
+      "item_name_fr": "Propagation I",
+      "state_name_en": "Propagation",
+      "state_name_fr": "Propagation",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        2,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When the state bearer inflicts direct damage, once per turn: Inflicts 10% of level as Light damage on enemies aligned with the target [+1]",
+      "noredlace_matched_via": "propagation"
+    },
+    {
+      "stateId": 8395,
+      "kind": "normal",
+      "item_names_en": [
+        "Added Value I",
+        "Added Value II",
+        "Added Value III"
+      ],
+      "item_name_fr": "Valeur ajoutée I",
+      "state_name_en": "Added Value",
+      "state_name_fr": "Valeur ajoutée",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        2,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "Each time indirect damage is inflicted:  -2% direct damage  2% indirect damage  Up to 40% The bonus is lost at start of turn [+1]",
+      "noredlace_matched_via": "added value"
+    },
+    {
+      "stateId": 8398,
+      "kind": "normal",
+      "item_names_en": [
+        "Blood Stains I",
+        "Blood Stains II",
+        "Blood Stains III"
+      ],
+      "item_name_fr": "Sanguinolence I",
+      "state_name_en": "Blood Stains",
+      "state_name_fr": "Sanguinolence",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "For each penalty or loss applied to a target:  Blood Stains (+2 Lvl., 1 turn): 2% damage received by the bearer (max 40%) [+1]",
+      "noredlace_matched_via": "blood stains"
+    },
+    {
+      "stateId": 8518,
+      "kind": "normal",
+      "item_names_en": [
+        "Burn I",
+        "Burn II",
+        "Burn III"
+      ],
+      "item_name_fr": "Brûlure I",
+      "state_name_en": "Burn",
+      "state_name_fr": "Brûlure",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        1,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "4% damage inflicted in the Fire element [+1]",
+      "noredlace_matched_via": "burn"
+    },
+    {
+      "stateId": 8519,
+      "kind": "normal",
+      "item_names_en": [
+        "Freezing I",
+        "Freezing II",
+        "Freezing III"
+      ],
+      "item_name_fr": "Gel I",
+      "state_name_en": "Freezing",
+      "state_name_fr": "Gel",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        3,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "4% damage inflicted in the Water element [+1]",
+      "noredlace_matched_via": "freezing"
+    },
+    {
+      "stateId": 8520,
+      "kind": "normal",
+      "item_names_en": [
+        "Earthbound I",
+        "Earthbound II",
+        "Earthbound III"
+      ],
+      "item_name_fr": "Tellurisme I",
+      "state_name_en": "Earthbound",
+      "state_name_fr": "Tellurisme",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "4% damage inflicted in the Earth element [+1]",
+      "noredlace_matched_via": "earthbound"
+    },
+    {
+      "stateId": 8521,
+      "kind": "normal",
+      "item_names_en": [
+        "Ventilation I",
+        "Ventilation II",
+        "Ventilation III"
+      ],
+      "item_name_fr": "Ventilation I",
+      "state_name_en": "Ventilation",
+      "state_name_fr": "Ventilation",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        3,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "4% damage inflicted in the Air element [+1]",
+      "noredlace_matched_via": "ventilation"
+    },
+    {
+      "stateId": 8399,
+      "kind": "normal",
+      "item_names_en": [
+        "Reprisal I",
+        "Reprisal II",
+        "Reprisal III"
+      ],
+      "item_name_fr": "Représailles I",
+      "state_name_en": "Reprisal",
+      "state_name_fr": "Représailles",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        1,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When the state bearer suffers ranged direct damage: Inflicts 6% extra damage on the attacker 1 turn, not stackable [+1]",
+      "noredlace_matched_via": "reprisal"
+    },
+    {
+      "stateId": 8400,
+      "kind": "normal",
+      "item_names_en": [
+        "Shell I",
+        "Shell II",
+        "Shell III"
+      ],
+      "item_name_fr": "Coque I",
+      "state_name_en": "Shell",
+      "state_name_fr": "Coque",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        2,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When the state bearer applies Armor on an ally, applies Shell (Lvl 1): The state bearer inflicts Light damage on the attacker (5% of level). The Counter state is removed [+1]",
+      "noredlace_matched_via": "shell"
+    },
+    {
+      "stateId": 8402,
+      "kind": "normal",
+      "item_names_en": [
+        "Violent Rupture I",
+        "Violent Rupture II"
+      ],
+      "item_name_fr": "Rupture violente I",
+      "state_name_en": "Violent Rupture",
+      "state_name_fr": "Rupture violente",
+      "n_item_rows": 2,
+      "slotColorPattern": [
+        2,
+        2,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When the state bearer causes the target to lose Armor:  The state bearer inflicts light damage on the target (10% of level) [+1]",
+      "noredlace_matched_via": "violent rupture"
+    },
+    {
+      "stateId": 8403,
+      "kind": "normal",
+      "item_names_en": [
+        "AP Rupture II"
+      ],
+      "item_name_fr": "Rupture PA II",
+      "state_name_en": "AP Rupture",
+      "state_name_fr": "Rupture PA",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        3,
+        3,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "-",
+      "noredlace_matched_via": "ap rupture"
+    },
+    {
+      "stateId": 8493,
+      "kind": "normal",
+      "item_names_en": [
+        "Critical Scale I",
+        "Critical Scale II",
+        "Critical Scale III"
+      ],
+      "item_name_fr": "Balance critique I",
+      "state_name_en": "Critical Scale",
+      "state_name_fr": "Balance critique",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        3,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "Each time a non-critical spell is cast: 2 Critical Hit Bonus is lost on the next critical hit [+1]",
+      "noredlace_matched_via": "critical scale"
+    },
+    {
+      "stateId": 8494,
+      "kind": "normal",
+      "item_names_en": [
+        "Critical Consolation I",
+        "Critical Consolation II",
+        "Critical Consolation III"
+      ],
+      "item_name_fr": "Consolation critique I",
+      "state_name_en": "Critical Consolation",
+      "state_name_fr": "Consolation critique",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "Each time a non-critical spell is cast:  2% Critical damage inflicted (stackable up to 40)  Bonus is lost on the next critical hit [+1]",
+      "noredlace_matched_via": "critical consolation"
+    },
+    {
+      "stateId": 8496,
+      "kind": "normal",
+      "item_names_en": [
+        "Last Armor I",
+        "Last Armor II",
+        "Last Armor III"
+      ],
+      "item_name_fr": "Dernière armure I",
+      "state_name_en": "Last Armor",
+      "state_name_fr": "Dernière armure",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        3,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When below 20% of max HP (1 time per fight):  5% of max HP as Armor [+1]",
+      "noredlace_matched_via": "last armor"
+    },
+    {
+      "stateId": 8497,
+      "kind": "normal",
+      "item_names_en": [
+        "Last Heal I",
+        "Last Heal II",
+        "Last Heal III"
+      ],
+      "item_name_fr": "Dernier soin I",
+      "state_name_en": "Last Heal",
+      "state_name_fr": "Dernier soin",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        1,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When below 20% of max HP (1 time per fight):  Healing: 5% of max HP [+1]",
+      "noredlace_matched_via": "last heal"
+    },
+    {
+      "stateId": 8498,
+      "kind": "normal",
+      "item_names_en": [
+        "Last Resistance I",
+        "Last Resistance II",
+        "Last Resistance III"
+      ],
+      "item_name_fr": "Dernières résistances I",
+      "state_name_en": "Last Resistance",
+      "state_name_fr": "Dernières résistances",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "When below 20% of max HP (1 time per fight):  20 Elemental Resistance [+1]",
+      "noredlace_matched_via": "last resistance"
+    },
+    {
+      "stateId": 8499,
+      "kind": "normal",
+      "item_names_en": [
+        "Secondary Burn I",
+        "Secondary Burn II",
+        "Secondary Burn III"
+      ],
+      "item_name_fr": "Brûlure secondaire I",
+      "state_name_en": "Secondary Burn",
+      "state_name_fr": "Brûlure secondaire",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        1,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "On casting a Water, Earth, or Air spell:  2% damage inflicted in the Fire element   Stackable up to 30  Effect is consumed on next direct Fire damage [+1]",
+      "noredlace_matched_via": "secondary burn"
+    },
+    {
+      "stateId": 8502,
+      "kind": "normal",
+      "item_names_en": [
+        "Secondary Freezing I",
+        "Secondary Freezing II",
+        "Secondary Freezing III"
+      ],
+      "item_name_fr": "Gel secondaire I",
+      "state_name_en": "Secondary Freezing",
+      "state_name_fr": "Gel secondaire",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        2,
+        3
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "On casting a Fire, Earth, or Air spell:  2% damage inflicted in the Water element   Stackable up to 30  Effect is consumed on next direct Water damage [+1]",
+      "noredlace_matched_via": "secondary freezing"
+    },
+    {
+      "stateId": 8505,
+      "kind": "normal",
+      "item_names_en": [
+        "Secondary Earthbound I",
+        "Secondary Earthbound II",
+        "Secondary Earthbound III"
+      ],
+      "item_name_fr": "Tellurisme secondaire I",
+      "state_name_en": "Secondary Earthbound",
+      "state_name_fr": "Tellurisme secondaire",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        3,
+        1
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "On casting a Fire, Water or Air spell:  2% damage inflicted in the Earth element   Stackable up to 30  Effect is consumed on next direct Earth damage [+1]",
+      "noredlace_matched_via": "secondary earthbound"
+    },
+    {
+      "stateId": 8508,
+      "kind": "normal",
+      "item_names_en": [
+        "Secondary Ventilation I",
+        "Secondary Ventilation II",
+        "Secondary Ventilation III"
+      ],
+      "item_name_fr": "Ventilation secondaire I",
+      "state_name_en": "Secondary Ventilation",
+      "state_name_fr": "Ventilation secondaire",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        2,
+        2
+      ],
+      "wakforge_structured": true,
+      "noredlace_bucket": "normal",
+      "noredlace_effect": "On casting a Fire, Water or Earth spell:  2% damage inflicted in the Air element   Stackable up to 30  Effect is consumed on next direct Air damage [+1]",
+      "noredlace_matched_via": "secondary ventilation"
+    },
+    {
+      "stateId": 8489,
+      "kind": "relic",
+      "item_names_en": [
+        "Single Shared Armor II"
+      ],
+      "item_name_fr": "Cuirasse singulière II",
+      "state_name_en": "Single Shared Armor II",
+      "state_name_fr": "Cuirasse singulière II",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "40% Armor given on the first Armor placed on this turn -50% Armor given on all others",
+      "noredlace_matched_via": "single shared armor ii"
+    },
+    {
+      "stateId": 8490,
+      "kind": "relic",
+      "item_names_en": [
+        "Time Control"
+      ],
+      "item_name_fr": "Contrôle du temps",
+      "state_name_en": "Time Control",
+      "state_name_fr": "Contrôle du temps",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "relic",
+      "noredlace_effect": "Every 3 spells cast Critical Hit is set to 100",
+      "noredlace_matched_via": "time control"
+    },
+    {
+      "stateId": 8492,
+      "kind": "epic",
+      "item_names_en": [
+        "Measure III"
+      ],
+      "item_name_fr": "Mesure III",
+      "state_name_en": "Measure III",
+      "state_name_fr": "Mesure III",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": true,
+      "noredlace_bucket": "epic",
+      "noredlace_effect": "At the start of combat, if the state bearer has 50% Critical Hits or less:  20% damage inflicted on critical hit",
+      "noredlace_matched_via": "measure iii"
+    },
+    {
+      "stateId": 9060,
+      "kind": "normal",
+      "item_names_en": [
+        "Secondary Embellishment I",
+        "Secondary Embellishment II",
+        "Secondary Embellishment III"
+      ],
+      "item_name_fr": "Apprêt secondaire I",
+      "state_name_en": "Secondary Embellishment",
+      "state_name_fr": "Apprêt secondaire",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        3,
+        1,
+        3
+      ],
+      "wakforge_structured": false,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 9062,
+      "kind": "normal",
+      "item_names_en": [
+        "Surge I",
+        "Surge II",
+        "Surge III"
+      ],
+      "item_name_fr": "Élan I",
+      "state_name_en": "Surge",
+      "state_name_fr": "Élan",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        1,
+        2
+      ],
+      "wakforge_structured": false,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 9064,
+      "kind": "normal",
+      "item_names_en": [
+        "Judgment I",
+        "Judgment II",
+        "Judgment III"
+      ],
+      "item_name_fr": "Jugement I",
+      "state_name_en": "Judgment",
+      "state_name_fr": "Jugement",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        1,
+        1,
+        3
+      ],
+      "wakforge_structured": false,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 9066,
+      "kind": "normal",
+      "item_names_en": [
+        "Diagnosis I",
+        "Diagnosis II",
+        "Diagnosis III"
+      ],
+      "item_name_fr": "Diagnostic I",
+      "state_name_en": "Diagnosis",
+      "state_name_fr": "Diagnostic",
+      "n_item_rows": 3,
+      "slotColorPattern": [
+        2,
+        3,
+        2
+      ],
+      "wakforge_structured": false,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 9067,
+      "kind": "normal",
+      "item_names_en": [
+        "Critical Save II"
+      ],
+      "item_name_fr": "Sauvegarde critique II",
+      "state_name_en": "Critical Save",
+      "state_name_fr": "Sauvegarde critique",
+      "n_item_rows": 1,
+      "slotColorPattern": [
+        3,
+        1,
+        3
+      ],
+      "wakforge_structured": false,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 9070,
+      "kind": "relic",
+      "item_names_en": [
+        "Wakfu Seal"
+      ],
+      "item_name_fr": "Sceau de Wakfu",
+      "state_name_en": "Wakfu Seal",
+      "state_name_fr": "Sceau de Wakfu",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": false,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 9071,
+      "kind": "relic",
+      "item_names_en": [
+        "Single Block"
+      ],
+      "item_name_fr": "Parade unique",
+      "state_name_en": "Single Block",
+      "state_name_fr": "Parade unique",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": false,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 9072,
+      "kind": "relic",
+      "item_names_en": [
+        "Absolution"
+      ],
+      "item_name_fr": "Absolution",
+      "state_name_en": "Absolution",
+      "state_name_fr": "Absolution",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": false,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 9073,
+      "kind": "relic",
+      "item_names_en": [
+        "Punishment"
+      ],
+      "item_name_fr": "Châtiment",
+      "state_name_en": "Punishment",
+      "state_name_fr": "Châtiment",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": false,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    },
+    {
+      "stateId": 9074,
+      "kind": "epic",
+      "item_names_en": [
+        "Critical Secret"
+      ],
+      "item_name_fr": "Secret critique",
+      "state_name_en": "Critical Secret",
+      "state_name_fr": "Secret critique",
+      "n_item_rows": 1,
+      "slotColorPattern": [],
+      "wakforge_structured": false,
+      "noredlace_bucket": null,
+      "noredlace_effect": null,
+      "noredlace_matched_via": null
+    }
+  ]
+}
