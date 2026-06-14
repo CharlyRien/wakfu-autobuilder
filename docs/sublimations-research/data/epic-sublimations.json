@@ -1,0 +1,188 @@
+[
+	{
+		"Name": "Abnegation",
+		"Effect": "At the start of combat, if the highest Elemental Mastery is greater than the Healing Mastery:  -15% damage inflicted 30% heals performed",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Anatomy",
+		"Effect": "At the start of combat, if the highest Elemental Mastery is greater than Rear Mastery:  -20% damage inflicted 40% damage inflicted from behind",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Brutality",
+		"Effect": "At the start of combat, if the bearer has exactly 0 Range:  +20% damage inflicted in melee and area of effect simultaneously",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Chaos",
+		"Effect": "At the start of combat, Elemental Masteries are set to 0.  20% damage inflicted and heals performed",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Colossal",
+		"Effect": "At the start of combat, if the bearer has more Block than Critical Hit:  The Block is converted into Critical Hit",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Controlling Space",
+		"Effect": "At the start of combat, if the state bearer has exactly 1 Range:  15% damage inflicted and heals performed on targets that are 2, 3, or 4 cells away from the caster",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Controlling Space II",
+		"Effect": "At the start of combat, if the state bearer has at least 3 Range:  30% indirect damage inflicted",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Elemental Concentration",
+		"Effect": "At the start of combat: 20% damage inflicted and heals performed  -30% elemental mastery in the 3 weakest elements",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Elementalism",
+		"Effect": "At the start of combat, if the state bearer has 3 equal Elemental Masteries:  20% damage inflicted and heals performed",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Engagement",
+		"Effect": "At the start of combat, if the state bearer has 0 Healing Mastery or less:  30% heals performed",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Herculean Strength",
+		"Effect": "At the start of combat, if the state bearer has an odd number of AP:  250% of level as Lock and Dodge",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Inflexibility",
+		"Effect": "At the start of combat, if the state bearer has 10 AP or less:  15% damage inflicted 10 Force of Will (if the character is at level 100 or greater)",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Inflexibility II",
+		"Effect": "At the start of combat, if Secondary Masteries are less than or equal to 0:  +20% damage inflicted and heals performed",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Iron Will",
+		"Effect": "At the start of combat, if the state bearer has 3 range or less:  20 Force of Will",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Measure",
+		"Effect": "At the start of combat, if the state bearer has 40% Block or greater:  10% Critical Hit 10% damage inflicted on critical hit",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Measure II",
+		"Effect": "At the start of combat, if the state bearer has 50% Critical Hits or more:  20 Block 10 Force of Will",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": 1.84
+	},
+	{
+		"Name": "Measure III",
+		"Effect": "At the start of combat, if the state bearer has 50% Critical Hits or less:  20% damage inflicted on critical hit",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": 1.84
+	},
+	{
+		"Name": "Outrage",
+		"Effect": "At the start of combat, if the state bearer has less that 100% of their level as Dodge:  15% damage inflicted as Berserk 100% of level as Lock",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Outrage II",
+		"Effect": "At the start of combat, if the state bearer has 4 Range or greater:  15% damage inflicter as Berserk and Ranged simultaneously 1 Range",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Pillar",
+		"Effect": "At the start of combat, if the state bearer has 50% Block or greater:  Bonus to HP modifier +30% -50% Armor Received",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Pillar II",
+		"Effect": "At the start of combat, if the state bearer has 50% Block or more:  -30% HP +30% in Armor given",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": 1.84
+	},
+	{
+		"Name": "Robust Health",
+		"Effect": "At the start of combat, for the state bearer:  -30% HP (penalty to the HP modifier) 30% Heals and Armor from fighters received",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Steadfast",
+		"Effect": "At the start of combat, if the state bearer has 10% Critical Hit or less:  20% damage inflicted 50 Critical Resistance",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Steadfast II",
+		"Effect": "At the start of combat, if the state bearer has 10% Critical Hit or less:  40% indirect damage",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Surgical Precision",
+		"Effect": "At the start of combat, if the state bearer has 1 Range or less:  20% heals performed 15% Armor Given and Received",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Unraveling",
+		"Effect": "At the start of combat, if the state bearer has at least 40% Critical Hit converts 100% of Critical Mastery to Elemental Mastery",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Wakfu Pact",
+		"Effect": "At the start of combat, if the state bearer has 8 WP or greater:  10 Force of Will 15% Block",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Wield type: Dagger",
+		"Effect": "At the start of combat, if the state bearer has a Dagger equipped:  25% damage inflicted on targets hit from the front 15% from the side -30% from behind",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Wield type: Shield",
+		"Effect": "At the start of combat, if the bearer has a Shield equipped:  1 max MP Positive Range is set at 0",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Positioning Knowledge",
+		"Effect": "50 Elemental Resistance  -200 Rear Resistance for the bearer at the start of combat.",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	},
+	{
+		"Name": "Wield type: Two-handed",
+		"Effect": "At the start of combat, if the state bearer has a Two-Handed Weapon equipped ( maximum 12 AP before the sublimation effect):  -2 max MP 2 max AP",
+		"Obtained From": "Handyman (130)",
+		"Since Patch": null
+	}
+]
