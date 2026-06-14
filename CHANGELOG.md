@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.4.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.3.0...wakfu-autobuilder-1.4.0) (2026-06-14)
+
+
+### Features
+
+* **gui:** import/export builds via the clipboard ([76af733](https://github.com/CharlyRien/wakfu-autobuilder/commit/76af7336a3a0cdc29cc08ca0930d6454cdecc6b3))
+* **runes:** surface the rune enchantment level and round-trip runes through save/clipboard ([313d750](https://github.com/CharlyRien/wakfu-autobuilder/commit/313d750894c4cb739d602ef05a3d9ceff0f5a754))
+
+
+### Bug Fixes
+
+* **enchant:** cap rune/shard level by item level, not character level ([3691874](https://github.com/CharlyRien/wakfu-autobuilder/commit/36918746573f88e1504d8416a5ebf80e3e3b6dbe))
+* **engine:** leave one CPU core free during CP-SAT search ([11eb0d0](https://github.com/CharlyRien/wakfu-autobuilder/commit/11eb0d01b65cca31f3b83e8a7f67d0e615292c38))
+* **gui:** keep the search progress bar alive during a search ([1a6bbe2](https://github.com/CharlyRien/wakfu-autobuilder/commit/1a6bbe28fd867a246bacd1fdc68374d043e27b55))
+
 ## [1.3.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.2.0...wakfu-autobuilder-1.3.0) (2026-06-13)
 
 
