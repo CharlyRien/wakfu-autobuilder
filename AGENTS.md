@@ -34,6 +34,8 @@ common-lib            Pure domain model. No project deps. Everyone depends on it
   ▲
   ├── equipments-extractor   Standalone tool: pulls Wakfu game data from Ankama's CDN
   │                          and regenerates the embedded equipments JSON.
+  ├── spells-extractor       Standalone tool: scrapes the Ankama encyclopedia and regenerates the
+  │                          embedded class-spells JSON (element / AP / damage per class).
   ├── zenith-builder         Talks to the zenithwakfu.com builder API to create a build URL.
   │     ▲
   ├── autobuilder            CLI + the SEARCH ENGINE. Depends on common-lib + zenith-builder.
@@ -45,6 +47,7 @@ common-lib            Pure domain model. No project deps. Everyone depends on it
 |---|---|---|---|
 | `common-lib` | library | — | kotlinx-serialization |
 | `equipments-extractor` | app | `me.chosante.equipmentextractor.MainKt` | Fuel (HTTP), serialization |
+| `spells-extractor` | app | `me.chosante.spellextractor.MainKt` | java.net.http (HTTP), serialization |
 | `zenith-builder` | library | — | Fuel, coroutines, serialization |
 | `autobuilder` | app | `me.chosante.autobuilder.MainKt` | Clikt + Mordant (CLI), OR-Tools, coroutines |
 | `gui-compose` | app | `me.chosante.ui.MainKt` | Compose Multiplatform (Desktop), Conveyor |
@@ -210,6 +213,7 @@ JDK 25 required. Use the Gradle wrapper.
 ./gradlew :gui-compose:run                        # launch the Compose Desktop GUI
 ./gradlew :autobuilder:run --args="--help"        # CLI help
 ./gradlew :equipments-extractor:run               # regenerate the equipments JSON from Ankama CDN
+./gradlew :spells-extractor:run                   # regenerate the class-spells JSON (scrapes encyclopedia; resumable)
 ./gradlew :gui-compose:generateAssets             # (on demand) download item icons from wakassets
 
 # Compose GUI screenshot smoke-check (renders the app, writes a PNG, exits):
