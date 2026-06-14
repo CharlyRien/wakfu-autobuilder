@@ -8,7 +8,8 @@ combination/epic/relic effects). This document is the research + the concrete, p
 (`1.91.1.54`); no version bump required to start.
 
 **Decisions locked:**
-- **Runes are always at max level** for the character's level, and **doubling uses WakForge's exact
+- **Runes are always at max level** allowed by the **carrier item's level** (Ankama's table gates the
+  enchantment level by item level, not character level), and **doubling uses WakForge's exact
   model** (a rune doubles on its 2 favoured equipment slots — see §4e/§5). This is the *best
   achievable* setup, which is what an autobuilder should target — not a conservative lower bound.
 - **Sublimations:** out of scope for the mastery objective. The real home for them is a **future
@@ -40,7 +41,7 @@ combination/epic/relic effects). This document is the research + the concrete, p
 ### Runes (a.k.a. shards / "éclats")
 You socket a rune into a socket to add a stat. There are **17 runes**, one per stat. Each rune:
 - has a **colour** (1=red / 2=green / 3=blue),
-- has a **level (1→10)**, gated by character level (`shardLevelRequirement = [0,36,51,66,81,96,126,141,171,186,216]`),
+- has a **level (1→11)**, gated by the **item's level** (`shardLevelRequirement = [0,36,51,66,81,96,126,141,171,186,216]`: lvl 2 needs item ≥36, lvl 3 needs item ≥51, …),
   whose magnitude follows a **global curve** `shardLevelingCurve = [1,2,4,8,16,32,64,192,576,2304,9216]`,
 - **doubles** its value when the rune colour matches the socket colour (white sockets match any).
   Because colours are re-rollable, in BiS the player always matches → runes are effectively doubled.
@@ -160,9 +161,9 @@ it to the shown value is undocumented and irregular. So the practical answer (an
 community tool does) is to use the **final per-level value tables** directly. WakForge already
 transcribed them from in-game (`useConstants.js`); copy them verbatim. See the tables in §6.
 
-`runeValue(stat, itemSlot)` is then a **constant** (given character level), no extra variable:
+`runeValue(stat, itemSlot)` is then a **constant** (given the item's level), no extra variable:
 ```
-level     = max rune level allowed by character level   (RUNE_LEVEL_REQUIREMENTS, §6)
+level     = max rune level allowed by the item's level   (RUNE_LEVEL_REQUIREMENTS, §6)
 baseValue = LEVEL_TABLE(stat)[level - 1]                 (one of the 6 tables, §6)
 runeValue = baseValue * (itemSlot.rawId ∈ rune.doubleBonusPosition ? 2 : 1)
 ```
@@ -251,7 +252,7 @@ Global rune curve: `shardLevelingCurve = [1,2,4,8,16,32,64,192,576,2304,9216]`,
 ### Rune value per level (transcribed from WakForge `useConstants.js` — the calibration, §4e)
 Index by rune level (1 → 11); double on favoured slots. Cross-check in-game per patch.
 ```
-RUNE_LEVEL_REQUIREMENTS         = [0, 36, 51, 66, 81, 96, 126, 141, 171, 186, 216]  // char lvl gating rune lvl 1..11
+RUNE_LEVEL_REQUIREMENTS         = [0, 36, 51, 66, 81, 96, 126, 141, 171, 186, 216]  // item lvl gating rune lvl 1..11
 RUNE_MASTERY_LEVEL_VALUES       = [1, 3, 4, 6, 7, 10, 15, 19, 24, 30, 33]   // melee/distance/berserk/critical/rear/healing
 RUNE_ELEMENTAL_MASTERY_VALUES   = [1, 2, 3, 4, 5, 7, 10, 13, 16, 20, 22]    // generic elemental mastery
 RUNE_RESISTANCE_LEVEL_VALUES    = [2, 5, 7, 10, 12, 15, 17, 20, 22, 25, 27, 30]   // earth/fire/water/air resistance

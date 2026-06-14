@@ -375,7 +375,7 @@ object WakfuBuildSolver {
             addLessOrEqual(capExpr.build(), 0L)
             runeVars[equip] = perStat
         }
-        return RuneModel(runeByCharacteristic, runeVars, params.character.level)
+        return RuneModel(runeByCharacteristic, runeVars)
     }
 
     /**
@@ -1287,7 +1287,7 @@ object WakfuBuildSolver {
                 runeModel.runeByCharacteristic[char]?.let { rune ->
                     for ((equip, perStat) in runeModel.runeVars) {
                         val runeVar = perStat[char] ?: continue
-                        val coefficient = rune.valueOn(equip.itemType, runeModel.characterLevel).toLong()
+                        val coefficient = rune.valueOn(equip.itemType, equip.level).toLong()
                         if (coefficient != 0L) {
                             terms.add(Term(runeVar, coefficient))
                         }
@@ -1321,10 +1321,9 @@ object WakfuBuildSolver {
     private class RuneModel(
         val runeByCharacteristic: Map<Characteristic, RuneType>,
         val runeVars: Map<Equipment, Map<Characteristic, IntVar>>,
-        val characterLevel: Int,
     ) {
         companion object {
-            val EMPTY = RuneModel(emptyMap(), emptyMap(), 0)
+            val EMPTY = RuneModel(emptyMap(), emptyMap())
         }
     }
 
