@@ -57,6 +57,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.PopupPositionProvider
+import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.common.Equipment
 import me.chosante.common.RuneColor
 import me.chosante.common.RuneType
@@ -71,6 +72,7 @@ import me.chosante.ui.i18n.label
 import me.chosante.ui.i18n.tr
 import me.chosante.ui.state.Phase
 import me.chosante.ui.state.UiState
+import me.chosante.ui.state.WhatsNew
 import me.chosante.ui.state.color
 import me.chosante.ui.state.statColor
 import me.chosante.ui.theme.WColor
@@ -156,16 +158,37 @@ fun PaperdollPanel(
                 )
             }
         }
-        Text(
-            text = tr(Tr.DISCLAIMER),
-            style = WTypography.labelSmall,
-            textAlign = TextAlign.Center,
+        val appVersion = WhatsNew.appVersion
+        val versionPrefix = tr(Tr.APP_VERSION_LABEL)
+        val gameDataPrefix = tr(Tr.GAME_DATA_LABEL)
+        val dataVersion = WakfuBestBuildFinderAlgorithm.dataVersion
+        val versionLine =
+            if (appVersion != null) {
+                "$versionPrefix $appVersion  ·  $gameDataPrefix $dataVersion"
+            } else {
+                "$gameDataPrefix $dataVersion"
+            }
+        Column(
             modifier =
                 Modifier
                     .fillMaxWidth()
                     .border(1.dp, WColor.hairline)
-                    .padding(vertical = 10.dp, horizontal = WDimens.pad)
-        )
+                    .padding(vertical = 10.dp, horizontal = WDimens.pad),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Text(
+                text = tr(Tr.DISCLAIMER),
+                style = WTypography.labelSmall,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = versionLine,
+                style = WTypography.labelSmall,
+                color = WColor.muted,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 
