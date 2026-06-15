@@ -118,6 +118,8 @@ enum class Tr(
         "Unofficial fan tool - not affiliated with Ankama - item art © Ankama (community-sourced)",
         "Outil de fan non officiel - non affilié à Ankama - visuels © Ankama (communautaires)"
     ),
+    APP_VERSION_LABEL("Version", "Version"),
+    GAME_DATA_LABEL("Game data", "Données de jeu"),
     SLOT_HELMET("Helmet", "Casque"),
     SLOT_AMULET("Amulet", "Amulette"),
     SLOT_EPAULETTES("Epaulettes", "Épaulettes"),
