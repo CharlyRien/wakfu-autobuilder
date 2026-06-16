@@ -222,3 +222,96 @@ DELIVERABLE
 The baked JSON file (offline artifact, parallel to the existing equipments-v<version>.json), plus a
 short note on which path produced it and which spells you oracle-validated.
 ```
+
+---
+
+## 8. Extraction results (run 2026-06-15, Wakfu data `1.91.1.54`)
+
+**Produced:** `autobuilder/src/main/resources/spell-cast-limits-v1.91.1.54.json`
+(715 spells, ~126 KB, JSON array sorted by `breedId` then `spellId`). This is the baked, offline
+artifact — parallel to `equipments-v1.91.1.54.json` / `spells-v1.91.1.54.json`. **Not** wired into
+the Kotlin engine; the `SpellRotationOptimizer.maxCastsPerSpell` integration is a separate step.
+
+> **Canonical reproduction is now in-repo and pure-JVM:** `./gradlew :bdata-extractor:run`. That Kotlin
+> module (clean-room decoder, `bdata-extractor/`) decodes the same binaries and **regenerates this exact
+> artifact** — it self-verifies by diffing its output against the committed JSON (semantically identical,
+> 715 entries) and by a per-record size guard. The Rust path below was the original bootstrap that first
+> produced the data; it is no longer needed for regeneration.
+
+### Path used — the recommended one (§1), no fallback needed
+`jac3km4/wakfu-bdata` (Rust crate `wakfudecrypt`). The Rust toolchain was not installed; it was
+added via `rustup` (minimal profile) into `~/.cargo` / `~/.rustup` (non-destructive, user-local).
+
+Reproduce:
+```sh
+git clone --depth 1 https://github.com/jac3km4/wakfu-bdata && cd wakfu-bdata
+# src/bin/main.rs — replace the four shipped dump_doc::<…> lines with:
+#   use wakfudecrypt::types::spell::Spell;
+#   dump_doc::<Spell>(path);
+cargo run --release --bin main -- /Applications/Ankama/Wakfu   # -> Spell.json (4079 records, exit 0)
+```
+The decode ran clean (no panic) over all 4079 records — the positional `String` fields
+(`cast_criterion`, `learn_criteria`) parse as valid UTF-8, which a layout drift would have broken.
+Then post-process: filter `breed_id` to the 18 player-class ids, key by `id`, French names joined
+from `spells-v1.91.1.54.json`, emit the §6 contract.
+
+### Field mapping (binary → output)
+`cast_max_per_turn` (f32) → `maxCastPerTurn`; `cast_max_per_turn_incr` (f32) → `maxCastPerTurnIncr`;
+`cast_max_per_target` (i16) → `maxCastPerTarget`; `cast_min_interval` (i16) → `cooldown`;
+`breed_id` (i16) → `breedId`; `id` → `spellId`. `name` = French name from the scraped catalog.
+
+### Convention (decided & applied)
+Values are the **raw decoded integers, verbatim** (per-turn floats are all exact integers; `…Incr`
+is `0` for every spell in this data version). **`0` means "no limit" / "no cooldown" (unlimited)** —
+*not* a finite cap of zero. This was confirmed empirically: where the wiki tooltip says a limit is
+"not specified" (e.g. Xelor *Hand* / Sram *Lethal Attack* per-target), the binary reads `0`.
+We preserve `0` (rather than coercing to `null`) so "confirmed unlimited" stays distinct from
+"unknown"; every spell in the file has a real binary record, so there are **no `null` cast fields**.
+A future consumer that wants "no cap" = `null` maps `0 → null` trivially. `name` is `null` only for
+the few binary spells with no matching encyclopedia entry (sub-spells).
+
+### breed_id → class (derived from the id-join against the encyclopedia, authoritative)
+`1` Feca · `2` Osamodas · `3` Enutrof · `4` Sram · `5` Xelor · `6` Ecaflip · `7` Eniripsa ·
+`8` Iop · `9` Cra · `10` Sadida · `11` Sacrier · `12` Pandawa · `13` Rogue (Roublard) ·
+`14` Masqueraider (Zobal) · `15` Ouginak · `16` Foggernaut (Steamer) · `18` Eliotrope ·
+`19` Huppermage. **Breed `17` is unused; Huppermage is `19`.** Non-player spells carry breed
+`0` / `-1` / `-2` and are filtered out.
+
+### Validation
+**1 — Field alignment (automated, 708 spells).** Joined the binary dump to `spells-v1.91.1.54.json`
+by `id`: **708/710** scraped spells found in the binary (the binary `id` space **==** the encyclopedia
+`id` space). Agreement on independently-known fields: **icon `gfx_id` 702/708 (99.2%)**, element maps
+cleanly (`1`=Fire `2`=Water `3`=Earth `4`=Air), **`pa_base` == encyclopedia AP wherever AP lives in
+the base record** (the mismatches are all spells whose AP is stored outside the base record — they
+read `pa_base=0` yet still have a correct icon, i.e. semantic, not a desync). This proves the cast
+fields are at the right offsets and correctly typed. Crucially it also resolves the handoff's #1
+worry: **`pa_base` is read by the *same* raw-`f32` impl as `cast_max_per_turn`**, and it decodes
+exactly (Blazing Arrow `pa_base = 2.0`), so the raw-`f32` read needs no seed subtraction here.
+
+**2 — Magnitude sanity.** All cast fields are small non-negative integers
+(`maxCastPerTurn` ∈ {0,1,2,3,4,6}, `maxCastPerTarget` ∈ {0,1,2,3}, `cooldown` ∈ {0,1,2,3,4,5}),
+no denormalized floats / negatives / out-of-range breed ids. Distribution is realistic: 374/715
+spells carry ≥1 limit, 341 are fully unlimited. Cooldowns land exactly on the iconic cooldown-gated
+utility spells (Feca *Immunity*, Sacrier *Sanguine Armor*, Iop *Focus*, Sadida *Force of Nature*…).
+
+**3 — Cast-number oracle (in-game tooltip text, via `wakfu.wiki.gg` which renders it verbatim).**
+Spot-checked across 4 classes — every decoded field matches:
+
+| Spell (id) | Class | Decoded turn / target / cooldown / AP | Wiki tooltip |
+|---|---|---|---|
+| Flèche ardente / Blazing Arrow (4769) | Cra | 3 / 2 / 0 / 2 | "3 uses per turn", "2 uses per target", AP 2, no cd ✓ |
+| Aiguille / Hand (754) | Xelor | 2 / 0 / 0 / 4 | "2 uses per turn", AP 4, per-target unspecified (=0) ✓ |
+| Attaque létale / Lethal Attack (4583) | Sram | 2 / 0 / 0 / 4 | "2 uses per turn", AP 4, per-target unspecified (=0) ✓ |
+| Armure sanguine / Sanguine Armor (5047) | Sacrier | – / – / 3 / – | "3-turn cooldown" ✓ |
+
+(A `wakfu.com` forum thread independently states Blazing Arrow is "2/target", also matching.
+Note: a fuzzy web-search *summary* claimed Hand costs 6 AP — that was a model hallucination; the
+actual wiki page shows AP 4, matching the decode. Fandom wiki blocks automated fetches, 403.)
+
+### Coverage gaps (documented, not errors)
+4 Sram spells in the scraped catalog have no entry here, all safe (a missing lookup → no cap):
+- *Double* (4603) and *Invisibility* (4604) — present in the binary but under the special
+  non-player breed `-1`, so excluded by the "18 player classes" filter (both are non-damage Sram
+  mechanics the damage-rotation optimizer would not cast anyway).
+- *Crazy Scheme* (5089) and *Bloody Blade* (5123) — **absent from the binary** entirely (removed or
+  renamed since the encyclopedia page was scraped); no cast-limit data exists to extract.
