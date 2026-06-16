@@ -6,6 +6,7 @@ rootProject.name = "wakfu-autobuilder"
 
 include("autobuilder")
 include("equipments-extractor")
+include("monsters-extractor")
 include("spells-extractor")
 include("bdata-extractor")
 include("common-lib")
