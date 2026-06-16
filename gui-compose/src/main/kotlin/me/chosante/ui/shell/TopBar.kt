@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.common.CharacterClass
+import me.chosante.ui.components.BreedIcon
 import me.chosante.ui.components.rememberClasspathBitmap
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.Tr
@@ -316,6 +317,8 @@ private fun ClassDropdown(
         ) {
             Text(text = tr(Tr.CLASS), style = WTypography.labelMedium)
             Spacer(modifier = Modifier.width(9.dp))
+            BreedIcon(clazz = selected, size = 22.dp)
+            Spacer(modifier = Modifier.width(6.dp))
             Text(text = selected.displayName(), style = WTypography.titleMedium)
             Spacer(modifier = Modifier.width(10.dp))
             Text(text = "▾", style = WTypography.labelSmall.copy(textAlign = TextAlign.Center, lineHeight = 10.sp))
@@ -331,6 +334,7 @@ private fun ClassDropdown(
                 .filter { it != CharacterClass.UNKNOWN }
                 .forEach { item ->
                     DropdownMenuItem(
+                        leadingIcon = { BreedIcon(clazz = item, size = 22.dp) },
                         text = {
                             Text(
                                 text = item.displayName(),

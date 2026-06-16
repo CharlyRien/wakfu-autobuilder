@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.chosante.common.Characteristic
 import me.chosante.common.history.HistoryEntry
+import me.chosante.ui.components.BreedIcon
 import me.chosante.ui.components.CharacteristicIcon
 import me.chosante.ui.components.ItemThumbnail
 import me.chosante.ui.i18n.LocalLang
@@ -135,10 +136,13 @@ private fun SideColumn(
     ) {
         BuildPicker(slot = slot, current = entry, builds = builds, placeholder = placeholder, onPick = onPick, onClear = onClear)
         if (entry != null) {
-            Text(
-                text = "${entry.classDisplayName()} · ${tr(Tr.LEVEL_SHORT)} ${entry.request.level}",
-                style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                BreedIcon(clazz = entry.restoredClass(), size = 20.dp)
+                Text(
+                    text = "${entry.classDisplayName()} · ${tr(Tr.LEVEL_SHORT)} ${entry.request.level}",
+                    style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
+                )
+            }
             val headline =
                 if (entry.isMasteryMode()) {
                     "${entry.requestedMasteryTotal().formatCompact()} ${tr(Tr.MASTERY_SHORT)}"

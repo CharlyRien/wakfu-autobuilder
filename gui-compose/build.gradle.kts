@@ -154,6 +154,8 @@ tasks.register("generateAssets") {
           - spells/ filtered to the iconIds referenced by the current spells JSON (covers active spells
                     and passives — both are spells; named by gfxId)
           - states/ filtered to the appliedStateIds referenced by the passives JSON (buff/state icons)
+          - breeds/ class artwork keyed by CharacterClass.breedId — icon/, illustration/ (T-pose,
+                    male variant), background/ (used on build cards, the TopBar and the compare view)
         Existing files are never overwritten.
         """.trimIndent()
     group = "assets"
@@ -232,6 +234,32 @@ tasks.register("generateAssets") {
         copyAssetDir("icons")
         copyAssetDir("spells") { it.nameWithoutExtension in spellIconIds }
         copyAssetDir("states") { it.nameWithoutExtension in passiveStateIds }
+
+        // Class ("breed") artwork, keyed by CharacterClass.breedId, baked under assets/breeds/.
+        // Illustrations are id*10 (male) / id*10+1 (female) in wakassets; we keep the male variant and
+        // re-key it to the plain breedId so BreedAssets can resolve it directly. There is no breed 17.
+        val breedIds = (1..16) + listOf(18, 19)
+
+        fun copyBreedAsset(
+            kind: String,
+            sourceDirName: String,
+            wakassetsId: (Int) -> Int,
+        ) {
+            val targetDir = assetsDir.resolve("breeds/$kind").apply { mkdirs() }
+            var copied = 0
+            breedIds.forEach { breedId ->
+                val source = wakassetsRoot.resolve("$sourceDirName/${wakassetsId(breedId)}.png")
+                val destination = targetDir.resolve("$breedId.png")
+                if (source.exists() && !destination.exists()) {
+                    source.copyTo(destination)
+                    copied++
+                }
+            }
+            logger.lifecycle("generateAssets: breeds/$kind -> $copied new file(s) added")
+        }
+        copyBreedAsset("icon", "breedsIcons") { it }
+        copyBreedAsset("illustration", "breedsIllusrations") { it * 10 }
+        copyBreedAsset("background", "breedsBackgrounds") { it }
 
         destinationFile.delete()
         unzippedTempDirectory.toFile().deleteRecursively()

@@ -42,12 +42,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.chosante.common.CharacterClass
 import me.chosante.common.history.HistoryEntry
+import me.chosante.ui.components.BreedBackground
+import me.chosante.ui.components.BreedIllustration
 import me.chosante.ui.components.ItemThumbnail
 import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.tr
@@ -697,66 +700,85 @@ private fun BuildCard(
         targetValue = if (isJustDuplicated) WColor.accent.copy(alpha = 0.10f) else Color.Transparent,
         label = "buildCardTint"
     )
-    Column(
+    val clazz = entry.restoredClass()
+    Box(
         modifier =
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(WDimens.radius))
                 .background(WColor.surface)
-                .background(highlightTint)
                 .border(1.dp, borderColor, RoundedCornerShape(WDimens.radius))
-                .padding(WDimens.pad)
     ) {
-        Row(verticalAlignment = Alignment.Top) {
-            Column(modifier = Modifier.weight(1f)) {
-                // Full name in a tooltip too, so a name truncated at two lines stays fully readable.
-                WTooltip(text = entry.name) {
+        // Class art behind the content: a very faint themed background, and the T-pose illustration
+        // centered so it "stands" in the open middle of the U-shaped slot grid (where no item tile
+        // covers it). Dimmed enough that the name/pills/buttons stay legible on top.
+        BreedBackground(clazz, modifier = Modifier.matchParentSize(), alpha = 0.07f)
+        Box(modifier = Modifier.matchParentSize(), contentAlignment = Alignment.Center) {
+            BreedIllustration(
+                clazz = clazz,
+                modifier = Modifier.fillMaxHeight().widthIn(max = 150.dp),
+                contentScale = ContentScale.Fit,
+                alpha = 0.45f
+            )
+        }
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(highlightTint)
+                    .padding(WDimens.pad)
+        ) {
+            Row(verticalAlignment = Alignment.Top) {
+                Column(modifier = Modifier.weight(1f)) {
+                    // Full name in a tooltip too, so a name truncated at two lines stays fully readable.
+                    WTooltip(text = entry.name) {
+                        Text(
+                            text = entry.name,
+                            style = WTypography.titleMedium.copy(color = WColor.text, fontWeight = FontWeight.SemiBold),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                     Text(
-                        text = entry.name,
-                        style = WTypography.titleMedium.copy(color = WColor.text, fontWeight = FontWeight.SemiBold),
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+                        text = date,
+                        style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
                     )
                 }
+                Spacer(modifier = Modifier.width(8.dp))
+                HeadlineBadge(entry = entry)
+            }
+            Spacer(modifier = Modifier.height(9.dp))
+            PillsRow(entry = entry)
+            Spacer(modifier = Modifier.height(11.dp))
+            SlotMiniGrid(entry = entry)
+            if (entry.note != null) {
+                Spacer(modifier = Modifier.height(9.dp))
                 Text(
-                    text = date,
-                    style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
+                    text = entry.note!!,
+                    style = WTypography.bodySmall.copy(color = WColor.muted),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            HeadlineBadge(entry = entry)
-        }
-        Spacer(modifier = Modifier.height(9.dp))
-        PillsRow(entry = entry)
-        Spacer(modifier = Modifier.height(11.dp))
-        SlotMiniGrid(entry = entry)
-        if (entry.note != null) {
-            Spacer(modifier = Modifier.height(9.dp))
-            Text(
-                text = entry.note!!,
-                style = WTypography.bodySmall.copy(color = WColor.muted),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Primary action keeps a text label (clearest); secondary actions are compact glyphs.
-            CardButton(
-                text = tr(Tr.ACTION_LOAD),
-                filled = true,
-                color = WColor.accent,
-                onClick = onLoad,
-                modifier = Modifier.weight(1f)
-            )
-            ActionIconButton(glyph = "⇄", tooltip = tr(Tr.ACTION_COMPARE), onClick = onCompare)
-            ActionIconButton(glyph = "⧉", tooltip = tr(Tr.ACTION_DUPLICATE), onClick = onDuplicate)
-            ActionIconButton(glyph = "✎", tooltip = tr(Tr.ACTION_RENAME), onClick = onEdit)
-            ActionIconButton(glyph = "✕", tooltip = tr(Tr.ACTION_DELETE), hoverColor = WColor.danger, onClick = onDelete)
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Primary action keeps a text label (clearest); secondary actions are compact glyphs.
+                CardButton(
+                    text = tr(Tr.ACTION_LOAD),
+                    filled = true,
+                    color = WColor.accent,
+                    onClick = onLoad,
+                    modifier = Modifier.weight(1f)
+                )
+                ActionIconButton(glyph = "⇄", tooltip = tr(Tr.ACTION_COMPARE), onClick = onCompare)
+                ActionIconButton(glyph = "⧉", tooltip = tr(Tr.ACTION_DUPLICATE), onClick = onDuplicate)
+                ActionIconButton(glyph = "✎", tooltip = tr(Tr.ACTION_RENAME), onClick = onEdit)
+                ActionIconButton(glyph = "✕", tooltip = tr(Tr.ACTION_DELETE), hoverColor = WColor.danger, onClick = onDelete)
+            }
         }
     }
 }

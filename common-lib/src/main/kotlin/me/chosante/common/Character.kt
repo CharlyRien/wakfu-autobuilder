@@ -8,27 +8,34 @@ import me.chosante.common.Characteristic.MOVEMENT_POINT
 import me.chosante.common.Characteristic.WAKFU_POINT
 import me.chosante.common.skills.CharacterSkills
 
-enum class CharacterClass {
-    FECA,
-    OSAMODAS,
-    ENUTROF,
-    SRAM,
-    XELOR,
-    ECAFLIP,
-    ENIRIPSA,
-    IOP,
-    CRA,
-    SADIDA,
-    SACRIEUR,
-    PANDAWA,
-    ROUBLARD,
-    ZOBAL,
-    OUGINAK,
-    STEAMER,
-    ELIOTROPE,
-    HUPPERMAGE,
+/**
+ * The 18 Wakfu classes (+ [UNKNOWN]). [breedId] is Ankama's numeric "breed" id — the key used to
+ * resolve class artwork (icon / T-pose illustration / background) from the community asset set, and
+ * the same id the encyclopedia/Zenith use. There is no breed 17; [UNKNOWN] has no art (0).
+ */
+enum class CharacterClass(
+    val breedId: Int,
+) {
+    FECA(1),
+    OSAMODAS(2),
+    ENUTROF(3),
+    SRAM(4),
+    XELOR(5),
+    ECAFLIP(6),
+    ENIRIPSA(7),
+    IOP(8),
+    CRA(9),
+    SADIDA(10),
+    SACRIEUR(11),
+    PANDAWA(12),
+    ROUBLARD(13),
+    ZOBAL(14),
+    OUGINAK(15),
+    STEAMER(16),
+    ELIOTROPE(18),
+    HUPPERMAGE(19),
 
-    UNKNOWN,
+    UNKNOWN(0),
 
     ;
 
