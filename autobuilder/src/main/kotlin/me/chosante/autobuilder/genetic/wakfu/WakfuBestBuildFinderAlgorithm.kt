@@ -178,7 +178,13 @@ data class WakfuBestBuildParams(
     val useRunes: Boolean = true,
     // Runes the user requires the build to socket at least once (matched on the rune's French name,
     // like forcedItems). Their stat is added to the modelable rune set. See createRuneModel.
+    // Used by the CLI's --forced-runes; the GUI uses the per-item [forcedRunesByItem] instead.
     val forcedRunes: List<String> = emptyList(),
+    // Runes the user pins onto a SPECIFIC carrier item, keyed by the item's **French** name (like
+    // forcedItems) → the multiset of rune ids ([RuneType.id]) to socket on that item. The solver forces
+    // those runes into that item's sockets (which also forces the item to be equipped). See
+    // createRuneModel. Repetition in the list means "N runes of that type on the item".
+    val forcedRunesByItem: Map<String, List<Int>> = emptyMap(),
     // When true (default), the solver may choose statically-modelable sublimations (epic/relic/normal)
     // and applies any forcedSublimations. See WakfuBuildSolver.createSublimationModel.
     val useSublimations: Boolean = true,

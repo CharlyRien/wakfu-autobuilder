@@ -23,8 +23,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -94,13 +92,9 @@ fun RequestPanel(
     onRemoveForcedItem: (ItemChip) -> Unit,
     onAddExcludedItem: () -> Unit,
     onRemoveExcludedItem: (ItemChip) -> Unit,
-    sublimationCatalog: List<String> = emptyList(),
-    runeCatalog: List<String> = emptyList(),
     onToggleSublimations: (Boolean) -> Unit = {},
-    onAddForcedSublimation: (String) -> Unit = {},
+    onOpenSublimationPicker: () -> Unit = {},
     onRemoveForcedSublimation: (String) -> Unit = {},
-    onAddForcedRune: (String) -> Unit = {},
-    onRemoveForcedRune: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
@@ -117,11 +111,19 @@ fun RequestPanel(
         ) {
             SearchModeCard(
                 selected = ui.mode,
-                onSelect = onModeChange
+                duration = ui.duration,
+                stopAtMatch = ui.stopAtMatch,
+                onSelect = onModeChange,
+                onDurationChange = onDurationChange,
+                onStopAtMatchChange = onStopAtMatchChange
             )
             if (ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
                 DamageScenarioCard(scenario = ui.scenario, onChange = onScenarioChange)
             }
+            RarityCard(
+                excludedRarities = ui.excludedRarities,
+                onToggleRarity = onToggleRarity
+            )
             TargetStatsCard(
                 mode = ui.mode,
                 targets = ui.targets,
@@ -130,14 +132,6 @@ fun RequestPanel(
                 onRemove = onRemoveTarget,
                 onAdd = onAddTarget,
                 onToggleMastery = onToggleMastery
-            )
-            ConstraintsCard(
-                excludedRarities = ui.excludedRarities,
-                duration = ui.duration,
-                stopAtMatch = ui.stopAtMatch,
-                onToggleRarity = onToggleRarity,
-                onDurationChange = onDurationChange,
-                onStopAtMatchChange = onStopAtMatchChange
             )
             ItemChipsCard(
                 title = tr(Tr.FORCED_ITEMS),
@@ -158,14 +152,9 @@ fun RequestPanel(
             SublimationsRunesCard(
                 useSublimations = ui.useSublimations,
                 forcedSublimations = ui.forcedSublimations,
-                forcedRunes = ui.forcedRunes,
-                sublimationCatalog = sublimationCatalog,
-                runeCatalog = runeCatalog,
                 onToggleSublimations = onToggleSublimations,
-                onAddForcedSublimation = onAddForcedSublimation,
-                onRemoveForcedSublimation = onRemoveForcedSublimation,
-                onAddForcedRune = onAddForcedRune,
-                onRemoveForcedRune = onRemoveForcedRune
+                onOpenSublimationPicker = onOpenSublimationPicker,
+                onRemoveForcedSublimation = onRemoveForcedSublimation
             )
         }
         VerticalScrollHints(scroll)
@@ -175,7 +164,11 @@ fun RequestPanel(
 @Composable
 private fun SearchModeCard(
     selected: ScoreComputationMode,
+    duration: String,
+    stopAtMatch: Boolean,
     onSelect: (ScoreComputationMode) -> Unit,
+    onDurationChange: (String) -> Unit,
+    onStopAtMatchChange: (Boolean) -> Unit,
 ) {
     RequestCard(title = tr(Tr.SEARCH_MODE)) {
         Row(
@@ -209,6 +202,23 @@ private fun SearchModeCard(
                 onClick = { onSelect(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) },
                 modifier = Modifier.weight(1f)
             )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Hairline()
+        ConstraintRow(label = tr(Tr.SEARCH_DURATION), sublabel = tr(Tr.SEARCH_DURATION_SUB)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                NumberField(value = duration, onValueChange = onDurationChange, width = 56.dp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = tr(Tr.SECONDS_SHORT), style = WTypography.labelMedium)
+            }
+        }
+        // "Stop at 100% match" only makes sense in precision mode — it's the only mode with an exact
+        // target to reach; the other modes maximise (mastery / damage) and never report a 100% match.
+        if (selected == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT) {
+            Hairline()
+            ConstraintRow(label = tr(Tr.STOP_AT_MATCH)) {
+                Toggle(checked = stopAtMatch, onCheckedChange = onStopAtMatchChange)
+            }
         }
     }
 }
@@ -877,31 +887,12 @@ private fun PriorityMeter(
 }
 
 @Composable
-private fun ConstraintsCard(
+private fun RarityCard(
     excludedRarities: Set<Rarity>,
-    duration: String,
-    stopAtMatch: Boolean,
     onToggleRarity: (Rarity) -> Unit,
-    onDurationChange: (String) -> Unit,
-    onStopAtMatchChange: (Boolean) -> Unit,
 ) {
-    RequestCard(title = tr(Tr.CONSTRAINTS)) {
+    RequestCard(title = tr(Tr.RARITIES)) {
         RarityFilter(excludedRarities = excludedRarities, onToggleRarity = onToggleRarity)
-        Hairline()
-        ConstraintRow(label = tr(Tr.SEARCH_DURATION), sublabel = tr(Tr.SEARCH_DURATION_SUB)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                NumberField(value = duration, onValueChange = onDurationChange, width = 56.dp)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = tr(Tr.SECONDS_SHORT), style = WTypography.labelMedium)
-            }
-        }
-        Hairline()
-        ConstraintRow(label = tr(Tr.STOP_AT_MATCH)) {
-            Toggle(
-                checked = stopAtMatch,
-                onCheckedChange = onStopAtMatchChange
-            )
-        }
     }
 }
 
@@ -911,13 +902,10 @@ private fun RarityFilter(
     onToggleRarity: (Rarity) -> Unit,
 ) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp),
+        modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(9.dp)
     ) {
-        Column {
-            Text(text = tr(Tr.RARITIES), style = WTypography.bodyLarge)
-            Text(text = tr(Tr.RARITIES_SUB), style = WTypography.labelSmall)
-        }
+        Text(text = tr(Tr.RARITIES_SUB), style = WTypography.labelSmall)
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -1056,14 +1044,9 @@ private fun ItemChipsCard(
 private fun SublimationsRunesCard(
     useSublimations: Boolean,
     forcedSublimations: List<String>,
-    forcedRunes: List<String>,
-    sublimationCatalog: List<String>,
-    runeCatalog: List<String>,
     onToggleSublimations: (Boolean) -> Unit,
-    onAddForcedSublimation: (String) -> Unit,
+    onOpenSublimationPicker: () -> Unit,
     onRemoveForcedSublimation: (String) -> Unit,
-    onAddForcedRune: (String) -> Unit,
-    onRemoveForcedRune: (String) -> Unit,
 ) {
     RequestCard(title = tr(Tr.SUBLIMATIONS_RUNES)) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1086,40 +1069,36 @@ private fun SublimationsRunesCard(
                 )
                 Text(text = tr(Tr.SOLVER_PICKS_SUBLIMATIONS), style = WTypography.labelMedium.copy(color = WColor.text))
             }
-            NameChipsRow(
+            ForcedNameChips(
                 label = tr(Tr.FORCED_SUBLIMATIONS),
                 addLabel = tr(Tr.ADD_SUBLIMATION_CHIP),
                 selected = forcedSublimations,
-                catalog = sublimationCatalog,
                 accent = WColor.success,
-                onAdd = onAddForcedSublimation,
+                onAdd = onOpenSublimationPicker,
                 onRemove = onRemoveForcedSublimation
             )
-            NameChipsRow(
-                label = tr(Tr.FORCED_RUNES),
-                addLabel = tr(Tr.ADD_RUNE_CHIP),
-                selected = forcedRunes,
-                catalog = runeCatalog,
-                accent = WColor.accent2,
-                onAdd = onAddForcedRune,
-                onRemove = onRemoveForcedRune
+            Text(
+                text = tr(Tr.RUNES_PER_ITEM_HINT),
+                style = WTypography.labelSmall.copy(color = WColor.muted, lineHeight = 15.sp)
             )
         }
     }
 }
 
+/**
+ * Removable name chips plus a button that opens a centered picker modal. Used for forced sublimations,
+ * which are chosen by translated title + effect text in [me.chosante.ui.components.ModalHost]'s
+ * sublimation picker.
+ */
 @Composable
-private fun NameChipsRow(
+private fun ForcedNameChips(
     label: String,
     addLabel: String,
     selected: List<String>,
-    catalog: List<String>,
     accent: Color,
-    onAdd: (String) -> Unit,
+    onAdd: () -> Unit,
     onRemove: (String) -> Unit,
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    var query by remember { mutableStateOf("") }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(text = label, style = WTypography.labelMedium.copy(color = WColor.muted))
         FlowRow(
@@ -1147,55 +1126,17 @@ private fun NameChipsRow(
                     )
                 }
             }
-            Box {
-                Box(
-                    modifier =
-                        Modifier
-                            .height(30.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
-                            .clickable { expanded = true }
-                            .padding(horizontal = 9.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = addLabel, style = WTypography.labelMedium.copy(color = WColor.accent, lineHeight = 14.sp))
-                }
-                DropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = {
-                        expanded = false
-                        query = ""
-                    }
-                ) {
-                    val options =
-                        catalog
-                            .asSequence()
-                            .filter { it !in selected }
-                            .filter { query.isBlank() || it.contains(query, ignoreCase = true) }
-                            .take(50)
-                            .toList()
-                    BasicTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        singleLine = true,
-                        textStyle = WTypography.labelMedium.copy(color = WColor.text),
-                        cursorBrush = SolidColor(WColor.accent),
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                    )
-                    options.forEach { name ->
-                        DropdownMenuItem(
-                            text = { Text(text = name, style = WTypography.labelMedium.copy(color = WColor.text)) },
-                            onClick = {
-                                onAdd(name)
-                                expanded = false
-                                query = ""
-                            }
-                        )
-                    }
-                }
+            Box(
+                modifier =
+                    Modifier
+                        .height(30.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
+                        .clickable { onAdd() }
+                        .padding(horizontal = 9.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = addLabel, style = WTypography.labelMedium.copy(color = WColor.accent, lineHeight = 14.sp))
             }
         }
     }

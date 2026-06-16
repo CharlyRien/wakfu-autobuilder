@@ -417,16 +417,35 @@ object WakfuBuildSolver {
         runes: List<RuneType>,
     ): RuneModel {
         if (runes.isEmpty()) return RuneModel.EMPTY
+        val runeById = runes.associateBy { it.id }
+        val runeByCharacteristic = runes.associateBy { it.characteristic }
+
+        // Global forced runes (CLI --forced-runes): "≥1 rune of this stat socketed somewhere".
         val forcedNames = params.forcedRunes.map { it.lowercase() }.toSet()
-        val forcedRuneStats =
+        val globalForcedRuneStats =
             runes
                 .filter { it.name.fr.lowercase() in forcedNames || it.name.en.lowercase() in forcedNames }
                 .map { it.characteristic }
                 .toSet()
+
+        // Per-item forced runes (GUI): pin a multiset of rune ids onto a specific carrier item. Keyed by
+        // the item's French name (like forcedItems); resolve each id to its characteristic and count the
+        // required runes per characteristic.
+        val perItemForced: Map<String, Map<Characteristic, Int>> =
+            params.forcedRunesByItem
+                .mapKeys { (name, _) -> name.lowercase() }
+                .mapValues { (_, ids) ->
+                    ids
+                        .mapNotNull { runeById[it]?.characteristic }
+                        .groupingBy { it }
+                        .eachCount()
+                }.filterValues { it.isNotEmpty() }
+        val perItemForcedStats = perItemForced.values.flatMapTo(mutableSetOf()) { it.keys }
+
+        val forcedRuneStats = globalForcedRuneStats + perItemForcedStats
         // Auto-fill runes only when enabled; forced runes are modeled regardless of that toggle.
         if (!params.useRunes && forcedRuneStats.isEmpty()) return RuneModel.EMPTY
 
-        val runeByCharacteristic = runes.associateBy { it.characteristic }
         val runeStats =
             (if (params.useRunes) relevantRuneStats(params, runeByCharacteristic.keys) else emptySet()) + forcedRuneStats
         if (runeStats.isEmpty()) return RuneModel.EMPTY
@@ -443,8 +462,8 @@ object WakfuBuildSolver {
             addLessOrEqual(capExpr.build(), 0L)
             runeVars[equip] = perStat
         }
-        // Forced runes must be socketed at least once across the build.
-        for (stat in forcedRuneStats) {
+        // Global forced runes must be socketed at least once across the build.
+        for (stat in globalForcedRuneStats) {
             val countExpr = LinearExpr.newBuilder()
             var any = false
             for ((_, perStat) in runeVars) {
@@ -454,6 +473,25 @@ object WakfuBuildSolver {
                 }
             }
             if (any) addGreaterOrEqual(countExpr.build(), 1L)
+        }
+        // Per-item forced runes: for each named carrier, the rune-count var(s) for the equipped item
+        // matching that name must reach the required count. We sum over every same-named candidate (only
+        // one can be equipped, and a non-equipped item's rune vars are pinned to 0 by the socket cap), so
+        // this both pins the runes onto that item AND forces one such item to be equipped.
+        for ((name, byCharacteristic) in perItemForced) {
+            val matching = allEquips.filter { it.name.fr.lowercase() == name && it.maxShardSlots > 0 }
+            if (matching.isEmpty()) continue
+            for ((stat, count) in byCharacteristic) {
+                val countExpr = LinearExpr.newBuilder()
+                var any = false
+                for (equip in matching) {
+                    runeVars[equip]?.get(stat)?.let {
+                        countExpr.addTerm(it, 1L)
+                        any = true
+                    }
+                }
+                if (any) addGreaterOrEqual(countExpr.build(), count.toLong())
+            }
         }
         return RuneModel(runeByCharacteristic, runeVars)
     }
