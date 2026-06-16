@@ -31,6 +31,7 @@ import me.chosante.common.Characteristic
 import me.chosante.common.Rarity
 import me.chosante.common.history.HistoryEntry
 import me.chosante.createZenithBuild
+import me.chosante.ui.components.BreedAssets
 import me.chosante.ui.components.IconPreloader
 import me.chosante.ui.components.warmUpPaths
 import me.chosante.ui.history.HistoryRepository
@@ -281,7 +282,7 @@ class BuildSearchModel(
      */
     private fun startIconPreload() {
         scope.launch(Dispatchers.Default) {
-            val paths = warmUpPaths(WakfuBestBuildFinderAlgorithm.equipments)
+            val paths = warmUpPaths(WakfuBestBuildFinderAlgorithm.equipments) + BreedAssets.warmUpPaths()
             IconPreloader.warmUp(scope, paths) { _, _ -> }
         }
     }
