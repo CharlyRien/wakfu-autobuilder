@@ -712,13 +712,13 @@ private fun BuildCard(
         // Class art behind the content: a very faint themed background, and the T-pose illustration
         // centered so it "stands" in the open middle of the U-shaped slot grid (where no item tile
         // covers it). Dimmed enough that the name/pills/buttons stay legible on top.
-        BreedBackground(clazz, modifier = Modifier.matchParentSize(), alpha = 0.07f)
+        BreedBackground(clazz, modifier = Modifier.matchParentSize(), alpha = 0.12f)
         Box(modifier = Modifier.matchParentSize(), contentAlignment = Alignment.Center) {
             BreedIllustration(
                 clazz = clazz,
                 modifier = Modifier.fillMaxHeight().widthIn(max = 150.dp),
                 contentScale = ContentScale.Fit,
-                alpha = 0.45f
+                alpha = 0.70f
             )
         }
         Column(

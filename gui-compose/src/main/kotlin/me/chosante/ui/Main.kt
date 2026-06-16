@@ -31,6 +31,7 @@ import me.chosante.ui.state.WhatsNew
 import me.chosante.ui.testing.ScreenshotCapture
 import me.chosante.ui.theme.WTheme
 import java.awt.Desktop
+import java.awt.Dimension
 import java.awt.GraphicsEnvironment
 import java.awt.Taskbar
 import javax.imageio.ImageIO
@@ -82,6 +83,11 @@ fun main() {
                         desktop.requestForeground(true)
                     }
                 }
+            }
+            // The TopBar's responsive two-row design (Direction B) is laid out down to ~1180 dp wide;
+            // pin a floor so the window can't be dragged narrower than its lowest designed width.
+            LaunchedEffect(Unit) {
+                window.minimumSize = Dimension(1180, 720)
             }
             // Tell the model once the window is actually on screen — this releases the native
             // warm-up, whose macOS first-launch code-sign validation stalls the UI thread (see
