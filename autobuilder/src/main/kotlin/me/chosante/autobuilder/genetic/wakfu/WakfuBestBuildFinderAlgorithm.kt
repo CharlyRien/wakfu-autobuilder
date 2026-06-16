@@ -11,6 +11,7 @@ import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
 import me.chosante.common.Character
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
+import me.chosante.common.Monster
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
 import kotlin.time.Duration
@@ -44,6 +45,38 @@ object WakfuBestBuildFinderAlgorithm {
         this.javaClass.classLoader.getResourceAsStream("runes-v$VERSION.json")?.readAllBytes()?.let {
             Json.decodeFromString<List<RuneType>>(String(it))
         } ?: emptyList()
+    }
+
+    /**
+     * The embedded monster/boss catalog ([Monster]) for the current data version, or empty if the
+     * resource is absent. Used by boss mode to auto-fill the attack scenario's per-element resistances.
+     * Sorted bosses-first / higher-level-first, as produced by the `monsters-extractor`.
+     */
+    val monsters: List<Monster> by lazy {
+        this.javaClass.classLoader.getResourceAsStream("monsters-v$VERSION.json")?.readAllBytes()?.let {
+            Json.decodeFromString<List<Monster>>(String(it))
+        } ?: emptyList()
+    }
+
+    /**
+     * Resolves a monster from a user-typed [query], matched against the **French** name (like
+     * `--forced-items`): an exact name wins, otherwise the most prominent (boss-tier, then highest-level)
+     * substring match across the French or English name. Returns null when nothing matches.
+     */
+    fun findMonster(query: String): Monster? {
+        val needle = query.trim().lowercase()
+        if (needle.isEmpty()) return null
+        return monsters.firstOrNull { it.name.fr.lowercase() == needle }
+            ?: monsters
+                .filter {
+                    it.name.fr
+                        .lowercase()
+                        .contains(needle) ||
+                        it.name.en
+                            .lowercase()
+                            .contains(needle)
+                }.sortedWith(compareByDescending<Monster> { it.rank }.thenByDescending { it.level })
+                .firstOrNull()
     }
 
     fun run(params: WakfuBestBuildParams): Flow<GeneticAlgorithmResult<BuildCombination>> {
