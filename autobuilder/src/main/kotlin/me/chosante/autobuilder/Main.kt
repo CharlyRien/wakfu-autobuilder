@@ -13,6 +13,7 @@ import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.split
 import com.github.ajalt.clikt.parameters.options.splitPair
+import com.github.ajalt.clikt.parameters.types.double
 import com.github.ajalt.clikt.parameters.types.int
 import com.github.ajalt.mordant.animation.progress.ThreadProgressTaskAnimator
 import com.github.ajalt.mordant.animation.progress.animateOnThread
@@ -40,6 +41,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.runBlocking
 import me.chosante.ZenithInputParameters
+import me.chosante.autobuilder.domain.BossDisplay
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.Orientation
@@ -49,6 +51,9 @@ import me.chosante.autobuilder.domain.SpellRotation
 import me.chosante.autobuilder.domain.SpellRotationOptimizer
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.autobuilder.domain.against
+import me.chosante.autobuilder.domain.againstAllElements
+import me.chosante.autobuilder.domain.resistancePercent
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildParams
@@ -89,6 +94,7 @@ import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_WIND
 import me.chosante.common.Characteristic.WILLPOWER
 import me.chosante.common.Characteristic.WISDOM
 import me.chosante.common.Equipment
+import me.chosante.common.Monster
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
 import me.chosante.common.skills.Assignable
@@ -515,6 +521,36 @@ HUPPERMAGE"""
             .ifEmpty { fail("Could not parse --boss-resistances; use e.g. 'fire:0,water:-90,earth:50,air:50'") }
     }
 
+    // --- boss mode (auto-fills the max-damage scenario from a monster's resistances) ---
+
+    private val boss: String? by option(
+        "--boss",
+        help =
+            "Boss mode: target a monster by name (French, like --forced-items). Auto-fills the per-element " +
+                "resistances from the bestiary and switches to max-damage mode (the objective auto-picks the " +
+                "best playable element). Overrides --boss-resistances / --enemy-resistance."
+    )
+
+    // Validated eagerly (the check runs even without --boss) so a typo like --boss-element banana is
+    // rejected up front; 'auto' (the default) means: let the boss-aware objective pick the element.
+    private val bossElement: String by option(
+        "--boss-element",
+        help =
+            "Boss mode: which element to attack with — 'auto' (default, let the objective pick the best vs " +
+                "the boss) or one of fire/water/earth/air."
+    ).default("auto")
+        .check("--boss-element must be auto/fire/water/earth/air") {
+            it.trim().lowercase() in setOf("auto", "fire", "water", "earth", "air", "wind")
+        }
+
+    private val bossDifficulty: Double by option(
+        "--boss-difficulty",
+        help =
+            "Boss mode: dungeon difficulty as an HP multiplier (e.g. 2 = twice the HP). Only scales the " +
+                "'turns to kill' figure — a boss's elemental resistances are constant across difficulty, so " +
+                "the optimal build is unchanged. Default 1."
+    ).double().default(1.0).check("Difficulty multiplier must be > 0") { it > 0.0 }
+
     override fun run() {
         // Contradictory level bounds (min above max) match no normal item — the engine's level
         // filter keeps items with min <= itemLevel <= max — so the solver would silently fall back
@@ -528,6 +564,10 @@ HUPPERMAGE"""
                 printError = true
             )
         }
+        // Boss mode: resolving a --boss switches to max-damage and fills the scenario's per-element
+        // resistances from the bestiary, so the fused boss-aware objective picks the best playable element.
+        val targetBoss = boss?.let { resolveBoss(it) }
+        val mode = if (targetBoss != null) ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE else computationMode
         val character = Character(characterClass ?: CharacterClass.UNKNOWN, maxLevelWanted, minLevelWanted)
         val targetStats =
             TargetStats(
@@ -571,7 +611,7 @@ HUPPERMAGE"""
             )
         // Max-damage mode optimizes the attack scenario, so target stats are optional there (they only
         // act as hard AP/MP/range/… constraints); every other mode needs at least one target.
-        if (targetStats.isEmpty() && computationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+        if (targetStats.isEmpty() && mode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
             throw PrintMessage(
                 message = "No input stats given, stopping the program... Use --help flag for more information",
                 printError = true
@@ -579,14 +619,14 @@ HUPPERMAGE"""
         }
         // Max-damage rotates the class's real spell kit, so an unset class (UNKNOWN) yields a build with an
         // empty, meaningless rotation — require --class up front rather than silently producing nonsense.
-        if (computationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE && characterClass == null) {
+        if (mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE && characterClass == null) {
             throw PrintMessage(
                 message = "Max-damage mode needs a class — pass --class so the engine knows which spells to cast.",
                 printError = true
             )
         }
 
-        val damageScenario =
+        val baseScenario =
             DamageScenario(
                 element = scenarioElement,
                 rangeBand = scenarioRange,
@@ -595,9 +635,18 @@ HUPPERMAGE"""
                 healing = scenarioHealing,
                 critCapPercent = scenarioCritCap,
                 targetResistancePercent = scenarioEnemyResistance,
-                baseDamage = scenarioBaseDamage,
-                elementResistances = bossResistances
+                baseDamage = scenarioBaseDamage
             )
+        // --boss takes precedence over --boss-resistances / --enemy-resistance: a forced --boss-element
+        // pins a single element (clearing any manual elementResistances), otherwise all four are filled
+        // so the objective auto-picks the best one. With no boss, the manual --boss-resistances apply.
+        val bossElementChoice = if (targetBoss != null) parseBossElement(bossElement) else null
+        val damageScenario =
+            when {
+                targetBoss != null && bossElementChoice != null -> baseScenario.against(targetBoss, bossElementChoice)
+                targetBoss != null -> baseScenario.againstAllElements(targetBoss)
+                else -> baseScenario.copy(elementResistances = bossResistances)
+            }
 
         runBlocking {
             val progressBar = progressBar(terminal)
@@ -612,7 +661,7 @@ HUPPERMAGE"""
                             maxRarity = maxRarity,
                             forcedItems = forceItems,
                             excludedItems = excludedItems,
-                            scoreComputationMode = computationMode,
+                            scoreComputationMode = mode,
                             useRunes = !noRunes,
                             damageScenario = damageScenario
                         )
@@ -621,7 +670,7 @@ HUPPERMAGE"""
                     .onEach {
                         progressBar.update {
                             context =
-                                if (computationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+                                if (mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
                                     "expected damage so far: ${it.matchPercentage}"
                                 } else {
                                     "${it.matchPercentage}% match found so far"
@@ -654,8 +703,11 @@ HUPPERMAGE"""
                         terminal.println(it.characterSkills.major.asASCIITable())
                     }
 
-            if (computationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+            if (mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
                 terminal.println(spellRotationReport(bestCombination, character, damageScenario))
+                if (targetBoss != null) {
+                    terminal.println(bossSummary(targetBoss, bestCombination, character, damageScenario, bossDifficulty))
+                }
             }
 
             if (createZenithBuild) {
@@ -780,6 +832,71 @@ private fun spellRotationReport(
         "  Total: ~${rotation.totalExpectedDamage.toLong()} expected damage/turn " +
         "(${rotation.apUsed}/${rotation.apBudget} AP used)\n" +
         "  Note: per-turn cast limits aren't modeled yet — treat as an upper-bound suggestion."
+}
+
+/** Resolves the `--boss` query to a monster, or fails with a helpful message listing close names. */
+private fun resolveBoss(query: String): Monster {
+    WakfuBestBuildFinderAlgorithm.findMonster(query)?.let { return it }
+    val suggestions =
+        WakfuBestBuildFinderAlgorithm.monsters
+            .filter {
+                it.name.fr
+                    .lowercase()
+                    .contains(query.lowercase().take(3))
+            }.sortedWith(compareByDescending<Monster> { it.rank }.thenByDescending { it.level })
+            .take(8)
+            .joinToString("\n") { "  - ${it.name.fr} (lvl ${it.level})" }
+    throw PrintMessage(
+        message =
+            "No boss matching \"$query\" in the bestiary." +
+                if (suggestions.isNotEmpty()) "\nDid you mean:\n$suggestions" else "",
+        printError = true
+    )
+}
+
+/** Parses `--boss-element`: 'auto' → null (let the boss-aware objective pick); else the named [SpellElement]. */
+private fun parseBossElement(value: String): SpellElement? =
+    when (val v = value.trim().lowercase()) {
+        "auto" -> null
+        "wind", "air" -> SpellElement.AIR
+        "fire" -> SpellElement.FIRE
+        "water" -> SpellElement.WATER
+        "earth" -> SpellElement.EARTH
+        else -> throw PrintMessage("Unknown --boss-element \"$v\" (use auto/fire/water/earth/air).", printError = true)
+    }
+
+/**
+ * Human-readable boss report: HP, the four-element resistance profile (▶ marks the chosen element), and an
+ * estimate of how many **turns** of the build's rotation it takes to kill the boss (scaled by difficulty).
+ * Reuses the same boss-aware sequenced rotation the engine ranks builds by, so the element and per-turn
+ * damage shown match what was optimized.
+ */
+private fun bossSummary(
+    monster: Monster,
+    build: BuildCombination,
+    character: Character,
+    scenario: DamageScenario,
+    difficulty: Double,
+): String {
+    val rotation = SpellRotationOptimizer.bestSequencedRotation(build, character, character.clazz, scenario)
+    // rotation.element is the common-lib enum; map it 1:1 onto the domain enum the scenario/profile use.
+    val chosenElement = rotation.element?.let { SpellElement.valueOf(it.name) } ?: scenario.element
+    val perTurn = rotation.totalExpectedDamage.toBigDecimal()
+    val turns = BossDisplay.turnsToKill(monster, perTurn, difficulty)
+    val effectiveHp = BossDisplay.effectiveHp(monster, difficulty)
+    val hpLabel = if (difficulty != 1.0) "$effectiveHp HP (×$difficulty)" else "${monster.hp} HP"
+    val profile =
+        SpellElement.entries.joinToString("  ") {
+            val marker = if (it == chosenElement) "▶" else " "
+            "$marker${it.name.lowercase().replaceFirstChar(Char::uppercase)} ${monster.resistancePercent(it)}%"
+        }
+    val killLabel = if (turns <= 0) "no playable damage rotation" else "≈ $turns turn(s) to kill"
+    return buildString {
+        appendLine()
+        appendLine("Boss: ${monster.name.fr} (lvl ${monster.level}, $hpLabel)")
+        appendLine("Resistances: $profile")
+        append("Best element: ${chosenElement.name.lowercase()} → ~${perTurn.toLong()} expected damage/turn, $killLabel")
+    }
 }
 
 private fun progressBar(terminal: Terminal): ThreadProgressTaskAnimator<String> =
