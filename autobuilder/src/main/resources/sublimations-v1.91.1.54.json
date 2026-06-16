@@ -29,7 +29,8 @@
      "minCharacterLevel": 100
     }
    }
-  ]
+  ],
+  "zenithId": 24130
  },
  {
   "stateId": 5074,
@@ -58,7 +59,8 @@
     "characteristic": "RESISTANCE_CRITICAL",
     "value": 50
    }
-  ]
+  ],
+  "zenithId": 24131
  },
  {
   "stateId": 5075,
@@ -87,7 +89,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 10
    }
-  ]
+  ],
+  "zenithId": 24134
  },
  {
   "stateId": 5076,
@@ -112,7 +115,8 @@
     "characteristic": "MASTERY_HEALING",
     "value": 20
    }
-  ]
+  ],
+  "zenithId": 24133
  },
  {
   "stateId": 5077,
@@ -131,7 +135,8 @@
   "condition": {
    "type": "CRIT_AT_LEAST",
    "value": 40
-  }
+  },
+  "zenithId": 24132
  },
  {
   "stateId": 5078,
@@ -146,7 +151,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "The first spell that inflicts damage this turn removes 30% Armor from the target."
+  "rawText": "The first spell that inflicts damage this turn removes 30% Armor from the target.",
+  "zenithId": 24135
  },
  {
   "stateId": 5079,
@@ -161,7 +167,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "If the bearer has only used one element to cause damage during their turn, they gain +20% to their Elemental Mastery in their other elements."
+  "rawText": "If the bearer has only used one element to cause damage during their turn, they gain +20% to their Elemental Mastery in their other elements.",
+  "zenithId": 24136
  },
  {
   "stateId": 5080,
@@ -176,7 +183,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "30% Block if the bearer did not receive healing in the previous turn."
+  "rawText": "30% Block if the bearer did not receive healing in the previous turn.",
+  "zenithId": 24137
  },
  {
   "stateId": 5081,
@@ -191,7 +199,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "When a spell is cast: 10% extra damage inflicted for each condition met (conditions vary each turn). | Turn 1: The bearer is in melee or the spell is single-target | Turn 2: The bearer is at a distance or the spell is single-target | Turn 3: The bearer is at a distance or the spell is area-of-effect | Turn 4: The bearer is in melee or the spell is area-of-effect | The cycle starts over every 4 turns."
+  "rawText": "When a spell is cast: 10% extra damage inflicted for each condition met (conditions vary each turn). | Turn 1: The bearer is in melee or the spell is single-target | Turn 2: The bearer is at a distance or the spell is single-target | Turn 3: The bearer is at a distance or the spell is area-of-effect | Turn 4: The bearer is in melee or the spell is area-of-effect | The cycle starts over every 4 turns.",
+  "zenithId": 24138
  },
  {
   "stateId": 5082,
@@ -206,7 +215,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "100% of level in Barrier against long-range damage (permanent)."
+  "rawText": "100% of level in Barrier against long-range damage (permanent).",
+  "zenithId": 14186
  },
  {
   "stateId": 5158,
@@ -231,7 +241,8 @@
     "characteristic": "ACTION_POINT",
     "value": 2
    }
-  ]
+  ],
+  "zenithId": 27186
  },
  {
   "stateId": 5174,
@@ -246,7 +257,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "If the bearer inflicts damage in an element, they gain +15% Elemental Mastery in the other elements for the next spell. | Only the first line of damage caused by the spell is taken into account."
+  "rawText": "If the bearer inflicts damage in an element, they gain +15% Elemental Mastery in the other elements for the next spell. | Only the first line of damage caused by the spell is taken into account.",
+  "zenithId": 25798
  },
  {
   "stateId": 5175,
@@ -261,7 +273,8 @@
   "maxLevel": 1,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "25% to area-of-effect spell damage on the spell's direct target. | -25% to area-of-effect spell damage on other targets."
+  "rawText": "25% to area-of-effect spell damage on the spell's direct target. | -25% to area-of-effect spell damage on other targets.",
+  "zenithId": 27191
  },
  {
   "stateId": 5216,
@@ -276,7 +289,8 @@
   "maxLevel": 1,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "15% damage inflicted by area-of-effect spells on targets in line with the state bearer"
+  "rawText": "15% damage inflicted by area-of-effect spells on targets in line with the state bearer",
+  "zenithId": 27192
  },
  {
   "stateId": 5248,
@@ -301,7 +315,8 @@
     "characteristic": "MAX_MOVEMENT_POINT",
     "value": 1
    }
-  ]
+  ],
+  "zenithId": 27188
  },
  {
   "stateId": 5249,
@@ -329,7 +344,8 @@
      "orientation": "FRONT"
     }
    }
-  ]
+  ],
+  "zenithId": 27187
  },
  {
   "stateId": 5250,
@@ -350,7 +366,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": -10
    }
-  ]
+  ],
+  "zenithId": 25799
  },
  {
   "stateId": 5252,
@@ -365,7 +382,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "In an uneven round: | The bearer inflicts 25% more damage, and suffers 15% of the damage they inflict."
+  "rawText": "In an uneven round: | The bearer inflicts 25% more damage, and suffers 15% of the damage they inflict.",
+  "zenithId": 25800
  },
  {
   "stateId": 5253,
@@ -380,7 +398,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "Even Turn: After using a WP-based spell, the state bearer regains 2 AP (max of 1/turn). | Odd Turn: After using a WP-based spell, the state bearer loses 2 AP (max 1/turn)."
+  "rawText": "Even Turn: After using a WP-based spell, the state bearer regains 2 AP (max of 1/turn). | Odd Turn: After using a WP-based spell, the state bearer loses 2 AP (max 1/turn).",
+  "zenithId": 27193
  },
  {
   "stateId": 5370,
@@ -405,7 +424,8 @@
     "characteristic": "BLOCK_PERCENTAGE",
     "value": 15
    }
-  ]
+  ],
+  "zenithId": 27189
  },
  {
   "stateId": 5443,
@@ -426,7 +446,8 @@
     "characteristic": "HP",
     "value": -30
    }
-  ]
+  ],
+  "zenithId": 25793
  },
  {
   "stateId": 5444,
@@ -447,7 +468,8 @@
     "characteristic": "RESISTANCE_BACK",
     "value": 50
    }
-  ]
+  ],
+  "zenithId": 25794
  },
  {
   "stateId": 5445,
@@ -462,7 +484,8 @@
   "maxLevel": 1,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "Converts 50% of Elemental Mastery into Rear Mastery (at the rate of 1 to 1.3) at the start of combat."
+  "rawText": "Converts 50% of Elemental Mastery into Rear Mastery (at the rate of 1 to 1.3) at the start of combat.",
+  "zenithId": 25795
  },
  {
   "stateId": 5446,
@@ -481,7 +504,8 @@
   "condition": {
    "type": "RANGE_EXACT",
    "value": 0
-  }
+  },
+  "zenithId": 25796
  },
  {
   "stateId": 5448,
@@ -505,7 +529,8 @@
     "characteristic": "LOCK",
     "value": 250
    }
-  ]
+  ],
+  "zenithId": 25797
  },
  {
   "stateId": 5449,
@@ -520,7 +545,8 @@
   "maxLevel": 1,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "Increases the bearer's highest Elemental Mastery by 20%, and decreases the others by 30% at the start of combat"
+  "rawText": "Increases the bearer's highest Elemental Mastery by 20%, and decreases the others by 30% at the start of combat",
+  "zenithId": 27190
  },
  {
   "stateId": 5450,
@@ -535,7 +561,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "The state bearer increases their damage inflicted by 2% per turn (permanent) (max 20)"
+  "rawText": "The state bearer increases their damage inflicted by 2% per turn (permanent) (max 20)",
+  "zenithId": 27194
  },
  {
   "stateId": 5452,
@@ -550,7 +577,8 @@
   "maxLevel": 1,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "Flaming | Flaming"
+  "rawText": "Flaming | Flaming",
+  "zenithId": 25802
  },
  {
   "stateId": 5453,
@@ -565,7 +593,8 @@
   "maxLevel": 1,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "-30% damage received during their own turn."
+  "rawText": "-30% damage received during their own turn.",
+  "zenithId": 25801
  },
  {
   "stateId": 5976,
@@ -580,7 +609,8 @@
   "maxLevel": 1,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "Light Weapon"
+  "rawText": "Light Weapon",
+  "zenithId": 27195
  },
  {
   "stateId": 5980,
@@ -599,7 +629,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "25% indirect Damage"
+  "rawText": "25% indirect Damage",
+  "zenithId": 27111
  },
  {
   "stateId": 5981,
@@ -628,7 +659,8 @@
     "characteristic": "WILLPOWER",
     "value": -20
    }
-  ]
+  ],
+  "zenithId": 27112
  },
  {
   "stateId": 5982,
@@ -647,7 +679,8 @@
   "maxLevel": 4,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "At start of fight: | All Masteries: 15% of level | All Resistances: 9"
+  "rawText": "At start of fight: | All Masteries: 15% of level | All Resistances: 9",
+  "zenithId": 27113
  },
  {
   "stateId": 5983,
@@ -672,7 +705,8 @@
     "characteristic": "MASTERY_ELEMENTARY",
     "value": 75
    }
-  ]
+  ],
+  "zenithId": 27114
  },
  {
   "stateId": 5984,
@@ -691,7 +725,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "25% health points (bonus on HP modifier)"
+  "rawText": "25% health points (bonus on HP modifier)",
+  "zenithId": 27115
  },
  {
   "stateId": 5985,
@@ -710,7 +745,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "10% Damage Inflicted on targets in close combat"
+  "rawText": "10% Damage Inflicted on targets in close combat",
+  "zenithId": 27116
  },
  {
   "stateId": 5986,
@@ -729,7 +765,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "At start of fight: | 25% Block (1 turn)"
+  "rawText": "At start of fight: | 25% Block (1 turn)",
+  "zenithId": 27117
  },
  {
   "stateId": 5987,
@@ -748,7 +785,8 @@
   "maxLevel": 4,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "-22% indirect Damage received"
+  "rawText": "-22% indirect Damage received",
+  "zenithId": 27118
  },
  {
   "stateId": 5988,
@@ -767,7 +805,8 @@
   "maxLevel": 4,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "At end of turn, if the state bearer has 2 or more AP: | 37 Elemental Resistance (1 turn)"
+  "rawText": "At end of turn, if the state bearer has 2 or more AP: | 37 Elemental Resistance (1 turn)",
+  "zenithId": 27119
  },
  {
   "stateId": 5989,
@@ -786,7 +825,8 @@
   "maxLevel": 2,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "Reduces direct damage received greater than 20% of max HP by 200% of level (once per round)"
+  "rawText": "Reduces direct damage received greater than 20% of max HP by 200% of level (once per round)",
+  "zenithId": 27120
  },
  {
   "stateId": 5990,
@@ -805,7 +845,8 @@
   "maxLevel": 3,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "After suffering a loss of 3 AP: | 20 Force of Will (3 turns)"
+  "rawText": "After suffering a loss of 3 AP: | 20 Force of Will (3 turns)",
+  "zenithId": 27121
  },
  {
   "stateId": 5991,
@@ -824,7 +865,8 @@
   "maxLevel": 3,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "After suffering a loss of 3 MP: | 20 Force of Will (3 turns)"
+  "rawText": "After suffering a loss of 3 MP: | 20 Force of Will (3 turns)",
+  "zenithId": 27122
  },
  {
   "stateId": 5992,
@@ -843,7 +885,8 @@
   "maxLevel": 3,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "At the start of combat: | All of the state bearer's Dodge is converted into Armor at a ratio of ? for ?. | Converted Dodge is lost."
+  "rawText": "At the start of combat: | All of the state bearer's Dodge is converted into Armor at a ratio of ? for ?. | Converted Dodge is lost.",
+  "zenithId": 27123
  },
  {
   "stateId": 5993,
@@ -868,7 +911,8 @@
     "characteristic": "WILLPOWER",
     "value": -20
    }
-  ]
+  ],
+  "zenithId": 27124
  },
  {
   "stateId": 5994,
@@ -887,7 +931,8 @@
   "maxLevel": 2,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "At start of turn: | 10% Damage inflicted per enemy hit in the previous turn."
+  "rawText": "At start of turn: | 10% Damage inflicted per enemy hit in the previous turn.",
+  "zenithId": 27126
  },
  {
   "stateId": 5999,
@@ -906,7 +951,8 @@
   "maxLevel": 2,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "On the state bearer's first turn: | 1 WP (non-regenerable)"
+  "rawText": "On the state bearer's first turn: | 1 WP (non-regenerable)",
+  "zenithId": 27127
  },
  {
   "stateId": 6000,
@@ -931,7 +977,8 @@
     "characteristic": "CRITICAL_HIT",
     "value": 50
    }
-  ]
+  ],
+  "zenithId": 27128
  },
  {
   "stateId": 6001,
@@ -950,7 +997,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "Recovers 1 AP on killing an enemy (2 activations per turn)"
+  "rawText": "Recovers 1 AP on killing an enemy (2 activations per turn)",
+  "zenithId": 27129
  },
  {
   "stateId": 6002,
@@ -969,7 +1017,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "-25% to characteristic penalties received. | Affects all characteristic penalties (Mastery, Resistances, Armor, Critical Hits, etc.) received in combat and cast by an entity other than the state bearer. | The value is always rounded down."
+  "rawText": "-25% to characteristic penalties received. | Affects all characteristic penalties (Mastery, Resistances, Armor, Critical Hits, etc.) received in combat and cast by an entity other than the state bearer. | The value is always rounded down.",
+  "zenithId": 27130
  },
  {
   "stateId": 6004,
@@ -988,7 +1037,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "15% Armor received"
+  "rawText": "15% Armor received",
+  "zenithId": 27131
  },
  {
   "stateId": 6005,
@@ -1017,7 +1067,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": -20
    }
-  ]
+  ],
+  "zenithId": 27132
  },
  {
   "stateId": 6006,
@@ -1036,7 +1087,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "At end of turn: | Unused AP are carried over to the next turn | Max 2 PA"
+  "rawText": "At end of turn: | Unused AP are carried over to the next turn | Max 2 PA",
+  "zenithId": 27133
  },
  {
   "stateId": 6007,
@@ -1055,7 +1107,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "At end of turn, the state bearer transmits 1 unused AP to the nearest ally"
+  "rawText": "At end of turn, the state bearer transmits 1 unused AP to the nearest ally",
+  "zenithId": 27134
  },
  {
   "stateId": 6008,
@@ -1084,7 +1137,8 @@
     "characteristic": "RESISTANCE_ELEMENTARY",
     "value": -150
    }
-  ]
+  ],
+  "zenithId": 27135
  },
  {
   "stateId": 6009,
@@ -1109,7 +1163,8 @@
     "characteristic": "CRITICAL_HIT",
     "value": 25
    }
-  ]
+  ],
+  "zenithId": 27136
  },
  {
   "stateId": 6010,
@@ -1142,7 +1197,8 @@
     "characteristic": "DODGE",
     "value": -300
    }
-  ]
+  ],
+  "zenithId": 27137
  },
  {
   "stateId": 6011,
@@ -1161,7 +1217,8 @@
   "maxLevel": 2,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "10% indirect Damage in even rounds"
+  "rawText": "10% indirect Damage in even rounds",
+  "zenithId": 27138
  },
  {
   "stateId": 6012,
@@ -1186,7 +1243,8 @@
     "characteristic": "LOCK",
     "value": 250
    }
-  ]
+  ],
+  "zenithId": 27139
  },
  {
   "stateId": 6013,
@@ -1205,7 +1263,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "At start of fight: | 7% Critical Hit,  7% Block,  7 Force of Will"
+  "rawText": "At start of fight: | 7% Critical Hit,  7% Block,  7 Force of Will",
+  "zenithId": 27140
  },
  {
   "stateId": 6014,
@@ -1224,7 +1283,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "4% Blocks per turn (max 40)"
+  "rawText": "4% Blocks per turn (max 40)",
+  "zenithId": 27141
  },
  {
   "stateId": 6016,
@@ -1243,7 +1303,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "20% Damage Inflicted on targets 2 cells away (1 cell between the state bearer and the target)"
+  "rawText": "20% Damage Inflicted on targets 2 cells away (1 cell between the state bearer and the target)",
+  "zenithId": 27142
  },
  {
   "stateId": 6017,
@@ -1262,7 +1323,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "Preparation"
+  "rawText": "Preparation",
+  "zenithId": 27143
  },
  {
   "stateId": 6018,
@@ -1287,7 +1349,8 @@
     "characteristic": "DODGE",
     "value": 250
    }
-  ]
+  ],
+  "zenithId": 27144
  },
  {
   "stateId": 6019,
@@ -1306,7 +1369,8 @@
   "maxLevel": 4,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "Reduces Ranged Damage suffered by 50% of level, 6 times per turn"
+  "rawText": "Reduces Ranged Damage suffered by 50% of level, 6 times per turn",
+  "zenithId": 27145
  },
  {
   "stateId": 6020,
@@ -1325,7 +1389,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "Reduces Melee Damage suffered by 50% of level, 6 times per turn"
+  "rawText": "Reduces Melee Damage suffered by 50% of level, 6 times per turn",
+  "zenithId": 27146
  },
  {
   "stateId": 6021,
@@ -1344,7 +1409,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "At end of turn, if the state bearer has 6 or more AP: | 30 Elemental Resistance (2 turns)"
+  "rawText": "At end of turn, if the state bearer has 6 or more AP: | 30 Elemental Resistance (2 turns)",
+  "zenithId": 27147
  },
  {
   "stateId": 6022,
@@ -1363,7 +1429,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "After suffering a loss of 2 AP: | 5 Force of Will (3 turns)"
+  "rawText": "After suffering a loss of 2 AP: | 5 Force of Will (3 turns)",
+  "zenithId": 27148
  },
  {
   "stateId": 6023,
@@ -1382,7 +1449,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "After suffering a loss of 2 MP: | 5 Force of Will (3 turns)"
+  "rawText": "After suffering a loss of 2 MP: | 5 Force of Will (3 turns)",
+  "zenithId": 27149
  },
  {
   "stateId": 6024,
@@ -1407,7 +1475,8 @@
     "characteristic": "BLOCK_PERCENTAGE",
     "value": 25
    }
-  ]
+  ],
+  "zenithId": 27150
  },
  {
   "stateId": 6025,
@@ -1426,7 +1495,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "Increases Health Steals performed by 25%"
+  "rawText": "Increases Health Steals performed by 25%",
+  "zenithId": 27151
  },
  {
   "stateId": 6026,
@@ -1445,7 +1515,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "15% Critical Hit"
+  "rawText": "15% Critical Hit",
+  "zenithId": 27152
  },
  {
   "stateId": 6027,
@@ -1464,7 +1535,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "At start of turn: | 5% Damage inflicted per entity hit in the previous turn."
+  "rawText": "At start of turn: | 5% Damage inflicted per entity hit in the previous turn.",
+  "zenithId": 27153
  },
  {
   "stateId": 6029,
@@ -1483,7 +1555,8 @@
   "maxLevel": 4,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "At start of fight, 450% of level as Armor"
+  "rawText": "At start of fight, 450% of level as Armor",
+  "zenithId": 27154
  },
  {
   "stateId": 6030,
@@ -1502,7 +1575,8 @@
   "maxLevel": 2,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "Even turns:  10 Force of Will | Odd turns:  -10 Force of Will"
+  "rawText": "Even turns:  10 Force of Will | Odd turns:  -10 Force of Will",
+  "zenithId": 27155
  },
  {
   "stateId": 6031,
@@ -1521,7 +1595,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "Recovers 1 MP on killing an enemy (2 activations per turn)"
+  "rawText": "Recovers 1 MP on killing an enemy (2 activations per turn)",
+  "zenithId": 27156
  },
  {
   "stateId": 6032,
@@ -1540,7 +1615,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "9% to characteristic bonuses received. | Affects all characteristic bonuses (Masteries, Resistances, Armor) received in combat and cast by an entity other than the state bearer. | The value is always rounded down."
+  "rawText": "9% to characteristic bonuses received. | Affects all characteristic bonuses (Masteries, Resistances, Armor) received in combat and cast by an entity other than the state bearer. | The value is always rounded down.",
+  "zenithId": 27157
  },
  {
   "stateId": 6033,
@@ -1565,7 +1641,8 @@
     "characteristic": "WILLPOWER",
     "value": -20
    }
-  ]
+  ],
+  "zenithId": 27158
  },
  {
   "stateId": 6034,
@@ -1584,7 +1661,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "-15% damage inflicted | At start of turn: | 25% damage inflicted if a single enemy was hit the previous turn"
+  "rawText": "-15% damage inflicted | At start of turn: | 25% damage inflicted if a single enemy was hit the previous turn",
+  "zenithId": 27159
  },
  {
   "stateId": 6036,
@@ -1603,7 +1681,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "10% Damage Inflicted on targets in a straight line and 2 or more cells away from the state bearer"
+  "rawText": "10% Damage Inflicted on targets in a straight line and 2 or more cells away from the state bearer",
+  "zenithId": 27160
  },
  {
   "stateId": 6037,
@@ -1628,7 +1707,8 @@
     "characteristic": "RESISTANCE_ELEMENTARY",
     "value": -50
    }
-  ]
+  ],
+  "zenithId": 27161
  },
  {
   "stateId": 6038,
@@ -1647,7 +1727,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "15% Armor given"
+  "rawText": "15% Armor given",
+  "zenithId": 27162
  },
  {
   "stateId": 6039,
@@ -1666,7 +1747,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "3% Critical Hits per turn (max 30)"
+  "rawText": "3% Critical Hits per turn (max 30)",
+  "zenithId": 27163
  },
  {
   "stateId": 6041,
@@ -1685,7 +1767,8 @@
   "maxLevel": 4,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "At end of turn, if a critical hit was performed: | {img_physical}  Heal: 6% of HP lost of the caster {img_ecnbi}"
+  "rawText": "At end of turn, if a critical hit was performed: | {img_physical}  Heal: 6% of HP lost of the caster {img_ecnbi}",
+  "zenithId": 27164
  },
  {
   "stateId": 6042,
@@ -1704,7 +1787,8 @@
   "maxLevel": 4,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "At start of fight: | 15% Critical Hit (1 turn) | 15% of level as Critical Mastery (1 turn)"
+  "rawText": "At start of fight: | 15% Critical Hit (1 turn) | 15% of level as Critical Mastery (1 turn)",
+  "zenithId": 27125
  },
  {
   "stateId": 6090,
@@ -1723,7 +1807,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "40% Health Points (bonus on HP modifier)"
+  "rawText": "40% Health Points (bonus on HP modifier)",
+  "zenithId": 27282
  },
  {
   "stateId": 6328,
@@ -1742,7 +1827,8 @@
   "maxLevel": 2,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "When healing an ally, if the ally has less than 15% HP: | {img_physical}  Heal: 7% of HP max of the target {img_ecnbi}"
+  "rawText": "When healing an ally, if the ally has less than 15% HP: | {img_physical}  Heal: 7% of HP max of the target {img_ecnbi}",
+  "zenithId": 27957
  },
  {
   "stateId": 6329,
@@ -1767,7 +1853,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 6
    }
-  ]
+  ],
+  "zenithId": 27958
  },
  {
   "stateId": 6330,
@@ -1792,7 +1879,8 @@
     "characteristic": "MASTERY_HEALING",
     "value": 5
    }
-  ]
+  ],
+  "zenithId": 27959
  },
  {
   "stateId": 6331,
@@ -1817,7 +1905,8 @@
     "characteristic": "MOVEMENT_POINT",
     "value": 50
    }
-  ]
+  ],
+  "zenithId": 27960
  },
  {
   "stateId": 6705,
@@ -1849,7 +1938,8 @@
     "characteristic": "LOCK",
     "value": 100
    }
-  ]
+  ],
+  "zenithId": 28383
  },
  {
   "stateId": 6706,
@@ -1882,7 +1972,8 @@
     "characteristic": "RANGE",
     "value": 1
    }
-  ]
+  ],
+  "zenithId": 28384
  },
  {
   "stateId": 6707,
@@ -1901,7 +1992,8 @@
   "condition": {
    "type": "BLOCK_AT_LEAST",
    "value": 50
-  }
+  },
+  "zenithId": 28385
  },
  {
   "stateId": 6708,
@@ -1920,7 +2012,8 @@
   "condition": {
    "type": "RANGE_EXACT",
    "value": 1
-  }
+  },
+  "zenithId": 28386
  },
  {
   "stateId": 6709,
@@ -1935,7 +2028,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "When suffering damage from the front and in melee, once per round: | 10% of missing HP as Armor | 40% Armor given (1 turn)"
+  "rawText": "When suffering damage from the front and in melee, once per round: | 10% of missing HP as Armor | 40% Armor given (1 turn)",
+  "zenithId": 28387
  },
  {
   "stateId": 6711,
@@ -1950,7 +2044,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "At start of turn, with 6 WP or greater: | Ancestral Energy Bonus | The state is lost if the character starts their turn with less than 6 WP"
+  "rawText": "At start of turn, with 6 WP or greater: | Ancestral Energy Bonus | The state is lost if the character starts their turn with less than 6 WP",
+  "zenithId": 28388
  },
  {
   "stateId": 6712,
@@ -1965,7 +2060,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "-50 Elemental Resistance | Once per turn, when falling below 50% HP: | Rebirth Bonus"
+  "rawText": "-50 Elemental Resistance | Once per turn, when falling below 50% HP: | Rebirth Bonus",
+  "zenithId": 28389
  },
  {
   "stateId": 6714,
@@ -1980,7 +2076,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "For each movement, per MP used: | +3% Block (max. 18) (1 turn) | If the state bearer performs a Block when it's not their turn: | The bonus is transformed into Critical Hits on the next turn"
+  "rawText": "For each movement, per MP used: | +3% Block (max. 18) (1 turn) | If the state bearer performs a Block when it's not their turn: | The bonus is transformed into Critical Hits on the next turn",
+  "zenithId": 28390
  },
  {
   "stateId": 6811,
@@ -1999,7 +2096,8 @@
   "maxLevel": 2,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "When inflicting damage on an enemy with a weapon: | That enemy reduces their damage on the state bearer by -5% (1 turn, not stackable) | The state bearer must have a shield equipped"
+  "rawText": "When inflicting damage on an enemy with a weapon: | That enemy reduces their damage on the state bearer by -5% (1 turn, not stackable) | The state bearer must have a shield equipped",
+  "zenithId": 28798
  },
  {
   "stateId": 6812,
@@ -2028,7 +2126,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 6
    }
-  ]
+  ],
+  "zenithId": 28799
  },
  {
   "stateId": 6813,
@@ -2047,7 +2146,8 @@
   "maxLevel": 2,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "Flaming"
+  "rawText": "Flaming",
+  "zenithId": 28800
  },
  {
   "stateId": 6814,
@@ -2072,7 +2172,8 @@
     "characteristic": "CRITICAL_HIT",
     "value": 10
    }
-  ]
+  ],
+  "zenithId": 28801
  },
  {
   "stateId": 6815,
@@ -2097,7 +2198,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 9
    }
-  ]
+  ],
+  "zenithId": 28802
  },
  {
   "stateId": 6816,
@@ -2116,7 +2218,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "-10 Damage inflicted with a Weapon | When inflicting damage on an enemy with a two-handed weapon: | Incurable"
+  "rawText": "-10 Damage inflicted with a Weapon | When inflicting damage on an enemy with a two-handed weapon: | Incurable",
+  "zenithId": 28803
  },
  {
   "stateId": 6817,
@@ -2135,7 +2238,8 @@
   "maxLevel": 4,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "-10% Damage inflicted with a weapon | When inflicting damage on an enemy with a two-handed weapon: | Steals 45% of level in Lock (1 turn, not stackable)"
+  "rawText": "-10% Damage inflicted with a weapon | When inflicting damage on an enemy with a two-handed weapon: | Steals 45% of level in Lock (1 turn, not stackable)",
+  "zenithId": 28804
  },
  {
   "stateId": 6818,
@@ -2154,7 +2258,8 @@
   "maxLevel": 4,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "-10% Damage inflicted with a weapon | When inflicting damage on an enemy with a two-handed weapon: | Steals 45% of level in Dodge (1 turn, not stackable)"
+  "rawText": "-10% Damage inflicted with a weapon | When inflicting damage on an enemy with a two-handed weapon: | Steals 45% of level in Dodge (1 turn, not stackable)",
+  "zenithId": 28805
  },
  {
   "stateId": 6819,
@@ -2173,7 +2278,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "When the state bearer suffers direct close-combat damage, once per turn of the attacker: | The state bearer inflicts light damage on the attacker (50% of level)"
+  "rawText": "When the state bearer suffers direct close-combat damage, once per turn of the attacker: | The state bearer inflicts light damage on the attacker (50% of level)",
+  "zenithId": 28806
  },
  {
   "stateId": 6821,
@@ -2198,7 +2304,8 @@
     "characteristic": "MASTERY_ELEMENTARY",
     "value": 125
    }
-  ]
+  ],
+  "zenithId": 28807
  },
  {
   "stateId": 6822,
@@ -2217,7 +2324,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "If the state bearer does not have any armor at end of turn: | 250% of level as Armor"
+  "rawText": "If the state bearer does not have any armor at end of turn: | 250% of level as Armor",
+  "zenithId": 28808
  },
  {
   "stateId": 6823,
@@ -2236,7 +2344,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "10% Damage from behind on even turns | 10% frontal Damage on odd turns"
+  "rawText": "10% Damage from behind on even turns | 10% frontal Damage on odd turns",
+  "zenithId": 28809
  },
  {
   "stateId": 6824,
@@ -2255,7 +2364,8 @@
   "maxLevel": 2,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "{img_physical}  Heal: 10% of HP lost of the caster {img_ecnbi} {img_ecnbr} on killing an enemy (2 activations per turn)"
+  "rawText": "{img_physical}  Heal: 10% of HP lost of the caster {img_ecnbi} {img_ecnbr} on killing an enemy (2 activations per turn)",
+  "zenithId": 28810
  },
  {
   "stateId": 6825,
@@ -2274,7 +2384,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "15% Damage from behind | -10% frontal and side Damage"
+  "rawText": "15% Damage from behind | -10% frontal and side Damage",
+  "zenithId": 28811
  },
  {
   "stateId": 6826,
@@ -2299,7 +2410,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 6
    }
-  ]
+  ],
+  "zenithId": 28812
  },
  {
   "stateId": 6827,
@@ -2318,7 +2430,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "20% Armor given to an aligned ally at a distance"
+  "rawText": "20% Armor given to an aligned ally at a distance",
+  "zenithId": 28813
  },
  {
   "stateId": 6828,
@@ -2337,7 +2450,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "10% Heals performed on an aligned ally at a distance"
+  "rawText": "10% Heals performed on an aligned ally at a distance",
+  "zenithId": 28814
  },
  {
   "stateId": 6829,
@@ -2356,7 +2470,8 @@
   "maxLevel": 4,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "Melee damage removes 150% of level in Armor from the target | -9% Armor received"
+  "rawText": "Melee damage removes 150% of level in Armor from the target | -9% Armor received",
+  "zenithId": 28815
  },
  {
   "stateId": 6830,
@@ -2375,7 +2490,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "10% Heals performed on an ally adjacent to another ally"
+  "rawText": "10% Heals performed on an ally adjacent to another ally",
+  "zenithId": 28816
  },
  {
   "stateId": 6831,
@@ -2400,7 +2516,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 15
    }
-  ]
+  ],
+  "zenithId": 28817
  },
  {
   "stateId": 6832,
@@ -2419,7 +2536,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "Ending a turn adjacent to an enemy applies -25% Armor received to it (1 turn)"
+  "rawText": "Ending a turn adjacent to an enemy applies -25% Armor received to it (1 turn)",
+  "zenithId": 28818
  },
  {
   "stateId": 6833,
@@ -2438,7 +2556,8 @@
   "maxLevel": 4,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "Ending a turn adjacent to an enemy applies -15% Heals performed to it (1 turn)"
+  "rawText": "Ending a turn adjacent to an enemy applies -15% Heals performed to it (1 turn)",
+  "zenithId": 28819
  },
  {
   "stateId": 6834,
@@ -2457,7 +2576,8 @@
   "maxLevel": 2,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "When the state bearer suffers direct close-combat damage, once per turn of the attacker: | The state bearer turns toward them"
+  "rawText": "When the state bearer suffers direct close-combat damage, once per turn of the attacker: | The state bearer turns toward them",
+  "zenithId": 28933
  },
  {
   "stateId": 6842,
@@ -2476,7 +2596,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "10% non-critical damage and heals inflicted | -10% critical damage and heals inflicted"
+  "rawText": "10% non-critical damage and heals inflicted | -10% critical damage and heals inflicted",
+  "zenithId": 28942
  },
  {
   "stateId": 6926,
@@ -2501,7 +2622,8 @@
     "characteristic": "MASTERY_HEALING",
     "value": -10
    }
-  ]
+  ],
+  "zenithId": 28988
  },
  {
   "stateId": 6927,
@@ -2520,7 +2642,8 @@
   "maxLevel": 4,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "When ending turn with less than 50% HP: | {img_physical} Heals: 15% of missing HP {img_ecnbi}"
+  "rawText": "When ending turn with less than 50% HP: | {img_physical} Heals: 15% of missing HP {img_ecnbi}",
+  "zenithId": 28991
  },
  {
   "stateId": 6928,
@@ -2539,7 +2662,8 @@
   "maxLevel": 2,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "The first critical hit in the turn inflicts 6% additional damage | The following ones inflict -3% less damage"
+  "rawText": "The first critical hit in the turn inflicts 6% additional damage | The following ones inflict -3% less damage",
+  "zenithId": 28994
  },
  {
   "stateId": 6929,
@@ -2568,7 +2692,8 @@
     "characteristic": "BLOCK_PERCENTAGE",
     "value": -10
    }
-  ]
+  ],
+  "zenithId": 28996
  },
  {
   "stateId": 6930,
@@ -2587,7 +2712,8 @@
   "maxLevel": 4,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "9% critical damage inflicted if the target has > 50% HP | -9% critical damage inflicted if the target has <= 50% HP"
+  "rawText": "9% critical damage inflicted if the target has > 50% HP | -9% critical damage inflicted if the target has <= 50% HP",
+  "zenithId": 28998
  },
  {
   "stateId": 6931,
@@ -2616,7 +2742,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 24
    }
-  ]
+  ],
+  "zenithId": 29001
  },
  {
   "stateId": 6932,
@@ -2645,7 +2772,8 @@
     "characteristic": "MAX_WAKFU_POINTS",
     "value": 2
    }
-  ]
+  ],
+  "zenithId": 29004
  },
  {
   "stateId": 6933,
@@ -2674,7 +2802,8 @@
     "characteristic": "BLOCK_PERCENTAGE",
     "value": 25
    }
-  ]
+  ],
+  "zenithId": 29007
  },
  {
   "stateId": 7075,
@@ -2699,7 +2828,8 @@
     "characteristic": "RANGE",
     "value": -1
    }
-  ]
+  ],
+  "zenithId": 29499
  },
  {
   "stateId": 7076,
@@ -2728,7 +2858,8 @@
     "characteristic": "RESISTANCE_ELEMENTARY",
     "value": 75
    }
-  ]
+  ],
+  "zenithId": 29497
  },
  {
   "stateId": 7077,
@@ -2757,7 +2888,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 5
    }
-  ]
+  ],
+  "zenithId": 29495
  },
  {
   "stateId": 7078,
@@ -2786,7 +2918,8 @@
     "characteristic": "MASTERY_HEALING",
     "value": 12
    }
-  ]
+  ],
+  "zenithId": 29507
  },
  {
   "stateId": 7079,
@@ -2805,7 +2938,8 @@
   "maxLevel": 4,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "Each time a critical hit is performed (5 activations per turn): | Preparation"
+  "rawText": "Each time a critical hit is performed (5 activations per turn): | Preparation",
+  "zenithId": 29504
  },
  {
   "stateId": 7081,
@@ -2824,7 +2958,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "20% Damage inflicted on targets without line of sight and 3 or more cells away from the state bearer"
+  "rawText": "20% Damage inflicted on targets without line of sight and 3 or more cells away from the state bearer",
+  "zenithId": 29510
  },
  {
   "stateId": 7088,
@@ -2843,7 +2978,8 @@
   "maxLevel": 4,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "At the start of combat, per MP above 4: | {'|'} 3% damage inflicted*2{'|'}% Damage inflicted (maximum 24)"
+  "rawText": "At the start of combat, per MP above 4: | {'|'} 3% damage inflicted*2{'|'}% Damage inflicted (maximum 24)",
+  "zenithId": 29513
  },
  {
   "stateId": 7115,
@@ -2872,7 +3008,8 @@
     "characteristic": "CRITICAL_HIT",
     "value": 25
    }
-  ]
+  ],
+  "zenithId": 29591
  },
  {
   "stateId": 7252,
@@ -2893,7 +3030,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": -10
    }
-  ]
+  ],
+  "zenithId": 29871
  },
  {
   "stateId": 7254,
@@ -2918,7 +3056,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": -25
    }
-  ]
+  ],
+  "zenithId": 29872
  },
  {
   "stateId": 7255,
@@ -2933,7 +3072,8 @@
   "maxLevel": 1,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "At the start of combat, if the state bearer has at least 3 Range: | 30% indirect damage inflicted"
+  "rawText": "At the start of combat, if the state bearer has at least 3 Range: | 30% indirect damage inflicted",
+  "zenithId": 29873
  },
  {
   "stateId": 7256,
@@ -2948,7 +3088,8 @@
   "maxLevel": 1,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "At the start of combat, if secondary masteries are less than or equal to 0: | +15% elemental masteries"
+  "rawText": "At the start of combat, if secondary masteries are less than or equal to 0: | +15% elemental masteries",
+  "zenithId": 29874
  },
  {
   "stateId": 7257,
@@ -2980,7 +3121,8 @@
     "characteristic": "MASTERY_HEALING",
     "value": 15
    }
-  ]
+  ],
+  "zenithId": 29875
  },
  {
   "stateId": 7258,
@@ -3005,7 +3147,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 100
    }
-  ]
+  ],
+  "zenithId": 29876
  },
  {
   "stateId": 7711,
@@ -3024,7 +3167,8 @@
   "maxLevel": 4,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "-18% Damage received when the bearer is not in line of sight | 9% Damage received when the bearer is in line of sight"
+  "rawText": "-18% Damage received when the bearer is not in line of sight | 9% Damage received when the bearer is in line of sight",
+  "zenithId": 30737
  },
  {
   "stateId": 7712,
@@ -3043,7 +3187,8 @@
   "maxLevel": 4,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "18% Damage inflicted in a diagonal line"
+  "rawText": "18% Damage inflicted in a diagonal line",
+  "zenithId": 30740
  },
  {
   "stateId": 7713,
@@ -3062,7 +3207,8 @@
   "maxLevel": 4,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "18% Damage inflicted on a target with armor"
+  "rawText": "18% Damage inflicted on a target with armor",
+  "zenithId": 30743
  },
  {
   "stateId": 7714,
@@ -3087,7 +3233,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 9
    }
-  ]
+  ],
+  "zenithId": 30746
  },
  {
   "stateId": 7717,
@@ -3106,7 +3253,8 @@
   "maxLevel": 4,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "-20% Heals received | When the bearer inflicts damage in a diagonal line: | Steals 12% of damage inflicted"
+  "rawText": "-20% Heals received | When the bearer inflicts damage in a diagonal line: | Steals 12% of damage inflicted",
+  "zenithId": 30749
  },
  {
   "stateId": 7719,
@@ -3131,7 +3279,8 @@
     "characteristic": "MASTERY_HEALING",
     "value": 15
    }
-  ]
+  ],
+  "zenithId": 30752
  },
  {
   "stateId": 7722,
@@ -3156,7 +3305,8 @@
     "characteristic": "BLOCK_PERCENTAGE",
     "value": 30
    }
-  ]
+  ],
+  "zenithId": 30763
  },
  {
   "stateId": 7853,
@@ -3175,7 +3325,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "At start of turn: | Converts 50% of current HP into Armor"
+  "rawText": "At start of turn: | Converts 50% of current HP into Armor",
+  "zenithId": 30946
  },
  {
   "stateId": 7855,
@@ -3194,7 +3345,8 @@
   "maxLevel": 4,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "Regains 7% of max HP as Armor by killing an enemy (2 activations per turn)"
+  "rawText": "Regains 7% of max HP as Armor by killing an enemy (2 activations per turn)",
+  "zenithId": 30952
  },
  {
   "stateId": 7856,
@@ -3213,7 +3365,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "Regains 1 AP by removing 2 AP or MP from an enemy (2 max per turn)"
+  "rawText": "Regains 1 AP by removing 2 AP or MP from an enemy (2 max per turn)",
+  "zenithId": 30949
  },
  {
   "stateId": 7859,
@@ -3238,7 +3391,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 15
    }
-  ]
+  ],
+  "zenithId": 30953
  },
  {
   "stateId": 7860,
@@ -3263,7 +3417,8 @@
     "characteristic": "MOVEMENT_POINT",
     "value": 1
    }
-  ]
+  ],
+  "zenithId": 30956
  },
  {
   "stateId": 7861,
@@ -3288,7 +3443,8 @@
     "characteristic": "ACTION_POINT",
     "value": 1
    }
-  ]
+  ],
+  "zenithId": 30960
  },
  {
   "stateId": 7862,
@@ -3313,7 +3469,8 @@
     "characteristic": "CRITICAL_HIT",
     "value": 20
    }
-  ]
+  ],
+  "zenithId": 30957
  },
  {
   "stateId": 7863,
@@ -3338,7 +3495,8 @@
     "characteristic": "CRITICAL_HIT",
     "value": 15
    }
-  ]
+  ],
+  "zenithId": 30973
  },
  {
   "stateId": 7864,
@@ -3363,7 +3521,8 @@
     "characteristic": "DODGE",
     "value": 250
    }
-  ]
+  ],
+  "zenithId": 30961
  },
  {
   "stateId": 7865,
@@ -3388,7 +3547,8 @@
     "characteristic": "LOCK",
     "value": 250
    }
-  ]
+  ],
+  "zenithId": 30967
  },
  {
   "stateId": 7867,
@@ -3407,7 +3567,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "After dodging (with loss): | 1 MP (2 max per turn)"
+  "rawText": "After dodging (with loss): | 1 MP (2 max per turn)",
+  "zenithId": 30964
  },
  {
   "stateId": 7868,
@@ -3426,7 +3587,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "After locking an enemy: | 250% of level as Armor"
+  "rawText": "After locking an enemy: | 250% of level as Armor",
+  "zenithId": 30970
  },
  {
   "stateId": 7870,
@@ -3451,7 +3613,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": -10
    }
-  ]
+  ],
+  "zenithId": 31000
  },
  {
   "stateId": 7872,
@@ -3466,7 +3629,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "At end of turn, per adjacent enemy: | 5% of max HP as Armor"
+  "rawText": "At end of turn, per adjacent enemy: | 5% of max HP as Armor",
+  "zenithId": 31001
  },
  {
   "stateId": 7873,
@@ -3481,7 +3645,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "At end of turn, if the bearer is facing an adjacent enemy: | 10% of max HP as Armor"
+  "rawText": "At end of turn, if the bearer is facing an adjacent enemy: | 10% of max HP as Armor",
+  "zenithId": 31002
  },
  {
   "stateId": 7874,
@@ -3496,7 +3661,8 @@
   "maxLevel": 1,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "30% damage inflicted on targets 7 or more cells away, otherwise -15%"
+  "rawText": "30% damage inflicted on targets 7 or more cells away, otherwise -15%",
+  "zenithId": 31003
  },
  {
   "stateId": 7875,
@@ -3511,7 +3677,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "When the bearer heals an ally, 25% of the healing is converted into Armor and 25% is lost"
+  "rawText": "When the bearer heals an ally, 25% of the healing is converted into Armor and 25% is lost",
+  "zenithId": 31004
  },
  {
   "stateId": 7876,
@@ -3530,7 +3697,8 @@
   "condition": {
    "type": "CRIT_AT_MOST",
    "value": 10
-  }
+  },
+  "zenithId": 30993
  },
  {
   "stateId": 7877,
@@ -3551,7 +3719,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 20
    }
-  ]
+  ],
+  "zenithId": 30994
  },
  {
   "stateId": 7878,
@@ -3566,7 +3735,8 @@
   "maxLevel": 1,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "At the start of combat, elemental masteries are set to 0 | 20% damage inflicted and heals performed"
+  "rawText": "At the start of combat, elemental masteries are set to 0 | 20% damage inflicted and heals performed",
+  "zenithId": 30995
  },
  {
   "stateId": 7879,
@@ -3581,7 +3751,8 @@
   "maxLevel": 1,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "At the start of combat, converts 50% of Elemental Mastery into Healing Mastery (at the rate of 1 to 1.3)"
+  "rawText": "At the start of combat, converts 50% of Elemental Mastery into Healing Mastery (at the rate of 1 to 1.3)",
+  "zenithId": 30996
  },
  {
   "stateId": 7880,
@@ -3602,7 +3773,8 @@
     "characteristic": "MASTERY_HEALING",
     "value": 30
    }
-  ]
+  ],
+  "zenithId": 30997
  },
  {
   "stateId": 7881,
@@ -3627,7 +3799,8 @@
     "characteristic": "WILLPOWER",
     "value": 20
    }
-  ]
+  ],
+  "zenithId": 30998
  },
  {
   "stateId": 7882,
@@ -3642,7 +3815,8 @@
   "maxLevel": 1,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "At the start of combat, if the state bearer has more Block than Critical Hit: | The Block is converted into Critical Hit"
+  "rawText": "At the start of combat, if the state bearer has more Block than Critical Hit: | The Block is converted into Critical Hit",
+  "zenithId": 30999
  },
  {
   "stateId": 8131,
@@ -3661,7 +3835,8 @@
   "maxLevel": 4,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "If the bearer has no Armor: | 15% Armor given"
+  "rawText": "If the bearer has no Armor: | 15% Armor given",
+  "zenithId": 31369
  },
  {
   "stateId": 8132,
@@ -3686,7 +3861,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 5
    }
-  ]
+  ],
+  "zenithId": 31371
  },
  {
   "stateId": 8366,
@@ -3707,7 +3883,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 5
    }
-  ]
+  ],
+  "zenithId": 31600
  },
  {
   "stateId": 8367,
@@ -3722,7 +3899,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "-100 Elemental Resistance | When the bearer inflicts melee damage: | Steals 25% of damage inflicted"
+  "rawText": "-100 Elemental Resistance | When the bearer inflicts melee damage: | Steals 25% of damage inflicted",
+  "zenithId": 31601
  },
  {
   "stateId": 8368,
@@ -3743,7 +3921,8 @@
     "characteristic": "RESISTANCE_ELEMENTARY",
     "value": 50
    }
-  ]
+  ],
+  "zenithId": 31602
  },
  {
   "stateId": 8370,
@@ -3767,7 +3946,8 @@
      "ranged": true
     }
    }
-  ]
+  ],
+  "zenithId": 31603
  },
  {
   "stateId": 8372,
@@ -3782,7 +3962,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "Each turn, 50% health stolen with the first spell to inflict damage"
+  "rawText": "Each turn, 50% health stolen with the first spell to inflict damage",
+  "zenithId": 31604
  },
  {
   "stateId": 8374,
@@ -3807,7 +3988,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 15
    }
-  ]
+  ],
+  "zenithId": 31605
  },
  {
   "stateId": 8375,
@@ -3822,7 +4004,8 @@
   "maxLevel": 1,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "30% Armor given on targets with no Armor | Otherwise, -100% Armor given"
+  "rawText": "30% Armor given on targets with no Armor | Otherwise, -100% Armor given",
+  "zenithId": 31606
  },
  {
   "stateId": 8376,
@@ -3837,7 +4020,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "If the bearer inflicted melee damage on an enemy during their turn: | 10% ranged damage inflicted for the following turn (1 time per turn, stackable 5 times)"
+  "rawText": "If the bearer inflicted melee damage on an enemy during their turn: | 10% ranged damage inflicted for the following turn (1 time per turn, stackable 5 times)",
+  "zenithId": 31607
  },
  {
   "stateId": 8379,
@@ -3870,7 +4054,8 @@
     "characteristic": "MASTERY_HEALING",
     "value": -30
    }
-  ]
+  ],
+  "zenithId": 31608
  },
  {
   "stateId": 8380,
@@ -3885,7 +4070,8 @@
   "maxLevel": 1,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "50 Elemental Resistance if the bearer has no Armor, otherwise -100 Elemental Resistance"
+  "rawText": "50 Elemental Resistance if the bearer has no Armor, otherwise -100 Elemental Resistance",
+  "zenithId": 31609
  },
  {
   "stateId": 8381,
@@ -3906,7 +4092,8 @@
     "characteristic": "ACTION_POINT",
     "value": 1
    }
-  ]
+  ],
+  "zenithId": 31610
  },
  {
   "stateId": 8382,
@@ -3927,7 +4114,8 @@
     "characteristic": "MOVEMENT_POINT",
     "value": 1
    }
-  ]
+  ],
+  "zenithId": 31611
  },
  {
   "stateId": 8383,
@@ -3942,7 +4130,8 @@
   "maxLevel": 1,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "If the bearer is moved outside of their turn: | Stabilized"
+  "rawText": "If the bearer is moved outside of their turn: | Stabilized",
+  "zenithId": 31612
  },
  {
   "stateId": 8384,
@@ -3961,7 +4150,8 @@
   "condition": {
    "type": "BLOCK_AT_LEAST",
    "value": 50
-  }
+  },
+  "zenithId": 31613
  },
  {
   "stateId": 8385,
@@ -3990,7 +4180,8 @@
     "characteristic": "WILLPOWER",
     "value": 10
    }
-  ]
+  ],
+  "zenithId": 31614
  },
  {
   "stateId": 8386,
@@ -4009,7 +4200,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "Outside the bearer's turn: -20 Force of Will | During the bearer's turn:  15 Force of Will"
+  "rawText": "Outside the bearer's turn: -20 Force of Will | During the bearer's turn:  15 Force of Will",
+  "zenithId": 31615
  },
  {
   "stateId": 8387,
@@ -4028,7 +4220,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "Outside the bearer's turn: 15 Force of Will | During the bearer's turn:  -20 Force of Will"
+  "rawText": "Outside the bearer's turn: 15 Force of Will | During the bearer's turn:  -20 Force of Will",
+  "zenithId": 31618
  },
  {
   "stateId": 8388,
@@ -4047,7 +4240,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "10% Damage Inflicted on targets 5 cells or further away"
+  "rawText": "10% Damage Inflicted on targets 5 cells or further away",
+  "zenithId": 31621
  },
  {
   "stateId": 8389,
@@ -4066,7 +4260,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "15% Damage Inflicted on targets exactly 3 cells away"
+  "rawText": "15% Damage Inflicted on targets exactly 3 cells away",
+  "zenithId": 31624
  },
  {
   "stateId": 8390,
@@ -4085,7 +4280,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "15% Block"
+  "rawText": "15% Block",
+  "zenithId": 31627
  },
  {
   "stateId": 8391,
@@ -4104,7 +4300,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "25 Critical Resistance"
+  "rawText": "25 Critical Resistance",
+  "zenithId": 31630
  },
  {
   "stateId": 8392,
@@ -4123,7 +4320,8 @@
   "maxLevel": 2,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "-1 max WP | At end of turn, if the bearer has not spent any WP: +1 WP"
+  "rawText": "-1 max WP | At end of turn, if the bearer has not spent any WP: +1 WP",
+  "zenithId": 31636
  },
  {
   "stateId": 8393,
@@ -4142,7 +4340,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "25 Rear Resistance"
+  "rawText": "25 Rear Resistance",
+  "zenithId": 31633
  },
  {
   "stateId": 8394,
@@ -4161,7 +4360,8 @@
   "maxLevel": 4,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "When the state bearer inflicts direct damage, once per turn: | Inflicts&nbsp;30% of level as Light damage on enemies aligned with the target"
+  "rawText": "When the state bearer inflicts direct damage, once per turn: | Inflicts&nbsp;30% of level as Light damage on enemies aligned with the target",
+  "zenithId": 31637
  },
  {
   "stateId": 8395,
@@ -4186,7 +4386,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": -6
    }
-  ]
+  ],
+  "zenithId": 31639
  },
  {
   "stateId": 8398,
@@ -4205,7 +4406,8 @@
   "maxLevel": 4,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "For each penalty or loss applied to an enemy: | Blood Stains"
+  "rawText": "For each penalty or loss applied to an enemy: | Blood Stains",
+  "zenithId": 31642
  },
  {
   "stateId": 8399,
@@ -4224,7 +4426,8 @@
   "maxLevel": 4,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "When the state bearer suffers ranged direct damage: | Inflicts 18% extra damage on the attacker | 1 turn, not stackable"
+  "rawText": "When the state bearer suffers ranged direct damage: | Inflicts 18% extra damage on the attacker | 1 turn, not stackable",
+  "zenithId": 31657
  },
  {
   "stateId": 8400,
@@ -4243,7 +4446,8 @@
   "maxLevel": 6,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "Shell"
+  "rawText": "Shell",
+  "zenithId": 31660
  },
  {
   "stateId": 8402,
@@ -4262,7 +4466,8 @@
   "maxLevel": 2,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "When the state bearer causes an enemy to lose Armor: | The state bearer inflicts light damage on the attacker (30% of level) (2 activations per turn)"
+  "rawText": "When the state bearer causes an enemy to lose Armor: | The state bearer inflicts light damage on the attacker (30% of level) (2 activations per turn)",
+  "zenithId": 31663
  },
  {
   "stateId": 8403,
@@ -4281,7 +4486,8 @@
   "maxLevel": 2,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "When the state bearer causes an enemy to lose Armor: | The state bearer recovers 1 AP (2 activations per turn)"
+  "rawText": "When the state bearer causes an enemy to lose Armor: | The state bearer recovers 1 AP (2 activations per turn)",
+  "zenithId": 31665
  },
  {
   "stateId": 8489,
@@ -4296,7 +4502,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "Each turn,  40% Armor given with the first Armor application;  -50% Armor given with all others"
+  "rawText": "Each turn,  40% Armor given with the first Armor application;  -50% Armor given with all others",
+  "zenithId": 31737
  },
  {
   "stateId": 8490,
@@ -4311,7 +4518,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "Every 3 spells cast: Critical Hit is set to 100."
+  "rawText": "Every 3 spells cast: Critical Hit is set to 100.",
+  "zenithId": 31738
  },
  {
   "stateId": 8492,
@@ -4332,7 +4540,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 20
    }
-  ]
+  ],
+  "zenithId": 31739
  },
  {
   "stateId": 8493,
@@ -4357,7 +4566,8 @@
     "characteristic": "CRITICAL_HIT",
     "value": 10
    }
-  ]
+  ],
+  "zenithId": 31710
  },
  {
   "stateId": 8494,
@@ -4382,7 +4592,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 6
    }
-  ]
+  ],
+  "zenithId": 31713
  },
  {
   "stateId": 8496,
@@ -4401,7 +4612,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "When below 20% of max HP (1 time per fight): | 25% of max HP as Armor"
+  "rawText": "When below 20% of max HP (1 time per fight): | 25% of max HP as Armor",
+  "zenithId": 31716
  },
  {
   "stateId": 8497,
@@ -4420,7 +4632,8 @@
   "maxLevel": 6,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "When below 20% of max HP (1 time per fight): | Healing: 25% of max HP"
+  "rawText": "When below 20% of max HP (1 time per fight): | Healing: 25% of max HP",
+  "zenithId": 31719
  },
  {
   "stateId": 8498,
@@ -4445,7 +4658,8 @@
     "characteristic": "RESISTANCE_ELEMENTARY",
     "value": 100
    }
-  ]
+  ],
+  "zenithId": 31722
  },
  {
   "stateId": 8499,
@@ -4470,7 +4684,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 6
    }
-  ]
+  ],
+  "zenithId": 31725
  },
  {
   "stateId": 8502,
@@ -4495,7 +4710,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 6
    }
-  ]
+  ],
+  "zenithId": 31728
  },
  {
   "stateId": 8505,
@@ -4520,7 +4736,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 6
    }
-  ]
+  ],
+  "zenithId": 31731
  },
  {
   "stateId": 8508,
@@ -4545,7 +4762,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 6
    }
-  ]
+  ],
+  "zenithId": 31734
  },
  {
   "stateId": 8518,
@@ -4564,7 +4782,8 @@
   "maxLevel": 4,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "12% damage inflicted in the Fire element {img_fire}"
+  "rawText": "12% damage inflicted in the Fire element {img_fire}",
+  "zenithId": 31645
  },
  {
   "stateId": 8519,
@@ -4583,7 +4802,8 @@
   "maxLevel": 4,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "12% damage inflicted in the Water element {img_water}"
+  "rawText": "12% damage inflicted in the Water element {img_water}",
+  "zenithId": 31648
  },
  {
   "stateId": 8520,
@@ -4602,7 +4822,8 @@
   "maxLevel": 4,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "12% damage inflicted in the Earth element {img_earth}"
+  "rawText": "12% damage inflicted in the Earth element {img_earth}",
+  "zenithId": 31651
  },
  {
   "stateId": 8521,
@@ -4621,7 +4842,8 @@
   "maxLevel": 4,
   "kind": "FLAT",
   "solverChoosable": false,
-  "rawText": "12% damage inflicted in the Air element {img_air}"
+  "rawText": "12% damage inflicted in the Air element {img_air}",
+  "zenithId": 31654
  },
  {
   "stateId": 9060,
@@ -4646,7 +4868,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 12
    }
-  ]
+  ],
+  "zenithId": 32627
  },
  {
   "stateId": 9062,
@@ -4671,7 +4894,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 30
    }
-  ]
+  ],
+  "zenithId": 32630
  },
  {
   "stateId": 9064,
@@ -4696,7 +4920,8 @@
     "characteristic": "DAMAGE_INFLICTED",
     "value": 18
    }
-  ]
+  ],
+  "zenithId": 32633
  },
  {
   "stateId": 9066,
@@ -4721,7 +4946,8 @@
     "characteristic": "MASTERY_HEALING",
     "value": 12
    }
-  ]
+  ],
+  "zenithId": 32636
  },
  {
   "stateId": 9067,
@@ -4746,7 +4972,8 @@
     "characteristic": "CRITICAL_HIT",
     "value": 30
    }
-  ]
+  ],
+  "zenithId": 32639
  },
  {
   "stateId": 9070,
@@ -4767,7 +4994,8 @@
     "characteristic": "MASTERY_HEALING",
     "value": 20
    }
-  ]
+  ],
+  "zenithId": 32640
  },
  {
   "stateId": 9071,
@@ -4782,7 +5010,8 @@
   "maxLevel": 1,
   "kind": "COMBAT_CONDITIONAL",
   "solverChoosable": false,
-  "rawText": "When performing a Block: -30% extra damage received, -100% Block"
+  "rawText": "When performing a Block: -30% extra damage received, -100% Block",
+  "zenithId": 32641
  },
  {
   "stateId": 9072,
@@ -4807,7 +5036,8 @@
     "characteristic": "ACTION_POINT",
     "value": 1
    }
-  ]
+  ],
+  "zenithId": 32642
  },
  {
   "stateId": 9073,
@@ -4832,7 +5062,8 @@
     "characteristic": "ACTION_POINT",
     "value": 1
    }
-  ]
+  ],
+  "zenithId": 32643
  },
  {
   "stateId": 9074,
@@ -4853,6 +5084,7 @@
     "characteristic": "CRITICAL_HIT",
     "value": 30
    }
-  ]
+  ],
+  "zenithId": 32644
  }
 ]

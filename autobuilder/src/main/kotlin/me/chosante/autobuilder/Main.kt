@@ -768,7 +768,8 @@ HUPPERMAGE"""
                         ZenithInputParameters(
                             character = character.copy(characterSkills = bestCombination.characterSkills),
                             equipments = bestCombination.equipments,
-                            runes = bestCombination.runes
+                            runes = bestCombination.runes,
+                            sublimations = bestCombination.sublimations
                         )
                     val link = zenithInputParameters.createZenithBuild()
                     terminal.println(TextStyles.bold("Zenith Build Link: $link"))

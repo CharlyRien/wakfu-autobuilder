@@ -11,22 +11,23 @@ import kotlinx.serialization.json.put
 private const val ADD_SHARD_URL = "$BASE_API_URL/shard/add"
 
 /**
- * Sockets one rune ("shard") into an item already added to the Zenith build. [side] must be the same
- * per-slot value [addEquipment] used for that item (so rings target their specific left/right side),
- * and [position] is the socket index on the item (0-based). Mirrors the zenithwakfu builder's
- * `/builder/api/shard/add` call: `{id_build, id_shard, position, side, level}`.
+ * Sockets one shard into an item already added to the Zenith build — a rune (with a [level]) or a
+ * sublimation (id = the sub's item id, [level] = null; sublimations socket like runes on Zenith).
+ * [side] must be the same per-slot value [addEquipment] used for that item (so rings target their
+ * specific left/right side), and [position] is the socket index on the item (0-based). Mirrors the
+ * zenithwakfu builder's `/builder/api/shard/add` call: `{id_build, id_shard, position, side, level}`.
  */
 internal suspend fun addShard(
     buildId: Long,
-    runeId: Int,
+    shardId: Int,
     position: Int,
     side: Int,
-    level: Int,
+    level: Int?,
 ) {
     val payload =
         buildJsonObject {
             put("id_build", buildId)
-            put("id_shard", runeId)
+            put("id_shard", shardId)
             put("position", position)
             put("side", side)
             put("level", level)

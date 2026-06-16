@@ -232,6 +232,7 @@ def build_entry_from_wakforge(sid, rows, wfe, en, maxlevel):
 
     entry = {
         "stateId": sid,
+        "zenithId": int(r0["id"]),  # the sublimation's item id = Zenith /shard/add id_shard
         "name": name,
         "rarity": rarity,
         "slotColorPattern": r0["slotColorPattern"],
@@ -305,6 +306,7 @@ def main():
             # unmatched and not manually curated: record metadata only, forced-only, inert
             entry = {
                 "stateId": sid,
+                "zenithId": int(r0["id"]),  # the sublimation's item id = Zenith /shard/add id_shard
                 "name": {"fr": r0["fr"], "en": r0["en"], "es": r0.get("es", r0["en"]), "pt": r0.get("pt", r0["en"])},
                 "rarity": "EPIC" if r0["isEpic"] else "RELIC" if r0["isRelic"] else "NORMAL",
                 "slotColorPattern": r0["slotColorPattern"],
@@ -340,6 +342,7 @@ def manual_to_entry(m, rows, ml):
     rarity = m.get("rarity") or ("EPIC" if r0["isEpic"] else "RELIC" if r0["isRelic"] else "NORMAL")
     entry = {
         "stateId": int(m["stateId"]),
+        "zenithId": int(r0["id"]),  # the sublimation's item id = Zenith /shard/add id_shard
         "name": {"fr": r0["fr"], "en": r0["en"], "es": r0.get("es", r0["en"]), "pt": r0.get("pt", r0["en"])},
         "rarity": rarity,
         "slotColorPattern": r0["slotColorPattern"],
