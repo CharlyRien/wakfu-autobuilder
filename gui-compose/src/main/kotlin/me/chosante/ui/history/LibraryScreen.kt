@@ -712,13 +712,13 @@ private fun BuildCard(
         // Class art behind the content: a very faint themed background, and the T-pose illustration
         // centered so it "stands" in the open middle of the U-shaped slot grid (where no item tile
         // covers it). Dimmed enough that the name/pills/buttons stay legible on top.
-        BreedBackground(clazz, modifier = Modifier.matchParentSize(), alpha = 0.12f)
+        BreedBackground(clazz, modifier = Modifier.matchParentSize(), alpha = 0.45f)
         Box(modifier = Modifier.matchParentSize(), contentAlignment = Alignment.Center) {
             BreedIllustration(
                 clazz = clazz,
                 modifier = Modifier.fillMaxHeight().widthIn(max = 150.dp),
                 contentScale = ContentScale.Fit,
-                alpha = 0.70f
+                alpha = 0.90f
             )
         }
         Column(
@@ -761,26 +761,66 @@ private fun BuildCard(
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Primary action keeps a text label (clearest); secondary actions are compact glyphs.
-                CardButton(
-                    text = tr(Tr.ACTION_LOAD),
-                    filled = true,
-                    color = WColor.accent,
-                    onClick = onLoad,
-                    modifier = Modifier.weight(1f)
-                )
-                ActionIconButton(glyph = "⇄", tooltip = tr(Tr.ACTION_COMPARE), onClick = onCompare)
-                ActionIconButton(glyph = "⧉", tooltip = tr(Tr.ACTION_DUPLICATE), onClick = onDuplicate)
-                ActionIconButton(glyph = "✎", tooltip = tr(Tr.ACTION_RENAME), onClick = onEdit)
-                ActionIconButton(glyph = "✕", tooltip = tr(Tr.ACTION_DELETE), hoverColor = WColor.danger, onClick = onDelete)
+            // Actions: a prominent Load button plus four glyph actions. They share one row when the
+            // card is wide enough; when it is too narrow for the Load label to sit beside the icons
+            // (the common case — the French "Charger" is wider than the English "Load"), the icons
+            // drop to their own row so Load spans the full width and never truncates to "Ch…".
+            val actionGap = 7.dp
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                // Width the four 34.dp icons + their gaps consume on a shared row; if what is left
+                // can't hold the Load label comfortably, switch to the stacked two-row layout.
+                val iconsRun = 34.dp * 4 + actionGap * 4
+                if (maxWidth - iconsRun >= 88.dp) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(actionGap),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CardButton(
+                            text = tr(Tr.ACTION_LOAD),
+                            filled = true,
+                            color = WColor.accent,
+                            onClick = onLoad,
+                            modifier = Modifier.weight(1f)
+                        )
+                        CardActionIcons(onCompare = onCompare, onDuplicate = onDuplicate, onEdit = onEdit, onDelete = onDelete)
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(actionGap)) {
+                        CardButton(
+                            text = tr(Tr.ACTION_LOAD),
+                            filled = true,
+                            color = WColor.accent,
+                            onClick = onLoad,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CardActionIcons(onCompare = onCompare, onDuplicate = onDuplicate, onEdit = onEdit, onDelete = onDelete)
+                        }
+                    }
+                }
             }
         }
     }
+}
+
+/** The four secondary card actions (compare / duplicate / rename / delete) as glyph buttons —
+ * shared by the one-row and stacked two-row action layouts. */
+@Composable
+private fun CardActionIcons(
+    onCompare: () -> Unit,
+    onDuplicate: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    ActionIconButton(glyph = "⇄", tooltip = tr(Tr.ACTION_COMPARE), onClick = onCompare)
+    ActionIconButton(glyph = "⧉", tooltip = tr(Tr.ACTION_DUPLICATE), onClick = onDuplicate)
+    ActionIconButton(glyph = "✎", tooltip = tr(Tr.ACTION_RENAME), onClick = onEdit)
+    ActionIconButton(glyph = "✕", tooltip = tr(Tr.ACTION_DELETE), hoverColor = WColor.danger, onClick = onDelete)
 }
 
 /** A small Compose-Desktop tooltip wrapper in the app's dark style. */
