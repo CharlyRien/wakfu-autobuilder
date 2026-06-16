@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.5.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.4.0...wakfu-autobuilder-1.5.0) (2026-06-16)
+
+
+### Features
+
+* **boss:** CLI boss mode — pick a boss, auto-pick the best element ([489c164](https://github.com/CharlyRien/wakfu-autobuilder/commit/489c164724db0ed6d040e6b514714be9da21d81e))
+* **gui:** class (breed) artwork — breedId mapping, assets, resolver ([207e102](https://github.com/CharlyRien/wakfu-autobuilder/commit/207e102518cd7a495ff1300590dc34b7cbd60b47))
+* **gui:** show app and game-data versions in the footer ([320ccd4](https://github.com/CharlyRien/wakfu-autobuilder/commit/320ccd4e212b88e0088aab1345f7be2cf43b7efb))
+* **gui:** TopBar — polish, responsive Direction-B wrap, search loader ([b4810af](https://github.com/CharlyRien/wakfu-autobuilder/commit/b4810af9138c3292017d296749603dcecdcc235b))
+
+
+### Bug Fixes
+
+* **gui:** build-card "Charger" button no longer truncates ([df1a87e](https://github.com/CharlyRien/wakfu-autobuilder/commit/df1a87eb11738b61736fb0167aba75add4ee3af0))
+
 ## [1.4.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.3.0...wakfu-autobuilder-1.4.0) (2026-06-14)
 
 
