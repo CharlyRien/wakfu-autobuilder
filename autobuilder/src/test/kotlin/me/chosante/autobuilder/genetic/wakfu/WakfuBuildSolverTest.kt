@@ -1321,6 +1321,101 @@ class WakfuBuildSolverTest {
             assertThat(socketed.count { it.characteristic == Characteristic.HP }).isGreaterThanOrEqualTo(1)
         }
 
+    @Test
+    fun `a per-item forced rune lands on its chosen carrier item and nowhere else`(): Unit =
+        runBlocking {
+            val level = 245
+            val character = Character(CharacterClass.CRA, level, level, CharacterSkills(level))
+            // Two socketed items in different slots; auto-fill off, so ONLY the forced rune is socketed.
+            val amulet = equipment(1, ItemType.AMULET, "Amu", mapOf(Characteristic.MASTERY_DISTANCE to 50), maxShardSlots = 4)
+            val ring = equipment(2, ItemType.RING, "Bague", mapOf(Characteristic.MASTERY_DISTANCE to 50), maxShardSlots = 4)
+            val distanceRune = RuneType(1, I18nText("Dist", "Dist", "Dist", "Dist"), RuneColor.RED, Characteristic.MASTERY_DISTANCE, listOf(10, 15), 0)
+            val hpRune = RuneType(2, I18nText("Vita", "Vita", "Vita", "Vita"), RuneColor.GREEN, Characteristic.HP, emptyList(), 0)
+            val targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1)))
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = targetStats,
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                    useRunes = false,
+                    // Pin the HP rune (id 2) onto the ring specifically.
+                    forcedRunesByItem = mapOf("Bague" to listOf(2))
+                )
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(
+                        params,
+                        listOf(amulet, ring).groupBy { it.itemType },
+                        listOf(distanceRune, hpRune),
+                        WakfuBuildSolver.SolverTuning()
+                    ).toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            val equippedRing = best.individual.equipments.single { it.itemType == ItemType.RING }
+            val equippedAmulet = best.individual.equipments.single { it.itemType == ItemType.AMULET }
+            // The forced HP rune sits on the ring, and nowhere else (auto-fill is off).
+            assertThat(
+                best.individual.runes[equippedRing]
+                    .orEmpty()
+                    .count { it.characteristic == Characteristic.HP }
+            ).isGreaterThanOrEqualTo(1)
+            assertThat(
+                best.individual.runes[equippedAmulet]
+                    .orEmpty()
+                    .count { it.characteristic == Characteristic.HP }
+            ).isZero()
+        }
+
+    @Test
+    fun `pinning a rune onto an item forces that item to be equipped even when it is worse`(): Unit =
+        runBlocking {
+            val level = 245
+            val character = Character(CharacterClass.CRA, level, level, CharacterSkills(level))
+            // Two amulets compete for the one slot: the solver would normally take the high-mastery one.
+            val betterAmulet = equipment(1, ItemType.AMULET, "AmuBest", mapOf(Characteristic.MASTERY_DISTANCE to 200), maxShardSlots = 4)
+            val worseAmulet = equipment(2, ItemType.AMULET, "AmuWorse", mapOf(Characteristic.MASTERY_DISTANCE to 10), maxShardSlots = 4)
+            val hpRune = RuneType(2, I18nText("Vita", "Vita", "Vita", "Vita"), RuneColor.GREEN, Characteristic.HP, emptyList(), 0)
+            val targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1)))
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = targetStats,
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                    useRunes = false,
+                    // Pin an HP rune onto the worse amulet — which must therefore be the one equipped.
+                    forcedRunesByItem = mapOf("AmuWorse" to listOf(2))
+                )
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(
+                        params,
+                        listOf(betterAmulet, worseAmulet).groupBy { it.itemType },
+                        listOf(hpRune),
+                        WakfuBuildSolver.SolverTuning()
+                    ).toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            val equippedAmulet = best.individual.equipments.single { it.itemType == ItemType.AMULET }
+            assertThat(equippedAmulet.name.fr).isEqualTo("AmuWorse")
+            assertThat(
+                best.individual.runes[equippedAmulet]
+                    .orEmpty()
+                    .count { it.characteristic == Characteristic.HP }
+            ).isGreaterThanOrEqualTo(1)
+        }
+
     // ---------------------------------------------------------------------------------------------
     // Sublimations (Lot 3): the solver chooses statically-modelable subs (epic/relic/normal) and
     // applies forced ones. Effects fold into the same stat term loop as items/runes.

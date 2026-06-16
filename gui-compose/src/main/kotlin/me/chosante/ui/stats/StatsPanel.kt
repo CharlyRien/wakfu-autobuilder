@@ -45,6 +45,7 @@ import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.label
+import me.chosante.ui.i18n.skillLabel
 import me.chosante.ui.i18n.tr
 import me.chosante.ui.state.Phase
 import me.chosante.ui.state.TargetRow
@@ -173,12 +174,21 @@ private fun MatchHero(ui: UiState) {
                     modifier = Modifier.padding(top = 4.dp)
                 )
             }
-            if (ui.build != null) {
+            // Only judge optimality once the search has actually FINISHED — during Searching the streamed
+            // best-so-far is naturally "not proven optimal" yet, so showing it then is premature/misleading.
+            if (ui.phase == Phase.Done && ui.build != null) {
                 Text(
                     text = tr(if (ui.optimal) Tr.OPTIMAL_PROVEN else Tr.BEST_FOUND),
                     style = WTypography.labelSmall.copy(color = if (ui.optimal) WColor.success else WColor.warning),
                     modifier = Modifier.padding(top = 3.dp)
                 )
+                if (!ui.optimal) {
+                    Text(
+                        text = tr(Tr.NOT_OPTIMAL_HINT),
+                        style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center),
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
             }
             if (!headlineNumberMode) {
                 Meter(
@@ -692,7 +702,7 @@ private fun SkillTree(skills: CharacterSkills) {
                                     }
                                 }
                                 Text(
-                                    text = line.name,
+                                    text = skillLabel(line.name, LocalLang.current),
                                     style =
                                         WTypography.bodySmall.copy(
                                             color = if (line.points > 0) WColor.text else WColor.muted,
