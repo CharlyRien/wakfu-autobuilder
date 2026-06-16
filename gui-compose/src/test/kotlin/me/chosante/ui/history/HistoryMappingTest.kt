@@ -198,7 +198,10 @@ class HistoryMappingTest {
                 healing = false,
                 critCapPercent = 80,
                 targetResistancePercent = 30,
-                baseDamage = 250
+                baseDamage = 250,
+                // Boss-aware per-element resistances (incl. a weakness) must survive the round-trip — this
+                // was silently dropped before, collapsing a saved boss-mode build back to single-element.
+                elementResistances = mapOf(SpellElement.WATER to 30, SpellElement.FIRE to -50, SpellElement.EARTH to 50, SpellElement.AIR to 0)
             )
         val ui =
             UiState(
@@ -211,6 +214,7 @@ class HistoryMappingTest {
 
         assertThat(entry.request.scenario.element).isEqualTo("WATER")
         assertThat(entry.request.scenario.orientation).isEqualTo("SIDE")
+        assertThat(entry.request.scenario.elementResistances).isEqualTo(mapOf("WATER" to 30, "FIRE" to -50, "EARTH" to 50, "AIR" to 0))
         assertThat(entry.restoredScenario()).isEqualTo(scenario)
     }
 

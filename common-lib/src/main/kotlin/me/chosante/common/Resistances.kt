@@ -26,11 +26,12 @@ object Resistances {
 
     /**
      * Percent → flat (the inverse of [flatToPercent]). Used to recover the boss's flat resistance from a
-     * percent-typed scenario so flat debuffs can be applied to it. Percent is clamped below 100 (a 100%
-     * reduction has no finite flat).
+     * percent-typed scenario so flat debuffs can be applied to it. Input is clamped at [MAX_PERCENT] — the
+     * same cap [flatToPercent] applies — so the two remain consistent inverses over the valid range (a
+     * percent above the cap is unreachable from any flat, so it has no meaningful flat to recover).
      */
     fun percentToFlat(percent: Int): Int {
-        val p = percent.coerceAtMost(99)
+        val p = percent.coerceAtMost(MAX_PERCENT)
         return (100.0 * ln(1.0 - p / 100.0) / ln(0.8)).roundToInt()
     }
 }

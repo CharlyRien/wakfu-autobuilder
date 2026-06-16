@@ -54,6 +54,9 @@ class SpellScraperTest {
         val d = SpellScraper.parseSpellPage(fixture("sudden-chill.html"))
         assertEquals(SpellElement.AIR, d.element)
         assertEquals(50, d.targetResistanceReductionFlat)
+        // Its reduction line carries no [enemy] picto, so the enemy target is NOT confirmed (it becomes a
+        // "resistanceTarget?" missing-field downstream and is excluded from rotation valuation).
+        assertEquals(false, d.resistanceTargetEnemyConfirmed)
     }
 
     @Test

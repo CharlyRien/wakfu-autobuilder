@@ -72,4 +72,57 @@ class SpellDamageTest {
         assertNull(SpellDamage.expectedDamage(passive, stats = emptyMap()))
         assertTrue(!passive.hasDamage)
     }
+
+    @Test
+    fun `resistance is capped so a huge resistance only reduces by the cap factor`() {
+        val r = SpellDamage.expectedDamage(blazingArrow, emptyMap(), targetResistancePercent = 100_000)!!
+        assertEquals(60.0 * (1.0 - 90 / 100.0), r.nonCrit, 1e-9) // 6.0
+    }
+
+    @Test
+    fun `weakness beyond the floor is clamped at -100 percent (factor 2x)`() {
+        val r = SpellDamage.expectedDamage(blazingArrow, emptyMap(), targetResistancePercent = -500)!!
+        assertEquals(120.0, r.nonCrit, 1e-9) // 60 × 2.0
+    }
+
+    @Test
+    fun `range, rear and berserk masteries fold in only when their flags are set`() {
+        val stats =
+            mapOf(
+                Characteristic.MASTERY_DISTANCE to 100,
+                Characteristic.MASTERY_BACK to 100,
+                Characteristic.MASTERY_BERSERK to 100
+            )
+        assertEquals(60.0, SpellDamage.expectedDamage(blazingArrow, stats)!!.nonCrit, 1e-9) // flags off ⇒ ignored
+        val withFlags =
+            SpellDamage.expectedDamage(
+                blazingArrow,
+                stats,
+                rangeBand = SpellDamage.RangeBand.DISTANCE,
+                rearMastery = true,
+                berserkMastery = true
+            )!!
+        assertEquals(240.0, withFlags.nonCrit, 1e-9) // 60 × (1 + 300/100)
+    }
+
+    @Test
+    fun `a large damage-inflicted malus is floored at -50 percent`() {
+        val r = SpellDamage.expectedDamage(blazingArrow, mapOf(Characteristic.DAMAGE_INFLICTED to -10_000))!!
+        assertEquals(30.0, r.nonCrit, 1e-9) // 60 × (1 − 50/100)
+    }
+
+    @Test
+    fun `critDamage falls back to the normal base when the spell exposes none`() {
+        val noCritBase = blazingArrow.copy(critDamage = null)
+        val r = SpellDamage.expectedDamage(noCritBase, mapOf(Characteristic.CRITICAL_HIT to 100))!!
+        assertEquals(75.0, r.crit, 1e-9) // crit base falls back to 60 → 60 × 1.25
+        assertEquals(r.crit, r.expected, 1e-9) // 100% crit ⇒ expected == crit
+    }
+
+    @Test
+    fun `negative critical mastery is clamped to zero in the crit term`() {
+        val stats = mapOf(Characteristic.CRITICAL_HIT to 100, Characteristic.MASTERY_CRITICAL to -500)
+        val r = SpellDamage.expectedDamage(blazingArrow, stats)!!
+        assertEquals(95.0, r.crit, 1e-9) // 76 × 1.25 × (1 + 0/100), negative crit mastery clamped to 0
+    }
 }

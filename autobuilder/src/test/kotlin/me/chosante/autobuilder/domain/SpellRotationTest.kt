@@ -60,6 +60,33 @@ class SpellRotationTest {
     }
 
     @Test
+    fun `a per-spell cap yields the exact capped optimum, not a greedy spam`() {
+        // A: 2 AP / 100, B: 3 AP / 160. Budget 6. Uncapped optimum spams B (B+B = 320).
+        val scored =
+            listOf(
+                ScoredSpell(spell(1, 2), apCost = 2, expectedDamagePerCast = 100.0),
+                ScoredSpell(spell(2, 3), apCost = 3, expectedDamagePerCast = 160.0)
+            )
+        assertThat(SpellRotationOptimizer.bestRotation(scored, apBudget = 6).totalExpectedDamage).isEqualTo(320.0)
+        // Cap 1 each: B can't be spammed; the true optimum is A+B = 5 AP / 260 (a greedy single-path cap
+        // could miss this — the bounded knapsack must find it exactly).
+        val capped = SpellRotationOptimizer.bestRotation(scored, apBudget = 6, maxCastsPerSpell = 1)
+        assertThat(capped.totalExpectedDamage).isEqualTo(260.0)
+        assertThat(capped.casts.map { it.count }).allSatisfy({ assertThat(it).isEqualTo(1) })
+    }
+
+    @Test
+    fun `sequencing ignores a resistance debuff whose enemy target is unconfirmed`() {
+        // IOP Focus carries −50 flat resistance but its enemy target is unconfirmed (missingFields contains
+        // "resistanceTarget?"), so it must NOT lower the boss's resistance in the valuation (never invent).
+        val character = Character(clazz = CharacterClass.IOP, level = 200, minLevel = 1)
+        val build = BuildCombination(equipments = emptyList(), characterSkills = CharacterSkills(200))
+        val highRes = DamageScenario(element = me.chosante.autobuilder.domain.SpellElement.FIRE, targetResistancePercent = 60)
+        val seq = SpellRotationOptimizer.bestSequencedRotation(build, character, CharacterClass.IOP, highRes, apBudget = 12)
+        assertThat(seq.debuffCasts).describedAs("Focus is target-unconfirmed ⇒ never used as an enemy debuff").isEmpty()
+    }
+
+    @Test
     fun `sequencing opens with the resistance debuff when there's AP room to profit, and skips it when there isn't`() {
         // Sram's Assassination (-100 flat resistance, 1 AP, pure debuff) should be cast FIRST against a
         // resistant boss — it raises every following hit — when there's AP left to benefit.

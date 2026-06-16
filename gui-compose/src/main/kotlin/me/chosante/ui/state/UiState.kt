@@ -276,7 +276,13 @@ fun UiState.requestedMasteryTotal(): Int =
     )
 
 /** Compact integer formatting: a thousands separator past 1000, plain otherwise. */
-fun Int.formatCompact(): String =
+fun Int.formatCompact(): String = toLong().formatCompact()
+
+/**
+ * [Long] overload so large expected-damage totals (which can exceed Int.MAX ≈ 2.1e9) format correctly
+ * instead of silently wrapping to a negative number when narrowed to Int.
+ */
+fun Long.formatCompact(): String =
     if (this >= 1000) {
         java.text.NumberFormat
             .getIntegerInstance(java.util.Locale.US)

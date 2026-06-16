@@ -78,13 +78,17 @@ object SpellDamage {
         if (rearMastery) mastery += v(Characteristic.MASTERY_BACK)
         if (berserkMastery) mastery += v(Characteristic.MASTERY_BERSERK)
 
-        val critMastery = v(Characteristic.MASTERY_CRITICAL)
+        // Clamp critical mastery at 0 to match the CP-SAT objective (which models it as a >=0 variable),
+        // so the engine's score and this rescoring agree for a build with negative critical mastery.
+        val critMastery = max(v(Characteristic.MASTERY_CRITICAL), 0)
         val damageInflicted = max(v(Characteristic.DAMAGE_INFLICTED), -DAMAGE_INFLICTED_FLOOR)
         val critRate =
             v(Characteristic.CRITICAL_HIT).coerceIn(0, 100).coerceAtMost(critCapPercent) / 100.0
 
+        // Resistance ∈ [−100, +90]%: the +90 cap and the −100 weakness floor (factor ≤ 2.0) match the
+        // CP-SAT objective's bounds, so the engine score and this rescoring agree at the extremes too.
         val resistanceFactor =
-            1.0 - targetResistancePercent.coerceAtMost(MAX_RESISTANCE_PERCENT) / 100.0
+            1.0 - targetResistancePercent.coerceIn(-100, MAX_RESISTANCE_PERCENT) / 100.0
         val diFactor = 1.0 + damageInflicted / 100.0
 
         val nonCrit = base * (1.0 + mastery / 100.0) * diFactor * resistanceFactor

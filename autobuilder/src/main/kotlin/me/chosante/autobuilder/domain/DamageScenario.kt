@@ -74,7 +74,9 @@ data class DamageScenario(
      */
     fun candidateElements(): List<Pair<SpellElement, Int>> =
         elementResistances
-            ?.let { res -> SpellElement.entries.map { it to (res[it] ?: 0) } }
+            // Only the elements the caller actually specified — don't invent a 0% (neutral) resistance for
+            // unspecified elements, which would let the solver "play" an element against an assumed-neutral boss.
+            ?.map { (spellElement, resistance) -> spellElement to resistance }
             ?: listOf(element to targetResistancePercent)
 
     companion object {

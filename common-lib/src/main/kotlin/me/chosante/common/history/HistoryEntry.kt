@@ -96,6 +96,11 @@ data class DamageScenarioSnapshot(
     val critCapPercent: Int = 100,
     val targetResistancePercent: Int = 0,
     val baseDamage: Int = 100,
+    /**
+     * Boss-aware per-element resistance map (`SpellElement` name → resistance %), or null for single-element
+     * mode. Without this, a saved boss-mode build round-tripped back to single-element FIRE on reload.
+     */
+    val elementResistances: Map<String, Int>? = null,
 )
 
 @Serializable

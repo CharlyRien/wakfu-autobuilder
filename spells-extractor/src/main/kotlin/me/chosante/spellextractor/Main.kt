@@ -4,6 +4,7 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import me.chosante.common.I18nText
 import me.chosante.common.Spell
+import me.chosante.common.findRepositoryRoot
 import java.io.File
 
 /**
@@ -120,7 +121,7 @@ private fun toSpell(
     // A captured resistance debuff whose target picto we couldn't confirm is kept but flagged — assumed
     // enemy (it's an active targeted spell) but not certain, so the gap is auditable, never invented.
     if (detail.targetResistanceReductionFlat != null && !detail.resistanceTargetEnemyConfirmed) {
-        missing += "resistanceTarget?"
+        missing += Spell.RESISTANCE_TARGET_UNCERTAIN_FLAG
     }
     return Spell(
         id = stub.id,
@@ -192,8 +193,3 @@ private fun printReport(
     println("\nWritten: ${outputFile.absolutePath} (${outputFile.length() / 1024} KB)")
     println("=============================================================")
 }
-
-private fun findRepositoryRoot(): File =
-    generateSequence(File(System.getProperty("user.dir")).absoluteFile) { it.parentFile }
-        .firstOrNull { File(it, "settings.gradle.kts").exists() }
-        ?: error("Unable to locate repository root from ${System.getProperty("user.dir")}")

@@ -107,7 +107,10 @@ object SpellScraper {
             // parser reads the localized class pages for name enrichment. The class-slug segment is
             // `[^/"]*` (not `+`): some classes (e.g. Ouginak) emit links with an empty slug —
             // `/classes/15-/6256-weigh-down` — and would otherwise be dropped entirely.
-            """<a[^>]+href="/[a-z]{2}/mmorpg/[a-z]+/classes/\d+-[^/"]*/(\d+)-([^"]+)"[^>]*class="([^"]*)"[^>]*title="([^"]*)"[^>]*>\s*<img[^>]+src="[^"]*spell/(\d+)\.png"""",
+            // `class="…"` is NOT required before `title="…"`: it was an unused capture that also forced a
+            // brittle attribute order (a page emitting title before class dropped every spell). `[^>]*`
+            // before `title=` tolerates any attribute order within the <a> tag.
+            """<a[^>]+href="/[a-z]{2}/mmorpg/[a-z]+/classes/\d+-[^/"]*/(\d+)-([^"]+)"[^>]*title="([^"]*)"[^>]*>\s*<img[^>]+src="[^"]*spell/(\d+)\.png"""",
             DOTALL
         )
 
@@ -139,6 +142,51 @@ object SpellScraper {
     private val TAGS = Regex("""<[^>]+>""")
     private val WS = Regex("""\s+""")
 
+    // Spells default to requiring line of sight; only these explicit phrases mean they do NOT.
+    private val NO_LINE_OF_SIGHT_PHRASES =
+        listOf("no line of sight", "without line of sight", "ignore line of sight", "ignores line of sight", "regardless of line of sight")
+
+    private val NUMERIC_ENTITY = Regex("&#(x?[0-9a-fA-F]+);")
+    private val NAMED_ENTITIES =
+        mapOf(
+            "&eacute;" to "é",
+            "&Eacute;" to "É",
+            "&egrave;" to "è",
+            "&ecirc;" to "ê",
+            "&Ecirc;" to "Ê",
+            "&icirc;" to "î",
+            "&iuml;" to "ï",
+            "&acirc;" to "â",
+            "&agrave;" to "à",
+            "&ucirc;" to "û",
+            "&ugrave;" to "ù",
+            "&ocirc;" to "ô",
+            "&ouml;" to "ö",
+            "&euml;" to "ë",
+            "&ccedil;" to "ç",
+            "&OElig;" to "Œ",
+            "&oelig;" to "œ",
+            "&rsquo;" to "'",
+            "&lsquo;" to "'",
+            "&quot;" to "\"",
+            "&lt;" to "<",
+            "&gt;" to ">",
+            "&amp;" to "&"
+        )
+
+    /** Decodes the HTML entities that appear in encyclopedia names/descriptions (named + numeric). */
+    private fun unescapeHtml(s: String): String {
+        var out = s
+        for ((entity, ch) in NAMED_ENTITIES) out = out.replace(entity, ch)
+        out =
+            NUMERIC_ENTITY.replace(out) { m ->
+                val body = m.groupValues[1]
+                val code = if (body[0].lowercaseChar() == 'x') body.drop(1).toInt(16) else body.toInt()
+                String(Character.toChars(code))
+            }
+        return out
+    }
+
     private fun text(html: String): String = WS.replace(TAGS.replace(html, " "), " ").trim()
 
     /** Parses the `(id, name, icon)` stubs from a class listing page. */
@@ -149,8 +197,8 @@ object SpellScraper {
                 SpellStub(
                     id = m.groupValues[1].toInt(),
                     slug = m.groupValues[2],
-                    name = m.groupValues[4].trim(),
-                    iconId = m.groupValues[5].toIntOrNull()
+                    name = unescapeHtml(m.groupValues[3].trim()),
+                    iconId = m.groupValues[4].toIntOrNull()
                 )
             }.distinctBy { it.id }
             .toList()
@@ -186,6 +234,7 @@ object SpellScraper {
                 ?.groupValues
                 ?.get(1)
                 ?.let { text(it) }
+                ?.let(::unescapeHtml)
                 ?.takeIf { it.isNotBlank() }
 
         val normalBlock = NORMAL_EFFECT.find(html)?.value ?: ""
@@ -213,7 +262,15 @@ object SpellScraper {
                 AREA_KEYWORDS.any { it in descLower } -> SpellArea.AREA
                 else -> SpellArea.SINGLE_TARGET
             }
-        val requiresLineOfSight = if (description == null) null else "line of sight" !in descLower
+        // Wakfu's default is that spells DO require line of sight; only flip to false when the text
+        // explicitly says otherwise. (The old `"line of sight" !in descLower` inverted the field for a
+        // spell whose description merely *mentions* line of sight, e.g. "requires line of sight".)
+        val requiresLineOfSight =
+            when {
+                description == null -> null
+                NO_LINE_OF_SIGHT_PHRASES.any { it in descLower } -> false
+                else -> true
+            }
 
         val category = if (apCost != null) SpellCategory.ACTIVE else SpellCategory.PASSIVE
 
@@ -222,7 +279,7 @@ object SpellScraper {
             if (apCost != null) parseResistanceReduction(normalBlock + critBlock) else null to false
 
         return SpellDetail(
-            name = name,
+            name = name?.let(::unescapeHtml),
             element = element,
             rawElement = rawElement,
             apCost = apCost,

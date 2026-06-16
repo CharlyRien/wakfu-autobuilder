@@ -299,7 +299,20 @@ class BuildSearchModel(
             } else {
                 ui.targets
             }
-        ui = ui.copy(mode = mode, targets = normalizedTargets)
+        // Switching mode invalidates any completed result: a build/match/rotation found under the old mode
+        // would be reinterpreted under the new mode's display rules. Clear it so the UI returns to Idle.
+        ui =
+            ui.copy(
+                mode = mode,
+                targets = normalizedTargets,
+                phase = Phase.Idle,
+                progress = 0,
+                match = java.math.BigDecimal.ZERO,
+                optimal = false,
+                build = null,
+                achieved = emptyMap(),
+                spellRotation = null
+            )
     }
 
     fun setScenario(scenario: DamageScenario) {
@@ -911,6 +924,17 @@ class BuildSearchModel(
     fun loadBuild(id: String) {
         val entry = ui.savedBuilds.firstOrNull { it.id == id } ?: return
         job?.cancel()
+        val loadedBuild = entry.toBuildCombination()
+        // Recompute the spell rotation for a loaded max-damage build (else the Rotation card would show a
+        // rotation left over from a prior search, or nothing). Cheap — no solver, just the rotation DP.
+        val rotation =
+            if (entry.restoredMode() == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+                val character =
+                    me.chosante.common.Character(entry.restoredClass(), entry.request.level, entry.request.minLevel, loadedBuild.characterSkills)
+                SpellRotationOptimizer.bestSequencedRotation(loadedBuild, character, character.clazz, entry.restoredScenario())
+            } else {
+                null
+            }
         ui =
             ui.copy(
                 screen = Screen.Builder,
@@ -930,7 +954,8 @@ class BuildSearchModel(
                 progress = 100,
                 match = entry.result.match.toBigDecimal(),
                 optimal = entry.result.optimal,
-                build = entry.toBuildCombination(),
+                build = loadedBuild,
+                spellRotation = rotation,
                 achieved = entry.result.achieved,
                 lastLandedEquipmentId = null,
                 zenith = if (entry.zenithUrl != null) ZenithState.Ready else ZenithState.Idle,

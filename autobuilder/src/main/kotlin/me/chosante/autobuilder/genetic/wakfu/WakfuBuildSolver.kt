@@ -725,7 +725,10 @@ object WakfuBuildSolver {
                 buildCombination = combination,
                 characterBaseCharacteristics = params.character.baseCharacteristicValues,
                 masteryElementsWanted = mapOf(params.damageScenario.element.masteryCharacteristic to 1),
-                resistanceElementsWanted = emptyMap()
+                // Pass the real resistance targets so the penalty's stats see RESISTANCE_ELEMENTARY / per-
+                // element resistances (an emptyMap made them read 0, mis-ranking builds when the user sets a
+                // required resistance in max-damage mode).
+                resistanceElementsWanted = params.targetStats.resistanceElementsWanted
             )
         val penalty = FindMaxDamageScoring.requiredConstraintPenaltyFactor(params.targetStats, stats)
         return rotationDamage.divide(penalty, 4, RoundingMode.FLOOR)
@@ -755,7 +758,8 @@ object WakfuBuildSolver {
             // throughput loss next to a responsive UI (and keeps the terminal responsive for the CLI).
             solver.parameters.maxPresolveIterations = 1
             solver.parameters.maxTimeInSeconds = params.searchDuration.inWholeSeconds.toDouble()
-            solver.parameters.numSearchWorkers = (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)
+            solver.parameters.numSearchWorkers =
+                params.solverWorkers ?: (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)
         } else {
             // Deterministic, machine-independent solve for tests — see [SolverTuning]. A fixed worker
             // count + seed + a deterministic-time budget (not wall-clock) make CP-SAT reach the same
@@ -1176,6 +1180,13 @@ object WakfuBuildSolver {
                     val table = SpellRotationOptimizer.baseThroughputTable(spells, MAX_ROTATION_AP.toInt())
                     if (table.all { it == 0L }) return@mapNotNull null
 
+                    if (table.max() > PER_TURN_THROUGHPUT_MAX) {
+                        System.err.println(
+                            "WARN: per-turn throughput for ${element.name} (${table.max()}) exceeds the " +
+                                "CP-SAT cap PER_TURN_THROUGHPUT_MAX=$PER_TURN_THROUGHPUT_MAX; the cap is binding and " +
+                                "distorts the max-damage objective — raise it for this dataset."
+                        )
+                    }
                     val clampedTable = LongArray(table.size) { table[it].coerceAtMost(PER_TURN_THROUGHPUT_MAX) }
                     val throughput = model.newIntVar(0L, clampedTable.max(), "throughput_${element.name}")
                     model.addElement(apVar, clampedTable, throughput)

@@ -504,7 +504,13 @@ HUPPERMAGE"""
                         else -> null
                     }
                 val resistance = value?.toIntOrNull()
-                if (element != null && resistance != null) element to resistance else null
+                when {
+                    element == null || resistance == null -> null
+                    // [-100, 90] = the engine's resistance range (+90% cap, −100% weakness floor); reject
+                    // out-of-range input instead of silently clamping it (unlike the unbounded prior parse).
+                    resistance !in -100..90 -> fail("--boss-resistances '$name' must be between -100 and 90, got $resistance")
+                    else -> element to resistance
+                }
             }.toMap()
             .ifEmpty { fail("Could not parse --boss-resistances; use e.g. 'fire:0,water:-90,earth:50,air:50'") }
     }
@@ -568,6 +574,14 @@ HUPPERMAGE"""
         if (targetStats.isEmpty() && computationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
             throw PrintMessage(
                 message = "No input stats given, stopping the program... Use --help flag for more information",
+                printError = true
+            )
+        }
+        // Max-damage rotates the class's real spell kit, so an unset class (UNKNOWN) yields a build with an
+        // empty, meaningless rotation — require --class up front rather than silently producing nonsense.
+        if (computationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE && characterClass == null) {
+            throw PrintMessage(
+                message = "Max-damage mode needs a class — pass --class so the engine knows which spells to cast.",
                 printError = true
             )
         }
@@ -638,10 +652,6 @@ HUPPERMAGE"""
                         terminal.println(it.characterSkills.agility.asASCIITable())
                         terminal.println("Major")
                         terminal.println(it.characterSkills.major.asASCIITable())
-                        if (it.runes.isNotEmpty()) {
-                            terminal.println("Runes")
-                            terminal.println(it.runes.asRunesASCIITable())
-                        }
                     }
 
             if (computationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
@@ -752,9 +762,15 @@ private fun spellRotationReport(
     }
     val debuffLines =
         rotation.debuffCasts.joinToString("") { cast ->
-            "  ↳ debuff: ${cast.spell.name.en} (${cast.apCost} AP, −${cast.spell.targetResistanceReductionFlat} res) " +
-                "→ target res now ${rotation.effectiveResistancePercent}%\n"
-        }
+            "  ↳ debuff: ${cast.spell.name.en} (${cast.apCost} AP, −${cast.spell.targetResistanceReductionFlat} res)\n"
+        } +
+            // Show the post-all-debuffs resistance ONCE — not on every line (it's the cumulative final
+            // value, not what each individual debuff reaches).
+            if (rotation.debuffCasts.isNotEmpty() && rotation.effectiveResistancePercent != null) {
+                "  → after debuffs, target resistance is ${rotation.effectiveResistancePercent}%\n"
+            } else {
+                ""
+            }
     val lines =
         rotation.casts.joinToString("\n") { cast ->
             "  ${cast.count}× ${cast.spell.name.en} " +
@@ -765,33 +781,6 @@ private fun spellRotationReport(
         "(${rotation.apUsed}/${rotation.apBudget} AP used)\n" +
         "  Note: per-turn cast limits aren't modeled yet — treat as an upper-bound suggestion."
 }
-
-private fun Map<Equipment, List<RuneType>>.asRunesASCIITable() =
-    table {
-        borderType = SQUARE_DOUBLE_SECTION_SEPARATOR
-        borderStyle = rgb("#4b25b9")
-        align = TextAlign.LEFT
-        tableBorders = Borders.NONE
-        header {
-            style = TextColors.brightRed + TextStyles.bold
-            row("Equipment", "Runes (socketed)") { cellBorders = Borders.BOTTOM }
-        }
-        body {
-            style = TextColors.green
-            column(0) { style = TextColors.brightBlue }
-            rowStyles(TextStyle(), TextStyles.dim.style)
-            cellBorders = Borders.TOP_BOTTOM
-            this@asRunesASCIITable.forEach { (equipment, runes) ->
-                val summary =
-                    runes
-                        .groupingBy { it.name.en }
-                        .eachCount()
-                        .entries
-                        .joinToString(", ") { (name, count) -> "${count}x $name" }
-                row(equipment.name.en, summary)
-            }
-        }
-    }
 
 private fun progressBar(terminal: Terminal): ThreadProgressTaskAnimator<String> =
     progressBarContextLayout {

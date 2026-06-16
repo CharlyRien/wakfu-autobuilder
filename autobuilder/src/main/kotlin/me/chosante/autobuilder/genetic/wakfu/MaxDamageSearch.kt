@@ -41,13 +41,25 @@ import kotlin.time.Duration.Companion.seconds
 object MaxDamageSearch {
     private const val AP_WINDOW_BELOW = 3
     private const val AP_WINDOW_ABOVE = 3
-    private const val MAX_AP_TARGET = 16
+    private const val MAX_AP_TARGET = 20 // matches WakfuBuildSolver.MAX_ROTATION_AP — the throughput table's AP range
     private const val MIN_AP_TARGET = 1
 
     fun run(
         baseParams: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         runes: List<RuneType>,
+    ): Flow<GeneticAlgorithmResult<BuildCombination>> = run(baseParams, equipmentsByItemType, runes, tuning = null)
+
+    /**
+     * [tuning] is for tests only: when supplied, every underlying solve runs the deterministic CP-SAT
+     * tuning (fixed workers/seed/det-time) instead of the wall-clock production path, so this loop is
+     * reproducible. Production passes null.
+     */
+    internal fun run(
+        baseParams: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        tuning: WakfuBuildSolver.SolverTuning?,
     ): Flow<GeneticAlgorithmResult<BuildCombination>> =
         callbackFlow {
             // Split the budget so the whole loop (unconstrained pass + parallel probes) fits ~one budget.
@@ -59,16 +71,18 @@ object MaxDamageSearch {
                 progress: Int,
             ) {
                 val score = sequencedScore(baseParams, result.individual)
-                val rescored = result.copy(matchPercentage = score)
-                if (best == null || score > best!!.matchPercentage) best = rescored
-                trySend(best!!.copy(progressPercentage = progress, isOptimal = false))
+                val current = best
+                if (current == null || score > current.matchPercentage) best = result.copy(matchPercentage = score)
+                // Never claim optimality: this external loop is a heuristic over a window of AP targets +
+                // debuff sequencing, so it does NOT prove a global optimum even when each solve does.
+                best?.let { trySend(it.copy(progressPercentage = progress, isOptimal = false)) }
             }
 
             val producer =
                 launch {
                     // Phase 1 (0–50%): the unconstrained solve, streamed live but re-scored debuff-aware.
                     WakfuBuildSolver
-                        .optimize(baseParams.copy(searchDuration = phaseBudget), equipmentsByItemType, runes)
+                        .optimize(baseParams.copy(searchDuration = phaseBudget), equipmentsByItemType, runes, tuning)
                         .collect { consider(it, (it.progressPercentage / 2).coerceIn(0, 50)) }
 
                     val a0 = best?.individual?.let { actualActionPoints(baseParams, it) } ?: BASE_ACTION_POINTS
@@ -78,6 +92,15 @@ object MaxDamageSearch {
                         ((a0 - AP_WINDOW_BELOW)..(a0 + AP_WINDOW_ABOVE))
                             .filter { it in MIN_AP_TARGET..MAX_AP_TARGET && it != a0 }
                             .toList()
+                    // Split the cores across the parallel probes so the batch doesn't spawn
+                    // probeCount × (cores−1) native threads and thrash the CPU (deterministic tuning sets
+                    // its own worker count, so only override in production).
+                    val probeWorkers =
+                        if (tuning == null) {
+                            ((Runtime.getRuntime().availableProcessors() - 1) / targets.size.coerceAtLeast(1)).coerceAtLeast(1)
+                        } else {
+                            null
+                        }
                     val probes =
                         coroutineScope {
                             targets
@@ -85,9 +108,10 @@ object MaxDamageSearch {
                                     async(Dispatchers.IO) {
                                         WakfuBuildSolver
                                             .optimize(
-                                                baseParams.copy(searchDuration = phaseBudget, maxDamageApTarget = target),
+                                                baseParams.copy(searchDuration = phaseBudget, maxDamageApTarget = target, solverWorkers = probeWorkers),
                                                 equipmentsByItemType,
-                                                runes
+                                                runes,
+                                                tuning
                                             ).toList()
                                             .maxByOrNull { it.matchPercentage }
                                     }
@@ -97,7 +121,7 @@ object MaxDamageSearch {
                         consider(probe, 50 + ((index + 1) * 50 / targets.size.coerceAtLeast(1)))
                     }
 
-                    best?.let { trySend(it.copy(progressPercentage = 100, isOptimal = true)) }
+                    best?.let { trySend(it.copy(progressPercentage = 100, isOptimal = false)) }
                     close()
                 }
             awaitClose { producer.cancel() }
@@ -115,7 +139,10 @@ object MaxDamageSearch {
                 buildCombination = build,
                 characterBaseCharacteristics = params.character.baseCharacteristicValues,
                 masteryElementsWanted = mapOf(params.damageScenario.element.masteryCharacteristic to 1),
-                resistanceElementsWanted = emptyMap()
+                // Pass the real resistance targets so the penalty's stats include RESISTANCE_ELEMENTARY /
+                // per-element resistances (an emptyMap read them as 0, so builds couldn't be ranked by a
+                // required resistance set in max-damage mode).
+                resistanceElementsWanted = params.targetStats.resistanceElementsWanted
             )
         val penalty = FindMaxDamageScoring.requiredConstraintPenaltyFactor(params.targetStats, stats)
         return rotation.totalExpectedDamage.toBigDecimal().divide(penalty, 4, RoundingMode.FLOOR)

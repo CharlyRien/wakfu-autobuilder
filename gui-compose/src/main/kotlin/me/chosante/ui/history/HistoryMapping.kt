@@ -160,7 +160,8 @@ fun DamageScenario.toSnapshot(): DamageScenarioSnapshot =
         healing = healing,
         critCapPercent = critCapPercent,
         targetResistancePercent = targetResistancePercent,
-        baseDamage = baseDamage
+        baseDamage = baseDamage,
+        elementResistances = elementResistances?.mapKeys { it.key.name }
     )
 
 /**
@@ -179,7 +180,12 @@ fun HistoryEntry.restoredScenario(): DamageScenario {
         healing = snapshot.healing,
         critCapPercent = snapshot.critCapPercent,
         targetResistancePercent = snapshot.targetResistancePercent,
-        baseDamage = snapshot.baseDamage
+        baseDamage = snapshot.baseDamage,
+        elementResistances =
+            snapshot.elementResistances
+                ?.mapNotNull { (name, res) -> runCatching { SpellElement.valueOf(name) }.getOrNull()?.let { it to res } }
+                ?.toMap()
+                ?.takeIf { it.isNotEmpty() }
     )
 }
 

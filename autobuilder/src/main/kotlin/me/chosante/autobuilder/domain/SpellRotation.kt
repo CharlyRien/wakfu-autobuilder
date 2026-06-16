@@ -82,36 +82,12 @@ object SpellRotationOptimizer {
             return SpellRotation(element, apBudget.coerceAtLeast(0), 0, emptyList(), 0.0)
         }
 
-        // dp[a] = max expected damage achievable with at most `a` AP; pick[a] = spell used to reach it
-        // (or -1 = carry the optimum from `a-1`, i.e. leave 1 AP idle). With a per-spell cap we also
-        // track how many times each spell was used along the best path to forbid exceeding it.
-        val dp = DoubleArray(apBudget + 1)
-        val pick = IntArray(apBudget + 1) { -1 }
-        for (a in 1..apBudget) {
-            dp[a] = dp[a - 1]
-            pick[a] = -1
-            for ((i, item) in items.withIndex()) {
-                if (item.apCost > a) continue
-                if (maxCastsPerSpell != null && countOnPath(pick, items, a - item.apCost, i) >= maxCastsPerSpell) continue
-                val candidate = dp[a - item.apCost] + item.expectedDamagePerCast
-                if (candidate > dp[a]) {
-                    dp[a] = candidate
-                    pick[a] = i
-                }
-            }
-        }
-
-        val counts = HashMap<Int, Int>()
-        var a = apBudget
-        while (a > 0) {
-            val i = pick[a]
-            if (i < 0) {
-                a -= 1
+        val counts =
+            if (maxCastsPerSpell == null) {
+                unboundedKnapsack(items, apBudget)
             } else {
-                counts[i] = (counts[i] ?: 0) + 1
-                a -= items[i].apCost
+                boundedKnapsack(items, apBudget, maxCastsPerSpell)
             }
-        }
 
         val casts =
             counts
@@ -126,25 +102,84 @@ object SpellRotationOptimizer {
         )
     }
 
-    /** Times spell [i] is used along the best path that reaches budget [a] (only used when capping). */
-    private fun countOnPath(
-        pick: IntArray,
+    /** Exact unbounded knapsack (each spell may repeat freely): `itemIndex -> cast count`. */
+    private fun unboundedKnapsack(
         items: List<ScoredSpell>,
-        a: Int,
-        i: Int,
-    ): Int {
-        var used = 0
-        var cur = a
-        while (cur > 0) {
-            val p = pick[cur]
-            if (p < 0) {
-                cur -= 1
-            } else {
-                if (p == i) used++
-                cur -= items[p].apCost
+        apBudget: Int,
+    ): Map<Int, Int> {
+        // dp[a] = max expected damage achievable with at most `a` AP; pick[a] = spell used to reach it
+        // (or -1 = carry the optimum from `a-1`, i.e. leave 1 AP idle).
+        val dp = DoubleArray(apBudget + 1)
+        val pick = IntArray(apBudget + 1) { -1 }
+        for (a in 1..apBudget) {
+            dp[a] = dp[a - 1]
+            for ((i, item) in items.withIndex()) {
+                if (item.apCost > a) continue
+                val candidate = dp[a - item.apCost] + item.expectedDamagePerCast
+                if (candidate > dp[a]) {
+                    dp[a] = candidate
+                    pick[a] = i
+                }
             }
         }
-        return used
+        val counts = HashMap<Int, Int>()
+        var a = apBudget
+        while (a > 0) {
+            val i = pick[a]
+            if (i < 0) {
+                a -= 1
+            } else {
+                counts[i] = (counts[i] ?: 0) + 1
+                a -= items[i].apCost
+            }
+        }
+        return counts
+    }
+
+    /**
+     * Exact bounded knapsack: each spell may be cast at most [cap] times. Solved as a 0/1 knapsack over
+     * [cap] identical copies per spell, so it yields the **true** capped optimum — not the greedy
+     * single-path approximation the old code used. This is the path the cast-limit data (`maxCastsPerSpell`)
+     * feeds, so it must be exact.
+     */
+    private fun boundedKnapsack(
+        items: List<ScoredSpell>,
+        apBudget: Int,
+        cap: Int,
+    ): Map<Int, Int> {
+        if (cap <= 0) return emptyMap()
+        // Expand to `cap` copies of each spell, keeping the original index so copies aggregate per spell.
+        val idx = ArrayList<Int>()
+        val ap = ArrayList<Int>()
+        val dmg = ArrayList<Double>()
+        items.forEachIndexed { i, item ->
+            repeat(cap) {
+                idx += i
+                ap += item.apCost
+                dmg += item.expectedDamagePerCast
+            }
+        }
+        val n = idx.size
+        // dp[k][a] = max damage using the first k copies within `a` AP (classic 0/1 knapsack).
+        val dp = Array(n + 1) { DoubleArray(apBudget + 1) }
+        for (k in 1..n) {
+            for (a in 0..apBudget) {
+                dp[k][a] = dp[k - 1][a]
+                if (ap[k - 1] <= a) {
+                    val candidate = dp[k - 1][a - ap[k - 1]] + dmg[k - 1]
+                    if (candidate > dp[k][a]) dp[k][a] = candidate
+                }
+            }
+        }
+        val counts = HashMap<Int, Int>()
+        var a = apBudget
+        for (k in n downTo 1) {
+            if (dp[k][a] != dp[k - 1][a]) { // copy k-1 was taken
+                counts[idx[k - 1]] = (counts[idx[k - 1]] ?: 0) + 1
+                a -= ap[k - 1]
+            }
+        }
+        return counts
     }
 
     /**
@@ -212,7 +247,9 @@ object SpellRotationOptimizer {
         val debuffSpells =
             SpellCatalog
                 .forClass(clazz)
-                .filter { it.isResistanceDebuff && (it.apCost ?: 0) in 1..budget }
+                // Only CONFIRMED enemy debuffs may lower the boss's resistance — an unconfirmed one might be
+                // a self/ally buff, so using it would invent an enemy debuff (never invent).
+                .filter { it.isConfirmedResistanceDebuff && (it.apCost ?: 0) in 1..budget }
                 // Keep the few strongest (reduction per AP) to bound the subset enumeration.
                 .sortedByDescending { (it.targetResistanceReductionFlat ?: 0).toDouble() / (it.apCost ?: 1) }
                 .take(MAX_DEBUFFS_CONSIDERED)
@@ -237,6 +274,9 @@ object SpellRotationOptimizer {
     ): SpellRotation {
         val commonElement = SpellElement.valueOf(element.name)
         val damageSpells = SpellCatalog.damageSpells(clazz).filter { it.element == commonElement }
+        // An element the class has no damage spells in is unplayable; don't attribute any damage to it —
+        // including a cross-element debuff's own hit, which would otherwise rank an unplayable element.
+        if (damageSpells.isEmpty()) return SpellRotation(commonElement, budget, 0, emptyList(), 0.0)
         val baseFlat = Resistances.percentToFlat(resistancePercent)
 
         var best: SpellRotation? = null
@@ -244,23 +284,30 @@ object SpellRotationOptimizer {
         for (subset in subsetsOf(debuffSpells)) {
             val apDebuff = subset.sumOf { it.apCost ?: 0 }
             if (apDebuff > budget) continue
-            val reducedFlat = baseFlat - subset.sumOf { it.targetResistanceReductionFlat ?: 0 }
-            val effectiveResistance = Resistances.flatToPercent(reducedFlat)
+            val totalReduction = subset.sumOf { it.targetResistanceReductionFlat ?: 0 }
+            val effectiveResistance = Resistances.flatToPercent(baseFlat - totalReduction)
 
-            // Damage rotation in the remaining AP, at the post-debuff resistance.
-            val scored = scoreSpells(damageSpells, build, character, scenario, effectiveResistance)
+            // Damage rotation in the remaining AP, at the post-debuff resistance. Exclude the forced debuff
+            // spells themselves so a dual-role (debuff + same-element damage) spell isn't both cast as the
+            // debuff and additionally spammed by the knapsack (which would double-list it and over-count AP).
+            val damagePool = damageSpells.filterNot { it in subset }
+            val scored = scoreSpells(damagePool, build, character, scenario, effectiveResistance)
             val rotation = bestRotation(scored, budget - apDebuff, commonElement)
 
-            // The debuff casts' own damage (if any), at the post-debuff resistance.
+            // Each debuff's OWN hit lands at the resistance reduced by the OTHER debuffs in the subset, not
+            // by its own reduction (a spell doesn't lower the target before its own hit — avoids the prior
+            // over-claim of scoring own-damage at the fully-reduced resistance).
             val debuffCasts =
                 subset.map { debuff ->
+                    val resBeforeOwn =
+                        Resistances.flatToPercent(baseFlat - (totalReduction - (debuff.targetResistanceReductionFlat ?: 0)))
                     val own =
-                        scoreSpells(listOf(debuff), build, character, scenario, effectiveResistance).firstOrNull()?.expectedDamagePerCast ?: 0.0
+                        scoreSpells(listOf(debuff), build, character, scenario, resBeforeOwn).firstOrNull()?.expectedDamagePerCast ?: 0.0
                     SpellCast(debuff, count = 1, apCost = debuff.apCost ?: 0, expectedDamagePerCast = own)
                 }
 
             val total = rotation.totalExpectedDamage + debuffCasts.sumOf { it.totalExpectedDamage }
-            if (best == null || total > best!!.totalExpectedDamage) {
+            if (best == null || total > best.totalExpectedDamage) {
                 best =
                     SpellRotation(
                         element = commonElement,

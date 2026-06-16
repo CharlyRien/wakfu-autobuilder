@@ -38,7 +38,9 @@ object FindMaxDamageScoring {
                 // Fold generic elemental mastery into the scenario's element so the read below already
                 // includes both the specific-element and the "+all elements" contributions.
                 masteryElementsWanted = mapOf(scenario.element.masteryCharacteristic to 1),
-                resistanceElementsWanted = emptyMap()
+                // Real resistance targets so the penalty's stats include RESISTANCE_ELEMENTARY / per-element
+                // resistances (an emptyMap read them as 0, so a required resistance couldn't rank builds).
+                resistanceElementsWanted = targetStats.resistanceElementsWanted
             )
 
         val expectedDamage = expectedDamage(stats, scenario)
@@ -67,7 +69,9 @@ object FindMaxDamageScoring {
             scenario.baseDamage.toDouble() *
                 (scenario.orientation.multiplierPercent / 100.0) *
                 (1.0 + damageInflicted / 100.0) *
-                (1.0 - scenario.targetResistancePercent.coerceIn(0, DamageScenario.MAX_RESISTANCE_PERCENT) / 100.0)
+                // Resistance ∈ [−100, +90]% (weakness raises damage, capped at 2.0×) — matches both
+                // SpellDamage.expectedDamage and the CP-SAT objective's resistance-factor bounds.
+                (1.0 - scenario.targetResistancePercent.coerceIn(-100, DamageScenario.MAX_RESISTANCE_PERCENT) / 100.0)
 
         val nonCrit = constantFactor * (1.0 + masteryBase / 100.0)
         val crit = constantFactor * 1.25 * (1.0 + (masteryBase + critMastery) / 100.0)

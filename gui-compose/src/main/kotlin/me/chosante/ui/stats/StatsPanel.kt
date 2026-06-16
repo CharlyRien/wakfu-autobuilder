@@ -222,7 +222,16 @@ private fun SpellRotationCard(ui: UiState) {
             Text(
                 text =
                     "↳ ${cast.spell.name.let { if (lang == Lang.FR) it.fr else it.en }} " +
-                        "(${cast.apCost} AP, −${cast.spell.targetResistanceReductionFlat} res → ${rotation.effectiveResistancePercent}%)",
+                        "(${cast.apCost} AP, −${cast.spell.targetResistanceReductionFlat} res)",
+                style = WTypography.labelSmall.copy(color = WColor.accent2),
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+        }
+        // The post-all-debuffs resistance, shown ONCE — not on every debuff line (it's the cumulative
+        // final value, not what each individual debuff reaches).
+        if (rotation.debuffCasts.isNotEmpty() && rotation.effectiveResistancePercent != null) {
+            Text(
+                text = "→ ${rotation.effectiveResistancePercent}% res after debuffs",
                 style = WTypography.labelSmall.copy(color = WColor.accent2),
                 modifier = Modifier.padding(bottom = 4.dp)
             )
@@ -251,7 +260,7 @@ private fun SpellRotationCard(ui: UiState) {
                 )
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    text = "~${cast.totalExpectedDamage.toLong().toInt().formatCompact()}",
+                    text = "~${cast.totalExpectedDamage.toLong().formatCompact()}",
                     style = WTypography.bodyMedium.copy(fontFamily = WType.mono, color = WColor.text)
                 )
             }
@@ -267,7 +276,7 @@ private fun SpellRotationCard(ui: UiState) {
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = "${rotation.totalExpectedDamage.toLong().toInt().formatCompact()}  (${rotation.apUsed}/${rotation.apBudget} AP)",
+                text = "${rotation.totalExpectedDamage.toLong().formatCompact()}  (${rotation.apUsed}/${rotation.apBudget} AP)",
                 style = WTypography.bodyMedium.copy(fontFamily = WType.mono)
             )
         }

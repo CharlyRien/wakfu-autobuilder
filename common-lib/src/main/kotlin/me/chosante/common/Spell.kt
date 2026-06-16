@@ -89,4 +89,17 @@ data class Spell(
 
     /** True when this active spell removes resistance from the target (usable as a rotation-opening debuff). */
     val isResistanceDebuff: Boolean get() = (targetResistanceReductionFlat ?: 0) > 0
+
+    /**
+     * True when [isResistanceDebuff] **and** the extractor confirmed the reduction targets the enemy (no
+     * [RESISTANCE_TARGET_UNCERTAIN_FLAG] in [missingFields]). Only confirmed debuffs may lower a boss's
+     * resistance in rotation valuation — an unconfirmed one might be a self/ally buff, so using it would
+     * invent an enemy debuff that may not exist.
+     */
+    val isConfirmedResistanceDebuff: Boolean get() = isResistanceDebuff && RESISTANCE_TARGET_UNCERTAIN_FLAG !in missingFields
+
+    companion object {
+        /** [missingFields] marker the extractor adds when a resistance debuff's enemy target is unconfirmed. */
+        const val RESISTANCE_TARGET_UNCERTAIN_FLAG = "resistanceTarget?"
+    }
 }

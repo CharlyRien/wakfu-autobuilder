@@ -25,8 +25,11 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -352,11 +355,20 @@ private fun ScenarioNumberField(
     onValueChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Hold the raw text locally so the user can clear the field / type intermediate values without the
+    // cursor jumping (driving a BasicTextField directly from value.toString() reformats every keystroke).
+    var text by remember { mutableStateOf(value.toString()) }
+    // Resync only when the external value actually diverges (e.g. a mode reset), never mid-typing.
+    LaunchedEffect(value) { if ((text.toIntOrNull() ?: 0) != value) text = value.toString() }
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(text = label, style = WTypography.labelSmall.copy(color = WColor.muted))
         BasicTextField(
-            value = value.toString(),
-            onValueChange = { text -> onValueChange(text.filter { it.isDigit() }.take(3).toIntOrNull() ?: 0) },
+            value = text,
+            onValueChange = { raw ->
+                val filtered = raw.filter { it.isDigit() }.take(3)
+                text = filtered
+                onValueChange(filtered.toIntOrNull() ?: 0)
+            },
             singleLine = true,
             textStyle = WTypography.bodySmall.copy(color = WColor.text, fontFamily = WType.mono),
             cursorBrush = SolidColor(WColor.accent),

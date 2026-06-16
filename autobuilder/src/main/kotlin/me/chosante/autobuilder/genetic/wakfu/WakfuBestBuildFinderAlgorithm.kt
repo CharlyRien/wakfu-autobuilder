@@ -138,4 +138,8 @@ data class WakfuBestBuildParams(
     // AP, so the loop can probe each AP breakpoint (the CP-SAT objective alone can't see a breakpoint
     // that only pays off once resistance debuffs are sequenced). Ignored by the other modes.
     val maxDamageApTarget: Int? = null,
+    // Overrides the production CP-SAT worker count (default = cores − 1). The max-damage loop sets this so
+    // its **parallel** AP probes don't each spawn cores−1 native threads and oversubscribe the CPU. Null =
+    // default. Ignored when a deterministic SolverTuning is supplied.
+    val solverWorkers: Int? = null,
 )
