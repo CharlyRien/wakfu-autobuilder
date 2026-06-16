@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.Json
 import me.chosante.autobuilder.VERSION
 import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
 import me.chosante.common.Character
@@ -56,7 +57,13 @@ object WakfuBestBuildFinderAlgorithm {
             )
 
         return try {
-            WakfuBuildSolver.optimize(params, equipmentsByItemType, runes)
+            // Max-damage routes through the external loop (AP-breakpoint probes + debuff-aware
+            // sequencing valuation). Every other mode is a single CP-SAT solve, unchanged.
+            if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+                MaxDamageSearch.run(params, equipmentsByItemType, runes)
+            } else {
+                WakfuBuildSolver.optimize(params, equipmentsByItemType, runes)
+            }
         } catch (exception: Exception) {
             // Surface the failure to the caller instead of killing the JVM: the CLI's runBlocking
             // turns it into a visible crash, while the GUI can catch it and show an error rather than
@@ -124,4 +131,15 @@ data class WakfuBestBuildParams(
     // When true (default), the OR-Tools solver socket-fills equipped items with the best runes for the
     // requested stats (best-achievable model). See RuneType / WakfuBuildSolver.createRuneModel.
     val useRunes: Boolean = true,
+    // The attack scenario optimized by ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE (ignored by the
+    // other modes).
+    val damageScenario: DamageScenario = DamageScenario(),
+    // Max-damage external loop only: when set, the solver is hard-constrained to **exactly** this many
+    // AP, so the loop can probe each AP breakpoint (the CP-SAT objective alone can't see a breakpoint
+    // that only pays off once resistance debuffs are sequenced). Ignored by the other modes.
+    val maxDamageApTarget: Int? = null,
+    // Overrides the production CP-SAT worker count (default = cores − 1). The max-damage loop sets this so
+    // its **parallel** AP probes don't each spawn cores−1 native threads and oversubscribe the CPU. Null =
+    // default. Ignored when a deterministic SolverTuning is supplied.
+    val solverWorkers: Int? = null,
 )

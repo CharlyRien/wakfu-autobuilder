@@ -14,6 +14,10 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.SpellCatalog
+import me.chosante.autobuilder.domain.SpellElement
+import me.chosante.autobuilder.domain.SpellRotationOptimizer
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
@@ -28,6 +32,7 @@ import me.chosante.common.skills.SkillCharacteristic
 import me.chosante.common.skills.UnitType
 import java.math.BigDecimal
 import java.math.BigInteger
+import java.math.RoundingMode
 import kotlin.math.ceil
 import kotlin.math.min
 import kotlin.math.roundToLong
@@ -42,6 +47,32 @@ object WakfuBuildSolver {
     private const val MASTERY_SCORE_ABS_MAX = 100_000_000L
     private const val MAX_POWER_TABLE_INDEX = 2_000
     private const val MAX_PENALTY_MULTIPLIER = 1_000_000L
+
+    // Bounds for the max-damage objective's nonlinear terms. Masteries / DI are clamped into these
+    // (well above any real build) so the CP-SAT multiplication variables keep small, stable domains.
+    private const val DAMAGE_MASTERY_MAX = 100_000L
+    private const val DAMAGE_DI_MAX = 5_000L
+    private const val DAMAGE_DI_FLOOR = 50L
+    private const val CLAMP_INTERMEDIATE_MAX = 8_000_000_000L
+    private const val DAMAGE_GRAW_MAX = 400L * DAMAGE_MASTERY_MAX + 100L * (DAMAGE_MASTERY_MAX * 6)
+    private const val DAMAGE_SCORE_ABS_MAX = (100L + DAMAGE_DI_MAX) * DAMAGE_GRAW_MAX
+
+    // Spell-aware / boss-aware per-turn damage (max-damage mode only). The per-turn value is
+    // `(throughput × perHit) × resFactor`, scaled to keep every CP-SAT variable domain modest (≤ ~6e13,
+    // well inside int64 so presolve never overflows) while preserving ranking resolution. The per-hit
+    // core is first divided by [PERHIT_DOWNSCALE] (keeps ~5M levels — fine even for low-level builds),
+    // then the `× resFactor` product is divided by [FINAL_DOWNSCALE] so the value — and then the
+    // power-6 constraint penalty (× MAX_PENALTY_MULTIPLIER) — stays under Long.MAX/2.
+    private const val MAX_ROTATION_AP = 20L
+    private const val PER_TURN_THROUGHPUT_MAX = 60_000L
+    private const val RES_FACTOR_MIN = 10L // res capped at +90% → factor ≥ 10
+    private const val RES_FACTOR_MAX = 200L // weakness floored at −100% → factor ≤ 200
+    private const val PERHIT_DOWNSCALE = 100_000L
+    private const val PERHIT_SCALED_MAX = DAMAGE_SCORE_ABS_MAX / PERHIT_DOWNSCALE + 1 // ≈ 5.1e6
+    private const val ROTATION_RAW_MAX = PER_TURN_THROUGHPUT_MAX * PERHIT_SCALED_MAX // ≈ 3.06e11
+    private const val ROTATION_RAW_RES_MAX = ROTATION_RAW_MAX * RES_FACTOR_MAX // ≈ 6.12e13
+    private const val FINAL_DOWNSCALE = 20L
+    private const val DAMAGE_PERTURN_ABS_MAX = ROTATION_RAW_RES_MAX / FINAL_DOWNSCALE // ≈ 3.06e12
 
     // Lexicographic scale for the "most masteries" overshoot tie-breaker. The primary objective tops
     // out at MASTERY_SCORE_ABS_MAX * MAX_PENALTY_MULTIPLIER = 1e14; multiplying it by this scale and
@@ -304,6 +335,9 @@ object WakfuBuildSolver {
 
                         ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
                             model.buildPrecisionObjective(params, allEquips, equipVars, skillVars, runeModel)
+
+                        ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE ->
+                            model.buildMaxDamageObjective(params, allEquips, equipVars, skillVars, runeModel)
                     }
                 model.maximize(objective)
 
@@ -395,6 +429,17 @@ object WakfuBuildSolver {
                 Characteristic.RESISTANCE_ELEMENTARY -> result.addAll(ELEMENTARY_RESISTANCES)
                 else -> result.add(characteristic)
             }
+        }
+        // Max-damage mode socket-fills the masteries that drive the scenario's damage, even when they
+        // are not in targetStats (which there only carry hard AP/MP/range/… constraints).
+        if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+            val scenario = params.damageScenario
+            result.add(Characteristic.MASTERY_ELEMENTARY)
+            result.add(scenario.rangeBand.masteryCharacteristic)
+            result.add(Characteristic.MASTERY_CRITICAL)
+            if (scenario.orientation.grantsRearMastery) result.add(Characteristic.MASTERY_BACK)
+            if (scenario.berserk) result.add(Characteristic.MASTERY_BERSERK)
+            if (scenario.healing) result.add(Characteristic.MASTERY_HEALING)
         }
         return result.intersect(runeCharacteristics)
     }
@@ -497,31 +542,18 @@ object WakfuBuildSolver {
         val targetStats = params.targetStats
         val targetCharacteristics = targetStats.map { it.characteristic }.toSet()
 
+        val masteryScore = statBuilder.finalMasteryScore(targetStats, targetCharacteristics)
+
         val requiredTargets = targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }
+        val penalized = applyConstraintPenalty(params, statBuilder, masteryScore, MASTERY_SCORE_ABS_MAX)
+        if (requiredTargets.isEmpty()) {
+            return penalized.objective
+        }
+
         val totalExpectedScore =
             requiredTargets
                 .sumOf { it.target.toLong() * targetStats.scaledWeight(it) }
                 .coerceAtLeast(1L)
-
-        val masteryScore = statBuilder.finalMasteryScore(targetStats, targetCharacteristics)
-
-        if (requiredTargets.isEmpty()) {
-            return masteryScore
-        }
-
-        val totalActualScore = statBuilder.totalActualScore(requiredTargets, totalExpectedScore, targetStats)
-        val totalActualScoreForPenalty = maxVar(totalActualScore, 1L, totalExpectedScore, "totalActualScoreForPenalty")
-
-        val (indexVar, maxIndex) = bucketedIndex(totalActualScoreForPenalty, totalExpectedScore)
-        val powerTable = buildPowerTable(maxIndex.toLong(), MASTERY_SCORE_ABS_MAX)
-
-        val multiplier = newIntVar(0, powerTable.maxValue, "penaltyMultiplier")
-        addElement(indexVar, powerTable.values, multiplier)
-
-        val maxObjective = safeMultiply(MASTERY_SCORE_ABS_MAX, powerTable.maxValue)
-        val objectiveBound = maxObjective.coerceAtMost(Long.MAX_VALUE / 2)
-        val primaryObjective = newIntVar(-objectiveBound, objectiveBound, "objectiveScore")
-        addMultiplicationEquality(primaryObjective, masteryScore, multiplier)
 
         // Lexicographic tie-breaker: among builds the primary objective ranks equally, prefer the one
         // that exceeds the required targets the most (weighted by the same per-constraint priorities).
@@ -530,8 +562,77 @@ object WakfuBuildSolver {
         // value the player would always take. It can never trade a maximized-mastery point for
         // overshoot; see [withOvershootTieBreaker].
         val overshoot = statBuilder.overshootScore(requiredTargets, totalExpectedScore, targetStats)
-        return withOvershootTieBreaker(primaryObjective, objectiveBound, overshoot, totalExpectedScore)
+        return withOvershootTieBreaker(penalized.objective, penalized.bound, overshoot, totalExpectedScore)
     }
+
+    /**
+     * Objective for "max-damage" mode: maximize expected damage for the requested [DamageScenario]
+     * (Wakfu's exact formula, see [FindMaxDamageScoring]). The build-dependent core is the product
+     * `D · Graw` with `D = 100 + ΣDI`, `Graw = 400·M + crit·(M + 5·criticalMastery)` and
+     * `M = 100 + ΣMastery` — derived so that `D·Graw ∝ E[dmg]` (the scenario's constant Base /
+     * orientation / resistance factors are dropped since they scale every build equally). Required
+     * AP/MP/range/… targets are then enforced with the same shortfall penalty as most-masteries mode.
+     * Unlike most-masteries this has no overshoot tie-breaker: the damage objective already strongly
+     * differentiates builds, so there is no large class of objective-ties left to refine.
+     */
+    private fun CpModel.buildMaxDamageObjective(
+        params: WakfuBestBuildParams,
+        allEquips: List<Equipment>,
+        equipVars: Map<Equipment, IntVar>,
+        skillVars: Map<SkillCharacteristic, IntVar>,
+        runeModel: RuneModel,
+    ): IntVar {
+        val statBuilder = StatBuilder(this, params, allEquips, equipVars, skillVars, runeModel)
+        // External-loop AP probe: pin the build to exactly N AP so each breakpoint can be evaluated.
+        params.maxDamageApTarget?.let { addEquality(statBuilder.actionPointVar(), newConstant(it.toLong())) }
+        val damageScore = statBuilder.perTurnDamageScore(params.damageScenario, params.character.clazz)
+        return applyConstraintPenalty(params, statBuilder, damageScore, DAMAGE_PERTURN_ABS_MAX).objective
+    }
+
+    /**
+     * Wraps a build-dependent [coreScore] (mastery sum or expected damage) with the required-target
+     * shortfall penalty: when no required targets exist the core score is the objective; otherwise it
+     * is multiplied by a power-6 penalty multiplier driven by how fully the AP/MP/range/… constraints
+     * are met. Returns the penalized objective var and the absolute bound of its domain — the latter is
+     * what the most-masteries overshoot tie-breaker needs. [coreScoreAbsMax] bounds the result.
+     */
+    private fun CpModel.applyConstraintPenalty(
+        params: WakfuBestBuildParams,
+        statBuilder: StatBuilder,
+        coreScore: IntVar,
+        coreScoreAbsMax: Long,
+    ): PenalizedObjective {
+        val targetStats = params.targetStats
+        val requiredTargets = targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }
+        if (requiredTargets.isEmpty()) {
+            return PenalizedObjective(coreScore, coreScoreAbsMax)
+        }
+
+        val totalExpectedScore =
+            requiredTargets
+                .sumOf { it.target.toLong() * targetStats.scaledWeight(it) }
+                .coerceAtLeast(1L)
+
+        val totalActualScore = statBuilder.totalActualScore(requiredTargets, totalExpectedScore, targetStats)
+        val totalActualScoreForPenalty = maxVar(totalActualScore, 1L, totalExpectedScore, "totalActualScoreForPenalty")
+
+        val (indexVar, maxIndex) = bucketedIndex(totalActualScoreForPenalty, totalExpectedScore)
+        val powerTable = buildPowerTable(maxIndex.toLong(), coreScoreAbsMax)
+
+        val multiplier = newIntVar(0, powerTable.maxValue, "penaltyMultiplier")
+        addElement(indexVar, powerTable.values, multiplier)
+
+        val maxObjective = safeMultiply(coreScoreAbsMax, powerTable.maxValue)
+        val objectiveBound = maxObjective.coerceAtMost(Long.MAX_VALUE / 2)
+        val objective = newIntVar(-objectiveBound, objectiveBound, "objectiveScore")
+        addMultiplicationEquality(objective, coreScore, multiplier)
+        return PenalizedObjective(objective, objectiveBound)
+    }
+
+    private data class PenalizedObjective(
+        val objective: IntVar,
+        val bound: Long,
+    )
 
     /**
      * Folds a lexicographic overshoot tie-breaker under [primaryObjective], returning
@@ -598,7 +699,40 @@ object WakfuBuildSolver {
                     buildCombination = combination,
                     characterBaseCharacteristics = params.character.baseCharacteristicValues
                 )
+
+            ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE ->
+                maxDamageRotationScore(params, combination)
         }
+
+    /**
+     * Spell-aware / boss-aware max-damage score: the best **per-turn rotation** damage the build can
+     * deal — across all candidate elements (boss-aware element choice) using the class's real spell kit
+     * — divided by the same required-target shortfall penalty as [FindMaxDamageScoring]. Kept in lockstep
+     * with [buildMaxDamageObjective]: both compute `max_e (throughput_e × perHit_e × resFactor_e)` and
+     * apply the AP/MP/range penalty, so the build the objective maximizes is the one the solver emits.
+     */
+    private fun maxDamageRotationScore(
+        params: WakfuBestBuildParams,
+        combination: BuildCombination,
+    ): BigDecimal {
+        val rotationDamage =
+            SpellRotationOptimizer
+                .bestAcrossElements(combination, params.character, params.character.clazz, params.damageScenario)
+                .totalExpectedDamage
+                .toBigDecimal()
+        val stats =
+            computeCharacteristicsValues(
+                buildCombination = combination,
+                characterBaseCharacteristics = params.character.baseCharacteristicValues,
+                masteryElementsWanted = mapOf(params.damageScenario.element.masteryCharacteristic to 1),
+                // Pass the real resistance targets so the penalty's stats see RESISTANCE_ELEMENTARY / per-
+                // element resistances (an emptyMap made them read 0, mis-ranking builds when the user sets a
+                // required resistance in max-damage mode).
+                resistanceElementsWanted = params.targetStats.resistanceElementsWanted
+            )
+        val penalty = FindMaxDamageScoring.requiredConstraintPenaltyFactor(params.targetStats, stats)
+        return rotationDamage.divide(penalty, 4, RoundingMode.FLOOR)
+    }
 
     private suspend fun executeSolverAndEmitResults(
         model: CpModel,
@@ -624,7 +758,8 @@ object WakfuBuildSolver {
             // throughput loss next to a responsive UI (and keeps the terminal responsive for the CLI).
             solver.parameters.maxPresolveIterations = 1
             solver.parameters.maxTimeInSeconds = params.searchDuration.inWholeSeconds.toDouble()
-            solver.parameters.numSearchWorkers = (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)
+            solver.parameters.numSearchWorkers =
+                params.solverWorkers ?: (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)
         } else {
             // Deterministic, machine-independent solve for tests — see [SolverTuning]. A fixed worker
             // count + seed + a deterministic-time budget (not wall-clock) make CP-SAT reach the same
@@ -1010,6 +1145,131 @@ object WakfuBuildSolver {
             return total
         }
 
+        // The build's resolved Action Points variable (base + gear + skills), for the external-loop AP probe.
+        fun actionPointVar(): IntVar = actualStat(Characteristic.ACTION_POINT)
+
+        /**
+         * Spell-aware / boss-aware per-turn damage objective for [scenario] (max-damage mode only).
+         *
+         * For each candidate element (one fixed element, or all four when boss-aware — see
+         * [DamageScenario.candidateElements]) that [clazz] actually has spells in, the value is
+         * `throughput_e × perHit_e × resFactor_e`:
+         *  - `perHit_e` is the existing per-hit core `D · Graw` for that element ([perHitDamageScore]);
+         *  - `throughput_e` is the build-independent best base-damage castable with the build's AP — a
+         *    precomputed knapsack table ([SpellRotationOptimizer.baseThroughputTable]) looked up by the
+         *    AP variable. Element gating is intrinsic: a class with no spells in `e` has an all-zero
+         *    table and contributes nothing;
+         *  - `resFactor_e = (100 − res_e)` folds in the boss's per-element resistance (a weakness
+         *    `res_e < 0` amplifies it), so the `max` over elements picks the best **playable** element
+         *    given both the boss profile and the class kit — the joint equipment + element + rotation
+         *    optimum. The per-hit score is divided by [DMG_DOWNSCALE] to keep the product in Long range.
+         */
+        fun perTurnDamageScore(
+            scenario: DamageScenario,
+            clazz: me.chosante.common.CharacterClass,
+        ): IntVar {
+            val apVar = model.clampVar(actualStat(Characteristic.ACTION_POINT), 0L, MAX_ROTATION_AP, "rotationAp")
+            val perElementDamage =
+                scenario.candidateElements().mapNotNull { (element, resistance) ->
+                    val spells =
+                        SpellCatalog.damageSpells(clazz).filter {
+                            it.element ==
+                                me.chosante.common.SpellElement
+                                    .valueOf(element.name)
+                        }
+                    val table = SpellRotationOptimizer.baseThroughputTable(spells, MAX_ROTATION_AP.toInt())
+                    if (table.all { it == 0L }) return@mapNotNull null
+
+                    if (table.max() > PER_TURN_THROUGHPUT_MAX) {
+                        System.err.println(
+                            "WARN: per-turn throughput for ${element.name} (${table.max()}) exceeds the " +
+                                "CP-SAT cap PER_TURN_THROUGHPUT_MAX=$PER_TURN_THROUGHPUT_MAX; the cap is binding and " +
+                                "distorts the max-damage objective — raise it for this dataset."
+                        )
+                    }
+                    val clampedTable = LongArray(table.size) { table[it].coerceAtMost(PER_TURN_THROUGHPUT_MAX) }
+                    val throughput = model.newIntVar(0L, clampedTable.max(), "throughput_${element.name}")
+                    model.addElement(apVar, clampedTable, throughput)
+
+                    // raw = throughput · (perHit ÷ PERHIT_DOWNSCALE) — the per-hit core scaled down to a
+                    // modest domain before the multiplication, so the product stays small for CP-SAT.
+                    val perHit = perHitDamageScore(element.masteryCharacteristic, scenario)
+                    val perHitScaled = model.newIntVar(0L, PERHIT_SCALED_MAX, "perHitScaled_${element.name}")
+                    model.addDivisionEquality(perHitScaled, perHit, model.newConstant(PERHIT_DOWNSCALE))
+                    val raw = model.newIntVar(0L, ROTATION_RAW_MAX, "rotRaw_${element.name}")
+                    model.addMultiplicationEquality(raw, arrayOf(throughput, perHitScaled))
+
+                    // Fold in the boss's per-element resistance, then scale down once into the penalty's range.
+                    val resFactor = (100L - resistance).coerceIn(RES_FACTOR_MIN, RES_FACTOR_MAX)
+                    val rawWithRes = model.newIntVar(0L, ROTATION_RAW_RES_MAX, "rotRawRes_${element.name}")
+                    model.addEquality(rawWithRes, LinearExpr.term(raw, resFactor))
+                    val damage = model.newIntVar(0L, DAMAGE_PERTURN_ABS_MAX, "rotDamage_${element.name}")
+                    model.addDivisionEquality(damage, rawWithRes, model.newConstant(FINAL_DOWNSCALE))
+                    damage
+                }
+
+            return when (perElementDamage.size) {
+                0 -> model.newConstant(0L)
+                1 -> perElementDamage.single()
+                else -> {
+                    val best = model.newIntVar(0L, DAMAGE_PERTURN_ABS_MAX, "rotBestElement")
+                    model.addMaxEquality(best, perElementDamage.toTypedArray())
+                    best
+                }
+            }
+        }
+
+        /**
+         * Build-dependent per-hit core `D · Graw` for the spell element [elementMastery] (see
+         * [perTurnDamageScore]). All masteries / DI / crit are clamped into the damage bounds so the two
+         * CP-SAT multiplications stay on small, stable integer domains. Var names are element-suffixed so
+         * the boss-aware path can build one per element without collisions.
+         */
+        private fun perHitDamageScore(
+            elementMastery: Characteristic,
+            scenario: DamageScenario,
+        ): IntVar {
+            val s = elementMastery.name
+            val masteryTerms = mutableListOf<Term>()
+            masteryTerms.add(Term(scenarioElementMasteryVar(elementMastery), 1L))
+            masteryTerms.add(Term(actualStat(scenario.rangeBand.masteryCharacteristic), 1L))
+            if (scenario.orientation.grantsRearMastery) masteryTerms.add(Term(actualStat(Characteristic.MASTERY_BACK), 1L))
+            if (scenario.berserk) masteryTerms.add(Term(actualStat(Characteristic.MASTERY_BERSERK), 1L))
+            if (scenario.healing) masteryTerms.add(Term(actualStat(Characteristic.MASTERY_HEALING), 1L))
+
+            // M = clamp(100 + ΣMastery, 0, MAX); criticalMastery and DI clamped likewise.
+            val preM = model.sumVar("dmgPreM_$s", masteryTerms, 100L, -CLAMP_INTERMEDIATE_MAX, CLAMP_INTERMEDIATE_MAX)
+            val m = model.clampVar(preM, 0L, DAMAGE_MASTERY_MAX, "dmgM_$s")
+            val criticalMastery = model.clampVar(actualStat(Characteristic.MASTERY_CRITICAL), 0L, DAMAGE_MASTERY_MAX, "dmgCriticalMastery_$s")
+            val critCap = scenario.critCapPercent.toLong().coerceIn(0L, 100L)
+            val crit = model.clampVar(actualStat(Characteristic.CRITICAL_HIT), 0L, critCap, "dmgCrit_$s")
+            val di = model.clampVar(actualStat(Characteristic.DAMAGE_INFLICTED), -DAMAGE_DI_FLOOR, DAMAGE_DI_MAX, "dmgDI_$s")
+            val d = model.sumVar("dmgD_$s", listOf(Term(di, 1L)), 100L, 100L - DAMAGE_DI_FLOOR, 100L + DAMAGE_DI_MAX)
+
+            // diff = M + 5·criticalMastery ; term = crit · diff ; Graw = 400·M + term.
+            val diff = model.sumVar("dmgDiff_$s", listOf(Term(m, 1L), Term(criticalMastery, 5L)), 0L, 0L, DAMAGE_MASTERY_MAX * 6)
+            val term = model.newIntVar(0L, 100L * DAMAGE_MASTERY_MAX * 6, "dmgCritTerm_$s")
+            model.addMultiplicationEquality(term, arrayOf(crit, diff))
+            val graw = model.sumVar("dmgGraw_$s", listOf(Term(m, 400L), Term(term, 1L)), 0L, 0L, DAMAGE_GRAW_MAX)
+
+            val damageScore = model.newIntVar(0L, DAMAGE_SCORE_ABS_MAX, "dmgScore_$s")
+            model.addMultiplicationEquality(damageScore, arrayOf(d, graw))
+            return damageScore
+        }
+
+        /**
+         * Elemental mastery for the scenario's spell element, with generic "+all elements" mastery and
+         * random-element lines folded in onto that single element — matching how [FindMaxDamageScoring]
+         * (via computeCharacteristicsValues with that one wanted element) resolves it.
+         */
+        private fun scenarioElementMasteryVar(element: Characteristic): IntVar =
+            elementVars(
+                wantedElements = listOf(element),
+                genericCharacteristic = Characteristic.MASTERY_ELEMENTARY,
+                targets = mapOf(element to 1),
+                randomByCount = MASTERY_RANDOM_BY_COUNT
+            ).getValue(element)
+
         private fun elementMasteryVars(wantedElements: List<Characteristic>): Map<Characteristic, IntVar> =
             elementVars(
                 wantedElements = wantedElements,
@@ -1338,9 +1598,9 @@ object WakfuBuildSolver {
     )
 
     // Splits each skill's contribution into fixed / percent terms keyed by characteristic, mirroring
-    // CharacteristicValues. The Major "% Inflicted Damage" aptitude lands in percent[MASTERY_ELEMENTARY]
-    // and — like in the scorer — never reaches the score (mastery is read through the specific element
-    // keys, which carry no percent). Kept inert on purpose; see the NOTE in computeCharacteristicsValues.
+    // CharacteristicValues. The Major "% Inflicted Damage" aptitude lands in fixed[DAMAGE_INFLICTED];
+    // only the max-damage objective reads that stat, so it stays inert in the most-masteries / precision
+    // modes — exactly like the scorer. See the NOTE in computeCharacteristicsValues.
     private fun buildSkillTerms(skillVars: Map<SkillCharacteristic, IntVar>): SkillTerms {
         val fixed = mutableMapOf<Characteristic, MutableList<Term>>()
         val percent = mutableMapOf<Characteristic, MutableList<Term>>()
@@ -1477,6 +1737,20 @@ object WakfuBuildSolver {
         val maxVar = newIntVar(minValue, maxValue, name)
         addMaxEquality(maxVar, arrayOf(value, newConstant(minValue)))
         return maxVar
+    }
+
+    /** clamp(value, low, high) as an IntVar with domain [low, high]. */
+    private fun CpModel.clampVar(
+        value: IntVar,
+        low: Long,
+        high: Long,
+        name: String,
+    ): IntVar {
+        val lowered = newIntVar(low, CLAMP_INTERMEDIATE_MAX, "${name}Lo")
+        addMaxEquality(lowered, arrayOf(value, newConstant(low)))
+        val clamped = newIntVar(low, high, name)
+        addMinEquality(clamped, arrayOf(lowered, newConstant(high)))
+        return clamped
     }
 
     private fun CpModel.bucketedIndex(

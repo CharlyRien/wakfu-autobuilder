@@ -25,8 +25,11 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,6 +47,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.Orientation
+import me.chosante.autobuilder.domain.RangeBand
+import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.common.Characteristic
 import me.chosante.common.Rarity
@@ -72,6 +79,7 @@ import me.chosante.ui.theme.WTypography
 fun RequestPanel(
     ui: UiState,
     onModeChange: (ScoreComputationMode) -> Unit,
+    onScenarioChange: (DamageScenario) -> Unit,
     onTargetValueChange: (String, String) -> Unit,
     onTargetWeightChange: (String, Int) -> Unit,
     onRemoveTarget: (String) -> Unit,
@@ -102,6 +110,9 @@ fun RequestPanel(
                 selected = ui.mode,
                 onSelect = onModeChange
             )
+            if (ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+                DamageScenarioCard(scenario = ui.scenario, onChange = onScenarioChange)
+            }
             TargetStatsCard(
                 mode = ui.mode,
                 targets = ui.targets,
@@ -170,7 +181,205 @@ private fun SearchModeCard(
                 onClick = { onSelect(ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT) },
                 modifier = Modifier.weight(1f)
             )
+            ModeSegment(
+                title = tr(Tr.MODE_MAX_DAMAGE),
+                subtitle = tr(Tr.MODE_MAX_DAMAGE_SUB),
+                selected = selected == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                onClick = { onSelect(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) },
+                modifier = Modifier.weight(1f)
+            )
         }
+    }
+}
+
+@Composable
+private fun DamageScenarioCard(
+    scenario: DamageScenario,
+    onChange: (DamageScenario) -> Unit,
+) {
+    val lang = LocalLang.current
+    RequestCard(title = tr(Tr.DAMAGE_SCENARIO)) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SegmentedEnumRow(
+                label = tr(Tr.SCENARIO_ELEMENT),
+                values = SpellElement.entries,
+                selected = scenario.element,
+                labelOf = { it.label(lang) },
+                onSelect = { onChange(scenario.copy(element = it)) }
+            )
+            SegmentedEnumRow(
+                label = tr(Tr.SCENARIO_RANGE),
+                values = RangeBand.entries,
+                selected = scenario.rangeBand,
+                labelOf = { it.label(lang) },
+                onSelect = { onChange(scenario.copy(rangeBand = it)) }
+            )
+            SegmentedEnumRow(
+                label = tr(Tr.SCENARIO_ORIENTATION),
+                values = Orientation.entries,
+                selected = scenario.orientation,
+                labelOf = { it.label(lang) },
+                onSelect = { onChange(scenario.copy(orientation = it)) }
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                ScenarioToggle(
+                    label = tr(Tr.SCENARIO_BERSERK),
+                    checked = scenario.berserk,
+                    onCheckedChange = { onChange(scenario.copy(berserk = it)) }
+                )
+                ScenarioToggle(
+                    label = tr(Tr.SCENARIO_HEALING),
+                    checked = scenario.healing,
+                    onCheckedChange = { onChange(scenario.copy(healing = it)) }
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ScenarioNumberField(
+                    label = tr(Tr.SCENARIO_CRIT_CAP),
+                    value = scenario.critCapPercent,
+                    onValueChange = { onChange(scenario.copy(critCapPercent = it.coerceIn(0, 100))) },
+                    modifier = Modifier.weight(1f)
+                )
+                ScenarioNumberField(
+                    label = tr(Tr.SCENARIO_ENEMY_RES),
+                    value = scenario.targetResistancePercent,
+                    onValueChange = { onChange(scenario.copy(targetResistancePercent = it.coerceIn(0, DamageScenario.MAX_RESISTANCE_PERCENT))) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+private fun SpellElement.label(lang: Lang): String =
+    when (this) {
+        SpellElement.FIRE -> if (lang == Lang.FR) "Feu" else "Fire"
+        SpellElement.WATER -> if (lang == Lang.FR) "Eau" else "Water"
+        SpellElement.EARTH -> if (lang == Lang.FR) "Terre" else "Earth"
+        SpellElement.AIR -> if (lang == Lang.FR) "Air" else "Air"
+    }
+
+private fun RangeBand.label(lang: Lang): String =
+    when (this) {
+        RangeBand.MELEE -> if (lang == Lang.FR) "Mêlée" else "Melee"
+        RangeBand.DISTANCE -> if (lang == Lang.FR) "Distance" else "Distance"
+    }
+
+private fun Orientation.label(lang: Lang): String =
+    when (this) {
+        Orientation.FACE -> if (lang == Lang.FR) "Face" else "Face"
+        Orientation.SIDE -> if (lang == Lang.FR) "Côté" else "Side"
+        Orientation.BACK -> if (lang == Lang.FR) "Dos" else "Back"
+    }
+
+@Composable
+private fun <T> SegmentedEnumRow(
+    label: String,
+    values: List<T>,
+    selected: T,
+    labelOf: (T) -> String,
+    onSelect: (T) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(text = label, style = WTypography.labelSmall.copy(color = WColor.muted))
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(WColor.bg)
+                    .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
+                    .padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            values.forEach { value ->
+                val isSelected = value == selected
+                Box(
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .height(28.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isSelected) WColor.raised else Color.Transparent)
+                            .clickable { onSelect(value) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = labelOf(value),
+                        style =
+                            WTypography.labelSmall.copy(
+                                color = if (isSelected) WColor.text else WColor.muted,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                            ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScenarioToggle(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.clickable { onCheckedChange(!checked) }
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .size(16.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(if (checked) WColor.accent else WColor.bg)
+                    .border(1.dp, if (checked) WColor.accent else WColor.border, RoundedCornerShape(4.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (checked) {
+                Text("✓", style = WTypography.labelSmall.copy(color = WColor.bg, fontWeight = FontWeight.Bold))
+            }
+        }
+        Text(text = label, style = WTypography.labelSmall.copy(color = WColor.text))
+    }
+}
+
+@Composable
+private fun ScenarioNumberField(
+    label: String,
+    value: Int,
+    onValueChange: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    // Hold the raw text locally so the user can clear the field / type intermediate values without the
+    // cursor jumping (driving a BasicTextField directly from value.toString() reformats every keystroke).
+    var text by remember { mutableStateOf(value.toString()) }
+    // Resync only when the external value actually diverges (e.g. a mode reset), never mid-typing.
+    LaunchedEffect(value) { if ((text.toIntOrNull() ?: 0) != value) text = value.toString() }
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(text = label, style = WTypography.labelSmall.copy(color = WColor.muted))
+        BasicTextField(
+            value = text,
+            onValueChange = { raw ->
+                val filtered = raw.filter { it.isDigit() }.take(3)
+                text = filtered
+                onValueChange(filtered.toIntOrNull() ?: 0)
+            },
+            singleLine = true,
+            textStyle = WTypography.bodySmall.copy(color = WColor.text, fontFamily = WType.mono),
+            cursorBrush = SolidColor(WColor.accent),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(WColor.bg)
+                    .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 7.dp)
+        )
     }
 }
 

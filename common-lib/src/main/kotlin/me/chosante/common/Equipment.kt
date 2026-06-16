@@ -72,6 +72,11 @@ enum class Characteristic {
     MASTERY_MELEE,
     MASTERY_BERSERK,
     MASTERY_HEALING,
+
+    // "% Dommages infligés": a flat percentage damage multiplier, distinct from mastery. It is its
+    // own multiplicative factor in the Wakfu damage formula, so it is only read by the max-damage
+    // scoring mode. Sources: the Major "% Inflicted Damage" aptitude and (later) sublimations.
+    DAMAGE_INFLICTED,
     RESISTANCE_CRITICAL,
     RESISTANCE_BACK,
     RESISTANCE_ELEMENTARY,

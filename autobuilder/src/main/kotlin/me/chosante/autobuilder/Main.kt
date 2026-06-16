@@ -40,6 +40,13 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.runBlocking
 import me.chosante.ZenithInputParameters
+import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.Orientation
+import me.chosante.autobuilder.domain.RangeBand
+import me.chosante.autobuilder.domain.SpellElement
+import me.chosante.autobuilder.domain.SpellRotation
+import me.chosante.autobuilder.domain.SpellRotationOptimizer
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
@@ -424,6 +431,90 @@ HUPPERMAGE"""
         help = "Use this flag to indicate that you want to stop searching when you have 100% build match already found."
     ).flag(default = false, defaultForHelp = "disabled")
 
+    private val noRunes: Boolean by option(
+        "--no-runes",
+        "--sans-chasses",
+        help =
+            "Use this flag to search without socketing runes. By default the solver fills each item's " +
+                "sockets with the best runes for your requested stats (max-level runes + colour doubling)."
+    ).flag(default = false, defaultForHelp = "runes enabled")
+
+    // --- max-damage scenario (only used when --computation-mode max-damage) ---
+
+    private val scenarioElement: SpellElement by option(
+        "--scenario-element",
+        help = "max-damage mode: the spell's element (fire/water/earth/air)."
+    ).convert { SpellElement.valueOf(it.uppercase().let { value -> if (value == "WIND") "AIR" else value }) }
+        .default(SpellElement.FIRE)
+
+    private val scenarioRange: RangeBand by option(
+        "--scenario-range",
+        help = "max-damage mode: distance or melee (selects the secondary mastery)."
+    ).convert { RangeBand.valueOf(it.uppercase()) }
+        .default(RangeBand.DISTANCE)
+
+    private val scenarioOrientation: Orientation by option(
+        "--scenario-orientation",
+        help = "max-damage mode: face / side / back (positional multiplier; back also adds rear mastery)."
+    ).convert { Orientation.valueOf(it.uppercase()) }
+        .default(Orientation.BACK)
+
+    private val scenarioBerserk: Boolean by option(
+        "--scenario-berserk",
+        help = "max-damage mode: caster is at/below 50% HP (berserk mastery applies)."
+    ).flag(default = false)
+
+    private val scenarioHealing: Boolean by option(
+        "--scenario-healing",
+        help = "max-damage mode: the attack is a heal (healing mastery applies)."
+    ).flag(default = false)
+
+    private val scenarioCritCap: Int by option(
+        "--crit-cap",
+        help = "max-damage mode: maximum usable critical-hit rate in % (default 100)."
+    ).int().default(100).check("Crit cap should be between 0 and 100") { it in 0..100 }
+
+    private val scenarioEnemyResistance: Int by option(
+        "--enemy-resistance",
+        help = "max-damage mode: target's effective elemental resistance in % (0-90, default 0)."
+    ).int().default(0).check("Resistance should be between 0 and 90") { it in 0..90 }
+
+    private val scenarioBaseDamage: Int by option(
+        "--base-damage",
+        help = "max-damage mode: spell base hit used to scale the displayed expected-damage figure (default 100)."
+    ).int().default(100)
+
+    private val bossResistances: Map<SpellElement, Int>? by option(
+        "--boss-resistances",
+        help =
+            "max-damage BOSS mode: the target's per-element resistance %, e.g. " +
+                "'fire:0,water:-90,earth:50,air:50' (negative = weakness). When set, the solver optimizes " +
+                "over ALL elements and picks the best one the class can actually play (jointly with gear)."
+    ).convert { raw ->
+        raw
+            .split(",")
+            .mapNotNull { token ->
+                val (name, value) = token.split(":").map { it.trim() }.let { it.getOrNull(0) to it.getOrNull(1) }
+                val element =
+                    when (name?.lowercase()) {
+                        "fire", "feu" -> SpellElement.FIRE
+                        "water", "eau" -> SpellElement.WATER
+                        "earth", "terre" -> SpellElement.EARTH
+                        "air", "wind" -> SpellElement.AIR
+                        else -> null
+                    }
+                val resistance = value?.toIntOrNull()
+                when {
+                    element == null || resistance == null -> null
+                    // [-100, 90] = the engine's resistance range (+90% cap, −100% weakness floor); reject
+                    // out-of-range input instead of silently clamping it (unlike the unbounded prior parse).
+                    resistance !in -100..90 -> fail("--boss-resistances '$name' must be between -100 and 90, got $resistance")
+                    else -> element to resistance
+                }
+            }.toMap()
+            .ifEmpty { fail("Could not parse --boss-resistances; use e.g. 'fire:0,water:-90,earth:50,air:50'") }
+    }
+
     override fun run() {
         // Contradictory level bounds (min above max) match no normal item — the engine's level
         // filter keeps items with min <= itemLevel <= max — so the solver would silently fall back
@@ -478,12 +569,35 @@ HUPPERMAGE"""
                     armorGivenPercentageWanted
                 )
             )
-        if (targetStats.isEmpty()) {
+        // Max-damage mode optimizes the attack scenario, so target stats are optional there (they only
+        // act as hard AP/MP/range/… constraints); every other mode needs at least one target.
+        if (targetStats.isEmpty() && computationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
             throw PrintMessage(
                 message = "No input stats given, stopping the program... Use --help flag for more information",
                 printError = true
             )
         }
+        // Max-damage rotates the class's real spell kit, so an unset class (UNKNOWN) yields a build with an
+        // empty, meaningless rotation — require --class up front rather than silently producing nonsense.
+        if (computationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE && characterClass == null) {
+            throw PrintMessage(
+                message = "Max-damage mode needs a class — pass --class so the engine knows which spells to cast.",
+                printError = true
+            )
+        }
+
+        val damageScenario =
+            DamageScenario(
+                element = scenarioElement,
+                rangeBand = scenarioRange,
+                orientation = scenarioOrientation,
+                berserk = scenarioBerserk,
+                healing = scenarioHealing,
+                critCapPercent = scenarioCritCap,
+                targetResistancePercent = scenarioEnemyResistance,
+                baseDamage = scenarioBaseDamage,
+                elementResistances = bossResistances
+            )
 
         runBlocking {
             val progressBar = progressBar(terminal)
@@ -498,13 +612,20 @@ HUPPERMAGE"""
                             maxRarity = maxRarity,
                             forcedItems = forceItems,
                             excludedItems = excludedItems,
-                            scoreComputationMode = computationMode
+                            scoreComputationMode = computationMode,
+                            useRunes = !noRunes,
+                            damageScenario = damageScenario
                         )
                     ).buffer(CONFLATED)
                     .onStart { progressBar.execute() }
                     .onEach {
                         progressBar.update {
-                            context = "${it.matchPercentage}% match found so far"
+                            context =
+                                if (computationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+                                    "expected damage so far: ${it.matchPercentage}"
+                                } else {
+                                    "${it.matchPercentage}% match found so far"
+                                }
                             completed = it.progressPercentage.toLong()
                         }
                         delay(1000L)
@@ -516,6 +637,10 @@ HUPPERMAGE"""
                         terminal.println("Research result")
                         terminal.println("Equipment")
                         terminal.println(it.equipments.asASCIITable())
+                        if (it.runes.isNotEmpty()) {
+                            terminal.println("Runes")
+                            terminal.println(it.runes.asRunesASCIITable())
+                        }
                         terminal.println("Skills")
                         terminal.println("Intelligence")
                         terminal.println(it.characterSkills.intelligence.asASCIITable())
@@ -527,11 +652,11 @@ HUPPERMAGE"""
                         terminal.println(it.characterSkills.agility.asASCIITable())
                         terminal.println("Major")
                         terminal.println(it.characterSkills.major.asASCIITable())
-                        if (it.runes.isNotEmpty()) {
-                            terminal.println("Runes")
-                            terminal.println(it.runes.asRunesASCIITable())
-                        }
                     }
+
+            if (computationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+                terminal.println(spellRotationReport(bestCombination, character, damageScenario))
+            }
 
             if (createZenithBuild) {
                 try {
@@ -614,6 +739,47 @@ HUPPERMAGE"""
                 }
             }
         }
+}
+
+/**
+ * Human-readable "best spells for this build's AP" report appended to the max-damage CLI output.
+ * Uses the build's real AP and the class's actual spells in the scenario element (see
+ * [SpellRotationOptimizer]).
+ */
+private fun spellRotationReport(
+    build: BuildCombination,
+    character: Character,
+    scenario: DamageScenario,
+): String {
+    // bestSequencedRotation is boss-aware (picks the best playable element vs the boss profile) AND
+    // sequences resistance debuffs first when they raise the turn's total.
+    val rotation: SpellRotation = SpellRotationOptimizer.bestSequencedRotation(build, character, character.clazz, scenario)
+    val chosenElement = rotation.element?.name?.lowercase() ?: scenario.element.name.lowercase()
+    val header = "Optimal spell rotation ($chosenElement, ${rotation.apBudget} AP)"
+    if (rotation.isEmpty) {
+        return "$header\n  No playable damage spells for ${character.clazz.name.lowercase()} in the " +
+            "candidate element(s) — try another --scenario-element / --boss-resistances."
+    }
+    val debuffLines =
+        rotation.debuffCasts.joinToString("") { cast ->
+            "  ↳ debuff: ${cast.spell.name.en} (${cast.apCost} AP, −${cast.spell.targetResistanceReductionFlat} res)\n"
+        } +
+            // Show the post-all-debuffs resistance ONCE — not on every line (it's the cumulative final
+            // value, not what each individual debuff reaches).
+            if (rotation.debuffCasts.isNotEmpty() && rotation.effectiveResistancePercent != null) {
+                "  → after debuffs, target resistance is ${rotation.effectiveResistancePercent}%\n"
+            } else {
+                ""
+            }
+    val lines =
+        rotation.casts.joinToString("\n") { cast ->
+            "  ${cast.count}× ${cast.spell.name.en} " +
+                "(${cast.apCost} AP, ~${cast.expectedDamagePerCast.toLong()} dmg/cast) → ~${cast.totalExpectedDamage.toLong()}"
+        }
+    return "$header\n$debuffLines$lines\n" +
+        "  Total: ~${rotation.totalExpectedDamage.toLong()} expected damage/turn " +
+        "(${rotation.apUsed}/${rotation.apBudget} AP used)\n" +
+        "  Note: per-turn cast limits aren't modeled yet — treat as an upper-bound suggestion."
 }
 
 private fun progressBar(terminal: Terminal): ThreadProgressTaskAnimator<String> =

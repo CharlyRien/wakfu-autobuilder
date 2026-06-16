@@ -173,9 +173,14 @@ sealed class MajorCharacteristic(
     ) : MajorCharacteristic(
             pointsAssigned = pointsAssigned,
             maxPointsAssignable = 1,
+            // +10 points of "% Damage Inflicted" per assigned point. Modeled as a FIXED contribution to
+            // the dedicated DAMAGE_INFLICTED stat (a percentage measured in points, like mastery is a flat
+            // number), NOT as a percent on elemental mastery: in the Wakfu damage formula "% damage" is a
+            // separate multiplicative factor (1 + ΣDI/100), distinct from mastery. Only the max-damage mode
+            // reads DAMAGE_INFLICTED, so this aptitude is inert in the most-masteries / precision modes.
             unitValue = 10,
-            unitType = UnitType.PERCENT,
-            characteristic = Characteristic.MASTERY_ELEMENTARY,
+            unitType = UnitType.FIXED,
+            characteristic = Characteristic.DAMAGE_INFLICTED,
             name = "% Inflicted Damage"
         )
 

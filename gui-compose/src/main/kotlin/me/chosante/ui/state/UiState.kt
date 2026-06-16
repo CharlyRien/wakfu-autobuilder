@@ -2,6 +2,8 @@ package me.chosante.ui.state
 
 import androidx.compose.ui.graphics.Color
 import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.SpellRotation
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.autobuilder.genetic.wakfu.isRandomElementStat
@@ -133,6 +135,8 @@ data class UiState(
     /** Lower item-level bound for the search; 0 = no minimum (consider every item up to [level]). */
     val minLevel: Int = 0,
     val mode: ScoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+    // Attack scenario for the max-damage mode (ignored by the other modes).
+    val scenario: DamageScenario = DamageScenario(),
     val targets: List<TargetRow> = defaultTargets(),
     val maxRarity: Rarity = Rarity.EPIC,
     /** Rarities the user toggled off; excluded from the search. At least one rarity always stays allowed. */
@@ -147,6 +151,8 @@ data class UiState(
     val optimal: Boolean = false,
     val build: BuildCombination? = null,
     val achieved: Map<Characteristic, Int> = emptyMap(),
+    /** Best spells to cast for the build's AP, in max-damage mode only (else null). Computed off-thread. */
+    val spellRotation: SpellRotation? = null,
     val lastLandedEquipmentId: Int? = null,
     val zenith: ZenithState = ZenithState.Idle,
     val zenithUrl: String? = null,
@@ -270,7 +276,13 @@ fun UiState.requestedMasteryTotal(): Int =
     )
 
 /** Compact integer formatting: a thousands separator past 1000, plain otherwise. */
-fun Int.formatCompact(): String =
+fun Int.formatCompact(): String = toLong().formatCompact()
+
+/**
+ * [Long] overload so large expected-damage totals (which can exceed Int.MAX ≈ 2.1e9) format correctly
+ * instead of silently wrapping to a negative number when narrowed to Int.
+ */
+fun Long.formatCompact(): String =
     if (this >= 1000) {
         java.text.NumberFormat
             .getIntegerInstance(java.util.Locale.US)
