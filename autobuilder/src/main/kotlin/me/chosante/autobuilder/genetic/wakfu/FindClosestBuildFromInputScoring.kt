@@ -219,14 +219,11 @@ fun computeCharacteristicsValues(
     }
 
     // Percent skills are applied per characteristic key, at the very end, on the accumulated value.
-    // NOTE: this makes the Major "% Inflicted Damage" aptitude (10% on MASTERY_ELEMENTARY) effectively
-    // inert for scoring. It only scales the *aggregate* MASTERY_ELEMENTARY key, but every scorer reads
-    // elemental mastery through the four specific element keys (FIRE/WATER/EARTH/WIND) — which carry no
-    // percent — so the bonus never reaches the score. This mirrors the game: a flat "% damage inflicted"
-    // does not change your displayed cumulated mastery either; it only matters inside the actual damage
-    // formula. Left intentionally inert (decision: 2026-06) — wiring it in would require a future
-    // damage-formula-based scoring mode (alongside most-masteries) rather than folding it into mastery.
-    // The OR-Tools solver mirrors this on purpose (see WakfuBuildSolver.buildSkillTerms / elementVars).
+    // NOTE: the Major "% Inflicted Damage" aptitude is modeled as a FIXED contribution to the dedicated
+    // DAMAGE_INFLICTED stat (not as a percent on mastery), because in the Wakfu damage formula "% damage"
+    // is a separate multiplicative factor from mastery. DAMAGE_INFLICTED is only read by the max-damage
+    // scoring mode (FindMaxDamageScoring), so this aptitude stays inert in the most-masteries / precision
+    // modes — which is faithful: a flat "% damage inflicted" does not change displayed cumulated mastery.
     val actualCharacteristics =
         mutableActualCharacteristics.mapValues { (key, value) ->
             characteristicGivenBySkillsPercentValues[key]?.let { percent ->

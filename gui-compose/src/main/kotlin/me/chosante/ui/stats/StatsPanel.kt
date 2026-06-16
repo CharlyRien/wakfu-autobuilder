@@ -41,6 +41,7 @@ import me.chosante.ui.components.StatGlyphIcon
 import me.chosante.ui.components.VerticalScrollHints
 import me.chosante.ui.components.iconResourcePath
 import me.chosante.ui.components.rememberClasspathBitmap
+import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.label
@@ -94,6 +95,9 @@ fun StatsPanel(
                     onSaveBuild = onSaveBuild,
                     onExport = onExport
                 )
+                if (ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+                    SpellRotationCard(ui)
+                }
                 MasterySummary(ui)
                 DesiredVsAchieved(ui)
                 BuildSheet(ui)
@@ -106,16 +110,19 @@ fun StatsPanel(
 
 @Composable
 private fun MatchHero(ui: UiState) {
-    // Most-masteries maximizes mastery rather than hitting exact targets, so a "% match" is
-    // meaningless there — show the cumulated requested mastery (no %, no progress bar) instead.
+    // Most-masteries maximizes mastery and max-damage maximizes expected damage, so a "% match" is
+    // meaningless for both — show the headline number (no %, no progress bar) instead. Only precision
+    // mode keeps the % match + meter.
     val masteryMode = ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+    val damageMode = ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE
+    val headlineNumberMode = masteryMode || damageMode
     ResultCard {
         Column(
             modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
         ) {
-            if (masteryMode) {
+            if (headlineNumberMode) {
                 Text(
-                    text = ui.requestedMasteryTotal().formatCompact(),
+                    text = if (damageMode) ui.match.toInt().formatCompact() else ui.requestedMasteryTotal().formatCompact(),
                     style =
                         WTypography.displayLarge.copy(
                             fontSize = 46.sp,
@@ -126,15 +133,17 @@ private fun MatchHero(ui: UiState) {
                         )
                 )
                 Text(
-                    text = tr(Tr.BUILD_MASTERY),
+                    text = tr(if (damageMode) Tr.EXPECTED_DAMAGE else Tr.BUILD_MASTERY),
                     style = WTypography.labelMedium,
                     modifier = Modifier.padding(top = 4.dp)
                 )
-                Text(
-                    text = tr(Tr.BUILD_MASTERY_HINT),
-                    style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center),
-                    modifier = Modifier.padding(top = 2.dp)
-                )
+                if (!damageMode) {
+                    Text(
+                        text = tr(Tr.BUILD_MASTERY_HINT),
+                        style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center),
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
             } else {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
@@ -170,7 +179,7 @@ private fun MatchHero(ui: UiState) {
                     modifier = Modifier.padding(top = 3.dp)
                 )
             }
-            if (!masteryMode) {
+            if (!headlineNumberMode) {
                 Meter(
                     fill = ui.match.toFloat() / 100f,
                     color = if (ui.match.toInt() == 100) WColor.success else WColor.warning,
@@ -178,6 +187,104 @@ private fun MatchHero(ui: UiState) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun SpellRotationCard(ui: UiState) {
+    val rotation = ui.spellRotation ?: return
+    val lang = LocalLang.current
+    ResultCard(
+        title = tr(Tr.SPELL_ROTATION),
+        trailing =
+            if (rotation.isEmpty) {
+                null
+            } else {
+                rotation.totalExpectedDamage
+                    .toLong()
+                    .toInt()
+                    .formatCompact()
+            }
+    ) {
+        if (rotation.isEmpty) {
+            Text(
+                text = tr(Tr.SPELL_ROTATION_EMPTY),
+                style = WTypography.bodySmall.copy(color = WColor.muted)
+            )
+            return@ResultCard
+        }
+        Text(
+            text = tr(Tr.SPELL_ROTATION_SUB),
+            style = WTypography.labelSmall.copy(color = WColor.faint),
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
+        rotation.debuffCasts.forEach { cast ->
+            Text(
+                text =
+                    "↳ ${cast.spell.name.let { if (lang == Lang.FR) it.fr else it.en }} " +
+                        "(${cast.apCost} AP, −${cast.spell.targetResistanceReductionFlat} res)",
+                style = WTypography.labelSmall.copy(color = WColor.accent2),
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+        }
+        // The post-all-debuffs resistance, shown ONCE — not on every debuff line (it's the cumulative
+        // final value, not what each individual debuff reaches).
+        if (rotation.debuffCasts.isNotEmpty() && rotation.effectiveResistancePercent != null) {
+            Text(
+                text = "→ ${rotation.effectiveResistancePercent}% res after debuffs",
+                style = WTypography.labelSmall.copy(color = WColor.accent2),
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+        }
+        rotation.casts.forEachIndexed { index, cast ->
+            if (index > 0) Hairline()
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${cast.count}×",
+                    style = WTypography.bodyMedium.copy(fontFamily = WType.mono, color = WColor.accent)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (lang == Lang.FR) cast.spell.name.fr else cast.spell.name.en,
+                    style = WTypography.bodyMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "${cast.apCost} AP",
+                    style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "~${cast.totalExpectedDamage.toLong().formatCompact()}",
+                    style = WTypography.bodyMedium.copy(fontFamily = WType.mono, color = WColor.text)
+                )
+            }
+        }
+        Hairline()
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = tr(Tr.SPELL_ROTATION_PER_TURN),
+                style = WTypography.labelMedium.copy(color = WColor.muted),
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "${rotation.totalExpectedDamage.toLong().formatCompact()}  (${rotation.apUsed}/${rotation.apBudget} AP)",
+                style = WTypography.bodyMedium.copy(fontFamily = WType.mono)
+            )
+        }
+        Text(
+            text = tr(Tr.SPELL_ROTATION_NOTE),
+            style = WTypography.labelSmall.copy(color = WColor.faint),
+            modifier = Modifier.padding(top = 4.dp)
+        )
     }
 }
 

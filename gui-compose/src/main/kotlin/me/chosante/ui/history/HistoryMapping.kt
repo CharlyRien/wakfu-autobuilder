@@ -2,9 +2,14 @@ package me.chosante.ui.history
 
 import kotlinx.serialization.json.Json
 import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.Orientation
+import me.chosante.autobuilder.domain.RangeBand
+import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.common.CharacterClass
+import me.chosante.common.history.DamageScenarioSnapshot
 import me.chosante.common.history.HistoryEntry
 import me.chosante.common.history.ItemRef
 import me.chosante.common.history.RequestSnapshot
@@ -68,7 +73,8 @@ fun UiState.toHistoryEntry(
                 stopAtMatch = stopAtMatch,
                 targets = targets.map { TargetSnapshot(it.characteristic, it.value, it.weight) },
                 forcedItems = forcedItems.map { ItemRef(it.name, it.rarity, it.matchName) },
-                excludedItems = excludedItems.map { ItemRef(it.name, it.rarity, it.matchName) }
+                excludedItems = excludedItems.map { ItemRef(it.name, it.rarity, it.matchName) },
+                scenario = scenario.toSnapshot()
             ),
         result =
             ResultSnapshot(
@@ -143,6 +149,45 @@ fun HistoryEntry.restoredClass(): CharacterClass = CharacterClass.fromValue(requ
 
 fun HistoryEntry.restoredMode(): ScoreComputationMode =
     runCatching { ScoreComputationMode.valueOf(request.mode) }.getOrDefault(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT)
+
+/** Persists the live attack scenario as primitives for storage (enum → name). */
+fun DamageScenario.toSnapshot(): DamageScenarioSnapshot =
+    DamageScenarioSnapshot(
+        element = element.name,
+        rangeBand = rangeBand.name,
+        orientation = orientation.name,
+        berserk = berserk,
+        healing = healing,
+        critCapPercent = critCapPercent,
+        targetResistancePercent = targetResistancePercent,
+        baseDamage = baseDamage,
+        elementResistances = elementResistances?.mapKeys { it.key.name }
+    )
+
+/**
+ * Restores the saved attack scenario back into the live [DamageScenario]. Each enum is resolved with a
+ * safe fallback to the engine default (mirroring [restoredMode]), so an unknown name from a future/older
+ * save — or a pre-feature save defaulting every field — never throws.
+ */
+fun HistoryEntry.restoredScenario(): DamageScenario {
+    val default = DamageScenario()
+    val snapshot = request.scenario
+    return DamageScenario(
+        element = runCatching { SpellElement.valueOf(snapshot.element) }.getOrDefault(default.element),
+        rangeBand = runCatching { RangeBand.valueOf(snapshot.rangeBand) }.getOrDefault(default.rangeBand),
+        orientation = runCatching { Orientation.valueOf(snapshot.orientation) }.getOrDefault(default.orientation),
+        berserk = snapshot.berserk,
+        healing = snapshot.healing,
+        critCapPercent = snapshot.critCapPercent,
+        targetResistancePercent = snapshot.targetResistancePercent,
+        baseDamage = snapshot.baseDamage,
+        elementResistances =
+            snapshot.elementResistances
+                ?.mapNotNull { (name, res) -> runCatching { SpellElement.valueOf(name) }.getOrNull()?.let { it to res } }
+                ?.toMap()
+                ?.takeIf { it.isNotEmpty() }
+    )
+}
 
 /** True if the build was searched in most-masteries mode (where "% match" is not the headline number). */
 fun HistoryEntry.isMasteryMode(): Boolean = restoredMode() == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT

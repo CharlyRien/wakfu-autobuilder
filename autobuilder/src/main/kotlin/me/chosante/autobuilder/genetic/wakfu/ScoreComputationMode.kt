@@ -7,6 +7,7 @@ enum class ScoreComputationMode(
 ) {
     FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT("most-masteries"),
     FIND_CLOSEST_BUILD_FROM_INPUT("precision"),
+    FIND_BUILD_WITH_MAX_DAMAGE("max-damage"),
     ;
 
     companion object {

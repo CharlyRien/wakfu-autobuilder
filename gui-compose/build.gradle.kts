@@ -148,9 +148,12 @@ tasks.register("generateAssets") {
         https://github.com/Vertylo/wakassets repository. Hits the network, so it is run on demand
         (not part of the normal build) and the resulting PNGs are committed alongside the others.
         
-        It copies two sets into src/main/resources/assets:
+        It copies these sets into src/main/resources/assets:
           - items/  filtered to the guiIds referenced by the current equipments JSON (large set)
           - icons/  the HUD stat icons used to render characteristics + skill-tree lines (complete set)
+          - spells/ filtered to the iconIds referenced by the current spells JSON (covers active spells
+                    and passives — both are spells; named by gfxId)
+          - states/ filtered to the appliedStateIds referenced by the passives JSON (buff/state icons)
         Existing files are never overwritten.
         """.trimIndent()
     group = "assets"
@@ -172,6 +175,30 @@ tasks.register("generateAssets") {
                     val items = groovy.json.JsonSlurper().parseText(it.readText()) as List<Map<String, Any>>
                     items.map { item -> (item["guiId"] as Int).toString() }.toSet()
                 } ?: emptySet()
+
+        // spell icon gfxIds + passive-applied state ids referenced by the current spell datasets.
+        // Resolve the dataset JSON deterministically (highest version if several coexist) and FAIL LOUDLY
+        // if it is missing/renamed — an empty id-set would otherwise silently copy 0 icons on a green build.
+        // Numbers are read as Number (JsonSlurper boxes ints as Integer/Long/BigInteger by magnitude).
+        val autobuilderResources = rootProject.projectDir.resolve("autobuilder/src/main/resources")
+
+        @Suppress("UNCHECKED_CAST")
+        fun readResourceJson(prefix: String): List<Map<String, Any>> {
+            val file =
+                autobuilderResources
+                    .listFiles()
+                    ?.filter { it.extension == "json" && it.name.startsWith(prefix) }
+                    ?.maxByOrNull { it.nameWithoutExtension }
+                    ?: error("generateAssets: no '$prefix*.json' under $autobuilderResources — run the extractor first?")
+            return groovy.json.JsonSlurper().parseText(file.readText()) as List<Map<String, Any>>
+        }
+
+        val spellIconIds =
+            readResourceJson("spells-v").mapNotNull { (it["iconId"] as? Number)?.toInt()?.toString() }.toSet()
+        val passiveStateIds =
+            readResourceJson("spell-passives-v")
+                .flatMap { entry -> (entry["appliedStateIds"] as? List<*> ?: emptyList<Any>()).map { (it as Number).toInt().toString() } }
+                .toSet()
 
         // download + unzip the wakassets repository into a temp directory
         val destinationFile = createTempFile("wakassets", ".zip").toFile()
@@ -203,6 +230,8 @@ tasks.register("generateAssets") {
 
         copyAssetDir("items") { it.nameWithoutExtension in guiIdsFromCurrentEquipmentJson }
         copyAssetDir("icons")
+        copyAssetDir("spells") { it.nameWithoutExtension in spellIconIds }
+        copyAssetDir("states") { it.nameWithoutExtension in passiveStateIds }
 
         destinationFile.delete()
         unzippedTempDirectory.toFile().deleteRecursively()

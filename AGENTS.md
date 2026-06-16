@@ -34,6 +34,11 @@ common-lib            Pure domain model. No project deps. Everyone depends on it
   ▲
   ├── equipments-extractor   Standalone tool: pulls Wakfu game data from Ankama's CDN
   │                          and regenerates the embedded equipments JSON.
+  ├── spells-extractor       Standalone tool: scrapes the Ankama encyclopedia and regenerates the
+  │                          embedded class-spells JSON (element / AP / damage per class).
+  ├── bdata-extractor        Standalone tool: decodes the local game client's scrambled static-data
+  │                          binaries (contents/bdata/*.jar) and regenerates the embedded
+  │                          spell-cast-limits + spell-passives JSON. Pure JVM, no native deps.
   ├── zenith-builder         Talks to the zenithwakfu.com builder API to create a build URL.
   │     ▲
   ├── autobuilder            CLI + the SEARCH ENGINE. Depends on common-lib + zenith-builder.
@@ -45,6 +50,8 @@ common-lib            Pure domain model. No project deps. Everyone depends on it
 |---|---|---|---|
 | `common-lib` | library | — | kotlinx-serialization |
 | `equipments-extractor` | app | `me.chosante.equipmentextractor.MainKt` | Fuel (HTTP), serialization |
+| `spells-extractor` | app | `me.chosante.spellextractor.MainKt` | java.net.http (HTTP), serialization |
+| `bdata-extractor` | app | `me.chosante.bdataextractor.MainKt` | java.util.zip + java.nio (decode), serialization |
 | `zenith-builder` | library | — | Fuel, coroutines, serialization |
 | `autobuilder` | app | `me.chosante.autobuilder.MainKt` | Clikt + Mordant (CLI), OR-Tools, coroutines |
 | `gui-compose` | app | `me.chosante.ui.MainKt` | Compose Multiplatform (Desktop), Conveyor |
@@ -148,9 +155,17 @@ Item data is **not** fetched at runtime by the apps — it is baked in:
 4. The GUI's `generateAssets` Gradle task (`gui-compose`) downloads matching item icons from the
    [`Vertylo/wakassets`](https://github.com/Vertylo/wakassets) repo into
    `gui-compose/src/main/resources/assets/items/<guiId>.png`.
+5. `bdata-extractor` decodes the **local game client's** scrambled static-data tables — `Spell` (table
+   66) and `StaticEffect` (table 68) inside `contents/bdata/<id>.jar` — and writes
+   `spell-cast-limits-v<version>.json` and `spell-passives-v<version>.json`. It needs a local Wakfu
+   install (the binaries are **not** on the CDN), so unlike the other extractors it **cannot run in
+   CI** — the JSON it produces stays committed. See `docs/SPELL_CAST_LIMITS_EXTRACTION.md` /
+   `docs/SPELL_PASSIVES_EXTRACTION.md` for the format and the extraction details.
 
-**Updating to a new Wakfu version** = run the extractor, bump `VERSION` in `autobuilder/Main.kt`,
-then run `./gradlew :gui-compose:generateAssets`.
+**Updating to a new Wakfu version** = run the extractor(s), bump `VERSION` in `autobuilder/Main.kt`,
+then run `./gradlew :gui-compose:generateAssets`. The untagged binary layout `bdata-extractor` reads
+can shift between client versions; its per-record size guard fails loudly if a table's field schema
+drifts (re-derive the schema in `Tables.kt` if so).
 
 ---
 
@@ -210,6 +225,8 @@ JDK 25 required. Use the Gradle wrapper.
 ./gradlew :gui-compose:run                        # launch the Compose Desktop GUI
 ./gradlew :autobuilder:run --args="--help"        # CLI help
 ./gradlew :equipments-extractor:run               # regenerate the equipments JSON from Ankama CDN
+./gradlew :spells-extractor:run                   # regenerate the class-spells JSON (scrapes encyclopedia; resumable)
+./gradlew :bdata-extractor:run                    # regenerate spell cast-limits + passives JSON (decodes the local game binaries)
 ./gradlew :gui-compose:generateAssets             # (on demand) download item icons from wakassets
 
 # Compose GUI screenshot smoke-check (renders the app, writes a PNG, exits):

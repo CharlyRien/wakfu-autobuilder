@@ -1,0 +1,6437 @@
+[
+  {
+    "spellId": 6967,
+    "name": "Fécalistofedes",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6968,
+    "name": "Météorite",
+    "breedId": 1,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6969,
+    "name": "Attaque naturelle",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6970,
+    "name": "Magma",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 3,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6971,
+    "name": "Volcan",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6972,
+    "name": "Goutte",
+    "breedId": 1,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6973,
+    "name": "Onde",
+    "breedId": 1,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6974,
+    "name": "Avalanche",
+    "breedId": 1,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6975,
+    "name": "Orage",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6976,
+    "name": "Lame de fond",
+    "breedId": 1,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6977,
+    "name": "Frappe tellurique",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6978,
+    "name": "Orbe défensif",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6979,
+    "name": "Bastion",
+    "breedId": 1,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6980,
+    "name": "Rempart",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6981,
+    "name": "Bâton",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6982,
+    "name": "Immunité",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 4
+  },
+  {
+    "spellId": 6983,
+    "name": "Trêve",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 6984,
+    "name": "Pacification",
+    "breedId": 1,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6985,
+    "name": "Provocation",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 6986,
+    "name": "Égide",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6987,
+    "name": "Magnétisme",
+    "breedId": 1,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6988,
+    "name": "Glyphe augmenté",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6989,
+    "name": "Ligne",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6990,
+    "name": "Un pour tous",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6991,
+    "name": "Maître des boucliers",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6992,
+    "name": "Qui veut la paix prépare la guerre",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6993,
+    "name": "Marché pacifiste",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6994,
+    "name": "Connaissance de la carte",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6995,
+    "name": "La meilleure défense est l’attaque",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6996,
+    "name": "Armure de combat",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6997,
+    "name": "Peau rocheuse",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6998,
+    "name": "Oeil pour oeil",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6999,
+    "name": "Glyphes persistants",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7000,
+    "name": "Berger",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7001,
+    "name": "Expérience du terrain",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7002,
+    "name": "Boucliers élémentaires",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7003,
+    "name": "Carapace d’épines",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7004,
+    "name": "Compréhension du Wakfu",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7005,
+    "name": "Protecteur du troupeau",
+    "breedId": 1,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7307,
+    "name": "Corbeau incendiaire",
+    "breedId": 2,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7308,
+    "name": "Fouet enflammé",
+    "breedId": 2,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7309,
+    "name": "Tornade de flammes",
+    "breedId": 2,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7310,
+    "name": "Attisement",
+    "breedId": 2,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7311,
+    "name": "Souffle du dragon",
+    "breedId": 2,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7312,
+    "name": "Tempête de sable",
+    "breedId": 2,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7313,
+    "name": "Pesanteur",
+    "breedId": 2,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 3,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7314,
+    "name": "Empalement",
+    "breedId": 2,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7315,
+    "name": "Gambade",
+    "breedId": 2,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7316,
+    "name": "Frappe du craqueleur",
+    "breedId": 2,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7317,
+    "name": "Fouet",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7318,
+    "name": "Déplumage",
+    "breedId": 2,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7319,
+    "name": "Transfert",
+    "breedId": 2,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7320,
+    "name": "Souffle répulsif",
+    "breedId": 2,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7321,
+    "name": "Tornade de plumes",
+    "breedId": 2,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7322,
+    "name": "Dernier souffle",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 7323,
+    "name": "Piqure motivante",
+    "breedId": 2,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7324,
+    "name": "Célérité",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 7325,
+    "name": "Cri affaiblissant",
+    "breedId": 2,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7326,
+    "name": "Relais",
+    "breedId": 2,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7327,
+    "name": "Lien animal",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 7328,
+    "name": "Rage du Mulou",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7329,
+    "name": "Don animal",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7330,
+    "name": "Vision du Corbac",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7331,
+    "name": "Guerrier invocateur",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7332,
+    "name": "Invocateur solitaire",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7333,
+    "name": "Transcendance draconique",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7334,
+    "name": "Esprit du phénix",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7335,
+    "name": "Force-Taure",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7336,
+    "name": "Synergie animale",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7337,
+    "name": "Symbiose",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7338,
+    "name": "Puissance draconique",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7339,
+    "name": "Étoile du Sud",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7340,
+    "name": "Sacrifice animal",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7341,
+    "name": "Étoile de l'Est",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7342,
+    "name": "Dévouement animal",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7343,
+    "name": "Art du dressage",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7344,
+    "name": "Partage animal",
+    "breedId": 2,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2008,
+    "name": "Pelle du jugement",
+    "breedId": 3,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 3,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2009,
+    "name": "Géologie avancée",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2010,
+    "name": "Pelle tueuse",
+    "breedId": 3,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2011,
+    "name": "Roulage de pelle",
+    "breedId": 3,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2012,
+    "name": "Pelle mêle",
+    "breedId": 3,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2013,
+    "name": "Pelle sismique",
+    "breedId": 3,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2014,
+    "name": "Coupures",
+    "breedId": 3,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2015,
+    "name": "Filouterie",
+    "breedId": 3,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2016,
+    "name": "Taxe",
+    "breedId": 3,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2017,
+    "name": "Epuration",
+    "breedId": 3,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2018,
+    "name": "Fusion",
+    "breedId": 3,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2019,
+    "name": "Météore",
+    "breedId": 3,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2021,
+    "name": "Braise",
+    "breedId": 3,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2022,
+    "name": "Coulée de lave",
+    "breedId": 3,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2026,
+    "name": "Richesse sismique",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 4
+  },
+  {
+    "spellId": 2028,
+    "name": "Art des marcheurs",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2032,
+    "name": "Purge",
+    "breedId": 3,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2037,
+    "name": "Coup de grisou",
+    "breedId": 3,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2039,
+    "name": "Bénédiction Enutrof",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2064,
+    "name": "Force de l'âge",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 5059,
+    "name": "Placements boursiers",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5071,
+    "name": "Cupidité",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5075,
+    "name": "Phorzertanker",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5076,
+    "name": "Côté en bourse",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6324,
+    "name": "Accélération",
+    "breedId": 3,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6326,
+    "name": "Intérêts créditeurs",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6337,
+    "name": "Maladresse",
+    "breedId": 3,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8240,
+    "name": "Avarice",
+    "breedId": 3,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8242,
+    "name": "Corruption",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 4
+  },
+  {
+    "spellId": 8272,
+    "name": "Échange asynchrone",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8273,
+    "name": "Marchepied",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8274,
+    "name": "Marchand d'âge",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8275,
+    "name": "La binocle",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8276,
+    "name": "Assurance tous risques",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8277,
+    "name": "Protection minérale",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8278,
+    "name": "Optimisation focale",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8279,
+    "name": "Tunnelier",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8280,
+    "name": "Héritage",
+    "breedId": 3,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4579,
+    "name": "Arnaque",
+    "breedId": 4,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4581,
+    "name": "Attaque mortelle",
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4583,
+    "name": "Attaque létale",
+    "breedId": 4,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4584,
+    "name": "Kleptosram",
+    "breedId": 4,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4585,
+    "name": "Attaque perfide",
+    "breedId": 4,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4586,
+    "name": "Mise à mort",
+    "breedId": 4,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4587,
+    "name": "Saignée mortelle",
+    "breedId": 4,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 3,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4588,
+    "name": "Premier Sang",
+    "breedId": 4,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4589,
+    "name": "Châtiment",
+    "breedId": 4,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4590,
+    "name": "Ouvrir les veines",
+    "breedId": 4,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4592,
+    "name": "Traumatisme",
+    "breedId": 4,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4593,
+    "name": "Coup Sournois",
+    "breedId": 4,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4594,
+    "name": "Coup pénétrant",
+    "breedId": 4,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4595,
+    "name": "Fourberie",
+    "breedId": 4,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4596,
+    "name": "Effroi",
+    "breedId": 4,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4597,
+    "name": "Sournoiserie",
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 4601,
+    "name": "Galopade",
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 4602,
+    "name": "Surineur",
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 4606,
+    "name": "Assaut Brutal",
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4607,
+    "name": "Passe-passe",
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4608,
+    "name": "Assassin",
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4609,
+    "name": "Piège de Répulsion II",
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4610,
+    "name": "Hémophilie",
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5122,
+    "name": "Embuscade",
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5124,
+    "name": "Retenue",
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5126,
+    "name": "Duperie",
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6850,
+    "name": "Assassinat",
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 8479,
+    "name": null,
+    "breedId": 4,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8481,
+    "name": null,
+    "breedId": 4,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8503,
+    "name": null,
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8504,
+    "name": null,
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8508,
+    "name": null,
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8510,
+    "name": null,
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8511,
+    "name": null,
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8512,
+    "name": null,
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8513,
+    "name": null,
+    "breedId": 4,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 749,
+    "name": "Martel'heure",
+    "breedId": 5,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 750,
+    "name": "Perturbation",
+    "breedId": 5,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 751,
+    "name": "Suspension",
+    "breedId": 5,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 752,
+    "name": "Éclair obscur",
+    "breedId": 5,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 753,
+    "name": "Poussière",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 754,
+    "name": "Aiguille",
+    "breedId": 5,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 756,
+    "name": "Mémoire",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 757,
+    "name": "Prémonition",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 758,
+    "name": "Maître du cadran",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 761,
+    "name": "Horlogerie",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 763,
+    "name": "Horloge",
+    "breedId": 5,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 764,
+    "name": "Taque, Tique",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 765,
+    "name": "Tempus fugit",
+    "breedId": 5,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 766,
+    "name": "Rouage",
+    "breedId": 5,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 767,
+    "name": "Pointe-heure",
+    "breedId": 5,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 771,
+    "name": "Retour spontané",
+    "breedId": 5,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 772,
+    "name": "Symétrie",
+    "breedId": 5,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 775,
+    "name": "Ralentissement",
+    "breedId": 5,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 776,
+    "name": "Contre la montre",
+    "breedId": 5,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 777,
+    "name": "Sinistro",
+    "breedId": 5,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 783,
+    "name": "Sablier",
+    "breedId": 5,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 785,
+    "name": "Cours du temps",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 1417,
+    "name": "Désynchronisation",
+    "breedId": 5,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 1418,
+    "name": "Paradoxe",
+    "breedId": 5,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2839,
+    "name": "Dévouement",
+    "breedId": 5,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5344,
+    "name": "Régulateur",
+    "breedId": 5,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5351,
+    "name": "Présage",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5352,
+    "name": "Promptitude",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5353,
+    "name": "Tique, Taque",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7184,
+    "name": "Contre-horaire",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7185,
+    "name": "Déjà vu",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7186,
+    "name": "Connaissance du passé",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7187,
+    "name": "Présages violents",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7188,
+    "name": "Dimension sombre",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7189,
+    "name": "Ralentissement du temps",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7190,
+    "name": "Rémanence",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7191,
+    "name": "Mécanismes spécialisés",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7192,
+    "name": "Permutation momentanée",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7193,
+    "name": "Mage de combat",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7195,
+    "name": "Flétrissement",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7196,
+    "name": "Assimilation",
+    "breedId": 5,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2041,
+    "name": "Pile ou face",
+    "breedId": 6,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2042,
+    "name": "Dé six",
+    "breedId": 6,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2043,
+    "name": "Tout ou rien",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 3,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2044,
+    "name": "Trois cartes",
+    "breedId": 6,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2045,
+    "name": "Craps",
+    "breedId": 6,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2046,
+    "name": "Feulement",
+    "breedId": 6,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2047,
+    "name": "All in",
+    "breedId": 6,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2048,
+    "name": "Roulette à dés",
+    "breedId": 6,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2049,
+    "name": "Bataille",
+    "breedId": 6,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2050,
+    "name": "Dé du chateux",
+    "breedId": 6,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2059,
+    "name": "Tarot veinard",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2060,
+    "name": "Quitte ou double",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 2061,
+    "name": "Félintuition",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 2062,
+    "name": "Pucif",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2065,
+    "name": "Langue rapeuse",
+    "breedId": 6,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2066,
+    "name": "Lacérations",
+    "breedId": 6,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2067,
+    "name": "Capucine",
+    "breedId": 6,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2068,
+    "name": "La Mésaventure",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2072,
+    "name": "Bas les pattes",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2073,
+    "name": "Pupuce",
+    "breedId": 6,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2075,
+    "name": "Topkaj",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 2076,
+    "name": "En veine",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 2078,
+    "name": "Jeton de vie",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 2079,
+    "name": "Coup du sort",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 2080,
+    "name": "L'Infortune",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5246,
+    "name": "Tarot divinatoire",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5249,
+    "name": "Impact félin",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5250,
+    "name": "Le Destin d'Ecaflip",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5251,
+    "name": "Triche",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7225,
+    "name": "Trèfle",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 7954,
+    "name": "Veine soigneuse",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7955,
+    "name": "Tarot félin",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7956,
+    "name": "La fortune sourit aux audacieux",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7957,
+    "name": "Pile, je gagne",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7958,
+    "name": "Dés généreux",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7959,
+    "name": "Félin suprême",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7960,
+    "name": "Black Jack",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7961,
+    "name": "Atouts périodiques",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7999,
+    "name": "Sept fétiche",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8000,
+    "name": "L'Univers",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8001,
+    "name": "Veine des cartes",
+    "breedId": 6,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 623,
+    "name": "Colli-mateur",
+    "breedId": 7,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 625,
+    "name": "Reconstitution",
+    "breedId": 7,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 627,
+    "name": "Déphasage",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 4
+  },
+  {
+    "spellId": 628,
+    "name": "Médecin sans barrière",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 630,
+    "name": "Anatomie",
+    "breedId": 7,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 636,
+    "name": "Corro-soin",
+    "breedId": 7,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 638,
+    "name": "Feu gardien",
+    "breedId": 7,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 644,
+    "name": "Marquage précis",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 645,
+    "name": "Explo-soin",
+    "breedId": 7,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 779,
+    "name": "Mot soignant",
+    "breedId": 7,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 780,
+    "name": "Revitalisation",
+    "breedId": 7,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 781,
+    "name": "Lien d'amitié",
+    "breedId": 7,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 782,
+    "name": "Jouvence",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 1415,
+    "name": "Soin unique",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 1532,
+    "name": "Infusion",
+    "breedId": 7,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 1533,
+    "name": "Vivification",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 3,
+    "cooldown": 0
+  },
+  {
+    "spellId": 1534,
+    "name": "Flamme purificatrice",
+    "breedId": 7,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 1535,
+    "name": "Rénisurrection",
+    "breedId": 7,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 1536,
+    "name": "Paroxysme vital",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 1537,
+    "name": "Serial marqueur",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 1538,
+    "name": "Interdiction",
+    "breedId": 7,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 1539,
+    "name": "Cure alternative",
+    "breedId": 7,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 1540,
+    "name": "Psychose",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 1541,
+    "name": "Torpeur",
+    "breedId": 7,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 1542,
+    "name": "Fiole infectée",
+    "breedId": 7,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5451,
+    "name": "Délai",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5453,
+    "name": "Tous pour moi",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5454,
+    "name": "Ponction",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5455,
+    "name": "Nature morte",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5463,
+    "name": "Vampiripsa",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7985,
+    "name": "Fontaine salvatrice",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 7987,
+    "name": "Radiance",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7990,
+    "name": "Présence",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7991,
+    "name": "Super Lapino II",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7992,
+    "name": "Transgression",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7993,
+    "name": "Elixir de vent",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7994,
+    "name": "Apprenti alchimiste",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7995,
+    "name": "Secret de fabrication",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7996,
+    "name": "Marque anbareul",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7997,
+    "name": "Paradoxe Contre-naturel",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7998,
+    "name": "Ambivalence",
+    "breedId": 7,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4775,
+    "name": "Fulgur",
+    "breedId": 8,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4776,
+    "name": "Jugement",
+    "breedId": 8,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4777,
+    "name": "Super Iop Punch",
+    "breedId": 8,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4778,
+    "name": "Épée céleste",
+    "breedId": 8,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4779,
+    "name": "Colère de Iop",
+    "breedId": 8,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4780,
+    "name": "Ébranler",
+    "breedId": 8,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4781,
+    "name": "Roknocerok",
+    "breedId": 8,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4782,
+    "name": "Fendoir",
+    "breedId": 8,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4783,
+    "name": "Charge",
+    "breedId": 8,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4784,
+    "name": "Ravage",
+    "breedId": 8,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4785,
+    "name": "Jabs",
+    "breedId": 8,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4786,
+    "name": "Rafale",
+    "breedId": 8,
+    "maxCastPerTurn": 6,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4787,
+    "name": "Torgnole",
+    "breedId": 8,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4788,
+    "name": "Tannée",
+    "breedId": 8,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4789,
+    "name": "Épée de Iop",
+    "breedId": 8,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4790,
+    "name": "Focus",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 4791,
+    "name": "Vertu",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 4792,
+    "name": "Posture",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 4793,
+    "name": "Amplification",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 4794,
+    "name": "Duel",
+    "breedId": 8,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4795,
+    "name": "Virilité",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4796,
+    "name": "Compulsion",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4797,
+    "name": "Autorité",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4798,
+    "name": "Duelliste",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4799,
+    "name": "Roi de la Colline",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5100,
+    "name": "Bravoure",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5101,
+    "name": "Précipitation",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5102,
+    "name": "Ralliement",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5103,
+    "name": "Mini-Bond",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5104,
+    "name": "Faille Sismique",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5130,
+    "name": "Heure de gloire",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 8413,
+    "name": "Destin",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8414,
+    "name": "Impétueux",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8415,
+    "name": "Démonstration",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8416,
+    "name": "Frappe et court",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8417,
+    "name": "Dissipation",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8418,
+    "name": "Avant-poste",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8419,
+    "name": "Fortification",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8420,
+    "name": "Le Iop de Wazemmes",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8421,
+    "name": "Conquête",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8422,
+    "name": "Porte-étendard",
+    "breedId": 8,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4769,
+    "name": "Flèche ardente",
+    "breedId": 9,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4774,
+    "name": "Roulade",
+    "breedId": 9,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4805,
+    "name": "Retraite balisée",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 4806,
+    "name": "Eclaireur",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 4808,
+    "name": "Frappe incisive",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 4809,
+    "name": "Flèche tempête",
+    "breedId": 9,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4810,
+    "name": "Flèche de recul",
+    "breedId": 9,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4811,
+    "name": "Flèche harcelante",
+    "breedId": 9,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4812,
+    "name": "Flèche statique",
+    "breedId": 9,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4813,
+    "name": "Flèche chercheuse",
+    "breedId": 9,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4814,
+    "name": "Flèche destructrice",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 4815,
+    "name": "Flèche perçante",
+    "breedId": 9,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4816,
+    "name": "Flèche cinglante",
+    "breedId": 9,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4817,
+    "name": "Pluie de flèches",
+    "breedId": 9,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4818,
+    "name": "Flèche criblante",
+    "breedId": 9,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4819,
+    "name": "Flèche explosive",
+    "breedId": 9,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4820,
+    "name": "Flèche fulminante",
+    "breedId": 9,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4821,
+    "name": "Flèche enflammée",
+    "breedId": 9,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4822,
+    "name": "Flèche d'immolation",
+    "breedId": 9,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6842,
+    "name": "Rafale",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 6945,
+    "name": "Archer futé",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6946,
+    "name": "Éclaireur spécialisé",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6947,
+    "name": "Balises discrètes",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6948,
+    "name": "Parti pris",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6949,
+    "name": "Distance focale",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6950,
+    "name": "Précision vorace",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6951,
+    "name": "La voie de l'arc",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6952,
+    "name": "Débalisage massif",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6953,
+    "name": "Étude balistique",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6955,
+    "name": "Paradoxe du Crâ",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6956,
+    "name": "Éclaireur intouchable",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6957,
+    "name": "Instinct du chasseur",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6958,
+    "name": "Balisage rapproché",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6959,
+    "name": "Tireur solitaire",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6960,
+    "name": "Esprit affûté",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6961,
+    "name": "L'art des Balises",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6962,
+    "name": "Tir divergent",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6963,
+    "name": "Perforation Crâ",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7753,
+    "name": "Œil de taupe",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 7795,
+    "name": "Pointe protectrice",
+    "breedId": 9,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 912,
+    "name": "Sadida Solitaire",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 913,
+    "name": "Garde Feuille",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 914,
+    "name": "Toxines",
+    "breedId": 10,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 915,
+    "name": "Arbre",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 916,
+    "name": "Lien Poupesque",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 917,
+    "name": "Don sylvestre",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 918,
+    "name": "Larme du Sadida",
+    "breedId": 10,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 919,
+    "name": "Vent Empoisonné",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 920,
+    "name": "Sacrifice Poupesque",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 921,
+    "name": "Vaporiser",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 3,
+    "cooldown": 0
+  },
+  {
+    "spellId": 922,
+    "name": "Drainage",
+    "breedId": 10,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 925,
+    "name": "Ronce",
+    "breedId": 10,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 3,
+    "cooldown": 0
+  },
+  {
+    "spellId": 927,
+    "name": "Herbes Folles",
+    "breedId": 10,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 928,
+    "name": "Coup de Froid",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 929,
+    "name": "Engrais",
+    "breedId": 10,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 930,
+    "name": "Gadoule",
+    "breedId": 10,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 931,
+    "name": "Rouille",
+    "breedId": 10,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 932,
+    "name": "Relent Boisé",
+    "breedId": 10,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 933,
+    "name": "Exploupée",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 934,
+    "name": "Kohmir",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 935,
+    "name": "Tremblement de Terre",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 937,
+    "name": "Ronces Multiples",
+    "breedId": 10,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 938,
+    "name": "Bourrasque",
+    "breedId": 10,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4959,
+    "name": "Prière Sadida",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5055,
+    "name": "Terrain infecté",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5057,
+    "name": "Eveil Sylvestre",
+    "breedId": 10,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5058,
+    "name": "Murmures Sauvages",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5234,
+    "name": "Venimeux",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7053,
+    "name": "Terrain d'entente",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7054,
+    "name": "Fertilisant",
+    "breedId": 10,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8139,
+    "name": "Force de la nature",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 4
+  },
+  {
+    "spellId": 8149,
+    "name": "Bénédiction Voodoll",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8150,
+    "name": "Poussée sylvestre",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8151,
+    "name": "Terrain fertile",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8152,
+    "name": "Croissance accélérée",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8153,
+    "name": "Dévouement poupesque",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8154,
+    "name": "Mauvaise graine",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8155,
+    "name": "Cycle sylvestre",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8156,
+    "name": "Communication végétale",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8157,
+    "name": "Savoir Sadida",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 8158,
+    "name": "Chaîne de la nature",
+    "breedId": 10,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5028,
+    "name": "Sang pour sang",
+    "breedId": 11,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5029,
+    "name": "Cage de sang",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5030,
+    "name": "Furie sanguinaire",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5031,
+    "name": "Sang brûlant",
+    "breedId": 11,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5032,
+    "name": "Punition",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 5033,
+    "name": "Pied rocheux",
+    "breedId": 11,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5034,
+    "name": "Tempête spirituelle",
+    "breedId": 11,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5035,
+    "name": "Démence",
+    "breedId": 11,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5036,
+    "name": "Fracasse",
+    "breedId": 11,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5037,
+    "name": "Colonnades",
+    "breedId": 11,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5038,
+    "name": "Aversion",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5039,
+    "name": "Poing tatoué agrippant",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5040,
+    "name": "Assaut",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5041,
+    "name": "Projection",
+    "breedId": 11,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5042,
+    "name": "Fulgurance",
+    "breedId": 11,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5043,
+    "name": "Attirance",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5044,
+    "name": "Transposition",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 5045,
+    "name": "Sacrifice",
+    "breedId": 11,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5047,
+    "name": "Armure sanguine",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 5049,
+    "name": "Traînée de sang",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5050,
+    "name": "Placidité",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5051,
+    "name": "Sang tatoué",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5052,
+    "name": "Refus de la mort",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5053,
+    "name": "Pacte de sang",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5054,
+    "name": "Transcendance",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5192,
+    "name": "Mobilité",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5193,
+    "name": "Libation",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5194,
+    "name": "Veines de Wakfu",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5195,
+    "name": "Fracasseur",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7211,
+    "name": "Entaille",
+    "breedId": 11,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7212,
+    "name": "Transfert sanguin",
+    "breedId": 11,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7213,
+    "name": "Circulation sanguine",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7214,
+    "name": "Jeu dangereux",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7215,
+    "name": "Vision",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7216,
+    "name": "Armure brûlante",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7217,
+    "name": "Pacte de Wakfu",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7218,
+    "name": "Coeur de Sacrieur",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7219,
+    "name": "Mal des transports",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7220,
+    "name": "Pilier",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7224,
+    "name": "Immolation",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7830,
+    "name": "Exécuteur",
+    "breedId": 11,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4702,
+    "name": "Souffle Enflammé",
+    "breedId": 12,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4703,
+    "name": "Tournée Générale",
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 3,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4704,
+    "name": "Coup Laiteux",
+    "breedId": 12,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4705,
+    "name": "Flasque Explosive",
+    "breedId": 12,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4706,
+    "name": "Toilaitage",
+    "breedId": 12,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4707,
+    "name": "Souffle Laiteux",
+    "breedId": 12,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4708,
+    "name": "Nuage Laiteux",
+    "breedId": 12,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4709,
+    "name": "Tekilait",
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4710,
+    "name": "Vague de Lait",
+    "breedId": 12,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4711,
+    "name": "Fontaine de Laiqueur",
+    "breedId": 12,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4712,
+    "name": "Triple Karma Leet",
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 3,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4713,
+    "name": "Six Roses",
+    "breedId": 12,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4714,
+    "name": "Frappe Fût",
+    "breedId": 12,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4715,
+    "name": "Lucha L'ambrée",
+    "breedId": 12,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4716,
+    "name": "Blitzkriek",
+    "breedId": 12,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4717,
+    "name": "Coup de bambou",
+    "breedId": 12,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4719,
+    "name": "Ether",
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 4720,
+    "name": "Téléportono",
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 4721,
+    "name": "Happy Hour",
+    "breedId": 12,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4722,
+    "name": "Cocktail",
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4723,
+    "name": "Maître de l'Ivresse",
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4724,
+    "name": "Tonneau sans Fond",
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4725,
+    "name": "Tonneau Agressif",
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4726,
+    "name": "Instinct Laiteux",
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5148,
+    "name": "Bambouteille",
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5149,
+    "name": "Cyanose",
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5150,
+    "name": "Buvette",
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5151,
+    "name": "Pandémie",
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6844,
+    "name": "Soif",
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 6845,
+    "name": "Ebriété",
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 6846,
+    "name": "Éméché",
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6463,
+    "name": "Barbrûlé",
+    "breedId": 13,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6464,
+    "name": "Bombe collante",
+    "breedId": 13,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6465,
+    "name": "Exécution",
+    "breedId": 13,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6466,
+    "name": "Croisement",
+    "breedId": 13,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6467,
+    "name": "Perforation",
+    "breedId": 13,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6468,
+    "name": "Mitraille",
+    "breedId": 13,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6469,
+    "name": "Tromblon",
+    "breedId": 13,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6470,
+    "name": "Balle plombante",
+    "breedId": 13,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6471,
+    "name": "Dague boomerang",
+    "breedId": 13,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6472,
+    "name": "Pulsar",
+    "breedId": 13,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6473,
+    "name": "Coup rapide",
+    "breedId": 13,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6474,
+    "name": "Tricherie",
+    "breedId": 13,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6475,
+    "name": "Espingole",
+    "breedId": 13,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6476,
+    "name": "Oblitération",
+    "breedId": 13,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6478,
+    "name": "Longue lame",
+    "breedId": 13,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6479,
+    "name": "Roublaboom",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6480,
+    "name": "Grande évasion",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6481,
+    "name": "Bomber Fan",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6482,
+    "name": "Artificier",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6483,
+    "name": "Tunique renforcée",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6484,
+    "name": "Démineur",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6485,
+    "name": "Lame rouillée",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6486,
+    "name": "Maître des lames",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6487,
+    "name": "Mur de poudre",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6488,
+    "name": "Fugitif",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6489,
+    "name": "Défourailleur",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 6490,
+    "name": "Botte",
+    "breedId": 13,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6491,
+    "name": "Evanescence",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 6492,
+    "name": "Grappin",
+    "breedId": 13,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6493,
+    "name": "Aimant",
+    "breedId": 13,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6494,
+    "name": "Fumigènes",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 7062,
+    "name": "Tir surprise",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7063,
+    "name": "Baril",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7064,
+    "name": "Dynamite",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7065,
+    "name": "Explobombe",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7090,
+    "name": "Bombes élémentaires",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7091,
+    "name": "Maître Roublard",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7092,
+    "name": "Jackpot",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7982,
+    "name": "Tacticien",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7983,
+    "name": "Trainée de poudre",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7984,
+    "name": "Bombes à retardement",
+    "breedId": 13,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7066,
+    "name": "Coup de pied fouetté",
+    "breedId": 14,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7067,
+    "name": "Félure",
+    "breedId": 14,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7068,
+    "name": "Détraquage",
+    "breedId": 14,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7069,
+    "name": "Névrose",
+    "breedId": 14,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7070,
+    "name": "Cabriole",
+    "breedId": 14,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7071,
+    "name": "Signe",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7072,
+    "name": "Armature",
+    "breedId": 14,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7073,
+    "name": "Rescousse",
+    "breedId": 14,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7074,
+    "name": "Acharnement",
+    "breedId": 14,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7075,
+    "name": "Sarabande",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7076,
+    "name": "Fugue",
+    "breedId": 14,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7077,
+    "name": "Poursuite",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7078,
+    "name": "Culbute",
+    "breedId": 14,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7079,
+    "name": "Cavalcade",
+    "breedId": 14,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7080,
+    "name": "Dislocation",
+    "breedId": 14,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7084,
+    "name": "Esprit masqué",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 5
+  },
+  {
+    "spellId": 7085,
+    "name": "Danse motivante",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 4
+  },
+  {
+    "spellId": 7086,
+    "name": "Danse macabre",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 7087,
+    "name": "Voltige",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 7088,
+    "name": "Aura de brutalité",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 7089,
+    "name": "Solidité",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 7093,
+    "name": "Jeu de jambes",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7094,
+    "name": "Bas les masques",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7095,
+    "name": "Poussées violentes",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7096,
+    "name": "Art de la vengeance",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7097,
+    "name": "Masque de vie",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7098,
+    "name": "Carnaval",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7099,
+    "name": "Armure unique",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7100,
+    "name": "Ancre",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7101,
+    "name": "Brute",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7102,
+    "name": "Protecteur reculé",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7103,
+    "name": "Collisions de support",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7104,
+    "name": "Érosion",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7105,
+    "name": "Virevolte",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7106,
+    "name": "Collisions régénérantes",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7107,
+    "name": "Miroirs",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7108,
+    "name": "Au contact",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7111,
+    "name": "Art de la fuite",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7112,
+    "name": "Regard masqué",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7113,
+    "name": "Poussées d'entrave",
+    "breedId": 14,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6256,
+    "name": "Plombage",
+    "breedId": 15,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6257,
+    "name": "Fléau",
+    "breedId": 15,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6258,
+    "name": "Rupture",
+    "breedId": 15,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6259,
+    "name": "Balafre",
+    "breedId": 15,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6260,
+    "name": "Emeute",
+    "breedId": 15,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6261,
+    "name": "Croc-en-jambe",
+    "breedId": 15,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6262,
+    "name": "Hachure",
+    "breedId": 15,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6263,
+    "name": "Bastonnade",
+    "breedId": 15,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6264,
+    "name": "Saccade",
+    "breedId": 15,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6265,
+    "name": "Molosse",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6266,
+    "name": "Balayage",
+    "breedId": 15,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6267,
+    "name": "Contusion",
+    "breedId": 15,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6268,
+    "name": "Cador",
+    "breedId": 15,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6269,
+    "name": "Brise'Os",
+    "breedId": 15,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6270,
+    "name": "Baroud",
+    "breedId": 15,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6271,
+    "name": "Terrier",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6272,
+    "name": "Art Canin",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6273,
+    "name": "Maître Chien",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6274,
+    "name": "Compagnon",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6275,
+    "name": "Ardeur",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6276,
+    "name": "Epuisement",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6277,
+    "name": "Pillage",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6278,
+    "name": "Crocs Futés",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6279,
+    "name": "Flair",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6280,
+    "name": "Marchandage",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6281,
+    "name": "Pistage",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6282,
+    "name": "Force sage",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6284,
+    "name": "Chasseur",
+    "breedId": 15,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6285,
+    "name": "Poursuite",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 6287,
+    "name": "Canine",
+    "breedId": 15,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6288,
+    "name": "Apaisement",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 7551,
+    "name": "Meute",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 7552,
+    "name": "Élan",
+    "breedId": 15,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7553,
+    "name": "Acharné",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7554,
+    "name": "Chasse ouverte",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7555,
+    "name": "Digestion",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7556,
+    "name": "Énergie Canine",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7557,
+    "name": "Fureur",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7558,
+    "name": "Traqueur Canin",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7596,
+    "name": "Canin'Os",
+    "breedId": 15,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6902,
+    "name": "Feu ardent",
+    "breedId": 16,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6903,
+    "name": "Crache flammes",
+    "breedId": 16,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6904,
+    "name": "Calcination",
+    "breedId": 16,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6905,
+    "name": "Flambage",
+    "breedId": 16,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6906,
+    "name": "Sabordage",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6907,
+    "name": "Courant",
+    "breedId": 16,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6908,
+    "name": "Évaporation",
+    "breedId": 16,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6909,
+    "name": "Ecume",
+    "breedId": 16,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6910,
+    "name": "Flibuste",
+    "breedId": 16,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6911,
+    "name": "Dissolution",
+    "breedId": 16,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6912,
+    "name": "À la masse",
+    "breedId": 16,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6913,
+    "name": "Piétinement",
+    "breedId": 16,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6914,
+    "name": "Pilonnage",
+    "breedId": 16,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6915,
+    "name": "Marteau aimant",
+    "breedId": 16,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6916,
+    "name": "Choc",
+    "breedId": 16,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6917,
+    "name": "Blindage",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 6918,
+    "name": "Surtension",
+    "breedId": 16,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6919,
+    "name": "Machinerie",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 6920,
+    "name": "Embuscade",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 6921,
+    "name": "Transition",
+    "breedId": 16,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6922,
+    "name": "Flux de Stasis",
+    "breedId": 16,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6925,
+    "name": "Modérateur d'énergie",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6926,
+    "name": "Routes sinueuses",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6927,
+    "name": "Versatilité",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6928,
+    "name": "Blindage renforcé",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6929,
+    "name": "Stratégie robotique",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6930,
+    "name": "Technologie de transports",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6931,
+    "name": "Assistance tellurique",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6932,
+    "name": "Substitution mécanique",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6933,
+    "name": "Patience",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6934,
+    "name": "Alliage léger",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6935,
+    "name": "Inversion d'énergie",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6936,
+    "name": "Revêtement à toute épreuve",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6937,
+    "name": "Activation",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6938,
+    "name": "Exécution immédiate",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6939,
+    "name": "Protection stasifiée",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6940,
+    "name": "Roues chaudes",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6941,
+    "name": "Conquête sereine",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6942,
+    "name": "Tacticien",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 6943,
+    "name": "Mécanique avancée",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7810,
+    "name": "Déploiement tactique",
+    "breedId": 16,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4668,
+    "name": "Egide ardente",
+    "breedId": 18,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4669,
+    "name": "Targe fracassante",
+    "breedId": 18,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4670,
+    "name": "Séisme",
+    "breedId": 18,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4671,
+    "name": "Raclée",
+    "breedId": 18,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4680,
+    "name": "Tourbillon",
+    "breedId": 18,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4683,
+    "name": "Brèche temporaire",
+    "breedId": 18,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4684,
+    "name": "Exode",
+    "breedId": 18,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4685,
+    "name": "Incandescence",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 4686,
+    "name": "Rage",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4687,
+    "name": "Traquenard",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4688,
+    "name": "Effervescence",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4689,
+    "name": "Intermédiaire",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4690,
+    "name": "Résilience",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4691,
+    "name": "Wakméha",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4692,
+    "name": "Pulsation",
+    "breedId": 18,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 3,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4693,
+    "name": "Déluge",
+    "breedId": 18,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4694,
+    "name": "Cataclysme",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 4695,
+    "name": "Heurt",
+    "breedId": 18,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4697,
+    "name": "Flux torrentiel",
+    "breedId": 18,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4698,
+    "name": "Siphon",
+    "breedId": 18,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4699,
+    "name": "Salve éthérée",
+    "breedId": 18,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4700,
+    "name": "Tempête",
+    "breedId": 18,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 4701,
+    "name": "Lame déchaînée",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5056,
+    "name": "Disciple du portail",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5131,
+    "name": "Transitoire",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5132,
+    "name": "Réminiscence",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5143,
+    "name": "Portail céleste",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7198,
+    "name": "Empreinte de Wakfu",
+    "breedId": 18,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7199,
+    "name": "Coalition",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 7200,
+    "name": "Barrière",
+    "breedId": 18,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7202,
+    "name": "Interstellaire",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7203,
+    "name": "Dimension blanche",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7204,
+    "name": "Quiétude",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7205,
+    "name": "Espace-temps",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7206,
+    "name": "Porta(i)l",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7207,
+    "name": "Bouclier de la fin",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7208,
+    "name": "Épée du début",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7209,
+    "name": "Cicatrisation",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7210,
+    "name": "Concentration",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7720,
+    "name": "Méditation",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7814,
+    "name": "Souffle de la déesse",
+    "breedId": 18,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5561,
+    "name": "Résonance",
+    "breedId": 19,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5562,
+    "name": "Flux d'énergie",
+    "breedId": 19,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5563,
+    "name": "Lueur de l'aube",
+    "breedId": 19,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5564,
+    "name": "Averse",
+    "breedId": 19,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5565,
+    "name": "Débâcle",
+    "breedId": 19,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5566,
+    "name": "Vestige",
+    "breedId": 19,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5567,
+    "name": "Éboulement",
+    "breedId": 19,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5568,
+    "name": "Feuillure",
+    "breedId": 19,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5569,
+    "name": "Faille",
+    "breedId": 19,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5570,
+    "name": "Papillons diurnes",
+    "breedId": 19,
+    "maxCastPerTurn": 4,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 3,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5571,
+    "name": "Disque luminescent",
+    "breedId": 19,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5572,
+    "name": "Ombres dansantes",
+    "breedId": 19,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5575,
+    "name": "Forteresse solaire",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 3
+  },
+  {
+    "spellId": 5576,
+    "name": "Mur d'énergie",
+    "breedId": 19,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5577,
+    "name": "Principio Valere",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 5579,
+    "name": "Dynamo",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5580,
+    "name": "Initiative de l'âme",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5581,
+    "name": "Distension Élémentaire",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5582,
+    "name": "Liaison Lumineuse",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5583,
+    "name": "Universalité",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5584,
+    "name": "Sauvegarde Runique",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5585,
+    "name": "Plénitude",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5586,
+    "name": "Profusion Runique",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5587,
+    "name": "Absorption Quadramentale",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5588,
+    "name": "Réfraction Élémentaire",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5590,
+    "name": "Orbes luisants",
+    "breedId": 19,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5591,
+    "name": "Rayon crépusculaire",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5592,
+    "name": "Halo Chatoyant",
+    "breedId": 19,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 1,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5593,
+    "name": "Larmes scintillantes",
+    "breedId": 19,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 2,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5594,
+    "name": "Flèche de lumière",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 5595,
+    "name": "Épée de lumière",
+    "breedId": 19,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5596,
+    "name": "Mirage",
+    "breedId": 19,
+    "maxCastPerTurn": 3,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 5597,
+    "name": "Faisceau de lune",
+    "breedId": 19,
+    "maxCastPerTurn": 2,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7754,
+    "name": "Visio Imperum",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 7755,
+    "name": "Surcharge runique",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 2
+  },
+  {
+    "spellId": 7797,
+    "name": "Extension des sens",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7798,
+    "name": "Transcendance Runique",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7800,
+    "name": "Combinaison Élémentaire",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7801,
+    "name": "Pulsation",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7802,
+    "name": "Antithèse",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7803,
+    "name": "Essor de l'âme",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7804,
+    "name": "Altruisme de l'âme",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7805,
+    "name": "Nouveau souffle",
+    "breedId": 19,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  },
+  {
+    "spellId": 7809,
+    "name": "Runification",
+    "breedId": 19,
+    "maxCastPerTurn": 1,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0
+  }
+]

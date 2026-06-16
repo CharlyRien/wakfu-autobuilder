@@ -73,6 +73,7 @@ private fun Characteristic.iconFileName(): String? =
         Characteristic.MASTERY_BACK -> "mastery_back"
         Characteristic.MASTERY_BERSERK -> "mastery_berserk"
         Characteristic.MASTERY_HEALING -> "mastery_heal"
+        Characteristic.DAMAGE_INFLICTED -> "di"
         // Resistances
         Characteristic.RESISTANCE_ELEMENTARY_WATER -> "water_res"
         Characteristic.RESISTANCE_ELEMENTARY_FIRE -> "fire_res"
