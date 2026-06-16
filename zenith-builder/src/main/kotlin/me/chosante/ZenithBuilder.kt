@@ -8,6 +8,7 @@ import me.chosante.common.Character
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.RuneType
+import me.chosante.common.Sublimation
 import kotlin.time.Duration.Companion.seconds
 
 internal const val BASE_API_URL = "https://api.zenithwakfu.com/builder/api"
@@ -24,6 +25,8 @@ data class ZenithInputParameters(
     val equipments: List<Equipment>,
     // Runes socketed per equipped item (from BuildCombination.runes); empty when runes are disabled.
     val runes: Map<Equipment, List<RuneType>> = emptyMap(),
+    // Sublimations hosted per equipped item (from BuildCombination.sublimations); socketed like runes.
+    val sublimations: Map<Equipment, List<Sublimation>> = emptyMap(),
 )
 
 suspend fun ZenithInputParameters.createZenithBuild() =
@@ -48,10 +51,23 @@ suspend fun ZenithInputParameters.createZenithBuild() =
                             runes[equipment].orEmpty().forEachIndexed { index, rune ->
                                 addShard(
                                     buildId = zenithBuild.id,
-                                    runeId = rune.id,
+                                    shardId = rune.id,
                                     position = index,
                                     side = sideValue,
                                     level = rune.maxLevel(equipment.level)
+                                )
+                            }
+                            // Then this item's sublimations: socketed like runes but with level = null,
+                            // placed after the runes so socket positions don't collide. (Epic/relic subs
+                            // have no socket pattern — their position is best-effort; verify on the live builder.)
+                            val runeCount = runes[equipment].orEmpty().size
+                            sublimations[equipment].orEmpty().forEachIndexed { index, sub ->
+                                addShard(
+                                    buildId = zenithBuild.id,
+                                    shardId = sub.zenithId,
+                                    position = runeCount + index,
+                                    side = sideValue,
+                                    level = null
                                 )
                             }
                         }

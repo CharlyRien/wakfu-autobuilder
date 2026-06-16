@@ -87,6 +87,8 @@ data class SublimationConversion(
 @Serializable
 data class Sublimation(
     val stateId: Int,
+    /** The sublimation's in-game item id — used as Zenith's `/shard/add` `id_shard` (a sub socketes like a rune). */
+    val zenithId: Int = 0,
     val name: I18nText,
     val rarity: SublimationRarity,
     /** Normal subs: 3 socket colours (`1`=red, `2`=green, `3`=blue, matching [RuneColor]). Empty for epic/relic. */
