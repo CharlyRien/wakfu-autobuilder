@@ -448,20 +448,9 @@ class BuildSearchModel(
         ui = ui.copy(excludedItems = ui.excludedItems - item)
     }
 
-    /** All sublimation names (French) the user can force, sorted for the picker. */
-    val sublimationCatalog: List<String> by lazy {
-        WakfuBestBuildFinderAlgorithm.sublimations
-            .map { it.name.fr }
-            .distinct()
-            .sorted()
-    }
-
-    /** All rune names (French) the user can force, sorted for the picker. */
-    val runeCatalog: List<String> by lazy {
-        WakfuBestBuildFinderAlgorithm.runes
-            .map { it.name.fr }
-            .distinct()
-            .sorted()
+    /** The modeled runes ([me.chosante.common.RuneType]) the user can pin onto an item, sorted for the picker. */
+    val runeOptions: List<me.chosante.common.RuneType> by lazy {
+        WakfuBestBuildFinderAlgorithm.runes.sortedBy { it.name.fr.lowercase() }
     }
 
     fun setUseSublimations(enabled: Boolean) {
@@ -476,12 +465,35 @@ class BuildSearchModel(
         ui = ui.copy(forcedSublimations = ui.forcedSublimations - name)
     }
 
-    fun addForcedRune(name: String) {
-        if (name.isNotBlank() && name !in ui.forcedRunes) ui = ui.copy(forcedRunes = ui.forcedRunes + name)
+    /**
+     * Force the sublimation chosen from the [Modal.SublimationPicker] modal, then close it. The engine
+     * matches sublimations by their **French** name, so that's the key we store (regardless of UI lang).
+     */
+    fun pickSublimation(sub: me.chosante.common.Sublimation) {
+        addForcedSublimation(sub.name.fr)
+        ui = ui.copy(modal = null)
     }
 
-    fun removeForcedRune(name: String) {
-        ui = ui.copy(forcedRunes = ui.forcedRunes - name)
+    /** Open the per-item rune picker for [equipment] (only meaningful when the item has sockets). */
+    fun openItemRunePicker(equipment: me.chosante.common.Equipment) {
+        openModal(Modal.ItemRunePicker(equipment.name.fr))
+    }
+
+    /** Rune ids currently pinned onto the item with this French name. */
+    fun pinnedRunes(itemName: String): List<Int> = ui.forcedRunesByItem[itemName].orEmpty()
+
+    /** Replace the runes pinned onto [itemName] (an empty list clears the entry), then close the picker. */
+    fun setForcedRunesForItem(
+        itemName: String,
+        runeIds: List<Int>,
+    ) {
+        val updated =
+            if (runeIds.isEmpty()) {
+                ui.forcedRunesByItem - itemName
+            } else {
+                ui.forcedRunesByItem + (itemName to runeIds)
+            }
+        ui = ui.copy(forcedRunesByItem = updated, modal = null)
     }
 
     /**
@@ -586,7 +598,9 @@ class BuildSearchModel(
                 character = character,
                 targetStats = targetStats,
                 searchDuration = (snapshot.duration.toIntOrNull() ?: 20).coerceAtLeast(1).seconds,
-                stopWhenBuildMatch = snapshot.stopAtMatch,
+                // "Stop at 100% match" only applies to precision mode (the only mode with an exact target);
+                // ignore a stale toggle when searching in most-masteries / max-damage.
+                stopWhenBuildMatch = snapshot.stopAtMatch && snapshot.mode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT,
                 maxRarity = snapshot.maxRarity,
                 excludedRarities = snapshot.excludedRarities,
                 forcedItems = snapshot.forcedItems.map { it.matchName },
@@ -594,7 +608,7 @@ class BuildSearchModel(
                 scoreComputationMode = snapshot.mode,
                 useSublimations = snapshot.useSublimations,
                 forcedSublimations = snapshot.forcedSublimations,
-                forcedRunes = snapshot.forcedRunes,
+                forcedRunesByItem = snapshot.forcedRunesByItem,
                 damageScenario = snapshot.scenario
             )
 

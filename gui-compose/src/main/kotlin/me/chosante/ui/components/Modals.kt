@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -43,8 +44,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.RuneColor
+import me.chosante.common.RuneType
+import me.chosante.common.Sublimation
 import me.chosante.common.history.HistoryEntry
 import me.chosante.ui.history.normalizeTags
 import me.chosante.ui.i18n.Lang
@@ -69,6 +74,11 @@ fun ModalHost(
     equipmentCatalog: List<Equipment>?,
     onSelectStat: (Characteristic) -> Unit,
     onPickItem: (Equipment) -> Unit,
+    onPickSublimation: (Sublimation) -> Unit = {},
+    runePickerCarrier: Equipment? = null,
+    runeOptions: List<RuneType> = emptyList(),
+    initialPinnedRunes: List<Int> = emptyList(),
+    onConfirmItemRunes: (itemName: String, runeIds: List<Int>) -> Unit = { _, _ -> },
     onDismiss: () -> Unit,
     suggestedSaveName: String = "",
     isEditingExisting: Boolean = false,
@@ -104,6 +114,26 @@ fun ModalHost(
                     equipmentCatalog = equipmentCatalog,
                     onPick = onPickItem
                 )
+
+            Modal.SublimationPicker ->
+                SublimationPickerModal(onPick = onPickSublimation)
+
+            is Modal.ItemRunePicker ->
+                // Resolve the carrier at render time from the current build; if it's gone (e.g. a new
+                // search replaced it), close from a side-effect rather than writing state in composition.
+                if (runePickerCarrier == null) {
+                    LaunchedEffect(modal.itemName) { onDismiss() }
+                } else {
+                    key(runePickerCarrier.equipmentId) {
+                        ItemRunePickerModal(
+                            carrier = runePickerCarrier,
+                            runeOptions = runeOptions,
+                            initialSelection = initialPinnedRunes,
+                            onConfirm = { ids -> onConfirmItemRunes(modal.itemName, ids) },
+                            onCancel = onDismiss
+                        )
+                    }
+                }
 
             Modal.SaveBuild ->
                 SaveBuildModal(
@@ -511,6 +541,251 @@ private fun ItemResultRow(
         )
     }
 }
+
+@Composable
+private fun SublimationPickerModal(onPick: (Sublimation) -> Unit) {
+    val lang = LocalLang.current
+    val results =
+        remember(lang) {
+            WakfuBestBuildFinderAlgorithm.sublimations.distinctBy { it.stateId }
+        }
+    var query by remember { mutableStateOf("") }
+    val filtered =
+        remember(query, results) {
+            val q = query.trim()
+            if (q.isBlank()) {
+                results
+            } else {
+                results.filter { sub ->
+                    sub.name.fr.contains(q, ignoreCase = true) ||
+                        sub.name.en.contains(q, ignoreCase = true) ||
+                        sub.rawText?.contains(q, ignoreCase = true) == true
+                }
+            }.sortedBy { (if (lang == Lang.FR) it.name.fr else it.name.en).lowercase() }
+                .take(120)
+        }
+    ModalCard(title = tr(Tr.REQUIRE_SUBLIMATION_TITLE)) {
+        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_SUBLIMATIONS))
+        Spacer(modifier = Modifier.height(WDimens.gap))
+        LazyColumn(
+            modifier = Modifier.heightIn(max = 440.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            items(filtered, key = { it.stateId }) { sub ->
+                SublimationResultRow(sub = sub, lang = lang, onClick = { onPick(sub) })
+            }
+        }
+        if (filtered.isEmpty()) {
+            Text(
+                text = tr(Tr.NO_MATCHING_SUBLIMATION),
+                style = WTypography.bodyMedium.copy(color = WColor.muted),
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SublimationResultRow(
+    sub: Sublimation,
+    lang: Lang,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(9.dp))
+                .background(WColor.raised)
+                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 11.dp, vertical = 9.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = if (lang == Lang.FR) sub.name.fr.ifBlank { sub.name.en } else sub.name.en.ifBlank { sub.name.fr },
+                style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = sub.rarity.name,
+                style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
+            )
+        }
+        sub.rawText?.takeIf { it.isNotBlank() }?.let { effect ->
+            Text(
+                text = effect,
+                style = WTypography.labelSmall.copy(color = WColor.muted),
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun ItemRunePickerModal(
+    carrier: Equipment,
+    runeOptions: List<RuneType>,
+    initialSelection: List<Int>,
+    onConfirm: (List<Int>) -> Unit,
+    onCancel: () -> Unit,
+) {
+    val lang = LocalLang.current
+    val sockets = carrier.maxShardSlots
+    // SnapshotStateMap of rune-id -> count, seeded from the runes already pinned onto this item.
+    val counts =
+        remember(carrier.equipmentId) {
+            mutableStateMapOf<Int, Int>().apply {
+                initialSelection.groupingBy { it }.eachCount().forEach { (id, n) -> put(id, n) }
+            }
+        }
+    var query by remember { mutableStateOf("") }
+    val total = counts.values.sum()
+    val filtered =
+        remember(query, runeOptions) {
+            val q = query.trim()
+            if (q.isBlank()) {
+                runeOptions
+            } else {
+                runeOptions.filter { it.name.fr.contains(q, ignoreCase = true) || it.name.en.contains(q, ignoreCase = true) }
+            }
+        }
+    val carrierName = if (lang == Lang.FR) carrier.name.fr.ifBlank { carrier.name.en } else carrier.name.en.ifBlank { carrier.name.fr }
+    ModalCard(title = "${tr(Tr.EDIT_RUNES_TITLE)} — $carrierName") {
+        Text(
+            text = "${tr(Tr.RUNE_SOCKETS_LABEL)}: $total / $sockets",
+            style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
+        )
+        Spacer(modifier = Modifier.height(WDimens.gap))
+        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_RUNES))
+        Spacer(modifier = Modifier.height(WDimens.gap))
+        LazyColumn(
+            modifier = Modifier.heightIn(max = 360.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            items(filtered, key = { it.id }) { rune ->
+                RuneOptionRow(
+                    rune = rune,
+                    lang = lang,
+                    count = counts[rune.id] ?: 0,
+                    canAdd = total < sockets,
+                    onAdd = { counts[rune.id] = (counts[rune.id] ?: 0) + 1 },
+                    onRemove = {
+                        val current = counts[rune.id] ?: 0
+                        if (current <= 1) counts.remove(rune.id) else counts[rune.id] = current - 1
+                    }
+                )
+            }
+        }
+        if (filtered.isEmpty()) {
+            Text(
+                text = tr(Tr.NO_MATCHING_RUNE),
+                style = WTypography.bodyMedium.copy(color = WColor.muted),
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(WDimens.gap))
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            DialogButton(text = tr(Tr.CANCEL), filled = false, color = WColor.border, onClick = onCancel, modifier = Modifier.weight(1f))
+            DialogButton(
+                text = tr(Tr.SAVE),
+                filled = true,
+                color = WColor.accent,
+                onClick = { onConfirm(counts.entries.flatMap { (id, n) -> List(n) { id } }) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun RuneOptionRow(
+    rune: RuneType,
+    lang: Lang,
+    count: Int,
+    canAdd: Boolean,
+    onAdd: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val selected = count > 0
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(9.dp))
+                .background(WColor.raised)
+                .border(1.dp, if (selected) WColor.accent.copy(alpha = 0.6f) else WColor.border, RoundedCornerShape(9.dp))
+                .padding(horizontal = 11.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .size(12.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(rune.color.pickerColor())
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = if (lang == Lang.FR) rune.name.fr.ifBlank { rune.name.en } else rune.name.en.ifBlank { rune.name.fr },
+                style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = rune.characteristic.label(lang),
+                style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        StepperButton(glyph = "−", enabled = count > 0, onClick = onRemove)
+        Box(modifier = Modifier.widthIn(min = 16.dp), contentAlignment = Alignment.Center) {
+            Text(
+                text = count.toString(),
+                style = WTypography.labelMedium.copy(color = if (selected) WColor.text else WColor.faint, fontFamily = WType.mono)
+            )
+        }
+        StepperButton(glyph = "＋", enabled = canAdd, onClick = onAdd)
+    }
+}
+
+@Composable
+private fun StepperButton(
+    glyph: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .size(26.dp)
+                .alpha(if (enabled) 1f else 0.35f)
+                .clip(RoundedCornerShape(7.dp))
+                .background(WColor.bg)
+                .border(1.dp, WColor.border, RoundedCornerShape(7.dp))
+                .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text = glyph, style = WTypography.labelMedium.copy(color = WColor.text, lineHeight = 14.sp))
+    }
+}
+
+/** Socket / rune colour swatch, mirroring the paperdoll's shard colours (red / green / blue). */
+private fun RuneColor.pickerColor(): Color =
+    when (this) {
+        RuneColor.RED -> Color(0xFFE05A5A)
+        RuneColor.GREEN -> Color(0xFF5FB76A)
+        RuneColor.BLUE -> Color(0xFF5A8FE0)
+    }
 
 @Composable
 internal fun ModalCard(

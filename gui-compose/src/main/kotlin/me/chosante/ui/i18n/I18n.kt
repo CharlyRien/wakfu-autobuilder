@@ -88,17 +88,16 @@ enum class Tr(
     ADD_TARGET_STAT("＋ Add target stat", "＋ Ajouter une stat"),
     KIND_EXACT("minimum", "minimum"),
     KIND_MAXIMIZE("maximize", "maximiser"),
-    CONSTRAINTS("Constraints", "Contraintes"),
     MAX_RARITY("Max rarity", "Rareté max"),
     RARITIES("Rarities", "Raretés"),
     RARITIES_SUB("tap to allow / exclude", "clic pour autoriser / exclure"),
     SEARCH_DURATION("Search duration", "Durée de recherche"),
-    SEARCH_DURATION_SUB("genetic search window", "fenêtre de recherche génétique"),
+    SEARCH_DURATION_SUB("time budget for the solver", "temps alloué au solveur"),
     SECONDS_SHORT("sec", "sec"),
     STOP_AT_MATCH("Stop at 100% match", "Arrêter à 100%"),
     SEARCH_NO_RESULT(
-        "No build produced in this time window. Narrow the level range, increase duration, or switch to GA.",
-        "Aucun build produit dans cette fenêtre. Réduis la plage de niveaux, augmente la durée, ou passe en AG."
+        "No build produced in this time window. Narrow the level range or increase the duration.",
+        "Aucun build produit dans cette fenêtre. Réduis la plage de niveaux ou augmente la durée."
     ),
     FORCED_ITEMS("Forced Items", "Objets imposés"),
     REQUIRE_ITEM_CHIP("＋ require item", "＋ imposer un objet"),
@@ -107,10 +106,20 @@ enum class Tr(
     SUBLIMATIONS_RUNES("Sublimations & Runes", "Sublimations & Runes"),
     SOLVER_PICKS_SUBLIMATIONS("Solver picks sublimations", "Le solveur choisit les sublimations"),
     FORCED_SUBLIMATIONS("Forced Sublimations", "Sublimations imposées"),
-    FORCED_RUNES("Forced Runes", "Runes imposées"),
-    ADD_SUBLIMATION_CHIP("＋ force sublimation", "＋ imposer une sublimation"),
-    ADD_RUNE_CHIP("＋ force rune", "＋ imposer une rune"),
+    ADD_SUBLIMATION_CHIP("＋ Force a sublimation", "＋ Forcer une sublimation"),
     CHOSEN_SUBLIMATIONS("Sublimations", "Sublimations"),
+    REQUIRE_SUBLIMATION_TITLE("Force a sublimation", "Forcer une sublimation"),
+    SEARCH_SUBLIMATIONS("Search sublimations (title / effect)…", "Rechercher des sublimations (titre / effet)…"),
+    NO_MATCHING_SUBLIMATION("No matching sublimation", "Aucune sublimation correspondante"),
+    EDIT_RUNES("Edit runes", "Modifier les runes"),
+    EDIT_RUNES_TITLE("Runes", "Runes"),
+    RUNE_SOCKETS_LABEL("Sockets", "Emplacements"),
+    SEARCH_RUNES("Search runes…", "Rechercher des runes…"),
+    NO_MATCHING_RUNE("No matching rune", "Aucune rune correspondante"),
+    RUNES_PER_ITEM_HINT(
+        "Runes are pinned per item — hover a slot in the build and click ◈.",
+        "Les runes se définissent par objet — survole un emplacement du build et clique sur ◈."
+    ),
 
     // Paperdoll
     PREPARING_OR_TOOLS_MODEL("Preparing OR-Tools model", "Préparation du modèle OR-Tools"),
@@ -148,7 +157,11 @@ enum class Tr(
     BUILD_MASTERY_HINT("specialized summed + weakest requested element", "spécialisées sommées + élément demandé le plus faible"),
     MASTERY_SHORT("Mastery", "Maîtrise"),
     OPTIMAL_PROVEN("Optimal proven", "Optimal prouvé"),
-    BEST_FOUND("Best found", "Meilleur trouvé"),
+    BEST_FOUND("Best found · optimum not proven", "Meilleur trouvé · optimum non prouvé"),
+    NOT_OPTIMAL_HINT(
+        "Time budget reached before proving the optimum — raise the search duration to aim higher.",
+        "Budget de temps atteint avant de prouver l'optimum — augmente la durée de recherche pour viser plus haut."
+    ),
     MASTERY_SUMMARY("Mastery Summary", "Cumul maîtrises"),
     MASTERY_TOTAL("Tracked total", "Total suivi"),
     BUILD_SHEET_TITLE("Other build stats", "Autres stats du build"),
@@ -411,6 +424,52 @@ fun Rarity.label(lang: Lang): String =
         Rarity.SOUVENIR -> if (lang == Lang.FR) "Souvenir" else "Souvenir"
         Rarity.EPIC -> if (lang == Lang.FR) "Épique" else "Epic"
     }
+
+/**
+ * Localized display name for a skill-tree line. The domain's
+ * [me.chosante.common.skills.SkillCharacteristic.name] is English-only; this maps it to FR for the skill
+ * tree. Unknown names fall back to the English string.
+ */
+fun skillLabel(
+    englishName: String,
+    lang: Lang,
+): String {
+    if (lang != Lang.FR) return englishName
+    return SKILL_NAME_FR[englishName] ?: englishName
+}
+
+private val SKILL_NAME_FR =
+    mapOf(
+        "% Block" to "% Blocage",
+        "% Critical Hit" to "% Coup Critique",
+        "% Damage Inflicted" to "% Dommages infligés",
+        "% HP as Armor" to "% PV en Armure",
+        "% HP" to "% PV",
+        "% Heal Received" to "% Soins reçus",
+        "% Inflicted Damage" to "% Dommages infligés",
+        "% damage" to "% dommages",
+        "Action Point" to "Point d'Action",
+        "Control and damage" to "Contrôle et dommages",
+        "Dodge and lock" to "Esquive et Tacle",
+        "Dodge" to "Esquive",
+        "Initiative" to "Initiative",
+        "Lock" to "Tacle",
+        "Mastery Back" to "Maîtrise Dos",
+        "Mastery Berserk" to "Maîtrise Berserk",
+        "Mastery Critical" to "Maîtrise Critique",
+        "Mastery Distance" to "Maîtrise Distance",
+        "Mastery Elementary" to "Maîtrise Élémentaire",
+        "Mastery Healing" to "Maîtrise Soin",
+        "Mastery Melee" to "Maîtrise Mêlée",
+        "Movement Point and damage" to "Point de Mouvement et dommages",
+        "Range and damage" to "Portée et dommages",
+        "Resistance Back" to "Résistance Dos",
+        "Resistance Critical" to "Résistance Critique",
+        "Resistance Elementary" to "Résistance Élémentaire",
+        "Shield" to "Bouclier",
+        "Wakfu Points" to "Points Wakfu",
+        "Willpower" to "Volonté"
+    )
 
 /** Localized display name for an equipment slot type. */
 fun ItemType.label(lang: Lang): String =

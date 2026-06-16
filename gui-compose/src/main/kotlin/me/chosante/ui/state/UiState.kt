@@ -78,6 +78,14 @@ sealed interface Modal {
         val mode: PickerMode,
     ) : Modal
 
+    /** Pick a sublimation to force, by translated title + effect text — a centered modal like the item picker. */
+    data object SublimationPicker : Modal
+
+    /** Choose the runes to pin onto a specific carrier item, identified by its French name. */
+    data class ItemRunePicker(
+        val itemName: String,
+    ) : Modal
+
     /** Save-the-current-build dialog (name + optional note). */
     data object SaveBuild : Modal
 
@@ -149,8 +157,12 @@ data class UiState(
     val useSublimations: Boolean = true,
     /** Sublimations the user forces into the build (French names; incl. combat-conditional ones). */
     val forcedSublimations: List<String> = emptyList(),
-    /** Runes the user forces to be socketed at least once (French names). */
-    val forcedRunes: List<String> = emptyList(),
+    /**
+     * Runes the user pins onto a specific carrier item, keyed by the item's **French** name →
+     * the multiset of rune ids ([me.chosante.common.RuneType.id]) to socket on it. The engine forces
+     * those runes onto that item (which also forces it to be equipped). See [Modal.ItemRunePicker].
+     */
+    val forcedRunesByItem: Map<String, List<Int>> = emptyMap(),
     val phase: Phase = Phase.Idle,
     val progress: Int = 0,
     val match: BigDecimal = BigDecimal.ZERO,

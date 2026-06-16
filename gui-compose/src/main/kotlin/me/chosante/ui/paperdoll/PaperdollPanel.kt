@@ -87,6 +87,7 @@ fun PaperdollPanel(
     ui: UiState,
     onForceItem: (Equipment) -> Unit,
     onExcludeItem: (Equipment) -> Unit,
+    onEditRunes: (Equipment) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val slots = remember(ui.build) { slotAssignments(ui.build?.equipments.orEmpty()) }
@@ -114,6 +115,7 @@ fun PaperdollPanel(
                         rightAlign = false,
                         onForceItem = onForceItem,
                         onExcludeItem = onExcludeItem,
+                        onEditRunes = onEditRunes,
                         modifier = Modifier.weight(1f).fillMaxHeight()
                     )
                     SlotColumn(
@@ -123,6 +125,7 @@ fun PaperdollPanel(
                         rightAlign = true,
                         onForceItem = onForceItem,
                         onExcludeItem = onExcludeItem,
+                        onEditRunes = onEditRunes,
                         modifier = Modifier.weight(1f).fillMaxHeight()
                     )
                 }
@@ -146,6 +149,8 @@ fun PaperdollPanel(
                                 rightAlign = false,
                                 onForceItem = onForceItem,
                                 onExcludeItem = onExcludeItem,
+                                onEditRunes = onEditRunes,
+                                runesPinned = ui.hasPinnedRunes(weaponEquipment),
                                 forced = ui.isForcedEquipment(slots[slot.id]),
                                 excluded = ui.isExcludedEquipment(slots[slot.id]),
                                 modifier = Modifier.fillMaxWidth()
@@ -243,6 +248,7 @@ private fun SlotColumn(
     rightAlign: Boolean,
     onForceItem: (Equipment) -> Unit,
     onExcludeItem: (Equipment) -> Unit,
+    onEditRunes: (Equipment) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Size the slots to the available height so all of them fit uniformly. With a hard-coded
@@ -251,7 +257,9 @@ private fun SlotColumn(
     // evenly (clamped) makes the slots shrink together instead.
     val spacing = 14.dp
     BoxWithConstraints(modifier = modifier) {
-        val cardHeight = ((maxHeight - spacing * (slots.size - 1)) / slots.size).coerceIn(64.dp, 84.dp)
+        // Taller cap so an item that shows BOTH a "✦ sub" line and its socket-loadout shards still fits
+        // (at 84.dp the shards row was clipped off the bottom for items carrying a sublimation).
+        val cardHeight = ((maxHeight - spacing * (slots.size - 1)) / slots.size).coerceIn(64.dp, 102.dp)
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterVertically)
@@ -268,6 +276,8 @@ private fun SlotColumn(
                     rightAlign = rightAlign,
                     onForceItem = onForceItem,
                     onExcludeItem = onExcludeItem,
+                    onEditRunes = onEditRunes,
+                    runesPinned = ui.hasPinnedRunes(equipment),
                     forced = ui.isForcedEquipment(assignments[slot.id]),
                     excluded = ui.isExcludedEquipment(assignments[slot.id]),
                     cardHeight = cardHeight,
@@ -290,6 +300,8 @@ private fun EquipmentSlot(
     rightAlign: Boolean,
     onForceItem: (Equipment) -> Unit,
     onExcludeItem: (Equipment) -> Unit,
+    onEditRunes: (Equipment) -> Unit = {},
+    runesPinned: Boolean = false,
     forced: Boolean = false,
     excluded: Boolean = false,
     cardHeight: Dp = 84.dp,
@@ -301,14 +313,18 @@ private fun EquipmentSlot(
     }
     val forceLabel = tr(Tr.REQUIRE)
     val excludeLabel = tr(Tr.BAN)
+    val editRunesLabel = tr(Tr.EDIT_RUNES)
+    // Only items with shard sockets can carry runes; the action is hidden for socketless slots.
+    val canEditRunes = equipment.maxShardSlots > 0
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     ContextMenuArea(
         items = {
-            listOf(
-                ContextMenuItem(forceLabel) { onForceItem(equipment) },
-                ContextMenuItem(excludeLabel) { onExcludeItem(equipment) }
-            )
+            buildList {
+                add(ContextMenuItem(forceLabel) { onForceItem(equipment) })
+                add(ContextMenuItem(excludeLabel) { onExcludeItem(equipment) })
+                if (canEditRunes) add(ContextMenuItem(editRunesLabel) { onEditRunes(equipment) })
+            }
         }
     ) {
         TooltipArea(
@@ -324,8 +340,10 @@ private fun EquipmentSlot(
                     SlotActions(
                         onForce = { onForceItem(equipment) },
                         onExclude = { onExcludeItem(equipment) },
+                        onEditRunes = if (canEditRunes) ({ onEditRunes(equipment) }) else null,
                         forced = forced,
                         excluded = excluded,
+                        runesPinned = runesPinned,
                         modifier = Modifier.align(cornerAlign).padding(5.dp)
                     )
                 } else if (forced || excluded) {
@@ -401,8 +419,10 @@ internal fun slotTooltipOffset(
 private fun SlotActions(
     onForce: () -> Unit,
     onExclude: () -> Unit,
+    onEditRunes: (() -> Unit)?,
     forced: Boolean,
     excluded: Boolean,
+    runesPinned: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -417,6 +437,10 @@ private fun SlotActions(
     ) {
         SlotActionButton(glyph = "＋", color = WColor.success, active = forced, onClick = onForce)
         SlotActionButton(glyph = "⊘", color = WColor.danger, active = excluded, onClick = onExclude)
+        // ◈ opens the per-item rune picker; filled while runes are pinned onto this item (see #2).
+        if (onEditRunes != null) {
+            SlotActionButton(glyph = "◈", color = WColor.accent2, active = runesPinned, onClick = onEditRunes)
+        }
     }
 }
 
@@ -638,9 +662,7 @@ private fun ItemTooltip(
                     sub.rawText?.takeIf { it.isNotBlank() }?.let {
                         Text(
                             text = it,
-                            style = WTypography.labelSmall.copy(color = WColor.muted),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
+                            style = WTypography.labelSmall.copy(color = WColor.muted)
                         )
                     }
                 }
@@ -705,7 +727,7 @@ private fun TooltipRuneRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp)
     ) {
-        RuneShape(color = rune.color, size = 16.dp)
+        RuneShape(color = rune.color, size = 18.dp)
         Text(
             text = "${count}x",
             style =
@@ -917,7 +939,7 @@ private fun SlotMeta(
                 val shapeCount = loadout.size.coerceAtMost(equipment.maxShardSlots.coerceAtLeast(1))
                 val gap = 3.dp
                 BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                    val shapeSize = ((maxWidth - gap * (shapeCount - 1)) / shapeCount).coerceIn(0.dp, 16.dp)
+                    val shapeSize = ((maxWidth - gap * (shapeCount - 1)) / shapeCount).coerceIn(14.dp, 22.dp)
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(gap, if (align == TextAlign.End) Alignment.End else Alignment.Start),
                         verticalAlignment = Alignment.CenterVertically,
@@ -938,6 +960,9 @@ private fun UiState.isForcedEquipment(equipment: Equipment?): Boolean = equipmen
 
 /** True when [equipment] is currently excluded from the next search. */
 private fun UiState.isExcludedEquipment(equipment: Equipment?): Boolean = equipment != null && excludedItems.any { it.matchName == equipment.name.fr }
+
+/** True when the user has pinned runes onto [equipment] for the next search (keyed by French name). */
+private fun UiState.hasPinnedRunes(equipment: Equipment?): Boolean = equipment != null && !forcedRunesByItem[equipment.name.fr].isNullOrEmpty()
 
 private fun Equipment.localizedName(lang: Lang): String =
     when (lang) {

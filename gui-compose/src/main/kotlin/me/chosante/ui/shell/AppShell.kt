@@ -144,6 +144,17 @@ fun AppShell(
                 equipmentCatalog = model.equipmentCatalog,
                 onSelectStat = model::addTarget,
                 onPickItem = model::pickItem,
+                onPickSublimation = model::pickSublimation,
+                // The per-item rune picker resolves its carrier from the current build by French name.
+                runePickerCarrier =
+                    (ui.modal as? Modal.ItemRunePicker)?.let { m ->
+                        ui.build?.equipments?.firstOrNull { it.name.fr == m.itemName }
+                    },
+                // Touch runeOptions (which lazily parses the runes JSON) only when the picker is open,
+                // so the parse never runs on the UI thread at startup.
+                runeOptions = if (ui.modal is Modal.ItemRunePicker) model.runeOptions else emptyList(),
+                initialPinnedRunes = (ui.modal as? Modal.ItemRunePicker)?.let { model.pinnedRunes(it.itemName) }.orEmpty(),
+                onConfirmItemRunes = model::setForcedRunesForItem,
                 onDismiss = model::closeModal,
                 suggestedSaveName = model.suggestedSaveName(),
                 isEditingExisting = ui.activeBuildId != null,
@@ -210,13 +221,9 @@ private fun BuilderBody(
                 onRemoveForcedItem = model::removeForcedItem,
                 onAddExcludedItem = { model.openModal(Modal.ItemPicker(PickerMode.Excluded)) },
                 onRemoveExcludedItem = model::removeExcludedItem,
-                sublimationCatalog = model.sublimationCatalog,
-                runeCatalog = model.runeCatalog,
                 onToggleSublimations = model::setUseSublimations,
-                onAddForcedSublimation = model::addForcedSublimation,
-                onRemoveForcedSublimation = model::removeForcedSublimation,
-                onAddForcedRune = model::addForcedRune,
-                onRemoveForcedRune = model::removeForcedRune
+                onOpenSublimationPicker = { model.openModal(Modal.SublimationPicker) },
+                onRemoveForcedSublimation = model::removeForcedSublimation
             )
         }
         ResizableSeparator(onDelta = onRequestWidthDelta)
@@ -233,7 +240,8 @@ private fun BuilderBody(
             PaperdollPanel(
                 ui = ui,
                 onForceItem = model::forceItem,
-                onExcludeItem = model::excludeItem
+                onExcludeItem = model::excludeItem,
+                onEditRunes = model::openItemRunePicker
             )
         }
         ResizableSeparator(onDelta = onStatsWidthDelta)
