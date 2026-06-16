@@ -35,7 +35,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.channels.Channel.Factory.CONFLATED
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.buffer
-import kotlinx.coroutines.flow.last
+import kotlinx.coroutines.flow.lastOrNull
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
@@ -650,7 +650,7 @@ HUPPERMAGE"""
 
         runBlocking {
             val progressBar = progressBar(terminal)
-            val bestCombination =
+            val bestResult =
                 WakfuBestBuildFinderAlgorithm
                     .run(
                         WakfuBestBuildParams(
@@ -680,7 +680,19 @@ HUPPERMAGE"""
                         delay(1000L)
                     }.onCompletion {
                         progressBar.stop()
-                    }.last()
+                    }.lastOrNull()
+            // A short --duration on a cold JVM can let OR-Tools' native cold start consume the whole
+            // time budget (most often in max-damage mode) so the flow emits nothing; .lastOrNull()
+            // then yields null. Fail with a clear hint instead of letting NoSuchElementException crash
+            // the CLI with a stack trace.
+            if (bestResult == null) {
+                throw PrintMessage(
+                    message = "No build found within the time budget — try a longer --duration.",
+                    printError = true
+                )
+            }
+            val bestCombination =
+                bestResult
                     .individual
                     .also {
                         terminal.println("Research result")
