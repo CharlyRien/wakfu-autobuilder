@@ -7,14 +7,19 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.TooltipArea
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -40,10 +45,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
@@ -65,6 +77,13 @@ import me.chosante.ui.theme.WTypography
 
 private fun CharacterClass.displayName(): String = name.lowercase().replaceFirstChar { it.titlecase() }
 
+/**
+ * Below this window width the single-row TopBar can't fit the longest (French) content for a build
+ * being edited (~1552 dp natural width), so the search controls wrap onto a second full-width strip
+ * (Direction B). 1600 dp leaves the single row real breathing room and treats FR as the worst case.
+ */
+private val WRAP_BREAKPOINT = 1600.dp
+
 @Composable
 fun TopBar(
     ui: UiState,
@@ -79,66 +98,242 @@ fun TopBar(
     onDetachActiveBuild: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val onBuilder = ui.screen == Screen.Builder
     Column(modifier = modifier.fillMaxWidth().background(WColor.bg)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 22.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Brand()
-            Spacer(modifier = Modifier.width(18.dp))
-            NavTabs(current = ui.screen, onNavigate = onNavigate)
-            if (onBuilder) {
-                Spacer(modifier = Modifier.width(10.dp))
-                NewBuildButton(onClick = onNewBuild)
-            }
-            Spacer(modifier = Modifier.weight(1f))
-            if (onBuilder && ui.activeBuildName != null) {
-                ActiveBuildChip(name = ui.activeBuildName, onDetach = onDetachActiveBuild)
-                Spacer(modifier = Modifier.width(14.dp))
-            }
-            LangToggle(current = ui.lang, onSelect = onLangChange)
-            if (onBuilder) {
-                Spacer(modifier = Modifier.width(14.dp))
-                ClassDropdown(selected = ui.clazz, onSelect = onClassChange)
-                Spacer(modifier = Modifier.width(10.dp))
-                NumberControl(label = tr(Tr.LEVEL_SHORT), value = ui.level.toString(), onValueChange = onLevelChange)
-                Spacer(modifier = Modifier.width(10.dp))
-                // Flag the field red the moment min exceeds the character level — an impossible
-                // range the search will refuse (see BuildSearchModel.search).
-                NumberControl(
-                    label = tr(Tr.MIN_SHORT),
-                    value = ui.minLevel.toString(),
-                    onValueChange = onMinLevelChange,
-                    isError = ui.minLevel > ui.level
-                )
-                Spacer(modifier = Modifier.width(22.dp))
-                TopMeter(
-                    label = tr(Tr.PROGRESS),
-                    value = "${ui.progress}%",
-                    fill = ui.progress / 100f,
-                    color = WColor.accent2,
-                    // A pulsing dot while the engine runs: the bar already advances on a timer, this is
-                    // a second, always-visible "still working" cue so the app never looks frozen.
-                    pulsing = ui.phase == Phase.Searching
-                )
-                Spacer(modifier = Modifier.width(16.dp))
-                if (ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) {
-                    // Most-masteries: no exact-target "% match"; show the cumulated requested mastery.
-                    TopMeter(label = tr(Tr.MASTERY_SHORT), value = ui.requestedMasteryTotal().formatCompact(), fill = null, color = WColor.success)
-                } else {
-                    TopMeter(label = tr(Tr.MATCH), value = "${ui.match.toInt()}%", fill = ui.match.toFloat() / 100f, color = WColor.success)
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            // Direction B (responsive). The whole bar fits one 64.dp row only when there is genuine
+            // room for the longest (French) content; below the breakpoint the search controls wrap
+            // onto a second full-width strip so the primary Search button is never starved/clipped.
+            // Builder-only: the Library/Compare bar has no search controls to wrap, so it always
+            // stays a single row (the `screen == Builder` guard below).
+            if (ui.screen == Screen.Builder && maxWidth < WRAP_BREAKPOINT) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    GlobalChromeRow(
+                        ui = ui,
+                        onLangChange = onLangChange,
+                        onNavigate = onNavigate,
+                        onNewBuild = onNewBuild,
+                        onDetachActiveBuild = onDetachActiveBuild
+                    )
+                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
+                    SearchStrip(
+                        ui = ui,
+                        onSearch = onSearch,
+                        onCancel = onCancel,
+                        onClassChange = onClassChange,
+                        onLevelChange = onLevelChange,
+                        onMinLevelChange = onMinLevelChange
+                    )
                 }
-                Spacer(modifier = Modifier.width(18.dp))
-                SearchButton(
-                    searching = ui.phase == Phase.Searching,
-                    locked = ui.searchLocked,
-                    onClick = if (ui.phase == Phase.Searching) onCancel else onSearch
+            } else {
+                TopBarSingleRow(
+                    ui = ui,
+                    onSearch = onSearch,
+                    onCancel = onCancel,
+                    onClassChange = onClassChange,
+                    onLevelChange = onLevelChange,
+                    onMinLevelChange = onMinLevelChange,
+                    onLangChange = onLangChange,
+                    onNavigate = onNavigate,
+                    onNewBuild = onNewBuild,
+                    onDetachActiveBuild = onDetachActiveBuild
                 )
             }
         }
         Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
     }
+}
+
+/** The classic single 64.dp row (≥ [WRAP_BREAKPOINT], or any width on the Library/Compare screen). */
+@Composable
+private fun TopBarSingleRow(
+    ui: UiState,
+    onSearch: () -> Unit,
+    onCancel: () -> Unit,
+    onClassChange: (CharacterClass) -> Unit,
+    onLevelChange: (String) -> Unit,
+    onMinLevelChange: (String) -> Unit,
+    onLangChange: (Lang) -> Unit,
+    onNavigate: (Screen) -> Unit,
+    onNewBuild: () -> Unit,
+    onDetachActiveBuild: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 22.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        GlobalLeft(ui = ui, onNavigate = onNavigate, onNewBuild = onNewBuild, onDetachActiveBuild = onDetachActiveBuild)
+        Spacer(modifier = Modifier.weight(1f))
+        LangToggle(current = ui.lang, onSelect = onLangChange)
+        if (ui.screen == Screen.Builder) {
+            Spacer(modifier = Modifier.width(14.dp))
+            SearchControls(
+                ui = ui,
+                onClassChange = onClassChange,
+                onLevelChange = onLevelChange,
+                onMinLevelChange = onMinLevelChange,
+                onSearch = onSearch,
+                onCancel = onCancel,
+                strip = false
+            )
+        }
+    }
+}
+
+/** Wrapped layout, row 1: the global chrome only (brand · nav · ＋New · Editing chip · lang). */
+@Composable
+private fun GlobalChromeRow(
+    ui: UiState,
+    onLangChange: (Lang) -> Unit,
+    onNavigate: (Screen) -> Unit,
+    onNewBuild: () -> Unit,
+    onDetachActiveBuild: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 22.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        GlobalLeft(ui = ui, onNavigate = onNavigate, onNewBuild = onNewBuild, onDetachActiveBuild = onDetachActiveBuild)
+        Spacer(modifier = Modifier.weight(1f))
+        LangToggle(current = ui.lang, onSelect = onLangChange)
+    }
+}
+
+/**
+ * Wrapped layout, row 2: a full-width strip carrying the search controls, so each keeps its natural
+ * size and the Search button is never starved. A quiet "Request" tag marks it as the search cluster;
+ * it sits on a faintly raised surface with a hairline top border.
+ */
+@Composable
+private fun SearchStrip(
+    ui: UiState,
+    onSearch: () -> Unit,
+    onCancel: () -> Unit,
+    onClassChange: (CharacterClass) -> Unit,
+    onLevelChange: (String) -> Unit,
+    onMinLevelChange: (String) -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .height(60.dp)
+                .background(WColor.surface.copy(alpha = 0.55f))
+                .padding(horizontal = 22.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        StripTag()
+        Spacer(modifier = Modifier.width(14.dp))
+        SearchControls(
+            ui = ui,
+            onClassChange = onClassChange,
+            onLevelChange = onLevelChange,
+            onMinLevelChange = onMinLevelChange,
+            onSearch = onSearch,
+            onCancel = onCancel,
+            strip = true
+        )
+    }
+}
+
+/**
+ * Brand · nav tabs · ＋New · Editing chip — the left cluster shared by the single row and wrapped
+ * row 1. ＋New and the Editing chip are Builder-only.
+ */
+@Composable
+private fun GlobalLeft(
+    ui: UiState,
+    onNavigate: (Screen) -> Unit,
+    onNewBuild: () -> Unit,
+    onDetachActiveBuild: () -> Unit,
+) {
+    Brand()
+    Spacer(modifier = Modifier.width(18.dp))
+    NavTabs(current = ui.screen, onNavigate = onNavigate)
+    if (ui.screen == Screen.Builder) {
+        Spacer(modifier = Modifier.width(10.dp))
+        NewBuildButton(onClick = onNewBuild)
+        // The "Editing <build>" chip belongs with the New action (same build-workflow cluster),
+        // with a clear gap so the two buttons never look glued together.
+        ui.activeBuildName?.let { name ->
+            Spacer(modifier = Modifier.width(12.dp))
+            ActiveBuildChip(name = name, onDetach = onDetachActiveBuild)
+        }
+    }
+}
+
+/**
+ * Class · Lvl · Min · Progress meter · Match/Mastery meter · Search — shared by the single row
+ * ([strip] = false: fixed trailing gap before Search) and the wrapped strip ([strip] = true: a
+ * weighted spacer pins Search to the right edge and the inter-control gaps are evened out).
+ */
+@Composable
+private fun RowScope.SearchControls(
+    ui: UiState,
+    onClassChange: (CharacterClass) -> Unit,
+    onLevelChange: (String) -> Unit,
+    onMinLevelChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    onCancel: () -> Unit,
+    strip: Boolean,
+) {
+    ClassDropdown(selected = ui.clazz, onSelect = onClassChange)
+    Spacer(modifier = Modifier.width(if (strip) 14.dp else 10.dp))
+    NumberControl(label = tr(Tr.LEVEL_SHORT), value = ui.level.toString(), onValueChange = onLevelChange)
+    Spacer(modifier = Modifier.width(if (strip) 14.dp else 10.dp))
+    // Flag the field red the moment min exceeds the character level — an impossible range the
+    // search will refuse (see BuildSearchModel.search).
+    NumberControl(
+        label = tr(Tr.MIN_SHORT),
+        value = ui.minLevel.toString(),
+        onValueChange = onMinLevelChange,
+        isError = ui.minLevel > ui.level
+    )
+    Spacer(modifier = Modifier.width(if (strip) 20.dp else 22.dp))
+    TopMeter(
+        label = tr(Tr.PROGRESS),
+        value = "${ui.progress}%",
+        fill = ui.progress / 100f,
+        color = WColor.accent2,
+        // A pulsing dot while the engine runs: the bar already advances on a timer, this is a
+        // second, always-visible "still working" cue so the app never looks frozen.
+        pulsing = ui.phase == Phase.Searching
+    )
+    Spacer(modifier = Modifier.width(if (strip) 14.dp else 16.dp))
+    SecondMeter(ui = ui)
+    if (strip) {
+        Spacer(modifier = Modifier.weight(1f))
+    } else {
+        Spacer(modifier = Modifier.width(18.dp))
+    }
+    SearchButton(
+        searching = ui.phase == Phase.Searching,
+        locked = ui.searchLocked,
+        onClick = if (ui.phase == Phase.Searching) onCancel else onSearch
+    )
+}
+
+/**
+ * The second top meter: precision mode shows an exact "% match" with a bar; most-masteries mode has
+ * no exact target, so it shows the cumulated requested mastery total (no bar).
+ */
+@Composable
+private fun SecondMeter(ui: UiState) {
+    if (ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) {
+        TopMeter(label = tr(Tr.MASTERY_SHORT), value = ui.requestedMasteryTotal().formatCompact(), fill = null, color = WColor.success)
+    } else {
+        TopMeter(label = tr(Tr.MATCH), value = "${ui.match.toInt()}%", fill = ui.match.toFloat() / 100f, color = WColor.success)
+    }
+}
+
+/** A quiet uppercase section tag ("Request") marking the wrapped search strip — a marker, not a control. */
+@Composable
+private fun StripTag() {
+    Text(
+        text = tr(Tr.ZONE_REQUEST).uppercase(),
+        maxLines = 1,
+        softWrap = false,
+        style = WTypography.labelSmall.copy(color = WColor.faint, letterSpacing = 1.2.sp)
+    )
 }
 
 @Composable
@@ -202,38 +397,56 @@ private fun NavTab(
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun ActiveBuildChip(
     name: String,
     onDetach: () -> Unit,
 ) {
-    Row(
-        modifier =
-            Modifier
-                .height(34.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(WColor.accent.copy(alpha = 0.12f))
-                .border(1.dp, WColor.accent.copy(alpha = 0.45f), RoundedCornerShape(9.dp))
-                .padding(start = 11.dp, end = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    // The chip truncates long build names, so a hover tooltip surfaces the full name.
+    TooltipArea(
+        delayMillis = 350,
+        tooltip = {
+            Box(
+                modifier =
+                    Modifier
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(WColor.raised)
+                        .border(1.dp, WColor.border, RoundedCornerShape(7.dp))
+                        .padding(horizontal = 9.dp, vertical = 6.dp)
+            ) {
+                Text(text = name, style = WTypography.labelSmall.copy(color = WColor.text))
+            }
+        }
     ) {
-        Text(text = tr(Tr.ACTIVE_BUILD_EDITING), style = WTypography.labelSmall.copy(color = WColor.accent))
-        Text(
-            text = name,
-            style = WTypography.labelMedium.copy(color = WColor.text, fontFamily = WType.mono),
-            maxLines = 1,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = 180.dp)
-        )
-        Box(
+        Row(
             modifier =
                 Modifier
-                    .size(22.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .clickable(onClick = onDetach),
-            contentAlignment = Alignment.Center
+                    .height(34.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(WColor.accent.copy(alpha = 0.12f))
+                    .border(1.dp, WColor.accent.copy(alpha = 0.45f), RoundedCornerShape(9.dp))
+                    .padding(start = 11.dp, end = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(text = "✕", style = WTypography.labelSmall.copy(color = WColor.muted))
+            Text(text = tr(Tr.ACTIVE_BUILD_EDITING), style = WTypography.labelSmall.copy(color = WColor.accent))
+            Text(
+                text = name,
+                style = WTypography.labelMedium.copy(color = WColor.text, fontFamily = WType.mono),
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 180.dp)
+            )
+            Box(
+                modifier =
+                    Modifier
+                        .size(22.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable(onClick = onDetach),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(text = "✕", style = WTypography.labelSmall.copy(color = WColor.muted))
+            }
         }
     }
 }
@@ -430,7 +643,7 @@ private fun TopMeter(
 ) {
     Column(modifier = Modifier.width(112.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = label, style = WTypography.labelSmall)
+            Text(text = label, maxLines = 1, softWrap = false, style = WTypography.labelSmall)
             Spacer(modifier = Modifier.weight(1f))
             if (pulsing) {
                 // Gently breathing dot — an unmistakable "the search is alive" signal that, unlike the
@@ -491,6 +704,85 @@ private fun TopMeter(
     }
 }
 
+/** A crisp, themeable padlock drawn with Compose (no emoji) — shackle arc + rounded body in [color]. */
+@Composable
+private fun LockGlyph(
+    color: Color,
+    size: Dp = 13.dp,
+) {
+    Canvas(modifier = Modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val stroke = w * 0.13f
+        val bodyTop = h * 0.46f
+        // Shackle: a half-ring rising out of the body.
+        drawArc(
+            color = color,
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = false,
+            topLeft = Offset(w * 0.27f, h * 0.10f),
+            size = Size(w * 0.46f, bodyTop - h * 0.10f + stroke),
+            style = Stroke(width = stroke)
+        )
+        // Body: rounded rectangle.
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(w * 0.17f, bodyTop),
+            size = Size(w * 0.66f, h - bodyTop - h * 0.06f),
+            cornerRadius = CornerRadius(w * 0.14f, w * 0.14f)
+        )
+    }
+}
+
+/**
+ * A small indeterminate spinner — a faint full ring with one bright arc sweeping around it — shown in
+ * the Search button while the engine runs, as a clear "working…" cue beside the Stop label.
+ */
+@Composable
+private fun SearchSpinner(
+    color: Color,
+    size: Dp = 13.dp,
+) {
+    val transition = rememberInfiniteTransition(label = "search-spinner")
+    val angle by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec =
+            infiniteRepeatable(
+                animation = tween(durationMillis = 700, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+        label = "search-spinner-angle"
+    )
+    Canvas(modifier = Modifier.size(size)) {
+        val stroke = this.size.width * 0.16f
+        val inset = stroke / 2f
+        val ring = Size(this.size.width - stroke, this.size.height - stroke)
+        val topLeft = Offset(inset, inset)
+        // Faint full track…
+        drawArc(
+            color = color.copy(alpha = 0.25f),
+            startAngle = 0f,
+            sweepAngle = 360f,
+            useCenter = false,
+            topLeft = topLeft,
+            size = ring,
+            style = Stroke(width = stroke)
+        )
+        // …and the bright head sweeping around it.
+        drawArc(
+            color = color,
+            startAngle = angle,
+            sweepAngle = 90f,
+            useCenter = false,
+            topLeft = topLeft,
+            size = ring,
+            style = Stroke(width = stroke, cap = StrokeCap.Round)
+        )
+    }
+}
+
 @Composable
 private fun SearchButton(
     searching: Boolean,
@@ -505,7 +797,9 @@ private fun SearchButton(
         modifier =
             Modifier
                 .height(38.dp)
-                .widthIn(min = 86.dp)
+                // Pin a width that fits the longest label *with* the padlock ("🔒 Rechercher") so a
+                // weighted spacer beside it can never starve the primary action into wrapping/clipping.
+                .widthIn(min = 136.dp)
                 .clip(RoundedCornerShape(10.dp))
                 .background(background)
                 .border(1.dp, if (searching) WColor.border else WColor.accentPress, RoundedCornerShape(10.dp))
@@ -514,11 +808,17 @@ private fun SearchButton(
         contentAlignment = Alignment.Center
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (showLock) {
-                Text(text = "🔒", style = WTypography.labelSmall.copy(lineHeight = 16.sp))
+            // A spinner while the engine runs (Stop state); the padlock when a saved build would be
+            // re-optimized — never both (showLock is false while searching).
+            if (searching) {
+                SearchSpinner(color = WColor.text)
+            } else if (showLock) {
+                LockGlyph(color = WColor.bg)
             }
             Text(
                 text = if (searching) tr(Tr.STOP) else tr(Tr.SEARCH),
+                maxLines = 1,
+                softWrap = false,
                 style =
                     WTypography.labelLarge.copy(
                         color = if (searching) WColor.text else WColor.bg,
