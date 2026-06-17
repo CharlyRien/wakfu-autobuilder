@@ -56,6 +56,7 @@ import me.chosante.common.Characteristic
 import me.chosante.common.Monster
 import me.chosante.common.Rarity
 import me.chosante.ui.components.BossResistanceChips
+import me.chosante.ui.components.MonsterIcon
 import me.chosante.ui.components.RarityIcon
 import me.chosante.ui.components.StatGlyphIcon
 import me.chosante.ui.components.VerticalScrollHints
@@ -272,6 +273,7 @@ private fun BossCard(
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MonsterIcon(monster = boss, size = 44.dp)
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = boss.name.fr.ifBlank { boss.name.en },
