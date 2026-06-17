@@ -709,10 +709,18 @@ class BuildSearchModel(
                                     resistanceElementsWanted = targetStats.resistanceElementsWanted
                                 )
                             // Best spells to cast for this build's AP — only in max-damage mode, computed
-                            // here off the UI thread (like `achieved`) so the panel just reads it.
+                            // here off the UI thread (like `achieved`) so the panel just reads it. Uses the
+                            // boss-overlaid `damageScenario` (not the raw `snapshot.scenario`) and the result's
+                            // winning bi-element split, so the shown rotation is exactly the turn that was scored.
                             val spellRotation =
                                 if (snapshot.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
-                                    SpellRotationOptimizer.bestSequencedRotation(result.individual, character, character.clazz, snapshot.scenario)
+                                    SpellRotationOptimizer.bestSequencedTurn(
+                                        result.individual,
+                                        character,
+                                        character.clazz,
+                                        damageScenario,
+                                        result.maxDamageBiElement
+                                    )
                                 } else {
                                     null
                                 }

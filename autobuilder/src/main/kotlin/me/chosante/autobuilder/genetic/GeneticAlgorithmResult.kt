@@ -1,5 +1,6 @@
 package me.chosante.autobuilder.genetic
 
+import me.chosante.autobuilder.genetic.wakfu.BiElementSplit
 import java.math.BigDecimal
 
 /**
@@ -15,4 +16,11 @@ data class GeneticAlgorithmResult<T>(
     val matchPercentage: BigDecimal,
     val progressPercentage: Int,
     val isOptimal: Boolean = false,
+    /**
+     * Max-damage mode only: the bi-element split this build was optimized for, or null when it is a
+     * mono-element (or non-max-damage) result. Set by [me.chosante.autobuilder.genetic.wakfu.MaxDamageSearch]
+     * so the display re-scores the **same** turn that won (else a bi-element build would be re-scored as its
+     * stronger single element and under-reported). See `docs/FULL_DAMAGE_PLAN.md` "Lot 2e-f".
+     */
+    val maxDamageBiElement: BiElementSplit? = null,
 )
