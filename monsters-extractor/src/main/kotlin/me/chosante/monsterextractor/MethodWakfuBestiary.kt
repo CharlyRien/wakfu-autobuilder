@@ -13,6 +13,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.int
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -49,6 +50,7 @@ object MethodWakfuBestiary {
         val name: I18nText,
         val level: Int,
         val rank: Int,
+        val gfx: Int? = null,
     ) {
         val isBoss: Boolean get() = rank >= 1
     }
@@ -114,7 +116,10 @@ object MethodWakfuBestiary {
                     id = id,
                     name = i18n(entry["name"]!!.jsonArray),
                     level = entry["lvlMax"]!!.jsonPrimitive.int,
-                    rank = entry["rank"]?.jsonPrimitive?.int ?: 0
+                    rank = entry["rank"]?.jsonPrimitive?.int ?: 0,
+                    // Sprite id for the GUI icon; carried on the stub so even Fandom-recovered monsters
+                    // (whose detail endpoint 500s) keep an icon (see FandomCrossReference.recover).
+                    gfx = entry["gfx"]?.jsonPrimitive?.intOrNull
                 )
             }
         }
@@ -145,6 +150,7 @@ object MethodWakfuBestiary {
             hp = firstInt(data["hp"]),
             family = family,
             rank = data["rank"]?.jsonPrimitive?.int ?: 0,
+            gfx = data["gfx"]?.jsonPrimitive?.intOrNull,
             fireResistance = flatResistance(data["fire"]),
             waterResistance = flatResistance(data["water"]),
             earthResistance = flatResistance(data["earth"]),

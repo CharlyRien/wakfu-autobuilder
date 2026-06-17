@@ -73,6 +73,7 @@ object FandomCrossReference {
                 level = failed.level,
                 hp = card.hp ?: 0,
                 rank = failed.rank,
+                gfx = failed.gfx,
                 fireResistance = card.fire ?: 0,
                 waterResistance = card.water ?: 0,
                 earthResistance = card.earth ?: 0,
