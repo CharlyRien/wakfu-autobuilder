@@ -870,14 +870,14 @@ private fun ActionIconButton(
                     .size(34.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(WColor.raised)
-                    .border(1.dp, if (active) hoverColor!!.copy(alpha = 0.6f) else WColor.border, RoundedCornerShape(8.dp))
+                    .border(1.dp, if (active) hoverColor.copy(alpha = 0.6f) else WColor.border, RoundedCornerShape(8.dp))
                     .hoverable(interaction)
                     .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = glyph,
-                style = WTypography.titleMedium.copy(color = if (active) hoverColor!! else WColor.muted, lineHeight = 16.sp)
+                style = WTypography.titleMedium.copy(color = if (active) hoverColor else WColor.muted, lineHeight = 16.sp)
             )
         }
     }

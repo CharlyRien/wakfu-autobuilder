@@ -14,6 +14,9 @@ import java.io.File
  */
 private const val DEFAULT_VERSION = "1.91.1.54"
 
+/** Compact (non-pretty) JSON, reused across runs — a fresh `Json {}` per call is needlessly slow. */
+private val compactJson = Json { prettyPrint = false }
+
 /**
  * Builds `autobuilder/src/main/resources/spells-v<VERSION>.json` by crawling the Ankama encyclopedia
  * (`docs/SPELLS_AND_COMBO_RESEARCH.md`). For each of the 18 classes it reads the spell list, then each
@@ -84,7 +87,7 @@ suspend fun main(args: Array<String>) {
     val sorted = allSpells.sortedWith(compareBy({ it.clazz.name }, { it.id }))
     val outputDir = File(repoRoot, "autobuilder/src/main/resources").apply { mkdirs() }
     val outputFile = File(outputDir, "spells-v$version.json")
-    outputFile.writeText(Json { prettyPrint = false }.encodeToString(ListSerializer(Spell.serializer()), sorted))
+    outputFile.writeText(compactJson.encodeToString(ListSerializer(Spell.serializer()), sorted))
 
     printReport(sorted, classReports, outputFile)
 }

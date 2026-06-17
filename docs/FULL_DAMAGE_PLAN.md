@@ -14,9 +14,9 @@ The **global, trackable plan** for the coherent full-damage mode. Multiple agent
 |---|---|---|---|
 | **0** Boss data + selection | "vs a given boss" (auto-element) | ✅ **done** — CLI + GUI boss picker / icons ([#161](https://github.com/CharlyRien/wakfu-autobuilder/pull/161)) | — |
 | **1** Cast limits in the fused table | realistic rotation (no 1-spell spam) | ✅ **done** — per-turn + cooldown caps joined to `Spell` and bounded in both the fused table & display path; WP **cost** extracted too (display-ready), WP **model** deferred (per-fight pool) | — |
-| **2a-b** Bi-element objective + double-count fix | bi-element builds are *searched* | 🔶 **objective done** (`feat/lot2-bi-element`): `perTurnDamageScoreBiElement` — linear, scale-identical to mono, double-count-safe, tested + verified. Not yet driven by the enumeration | — |
-| **2c-d** Enumeration + pruning | bi-element **optimality** | ⬜ todo (loop is currently heuristic) | 2a-b |
-| **2e-f** Scorer lockstep + display | honest `matchPercentage`, UI | ⬜ todo | 2c-d |
+| **2a-b** Bi-element objective + double-count fix | bi-element builds are *searched* | ✅ **done** — `perTurnDamageScoreBiElement` linear, scale-identical to mono, double-count-safe, tested + verified | — |
+| **2c-d** Enumeration + pruning | bi-element **optimality** | ✅ **done** — `MaxDamageSearch` Phase 3 enumerates `(pair × AP × split)` in parallel; dead-pair + Pareto-frontier pruning; bi-element `sequencedScore` via `bestSequencedRotationBiElement` | 2a-b |
+| **2e-f** Scorer lockstep + display | honest `matchPercentage`, UI | ✅ **done** — one `bestSequencedTurn` seam (mono \| joint bi); winning split rides on `GeneticAlgorithmResult.maxDamageBiElement`; shared-debuff (no double-spend); CLI + GUI render the merged two-element turn | 2c-d |
 | **3** Sublimations on the damage path | major end-game lever | ⬜ todo (model on `feat/sublimations`, unmerged) | — |
 | **4** Passives on the damage path | class-real damage ceiling | ⬜ todo (data on `main`, unwired) | — |
 | **5** Coherence floor (survivability + role) | builds that don't die / aren't fantasy positioning | ⬜ todo | — |
@@ -171,22 +171,30 @@ Pruning, by impact:
 
 Net ≈ 30–200 cheap re-solves of a prebuilt model, parallelized like the current probe loop.
 
-### 2e — Scorer lockstep (else the reported `matchPercentage` lies)
+### 2e — Scorer lockstep (else the reported `matchPercentage` lies) — ✅ done
 
-The objective **sums** two split rotations, but `FindMaxDamageScoring` / `bestSequencedRotation` /
-`bestAcrossElements` all **`max` over a single element** [SpellRotation.kt:239 etc.]. Required changes:
-- a **sum-of-two-split-rotations** branch in `FindMaxDamageScoring` and `bestSequencedRotation`;
-- `masteryElementsWanted = mapOf(e1 to 1, e2 to 1)` wherever it is a single element today
-  [FindMaxDamageScoring.kt:40, and the analogous spot in `MaxDamageSearch.sequencedScore`] — so generic+random
-  fold across **both** and match the solver's random split;
-- **joint debuff-AP accounting**: the bi-element re-scorer must be told the split `a` explicitly; debuff AP comes
-  off the **total `A`** *before* the `a/(A−a)` damage split, else two independent per-element sequenced rotations
-  **double-spend** the shared debuff AP.
+The re-scorer/display **`max`ed over a single element** while the objective **sums** the split. Resolved by a
+**single seam**, `SpellRotationOptimizer.bestSequencedTurn(build, char, clazz, scenario, biElement)`: mono ⇒ the
+old `bestSequencedRotation`; bi ⇒ `bestSequencedTurnBiElement`, which merges into ONE `SpellRotation`
+(`element = null`, each `SpellCast` keeps its own element). `MaxDamageSearch.sequencedScore` and **both** displays
+call it, so scored == shown. The winning `BiElementSplit` rides to the display on
+`GeneticAlgorithmResult.maxDamageBiElement` (set in `consider`); the total AP is re-derived from the build's real
+AP, so nothing else has to be threaded through.
+- **Joint debuff-AP accounting (done):** one **shared** debuff subset is paid **once** off the total AP (the data
+  exposes no per-element debuff, so a reduction lowers resistance for *both* elements), then the **remaining** AP is
+  re-split in the solver's intended A : B proportion — removing the double-spend. Guarded by a `SpellRotationTest`
+  asserting no duplicate debuff and `apUsed ≤ totalAp` (SRAM Assassination oracle).
+- **`FindMaxDamageScoring` sum-branch: NOT needed** — `computeScore`/`expectedDamage` have **no production caller**
+  (the live damage path is entirely `SpellRotationOptimizer`); folding a bi-element branch there would be dead code.
 
-### 2f — Display
+### 2f — Display — ✅ done
 
-The rotation card assumes a single `element` (GUI `StatsPanel`, CLI `spellRotationReport`). Tag each `SpellCast`
-with its element (or group casts by element) so a two-element turn renders correctly.
+A bi-element turn renders as the merged `SpellRotation`: the CLI (`spellRotationReport` / `bossSummary`) groups casts
+under per-element sub-headers and labels the header "fire + earth"; the GUI `StatsPanel` groups casts by
+`spell.element` under a colored element label (`SpellCastRow` extracted, shared with the mono layout). The single
+`effectiveResistancePercent` line is omitted for bi (two elements ⇒ two post-debuff resistances). Note: a live bi
+**win** is data-dependent (mono usually wins without hybrid "+all elements" gear / sublimations), so the grouping
+branch is validated by the engine test, not a fixed CLI run.
 
 ### Multi (k ≥ 3)
 
@@ -226,11 +234,14 @@ boundary; no static optimizer proves it). **Note:** the external loop currently 
 
 ## Tests / guardrails
 
-- **Objective ↔ scorer lockstep:** deterministic test (a known build) proving `perTurnDamageScore` (bi-element
-  sum) equals the bi-element `FindMaxDamageScoring`, up to the downscale.
-- **Double-count regression:** a build with "+all elements" gear + a random-element line — assert generic mastery
-  is counted **once** per core.
-- **Domination:** on any pair, bi-element `max` ≥ mono `max` (guaranteed by the degenerate `a=0`/`a=A` splits).
+- **Objective scale-identity (M1, done):** degenerate splits (`a=0`/`a=A`) of `perTurnDamageScoreBiElement`
+  reproduce the mono `perTurnDamageScore` exactly ⇒ bi ≥ mono.
+- **Double-count regression (M1, done):** a build with "+all elements" gear + a random-element line — generic
+  mastery counted **once** per element core (single `elementVars` call).
+- **Enumeration + pruning (M2, done):** `paretoFrontierSplits` keeps only non-dominated interior splits;
+  `biElementScenarios` gates dead pairs; the loop streams a positive-damage bi-aware build.
+- **Joint shared-debuff (M2e, done):** `bestSequencedTurnBiElement` casts a shared debuff **once**
+  (`apUsed ≤ totalAp`, no duplicate debuff) — SRAM Assassination oracle in `SpellRotationTest`.
 - **Engine determinism:** every OR-Tools test uses `SolverTuning` (det-time / seed / workers), else CI flakes.
 
 ## Sequencing
@@ -244,7 +255,7 @@ Lot 3 (merge subs) ─┐
 Lot 4 (passives)   ─┴─► class-real damage ceiling (consume Lot 2's scenario gating)
 ```
 
-**Recommended next:** finish **Lot 0 GUI** (boss picker + icons — unblocks the visible "pick a boss" UX) —
-small, independent, data already present (**Lot 1** is now done). **Lot 2** is the headline feature; the
-architecture (external loop + per-element `perHit` cores + build-independent tables) is already the right one
-— it's an extension, not a rewrite.
+**Recommended next:** **Lot 2 is complete** (a-f: objective, enumeration + pruning, scorer lockstep, display).
+The remaining levers are **Lot 3** (merge sublimations onto the damage path — model already on `feat/sublimations`)
+and **Lot 4** (wire the on-`main` passives data), both consuming Lot 2's scenario gating, plus the orthogonal
+**Lot 5** coherence floor. Multi-element (k ≥ 3) stays deliberately out of scope (rarely optimal; see below).
