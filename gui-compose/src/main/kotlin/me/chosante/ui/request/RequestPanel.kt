@@ -53,7 +53,9 @@ import me.chosante.autobuilder.domain.RangeBand
 import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.common.Characteristic
+import me.chosante.common.Monster
 import me.chosante.common.Rarity
+import me.chosante.ui.components.BossResistanceChips
 import me.chosante.ui.components.RarityIcon
 import me.chosante.ui.components.StatGlyphIcon
 import me.chosante.ui.components.VerticalScrollHints
@@ -80,6 +82,10 @@ fun RequestPanel(
     ui: UiState,
     onModeChange: (ScoreComputationMode) -> Unit,
     onScenarioChange: (DamageScenario) -> Unit,
+    onOpenBossPicker: () -> Unit = {},
+    onClearBoss: () -> Unit = {},
+    onBossElementChange: (SpellElement?) -> Unit = {},
+    onBossDifficultyChange: (String) -> Unit = {},
     onTargetValueChange: (String, String) -> Unit,
     onTargetWeightChange: (String, Int) -> Unit,
     onRemoveTarget: (String) -> Unit,
@@ -118,6 +124,15 @@ fun RequestPanel(
                 onStopAtMatchChange = onStopAtMatchChange
             )
             if (ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+                BossCard(
+                    boss = ui.selectedBoss,
+                    bossElement = ui.bossElement,
+                    difficulty = ui.bossDifficulty,
+                    onOpenPicker = onOpenBossPicker,
+                    onClear = onClearBoss,
+                    onElementChange = onBossElementChange,
+                    onDifficultyChange = onBossDifficultyChange
+                )
                 DamageScenarioCard(scenario = ui.scenario, onChange = onScenarioChange)
             }
             RarityCard(
@@ -218,6 +233,99 @@ private fun SearchModeCard(
             Hairline()
             ConstraintRow(label = tr(Tr.STOP_AT_MATCH)) {
                 Toggle(checked = stopAtMatch, onCheckedChange = onStopAtMatchChange)
+            }
+        }
+    }
+}
+
+@Composable
+private fun BossCard(
+    boss: Monster?,
+    bossElement: SpellElement?,
+    difficulty: String,
+    onOpenPicker: () -> Unit,
+    onClear: () -> Unit,
+    onElementChange: (SpellElement?) -> Unit,
+    onDifficultyChange: (String) -> Unit,
+) {
+    val lang = LocalLang.current
+    val autoLabel = tr(Tr.BOSS_ELEMENT_AUTO)
+    RequestCard(title = tr(Tr.BOSS)) {
+        if (boss == null) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = tr(Tr.BOSS_NONE_HINT),
+                    style = WTypography.labelSmall.copy(color = WColor.muted, lineHeight = 15.sp)
+                )
+                Box(
+                    modifier =
+                        Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
+                            .clickable { onOpenPicker() }
+                            .padding(horizontal = 11.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(text = tr(Tr.BOSS_PICK), style = WTypography.labelMedium.copy(color = WColor.accent))
+                }
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = boss.name.fr.ifBlank { boss.name.en },
+                            style = WTypography.bodyLarge,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text =
+                                buildString {
+                                    append(tr(Tr.BOSS_LEVEL_SHORT))
+                                    append(' ')
+                                    append(boss.level)
+                                    boss.family?.fr?.takeIf { it.isNotBlank() }?.let {
+                                        append("  ·  ")
+                                        append(it)
+                                    }
+                                },
+                            style = WTypography.labelSmall.copy(color = WColor.muted)
+                        )
+                    }
+                    Text(
+                        text = tr(Tr.BOSS_CHANGE),
+                        style = WTypography.labelSmall.copy(color = WColor.accent),
+                        modifier =
+                            Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { onOpenPicker() }
+                                .padding(horizontal = 7.dp, vertical = 4.dp)
+                    )
+                    Text(
+                        text = tr(Tr.BOSS_REMOVE),
+                        style = WTypography.labelSmall.copy(color = WColor.faint),
+                        modifier =
+                            Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { onClear() }
+                                .padding(horizontal = 7.dp, vertical = 4.dp)
+                    )
+                }
+                BossResistanceChips(boss = boss, highlight = bossElement, modifier = Modifier.fillMaxWidth())
+                SegmentedEnumRow(
+                    label = tr(Tr.BOSS_ELEMENT),
+                    values = listOf<SpellElement?>(null) + SpellElement.entries,
+                    selected = bossElement,
+                    labelOf = { it?.label(lang) ?: autoLabel },
+                    onSelect = onElementChange
+                )
+                ScenarioNumberField(
+                    label = tr(Tr.BOSS_DIFFICULTY),
+                    value = difficulty.toIntOrNull() ?: 1,
+                    onValueChange = { onDifficultyChange(it.coerceAtLeast(1).toString()) },
+                    modifier = Modifier.fillMaxWidth(0.5f)
+                )
             }
         }
     }

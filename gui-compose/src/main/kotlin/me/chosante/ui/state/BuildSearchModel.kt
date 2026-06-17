@@ -16,9 +16,12 @@ import kotlinx.coroutines.withContext
 import me.chosante.ZenithInputParameters
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.domain.SpellRotationOptimizer
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.autobuilder.domain.against
+import me.chosante.autobuilder.domain.againstAllElements
 import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
@@ -28,6 +31,7 @@ import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.common.Character
 import me.chosante.common.Characteristic
+import me.chosante.common.Monster
 import me.chosante.common.Rarity
 import me.chosante.common.history.HistoryEntry
 import me.chosante.createZenithBuild
@@ -320,6 +324,42 @@ class BuildSearchModel(
         ui = ui.copy(scenario = scenario)
     }
 
+    /**
+     * Target [monster] in max-damage mode: switch to max-damage (the boss fills the per-element
+     * resistances the objective optimizes over) and close the picker — mirroring the CLI's `--boss`,
+     * which also forces max-damage. Clears any stale result computed under the previous scenario.
+     */
+    fun pickBoss(monster: Monster) {
+        ui =
+            ui.copy(
+                selectedBoss = monster,
+                mode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                modal = null,
+                phase = Phase.Idle,
+                progress = 0,
+                match = java.math.BigDecimal.ZERO,
+                optimal = false,
+                build = null,
+                achieved = emptyMap(),
+                spellRotation = null
+            )
+    }
+
+    /** Drop the boss target; the next search falls back to the manual damage [UiState.scenario]. */
+    fun clearBoss() {
+        ui = ui.copy(selectedBoss = null, bossElement = null)
+    }
+
+    /** Force the damage element vs the boss, or null to let the objective auto-pick the best one. */
+    fun setBossElement(element: SpellElement?) {
+        ui = ui.copy(bossElement = element)
+    }
+
+    /** Dungeon HP multiplier (integer) for the turns-to-kill estimate; display only, never the build. */
+    fun setBossDifficulty(value: String) {
+        ui = ui.copy(bossDifficulty = value.onlyDigits().take(3))
+    }
+
     fun setLang(lang: me.chosante.ui.i18n.Lang) {
         ui = ui.copy(lang = lang)
     }
@@ -593,6 +633,15 @@ class BuildSearchModel(
         }
         val character = Character(snapshot.clazz, snapshot.level, snapshot.minLevel)
         val targetStats = snapshot.toTargetStats()
+        // A targeted boss overlays its per-element resistances onto the manual scenario (mirrors the CLI):
+        // a forced element pins that one element, else all four are filled so the objective auto-picks.
+        val damageScenario =
+            when {
+                snapshot.selectedBoss != null && snapshot.bossElement != null ->
+                    snapshot.scenario.against(snapshot.selectedBoss, snapshot.bossElement)
+                snapshot.selectedBoss != null -> snapshot.scenario.againstAllElements(snapshot.selectedBoss)
+                else -> snapshot.scenario
+            }
         val params =
             WakfuBestBuildParams(
                 character = character,
@@ -609,7 +658,7 @@ class BuildSearchModel(
                 useSublimations = snapshot.useSublimations,
                 forcedSublimations = snapshot.forcedSublimations,
                 forcedRunesByItem = snapshot.forcedRunesByItem,
-                damageScenario = snapshot.scenario
+                damageScenario = damageScenario
             )
 
         ui =

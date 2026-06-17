@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.Monster
 import me.chosante.common.RuneColor
 import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
@@ -75,6 +76,7 @@ fun ModalHost(
     onSelectStat: (Characteristic) -> Unit,
     onPickItem: (Equipment) -> Unit,
     onPickSublimation: (Sublimation) -> Unit = {},
+    onPickBoss: (Monster) -> Unit = {},
     runePickerCarrier: Equipment? = null,
     runeOptions: List<RuneType> = emptyList(),
     initialPinnedRunes: List<Int> = emptyList(),
@@ -117,6 +119,9 @@ fun ModalHost(
 
             Modal.SublimationPicker ->
                 SublimationPickerModal(onPick = onPickSublimation)
+
+            Modal.BossPicker ->
+                BossPickerModal(onPick = onPickBoss)
 
             is Modal.ItemRunePicker ->
                 // Resolve the carrier at render time from the current build; if it's gone (e.g. a new
@@ -626,6 +631,84 @@ private fun SublimationResultRow(
                 overflow = TextOverflow.Ellipsis
             )
         }
+    }
+}
+
+@Composable
+private fun BossPickerModal(onPick: (Monster) -> Unit) {
+    val results =
+        remember {
+            WakfuBestBuildFinderAlgorithm.monsters
+                .sortedWith(compareByDescending<Monster> { it.rank }.thenByDescending { it.level })
+        }
+    var query by remember { mutableStateOf("") }
+    val filtered =
+        remember(query, results) {
+            val q = query.trim()
+            if (q.isBlank()) {
+                results
+            } else {
+                results.filter {
+                    it.name.fr.contains(q, ignoreCase = true) || it.name.en.contains(q, ignoreCase = true)
+                }
+            }.take(120)
+        }
+    ModalCard(title = tr(Tr.CHOOSE_BOSS_TITLE)) {
+        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_BOSSES))
+        Spacer(modifier = Modifier.height(WDimens.gap))
+        LazyColumn(
+            modifier = Modifier.heightIn(max = 440.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            items(filtered, key = { it.id }) { monster ->
+                BossResultRow(monster = monster, onClick = { onPick(monster) })
+            }
+        }
+        if (filtered.isEmpty()) {
+            Text(
+                text = tr(Tr.NO_MATCHING_BOSS),
+                style = WTypography.bodyMedium.copy(color = WColor.muted),
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun BossResultRow(
+    monster: Monster,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(9.dp))
+                .background(WColor.raised)
+                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 11.dp, vertical = 9.dp),
+        verticalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // The bestiary's English names are lowercased; French is the canonical proper-cased form
+            // (and search matches both), so we display the French name regardless of UI language.
+            Text(
+                text = monster.name.fr.ifBlank { monster.name.en },
+                style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = "Lv ${monster.level}",
+                style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
+            )
+        }
+        BossResistanceChips(boss = monster)
     }
 }
 

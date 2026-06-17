@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import me.chosante.autobuilder.domain.BossDisplay
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.common.Characteristic
 import me.chosante.common.skills.Assignable
@@ -290,6 +291,29 @@ private fun SpellRotationCard(ui: UiState) {
                 text = "${rotation.totalExpectedDamage.toLong().formatCompact()}  (${rotation.apUsed}/${rotation.apBudget} AP)",
                 style = WTypography.bodyMedium.copy(fontFamily = WType.mono)
             )
+        }
+        // Turns-to-kill against the targeted boss (its HP scaled by the difficulty multiplier; display only).
+        ui.selectedBoss?.takeIf { rotation.totalExpectedDamage > 0 }?.let { boss ->
+            val turns =
+                BossDisplay.turnsToKill(
+                    monster = boss,
+                    expectedDamagePerTurn = rotation.totalExpectedDamage.toBigDecimal(),
+                    hpMultiplier = (ui.bossDifficulty.toIntOrNull() ?: 1).coerceAtLeast(1).toDouble()
+                )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${tr(Tr.TURNS_TO_KILL)} · ${boss.name.fr.ifBlank { boss.name.en }}",
+                    style = WTypography.labelMedium.copy(color = WColor.muted),
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "$turns",
+                    style = WTypography.bodyMedium.copy(fontFamily = WType.mono, color = WColor.accent)
+                )
+            }
         }
         Text(
             text = tr(Tr.SPELL_ROTATION_NOTE),
