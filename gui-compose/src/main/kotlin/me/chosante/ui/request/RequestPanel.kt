@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.Orientation
 import me.chosante.autobuilder.domain.RangeBand
+import me.chosante.autobuilder.domain.RolePreset
 import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.common.Characteristic
@@ -341,6 +342,12 @@ private fun DamageScenarioCard(
     val lang = LocalLang.current
     RequestCard(title = tr(Tr.DAMAGE_SCENARIO)) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            // Role presets sit ABOVE the manual controls: one click sets orientation / range / survivability
+            // for a play-style, then the individual rows below can still fine-tune. Applied through the same
+            // onChange path (→ BuildSearchModel.setScenario).
+            RolePresetRow(
+                onPick = { preset -> onChange(preset.apply(scenario)) }
+            )
             SegmentedEnumRow(
                 label = tr(Tr.SCENARIO_ELEMENT),
                 values = SpellElement.entries,
@@ -388,9 +395,66 @@ private fun DamageScenarioCard(
                     modifier = Modifier.weight(1f)
                 )
             }
+            // Survivability soft-floor: opt-in toggle + its effective-HP-proxy floor (only meaningful when on).
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ScenarioToggle(
+                    label = tr(Tr.SCENARIO_SURVIVAL_FLOOR),
+                    checked = scenario.survivabilityFloor,
+                    onCheckedChange = { onChange(scenario.copy(survivabilityFloor = it)) }
+                )
+                if (scenario.survivabilityFloor) {
+                    ScenarioNumberField(
+                        label = tr(Tr.SCENARIO_MIN_EHP),
+                        value = scenario.minEffectiveHp,
+                        onValueChange = { onChange(scenario.copy(minEffectiveHp = it.coerceAtLeast(0))) },
+                        maxDigits = 6,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
         }
     }
 }
+
+@Composable
+private fun RolePresetRow(onPick: (RolePreset) -> Unit) {
+    val lang = LocalLang.current
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(text = tr(Tr.SCENARIO_ROLE), style = WTypography.labelSmall.copy(color = WColor.muted))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            RolePreset.entries.forEach { preset ->
+                Box(
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .height(28.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(WColor.bg)
+                            .border(1.dp, WColor.border, RoundedCornerShape(6.dp))
+                            .clickable { onPick(preset) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = preset.label(lang),
+                        style = WTypography.labelSmall.copy(color = WColor.text),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun RolePreset.label(lang: Lang): String =
+    when (this) {
+        RolePreset.DISTANCE_DPS -> Tr.ROLE_DISTANCE_DPS.value(lang)
+        RolePreset.MELEE_DPS -> Tr.ROLE_MELEE_DPS.value(lang)
+        RolePreset.TANK -> Tr.ROLE_TANK.value(lang)
+    }
 
 private fun SpellElement.label(lang: Lang): String =
     when (this) {
@@ -495,6 +559,7 @@ private fun ScenarioNumberField(
     value: Int,
     onValueChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    maxDigits: Int = 3,
 ) {
     // Hold the raw text locally so the user can clear the field / type intermediate values without the
     // cursor jumping (driving a BasicTextField directly from value.toString() reformats every keystroke).
@@ -506,7 +571,7 @@ private fun ScenarioNumberField(
         BasicTextField(
             value = text,
             onValueChange = { raw ->
-                val filtered = raw.filter { it.isDigit() }.take(3)
+                val filtered = raw.filter { it.isDigit() }.take(maxDigits)
                 text = filtered
                 onValueChange(filtered.toIntOrNull() ?: 0)
             },
