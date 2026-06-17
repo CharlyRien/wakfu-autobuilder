@@ -2,7 +2,7 @@ package me.chosante.autobuilder.genetic.wakfu
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
-import kotlinx.serialization.json.Json
+import me.chosante.autobuilder.EmbeddedResources
 import me.chosante.autobuilder.VERSION
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
@@ -33,9 +33,7 @@ object WakfuBestBuildFinderAlgorithm {
     // paint. Lazy init moves the parse to the first real use (icon preloading / the first search),
     // which always happens on a background thread in the GUI and on the main thread in the CLI.
     val equipments: List<Equipment> by lazy {
-        this.javaClass.classLoader.getResourceAsStream("equipments-v$VERSION.json")?.readAllBytes()!!.let {
-            Json.decodeFromString<List<Equipment>>(String(it))
-        }
+        EmbeddedResources.decodeList<Equipment>("equipments-v$VERSION.json")!!
     }
 
     /**
@@ -43,9 +41,7 @@ object WakfuBestBuildFinderAlgorithm {
      * absent. The OR-Tools solver socket-fills equipped items with these when [WakfuBestBuildParams.useRunes].
      */
     val runes: List<RuneType> by lazy {
-        this.javaClass.classLoader.getResourceAsStream("runes-v$VERSION.json")?.readAllBytes()?.let {
-            Json.decodeFromString<List<RuneType>>(String(it))
-        } ?: emptyList()
+        EmbeddedResources.decodeList<RuneType>("runes-v$VERSION.json") ?: emptyList()
     }
 
     /**
@@ -54,9 +50,7 @@ object WakfuBestBuildFinderAlgorithm {
      * Sorted bosses-first / higher-level-first, as produced by the `monsters-extractor`.
      */
     val monsters: List<Monster> by lazy {
-        this.javaClass.classLoader.getResourceAsStream("monsters-v$VERSION.json")?.readAllBytes()?.let {
-            Json.decodeFromString<List<Monster>>(String(it))
-        } ?: emptyList()
+        EmbeddedResources.decodeList<Monster>("monsters-v$VERSION.json") ?: emptyList()
     }
 
     /**
@@ -86,9 +80,7 @@ object WakfuBestBuildFinderAlgorithm {
      * user [WakfuBestBuildParams.forcedSublimations]; see docs/SUBLIMATIONS_LOT3_RESEARCH.md.
      */
     val sublimations: List<Sublimation> by lazy {
-        this.javaClass.classLoader.getResourceAsStream("sublimations-v$VERSION.json")?.readAllBytes()?.let {
-            Json.decodeFromString<List<Sublimation>>(String(it))
-        } ?: emptyList()
+        EmbeddedResources.decodeList<Sublimation>("sublimations-v$VERSION.json") ?: emptyList()
     }
 
     fun run(params: WakfuBestBuildParams): Flow<GeneticAlgorithmResult<BuildCombination>> {

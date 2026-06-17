@@ -138,7 +138,8 @@ Emit a single JSON file: an **array of spell objects, one per spell id**. Use `n
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   }
 ]
 ```
@@ -147,14 +148,20 @@ Field semantics:
 - `spellId` (int, required) — the binary `id`, the JSON key for the optimizer.
 - `name` (string|null) — French name if resolvable (`equipment`-style French matching is the project convention), else `null`.
 - `breedId` (int|null) — class id (1–18ish); use to filter to player classes.
-- `maxCastPerTurn` (int|null) — `cast_max_per_turn`. The value `SpellRotationOptimizer.maxCastsPerSpell` consumes. `null` = unconfirmed/unlimited-unknown.
+- `maxCastPerTurn` (int|null) — `cast_max_per_turn`. Joined onto `Spell.maxCastPerTurn` and folded (with
+  `cooldown`) into the rotation cap `Spell.maxCastsThisTurn` the optimizer reads. `null` = unconfirmed/unlimited-unknown.
 - `maxCastPerTurnIncr` (number|null, optional) — per-level increment; carry it so per-level resolution stays possible.
 - `maxCastPerTarget` (int|null) — `cast_max_per_target`.
-- `cooldown` (int|null, optional) — `cast_min_interval` (turns between casts). Omit or `null` if 0/absent.
+- `cooldown` (int|null) — `cast_min_interval` (turns between casts); `0` = no cooldown. (The in-repo Kotlin
+  extractor emits it verbatim — `0` included — rather than omitting it.)
+- `wpCost` (int|null) — `pw_base`, the spell's WP (Wakfu Point) base cost; `0` = free (emitted verbatim).
+  WP is a per-*fight* pool (not refilled each turn), so unlike the per-turn caps this is **not** a per-turn
+  limit — it is joined onto `Spell.wpCost` for display + a future amortized WP-budget model (see
+  `docs/FULL_DAMAGE_PLAN.md` "Lot 1").
 
 Notes:
 - A `castMaxPerTurn` of 0/absent in the binary commonly means **unlimited per turn** — decide and document the convention; do **not** silently coerce to a finite number.
-- Key the final baked artifact by `spellId` (object map or array — match what `SpellRotationOptimizer`'s `maxCastsPerSpell` hook expects on the Kotlin side; the optimizer already has the hook, so this JSON only has to feed it).
+- Key the final baked artifact by `spellId`. `SpellCatalog` joins it onto `Spell` by `spellId` at load, so the engine reads `Spell.maxCastsThisTurn` / `Spell.wpCost` — never this JSON directly. (`SpellRotationOptimizer.bestRotation` also takes an optional uniform `maxCastsPerSpell` override, distinct from the per-spell data caps.)
 - This is an **offline, baked** artifact (parallel to the existing baked `equipments-v<version>.json` and class-spells JSON) — the Rust tool runs once to produce it; the Kotlin app does not parse the binary at runtime.
 
 ---
@@ -164,7 +171,7 @@ Notes:
 ```
 GOAL
 Produce a JSON file of per-spell cast limits for Wakfu, keyed by spell id, to feed an existing
-Kotlin build-optimizer that already has a `maxCastsPerSpell` hook in `SpellRotationOptimizer`.
+Kotlin build-optimizer; `SpellCatalog` joins it onto `Spell` by id, read via `Spell.maxCastsThisTurn`.
 Target fields per spell: maxCastPerTurn, maxCastPerTurnIncr (optional), maxCastPerTarget,
 cooldown (= min interval between casts, optional), plus breedId (class) and name. This is an
 OFFLINE, baked artifact — produce the JSON once; the Kotlin app reads the JSON, never the binary.
@@ -216,7 +223,7 @@ Array (or id-keyed map) of:
     "maxCastPerTarget": int|null, "cooldown": int|null }
 Rules: NEVER invent a value. Use null for anything unconfirmed or not yet oracle-validated. Do NOT
 coerce missing/0 to a finite cap — a 0/absent maxCastPerTurn likely means "unlimited"; document the
-convention rather than guessing. Match the key shape SpellRotationOptimizer.maxCastsPerSpell expects.
+convention rather than guessing. Match the array-keyed-by-spellId shape SpellCatalog joins onto Spell.
 
 DELIVERABLE
 The baked JSON file (offline artifact, parallel to the existing equipments-v<version>.json), plus a
@@ -228,9 +235,10 @@ short note on which path produced it and which spells you oracle-validated.
 ## 8. Extraction results (run 2026-06-15, Wakfu data `1.91.1.54`)
 
 **Produced:** `autobuilder/src/main/resources/spell-cast-limits-v1.91.1.54.json`
-(715 spells, ~126 KB, JSON array sorted by `breedId` then `spellId`). This is the baked, offline
-artifact — parallel to `equipments-v1.91.1.54.json` / `spells-v1.91.1.54.json`. **Not** wired into
-the Kotlin engine; the `SpellRotationOptimizer.maxCastsPerSpell` integration is a separate step.
+(715 spells, ~135 KB, JSON array sorted by `breedId` then `spellId`). This is the baked, offline
+artifact — parallel to `equipments-v1.91.1.54.json` / `spells-v1.91.1.54.json`. It is now joined onto
+`Spell` in `SpellCatalog` (`maxCastPerTurn`/`cooldown` → the per-turn cap `Spell.maxCastsThisTurn` used
+by the rotation optimizer; `wpCost` carried for display) — see `docs/FULL_DAMAGE_PLAN.md` "Lot 1".
 
 > **Canonical reproduction is now in-repo and pure-JVM:** `./gradlew :bdata-extractor:run`. That Kotlin
 > module (clean-room decoder, `bdata-extractor/`) decodes the same binaries and **regenerates this exact
@@ -258,6 +266,7 @@ from `spells-v1.91.1.54.json`, emit the §6 contract.
 ### Field mapping (binary → output)
 `cast_max_per_turn` (f32) → `maxCastPerTurn`; `cast_max_per_turn_incr` (f32) → `maxCastPerTurnIncr`;
 `cast_max_per_target` (i16) → `maxCastPerTarget`; `cast_min_interval` (i16) → `cooldown`;
+`pw_base` (f32) → `wpCost` (the WP base cost; `pa`/`pm`/`pw` = AP/MP/WP, so it sits right after `pa_base`);
 `breed_id` (i16) → `breedId`; `id` → `spellId`. `name` = French name from the scraped catalog.
 
 ### Convention (decided & applied)

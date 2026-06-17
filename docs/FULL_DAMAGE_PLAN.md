@@ -13,7 +13,7 @@ The **global, trackable plan** for the coherent full-damage mode. Multiple agent
 | Lot | What it unlocks | Status | Depends on |
 |---|---|---|---|
 | **0** Boss data + selection | "vs a given boss" (auto-element) | 🔶 **CLI ✅ done** (`feat/boss-mode-integration`); **GUI ⬜** (picker + icons) | — |
-| **1** Cast limits in the fused table | realistic rotation (no 1-spell spam) | 🔶 data on `main`, **unwired**; display-path bounded DP exists | — |
+| **1** Cast limits in the fused table | realistic rotation (no 1-spell spam) | ✅ **done** — per-turn + cooldown caps joined to `Spell` and bounded in both the fused table & display path; WP **cost** extracted too (display-ready), WP **model** deferred (per-fight pool) | — |
 | **2a-b** Bi-element objective + double-count fix | bi-element builds are *searched* | ⬜ todo | — |
 | **2c-d** Enumeration + pruning | bi-element **optimality** | ⬜ todo (loop is currently heuristic) | 2a-b |
 | **2e-f** Scorer lockstep + display | honest `matchPercentage`, UI | ⬜ todo | 2c-d |
@@ -76,37 +76,35 @@ dungeon-boss id, not `gfx` — unused.)
 
 **Goal.** Bound the rotation so it stops spamming one spell. No structural solver change.
 
-**Reality on `main` (reconciled):**
-- The cast-limit data **already exists**: `autobuilder/src/main/resources/spell-cast-limits-v1.91.1.54.json`
-  (produced by the `bdata-extractor` module — decodes the local game binary; see `SPELL_CAST_LIMITS_EXTRACTION.md`).
-- A **bounded-knapsack DP already exists in the display path**: `SpellRotationOptimizer.bestRotation` picks
-  `unboundedKnapsack` vs `boundedKnapsack(items, apBudget, maxCastsPerSpell)` [SpellRotation.kt:86-89, :145].
-- **But it's unwired**: the json is not loaded/joined to `Spell`, `maxCastsPerSpell` is `null` everywhere in
-  the live path, and the **fused** `baseThroughputTable` [SpellRotation.kt:368] is still **unbounded** (the
-  objective calls it with no cap [WakfuBuildSolver.kt:1180]).
+**What landed (done):**
+1. ✅ **Load + join.** `SpellCatalog.spells` joins `spell-cast-limits-v<VERSION>.json`
+   (deserialized as the new `common-lib SpellCastLimit`) onto each `Spell` by `id`, populating
+   `Spell.maxCastPerTurn` (new field) and `Spell.cooldown`. A new `Spell.maxCastsThisTurn` computed
+   property folds those into a single per-turn cap (`cooldown > 0` ⇒ 1; `maxCastPerTurn` `0`/null ⇒
+   unbounded), applying the data's "`0` = unlimited" convention.
+2. ✅ **Bound `baseThroughputTable`** — now the item-layered bounded knapsack (each spell `s` capped at
+   `c_s = maxCastsThisTurn ?: maxAp`); a spell with no limit gets `c_s = maxAp ≥ maxAp/cost`, so it
+   reproduces the old unbounded table exactly. `model.addElement(apVar, table, throughput)` is
+   **unchanged** — only the table's contents change, so the optimality proof holds. The display path
+   (`bestRotation` → generalized `boundedKnapsack(items, apBudget, caps: List<Int>)`) uses the **same**
+   per-spell caps, keeping the objective and the re-scorer (`bestSequencedRotation`/`bestAcrossElements`,
+   the lockstep guard in `WakfuBuildSolverTest`) consistent.
+3. ✅ **Cooldown** (`cooldown > 0` ⇒ cap = 1) folded into `maxCastsThisTurn`. **Per-target** skipped
+   (single-target only; `SpellCastLimit.maxCastPerTarget` is parsed but not propagated).
 
-**Remaining work:**
-1. **Load + join** the cast-limits json to `Spell` by `spellId` at load (mirror equipments/runes;
-   `Spell.cooldown`/`Spell.wpCost` fields exist but are null today).
-2. **Bound `baseThroughputTable`** — add a per-spell cap arg and reuse the existing `boundedKnapsack` item-layered
-   DP (each spell `s` capped at `c_s`; trivial at AP ≤ 20, ~12 spells, cap ≤ 3):
-   ```kotlin
-   for ((cost, base, cap) in items) {
-       val next = dp.copyOf()
-       for (ap in cost..maxAp) for (k in 1..cap) if (k*cost <= ap)
-           next[ap] = maxOf(next[ap], dp[ap - k*cost] + k*base)
-       dp = next
-   }
-   for (ap in 1..maxAp) dp[ap] = maxOf(dp[ap], dp[ap-1]) // ≤ ap
-   ```
-   `model.addElement(apVar, table, throughput)` [WakfuBuildSolver.kt:1192] is **unchanged** — only the table's
-   *contents* change. Optimality proof intact.
-3. **Cooldown / WP / per-target.** `cooldown > 0` ⇒ cap = 1 this turn. WP: **1-D amortized budget**
-   (`WP_pool / n_turns` constant pre-filter), no 2-D `(ap, wp)` table for now. `maxCastPerTarget` is for the
-   future AoE/multi-target lot, not single-target boss DPS.
-
-> Quick interim guard (optional, before full wiring): pass a conservative placeholder `maxCastsPerSpell`
-> (2–3) so the most obviously-fake "cast X ×4" rotations disappear in the display.
+**Deferred — model only (data now present):** WP cost is extracted (`pw_base` → `SpellCastLimit.wpCost`
+→ `Spell.wpCost`, joined in `SpellCatalog`; 103/715 player spells cost WP) and carried for display, but
+**not yet folded into the rotation**. WP is a per-*fight* pool, so bounding a single turn needs the 1-D
+amortized `WP_pool / n_turns` model — with the pool kept a **constant** (not the build's `WAKFU_POINT`
+variable) to preserve the build-independence of `baseThroughputTable` (a build-dependent WP cap would
+reintroduce the bilinear blow-up). Pure-WP (0-AP) damage spells additionally need a flat **additive**
+throughput term — they can't be AP-knapsack items. Open knob: where `n_turns` comes from (boss
+turns-to-kill vs. a fixed assumption). **Per-class regen:** the scarce-pool assumption is most wrong for
+**Xelor** — base WP is already doubled (12, `Character.kt`) *and* it regenerates WP in-fight
+(`Horlogerie`/`Cours du temps` passives, ~+1 WP/turn). That regen is conditional/triggered/scripted in
+the passive data (the "state assumed up" bucket Lot 4 defers), so it can't be derived — model WP budget
+as a **per-class** policy (`amortized-pool` for most classes; `renewable` / near-unbounded for Xelor and
+the niche Eni-Tridelta / Foggernaut-stasis cases) under a documented assumption.
 
 ---
 
@@ -246,7 +244,7 @@ Lot 3 (merge subs) ─┐
 Lot 4 (passives)   ─┴─► class-real damage ceiling (consume Lot 2's scenario gating)
 ```
 
-**Recommended next:** finish **Lot 0 GUI** (boss picker + icons — unblocks the visible "pick a boss" UX) and/or
-**Lot 1** (wire the cast-limit json into the fused `baseThroughputTable`) — both small, independent, data already
-present. **Lot 2** is the headline feature; the architecture (external loop + per-element `perHit` cores +
-build-independent tables) is already the right one — it's an extension, not a rewrite.
+**Recommended next:** finish **Lot 0 GUI** (boss picker + icons — unblocks the visible "pick a boss" UX) —
+small, independent, data already present (**Lot 1** is now done). **Lot 2** is the headline feature; the
+architecture (external loop + per-element `perHit` cores + build-independent tables) is already the right one
+— it's an extension, not a rewrite.

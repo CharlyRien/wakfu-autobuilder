@@ -57,6 +57,9 @@ data class CastLimit(
     val maxCastPerTurnIncr: Int,
     val maxCastPerTarget: Int,
     val cooldown: Int,
+    /** WP (Wakfu Point) base cost — Ankama's `pw_base`. `0` = no WP cost. Carried for display + future
+     *  rotation modelling; WP is a per-fight pool, see `docs/FULL_DAMAGE_PLAN.md` "Lot 1". */
+    val wpCost: Int,
 )
 
 @Serializable
@@ -115,7 +118,8 @@ fun buildCastLimits(
                 maxCastPerTurn = (r["cast_max_per_turn"] as Float).toInt(),
                 maxCastPerTurnIncr = (r["cast_max_per_turn_incr"] as Float).toInt(),
                 maxCastPerTarget = r["cast_max_per_target"] as Int,
-                cooldown = r["cast_min_interval"] as Int
+                cooldown = r["cast_min_interval"] as Int,
+                wpCost = (r["pw_base"] as Float).toInt()
             )
         }
 
