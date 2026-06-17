@@ -46,6 +46,7 @@ import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.Orientation
 import me.chosante.autobuilder.domain.RangeBand
+import me.chosante.autobuilder.domain.RolePreset
 import me.chosante.autobuilder.domain.SpellCast
 import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.domain.SpellRotation
@@ -532,6 +533,28 @@ HUPPERMAGE"""
         help = "max-damage mode: spell base hit used to scale the displayed expected-damage figure (default 100)."
     ).int().default(100)
 
+    private val rolePreset: RolePreset? by option(
+        "--role",
+        help =
+            "max-damage mode: apply a role/positioning preset (distance_dps / melee_dps / backstab / tank). " +
+                "It sets orientation, range band and the survivability floor in one shot and OVERRIDES the " +
+                "individual --scenario-* flags it touches (tank also enables --survival-floor)."
+    ).convert { RolePreset.valueOf(it.uppercase()) }
+
+    private val survivalFloor: Boolean by option(
+        "--survival-floor",
+        help =
+            "max-damage mode: enable the survivability soft-floor — gently penalize the damage objective " +
+                "when the build's effective-HP proxy is below --min-ehp, so the optimum isn't a glass cannon."
+    ).flag(default = false)
+
+    private val minEffectiveHp: Int by option(
+        "--min-ehp",
+        help =
+            "max-damage mode: effective-HP-proxy floor for --survival-floor (EHP ≈ HP·(100+avgResist)/100). " +
+                "Below it the damage score is gently taxed; at/above it there is no penalty (default 0 = off)."
+    ).int().default(0).check("--min-ehp must be >= 0") { it >= 0 }
+
     private val bossResistances: Map<SpellElement, Int>? by option(
         "--boss-resistances",
         help =
@@ -677,17 +700,31 @@ HUPPERMAGE"""
                 healing = scenarioHealing,
                 critCapPercent = scenarioCritCap,
                 targetResistancePercent = scenarioEnemyResistance,
-                baseDamage = scenarioBaseDamage
+                baseDamage = scenarioBaseDamage,
+                survivabilityFloor = survivalFloor,
+                minEffectiveHp = minEffectiveHp
             )
+        // A --role preset wins over the individual --scenario-* positioning flags: it is applied to the base
+        // scenario, overriding orientation / range band / survivability. It leaves the EHP floor VALUE
+        // (--min-ehp) and resistances/element untouched.
+        val presetScenario = rolePreset?.apply(baseScenario) ?: baseScenario
+        // If the floor is on (via --survival-floor or the tank role) but no --min-ehp was given, default it
+        // from the level so the floor actually nudges the build instead of being a silent no-op.
+        val roledScenario =
+            if (presetScenario.survivabilityFloor && presetScenario.minEffectiveHp <= 0) {
+                presetScenario.copy(minEffectiveHp = DamageScenario.defaultMinEffectiveHp(maxLevelWanted))
+            } else {
+                presetScenario
+            }
         // --boss takes precedence over --boss-resistances / --enemy-resistance: a forced --boss-element
         // pins a single element (clearing any manual elementResistances), otherwise all four are filled
         // so the objective auto-picks the best one. With no boss, the manual --boss-resistances apply.
         val bossElementChoice = if (targetBoss != null) parseBossElement(bossElement) else null
         val damageScenario =
             when {
-                targetBoss != null && bossElementChoice != null -> baseScenario.against(targetBoss, bossElementChoice)
-                targetBoss != null -> baseScenario.againstAllElements(targetBoss)
-                else -> baseScenario.copy(elementResistances = bossResistances)
+                targetBoss != null && bossElementChoice != null -> roledScenario.against(targetBoss, bossElementChoice)
+                targetBoss != null -> roledScenario.againstAllElements(targetBoss)
+                else -> roledScenario.copy(elementResistances = bossResistances)
             }
 
         runBlocking {

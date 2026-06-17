@@ -169,7 +169,9 @@ fun DamageScenario.toSnapshot(): DamageScenarioSnapshot =
         critCapPercent = critCapPercent,
         targetResistancePercent = targetResistancePercent,
         baseDamage = baseDamage,
-        elementResistances = elementResistances?.mapKeys { it.key.name }
+        elementResistances = elementResistances?.mapKeys { it.key.name },
+        survivabilityFloor = survivabilityFloor,
+        minEffectiveHp = minEffectiveHp
     )
 
 /**
@@ -193,7 +195,9 @@ fun HistoryEntry.restoredScenario(): DamageScenario {
             snapshot.elementResistances
                 ?.mapNotNull { (name, res) -> runCatching { SpellElement.valueOf(name) }.getOrNull()?.let { it to res } }
                 ?.toMap()
-                ?.takeIf { it.isNotEmpty() }
+                ?.takeIf { it.isNotEmpty() },
+        survivabilityFloor = snapshot.survivabilityFloor,
+        minEffectiveHp = snapshot.minEffectiveHp
     )
 }
 

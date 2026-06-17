@@ -89,6 +89,21 @@ object WakfuBuildSolver {
     private const val FINAL_DOWNSCALE = 20L
     private const val DAMAGE_PERTURN_ABS_MAX = ROTATION_RAW_RES_MAX / FINAL_DOWNSCALE // ≈ 3.06e12
 
+    // Survivability soft-floor (Lot 5, opt-in). The effective-HP proxy EHP ≈ HP·(100+avgResist)/100 is
+    // bucketed against the floor and feeds a GENTLE power-2 penalty (vs the power-6 used for hard AP/MP
+    // targets) so missing the floor only *nudges* the damage objective — never dominates it. Resistance
+    // is averaged over the 4 elements and capped at EHP_AVG_RESIST_CAP (Wakfu's soft resist ceiling), so
+    // one extreme element can't inflate the proxy. EHP_MAX bounds the proxy's CP-SAT domain (HP·1.8); it
+    // is far above any real build.
+    private const val EHP_HP_MAX = 1_000_000L
+    private const val EHP_AVG_RESIST_CAP = 80L
+    private const val EHP_MAX = EHP_HP_MAX * (100L + EHP_AVG_RESIST_CAP) / 100L
+    private const val SURVIVABILITY_PENALTY_POWER = 2
+
+    // Max gentle-penalty multiplier; the EHP penalty rescales by this then divides back out, so meeting
+    // the floor is a no-op and missing it scales the damage down by at most (max/atFloor) — a soft tax.
+    private const val MAX_SURVIVABILITY_MULTIPLIER = 1_000L
+
     // Lexicographic scale for the "most masteries" overshoot tie-breaker. The primary objective tops
     // out at MASTERY_SCORE_ABS_MAX * MAX_PENALTY_MULTIPLIER = 1e14; multiplying it by this scale and
     // adding a bonus in [0, OVERSHOOT_SCALE) keeps the combined objective (~1e18) well under
@@ -899,7 +914,71 @@ object WakfuBuildSolver {
                     params.character.clazz
                 )
             } ?: statBuilder.perTurnDamageScore(params.damageScenario, params.character.clazz)
-        return applyConstraintPenalty(params, statBuilder, damageScore, DAMAGE_PERTURN_ABS_MAX).objective
+        // Survivability soft-floor (opt-in): gently tax the damage score when the build's effective-HP
+        // proxy is below the floor, BEFORE the hard-target penalty. Folding it into the core score (rather
+        // than chaining a second multiply onto the already-near-Long.MAX/2 penalized objective) keeps the
+        // objective on the same DAMAGE_PERTURN_ABS_MAX domain, so applyConstraintPenalty's bounds are
+        // untouched and the external max over (mono | bi, AP, split) stays comparable.
+        val scenario = params.damageScenario
+        val survivableScore =
+            if (scenario.survivabilityFloor && scenario.minEffectiveHp > 0) {
+                // Clamp to the proxy's reachable ceiling — a min-EHP above EHP_MAX would be unsatisfiable by
+                // construction and collapse every build's multiplier toward zero (a damage-blind objective).
+                applySurvivabilityFloor(statBuilder, damageScore, scenario.minEffectiveHp.toLong().coerceAtMost(EHP_MAX))
+            } else {
+                damageScore
+            }
+        return applyConstraintPenalty(params, statBuilder, survivableScore, DAMAGE_PERTURN_ABS_MAX).objective
+    }
+
+    /**
+     * Multiplies the max-damage [coreScore] by a **gentle** survivability penalty so a build whose
+     * effective-HP proxy ([StatBuilder.effectiveHpVar]) is below [minEffectiveHp] ranks below an
+     * equal-damage tankier build, while a build at or above the floor is left untouched. The penalty
+     * reuses the exact required-target machinery — bucket `min(EHP, floor)` against the floor, look the
+     * bucket up in a power table, multiply — but with a power-2 table (not the power-6 used for hard
+     * AP/MP/range targets), so survivability only *nudges* the optimum, never dominates damage.
+     *
+     * Because the table is normalised so the at-or-above-floor bucket maps to [MAX_SURVIVABILITY_MULTIPLIER]
+     * and we divide the product back out by that same max, meeting the floor is an exact no-op
+     * (`score · max / max = score`) and missing it scales the score down by `bucket^2 / maxIndex^2` — a
+     * smooth soft tax that vanishes at the floor. The result is clamped back onto [DAMAGE_PERTURN_ABS_MAX]
+     * so downstream bounds are unchanged.
+     */
+    private fun CpModel.applySurvivabilityFloor(
+        statBuilder: StatBuilder,
+        coreScore: IntVar,
+        minEffectiveHp: Long,
+    ): IntVar {
+        val ehp = statBuilder.effectiveHpVar()
+        // cappedEhp = min(EHP, floor): only the shortfall below the floor matters; overshoot is not rewarded.
+        val cappedEhp = newIntVar(0L, minEffectiveHp, "ehpCappedAtFloor")
+        addMinEquality(cappedEhp, arrayOf(ehp, newConstant(minEffectiveHp)))
+
+        val (indexVar, maxIndex) = bucketedIndex(cappedEhp, minEffectiveHp)
+        val powerTable = buildGentlePowerTable(maxIndex.toLong())
+
+        val bucketMultiplier = newIntVar(0, powerTable.maxValue, "survivabilityBucketMultiplier")
+        addElement(indexVar, powerTable.values, bucketMultiplier)
+        // The integer bucketing can map the floor value itself to maxIndex-1 (when the bucket size doesn't
+        // divide the floor), which would tax a build that MEETS the floor. Force the multiplier to its max
+        // whenever the floor is cleared (cappedEhp == floor ⟺ EHP ≥ floor), so "meeting the floor is an exact
+        // no-op" holds for every floor, not just floors ≤ MAX_POWER_TABLE_INDEX.
+        val clearsFloor = newBoolVar("ehpClearsFloor")
+        addEquality(cappedEhp, newConstant(minEffectiveHp)).onlyEnforceIf(clearsFloor)
+        addLessOrEqual(cappedEhp, newConstant(minEffectiveHp - 1)).onlyEnforceIf(clearsFloor.not())
+        val clearsBonus = newIntVar(0L, powerTable.maxValue, "survivabilityClearsBonus")
+        addEquality(clearsBonus, LinearExpr.term(clearsFloor, powerTable.maxValue))
+        val multiplier = newIntVar(0, powerTable.maxValue, "survivabilityMultiplier")
+        addMaxEquality(multiplier, arrayOf(bucketMultiplier, clearsBonus))
+
+        // boosted = coreScore · multiplier, then ÷ maxMultiplier → back onto the core's domain.
+        val boostedBound = safeMultiply(DAMAGE_PERTURN_ABS_MAX, powerTable.maxValue)
+        val boosted = newIntVar(0L, boostedBound, "survivabilityBoosted")
+        addMultiplicationEquality(boosted, coreScore, multiplier)
+        val penalized = newIntVar(0L, DAMAGE_PERTURN_ABS_MAX, "survivabilityPenalized")
+        addDivisionEquality(penalized, boosted, newConstant(powerTable.maxValue.coerceAtLeast(1L)))
+        return penalized
     }
 
     /**
@@ -1516,6 +1595,39 @@ object WakfuBuildSolver {
 
         // The build's resolved Action Points variable (base + gear + skills), for the external-loop AP probe.
         fun actionPointVar(): IntVar = actualStat(Characteristic.ACTION_POINT)
+
+        /**
+         * Monotonic **effective-HP proxy** for the survivability soft-floor (Lot 5):
+         * `EHP ≈ HP · (100 + avgResist) / 100`, with `avgResist` the average of the four elemental
+         * resistances clamped to `[0, EHP_AVG_RESIST_CAP]`. This is a *linear* CP-SAT expression — exact
+         * `1/(1 − res)` damage mitigation is non-linear and cannot be modeled here — so it ranks builds
+         * by survivability (more HP and more resist both raise it) without being a true effective-HP.
+         * Resistance is averaged (not summed) so a single high element can't masquerade as overall
+         * tankiness; the cap mirrors Wakfu's soft resistance ceiling and keeps the proxy honest against
+         * a few extreme resist rolls. Each element is read through [foldedElementalStat] so the generic
+         * "+all elements" resistance and random-resistance gear count exactly as they do elsewhere.
+         */
+        fun effectiveHpVar(): IntVar {
+            val hp = model.clampVar(actualStat(Characteristic.HP), 0L, EHP_HP_MAX, "ehpHp")
+            val resSum =
+                model.sumVar(
+                    "ehpResSum",
+                    ELEMENTARY_RESISTANCES.map { foldedElementalStat(it) },
+                    -STAT_WITH_PERCENT_ABS_MAX,
+                    STAT_WITH_PERCENT_ABS_MAX
+                )
+            val avgResist = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, STAT_WITH_PERCENT_ABS_MAX, "ehpAvgRes")
+            model.addDivisionEquality(avgResist, resSum, model.newConstant(ELEMENTARY_RESISTANCES.size.toLong()))
+            val avgResistClamped = model.clampVar(avgResist, 0L, EHP_AVG_RESIST_CAP, "ehpAvgResClamped")
+
+            // factor = 100 + avgResist ∈ [100, 100 + cap]; EHP = HP · factor / 100.
+            val factor = model.sumVar("ehpFactor", listOf(Term(avgResistClamped, 1L)), 100L, 100L, 100L + EHP_AVG_RESIST_CAP)
+            val product = model.newIntVar(0L, EHP_HP_MAX * (100L + EHP_AVG_RESIST_CAP), "ehpProduct")
+            model.addMultiplicationEquality(product, arrayOf(hp, factor))
+            val ehp = model.newIntVar(0L, EHP_MAX, "ehp")
+            model.addDivisionEquality(ehp, product, model.newConstant(100L))
+            return ehp
+        }
 
         /**
          * Out-of-combat hardcaps: the equipped sheet — gear + skills + runes, i.e. the PRE-sublimation value,
@@ -2491,6 +2603,29 @@ object WakfuBuildSolver {
             values = table,
             maxValue = table.last()
         )
+    }
+
+    /**
+     * Gentle power table for the survivability soft-floor: `index^SURVIVABILITY_PENALTY_POWER`, scaled so
+     * the top bucket equals [MAX_SURVIVABILITY_MULTIPLIER]. Like [buildPowerTable] but with the much
+     * smaller power-2 exponent, so the implied damage tax for missing the EHP floor stays mild (a build at
+     * half the floor keeps ~1/4 of its score from this factor) instead of the near-veto a power-6 imposes.
+     */
+    private fun buildGentlePowerTable(maxIndex: Long): PowerTable {
+        if (maxIndex <= 0) return PowerTable(longArrayOf(MAX_SURVIVABILITY_MULTIPLIER), MAX_SURVIVABILITY_MULTIPLIER)
+        val maxPow = BigInteger.valueOf(maxIndex).pow(SURVIVABILITY_PENALTY_POWER)
+        val target = BigInteger.valueOf(MAX_SURVIVABILITY_MULTIPLIER)
+        val powScale = if (maxPow > target) maxPow.divide(target) else BigInteger.ONE
+
+        val table =
+            LongArray(maxIndex.toInt() + 1) { index ->
+                BigInteger
+                    .valueOf(index.toLong())
+                    .pow(SURVIVABILITY_PENALTY_POWER)
+                    .divide(powScale)
+                    .toLong()
+            }
+        return PowerTable(values = table, maxValue = table.last().coerceAtLeast(1L))
     }
 
     private fun safeMultiply(
