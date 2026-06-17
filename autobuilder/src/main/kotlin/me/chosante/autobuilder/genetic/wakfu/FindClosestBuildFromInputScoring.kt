@@ -214,9 +214,27 @@ fun computeCharacteristicsValues(
             mergeAndSumCharacteristicValues(sumOfCharacteristicFixedValuesWithoutSublimations, sublimationContributions)
         }
 
-    val mutableActualCharacteristics = sumOfCharacteristicFixedValues.toMutableMap()
+    // Selected passives' flat stats fold into the fixed sum exactly as the solver adds them in
+    // StatBuilder.buildPassiveTerms (always-on constants), so the recomputed stats match the objective.
+    // MAX_* fold to their usable stat via the same helper the sublimation fold uses.
+    val passiveContributions =
+        buildMap<Characteristic, Int> {
+            buildCombination.passives.forEach { passive ->
+                passive.flatStats.forEach { (characteristic, value) ->
+                    merge(characteristic.foldedForSublimation(), value, Int::plus)
+                }
+            }
+        }
+    val sumWithPassives =
+        if (passiveContributions.isEmpty()) {
+            sumOfCharacteristicFixedValues
+        } else {
+            mergeAndSumCharacteristicValues(sumOfCharacteristicFixedValues, passiveContributions)
+        }
+
+    val mutableActualCharacteristics = sumWithPassives.toMutableMap()
     if (masteryElementsWanted.isNotEmpty()) {
-        val currentSpecificMasteryElements = currentStatSpecificElements(masteryElementsWanted, sumOfCharacteristicFixedValues, Characteristic.MASTERY_ELEMENTARY)
+        val currentSpecificMasteryElements = currentStatSpecificElements(masteryElementsWanted, sumWithPassives, Characteristic.MASTERY_ELEMENTARY)
         val specificMasteryElementsWithRandomValuesAssigned =
             assignUniformlyMasteryRandomValues(
                 getMasteryRandoms(eachCharacteristicValueLineByEquipment),
@@ -229,7 +247,7 @@ fun computeCharacteristicsValues(
         mutableActualCharacteristics[Characteristic.MASTERY_ELEMENTARY] = specificMasteryElementsWithRandomValuesAssigned.minOfOrNull { it.value } ?: 0
     }
 
-    val resistanceElementsCurrent = currentStatSpecificElements(resistanceElementsWanted, sumOfCharacteristicFixedValues, Characteristic.RESISTANCE_ELEMENTARY)
+    val resistanceElementsCurrent = currentStatSpecificElements(resistanceElementsWanted, sumWithPassives, Characteristic.RESISTANCE_ELEMENTARY)
     if (resistanceElementsWanted.isNotEmpty()) {
         val specificResistanceElementsWithRandomValuesAssigned =
             assignUniformlyResistanceRandomValues(

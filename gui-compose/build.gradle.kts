@@ -198,6 +198,11 @@ tasks.register("generateAssets") {
 
         val spellIconIds =
             readResourceJson("spells-v").mapNotNull { (it["iconId"] as? Number)?.toInt()?.toString() }.toSet()
+        // Passive icons are spell sprites too — keyed by the passive's gfxId — and live in the same
+        // wakassets `spells/` dir, so they are unioned into the spells filter below (the GUI renders the
+        // chosen passives with their own icon). `states/` still covers the buff/state icons separately.
+        val passiveGfxIds =
+            readResourceJson("spell-passives-v").mapNotNull { (it["gfxId"] as? Number)?.toInt()?.toString() }.toSet()
         val passiveStateIds =
             readResourceJson("spell-passives-v")
                 .flatMap { entry -> (entry["appliedStateIds"] as? List<*> ?: emptyList<Any>()).map { (it as Number).toInt().toString() } }
@@ -236,7 +241,7 @@ tasks.register("generateAssets") {
 
         copyAssetDir("items") { it.nameWithoutExtension in guiIdsFromCurrentEquipmentJson }
         copyAssetDir("icons")
-        copyAssetDir("spells") { it.nameWithoutExtension in spellIconIds }
+        copyAssetDir("spells") { it.nameWithoutExtension in spellIconIds || it.nameWithoutExtension in passiveGfxIds }
         copyAssetDir("states") { it.nameWithoutExtension in passiveStateIds }
         copyAssetDir("monsters") { it.nameWithoutExtension in monsterGfxIds }
 

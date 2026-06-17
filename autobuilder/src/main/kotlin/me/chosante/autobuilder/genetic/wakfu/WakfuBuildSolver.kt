@@ -15,6 +15,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.PassiveCatalog
 import me.chosante.autobuilder.domain.SpellCatalog
 import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.domain.SpellRotationOptimizer
@@ -24,6 +25,7 @@ import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
+import me.chosante.common.Passive
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
@@ -1134,12 +1136,28 @@ object WakfuBuildSolver {
     }
 
     /**
+     * The player's selected passive loadout: each [WakfuBestBuildParams.forcedPassives] name resolved to a
+     * [Passive] of the character's class, de-duplicated and capped to the level's passive slots
+     * ([PassiveCatalog.slotsForLevel]). Unknown names are dropped. Shared by the stat-folding ([StatBuilder])
+     * and the result ([solutionToBuild]) so what is scored equals what the build carries.
+     */
+    private fun resolvedPassives(params: WakfuBestBuildParams): List<Passive> {
+        if (params.forcedPassives.isEmpty()) return emptyList()
+        val slots = PassiveCatalog.slotsForLevel(params.character.level)
+        return params.forcedPassives
+            .mapNotNull { PassiveCatalog.findByName(params.character.clazz, it) }
+            .distinct()
+            .take(slots)
+    }
+
+    /**
      * Rebuilds a [BuildCombination] from a solved assignment. Skill points are mapped back by the
      * *position* of each skill in [CharacterSkills.allCharacteristic] — identical between the params'
      * skills (used to create the variables) and the fresh skills here — never by name: two distinct
      * skills share the name "Resistance Elementary" (Intelligence vs Major), so a name lookup would
      * cross-assign their points and corrupt both the build and its recomputed score.
      */
+
     private fun solutionToBuild(
         params: WakfuBestBuildParams,
         allEquips: List<Equipment>,
@@ -1187,7 +1205,7 @@ object WakfuBuildSolver {
             if (carrier != null) sublimationsByItem.getOrPut(carrier) { mutableListOf() }.add(sub)
         }
 
-        return BuildCombination(equippedItems, optimizedSkills, runes, sublimationsByItem)
+        return BuildCombination(equippedItems, optimizedSkills, runes, sublimationsByItem, resolvedPassives(params))
     }
 
     private class StatBuilder(
@@ -1213,6 +1231,13 @@ object WakfuBuildSolver {
         // here and applied by [conversionContributions]. Conditions reify against [preSubStat] (the
         // pre-sublimation stat value) to keep the constraint network acyclic.
         private val subTermsByStat: Map<Characteristic, List<Term>> = buildSublimationTerms()
+
+        // The selected passives' flat stats ([Passive.flatStats] — the extractor's permanent + unconditional
+        // + flat + positive subset, safe to fold for ANY passive), added as constants (a passive is a fixed
+        // player choice, not a solver variable). The conditional/triggered part of a passive (combat state
+        // the static solver can't see) is not modeled; the full loadout still rides on the build for display.
+        // Grouped by the AP/MP/WP-folded stat, like [subTermsByStat].
+        private val passiveTermsByStat: Map<Characteristic, List<Term>> = buildPassiveTerms()
 
         fun totalActualScore(
             requiredTargets: List<TargetStat>,
@@ -2019,6 +2044,8 @@ object WakfuBuildSolver {
                 // Sublimation contributions fold in exactly like item/rune stats (FLAT always, STATIC
                 // under a reified condition, CONVERSION moving value between two stats).
                 terms.addAll(subTermsByStat[char].orEmpty())
+                // Selected passives' flat stats fold in the same way (always-on constants).
+                terms.addAll(passiveTermsByStat[char].orEmpty())
                 model.sumVar("pre_${char.name}", terms, base, -STAT_ABS_MAX, STAT_ABS_MAX)
             }
 
@@ -2037,6 +2064,19 @@ object WakfuBuildSolver {
                 Characteristic.MAX_WAKFU_POINTS -> Characteristic.WAKFU_POINT
                 else -> char
             }
+
+        /** Constant flat-stat contributions of the selected passives (see [resolvedPassives]). */
+        private fun buildPassiveTerms(): Map<Characteristic, List<Term>> {
+            val map = mutableMapOf<Characteristic, MutableList<Term>>()
+            for (passive in resolvedPassives(params)) {
+                for ((characteristic, value) in passive.flatStats) {
+                    map
+                        .getOrPut(effectiveStat(characteristic)) { mutableListOf() }
+                        .add(Term(model.newConstant(value.toLong()), 1L))
+                }
+            }
+            return map
+        }
 
         private fun buildSublimationTerms(): Map<Characteristic, List<Term>> {
             val map = mutableMapOf<Characteristic, MutableList<Term>>()

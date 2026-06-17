@@ -11,9 +11,13 @@ import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.I18nText
 import me.chosante.common.ItemType
+import me.chosante.common.Passive
 import me.chosante.common.Rarity
 import me.chosante.common.RuneColor
 import me.chosante.common.RuneType
+import me.chosante.common.Sublimation
+import me.chosante.common.SublimationKind
+import me.chosante.common.SublimationRarity
 import me.chosante.common.history.HistoryEntry
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.ui.state.ItemChip
@@ -180,6 +184,65 @@ class HistoryMappingTest {
         assertThat(runes).allMatch { it.characteristic == Characteristic.MASTERY_DISTANCE }
         // Item-level-gated enchant level is preserved (derived from the carrier item's level 50 -> 2).
         assertThat(runes.first().maxLevel(rebuiltAmulet.level)).isEqualTo(2)
+    }
+
+    @Test
+    fun `sublimations and passives survive an export-import round-trip`() {
+        val amulet =
+            Equipment(
+                equipmentId = 7,
+                guiId = 7,
+                level = 50,
+                name = I18nText(fr = "Amulette", en = "Amulet", es = "", pt = ""),
+                rarity = Rarity.EPIC,
+                itemType = ItemType.AMULET,
+                characteristics = emptyMap(),
+                maxShardSlots = 3
+            )
+        val sub =
+            Sublimation(
+                stateId = 42,
+                name = I18nText("Sub FR", "Sub EN", "", ""),
+                rarity = SublimationRarity.EPIC,
+                kind = SublimationKind.FLAT,
+                rawText = "+50 fire mastery"
+            )
+        val passive = Passive(spellId = 6989, name = "Ligne", clazz = "FECA", gfxId = 6989, flatBuildStats = mapOf("RANGE" to 1.0))
+        val build =
+            BuildCombination(
+                equipments = listOf(amulet),
+                characterSkills = CharacterSkills(110),
+                sublimations = mapOf(amulet to listOf(sub)),
+                passives = listOf(passive)
+            )
+        val ui =
+            UiState(
+                clazz = CharacterClass.FECA,
+                level = 110,
+                minLevel = 110,
+                mode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                maxRarity = Rarity.EPIC,
+                duration = "30",
+                stopAtMatch = false,
+                build = build,
+                achieved = emptyMap(),
+                match = BigDecimal("100"),
+                optimal = true
+            )
+
+        val entry = ui.toHistoryEntry(id = "id-sp", name = "Subs+Passives", note = null, createdAt = 1L, dataVersion = "v")!!
+        // Through the exact JSON codec the clipboard export/import uses.
+        val restored = historyJson.decodeFromString(HistoryEntry.serializer(), historyJson.encodeToString(HistoryEntry.serializer(), entry))
+        val rebuilt = restored.toBuildCombination()
+
+        val rebuiltAmulet = rebuilt.equipments.single()
+        assertThat(rebuilt.sublimations[rebuiltAmulet].orEmpty().map { it.stateId })
+            .describedAs("the sublimation reattaches to its carrier item")
+            .containsExactly(42)
+        assertThat(rebuilt.passives.map { it.name })
+            .describedAs("the passive loadout survives the round-trip")
+            .containsExactly("Ligne")
+        assertThat(rebuilt.passives.single().flatStats).containsEntry(Characteristic.RANGE, 1)
     }
 
     @Test

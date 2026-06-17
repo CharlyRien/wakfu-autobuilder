@@ -183,6 +183,10 @@ data class WakfuBestBuildParams(
     // Sublimations the user requires the build to carry (matched on the sublimation's French name).
     // Combat-conditional subs are only usable this way. See createSublimationModel.
     val forcedSublimations: List<String> = emptyList(),
+    // The player's selected passive loadout (matched on the passive's French name, capped to the level's
+    // passive slots). Their fully-declarative flat stats fold into the solve; all selected passives ride
+    // on the resulting build for display. See PassiveCatalog / WakfuBuildSolver.resolvedPassives.
+    val forcedPassives: List<String> = emptyList(),
     // The attack scenario optimized by ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE (ignored by the
     // other modes).
     val damageScenario: DamageScenario = DamageScenario(),

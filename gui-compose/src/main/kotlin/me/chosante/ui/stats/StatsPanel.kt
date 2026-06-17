@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -39,6 +40,7 @@ import me.chosante.common.skills.Assignable
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.common.skills.SkillCharacteristic
 import me.chosante.ui.components.CharacteristicIcon
+import me.chosante.ui.components.PassiveIcon
 import me.chosante.ui.components.StatGlyphIcon
 import me.chosante.ui.components.VerticalScrollHints
 import me.chosante.ui.components.iconResourcePath
@@ -105,6 +107,7 @@ fun StatsPanel(
                 DesiredVsAchieved(ui)
                 BuildSheet(ui)
                 SublimationsResult(ui)
+                PassivesResult(ui)
                 SkillTree(ui.build?.characterSkills ?: CharacterSkills(ui.level))
             }
         }
@@ -997,6 +1000,61 @@ private fun SublimationsResult(ui: UiState) {
                     }
                     sub.rawText?.takeIf { it.isNotBlank() }?.let {
                         Text(text = it, style = WTypography.labelSmall.copy(color = WColor.muted))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** The selected passive loadout, each as an icon + name (+ flat stats), with the in-game text on hover. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun PassivesResult(ui: UiState) {
+    val passives = ui.build?.passives.orEmpty()
+    if (passives.isEmpty()) return
+    ResultCard(title = tr(Tr.CHOSEN_PASSIVES), trailing = passives.size.toString()) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            passives.forEach { passive ->
+                androidx.compose.foundation.TooltipArea(
+                    delayMillis = 300,
+                    tooltip = {
+                        passive.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .widthIn(max = 340.dp)
+                                        .clip(RoundedCornerShape(7.dp))
+                                        .background(WColor.raised)
+                                        .border(1.dp, WColor.border, RoundedCornerShape(7.dp))
+                                        .padding(horizontal = 9.dp, vertical = 6.dp)
+                            ) {
+                                Text(text = desc, style = WTypography.labelSmall.copy(color = WColor.text))
+                            }
+                        }
+                    }
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        PassiveIcon(gfxId = passive.gfxId, size = 24.dp)
+                        Text(
+                            text = passive.name ?: passive.spellId.toString(),
+                            style = WTypography.labelMedium.copy(color = WColor.text),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        val flat = passive.flatStats.entries.joinToString("  ") { "+${it.value} ${it.key.name}" }
+                        if (flat.isNotBlank()) {
+                            Text(
+                                text = flat,
+                                style = WTypography.labelSmall.copy(color = WColor.accent2, fontFamily = WType.mono),
+                                maxLines = 1
+                            )
+                        }
                     }
                 }
             }

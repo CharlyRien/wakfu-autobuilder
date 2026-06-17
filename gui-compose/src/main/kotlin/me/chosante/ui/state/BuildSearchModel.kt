@@ -16,6 +16,7 @@ import kotlinx.coroutines.withContext
 import me.chosante.ZenithInputParameters
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.PassiveCatalog
 import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.domain.SpellRotationOptimizer
 import me.chosante.autobuilder.domain.TargetStat
@@ -365,7 +366,9 @@ class BuildSearchModel(
     }
 
     fun setClass(clazz: me.chosante.common.CharacterClass) {
-        ui = ui.copy(clazz = clazz)
+        // Passives are class-specific and slot-capped — drop any that don't exist for the new class so a
+        // stale chip can't linger, eat a slot, and be silently dropped at solve time.
+        ui = ui.copy(clazz = clazz, forcedPassives = reconcilePassives(ui.forcedPassives, clazz, ui.level))
     }
 
     fun setLevel(level: String) {
@@ -375,8 +378,20 @@ class BuildSearchModel(
                 .take(3)
                 .toIntOrNull()
                 ?.coerceIn(1, 245) ?: return
-        ui = ui.copy(level = parsed)
+        // Lowering the level shrinks the passive-slot budget — trim the loadout so the shown chips match
+        // exactly what the engine folds (resolvedPassives caps with the same slot count).
+        ui = ui.copy(level = parsed, forcedPassives = reconcilePassives(ui.forcedPassives, ui.clazz, parsed))
     }
+
+    /** Keep only passives that belong to [clazz], capped to [level]'s passive slots (preserving order). */
+    private fun reconcilePassives(
+        forced: List<String>,
+        clazz: me.chosante.common.CharacterClass,
+        level: Int,
+    ): List<String> =
+        forced
+            .filter { PassiveCatalog.findByName(clazz, it) != null }
+            .take(PassiveCatalog.slotsForLevel(level))
 
     fun setMinLevel(minLevel: String) {
         val parsed =
@@ -511,6 +526,26 @@ class BuildSearchModel(
      */
     fun pickSublimation(sub: me.chosante.common.Sublimation) {
         addForcedSublimation(sub.name.fr)
+        ui = ui.copy(modal = null)
+    }
+
+    fun removeForcedPassive(name: String) {
+        ui = ui.copy(forcedPassives = ui.forcedPassives - name)
+    }
+
+    /**
+     * Add the passive chosen from the [Modal.PassivePicker] to the loadout (matched by **French** name by
+     * the engine), capped to the level's passive slots, then close the modal. A duplicate or over-cap pick
+     * is ignored.
+     */
+    fun pickPassive(passive: me.chosante.common.Passive) {
+        val name = passive.name ?: return
+        val slots =
+            me.chosante.autobuilder.domain.PassiveCatalog
+                .slotsForLevel(ui.level)
+        if (name !in ui.forcedPassives && ui.forcedPassives.size < slots) {
+            ui = ui.copy(forcedPassives = ui.forcedPassives + name)
+        }
         ui = ui.copy(modal = null)
     }
 
@@ -657,6 +692,7 @@ class BuildSearchModel(
                 scoreComputationMode = snapshot.mode,
                 useSublimations = snapshot.useSublimations,
                 forcedSublimations = snapshot.forcedSublimations,
+                forcedPassives = snapshot.forcedPassives,
                 forcedRunesByItem = snapshot.forcedRunesByItem,
                 damageScenario = damageScenario
             )

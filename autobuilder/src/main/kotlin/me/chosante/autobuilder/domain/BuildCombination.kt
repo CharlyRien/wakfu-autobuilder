@@ -2,6 +2,7 @@ package me.chosante.autobuilder.domain
 
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
+import me.chosante.common.Passive
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
@@ -17,6 +18,9 @@ data class BuildCombination(
     // item, normal → its assigned ≥3-socket item). Mirrors [runes] so the GUI can show each item's
     // sublimation + rune colour pattern. Flatten with `.values.flatten()` for the effect set.
     val sublimations: Map<Equipment, List<Sublimation>> = emptyMap(),
+    // The player's selected passive loadout (≤ the level's passive slots). Carried for display + Zenith
+    // export; their fully-declarative flat stats are also folded into the solve (see PassiveCatalog).
+    val passives: List<Passive> = emptyList(),
 ) {
     fun isValid(): Boolean {
         val numberOfEquipmentByType = equipments.groupingBy { it.itemType }.eachCount()

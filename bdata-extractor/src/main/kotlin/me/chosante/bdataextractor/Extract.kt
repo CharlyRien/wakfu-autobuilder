@@ -81,6 +81,9 @@ data class PassiveEntry(
     val name: String?,
     val breedId: Int,
     @SerialName("class") val clazz: String,
+    // Spell sprite id (Spell table `gfx_id`). Names the passive's icon PNG on Vertylo/wakassets
+    // (`spells/<gfxId>.png`, the same set the active-spell icons come from) so the GUI can render it.
+    val gfxId: Int,
     val description: String?,
     val effectIds: List<Int>,
     val declaredEffects: List<DeclaredEffect>,
@@ -176,6 +179,7 @@ fun buildPassives(
         .map { r ->
             val id = r["id"] as Int
             val breed = r["breed_id"] as Int
+            val gfx = r["gfx_id"] as Int
             val effectIds = intList(r["effect_ids"])
             val resolved = ArrayList<Resolved>()
             val states = sortedSetOf<Int>()
@@ -256,6 +260,7 @@ fun buildPassives(
                 name = names[id]?.nameFr,
                 breedId = breed,
                 clazz = BREED_TO_CLASS.getValue(breed),
+                gfxId = gfx,
                 description = names[id]?.descFr,
                 effectIds = effectIds,
                 declaredEffects =
