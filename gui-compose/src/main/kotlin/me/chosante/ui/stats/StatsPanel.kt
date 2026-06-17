@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import me.chosante.autobuilder.domain.BossDisplay
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.common.Characteristic
+import me.chosante.common.SpellElement
 import me.chosante.common.skills.Assignable
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.common.skills.SkillCharacteristic
@@ -248,33 +249,24 @@ private fun SpellRotationCard(ui: UiState) {
                 modifier = Modifier.padding(bottom = 4.dp)
             )
         }
-        rotation.casts.forEachIndexed { index, cast ->
-            if (index > 0) Hairline()
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        // Mono: a flat list of casts. Bi-element (element == null): group the casts under a colored
+        // per-element sub-header so the two-element split reads clearly (each cast carries its own element).
+        if (rotation.element == null && rotation.casts.any { it.spell.element != null }) {
+            rotation.casts.groupBy { it.spell.element }.forEach { (element, casts) ->
                 Text(
-                    text = "${cast.count}×",
-                    style = WTypography.bodyMedium.copy(fontFamily = WType.mono, color = WColor.accent)
+                    text = element.elementLabel(),
+                    style = WTypography.labelSmall.copy(color = element.elementColor(), fontWeight = FontWeight.SemiBold),
+                    modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = if (lang == Lang.FR) cast.spell.name.fr else cast.spell.name.en,
-                    style = WTypography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = "${cast.apCost} AP",
-                    style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = "~${cast.totalExpectedDamage.toLong().formatCompact()}",
-                    style = WTypography.bodyMedium.copy(fontFamily = WType.mono, color = WColor.text)
-                )
+                casts.forEachIndexed { index, cast ->
+                    if (index > 0) Hairline()
+                    SpellCastRow(cast, lang)
+                }
+            }
+        } else {
+            rotation.casts.forEachIndexed { index, cast ->
+                if (index > 0) Hairline()
+                SpellCastRow(cast, lang)
             }
         }
         Hairline()
@@ -322,6 +314,60 @@ private fun SpellRotationCard(ui: UiState) {
         )
     }
 }
+
+/** One spell-cast line in the rotation card: `N× name … AP … ~damage`. Shared by the mono and bi-element layouts. */
+@Composable
+private fun SpellCastRow(
+    cast: me.chosante.autobuilder.domain.SpellCast,
+    lang: Lang,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "${cast.count}×",
+            style = WTypography.bodyMedium.copy(fontFamily = WType.mono, color = WColor.accent)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = if (lang == Lang.FR) cast.spell.name.fr else cast.spell.name.en,
+            style = WTypography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = "${cast.apCost} AP",
+            style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = "~${cast.totalExpectedDamage.toLong().formatCompact()}",
+            style = WTypography.bodyMedium.copy(fontFamily = WType.mono, color = WColor.text)
+        )
+    }
+}
+
+/** Display name for a spell element's rotation sub-header (null = unknown). */
+private fun SpellElement?.elementLabel(): String =
+    when (this) {
+        SpellElement.FIRE -> "Fire"
+        SpellElement.WATER -> "Water"
+        SpellElement.EARTH -> "Earth"
+        SpellElement.AIR -> "Air"
+        null -> "—"
+    }
+
+/** Accent color for a spell element's rotation sub-header. */
+private fun SpellElement?.elementColor(): Color =
+    when (this) {
+        SpellElement.FIRE -> WColor.fire
+        SpellElement.WATER -> WColor.water
+        SpellElement.EARTH -> WColor.earth
+        SpellElement.AIR -> WColor.air
+        null -> WColor.muted
+    }
 
 @Composable
 private fun DesiredVsAchieved(ui: UiState) {
