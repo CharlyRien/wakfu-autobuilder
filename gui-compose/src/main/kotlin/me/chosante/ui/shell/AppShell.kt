@@ -145,6 +145,7 @@ fun AppShell(
                 onSelectStat = model::addTarget,
                 onPickItem = model::pickItem,
                 onPickSublimation = model::pickSublimation,
+                onPickBoss = model::pickBoss,
                 // The per-item rune picker resolves its carrier from the current build by French name.
                 runePickerCarrier =
                     (ui.modal as? Modal.ItemRunePicker)?.let { m ->
@@ -209,6 +210,10 @@ private fun BuilderBody(
                 ui = ui,
                 onModeChange = model::setMode,
                 onScenarioChange = model::setScenario,
+                onOpenBossPicker = { model.openModal(Modal.BossPicker) },
+                onClearBoss = model::clearBoss,
+                onBossElementChange = model::setBossElement,
+                onBossDifficultyChange = model::setBossDifficulty,
                 onTargetValueChange = model::updateTargetValue,
                 onTargetWeightChange = model::updateTargetWeight,
                 onRemoveTarget = model::removeTarget,
