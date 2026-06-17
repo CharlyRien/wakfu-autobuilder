@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import me.chosante.autobuilder.domain.PassiveCatalog
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
@@ -76,6 +77,8 @@ fun ModalHost(
     onSelectStat: (Characteristic) -> Unit,
     onPickItem: (Equipment) -> Unit,
     onPickSublimation: (Sublimation) -> Unit = {},
+    onPickPassive: (me.chosante.common.Passive) -> Unit = {},
+    passiveClass: me.chosante.common.CharacterClass = me.chosante.common.CharacterClass.CRA,
     onPickBoss: (Monster) -> Unit = {},
     runePickerCarrier: Equipment? = null,
     runeOptions: List<RuneType> = emptyList(),
@@ -119,6 +122,9 @@ fun ModalHost(
 
             Modal.SublimationPicker ->
                 SublimationPickerModal(onPick = onPickSublimation)
+
+            Modal.PassivePicker ->
+                PassivePickerModal(clazz = passiveClass, onPick = onPickPassive)
 
             Modal.BossPicker ->
                 BossPickerModal(onPick = onPickBoss)
@@ -630,6 +636,85 @@ private fun SublimationResultRow(
                 maxLines = 3,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+    }
+}
+
+@Composable
+private fun PassivePickerModal(
+    clazz: me.chosante.common.CharacterClass,
+    onPick: (me.chosante.common.Passive) -> Unit,
+) {
+    val lang = LocalLang.current
+    val all = remember(clazz) { PassiveCatalog.forClass(clazz) }
+    var query by remember { mutableStateOf("") }
+    val filtered =
+        remember(query, all) {
+            val q = query.trim()
+            if (q.isBlank()) {
+                all
+            } else {
+                all.filter { passive ->
+                    passive.name?.contains(q, ignoreCase = true) == true ||
+                        passive.description?.contains(q, ignoreCase = true) == true
+                }
+            }.sortedBy { it.name?.lowercase().orEmpty() }
+                .take(120)
+        }
+    ModalCard(title = tr(Tr.REQUIRE_PASSIVE_TITLE)) {
+        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_PASSIVES))
+        Spacer(modifier = Modifier.height(WDimens.gap))
+        LazyColumn(
+            modifier = Modifier.heightIn(max = 440.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            items(filtered, key = { it.spellId }) { passive ->
+                PassiveResultRow(passive = passive, onClick = { onPick(passive) })
+            }
+        }
+        if (filtered.isEmpty()) {
+            Text(
+                text = tr(Tr.NO_MATCHING_PASSIVE),
+                style = WTypography.bodyMedium.copy(color = WColor.muted),
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun PassiveResultRow(
+    passive: me.chosante.common.Passive,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(9.dp))
+                .background(WColor.raised)
+                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 11.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(9.dp)
+    ) {
+        PassiveIcon(gfxId = passive.gfxId, size = 28.dp)
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.weight(1f)) {
+            Text(
+                text = passive.name ?: passive.spellId.toString(),
+                style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            passive.description?.takeIf { it.isNotBlank() }?.let { effect ->
+                Text(
+                    text = effect,
+                    style = WTypography.labelSmall.copy(color = WColor.muted),
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }

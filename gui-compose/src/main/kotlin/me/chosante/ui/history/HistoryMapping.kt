@@ -83,7 +83,9 @@ fun UiState.toHistoryEntry(
                 achieved = achieved,
                 match = match.toDouble(),
                 optimal = optimal,
-                runes = build.runes.entries.associate { (equip, runes) -> equip.equipmentId to runes }
+                runes = build.runes.entries.associate { (equip, runes) -> equip.equipmentId to runes },
+                sublimations = build.sublimations.entries.associate { (equip, subs) -> equip.equipmentId to subs },
+                passives = build.passives
             ),
         zenithUrl = zenithUrl,
         tags = tags,
@@ -124,17 +126,23 @@ fun reconstructSkills(
     return skills
 }
 
-/** Reconstructs the discovered build (equipment + skills + socketed runes) for display when loading an entry. */
+/** Reconstructs the discovered build (equipment + skills + runes + sublimations + passives) for display. */
 fun HistoryEntry.toBuildCombination(): BuildCombination {
     val equipmentById = result.equipments.associateBy { it.equipmentId }
     val runes =
         result.runes
             .mapNotNull { (equipmentId, runeList) -> equipmentById[equipmentId]?.let { it to runeList } }
             .toMap()
+    val sublimations =
+        result.sublimations
+            .mapNotNull { (equipmentId, subs) -> equipmentById[equipmentId]?.let { it to subs } }
+            .toMap()
     return BuildCombination(
         equipments = result.equipments,
         characterSkills = reconstructSkills(request.level, result.skills),
-        runes = runes
+        runes = runes,
+        sublimations = sublimations,
+        passives = result.passives
     )
 }
 

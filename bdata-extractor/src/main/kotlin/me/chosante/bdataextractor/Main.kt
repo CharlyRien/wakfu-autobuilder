@@ -35,6 +35,10 @@ private val LENIENT_JSON = Json { ignoreUnknownKeys = true }
 fun main(args: Array<String>) {
     val install = File(args.getOrNull(0) ?: DEFAULT_INSTALL)
     val version = args.getOrNull(1) ?: DEFAULT_VERSION
+    // The oracle guard in verifyAndWrite blocks ANY semantic diff vs the committed artifact (drift safety).
+    // For an INTENTIONAL change — e.g. adding a new field like `gfxId` — set BDATA_FORCE_WRITE=1 to accept
+    // and rewrite; the diff is still printed first so you can eyeball that nothing unexpected changed.
+    val force = System.getenv("BDATA_FORCE_WRITE") == "1"
     val repoRoot = findRepositoryRoot()
     val resources = File(repoRoot, "autobuilder/src/main/resources")
 
@@ -63,11 +67,11 @@ fun main(args: Array<String>) {
 
     val castLimits = buildCastLimits(spells, names)
     val castJson = json.encodeToString(ListSerializer(CastLimit.serializer()), castLimits)
-    verifyAndWrite(File(resources, "spell-cast-limits-v$version.json"), castJson, "cast-limits", castLimits.size)
+    verifyAndWrite(File(resources, "spell-cast-limits-v$version.json"), castJson, "cast-limits", castLimits.size, force)
 
     val passives = buildPassives(spells, effects, actions, names)
     val passivesJson = json.encodeToString(ListSerializer(PassiveEntry.serializer()), passives)
-    verifyAndWrite(File(resources, "spell-passives-v$version.json"), passivesJson, "passives", passives.size)
+    verifyAndWrite(File(resources, "spell-passives-v$version.json"), passivesJson, "passives", passives.size, force)
 
     println("\nDone.")
 }
@@ -97,6 +101,7 @@ private fun verifyAndWrite(
     newJson: String,
     label: String,
     count: Int,
+    force: Boolean = false,
 ) {
     val fresh = Json.parseToJsonElement(newJson)
     if (!file.isFile) {
@@ -117,8 +122,10 @@ private fun verifyAndWrite(
         println("  [$label] ✓ reproduces the committed oracle exactly ($count entries, semantically identical) — writing canonical.")
         file.writeText(newJson + "\n")
     } else {
-        println("  [$label] ✗ ${diffs.size} semantic difference(s) vs committed oracle — NOT overwriting. First 12:")
+        val verb = if (force) "accepting (BDATA_FORCE_WRITE) and writing" else "NOT overwriting"
+        println("  [$label] ✗ ${diffs.size} semantic difference(s) vs committed oracle — $verb. First 12:")
         diffs.take(12).forEach { println("      $it") }
+        if (force) file.writeText(newJson + "\n")
     }
 }
 

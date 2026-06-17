@@ -17,9 +17,9 @@ The **global, trackable plan** for the coherent full-damage mode. Multiple agent
 | **2a-b** Bi-element objective + double-count fix | bi-element builds are *searched* | ✅ **done** — `perTurnDamageScoreBiElement` linear, scale-identical to mono, double-count-safe, tested + verified | — |
 | **2c-d** Enumeration + pruning | bi-element **optimality** | ✅ **done** — `MaxDamageSearch` Phase 3 enumerates `(pair × AP × split)` in parallel; dead-pair + Pareto-frontier pruning; bi-element `sequencedScore` via `bestSequencedRotationBiElement` | 2a-b |
 | **2e-f** Scorer lockstep + display | honest `matchPercentage`, UI | ✅ **done** — one `bestSequencedTurn` seam (mono \| joint bi); winning split rides on `GeneticAlgorithmResult.maxDamageBiElement`; shared-debuff (no double-spend); CLI + GUI render the merged two-element turn | 2c-d |
-| **3** Sublimations on the damage path | major end-game lever | ⬜ todo (model on `feat/sublimations`, unmerged) | — |
-| **4** Passives on the damage path | class-real damage ceiling | ⬜ todo (data on `main`, unwired) | — |
-| **5** Coherence floor (survivability + role) | builds that don't die / aren't fantasy positioning | ⬜ todo | — |
+| **3** Sublimations on the damage path | major end-game lever | ✅ **done** (already on `main`) — folded into the resolved stats the objective reads, `ScenarioGate` evaluated vs the `DamageScenario` in max-damage mode, `CONVERSION` implemented; `COMBAT_CONDITIONAL` stays forced-input | — |
+| **4** Passives on the damage path | class-real damage ceiling | ✅ **done** (`feat/lot4-passives`) — player passive loadout (`gfxId` extracted → real icons; `PassiveCatalog`, slots 1→6 by level): selected passives' fully-declarative flat stats fold into the solve + re-scorer; CLI `--passives`; GUI picker + `PassivesResult` (icon + hover tooltip). Solver **auto-choice** deferred (only 6/332 passives are flat-stat utility) | 3 |
+| **5** Coherence floor (survivability + role) | builds that don't die / aren't fantasy positioning | ✅ **done** (`feat/lot5-coherence-floor`) — opt-in EHP soft-floor (power-2 penalty) + `RolePreset` (DPS/Melee/Backstab/Tank); CLI `--role`/`--survival-floor`/`--min-ehp`; GUI preset row | — |
 
 Lots **0, 1, 5** are independent and parallelizable now. **2** is the core (extension, not a refactor). **3/4**
 consume Lot 2's scenario gating.
