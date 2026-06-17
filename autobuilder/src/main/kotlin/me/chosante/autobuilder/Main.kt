@@ -476,6 +476,17 @@ HUPPERMAGE"""
             """.trimIndent()
     ).split(",").default(listOf())
 
+    private val passives: List<String> by option(
+        "--passives",
+        "--passifs",
+        help =
+            """
+            The character's passive loadout (matched on the French name), capped to the level's passive
+            slots (1 at lvl 10 … up to 6 at lvl 200). Fully-declarative flat bonuses fold into the search;
+            the full loadout is shown on the build. e.g. --passives 'Tir Critique','Don du Kralamoure'
+            """.trimIndent()
+    ).split(",").default(listOf())
+
     // --- max-damage scenario (only used when --computation-mode max-damage) ---
 
     private val scenarioElement: SpellElement by option(
@@ -697,6 +708,7 @@ HUPPERMAGE"""
                             forcedRunes = forcedRunes,
                             useSublimations = !noSublimations,
                             forcedSublimations = forcedSublimations,
+                            forcedPassives = passives,
                             damageScenario = damageScenario
                         )
                     ).buffer(CONFLATED)
@@ -743,6 +755,10 @@ HUPPERMAGE"""
                                     .flatten()
                                     .asSublimationsASCIITable()
                             )
+                        }
+                        if (it.passives.isNotEmpty()) {
+                            terminal.println("Passives")
+                            terminal.println(it.passives.asPassivesASCIITable())
                         }
                         terminal.println("Skills")
                         terminal.println("Intelligence")
@@ -992,6 +1008,31 @@ private fun List<me.chosante.common.Sublimation>.asSublimationsASCIITable() =
             cellBorders = Borders.TOP_BOTTOM
             this@asSublimationsASCIITable.forEach { sub ->
                 row(sub.name.en, sub.rarity, sub.rawText ?: "")
+            }
+        }
+    }
+
+private fun List<me.chosante.common.Passive>.asPassivesASCIITable() =
+    table {
+        borderType = SQUARE_DOUBLE_SECTION_SEPARATOR
+        borderStyle = rgb("#4b25b9")
+        align = TextAlign.LEFT
+        tableBorders = Borders.NONE
+        header {
+            style = TextColors.brightRed + TextStyles.bold
+            row("Passive", "Flat stats", "Effect") { cellBorders = Borders.BOTTOM }
+        }
+        body {
+            style = TextColors.green
+            column(0) { style = TextColors.brightBlue }
+            rowStyles(TextStyle(), TextStyles.dim.style)
+            cellBorders = Borders.TOP_BOTTOM
+            this@asPassivesASCIITable.forEach { passive ->
+                val flat =
+                    passive.flatStats.entries
+                        .joinToString(", ") { "+${it.value} ${it.key.name}" }
+                        .ifBlank { "—" }
+                row(passive.name ?: passive.spellId.toString(), flat, passive.description ?: "")
             }
         }
     }

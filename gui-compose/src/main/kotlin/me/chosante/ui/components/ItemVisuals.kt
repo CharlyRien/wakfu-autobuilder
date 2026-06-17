@@ -153,3 +153,24 @@ internal fun ItemThumbnail(
         }
     }
 }
+
+/**
+ * A passive's icon — the spell sprite at `assets/spells/<gfxId>.png` (from wakassets). Renders nothing when
+ * the asset is absent. Shared by the passive picker row and the result card so the path/sizing live in one
+ * place.
+ */
+@Composable
+fun PassiveIcon(
+    gfxId: Int,
+    size: Dp,
+    modifier: Modifier = Modifier,
+) {
+    rememberClasspathBitmap("assets/spells/$gfxId.png")?.let { bitmap ->
+        Image(
+            bitmap = bitmap,
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = modifier.size(size).clip(RoundedCornerShape(5.dp))
+        )
+    }
+}

@@ -145,6 +145,8 @@ fun AppShell(
                 onSelectStat = model::addTarget,
                 onPickItem = model::pickItem,
                 onPickSublimation = model::pickSublimation,
+                onPickPassive = model::pickPassive,
+                passiveClass = ui.clazz,
                 onPickBoss = model::pickBoss,
                 // The per-item rune picker resolves its carrier from the current build by French name.
                 runePickerCarrier =
@@ -228,7 +230,9 @@ private fun BuilderBody(
                 onRemoveExcludedItem = model::removeExcludedItem,
                 onToggleSublimations = model::setUseSublimations,
                 onOpenSublimationPicker = { model.openModal(Modal.SublimationPicker) },
-                onRemoveForcedSublimation = model::removeForcedSublimation
+                onRemoveForcedSublimation = model::removeForcedSublimation,
+                onOpenPassivePicker = { model.openModal(Modal.PassivePicker) },
+                onRemoveForcedPassive = model::removeForcedPassive
             )
         }
         ResizableSeparator(onDelta = onRequestWidthDelta)

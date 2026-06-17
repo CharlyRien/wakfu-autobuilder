@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.Orientation
+import me.chosante.autobuilder.domain.PassiveCatalog
 import me.chosante.autobuilder.domain.RangeBand
 import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
@@ -102,6 +103,8 @@ fun RequestPanel(
     onToggleSublimations: (Boolean) -> Unit = {},
     onOpenSublimationPicker: () -> Unit = {},
     onRemoveForcedSublimation: (String) -> Unit = {},
+    onOpenPassivePicker: () -> Unit = {},
+    onRemoveForcedPassive: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
@@ -171,6 +174,12 @@ fun RequestPanel(
                 onToggleSublimations = onToggleSublimations,
                 onOpenSublimationPicker = onOpenSublimationPicker,
                 onRemoveForcedSublimation = onRemoveForcedSublimation
+            )
+            PassivesCard(
+                forcedPassives = ui.forcedPassives,
+                slots = PassiveCatalog.slotsForLevel(ui.level),
+                onOpenPassivePicker = onOpenPassivePicker,
+                onRemoveForcedPassive = onRemoveForcedPassive
             )
         }
         VerticalScrollHints(scroll)
@@ -1192,6 +1201,25 @@ private fun SublimationsRunesCard(
                 style = WTypography.labelSmall.copy(color = WColor.muted, lineHeight = 15.sp)
             )
         }
+    }
+}
+
+@Composable
+private fun PassivesCard(
+    forcedPassives: List<String>,
+    slots: Int,
+    onOpenPassivePicker: () -> Unit,
+    onRemoveForcedPassive: (String) -> Unit,
+) {
+    RequestCard(title = "${tr(Tr.FORCED_PASSIVES)}  ${forcedPassives.size}/$slots") {
+        ForcedNameChips(
+            label = tr(Tr.FORCED_PASSIVES),
+            addLabel = if (forcedPassives.size < slots) tr(Tr.ADD_PASSIVE_CHIP) else tr(Tr.PASSIVE_SLOTS_FULL),
+            selected = forcedPassives,
+            accent = WColor.accent,
+            onAdd = { if (forcedPassives.size < slots) onOpenPassivePicker() },
+            onRemove = onRemoveForcedPassive
+        )
     }
 }
 

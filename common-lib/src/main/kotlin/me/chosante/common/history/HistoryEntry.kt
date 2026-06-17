@@ -3,8 +3,10 @@ package me.chosante.common.history
 import kotlinx.serialization.Serializable
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.Passive
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
+import me.chosante.common.Sublimation
 
 /**
  * The persisted, on-disk shape of a saved build. **Deliberately decoupled from the live engine
@@ -141,4 +143,11 @@ data class ResultSnapshot(
      * Empty for rune-less builds and pre-feature saves.
      */
     val runes: Map<Int, List<RuneType>> = emptyMap(),
+    /**
+     * Chosen/forced sublimations per carrier item, keyed by `equipmentId` (mirrors [runes]). [Sublimation]
+     * is `@Serializable`, so the full effect set round-trips for display. Empty for sub-less / pre-feature saves.
+     */
+    val sublimations: Map<Int, List<Sublimation>> = emptyMap(),
+    /** The selected passive loadout ([Passive] is `@Serializable`). Empty for pre-feature saves. */
+    val passives: List<Passive> = emptyList(),
 )

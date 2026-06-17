@@ -83,6 +83,9 @@ sealed interface Modal {
     /** Pick a sublimation to force, by translated title + effect text — a centered modal like the item picker. */
     data object SublimationPicker : Modal
 
+    /** Pick a passive to add to the loadout (filtered to the current class), by name / effect. */
+    data object PassivePicker : Modal
+
     /** Pick a boss to target in max-damage mode, by translated name — auto-fills its per-element resistances. */
     data object BossPicker : Modal
 
@@ -171,6 +174,8 @@ data class UiState(
     val useSublimations: Boolean = true,
     /** Sublimations the user forces into the build (French names; incl. combat-conditional ones). */
     val forcedSublimations: List<String> = emptyList(),
+    /** The passive loadout the user selected (French names, capped to the level's slots). */
+    val forcedPassives: List<String> = emptyList(),
     /**
      * Runes the user pins onto a specific carrier item, keyed by the item's **French** name →
      * the multiset of rune ids ([me.chosante.common.RuneType.id]) to socket on it. The engine forces
