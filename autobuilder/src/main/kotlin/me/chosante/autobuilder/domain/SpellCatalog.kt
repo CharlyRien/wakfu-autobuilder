@@ -1,9 +1,10 @@
 package me.chosante.autobuilder.domain
 
-import kotlinx.serialization.json.Json
+import me.chosante.autobuilder.EmbeddedResources
 import me.chosante.autobuilder.VERSION
 import me.chosante.common.CharacterClass
 import me.chosante.common.Spell
+import me.chosante.common.SpellCastLimit
 import me.chosante.common.SpellElement
 
 /**
@@ -19,11 +20,20 @@ import me.chosante.common.SpellElement
  */
 object SpellCatalog {
     val spells: List<Spell> by lazy {
-        this.javaClass.classLoader
-            .getResourceAsStream("spells-v$VERSION.json")
-            ?.readAllBytes()
-            ?.let { Json.decodeFromString<List<Spell>>(String(it)) }
-            ?: emptyList()
+        val base = EmbeddedResources.decodeList<Spell>("spells-v$VERSION.json") ?: emptyList()
+        // Join the baked per-spell cast limits (produced by bdata-extractor, see
+        // docs/SPELL_CAST_LIMITS_EXTRACTION.md) onto each spell by id. The binary id space == the
+        // encyclopedia id space, so the join is direct; a spell with no matching record keeps its null
+        // (unbounded) limits, which the rotation optimizer treats as "no cap" — safe by construction.
+        val castLimitsBySpellId =
+            EmbeddedResources
+                .decodeList<SpellCastLimit>("spell-cast-limits-v$VERSION.json")
+                .orEmpty()
+                .associateBy { it.spellId }
+        base.map { spell ->
+            val limit = castLimitsBySpellId[spell.id] ?: return@map spell
+            spell.copy(maxCastPerTurn = limit.maxCastPerTurn, cooldown = limit.cooldown, wpCost = limit.wpCost)
+        }
     }
 
     private val byClass: Map<CharacterClass, List<Spell>> by lazy { spells.groupBy { it.clazz } }

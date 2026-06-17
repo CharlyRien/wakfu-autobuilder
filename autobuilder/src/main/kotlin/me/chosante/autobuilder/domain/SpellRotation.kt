@@ -60,16 +60,20 @@ data class SpellRotation(
  * blow up the constraint model. It reuses the existing [BuildSpellDamage] / [SpellDamage] /
  * [SpellCatalog] helpers, so the maths stays in one place.
  *
- * **Model.** Per-spell AP cost + expected damage are known; **per-turn cast limits and cooldowns are
- * not in the dataset yet** (parsed as null). So the optimum is an **unbounded knapsack** over the AP
- * budget — each spell may repeat — solved exactly by DP. The result is the true optimum *under the
- * known constraints*; when a single spell dominates on damage-per-AP the rotation spams it, which is
- * the honest answer until cast-limit data exists (then pass [maxCastsPerSpell]).
+ * **Model.** Per-spell AP cost + expected damage are known, and each spell's **per-turn cast limit**
+ * ([Spell.maxCastsThisTurn], from the baked cast-limit data joined in [SpellCatalog]) bounds how often
+ * it may repeat. So the optimum is a **bounded knapsack** over the AP budget — each spell repeats up to
+ * its limit (a spell with no limit repeats freely, collapsing to the unbounded knapsack) — solved
+ * exactly by DP. The result is the true optimum under those caps. WP cost is carried ([Spell.wpCost])
+ * but not yet folded in — WP is a per-fight pool, not a per-turn cap; see `docs/FULL_DAMAGE_PLAN.md` "Lot 1".
  */
 object SpellRotationOptimizer {
     /**
-     * Exact best rotation for [apBudget] AP over [scored] (unbounded knapsack DP). [maxCastsPerSpell]
-     * optionally caps how often any one spell is used (for when cast-limit data lands); null = no cap.
+     * Exact best rotation for [apBudget] AP over [scored]. Each spell is capped at its real per-turn
+     * cast limit ([Spell.maxCastsThisTurn], from the baked cast-limit data); [maxCastsPerSpell]
+     * optionally tightens *every* spell further with a uniform cap. When nothing is capped below what
+     * the AP budget would fit, this is the plain unbounded knapsack; otherwise a bounded one. The
+     * result is the true optimum under those caps.
      */
     fun bestRotation(
         scored: List<ScoredSpell>,
@@ -82,11 +86,23 @@ object SpellRotationOptimizer {
             return SpellRotation(element, apBudget.coerceAtLeast(0), 0, emptyList(), 0.0)
         }
 
+        // The most copies of each spell that fit in the AP budget — the single source of truth for both
+        // the cap clamp and the "is anything actually capped?" test below.
+        val maxFits = items.map { apBudget / it.apCost }
+        // Per-spell cap = the spell's own per-turn limit, tightened by the optional uniform override,
+        // and never more copies than fit. A null component (no data cap, no override) means "unbounded".
+        val caps =
+            items.mapIndexed { i, item ->
+                val limit = listOfNotNull(item.spell.maxCastsThisTurn, maxCastsPerSpell).minOrNull()
+                (limit ?: maxFits[i]).coerceIn(0, maxFits[i])
+            }
+
         val counts =
-            if (maxCastsPerSpell == null) {
+            if (caps.indices.none { caps[it] < maxFits[it] }) {
+                // Nothing is capped below what would fit, so the unbounded knapsack is already exact.
                 unboundedKnapsack(items, apBudget)
             } else {
-                boundedKnapsack(items, apBudget, maxCastsPerSpell)
+                boundedKnapsack(items, apBudget, caps)
             }
 
         val casts =
@@ -137,46 +153,48 @@ object SpellRotationOptimizer {
     }
 
     /**
-     * Exact bounded knapsack: each spell may be cast at most [cap] times. Solved as a 0/1 knapsack over
-     * [cap] identical copies per spell, so it yields the **true** capped optimum — not the greedy
-     * single-path approximation the old code used. This is the path the cast-limit data (`maxCastsPerSpell`)
-     * feeds, so it must be exact.
+     * Exact bounded knapsack: spell `i` may be cast at most `caps[i]` times (its real per-turn limit).
+     * Uses the **same item-layered DP as [baseThroughputTable]** — keep the two in lockstep, since they
+     * bound the rotation identically (that one builds the build-independent base-damage table the CP-SAT
+     * objective reads; this one the per-build expected-damage rotation for display/scoring). Each `next`
+     * layer reads the previous `dp`, so a spell is never used past its cap and an uncapped spell
+     * (`caps[i] = budget/cost`) costs nothing extra — no copy expansion. `choice[i][a]` records how many
+     * times spell `i` is cast in the optimum at `a` AP, used to reconstruct the per-spell counts.
      */
     private fun boundedKnapsack(
         items: List<ScoredSpell>,
         apBudget: Int,
-        cap: Int,
+        caps: List<Int>,
     ): Map<Int, Int> {
-        if (cap <= 0) return emptyMap()
-        // Expand to `cap` copies of each spell, keeping the original index so copies aggregate per spell.
-        val idx = ArrayList<Int>()
-        val ap = ArrayList<Int>()
-        val dmg = ArrayList<Double>()
-        items.forEachIndexed { i, item ->
-            repeat(cap) {
-                idx += i
-                ap += item.apCost
-                dmg += item.expectedDamagePerCast
-            }
-        }
-        val n = idx.size
-        // dp[k][a] = max damage using the first k copies within `a` AP (classic 0/1 knapsack).
-        val dp = Array(n + 1) { DoubleArray(apBudget + 1) }
-        for (k in 1..n) {
-            for (a in 0..apBudget) {
-                dp[k][a] = dp[k - 1][a]
-                if (ap[k - 1] <= a) {
-                    val candidate = dp[k - 1][a - ap[k - 1]] + dmg[k - 1]
-                    if (candidate > dp[k][a]) dp[k][a] = candidate
+        val n = items.size
+        var dp = DoubleArray(apBudget + 1)
+        val choice = Array(n) { IntArray(apBudget + 1) }
+        for (i in 0 until n) {
+            val cost = items[i].apCost
+            val value = items[i].expectedDamagePerCast
+            val cap = caps[i].coerceAtLeast(0)
+            val next = dp.copyOf()
+            for (a in cost..apBudget) {
+                var k = 1
+                while (k <= cap && k * cost <= a) {
+                    val candidate = dp[a - k * cost] + k * value
+                    if (candidate > next[a]) {
+                        next[a] = candidate
+                        choice[i][a] = k
+                    }
+                    k++
                 }
             }
+            dp = next
         }
+        // Reconstruct counts by walking the layers back, spending the AP each spell's chosen casts used.
         val counts = HashMap<Int, Int>()
         var a = apBudget
-        for (k in n downTo 1) {
-            if (dp[k][a] != dp[k - 1][a]) { // copy k-1 was taken
-                counts[idx[k - 1]] = (counts[idx[k - 1]] ?: 0) + 1
-                a -= ap[k - 1]
+        for (i in n - 1 downTo 0) {
+            val k = choice[i][a]
+            if (k > 0) {
+                counts[i] = k
+                a -= k * items[i].apCost
             }
         }
         return counts
@@ -360,25 +378,55 @@ object SpellRotationOptimizer {
 
     /**
      * Build-independent per-AP throughput table for [spells]: `table[ap]` = the maximum total **base**
-     * damage castable within `ap` AP (unbounded knapsack on each spell's base damage / AP cost). Index
-     * `0..maxAp`. This is the spell-selection the CP-SAT objective looks up by the build's AP variable —
-     * the per-build mastery multiplier is common to all same-element spells, so it factors out and the
-     * knapsack stays build-independent. Spells without an AP cost or base damage are skipped.
+     * damage castable within `ap` AP, **bounded by each spell's real per-turn cast limit**
+     * ([Spell.maxCastsThisTurn]). Index `0..maxAp`. This is the spell-selection the CP-SAT objective
+     * looks up by the build's AP variable — the per-build mastery multiplier is common to all
+     * same-element spells, so it factors out and the knapsack stays build-independent. Spells without an
+     * AP cost or base damage are skipped.
+     *
+     * **Why bounded.** Without the cap a single high-throughput spell is spammed to fill the AP budget,
+     * which the game disallows; the cap makes the modelled rotation realistic. The DP is the
+     * item-layered bounded knapsack (each spell `s` used at most `c_s` times); a spell with no per-turn
+     * limit gets `c_s = maxAp`, which is `>= maxAp/cost`, so it behaves exactly like the previous
+     * unbounded table. The CP-SAT objective reads this table through the **unchanged**
+     * `addElement(apVar, table, throughput)` call — only the table's *contents* change, so the
+     * optimality argument is intact (see `docs/FULL_DAMAGE_PLAN.md` "Lot 1").
      */
     fun baseThroughputTable(
         spells: List<Spell>,
         maxAp: Int,
     ): LongArray {
-        val items = spells.mapNotNull { s -> s.apCost?.let { ap -> s.baseDamage?.let { base -> ap to base.toLong() } } }
-        val table = LongArray(maxAp + 1)
-        for (ap in 1..maxAp) {
-            var best = table[ap - 1]
-            for ((cost, base) in items) {
-                if (cost in 1..ap) best = maxOf(best, table[ap - cost] + base)
+        // (apCost, baseDamage, perTurnCap). perTurnCap = the spell's per-turn cast limit, or maxAp when
+        // unbounded (no more than maxAp/cost copies fit in maxAp AP anyway).
+        val items =
+            spells.mapNotNull { s ->
+                val cost = s.apCost ?: return@mapNotNull null
+                if (cost < 1) return@mapNotNull null
+                val base = s.baseDamage?.toLong() ?: return@mapNotNull null
+                Triple(cost, base, s.maxCastsThisTurn ?: maxAp)
             }
-            table[ap] = best
+        // Item-layered bounded knapsack (mirrored by [boundedKnapsack], which reconstructs per-spell counts
+        // from the same recurrence — keep the two in lockstep): each `next` layer reads the *previous* `dp`,
+        // so spell `s` is counted at most `cap` times across the whole table — never reused beyond its limit.
+        var dp = LongArray(maxAp + 1)
+        for ((cost, base, cap) in items) {
+            val next = dp.copyOf()
+            for (ap in cost..maxAp) {
+                var k = 1
+                while (k <= cap && k * cost <= ap) {
+                    val candidate = dp[ap - k * cost] + k * base
+                    if (candidate > next[ap]) next[ap] = candidate
+                    k++
+                }
+            }
+            dp = next
         }
-        return table
+        // Enforce the "≤ ap" contract (table[ap] = best castable within *at most* ap AP). The layered DP
+        // above is already monotone non-decreasing, so this pass is normally a no-op; it is kept as a cheap,
+        // explicit guarantee — the CP-SAT objective indexes the table by the AP variable and relies on more
+        // AP never lowering throughput — that stays correct even if the DP recurrence is later changed.
+        for (ap in 1..maxAp) dp[ap] = maxOf(dp[ap], dp[ap - 1])
+        return dp
     }
 
     private fun resolvedActionPoints(

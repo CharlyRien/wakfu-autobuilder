@@ -148,6 +148,89 @@ class SpellRotationTest {
         assertThat(debuffAware(a)).describedAs("debuff-aware prefers the 13-AP build — the breakpoint").isGreaterThan(debuffAware(c))
     }
 
+    private fun damageSpell(
+        ap: Int,
+        base: Int,
+        maxCastPerTurn: Int? = null,
+        cooldown: Int? = null,
+        id: Int = 1,
+    ) = Spell(
+        id = id,
+        clazz = CharacterClass.CRA,
+        name = I18nText("s", "s", "s", "s"),
+        element = SpellElement.FIRE,
+        apCost = ap,
+        baseDamage = base,
+        maxCastPerTurn = maxCastPerTurn,
+        cooldown = cooldown
+    )
+
+    @Test
+    fun `baseThroughputTable caps a spell at its per-turn limit instead of spamming it`() {
+        // 2 AP / 100 base, castable at most twice per turn. With 10 AP the unbounded table would stack
+        // 5 casts (500); the cap pins it at 2 casts (200), then the extra AP sits idle.
+        val table = SpellRotationOptimizer.baseThroughputTable(listOf(damageSpell(ap = 2, base = 100, maxCastPerTurn = 2)), maxAp = 10)
+        assertThat(table[10]).isEqualTo(200L)
+        assertThat(table[4]).describedAs("2 casts already fit in 4 AP").isEqualTo(200L)
+        assertThat(table[2]).describedAs("1 cast in 2 AP").isEqualTo(100L)
+    }
+
+    @Test
+    fun `baseThroughputTable caps a cooldown spell at a single cast per turn`() {
+        // cooldown > 0 ⇒ at most one cast this turn, even though maxCastPerTurn = 0 ("unlimited").
+        val table = SpellRotationOptimizer.baseThroughputTable(listOf(damageSpell(ap = 3, base = 100, maxCastPerTurn = 0, cooldown = 2)), maxAp = 12)
+        assertThat(table[12]).isEqualTo(100L)
+    }
+
+    @Test
+    fun `baseThroughputTable leaves an uncapped spell unbounded`() {
+        // maxCastPerTurn = 0 / cooldown absent ⇒ no per-turn limit: the budget fills with casts.
+        val table = SpellRotationOptimizer.baseThroughputTable(listOf(damageSpell(ap = 2, base = 100, maxCastPerTurn = 0)), maxAp = 10)
+        assertThat(table[10]).describedAs("5 casts, no per-turn limit").isEqualTo(500L)
+    }
+
+    @Test
+    fun `baseThroughputTable bounds each spell by its own cap when several compete`() {
+        // A: 2 AP / 100 base, cap 1; B: 3 AP / 120 base, cap 2. Unbounded at 12 AP would spam A (×6 = 600);
+        // capped, the best is A×1 + B×2 = 340 (8 AP, rest idle) — each spell honoured its OWN per-turn cap,
+        // not a shared/uniform one. This is the multi-spell aggregation the fused CP-SAT objective relies on.
+        val table =
+            SpellRotationOptimizer.baseThroughputTable(
+                listOf(
+                    damageSpell(id = 1, ap = 2, base = 100, maxCastPerTurn = 1),
+                    damageSpell(id = 2, ap = 3, base = 120, maxCastPerTurn = 2)
+                ),
+                maxAp = 12
+            )
+        assertThat(table[12]).describedAs("A×1 + B×2, both caps binding").isEqualTo(340L)
+        assertThat(table[6]).describedAs("B×2").isEqualTo(240L)
+        assertThat(table[5]).describedAs("one of each").isEqualTo(220L)
+    }
+
+    @Test
+    fun `bestRotation honours distinct per-spell caps across several spells`() {
+        // Same shape via the display path: A capped at 1, B at 2 ⇒ A×1 + B×2 = 340 (8 AP); neither spell
+        // spammed past its own cap, and the caps don't bleed across spells (per-spell, not uniform).
+        val a = ScoredSpell(damageSpell(id = 1, ap = 2, base = 1, maxCastPerTurn = 1), apCost = 2, expectedDamagePerCast = 100.0)
+        val b = ScoredSpell(damageSpell(id = 2, ap = 3, base = 1, maxCastPerTurn = 2), apCost = 3, expectedDamagePerCast = 120.0)
+        val rotation = SpellRotationOptimizer.bestRotation(listOf(a, b), apBudget = 12)
+        assertThat(rotation.totalExpectedDamage).isEqualTo(340.0)
+        assertThat(rotation.apUsed).isEqualTo(8)
+        assertThat(rotation.casts.single { it.spell.id == 1 }.count).describedAs("A capped at 1").isEqualTo(1)
+        assertThat(rotation.casts.single { it.spell.id == 2 }.count).describedAs("B capped at 2").isEqualTo(2)
+    }
+
+    @Test
+    fun `bestRotation caps a spell by its own per-turn limit without a uniform override`() {
+        // The display path must honour the spell's joined cast limit on its own (no maxCastsPerSpell):
+        // castable twice/turn, 2 AP, budget 10 ⇒ 2 casts (200), not the unbounded 5 (500).
+        val scored = listOf(ScoredSpell(damageSpell(ap = 2, base = 1, maxCastPerTurn = 2), apCost = 2, expectedDamagePerCast = 100.0))
+        val rotation = SpellRotationOptimizer.bestRotation(scored, apBudget = 10)
+        assertThat(rotation.casts.single().count).isEqualTo(2)
+        assertThat(rotation.apUsed).isEqualTo(4)
+        assertThat(rotation.totalExpectedDamage).isEqualTo(200.0)
+    }
+
     @Test
     fun `forBuild gates the rotation to the class's playable element — Cra has no Water spells`() {
         val character = Character(clazz = CharacterClass.CRA, level = 230, minLevel = 1)

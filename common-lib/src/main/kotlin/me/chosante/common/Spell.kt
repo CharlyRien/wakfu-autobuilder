@@ -61,6 +61,13 @@ data class Spell(
     val element: SpellElement? = null,
     val category: SpellCategory = SpellCategory.ACTIVE,
     val apCost: Int? = null,
+    /**
+     * WP (Wakfu Point) base cost (Ankama's `pw_base`), or null when unknown. `0` = free. Sourced from the
+     * baked cast-limit data (`spell-cast-limits-v<VERSION>.json`, joined by [id] in `SpellCatalog`), **not**
+     * the encyclopedia. Carried for display and future rotation modelling — WP is a per-fight pool, not a
+     * per-turn cap, so it is deliberately **not** folded into [maxCastsThisTurn] yet (see
+     * `docs/FULL_DAMAGE_PLAN.md` "Lot 1").
+     */
     val wpCost: Int? = null,
     val rangeMin: Int? = null,
     val rangeMax: Int? = null,
@@ -69,7 +76,21 @@ data class Spell(
     val area: SpellArea? = null,
     val requiresLineOfSight: Boolean? = null,
     val levelRequired: Int? = null,
+    /**
+     * Minimum number of turns between two casts of this spell (Ankama's `cast_min_interval`), or null
+     * when unknown. Sourced from the baked cast-limit data (`spell-cast-limits-v<VERSION>.json`, joined
+     * by [id] in `SpellCatalog`), **not** the encyclopedia. `0`/null means "no cooldown"; any value
+     * `> 0` means the spell can be cast at most once this turn (see [maxCastsThisTurn]).
+     */
     val cooldown: Int? = null,
+    /**
+     * Maximum number of times this spell may be cast in a single turn (Ankama's `cast_max_per_turn`),
+     * or null when unknown. Sourced from the baked cast-limit data (`spell-cast-limits-v<VERSION>.json`,
+     * joined by [id] in `SpellCatalog`), **not** the encyclopedia. Per that data's convention `0` means
+     * "no per-turn limit" (unlimited), which [maxCastsThisTurn] treats the same as null. See
+     * `docs/SPELL_CAST_LIMITS_EXTRACTION.md`.
+     */
+    val maxCastPerTurn: Int? = null,
     val iconId: Int? = null,
     val description: I18nText? = null,
     /**
@@ -86,6 +107,26 @@ data class Spell(
 ) {
     /** True when the spell carries a readable base hit, i.e. it can be fed to [SpellDamage]. */
     val hasDamage: Boolean get() = element != null && baseDamage != null
+
+    /**
+     * How many times this spell can be cast at a single target in one turn, or `null` when it is
+     * effectively unbounded (limited only by the AP budget). Folds the two per-turn limits in the baked
+     * cast-limit data:
+     *  - [cooldown] `> 0` (a minimum-interval spell) ⇒ at most **one** cast this turn;
+     *  - otherwise [maxCastPerTurn] (`0`/null in the data means "no per-turn limit").
+     *
+     * Per-spell **WP** cost ([wpCost]) is deliberately **not** folded in: WP is a per-*fight* pool (not a
+     * per-turn allowance), so bounding a single turn by it needs a separate amortized WP-budget model —
+     * see `docs/FULL_DAMAGE_PLAN.md` "Lot 1". Per-target limits are likewise out of scope here
+     * (single-target damage only).
+     */
+    val maxCastsThisTurn: Int?
+        get() =
+            when {
+                (cooldown ?: 0) > 0 -> 1
+                (maxCastPerTurn ?: 0) > 0 -> maxCastPerTurn
+                else -> null
+            }
 
     /** True when this active spell removes resistance from the target (usable as a rotation-opening debuff). */
     val isResistanceDebuff: Boolean get() = (targetResistanceReductionFlat ?: 0) > 0
