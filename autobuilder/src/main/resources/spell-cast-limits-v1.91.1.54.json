@@ -6,7 +6,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6968,
@@ -15,7 +16,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6969,
@@ -24,7 +26,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6970,
@@ -33,7 +36,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 3,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6971,
@@ -42,7 +46,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6972,
@@ -51,7 +56,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6973,
@@ -60,7 +66,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6974,
@@ -69,7 +76,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6975,
@@ -78,7 +86,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6976,
@@ -87,7 +96,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6977,
@@ -96,7 +106,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6978,
@@ -105,7 +116,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6979,
@@ -114,7 +126,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6980,
@@ -123,7 +136,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6981,
@@ -132,7 +146,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6982,
@@ -141,7 +156,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 4
+    "cooldown": 4,
+    "wpCost": 0
   },
   {
     "spellId": 6983,
@@ -150,7 +166,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 1
   },
   {
     "spellId": 6984,
@@ -159,7 +176,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 6985,
@@ -168,7 +186,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 1
   },
   {
     "spellId": 6986,
@@ -177,7 +196,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 6987,
@@ -186,7 +206,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6988,
@@ -195,7 +216,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6989,
@@ -204,7 +226,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6990,
@@ -213,7 +236,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6991,
@@ -222,7 +246,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6992,
@@ -231,7 +256,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6993,
@@ -240,7 +266,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6994,
@@ -249,7 +276,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6995,
@@ -258,7 +286,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6996,
@@ -267,7 +296,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6997,
@@ -276,7 +306,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6998,
@@ -285,7 +316,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6999,
@@ -294,7 +326,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7000,
@@ -303,7 +336,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7001,
@@ -312,7 +346,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7002,
@@ -321,7 +356,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7003,
@@ -330,7 +366,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7004,
@@ -339,7 +376,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7005,
@@ -348,7 +386,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7307,
@@ -357,7 +396,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7308,
@@ -366,7 +406,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7309,
@@ -375,7 +416,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 7310,
@@ -384,7 +426,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 7311,
@@ -393,7 +436,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7312,
@@ -402,7 +446,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 7313,
@@ -411,7 +456,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 3,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7314,
@@ -420,7 +466,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7315,
@@ -429,7 +476,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7316,
@@ -438,7 +486,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7317,
@@ -447,7 +496,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7318,
@@ -456,7 +506,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7319,
@@ -465,7 +516,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 7320,
@@ -474,7 +526,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7321,
@@ -483,7 +536,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7322,
@@ -492,7 +546,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 0
   },
   {
     "spellId": 7323,
@@ -501,7 +556,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 3
   },
   {
     "spellId": 7324,
@@ -510,7 +566,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 1
   },
   {
     "spellId": 7325,
@@ -519,7 +576,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7326,
@@ -528,7 +586,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7327,
@@ -537,7 +596,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 7328,
@@ -546,7 +606,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7329,
@@ -555,7 +616,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7330,
@@ -564,7 +626,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7331,
@@ -573,7 +636,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7332,
@@ -582,7 +646,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7333,
@@ -591,7 +656,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7334,
@@ -600,7 +666,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7335,
@@ -609,7 +676,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7336,
@@ -618,7 +686,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7337,
@@ -627,7 +696,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7338,
@@ -636,7 +706,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7339,
@@ -645,7 +716,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7340,
@@ -654,7 +726,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7341,
@@ -663,7 +736,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7342,
@@ -672,7 +746,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7343,
@@ -681,7 +756,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7344,
@@ -690,7 +766,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2008,
@@ -699,7 +776,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 3,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2009,
@@ -708,7 +786,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2010,
@@ -717,7 +796,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2011,
@@ -726,7 +806,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 2012,
@@ -735,7 +816,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2013,
@@ -744,7 +826,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 2014,
@@ -753,7 +836,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 2015,
@@ -762,7 +846,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2016,
@@ -771,7 +856,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2017,
@@ -780,7 +866,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 2
   },
   {
     "spellId": 2018,
@@ -789,7 +876,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 2019,
@@ -798,7 +886,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 2021,
@@ -807,7 +896,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2022,
@@ -816,7 +906,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 2026,
@@ -825,7 +916,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 4
+    "cooldown": 4,
+    "wpCost": 0
   },
   {
     "spellId": 2028,
@@ -834,7 +926,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2032,
@@ -843,7 +936,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2037,
@@ -852,7 +946,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2039,
@@ -861,7 +956,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2064,
@@ -870,7 +966,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 1
   },
   {
     "spellId": 5059,
@@ -879,7 +976,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5071,
@@ -888,7 +986,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5075,
@@ -897,7 +996,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5076,
@@ -906,7 +1006,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6324,
@@ -915,7 +1016,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 6326,
@@ -924,7 +1026,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6337,
@@ -933,7 +1036,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8240,
@@ -942,7 +1046,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8242,
@@ -951,7 +1056,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 4
+    "cooldown": 4,
+    "wpCost": 1
   },
   {
     "spellId": 8272,
@@ -960,7 +1066,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8273,
@@ -969,7 +1076,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8274,
@@ -978,7 +1086,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8275,
@@ -987,7 +1096,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8276,
@@ -996,7 +1106,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8277,
@@ -1005,7 +1116,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8278,
@@ -1014,7 +1126,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8279,
@@ -1023,7 +1136,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8280,
@@ -1032,7 +1146,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4579,
@@ -1041,7 +1156,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4581,
@@ -1050,7 +1166,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4583,
@@ -1059,7 +1176,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4584,
@@ -1068,7 +1186,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4585,
@@ -1077,7 +1196,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4586,
@@ -1086,7 +1206,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4587,
@@ -1095,7 +1216,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 3,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4588,
@@ -1104,7 +1226,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4589,
@@ -1113,7 +1236,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4590,
@@ -1122,7 +1246,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4592,
@@ -1131,7 +1256,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4593,
@@ -1140,7 +1266,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4594,
@@ -1149,7 +1276,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4595,
@@ -1158,7 +1286,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4596,
@@ -1167,7 +1296,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4597,
@@ -1176,7 +1306,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 4601,
@@ -1185,7 +1316,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 1
   },
   {
     "spellId": 4602,
@@ -1194,7 +1326,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 4606,
@@ -1203,7 +1336,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4607,
@@ -1212,7 +1346,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4608,
@@ -1221,7 +1356,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4609,
@@ -1230,7 +1366,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4610,
@@ -1239,7 +1376,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5122,
@@ -1248,7 +1386,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5124,
@@ -1257,7 +1396,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5126,
@@ -1266,7 +1406,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6850,
@@ -1275,7 +1416,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 2
   },
   {
     "spellId": 8479,
@@ -1284,7 +1426,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8481,
@@ -1293,7 +1436,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 8503,
@@ -1302,7 +1446,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8504,
@@ -1311,7 +1456,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8508,
@@ -1320,7 +1466,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8510,
@@ -1329,7 +1476,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8511,
@@ -1338,7 +1486,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8512,
@@ -1347,7 +1496,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8513,
@@ -1356,7 +1506,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 749,
@@ -1365,7 +1516,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 750,
@@ -1374,7 +1526,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 751,
@@ -1383,7 +1536,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 752,
@@ -1392,7 +1546,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 753,
@@ -1401,7 +1556,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 754,
@@ -1410,7 +1566,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 756,
@@ -1419,7 +1576,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 757,
@@ -1428,7 +1586,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 758,
@@ -1437,7 +1596,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 761,
@@ -1446,7 +1606,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 763,
@@ -1455,7 +1616,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 764,
@@ -1464,7 +1626,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 765,
@@ -1473,7 +1636,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 766,
@@ -1482,7 +1646,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 767,
@@ -1491,7 +1656,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 771,
@@ -1500,7 +1666,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 772,
@@ -1509,7 +1676,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 775,
@@ -1518,7 +1686,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 776,
@@ -1527,7 +1696,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 777,
@@ -1536,7 +1706,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 783,
@@ -1545,7 +1716,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 785,
@@ -1554,7 +1726,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 1417,
@@ -1563,7 +1736,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 1418,
@@ -1572,7 +1746,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2839,
@@ -1581,7 +1756,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 4
   },
   {
     "spellId": 5344,
@@ -1590,7 +1766,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 3
   },
   {
     "spellId": 5351,
@@ -1599,7 +1776,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5352,
@@ -1608,7 +1786,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5353,
@@ -1617,7 +1796,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7184,
@@ -1626,7 +1806,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7185,
@@ -1635,7 +1816,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7186,
@@ -1644,7 +1826,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7187,
@@ -1653,7 +1836,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7188,
@@ -1662,7 +1846,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7189,
@@ -1671,7 +1856,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7190,
@@ -1680,7 +1866,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7191,
@@ -1689,7 +1876,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7192,
@@ -1698,7 +1886,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7193,
@@ -1707,7 +1896,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7195,
@@ -1716,7 +1906,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7196,
@@ -1725,7 +1916,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2041,
@@ -1734,7 +1926,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2042,
@@ -1743,7 +1936,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 2043,
@@ -1752,7 +1946,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 3,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2044,
@@ -1761,7 +1956,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2045,
@@ -1770,7 +1966,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2046,
@@ -1779,7 +1976,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 2047,
@@ -1788,7 +1986,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2048,
@@ -1797,7 +1996,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2049,
@@ -1806,7 +2006,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 2050,
@@ -1815,7 +2016,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2059,
@@ -1824,7 +2026,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2060,
@@ -1833,7 +2036,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 2061,
@@ -1842,7 +2046,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 2062,
@@ -1851,7 +2056,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2065,
@@ -1860,7 +2066,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2066,
@@ -1869,7 +2076,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2067,
@@ -1878,7 +2086,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2068,
@@ -1887,7 +2096,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2072,
@@ -1896,7 +2106,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2073,
@@ -1905,7 +2116,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2075,
@@ -1914,7 +2126,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 2076,
@@ -1923,7 +2136,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 2078,
@@ -1932,7 +2146,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 1
   },
   {
     "spellId": 2079,
@@ -1941,7 +2156,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 1
   },
   {
     "spellId": 2080,
@@ -1950,7 +2166,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5246,
@@ -1959,7 +2176,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5249,
@@ -1968,7 +2186,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5250,
@@ -1977,7 +2196,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5251,
@@ -1986,7 +2206,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7225,
@@ -1995,7 +2216,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 7954,
@@ -2004,7 +2226,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7955,
@@ -2013,7 +2236,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7956,
@@ -2022,7 +2246,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7957,
@@ -2031,7 +2256,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7958,
@@ -2040,7 +2266,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7959,
@@ -2049,7 +2276,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7960,
@@ -2058,7 +2286,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7961,
@@ -2067,7 +2296,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7999,
@@ -2076,7 +2306,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8000,
@@ -2085,7 +2316,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8001,
@@ -2094,7 +2326,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 623,
@@ -2103,7 +2336,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 625,
@@ -2112,7 +2346,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 627,
@@ -2121,7 +2356,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 4
+    "cooldown": 4,
+    "wpCost": 2
   },
   {
     "spellId": 628,
@@ -2130,7 +2366,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 630,
@@ -2139,7 +2376,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 636,
@@ -2148,7 +2386,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 638,
@@ -2157,7 +2396,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 644,
@@ -2166,7 +2406,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 645,
@@ -2175,7 +2416,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 779,
@@ -2184,7 +2426,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 780,
@@ -2193,7 +2436,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 781,
@@ -2202,7 +2446,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 782,
@@ -2211,7 +2456,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 0
   },
   {
     "spellId": 1415,
@@ -2220,7 +2466,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 1532,
@@ -2229,7 +2476,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 1533,
@@ -2238,7 +2486,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 3,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 1534,
@@ -2247,7 +2496,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 1535,
@@ -2256,7 +2506,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 1536,
@@ -2265,7 +2516,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 1537,
@@ -2274,7 +2526,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 1538,
@@ -2283,7 +2536,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 1539,
@@ -2292,7 +2546,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 1540,
@@ -2301,7 +2556,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 1
   },
   {
     "spellId": 1541,
@@ -2310,7 +2566,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 1542,
@@ -2319,7 +2576,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 2
   },
   {
     "spellId": 5451,
@@ -2328,7 +2586,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5453,
@@ -2337,7 +2596,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5454,
@@ -2346,7 +2606,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5455,
@@ -2355,7 +2616,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5463,
@@ -2364,7 +2626,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7985,
@@ -2373,7 +2636,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 2
   },
   {
     "spellId": 7987,
@@ -2382,7 +2646,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7990,
@@ -2391,7 +2656,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7991,
@@ -2400,7 +2666,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7992,
@@ -2409,7 +2676,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7993,
@@ -2418,7 +2686,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7994,
@@ -2427,7 +2696,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7995,
@@ -2436,7 +2706,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7996,
@@ -2445,7 +2716,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7997,
@@ -2454,7 +2726,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7998,
@@ -2463,7 +2736,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4775,
@@ -2472,7 +2746,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4776,
@@ -2481,7 +2756,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4777,
@@ -2490,7 +2766,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4778,
@@ -2499,7 +2776,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4779,
@@ -2508,7 +2786,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 4780,
@@ -2517,7 +2796,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4781,
@@ -2526,7 +2806,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4782,
@@ -2535,7 +2816,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4783,
@@ -2544,7 +2826,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4784,
@@ -2553,7 +2836,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4785,
@@ -2562,7 +2846,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4786,
@@ -2571,7 +2856,8 @@
     "maxCastPerTurn": 6,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4787,
@@ -2580,7 +2866,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4788,
@@ -2589,7 +2876,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4789,
@@ -2598,7 +2886,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4790,
@@ -2607,7 +2896,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 0
   },
   {
     "spellId": 4791,
@@ -2616,7 +2906,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 1
   },
   {
     "spellId": 4792,
@@ -2625,7 +2916,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 1
   },
   {
     "spellId": 4793,
@@ -2634,7 +2926,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 2
   },
   {
     "spellId": 4794,
@@ -2643,7 +2936,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4795,
@@ -2652,7 +2946,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4796,
@@ -2661,7 +2956,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4797,
@@ -2670,7 +2966,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4798,
@@ -2679,7 +2976,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4799,
@@ -2688,7 +2986,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5100,
@@ -2697,7 +2996,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5101,
@@ -2706,7 +3006,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5102,
@@ -2715,7 +3016,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5103,
@@ -2724,7 +3026,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5104,
@@ -2733,7 +3036,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5130,
@@ -2742,7 +3046,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 8413,
@@ -2751,7 +3056,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8414,
@@ -2760,7 +3066,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8415,
@@ -2769,7 +3076,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8416,
@@ -2778,7 +3086,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8417,
@@ -2787,7 +3096,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8418,
@@ -2796,7 +3106,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8419,
@@ -2805,7 +3116,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8420,
@@ -2814,7 +3126,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8421,
@@ -2823,7 +3136,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8422,
@@ -2832,7 +3146,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4769,
@@ -2841,7 +3156,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4774,
@@ -2850,7 +3166,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 2
   },
   {
     "spellId": 4805,
@@ -2859,7 +3176,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 4806,
@@ -2868,7 +3186,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 0
   },
   {
     "spellId": 4808,
@@ -2877,7 +3196,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 0
   },
   {
     "spellId": 4809,
@@ -2886,7 +3206,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4810,
@@ -2895,7 +3216,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 4811,
@@ -2904,7 +3226,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4812,
@@ -2913,7 +3236,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 4813,
@@ -2922,7 +3246,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4814,
@@ -2931,7 +3256,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 1
   },
   {
     "spellId": 4815,
@@ -2940,7 +3266,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4816,
@@ -2949,7 +3276,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4817,
@@ -2958,7 +3286,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4818,
@@ -2967,7 +3296,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 4819,
@@ -2976,7 +3306,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 4820,
@@ -2985,7 +3316,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4821,
@@ -2994,7 +3326,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4822,
@@ -3003,7 +3336,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6842,
@@ -3012,7 +3346,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 1
   },
   {
     "spellId": 6945,
@@ -3021,7 +3356,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6946,
@@ -3030,7 +3366,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6947,
@@ -3039,7 +3376,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6948,
@@ -3048,7 +3386,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6949,
@@ -3057,7 +3396,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6950,
@@ -3066,7 +3406,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6951,
@@ -3075,7 +3416,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6952,
@@ -3084,7 +3426,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6953,
@@ -3093,7 +3436,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6955,
@@ -3102,7 +3446,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6956,
@@ -3111,7 +3456,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6957,
@@ -3120,7 +3466,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6958,
@@ -3129,7 +3476,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6959,
@@ -3138,7 +3486,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6960,
@@ -3147,7 +3496,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6961,
@@ -3156,7 +3506,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6962,
@@ -3165,7 +3516,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6963,
@@ -3174,7 +3526,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7753,
@@ -3183,7 +3536,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 1
   },
   {
     "spellId": 7795,
@@ -3192,7 +3546,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 912,
@@ -3201,7 +3556,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 913,
@@ -3210,7 +3566,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 914,
@@ -3219,7 +3576,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 915,
@@ -3228,7 +3586,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 1
   },
   {
     "spellId": 916,
@@ -3237,7 +3596,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 917,
@@ -3246,7 +3606,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 918,
@@ -3255,7 +3616,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 919,
@@ -3264,7 +3626,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 2
   },
   {
     "spellId": 920,
@@ -3273,7 +3636,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 921,
@@ -3282,7 +3646,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 3,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 922,
@@ -3291,7 +3656,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 925,
@@ -3300,7 +3666,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 3,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 927,
@@ -3309,7 +3676,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 928,
@@ -3318,7 +3686,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 929,
@@ -3327,7 +3696,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 930,
@@ -3336,7 +3706,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 931,
@@ -3345,7 +3716,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 932,
@@ -3354,7 +3726,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 933,
@@ -3363,7 +3736,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 934,
@@ -3372,7 +3746,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 935,
@@ -3381,7 +3756,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 937,
@@ -3390,7 +3766,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 938,
@@ -3399,7 +3776,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4959,
@@ -3408,7 +3786,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5055,
@@ -3417,7 +3796,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5057,
@@ -3426,7 +3806,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 5058,
@@ -3435,7 +3816,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5234,
@@ -3444,7 +3826,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7053,
@@ -3453,7 +3836,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7054,
@@ -3462,7 +3846,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 8139,
@@ -3471,7 +3856,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 4
+    "cooldown": 4,
+    "wpCost": 1
   },
   {
     "spellId": 8149,
@@ -3480,7 +3866,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8150,
@@ -3489,7 +3876,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8151,
@@ -3498,7 +3886,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8152,
@@ -3507,7 +3896,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8153,
@@ -3516,7 +3906,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8154,
@@ -3525,7 +3916,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8155,
@@ -3534,7 +3926,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8156,
@@ -3543,7 +3936,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8157,
@@ -3552,7 +3946,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 8158,
@@ -3561,7 +3956,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5028,
@@ -3570,7 +3966,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5029,
@@ -3579,7 +3976,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5030,
@@ -3588,7 +3986,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5031,
@@ -3597,7 +3996,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5032,
@@ -3606,7 +4006,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 3
   },
   {
     "spellId": 5033,
@@ -3615,7 +4016,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5034,
@@ -3624,7 +4026,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5035,
@@ -3633,7 +4036,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 5036,
@@ -3642,7 +4046,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5037,
@@ -3651,7 +4056,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5038,
@@ -3660,7 +4066,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5039,
@@ -3669,7 +4076,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5040,
@@ -3678,7 +4086,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 5041,
@@ -3687,7 +4096,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5042,
@@ -3696,7 +4106,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 5043,
@@ -3705,7 +4116,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 2
   },
   {
     "spellId": 5044,
@@ -3714,7 +4126,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 1
   },
   {
     "spellId": 5045,
@@ -3723,7 +4136,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5047,
@@ -3732,7 +4146,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 0
   },
   {
     "spellId": 5049,
@@ -3741,7 +4156,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5050,
@@ -3750,7 +4166,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5051,
@@ -3759,7 +4176,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5052,
@@ -3768,7 +4186,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5053,
@@ -3777,7 +4196,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5054,
@@ -3786,7 +4206,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5192,
@@ -3795,7 +4216,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5193,
@@ -3804,7 +4226,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5194,
@@ -3813,7 +4236,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5195,
@@ -3822,7 +4246,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7211,
@@ -3831,7 +4256,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7212,
@@ -3840,7 +4266,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 7213,
@@ -3849,7 +4276,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7214,
@@ -3858,7 +4286,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7215,
@@ -3867,7 +4296,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7216,
@@ -3876,7 +4306,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7217,
@@ -3885,7 +4316,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7218,
@@ -3894,7 +4326,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7219,
@@ -3903,7 +4336,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7220,
@@ -3912,7 +4346,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7224,
@@ -3921,7 +4356,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7830,
@@ -3930,7 +4366,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4702,
@@ -3939,7 +4376,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4703,
@@ -3948,7 +4386,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 3,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4704,
@@ -3957,7 +4396,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4705,
@@ -3966,7 +4406,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4706,
@@ -3975,7 +4416,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4707,
@@ -3984,7 +4426,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4708,
@@ -3993,7 +4436,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4709,
@@ -4002,7 +4446,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4710,
@@ -4011,7 +4456,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 4711,
@@ -4020,7 +4466,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4712,
@@ -4029,7 +4476,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 3,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4713,
@@ -4038,7 +4486,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4714,
@@ -4047,7 +4496,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4715,
@@ -4056,7 +4506,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4716,
@@ -4065,7 +4516,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 4717,
@@ -4074,7 +4526,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 4719,
@@ -4083,7 +4536,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 1
   },
   {
     "spellId": 4720,
@@ -4092,7 +4546,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 1
   },
   {
     "spellId": 4721,
@@ -4101,7 +4556,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 4722,
@@ -4110,7 +4566,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4723,
@@ -4119,7 +4576,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4724,
@@ -4128,7 +4586,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4725,
@@ -4137,7 +4596,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4726,
@@ -4146,7 +4606,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5148,
@@ -4155,7 +4616,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5149,
@@ -4164,7 +4626,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5150,
@@ -4173,7 +4636,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5151,
@@ -4182,7 +4646,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6844,
@@ -4191,7 +4656,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 1
   },
   {
     "spellId": 6845,
@@ -4200,7 +4666,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 1
   },
   {
     "spellId": 6846,
@@ -4209,7 +4676,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6463,
@@ -4218,7 +4686,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6464,
@@ -4227,7 +4696,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 6465,
@@ -4236,7 +4706,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6466,
@@ -4245,7 +4716,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6467,
@@ -4254,7 +4726,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 6468,
@@ -4263,7 +4736,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6469,
@@ -4272,7 +4746,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6470,
@@ -4281,7 +4756,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6471,
@@ -4290,7 +4766,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6472,
@@ -4299,7 +4776,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 6473,
@@ -4308,7 +4786,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6474,
@@ -4317,7 +4796,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6475,
@@ -4326,7 +4806,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6476,
@@ -4335,7 +4816,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6478,
@@ -4344,7 +4826,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6479,
@@ -4353,7 +4836,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6480,
@@ -4362,7 +4846,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6481,
@@ -4371,7 +4856,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6482,
@@ -4380,7 +4866,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6483,
@@ -4389,7 +4876,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6484,
@@ -4398,7 +4886,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6485,
@@ -4407,7 +4896,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6486,
@@ -4416,7 +4906,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6487,
@@ -4425,7 +4916,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6488,
@@ -4434,7 +4926,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6489,
@@ -4443,7 +4936,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 0
   },
   {
     "spellId": 6490,
@@ -4452,7 +4946,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 6491,
@@ -4461,7 +4956,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 1
   },
   {
     "spellId": 6492,
@@ -4470,7 +4966,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 6493,
@@ -4479,7 +4976,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 2
   },
   {
     "spellId": 6494,
@@ -4488,7 +4986,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 1
   },
   {
     "spellId": 7062,
@@ -4497,7 +4996,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7063,
@@ -4506,7 +5006,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7064,
@@ -4515,7 +5016,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7065,
@@ -4524,7 +5026,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7090,
@@ -4533,7 +5036,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7091,
@@ -4542,7 +5046,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7092,
@@ -4551,7 +5056,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7982,
@@ -4560,7 +5066,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7983,
@@ -4569,7 +5076,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7984,
@@ -4578,7 +5086,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7066,
@@ -4587,7 +5096,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7067,
@@ -4596,7 +5106,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7068,
@@ -4605,7 +5116,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7069,
@@ -4614,7 +5126,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 7070,
@@ -4623,7 +5136,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7071,
@@ -4632,7 +5146,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7072,
@@ -4641,7 +5156,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7073,
@@ -4650,7 +5166,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7074,
@@ -4659,7 +5176,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7075,
@@ -4668,7 +5186,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 7076,
@@ -4677,7 +5196,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7077,
@@ -4686,7 +5206,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7078,
@@ -4695,7 +5216,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7079,
@@ -4704,7 +5226,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7080,
@@ -4713,7 +5236,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7084,
@@ -4722,7 +5246,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 5
+    "cooldown": 5,
+    "wpCost": 1
   },
   {
     "spellId": 7085,
@@ -4731,7 +5256,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 4
+    "cooldown": 4,
+    "wpCost": 0
   },
   {
     "spellId": 7086,
@@ -4740,7 +5266,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 1
   },
   {
     "spellId": 7087,
@@ -4749,7 +5276,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 7088,
@@ -4758,7 +5286,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 1
   },
   {
     "spellId": 7089,
@@ -4767,7 +5296,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 1
   },
   {
     "spellId": 7093,
@@ -4776,7 +5306,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7094,
@@ -4785,7 +5316,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7095,
@@ -4794,7 +5326,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7096,
@@ -4803,7 +5336,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7097,
@@ -4812,7 +5346,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7098,
@@ -4821,7 +5356,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7099,
@@ -4830,7 +5366,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7100,
@@ -4839,7 +5376,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7101,
@@ -4848,7 +5386,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7102,
@@ -4857,7 +5396,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7103,
@@ -4866,7 +5406,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7104,
@@ -4875,7 +5416,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7105,
@@ -4884,7 +5426,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7106,
@@ -4893,7 +5436,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7107,
@@ -4902,7 +5446,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7108,
@@ -4911,7 +5456,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7111,
@@ -4920,7 +5466,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7112,
@@ -4929,7 +5476,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7113,
@@ -4938,7 +5486,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6256,
@@ -4947,7 +5496,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6257,
@@ -4956,7 +5506,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 6258,
@@ -4965,7 +5516,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6259,
@@ -4974,7 +5526,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6260,
@@ -4983,7 +5536,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6261,
@@ -4992,7 +5546,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6262,
@@ -5001,7 +5556,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6263,
@@ -5010,7 +5566,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 6264,
@@ -5019,7 +5576,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6265,
@@ -5028,7 +5586,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6266,
@@ -5037,7 +5596,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6267,
@@ -5046,7 +5606,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6268,
@@ -5055,7 +5616,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 6269,
@@ -5064,7 +5626,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6270,
@@ -5073,7 +5636,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 6271,
@@ -5082,7 +5646,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6272,
@@ -5091,7 +5656,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6273,
@@ -5100,7 +5666,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6274,
@@ -5109,7 +5676,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6275,
@@ -5118,7 +5686,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6276,
@@ -5127,7 +5696,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6277,
@@ -5136,7 +5706,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6278,
@@ -5145,7 +5716,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6279,
@@ -5154,7 +5726,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6280,
@@ -5163,7 +5736,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6281,
@@ -5172,7 +5746,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6282,
@@ -5181,7 +5756,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6284,
@@ -5190,7 +5766,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6285,
@@ -5199,7 +5776,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 1
   },
   {
     "spellId": 6287,
@@ -5208,7 +5786,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6288,
@@ -5217,7 +5796,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 1
   },
   {
     "spellId": 7551,
@@ -5226,7 +5806,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 1
   },
   {
     "spellId": 7552,
@@ -5235,7 +5816,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7553,
@@ -5244,7 +5826,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7554,
@@ -5253,7 +5836,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7555,
@@ -5262,7 +5846,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7556,
@@ -5271,7 +5856,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7557,
@@ -5280,7 +5866,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7558,
@@ -5289,7 +5876,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7596,
@@ -5298,7 +5886,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6902,
@@ -5307,7 +5896,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6903,
@@ -5316,7 +5906,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6904,
@@ -5325,7 +5916,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6905,
@@ -5334,7 +5926,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6906,
@@ -5343,7 +5936,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6907,
@@ -5352,7 +5946,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6908,
@@ -5361,7 +5956,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6909,
@@ -5370,7 +5966,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6910,
@@ -5379,7 +5976,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6911,
@@ -5388,7 +5986,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6912,
@@ -5397,7 +5996,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6913,
@@ -5406,7 +6006,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6914,
@@ -5415,7 +6016,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6915,
@@ -5424,7 +6026,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6916,
@@ -5433,7 +6036,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6917,
@@ -5442,7 +6046,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 2
   },
   {
     "spellId": 6918,
@@ -5451,7 +6056,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6919,
@@ -5460,7 +6066,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 2
   },
   {
     "spellId": 6920,
@@ -5469,7 +6076,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 6921,
@@ -5478,7 +6086,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 6922,
@@ -5487,7 +6096,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6925,
@@ -5496,7 +6106,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6926,
@@ -5505,7 +6116,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6927,
@@ -5514,7 +6126,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6928,
@@ -5523,7 +6136,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6929,
@@ -5532,7 +6146,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6930,
@@ -5541,7 +6156,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6931,
@@ -5550,7 +6166,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6932,
@@ -5559,7 +6176,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6933,
@@ -5568,7 +6186,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6934,
@@ -5577,7 +6196,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6935,
@@ -5586,7 +6206,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6936,
@@ -5595,7 +6216,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6937,
@@ -5604,7 +6226,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6938,
@@ -5613,7 +6236,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6939,
@@ -5622,7 +6246,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6940,
@@ -5631,7 +6256,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6941,
@@ -5640,7 +6266,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6942,
@@ -5649,7 +6276,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6943,
@@ -5658,7 +6286,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7810,
@@ -5667,7 +6296,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4668,
@@ -5676,7 +6306,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 4669,
@@ -5685,7 +6316,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4670,
@@ -5694,7 +6326,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4671,
@@ -5703,7 +6336,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4680,
@@ -5712,7 +6346,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4683,
@@ -5721,7 +6356,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 4684,
@@ -5730,7 +6366,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 4685,
@@ -5739,7 +6376,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 4686,
@@ -5748,7 +6386,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4687,
@@ -5757,7 +6396,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4688,
@@ -5766,7 +6406,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4689,
@@ -5775,7 +6416,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4690,
@@ -5784,7 +6426,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4691,
@@ -5793,7 +6436,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4692,
@@ -5802,7 +6446,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 3,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4693,
@@ -5811,7 +6456,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4694,
@@ -5820,7 +6466,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 4695,
@@ -5829,7 +6476,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4697,
@@ -5838,7 +6486,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4698,
@@ -5847,7 +6496,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4699,
@@ -5856,7 +6506,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4700,
@@ -5865,7 +6516,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 4701,
@@ -5874,7 +6526,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5056,
@@ -5883,7 +6536,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5131,
@@ -5892,7 +6546,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5132,
@@ -5901,7 +6556,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5143,
@@ -5910,7 +6566,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7198,
@@ -5919,7 +6576,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 2
   },
   {
     "spellId": 7199,
@@ -5928,7 +6586,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 7200,
@@ -5937,7 +6596,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 1
   },
   {
     "spellId": 7202,
@@ -5946,7 +6606,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7203,
@@ -5955,7 +6616,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7204,
@@ -5964,7 +6626,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7205,
@@ -5973,7 +6636,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7206,
@@ -5982,7 +6646,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7207,
@@ -5991,7 +6656,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7208,
@@ -6000,7 +6666,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7209,
@@ -6009,7 +6676,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7210,
@@ -6018,7 +6686,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7720,
@@ -6027,7 +6696,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7814,
@@ -6036,7 +6706,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5561,
@@ -6045,7 +6716,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5562,
@@ -6054,7 +6726,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5563,
@@ -6063,7 +6736,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5564,
@@ -6072,7 +6746,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5565,
@@ -6081,7 +6756,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5566,
@@ -6090,7 +6766,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5567,
@@ -6099,7 +6776,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5568,
@@ -6108,7 +6786,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5569,
@@ -6117,7 +6796,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5570,
@@ -6126,7 +6806,8 @@
     "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 3,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5571,
@@ -6135,7 +6816,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5572,
@@ -6144,7 +6826,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5575,
@@ -6153,7 +6836,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3
+    "cooldown": 3,
+    "wpCost": 0
   },
   {
     "spellId": 5576,
@@ -6162,7 +6846,8 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5577,
@@ -6171,7 +6856,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 5579,
@@ -6180,7 +6866,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5580,
@@ -6189,7 +6876,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5581,
@@ -6198,7 +6886,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5582,
@@ -6207,7 +6896,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5583,
@@ -6216,7 +6906,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5584,
@@ -6225,7 +6916,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5585,
@@ -6234,7 +6926,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5586,
@@ -6243,7 +6936,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5587,
@@ -6252,7 +6946,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5588,
@@ -6261,7 +6956,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5590,
@@ -6270,7 +6966,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5591,
@@ -6279,7 +6976,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5592,
@@ -6288,7 +6986,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 1,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5593,
@@ -6297,7 +6996,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5594,
@@ -6306,7 +7006,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 5595,
@@ -6315,7 +7016,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5596,
@@ -6324,7 +7026,8 @@
     "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5597,
@@ -6333,7 +7036,8 @@
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7754,
@@ -6342,7 +7046,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 7755,
@@ -6351,7 +7056,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 7797,
@@ -6360,7 +7066,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7798,
@@ -6369,7 +7076,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7800,
@@ -6378,7 +7086,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7801,
@@ -6387,7 +7096,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7802,
@@ -6396,7 +7106,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7803,
@@ -6405,7 +7116,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7804,
@@ -6414,7 +7126,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7805,
@@ -6423,7 +7136,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 7809,
@@ -6432,6 +7146,7 @@
     "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0
+    "cooldown": 0,
+    "wpCost": 0
   }
 ]
