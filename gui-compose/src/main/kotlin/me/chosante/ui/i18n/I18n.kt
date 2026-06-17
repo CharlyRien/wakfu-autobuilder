@@ -65,6 +65,12 @@ enum class Tr(
     SCENARIO_HEALING("Healing", "Soin"),
     SCENARIO_CRIT_CAP("Crit cap %", "Plafond crit %"),
     SCENARIO_ENEMY_RES("Enemy res %", "Rés. ennemi %"),
+    SCENARIO_ROLE("Role preset", "Préréglage de rôle"),
+    ROLE_DISTANCE_DPS("Distance DPS", "DPS distance"),
+    ROLE_MELEE_DPS("Melee DPS", "DPS mêlée"),
+    ROLE_TANK("Tank", "Tank"),
+    SCENARIO_SURVIVAL_FLOOR("Survivability floor", "Plancher de survie"),
+    SCENARIO_MIN_EHP("Min effective HP", "PV efficaces min"),
     BOSS("Boss", "Boss"),
     BOSS_NONE_HINT(
         "Target a boss to auto-fill its elemental resistances — the search picks the best playable element.",

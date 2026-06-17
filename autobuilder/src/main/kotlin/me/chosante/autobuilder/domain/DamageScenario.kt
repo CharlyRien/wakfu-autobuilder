@@ -67,6 +67,23 @@ data class DamageScenario(
      * the single fixed [element]. Null ⇒ optimize only [element] (with [targetResistancePercent]).
      */
     val elementResistances: Map<SpellElement, Int>? = null,
+    /**
+     * Survivability soft-floor (opt-in; Lot 5). The max-damage objective otherwise has no survivability
+     * term, so its optimum can be a turn-1 glass cannon. When true, the damage objective is multiplied by
+     * a **gentle** penalty whenever the build's effective-HP proxy falls below [minEffectiveHp]; at or
+     * above the floor there is no penalty. It only *nudges* — it never dominates damage — so the engine
+     * prefers a tankier build only among ones of otherwise comparable damage. See the EHP-penalty in
+     * `WakfuBuildSolver.applySurvivabilityFloor`.
+     *
+     * The effective-HP proxy is intentionally **linear** (CP-SAT cannot model exact `1/(1−res)`
+     * mitigation, which is non-linear): `EHP ≈ HP · (100 + avgResist) / 100`, where `avgResist` is the
+     * average of the four elemental resistances clamped to `[0, 80]`. It is a *monotonic* proxy — more HP
+     * and more resist both raise it — **not** an exact effective-HP, so it ranks survivability without
+     * claiming a real mitigation figure.
+     */
+    val survivabilityFloor: Boolean = false,
+    // Effective-HP-proxy floor (see [survivabilityFloor]); below it the gentle penalty applies. 0 = no floor.
+    val minEffectiveHp: Int = 0,
 ) {
     /**
      * The (element, resistance%) pairs the max-damage objective/scorer optimize over: every element in
@@ -81,5 +98,12 @@ data class DamageScenario(
 
     companion object {
         const val MAX_RESISTANCE_PERCENT = 90
+
+        /**
+         * A sensible default [minEffectiveHp] for [level] when the survivability floor is turned on without an
+         * explicit value (so the Tank preset / `--survival-floor` actually nudge the build instead of being a
+         * silent no-op). Twice the character's base HP (`50 + level·10`) — a moderate, tunable floor.
+         */
+        fun defaultMinEffectiveHp(level: Int): Int = (50 + level * 10) * 2
     }
 }

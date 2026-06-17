@@ -1483,6 +1483,180 @@ class WakfuBuildSolverTest {
                 .isEqualTo(biFireWater(apOnFire = 4, waterRes = 0))
         }
 
+    // ----- Lot 5: survivability soft-floor -----
+
+    /**
+     * Two amulets with IDENTICAL fire mastery (⇒ identical damage core) but one also carries HP + elemental
+     * resistance, so its effective-HP proxy clears the floor while the paper amulet's does not. With the
+     * survivability floor ON, the tanky amulet must outrank the paper one (it keeps the full damage score;
+     * the paper one is gently taxed) AND the solver, given both, must pick the tanky one. A control with the
+     * floor OFF proves the two are otherwise objective-equal — so the gap is purely the survivability term.
+     */
+    @Test
+    fun `survivability floor ranks an equal-damage tanky build above a paper build`(): Unit =
+        runBlocking {
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            val apBelt = equipment(3, ItemType.BELT, "ApBelt", mapOf(Characteristic.ACTION_POINT to 6)) // base 6 + 6 ⇒ pins to 12 AP
+            // Same fire mastery on both ⇒ identical per-hit damage; only HP + resist differ.
+            val paperAmulet = equipment(1, ItemType.AMULET, "Paper", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 200))
+            val tankyAmulet =
+                equipment(
+                    2,
+                    ItemType.AMULET,
+                    "Tanky",
+                    mapOf(
+                        Characteristic.MASTERY_ELEMENTARY_FIRE to 200,
+                        Characteristic.HP to 1000,
+                        Characteristic.RESISTANCE_ELEMENTARY_FIRE to 200,
+                        Characteristic.RESISTANCE_ELEMENTARY_WATER to 200,
+                        Characteristic.RESISTANCE_ELEMENTARY_EARTH to 200,
+                        Characteristic.RESISTANCE_ELEMENTARY_WIND to 200
+                    )
+                )
+            val a = 12
+            val tuning = WakfuBuildSolver.SolverTuning()
+
+            fun objective(
+                pool: List<Equipment>,
+                survival: Boolean,
+            ): Long =
+                WakfuBuildSolver.maxDamageObjectiveValueForTest(
+                    apPinnedMaxDamageParams(
+                        character,
+                        DamageScenario(
+                            element = SpellElement.FIRE,
+                            rangeBand = RangeBand.DISTANCE,
+                            orientation = Orientation.FACE,
+                            survivabilityFloor = survival,
+                            minEffectiveHp = 1500
+                        ),
+                        a
+                    ),
+                    pool.groupBy { it.itemType },
+                    tuning
+                )
+
+            // Control (floor OFF): the two amulets are damage-twins, so each alone yields the same objective.
+            val paperNoFloor = objective(listOf(paperAmulet, apBelt), survival = false)
+            val tankyNoFloor = objective(listOf(tankyAmulet, apBelt), survival = false)
+            assertThat(paperNoFloor).describedAs("sanity: damage is non-trivial").isGreaterThan(0)
+            assertThat(tankyNoFloor).describedAs("without the floor the two amulets are damage-equal").isEqualTo(paperNoFloor)
+
+            // Floor ON: the paper build is below the EHP floor ⇒ gently taxed; the tanky build clears it ⇒ untouched.
+            val paperWithFloor = objective(listOf(paperAmulet, apBelt), survival = true)
+            val tankyWithFloor = objective(listOf(tankyAmulet, apBelt), survival = true)
+            assertThat(tankyWithFloor)
+                .describedAs("the tanky build clears the floor and keeps its full damage score")
+                .isGreaterThan(paperWithFloor)
+            assertThat(tankyWithFloor)
+                .describedAs("clearing the floor is a no-op ⇒ same objective as floor OFF")
+                .isEqualTo(tankyNoFloor)
+
+            // Given BOTH amulets and the floor, the solver must equip the tanky one (its objective is the max).
+            val both = objective(listOf(paperAmulet, tankyAmulet, apBelt), survival = true)
+            assertThat(both)
+                .describedAs("with both available the survivability-aware optimum picks the tanky amulet")
+                .isEqualTo(tankyWithFloor)
+        }
+
+    /**
+     * The floor only *nudges*: it must not disturb the damage ranking among builds that already clear it.
+     * Here a high-damage and a lower-damage amulet BOTH carry enough HP + resist to exceed the floor, so
+     * neither is taxed and the survivability-aware objective collapses back to pure damage — the
+     * higher-mastery amulet wins, exactly as it would with the floor off. This pins down that the penalty
+     * is a true soft-floor (zero above it), not a survivability term that keeps biasing fully-tanky builds.
+     */
+    @Test
+    fun `survivability floor does not disturb damage ranking among builds that clear it`(): Unit =
+        runBlocking {
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            val apBelt = equipment(3, ItemType.BELT, "ApBelt", mapOf(Characteristic.ACTION_POINT to 6))
+            // Shared tank stats (HP + resist) push both builds above the floor; only the fire mastery differs.
+            val tankStats =
+                mapOf(
+                    Characteristic.HP to 1000,
+                    Characteristic.RESISTANCE_ELEMENTARY_FIRE to 200,
+                    Characteristic.RESISTANCE_ELEMENTARY_WATER to 200,
+                    Characteristic.RESISTANCE_ELEMENTARY_EARTH to 200,
+                    Characteristic.RESISTANCE_ELEMENTARY_WIND to 200
+                )
+            val highDamage = equipment(1, ItemType.AMULET, "HighDmg", tankStats + (Characteristic.MASTERY_ELEMENTARY_FIRE to 600))
+            val lowDamage = equipment(2, ItemType.AMULET, "LowDmg", tankStats + (Characteristic.MASTERY_ELEMENTARY_FIRE to 200))
+            val a = 12
+            val tuning = WakfuBuildSolver.SolverTuning()
+            val scenario =
+                DamageScenario(
+                    element = SpellElement.FIRE,
+                    rangeBand = RangeBand.DISTANCE,
+                    orientation = Orientation.FACE,
+                    survivabilityFloor = true,
+                    minEffectiveHp = 1500 // EHP ≈ 1060·1.8 ≈ 1908 for both ⇒ both clear it
+                )
+
+            fun objective(pool: List<Equipment>): Long =
+                WakfuBuildSolver.maxDamageObjectiveValueForTest(
+                    apPinnedMaxDamageParams(character, scenario, a),
+                    pool.groupBy { it.itemType },
+                    tuning
+                )
+
+            val both = objective(listOf(highDamage, lowDamage, apBelt))
+            val highOnly = objective(listOf(highDamage, apBelt))
+            assertThat(highOnly).isGreaterThan(0)
+            assertThat(both)
+                .describedAs("both builds clear the floor ⇒ no tax ⇒ the higher-damage amulet wins on damage alone")
+                .isEqualTo(highOnly)
+        }
+
+    /**
+     * Regression for the bucketed path (floor > MAX_POWER_TABLE_INDEX = 2000): clearing the floor must be an
+     * EXACT no-op there too. The earlier tests use a 1500 floor (the un-bucketed path); a realistic floor is
+     * larger, where integer bucketing used to tax a floor-clearing build. This uses a 3000 floor and a build
+     * whose proxy (HP 2060 · 1.8 ≈ 3700) clears it, asserting floor-ON == floor-OFF.
+     */
+    @Test
+    fun `survivability floor no-op is exact on the bucketed path above 2000`(): Unit =
+        runBlocking {
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            val apBelt = equipment(3, ItemType.BELT, "ApBelt", mapOf(Characteristic.ACTION_POINT to 6))
+            val tankyAmulet =
+                equipment(
+                    2,
+                    ItemType.AMULET,
+                    "Tanky",
+                    mapOf(
+                        Characteristic.MASTERY_ELEMENTARY_FIRE to 200,
+                        Characteristic.HP to 2000,
+                        Characteristic.RESISTANCE_ELEMENTARY_FIRE to 200,
+                        Characteristic.RESISTANCE_ELEMENTARY_WATER to 200,
+                        Characteristic.RESISTANCE_ELEMENTARY_EARTH to 200,
+                        Characteristic.RESISTANCE_ELEMENTARY_WIND to 200
+                    )
+                )
+            val tuning = WakfuBuildSolver.SolverTuning()
+
+            fun objective(survival: Boolean): Long =
+                WakfuBuildSolver.maxDamageObjectiveValueForTest(
+                    apPinnedMaxDamageParams(
+                        character,
+                        DamageScenario(
+                            element = SpellElement.FIRE,
+                            rangeBand = RangeBand.DISTANCE,
+                            orientation = Orientation.FACE,
+                            survivabilityFloor = survival,
+                            minEffectiveHp = 3000 // > 2000 ⇒ the bucketed path; the tanky proxy ≈ 3700 clears it
+                        ),
+                        12
+                    ),
+                    listOf(tankyAmulet, apBelt).groupBy { it.itemType },
+                    tuning
+                )
+
+            assertThat(objective(survival = true))
+                .describedAs("clearing a >2000 floor is an exact no-op (the clearsFloor override pins the multiplier to max)")
+                .isEqualTo(objective(survival = false))
+        }
+
     @Test
     fun `a forced rune is socketed at least once even when it matches no requested stat`(): Unit =
         runBlocking {

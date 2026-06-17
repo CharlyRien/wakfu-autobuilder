@@ -103,6 +103,9 @@ data class DamageScenarioSnapshot(
      * mode. Without this, a saved boss-mode build round-tripped back to single-element FIRE on reload.
      */
     val elementResistances: Map<String, Int>? = null,
+    /** Survivability soft-floor (Lot 5) — persisted so a tank/floor build doesn't reload as a glass cannon. */
+    val survivabilityFloor: Boolean = false,
+    val minEffectiveHp: Int = 0,
 )
 
 @Serializable

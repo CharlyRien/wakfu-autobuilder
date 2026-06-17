@@ -322,7 +322,16 @@ class BuildSearchModel(
     }
 
     fun setScenario(scenario: DamageScenario) {
-        ui = ui.copy(scenario = scenario)
+        // Turning the survivability floor on (via the toggle or the Tank preset) without a value would be a
+        // silent no-op — default the floor from the level so it actually nudges the build (and the min-EHP
+        // field shows a tunable number rather than 0).
+        val withFloor =
+            if (scenario.survivabilityFloor && scenario.minEffectiveHp <= 0) {
+                scenario.copy(minEffectiveHp = DamageScenario.defaultMinEffectiveHp(ui.level))
+            } else {
+                scenario
+            }
+        ui = ui.copy(scenario = withFloor)
     }
 
     /**
