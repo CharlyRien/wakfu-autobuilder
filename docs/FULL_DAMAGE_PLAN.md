@@ -12,9 +12,9 @@ The **global, trackable plan** for the coherent full-damage mode. Multiple agent
 
 | Lot | What it unlocks | Status | Depends on |
 |---|---|---|---|
-| **0** Boss data + selection | "vs a given boss" (auto-element) | 🔶 **CLI ✅ done** (`feat/boss-mode-integration`); **GUI ⬜** (picker + icons) | — |
+| **0** Boss data + selection | "vs a given boss" (auto-element) | ✅ **done** — CLI + GUI boss picker / icons ([#161](https://github.com/CharlyRien/wakfu-autobuilder/pull/161)) | — |
 | **1** Cast limits in the fused table | realistic rotation (no 1-spell spam) | ✅ **done** — per-turn + cooldown caps joined to `Spell` and bounded in both the fused table & display path; WP **cost** extracted too (display-ready), WP **model** deferred (per-fight pool) | — |
-| **2a-b** Bi-element objective + double-count fix | bi-element builds are *searched* | ⬜ todo | — |
+| **2a-b** Bi-element objective + double-count fix | bi-element builds are *searched* | 🔶 **objective done** (`feat/lot2-bi-element`): `perTurnDamageScoreBiElement` — linear, scale-identical to mono, double-count-safe, tested + verified. Not yet driven by the enumeration | — |
 | **2c-d** Enumeration + pruning | bi-element **optimality** | ⬜ todo (loop is currently heuristic) | 2a-b |
 | **2e-f** Scorer lockstep + display | honest `matchPercentage`, UI | ⬜ todo | 2c-d |
 | **3** Sublimations on the damage path | major end-game lever | ⬜ todo (model on `feat/sublimations`, unmerged) | — |
