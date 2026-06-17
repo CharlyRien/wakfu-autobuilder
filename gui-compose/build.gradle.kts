@@ -154,6 +154,7 @@ tasks.register("generateAssets") {
           - spells/ filtered to the iconIds referenced by the current spells JSON (covers active spells
                     and passives — both are spells; named by gfxId)
           - states/ filtered to the appliedStateIds referenced by the passives JSON (buff/state icons)
+          - monsters/ filtered to the gfx (sprite) ids referenced by the current bestiary JSON (boss picker)
           - breeds/ class artwork keyed by CharacterClass.breedId — icon/, illustration/ (T-pose,
                     male variant), background/ (used on build cards, the TopBar and the compare view)
         Existing files are never overwritten.
@@ -201,6 +202,9 @@ tasks.register("generateAssets") {
             readResourceJson("spell-passives-v")
                 .flatMap { entry -> (entry["appliedStateIds"] as? List<*> ?: emptyList<Any>()).map { (it as Number).toInt().toString() } }
                 .toSet()
+        // gfx (sprite) ids referenced by the current bestiary JSON → the monster icons the boss picker needs.
+        val monsterGfxIds =
+            readResourceJson("monsters-v").mapNotNull { (it["gfx"] as? Number)?.toInt()?.toString() }.toSet()
 
         // download + unzip the wakassets repository into a temp directory
         val destinationFile = createTempFile("wakassets", ".zip").toFile()
@@ -234,6 +238,7 @@ tasks.register("generateAssets") {
         copyAssetDir("icons")
         copyAssetDir("spells") { it.nameWithoutExtension in spellIconIds }
         copyAssetDir("states") { it.nameWithoutExtension in passiveStateIds }
+        copyAssetDir("monsters") { it.nameWithoutExtension in monsterGfxIds }
 
         // Class ("breed") artwork, keyed by CharacterClass.breedId, baked under assets/breeds/.
         // Illustrations are id*10 (male) / id*10+1 (female) in wakassets; we keep the male variant and

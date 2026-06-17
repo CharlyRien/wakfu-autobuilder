@@ -17,6 +17,10 @@ import kotlinx.serialization.Serializable
  *
  * @property rank Ankama's monster rank (0 = normal; ≥ 1 = boss-tier: bosses, dimension golems,
  *   ultimate bosses, "Dominant" variants). [isBoss] is the convenience predicate.
+ * @property gfx Ankama sprite/graphics id, used by the GUI to resolve the monster's icon PNG
+ *   (`assets/monsters/<gfx>.png`, sourced from the community `Vertylo/wakassets` set — the same repo as
+ *   item icons). Nullable on purpose: older datasets predate it, and a few Fandom-recovered bosses have
+ *   no sprite, so consumers degrade to no icon rather than crash.
  * @property source Data provenance, e.g. `"methodwakfu"` or `"methodwakfu+fandom"`, for traceability.
  */
 @Serializable
@@ -27,6 +31,7 @@ data class Monster(
     val hp: Int,
     val family: I18nText? = null,
     val rank: Int = 0,
+    val gfx: Int? = null,
     val fireResistance: Int,
     val waterResistance: Int,
     val earthResistance: Int,

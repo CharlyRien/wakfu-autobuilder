@@ -1,11 +1,14 @@
 package me.chosante.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -13,7 +16,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.domain.resistancePercent
@@ -79,6 +84,45 @@ internal fun BossResistanceChips(
                     style = WTypography.labelSmall.copy(color = if (on) WColor.text else WColor.muted, fontFamily = WType.mono)
                 )
             }
+        }
+    }
+}
+
+/**
+ * Resolves a monster's icon under `assets/monsters/` — the community `Vertylo/wakassets` set keyed by
+ * [Monster.gfx], the same repo/pattern as item icons. Returns `null` when the sprite id is absent or the
+ * asset was never fetched (e.g. `generateAssets` was not run), so callers degrade to an empty tile rather
+ * than crash. Mirrors [BreedAssets].
+ */
+internal object MonsterAssets {
+    fun iconPath(monster: Monster): String? = monster.gfx?.let { existing("assets/monsters/$it.png") }
+
+    private fun existing(path: String): String? = if (Thread.currentThread().contextClassLoader.getResource(path) != null) path else null
+}
+
+/** A monster's icon in a rounded tile (mirrors [ItemThumbnail]); shows an empty tile when art is missing. */
+@Composable
+internal fun MonsterIcon(
+    monster: Monster,
+    modifier: Modifier = Modifier,
+    size: Dp = 40.dp,
+) {
+    Box(
+        modifier =
+            modifier
+                .size(size)
+                .clip(RoundedCornerShape(8.dp))
+                .background(WColor.bg),
+        contentAlignment = Alignment.Center
+    ) {
+        val bitmap = MonsterAssets.iconPath(monster)?.let { rememberClasspathBitmap(it) }
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap,
+                contentDescription = monster.name.en,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(size).padding(3.dp)
+            )
         }
     }
 }

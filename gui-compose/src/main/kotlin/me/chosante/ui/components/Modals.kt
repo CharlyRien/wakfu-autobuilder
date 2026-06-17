@@ -679,7 +679,7 @@ private fun BossResultRow(
     monster: Monster,
     onClick: () -> Unit,
 ) {
-    Column(
+    Row(
         modifier =
             Modifier
                 .fillMaxWidth()
@@ -688,27 +688,34 @@ private fun BossResultRow(
                 .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
                 .clickable(onClick = onClick)
                 .padding(horizontal = 11.dp, vertical = 9.dp),
-        verticalArrangement = Arrangement.spacedBy(7.dp)
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        MonsterIcon(monster = monster, size = 40.dp)
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
-            // The bestiary's English names are lowercased; French is the canonical proper-cased form
-            // (and search matches both), so we display the French name regardless of UI language.
-            Text(
-                text = monster.name.fr.ifBlank { monster.name.en },
-                style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                text = "Lv ${monster.level}",
-                style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // The bestiary's English names are lowercased; French is the canonical proper-cased form
+                // (and search matches both), so we display the French name regardless of UI language.
+                Text(
+                    text = monster.name.fr.ifBlank { monster.name.en },
+                    style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "Lv ${monster.level}",
+                    style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
+                )
+            }
+            BossResistanceChips(boss = monster)
         }
-        BossResistanceChips(boss = monster)
     }
 }
 
