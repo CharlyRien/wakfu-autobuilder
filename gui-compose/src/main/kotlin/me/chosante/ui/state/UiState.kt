@@ -3,6 +3,7 @@ package me.chosante.ui.state
 import androidx.compose.ui.graphics.Color
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.domain.SpellRotation
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
@@ -10,6 +11,7 @@ import me.chosante.autobuilder.genetic.wakfu.isRandomElementStat
 import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.Monster
 import me.chosante.common.Rarity
 import me.chosante.common.history.HistoryEntry
 import me.chosante.ui.i18n.Lang
@@ -81,6 +83,9 @@ sealed interface Modal {
     /** Pick a sublimation to force, by translated title + effect text — a centered modal like the item picker. */
     data object SublimationPicker : Modal
 
+    /** Pick a boss to target in max-damage mode, by translated name — auto-fills its per-element resistances. */
+    data object BossPicker : Modal
+
     /** Choose the runes to pin onto a specific carrier item, identified by its French name. */
     data class ItemRunePicker(
         val itemName: String,
@@ -145,6 +150,15 @@ data class UiState(
     val mode: ScoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
     // Attack scenario for the max-damage mode (ignored by the other modes).
     val scenario: DamageScenario = DamageScenario(),
+    /**
+     * Boss targeted in max-damage mode (null = manual [scenario]). Picking one fills the scenario's
+     * per-element resistances from the bestiary so the objective auto-picks the best playable element.
+     */
+    val selectedBoss: Monster? = null,
+    /** Forced damage element vs the boss; null = auto (let the objective pick the best playable element). */
+    val bossElement: SpellElement? = null,
+    /** Dungeon HP multiplier for the turns-to-kill estimate (display only; never changes the build). */
+    val bossDifficulty: String = "1",
     val targets: List<TargetRow> = defaultTargets(),
     val maxRarity: Rarity = Rarity.EPIC,
     /** Rarities the user toggled off; excluded from the search. At least one rarity always stays allowed. */
