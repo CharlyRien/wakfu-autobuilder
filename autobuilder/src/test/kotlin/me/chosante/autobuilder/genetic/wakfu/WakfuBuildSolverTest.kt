@@ -1286,6 +1286,203 @@ class WakfuBuildSolverTest {
             assertThat(chosen.totalExpectedDamage).isGreaterThan(0.0)
         }
 
+    // ----- Lot 2 M1: bi-element objective -----
+
+    /** Max-damage params pinned to [totalAp] AP; [biElement] non-null selects the bi-element objective. */
+    private fun apPinnedMaxDamageParams(
+        character: Character,
+        scenario: DamageScenario,
+        totalAp: Int,
+        biElement: BiElementSplit? = null,
+    ): WakfuBestBuildParams =
+        WakfuBestBuildParams(
+            character = character,
+            targetStats = TargetStats(emptyList()),
+            searchDuration = 5.seconds,
+            stopWhenBuildMatch = false,
+            maxRarity = Rarity.EPIC,
+            forcedItems = emptyList(),
+            excludedItems = emptyList(),
+            scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+            useRunes = false,
+            damageScenario = scenario,
+            maxDamageApTarget = totalAp,
+            maxDamageBiElement = biElement
+        )
+
+    @Test
+    fun `bi-element degenerate splits reproduce the mono objective exactly`(): Unit =
+        runBlocking {
+            // Level-1 CRA; an AP belt (the only AP source) is forced equipped by the A=12 pin, and a dual
+            // fire+earth amulet so both elements are live and the build is identical across the solves.
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            val dual = equipment(1, ItemType.AMULET, "Dual", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100, Characteristic.MASTERY_ELEMENTARY_EARTH to 100))
+            val apBelt = equipment(2, ItemType.BELT, "ApBelt", mapOf(Characteristic.ACTION_POINT to 6))
+            val pool = listOf(dual, apBelt).groupBy { it.itemType }
+            val a = 12
+            val tuning = WakfuBuildSolver.SolverTuning()
+
+            val bi = DamageScenario(rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE, elementResistances = mapOf(SpellElement.FIRE to 0, SpellElement.EARTH to 0))
+            val monoFire =
+                WakfuBuildSolver.maxDamageObjectiveValueForTest(
+                    apPinnedMaxDamageParams(
+                        character,
+                        DamageScenario(element = SpellElement.FIRE, targetResistancePercent = 0, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE),
+                        a
+                    ),
+                    pool,
+                    tuning
+                )
+            val monoEarth =
+                WakfuBuildSolver.maxDamageObjectiveValueForTest(
+                    apPinnedMaxDamageParams(
+                        character,
+                        DamageScenario(element = SpellElement.EARTH, targetResistancePercent = 0, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE),
+                        a
+                    ),
+                    pool,
+                    tuning
+                )
+
+            // a=0 ⇒ all AP on the 2nd element ⇒ bi == mono(EARTH); a=A ⇒ all on the 1st ⇒ bi == mono(FIRE). Exact:
+            // bi reduces to the identical integer pipeline as mono at the endpoints (the throughput becomes T[A]).
+            val bi0 =
+                WakfuBuildSolver.maxDamageObjectiveValueForTest(
+                    apPinnedMaxDamageParams(character, bi, a, BiElementSplit(SpellElement.FIRE, SpellElement.EARTH, 0)),
+                    pool,
+                    tuning
+                )
+            val biA =
+                WakfuBuildSolver.maxDamageObjectiveValueForTest(
+                    apPinnedMaxDamageParams(character, bi, a, BiElementSplit(SpellElement.FIRE, SpellElement.EARTH, a)),
+                    pool,
+                    tuning
+                )
+            assertThat(monoFire).describedAs("sanity: mono FIRE is non-trivial").isGreaterThan(0)
+            assertThat(monoEarth).isGreaterThan(0)
+            assertThat(bi0).describedAs("split 0 ⇒ all AP on EARTH ⇒ reproduces mono EARTH exactly").isEqualTo(monoEarth)
+            assertThat(biA).describedAs("split A ⇒ all AP on FIRE ⇒ reproduces mono FIRE exactly").isEqualTo(monoFire)
+        }
+
+    @Test
+    fun `bi-element sums both element terms rather than taking their max`(): Unit =
+        runBlocking {
+            // FIRE is made dominant (10x EARTH mastery), so a (wrong) MAX objective would always equal the FIRE
+            // term — invariant to EARTH's resistance ⇒ obj(earthRes 0) == obj(earthRes 90). Under the correct SUM,
+            // EARTH's smaller term is still ADDED and scales with (100 − res) ⇒ obj(0) strictly > obj(90). That gap
+            // is precisely what distinguishes "sum the two element terms" from "max over elements".
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            val fireHeavy = equipment(1, ItemType.AMULET, "FireHeavy", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 1000, Characteristic.MASTERY_ELEMENTARY_EARTH to 100))
+            val apBelt = equipment(2, ItemType.BELT, "ApBelt", mapOf(Characteristic.ACTION_POINT to 6))
+            val pool = listOf(fireHeavy, apBelt).groupBy { it.itemType }
+            val a = 12
+            val split = BiElementSplit(SpellElement.FIRE, SpellElement.EARTH, 6) // FIRE 6 AP, EARTH 6 AP — both live
+            val tuning = WakfuBuildSolver.SolverTuning()
+
+            fun obj(earthRes: Int): Long =
+                WakfuBuildSolver.maxDamageObjectiveValueForTest(
+                    apPinnedMaxDamageParams(
+                        character,
+                        DamageScenario(
+                            rangeBand = RangeBand.DISTANCE,
+                            orientation = Orientation.FACE,
+                            elementResistances =
+                                mapOf(
+                                    SpellElement.FIRE to 0,
+                                    SpellElement.EARTH to earthRes
+                                )
+                        ),
+                        a,
+                        split
+                    ),
+                    pool,
+                    tuning
+                )
+
+            val earthOpen = obj(earthRes = 0)
+            val earthResisted = obj(earthRes = 90)
+            assertThat(earthResisted).describedAs("the dominant FIRE term is always present").isGreaterThan(0)
+            assertThat(earthOpen)
+                .describedAs("EARTH's term is summed in and scales with (100 − res); a max objective would ignore the dominated EARTH ⇒ equal")
+                .isGreaterThan(earthResisted)
+        }
+
+    @Test
+    fun `bi-element does not double-count a one-random-element mastery line`(): Unit =
+        runBlocking {
+            // The 2b regression. Generic "+all elements" legitimately boosts BOTH cores; a "1 random element" line
+            // may boost only ONE (the single elementVars call splits it via min(count,2)). So generic > random.
+            // A two-singleton (double-counting) fold would credit the random line to both cores ⇒ generic == random.
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            val apBelt = equipment(2, ItemType.BELT, "ApBelt", mapOf(Characteristic.ACTION_POINT to 6))
+            val a = 12
+            val split = BiElementSplit(SpellElement.FIRE, SpellElement.EARTH, 4)
+            val scenario =
+                DamageScenario(rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE, elementResistances = mapOf(SpellElement.FIRE to 0, SpellElement.EARTH to 0))
+            val tuning = WakfuBuildSolver.SolverTuning()
+
+            fun obj(masteryItem: Equipment): Long =
+                WakfuBuildSolver.maxDamageObjectiveValueForTest(apPinnedMaxDamageParams(character, scenario, a, split), listOf(masteryItem, apBelt).groupBy { it.itemType }, tuning)
+
+            val genericObj = obj(equipment(1, ItemType.AMULET, "AllElem", mapOf(Characteristic.MASTERY_ELEMENTARY to 1000)))
+            val randomObj = obj(equipment(1, ItemType.AMULET, "Rand1", mapOf(Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT to 1000)))
+            assertThat(randomObj).describedAs("a one-random line still helps one element").isGreaterThan(0)
+            assertThat(genericObj)
+                .describedAs("generic boosts BOTH cores, a one-random line only one ⇒ strictly greater (equality would mean the random line was double-counted)")
+                .isGreaterThan(randomObj)
+        }
+
+    @Test
+    fun `bi-element gates out a dead element regardless of its AP or resistance`(): Unit =
+        runBlocking {
+            // CRA has no WATER spells ⇒ all-zero WATER table. Two checks: (1) at the a=A endpoint, bi(FIRE,WATER)
+            // reduces to exactly mono FIRE (no phantom water term); (2) at an INTERIOR split WATER is given 8 of 12
+            // AP and its resistance is swung from a weakness (−100) to 0 — a contributing element would move the
+            // objective, but a properly-gated dead element leaves it invariant. (2) isolates dead-spell gating from
+            // the trivial ap=0 case that (1) alone could be explained by.
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            val fire = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100))
+            val apBelt = equipment(2, ItemType.BELT, "ApBelt", mapOf(Characteristic.ACTION_POINT to 6))
+            val pool = listOf(fire, apBelt).groupBy { it.itemType }
+            val a = 12
+            val tuning = WakfuBuildSolver.SolverTuning()
+
+            fun biFireWater(
+                apOnFire: Int,
+                waterRes: Int,
+            ): Long =
+                WakfuBuildSolver.maxDamageObjectiveValueForTest(
+                    apPinnedMaxDamageParams(
+                        character,
+                        DamageScenario(
+                            rangeBand = RangeBand.DISTANCE,
+                            orientation = Orientation.FACE,
+                            elementResistances = mapOf(SpellElement.FIRE to 0, SpellElement.WATER to waterRes)
+                        ),
+                        a,
+                        BiElementSplit(SpellElement.FIRE, SpellElement.WATER, apOnFire)
+                    ),
+                    pool,
+                    tuning
+                )
+
+            val monoFire =
+                WakfuBuildSolver.maxDamageObjectiveValueForTest(
+                    apPinnedMaxDamageParams(
+                        character,
+                        DamageScenario(element = SpellElement.FIRE, targetResistancePercent = 0, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE),
+                        a
+                    ),
+                    pool,
+                    tuning
+                )
+            assertThat(monoFire).isGreaterThan(0)
+            assertThat(biFireWater(apOnFire = a, waterRes = 0)).describedAs("a=A endpoint ⇒ WATER dropped ⇒ bi == mono FIRE").isEqualTo(monoFire)
+            assertThat(biFireWater(apOnFire = 4, waterRes = -100))
+                .describedAs("dead WATER given 8 AP + a weakness still contributes 0 ⇒ objective invariant to WATER resistance")
+                .isEqualTo(biFireWater(apOnFire = 4, waterRes = 0))
+        }
+
     @Test
     fun `a forced rune is socketed at least once even when it matches no requested stat`(): Unit =
         runBlocking {

@@ -194,4 +194,27 @@ data class WakfuBestBuildParams(
     // its **parallel** AP probes don't each spawn cores−1 native threads and oversubscribe the CPU. Null =
     // default. Ignored when a deterministic SolverTuning is supplied.
     val solverWorkers: Int? = null,
+    // Max-damage BI-ELEMENT solve (Lot 2): optimize the {first,second} element PAIR with `apSplitOnFirst`
+    // AP on the first element's rotation and (maxDamageApTarget − apSplitOnFirst) on the second, instead of
+    // the single-element max-over-candidateElements. Null ⇒ the unchanged single/boss per-element path.
+    // Requires maxDamageApTarget (the pinned total AP A) to be set. Ignored unless FIND_BUILD_WITH_MAX_DAMAGE.
+    val maxDamageBiElement: BiElementSplit? = null,
 )
+
+/**
+ * A bi-element split for max-damage mode (Lot 2): the element [first] gets [apSplitOnFirst] AP and [second]
+ * gets `maxDamageApTarget − apSplitOnFirst`. The external loop ([MaxDamageSearch]) enumerates these over
+ * `(pair × total-AP × split)`; the objective ([WakfuBuildSolver] `perTurnDamageScoreBiElement`) reads the
+ * split as outer-loop constants, keeping the inner CP-SAT solve linear (no spell-count × mastery product).
+ */
+data class BiElementSplit(
+    val first: me.chosante.autobuilder.domain.SpellElement,
+    val second: me.chosante.autobuilder.domain.SpellElement,
+    val apSplitOnFirst: Int,
+) {
+    init {
+        // A pair must be two distinct elements — a duplicate would collapse the single elementVars fold
+        // (the objective requires this too; fail fast at construction so M2's enumerator can't form e==e).
+        require(first != second) { "bi-element pair must be two distinct elements, got $first twice" }
+    }
+}

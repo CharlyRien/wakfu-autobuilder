@@ -3,6 +3,9 @@
 /build/
 **/build/
 
+# Kotlin compiler-daemon working dir (e.g. .kotlin/errors/*.log) — build artifact, never committed
+.kotlin/
+
 # Ignore Gradle GUI config
 gradle-app.setting
 

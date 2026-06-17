@@ -332,44 +332,102 @@ object WakfuBuildSolver {
     ): Flow<GeneticAlgorithmResult<BuildCombination>> =
         callbackFlow {
             withContext(Dispatchers.IO) {
-                val model = CpModel()
-
-                // Full pool gives the provable *global* optimum and stays tractable for most queries.
-                // Only elemental/resistance targets activate the heavy random-element modelling that
-                // explodes on the full late-game pool, so we prefilter exactly (and only) those cases.
-                val pool =
-                    if (needsItemPrefilter(params.targetStats)) {
-                        prefilterRelevantEquipments(equipmentsByItemType, params)
-                    } else {
-                        equipmentsByItemType
-                    }
-                val allEquips = orderEquipments(pool)
-                val equipVars = model.createEquipmentVariables(allEquips)
-                val skillVars = model.createSkillVariables(params.character.characterSkills)
-                val runeModel = model.createRuneModel(params, allEquips, equipVars, runes)
-                val subModel = model.createSublimationModel(params, allEquips, equipVars, sublimations)
-                model.addNormalSublimationSocketBudget(allEquips, equipVars, runeModel, subModel)
-
-                model.addBuildValidityConstraints(allEquips, equipVars)
-
-                val objective =
-                    when (params.scoreComputationMode) {
-                        ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
-                            model.buildMostMasteriesObjective(params, allEquips, equipVars, skillVars, runeModel, subModel)
-
-                        ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
-                            model.buildPrecisionObjective(params, allEquips, equipVars, skillVars, runeModel, subModel)
-
-                        ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE ->
-                            model.buildMaxDamageObjective(params, allEquips, equipVars, skillVars, runeModel, subModel)
-                    }
-                model.maximize(objective)
-
-                executeSolverAndEmitResults(model, params, allEquips, equipVars, skillVars, runeModel, subModel, this@callbackFlow, tuning)
+                val built = buildModel(params, equipmentsByItemType, runes, sublimations)
+                executeSolverAndEmitResults(
+                    built.model,
+                    params,
+                    built.allEquips,
+                    built.equipVars,
+                    built.skillVars,
+                    built.runeModel,
+                    built.subModel,
+                    this@callbackFlow,
+                    tuning
+                )
             }
             close()
             awaitClose { }
         }
+
+    private class BuiltModel(
+        val model: CpModel,
+        val objective: IntVar,
+        val allEquips: List<Equipment>,
+        val equipVars: Map<Equipment, IntVar>,
+        val skillVars: Map<SkillCharacteristic, IntVar>,
+        val runeModel: RuneModel,
+        val subModel: SublimationModel,
+    )
+
+    /**
+     * Assembles the full CP-SAT model — item / skill / rune / sublimation vars, validity constraints, and the
+     * mode's objective — and calls [CpModel.maximize]. Extracted from [optimize] so the test-only
+     * [maxDamageObjectiveValueForTest] builds a byte-identical model (no drift between the production solve and
+     * the objective-readout used by the bi-element tests).
+     */
+    private fun buildModel(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+    ): BuiltModel {
+        val model = CpModel()
+
+        // Full pool gives the provable *global* optimum and stays tractable for most queries.
+        // Only elemental/resistance targets activate the heavy random-element modelling that
+        // explodes on the full late-game pool, so we prefilter exactly (and only) those cases.
+        val pool =
+            if (needsItemPrefilter(params.targetStats)) {
+                prefilterRelevantEquipments(equipmentsByItemType, params)
+            } else {
+                equipmentsByItemType
+            }
+        val allEquips = orderEquipments(pool)
+        val equipVars = model.createEquipmentVariables(allEquips)
+        val skillVars = model.createSkillVariables(params.character.characterSkills)
+        val runeModel = model.createRuneModel(params, allEquips, equipVars, runes)
+        val subModel = model.createSublimationModel(params, allEquips, equipVars, sublimations)
+        model.addNormalSublimationSocketBudget(allEquips, equipVars, runeModel, subModel)
+
+        model.addBuildValidityConstraints(allEquips, equipVars)
+
+        val objective =
+            when (params.scoreComputationMode) {
+                ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
+                    model.buildMostMasteriesObjective(params, allEquips, equipVars, skillVars, runeModel, subModel)
+
+                ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
+                    model.buildPrecisionObjective(params, allEquips, equipVars, skillVars, runeModel, subModel)
+
+                ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE ->
+                    model.buildMaxDamageObjective(params, allEquips, equipVars, skillVars, runeModel, subModel)
+            }
+        model.maximize(objective)
+
+        return BuiltModel(model, objective, allEquips, equipVars, skillVars, runeModel, subModel)
+    }
+
+    /**
+     * Test-only: assemble the model exactly like [optimize] (via [buildModel]) and return the **maximized
+     * objective value**, requiring a deterministic [SolverTuning] and a proven `OPTIMAL` status. Needed because
+     * the streamed [GeneticAlgorithmResult.matchPercentage] is computed by the single-element scorer and so
+     * cannot read the bi-element objective for an interior split — see the Lot 2 tests in WakfuBuildSolverTest.
+     */
+    internal fun maxDamageObjectiveValueForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        tuning: SolverTuning,
+    ): Long {
+        val built = buildModel(params, equipmentsByItemType, emptyList(), emptyList())
+        val solver = CpSolver()
+        solver.parameters.logSearchProgress = false
+        solver.parameters.numSearchWorkers = tuning.numSearchWorkers
+        solver.parameters.randomSeed = tuning.randomSeed
+        solver.parameters.maxDeterministicTime = tuning.maxDeterministicTime
+        val status = solver.solve(built.model)
+        require(status == com.google.ortools.sat.CpSolverStatus.OPTIMAL) { "expected OPTIMAL, got $status" }
+        return solver.objectiveValue().toLong()
+    }
 
     private fun CpModel.createSkillVariables(characterSkills: CharacterSkills): Map<SkillCharacteristic, IntVar> {
         val skillVars = mutableMapOf<SkillCharacteristic, IntVar>()
@@ -823,7 +881,22 @@ object WakfuBuildSolver {
         statBuilder.applyOutOfCombatCaps()
         // External-loop AP probe: pin the build to exactly N AP so each breakpoint can be evaluated.
         params.maxDamageApTarget?.let { addEquality(statBuilder.actionPointVar(), newConstant(it.toLong())) }
-        val damageScore = statBuilder.perTurnDamageScore(params.damageScenario, params.character.clazz)
+        // Bi-element (Lot 2): when a split is given, optimize the element PAIR (the split + total AP are pinned,
+        // outer-loop constants); otherwise the single/boss per-element objective. Both return a var on the SAME
+        // [DAMAGE_PERTURN_ABS_MAX] domain, so the external max over (mono OR bi, AP, split) is comparable.
+        val damageScore =
+            params.maxDamageBiElement?.let { bi ->
+                val totalAp =
+                    requireNotNull(params.maxDamageApTarget) { "bi-element requires a pinned total AP (maxDamageApTarget)" }
+                statBuilder.perTurnDamageScoreBiElement(
+                    bi.first,
+                    bi.second,
+                    bi.apSplitOnFirst,
+                    totalAp,
+                    params.damageScenario,
+                    params.character.clazz
+                )
+            } ?: statBuilder.perTurnDamageScore(params.damageScenario, params.character.clazz)
         return applyConstraintPenalty(params, statBuilder, damageScore, DAMAGE_PERTURN_ABS_MAX).objective
     }
 
@@ -1477,7 +1550,7 @@ object WakfuBuildSolver {
 
                     // raw = throughput · (perHit ÷ PERHIT_DOWNSCALE) — the per-hit core scaled down to a
                     // modest domain before the multiplication, so the product stays small for CP-SAT.
-                    val perHit = perHitDamageScore(element.masteryCharacteristic, scenario)
+                    val perHit = perHitDamageScore(scenarioElementMasteryVar(element.masteryCharacteristic), element.masteryCharacteristic.name, scenario)
                     val perHitScaled = model.newIntVar(0L, PERHIT_SCALED_MAX, "perHitScaled_${element.name}")
                     model.addDivisionEquality(perHitScaled, perHit, model.newConstant(PERHIT_DOWNSCALE))
                     val raw = model.newIntVar(0L, ROTATION_RAW_MAX, "rotRaw_${element.name}")
@@ -1504,18 +1577,114 @@ object WakfuBuildSolver {
         }
 
         /**
-         * Build-dependent per-hit core `D · Graw` for the spell element [elementMastery] (see
-         * [perTurnDamageScore]). All masteries / DI / crit are clamped into the damage bounds so the two
-         * CP-SAT multiplications stay on small, stable integer domains. Var names are element-suffixed so
-         * the boss-aware path can build one per element without collisions.
+         * Spell/boss-aware per-turn damage for a BI-ELEMENT split (Lot 2): the pair [elementA]+[elementB] with
+         * [apOnA] AP routed to [elementA]'s rotation and `[totalAp] − [apOnA]` to [elementB]'s. The split and total
+         * AP are **outer-loop constants** (from [WakfuBestBuildParams.maxDamageBiElement] + `maxDamageApTarget`),
+         * so each element's throughput `T_e[ap]` is injected as a literal and the objective is
+         * `Σ_e resFactor_e · T_e[ap_e] · perHit_e` — purely **linear** (no spell-count × mastery product; contrast
+         * the mono [perTurnDamageScore], whose `addElement` + `addMultiplicationEquality` IS that bilinear term).
+         *
+         * **Scale-identical to [perTurnDamageScore]**: each element reuses the exact mono pipeline
+         * (perHit → ÷PERHIT_DOWNSCALE → ×T → ×resFactor → ÷FINAL_DOWNSCALE), so at a degenerate split
+         * (`apOnA = 0` or `= totalAp`) the other element's `T` is 0, it drops, and the result reproduces the mono
+         * objective for the surviving element exactly ⇒ bi ≥ mono (domination). The two per-element damages are
+         * summed then **clamped to [DAMAGE_PERTURN_ABS_MAX]**: the sum's natural bound is 2×, but clamping keeps the
+         * objective on the mono domain (so the external `max` over mono/bi is sound) AND keeps the constraint-penalty
+         * multiply overflow-safe (see [applyConstraintPenalty]); the clamp is physically non-binding (the cap is
+         * orders of magnitude above any real per-turn value).
+         *
+         * The **single** [elementVars] call over both mastery characteristics is the double-count fix (Lot 2b):
+         * generic "+all elements" folds in full onto each element's own damage and `*_RANDOM_ELEMENT` lines split
+         * across the pair (`effectiveCount = min(count, 2)`) — two singleton calls would add generic mastery to
+         * both cores and assign a 1-random line in full to each. Crit / DI / range / rear are build-global and
+         * shared by both cores (read inside [perHitDamageScore]) — correctly NOT split.
+         */
+        fun perTurnDamageScoreBiElement(
+            elementA: me.chosante.autobuilder.domain.SpellElement,
+            elementB: me.chosante.autobuilder.domain.SpellElement,
+            apOnA: Int,
+            totalAp: Int,
+            scenario: DamageScenario,
+            clazz: me.chosante.common.CharacterClass,
+        ): IntVar {
+            require(elementA != elementB) { "bi-element requires two distinct elements" }
+            val pair = listOf(elementA, elementB)
+            val resByElement = scenario.candidateElements().toMap()
+            val apByElement = mapOf(elementA to apOnA, elementB to (totalAp - apOnA))
+
+            // (Lot 2b) ONE elementVars call over both elements' masteries — see the KDoc. The cache key
+            // (MASTERY_ELEMENTARY, [eA, eB]) is distinct from the mono singleton keys, and the mono/bi paths are
+            // mutually exclusive within a solve, so there is no cache collision.
+            val masteryVars =
+                elementVars(
+                    wantedElements = pair.map { it.masteryCharacteristic },
+                    genericCharacteristic = Characteristic.MASTERY_ELEMENTARY,
+                    targets = pair.associate { it.masteryCharacteristic to 1 },
+                    randomByCount = MASTERY_RANDOM_BY_COUNT
+                )
+
+            val perElementDamage =
+                pair.mapNotNull { element ->
+                    // A pair element absent from the scenario's resistances degenerates to mono (don't invent a
+                    // neutral resistance — mirrors candidateElements()).
+                    val resistance = resByElement[element] ?: return@mapNotNull null
+                    val ap = apByElement.getValue(element).coerceIn(0, MAX_ROTATION_AP.toInt())
+                    val spells =
+                        SpellCatalog.damageSpells(clazz).filter {
+                            it.element ==
+                                me.chosante.common.SpellElement
+                                    .valueOf(element.name)
+                        }
+                    val table = SpellRotationOptimizer.baseThroughputTable(spells, MAX_ROTATION_AP.toInt())
+                    val throughput = table[ap].coerceAtMost(PER_TURN_THROUGHPUT_MAX) // same clamp as mono clampedTable
+                    if (throughput == 0L) return@mapNotNull null // dead element (no spells) or a=0 slice ⇒ contributes 0
+
+                    val s = "${element.name}_bi"
+                    val perHit = perHitDamageScore(masteryVars.getValue(element.masteryCharacteristic), s, scenario)
+                    val perHitScaled = model.newIntVar(0L, PERHIT_SCALED_MAX, "perHitScaled_$s")
+                    model.addDivisionEquality(perHitScaled, perHit, model.newConstant(PERHIT_DOWNSCALE))
+
+                    // raw = T · perHitScaled — T is an outer-loop CONSTANT, so this is LINEAR (no variable×variable).
+                    val raw = model.newIntVar(0L, ROTATION_RAW_MAX, "rotRaw_$s")
+                    model.addEquality(raw, LinearExpr.term(perHitScaled, throughput))
+
+                    val resFactor = (100L - resistance).coerceIn(RES_FACTOR_MIN, RES_FACTOR_MAX)
+                    val rawWithRes = model.newIntVar(0L, ROTATION_RAW_RES_MAX, "rotRawRes_$s")
+                    model.addEquality(rawWithRes, LinearExpr.term(raw, resFactor))
+                    val damage = model.newIntVar(0L, DAMAGE_PERTURN_ABS_MAX, "rotDamage_$s")
+                    model.addDivisionEquality(damage, rawWithRes, model.newConstant(FINAL_DOWNSCALE))
+                    damage
+                }
+
+            return when (perElementDamage.size) {
+                0 -> model.newConstant(0L)
+                1 -> perElementDamage.single() // a pair with one dead element degenerates to mono (exact, no clamp)
+                else -> {
+                    val sum = model.sumVar("rotBiSum", perElementDamage, 0L, 2L * DAMAGE_PERTURN_ABS_MAX)
+                    val total = model.newIntVar(0L, DAMAGE_PERTURN_ABS_MAX, "rotBiTotal")
+                    model.addMinEquality(total, arrayOf(sum, model.newConstant(DAMAGE_PERTURN_ABS_MAX)))
+                    total
+                }
+            }
+        }
+
+        /**
+         * Build-dependent per-hit core `D · Graw` for an element whose folded elemental-mastery var is
+         * [elementMasteryVar] (see [perTurnDamageScore]). Taking the mastery var as a parameter — rather
+         * than computing it internally — lets the bi-element path feed both cores from a *single*
+         * [elementVars] call over the element pair, so generic "+all elements" and random-element mastery
+         * are folded once per element rather than double-counted. All masteries / DI / crit are clamped
+         * into the damage bounds so the two CP-SAT multiplications stay on small, stable integer domains.
+         * Var names carry [suffix] so per-element cores never collide.
          */
         private fun perHitDamageScore(
-            elementMastery: Characteristic,
+            elementMasteryVar: IntVar,
+            suffix: String,
             scenario: DamageScenario,
         ): IntVar {
-            val s = elementMastery.name
+            val s = suffix
             val masteryTerms = mutableListOf<Term>()
-            masteryTerms.add(Term(scenarioElementMasteryVar(elementMastery), 1L))
+            masteryTerms.add(Term(elementMasteryVar, 1L))
             masteryTerms.add(Term(actualStat(scenario.rangeBand.masteryCharacteristic), 1L))
             if (scenario.orientation.grantsRearMastery) masteryTerms.add(Term(actualStat(Characteristic.MASTERY_BACK), 1L))
             if (scenario.berserk) masteryTerms.add(Term(actualStat(Characteristic.MASTERY_BERSERK), 1L))
