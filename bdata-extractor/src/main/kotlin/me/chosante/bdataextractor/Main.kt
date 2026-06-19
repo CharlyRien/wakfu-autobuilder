@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import me.chosante.common.Monster
+import me.chosante.common.RuneType
 import me.chosante.common.Spell
 import me.chosante.common.SpellDamageScaling
 import me.chosante.common.Sublimation
@@ -94,11 +95,13 @@ fun main(args: Array<String>) {
     val scalingJson = json.encodeToString(ListSerializer(SpellDamageScaling.serializer()), spellDamageScalings)
     verifyAndWrite(File(resources, "spell-damage.json"), scalingJson, "spell-damage", spellDamageScalings.size, force)
 
-    // Sublimations: fully first-party now — identity/metadata from the CDN items.json (itemTypeId 812), and
-    // effects / condition / max level decoded from the State (67) → StaticEffect (68) tables. Replaces the
-    // third-party WakForge/noredlace/manual pipeline (the docs/sublimations-research Python script is retired).
-    println("Fetching sublimation metadata from CDN items.json…")
-    val subMeta = ItemsCatalog.fetchSublimationMeta(version)
+    // Sublimations + runes: fully first-party now — identity/metadata from the CDN items.json (item shards,
+    // itemTypeId 812 / 811), sublimation effects/condition/max-level decoded from the State (67) →
+    // StaticEffect (68) tables. Replaces the third-party WakForge/noredlace/manual pipeline AND the previously
+    // hand-maintained runes.json. The items.json body is fetched once and parsed for both.
+    println("Fetching CDN items.json (sublimation + rune metadata)…")
+    val itemsJson = ItemsCatalog.fetchItemsJson(version)
+    val subMeta = ItemsCatalog.parse(itemsJson)
     println("  ${subMeta.size} sublimations (itemTypeId ${ItemsCatalog.SUBLIMATION_ITEM_TYPE})")
     val sublimations = buildSublimations(states, effects, actions, subMeta)
     println("  ${sublimations.count { it.solverChoosable }} solver-choosable (rest forced-input-only)")
@@ -112,6 +115,13 @@ fun main(args: Array<String>) {
     }
     val stackingJson = json.encodeToString(ListSerializer(SublimationStacking.serializer()), stacking)
     verifyAndWrite(File(resources, "sublimation-stacking.json"), stackingJson, "sublimation-stacking", stacking.size, force)
+
+    // Runes (itemTypeId 811 shards from the same items.json): colour + double-bonus slots from shardParameters,
+    // boosted stat from the equip-effect action (ActionCatalog). Replaces the hand-maintained runes.json.
+    val runes = ItemsCatalog.parseRunes(itemsJson, actions)
+    println("  ${runes.size} runes (itemTypeId ${ItemsCatalog.RUNE_ITEM_TYPE})")
+    val runesJson = json.encodeToString(ListSerializer(RuneType.serializer()), runes)
+    verifyAndWrite(File(resources, "runes.json"), runesJson, "runes", runes.size, force)
 
     // Monsters (boss mode): decoded from the local Monster table (42) + i18n names, replacing the third-party
     // MethodWakfu/Fandom scrape. The table's positional schema is AUTO-DERIVED from the client bytecode

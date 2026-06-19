@@ -162,9 +162,10 @@ as **fixed-name** JSON files (no version in the filename):
    `StaticEffect` (68), `State` (67), `Monster` (42) inside `contents/bdata/<id>.jar`, plus the
    `contents/i18n/i18n_<lang>.jar` name bundles — and writes `spell-cast-limits.json`,
    `spell-passives.json`, `sublimation-stacking.json` (per-sublimation `max_level` + `is_cumulable`),
-   **`sublimations.json`**, **`spell-damage.json`**, and **`monsters.json`** (boss-mode data: level/HP/flat
-   elemental resistances + localized name/family + icon `gfx`, replacing the old third-party MethodWakfu/Fandom
-   scrape).
+   **`sublimations.json`**, **`spell-damage.json`**, **`runes.json`** (itemTypeId 811 shards from the CDN
+   `items.json` — colour/double-bonus + the boosted stat from the equip-effect action; replaces the old
+   hand-maintained file), and **`monsters.json`** (boss-mode data: level/HP/flat elemental resistances +
+   localized name/family + icon `gfx`, replacing the old third-party MethodWakfu/Fandom scrape).
    **Spells stay on the encyclopedia** (`spells-extractor` → `spells.json`: name/element/AP/range/icon + the
    *max-level* base hit) because the spell-damage *renderer* is client-only — no decoder reproduces it, and
    every community tool (WakForge, Zenith) also uses Ankama's rendered output. But `bdata-extractor` adds the
