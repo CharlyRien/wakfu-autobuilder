@@ -62,7 +62,6 @@ import me.chosante.common.Equipment
 import me.chosante.common.RuneColor
 import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
-import me.chosante.common.SublimationRarity
 import me.chosante.ui.components.RarityIcon
 import me.chosante.ui.components.iconResourcePath
 import me.chosante.ui.components.itemResourcePath
@@ -99,62 +98,76 @@ fun PaperdollPanel(
                     .fillMaxWidth()
                     .padding(WDimens.pad)
         ) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(26.dp),
-                    verticalAlignment = Alignment.CenterVertically
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                // One card height for every slot, sized so the 5 column rows + the weapon row exactly fill the
+                // available height: all 14 slots stay on screen at once (no scrolling), growing on a full-screen
+                // window so the shards are large and shrinking together when the window is small.
+                val rowGap = 16.dp
+                val colSpacing = 14.dp
+                val columnSlots = maxOf(leftSlots.size, rightSlots.size).coerceAtLeast(1)
+                val cardHeight =
+                    ((maxHeight - colSpacing * (columnSlots - 1) - rowGap) / (columnSlots + 1))
+                        .coerceIn(CARD_HEIGHT_FLOOR, CARD_HEIGHT_CAP)
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(rowGap)
                 ) {
-                    SlotColumn(
-                        slots = leftSlots,
-                        assignments = slots,
-                        ui = ui,
-                        rightAlign = false,
-                        onForceItem = onForceItem,
-                        onExcludeItem = onExcludeItem,
-                        onEditRunes = onEditRunes,
-                        modifier = Modifier.weight(1f).fillMaxHeight()
-                    )
-                    SlotColumn(
-                        slots = rightSlots,
-                        assignments = slots,
-                        ui = ui,
-                        rightAlign = true,
-                        onForceItem = onForceItem,
-                        onExcludeItem = onExcludeItem,
-                        onEditRunes = onEditRunes,
-                        modifier = Modifier.weight(1f).fillMaxHeight()
-                    )
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(13.dp)
-                ) {
-                    bottomSlots.forEach { slot ->
-                        // The weight must sit on a direct Row child: a filled slot wraps its
-                        // content in ContextMenuArea (no modifier param), which would otherwise
-                        // swallow the weight and let the weapon expand over its neighbours.
-                        Box(modifier = Modifier.weight(1f)) {
-                            val weaponEquipment = slots[slot.id]
-                            EquipmentSlot(
-                                slot = slot,
-                                equipment = weaponEquipment,
-                                runes = weaponEquipment?.let { ui.build?.runes?.get(it) }.orEmpty(),
-                                subs = weaponEquipment?.let { ui.build?.sublimations?.get(it) }.orEmpty(),
-                                idle = ui.phase == Phase.Idle,
-                                justLanded = weaponEquipment?.equipmentId == ui.lastLandedEquipmentId,
-                                rightAlign = false,
-                                onForceItem = onForceItem,
-                                onExcludeItem = onExcludeItem,
-                                onEditRunes = onEditRunes,
-                                runesPinned = ui.hasPinnedRunes(weaponEquipment),
-                                forced = ui.isForcedEquipment(slots[slot.id]),
-                                excluded = ui.isExcludedEquipment(slots[slot.id]),
-                                modifier = Modifier.fillMaxWidth()
-                            )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(26.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SlotColumn(
+                            slots = leftSlots,
+                            assignments = slots,
+                            ui = ui,
+                            rightAlign = false,
+                            onForceItem = onForceItem,
+                            onExcludeItem = onExcludeItem,
+                            onEditRunes = onEditRunes,
+                            cardHeight = cardHeight,
+                            modifier = Modifier.weight(1f).fillMaxHeight()
+                        )
+                        SlotColumn(
+                            slots = rightSlots,
+                            assignments = slots,
+                            ui = ui,
+                            rightAlign = true,
+                            onForceItem = onForceItem,
+                            onExcludeItem = onExcludeItem,
+                            onEditRunes = onEditRunes,
+                            cardHeight = cardHeight,
+                            modifier = Modifier.weight(1f).fillMaxHeight()
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(13.dp)
+                    ) {
+                        bottomSlots.forEach { slot ->
+                            // The weight must sit on a direct Row child: a filled slot wraps its
+                            // content in ContextMenuArea (no modifier param), which would otherwise
+                            // swallow the weight and let the weapon expand over its neighbours.
+                            Box(modifier = Modifier.weight(1f)) {
+                                val weaponEquipment = slots[slot.id]
+                                EquipmentSlot(
+                                    slot = slot,
+                                    equipment = weaponEquipment,
+                                    runes = weaponEquipment?.let { ui.build?.runes?.get(it) }.orEmpty(),
+                                    subs = weaponEquipment?.let { ui.build?.sublimations?.get(it) }.orEmpty(),
+                                    idle = ui.phase == Phase.Idle,
+                                    justLanded = weaponEquipment?.equipmentId == ui.lastLandedEquipmentId,
+                                    rightAlign = false,
+                                    onForceItem = onForceItem,
+                                    onExcludeItem = onExcludeItem,
+                                    onEditRunes = onEditRunes,
+                                    runesPinned = ui.hasPinnedRunes(weaponEquipment),
+                                    forced = ui.isForcedEquipment(slots[slot.id]),
+                                    excluded = ui.isExcludedEquipment(slots[slot.id]),
+                                    cardHeight = cardHeight,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
                         }
                     }
                 }
@@ -240,6 +253,28 @@ private fun SolverLoadingOverlay(
     }
 }
 
+// Every equipment slot shares ONE card height (computed once from the available space) so all 14 stay
+// visible at once — never scrolled. It fills the height and grows toward [CARD_HEIGHT_CAP] on a full-screen
+// window (making the rune shards large), and all cards shrink together toward [CARD_HEIGHT_FLOOR] when the
+// window is small.
+private val CARD_HEIGHT_FLOOR = 64.dp
+private val CARD_HEIGHT_CAP = 156.dp
+
+// Rune/sublimation shard sizing. [MAX_SHARD_SIZE] is the FIXED size every card aims for, so the shards look
+// the same on (almost) every slot regardless of window size — a card with spare height just leaves it empty
+// instead of growing bigger gems. Only a genuinely too-short card shrinks them (to avoid clipping); because
+// the target is constant, resizing the window barely changes the shard size and the transition stays smooth.
+private val MAX_SHARD_SIZE = 26.dp
+private val CARD_PADDING = 8.dp
+
+// Approximate text-line heights, used to reserve just enough room above the shards.
+private val NAME_LINE_HEIGHT = 18.dp
+private val SMALL_LINE_HEIGHT = 15.dp
+
+// Below this card height the level·rarity line is dropped (it's still on hover) so a short card keeps the room
+// for the title, name, sublimation and full-size shards.
+private val LEVEL_LINE_MIN_CARD = 112.dp
+
 @Composable
 private fun SlotColumn(
     slots: List<DollSlot>,
@@ -249,41 +284,34 @@ private fun SlotColumn(
     onForceItem: (Equipment) -> Unit,
     onExcludeItem: (Equipment) -> Unit,
     onEditRunes: (Equipment) -> Unit,
+    cardHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
-    // Size the slots to the available height so all of them fit uniformly. With a hard-coded
-    // per-slot height the column overflowed on shorter windows and Compose squeezed only the *last*
-    // slot (cape / boots) into the leftover space — they then rendered tiny. Splitting the height
-    // evenly (clamped) makes the slots shrink together instead.
-    val spacing = 14.dp
-    BoxWithConstraints(modifier = modifier) {
-        // Taller cap so an item that shows BOTH a "✦ sub" line and its socket-loadout shards still fits
-        // (at 84.dp the shards row was clipped off the bottom for items carrying a sublimation).
-        val cardHeight = ((maxHeight - spacing * (slots.size - 1)) / slots.size).coerceIn(64.dp, 102.dp)
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(spacing, Alignment.CenterVertically)
-        ) {
-            slots.forEach { slot ->
-                val equipment = assignments[slot.id]
-                EquipmentSlot(
-                    slot = slot,
-                    equipment = equipment,
-                    runes = equipment?.let { ui.build?.runes?.get(it) }.orEmpty(),
-                    subs = equipment?.let { ui.build?.sublimations?.get(it) }.orEmpty(),
-                    idle = ui.phase == Phase.Idle,
-                    justLanded = equipment?.equipmentId == ui.lastLandedEquipmentId,
-                    rightAlign = rightAlign,
-                    onForceItem = onForceItem,
-                    onExcludeItem = onExcludeItem,
-                    onEditRunes = onEditRunes,
-                    runesPinned = ui.hasPinnedRunes(equipment),
-                    forced = ui.isForcedEquipment(assignments[slot.id]),
-                    excluded = ui.isExcludedEquipment(assignments[slot.id]),
-                    cardHeight = cardHeight,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+    // The card height is decided once for the whole paperdoll (see PaperdollPanel) so every slot matches and
+    // they all fit on screen; the cards are centred in whatever height this column is given.
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically)
+    ) {
+        slots.forEach { slot ->
+            val equipment = assignments[slot.id]
+            EquipmentSlot(
+                slot = slot,
+                equipment = equipment,
+                runes = equipment?.let { ui.build?.runes?.get(it) }.orEmpty(),
+                subs = equipment?.let { ui.build?.sublimations?.get(it) }.orEmpty(),
+                idle = ui.phase == Phase.Idle,
+                justLanded = equipment?.equipmentId == ui.lastLandedEquipmentId,
+                rightAlign = rightAlign,
+                onForceItem = onForceItem,
+                onExcludeItem = onExcludeItem,
+                onEditRunes = onEditRunes,
+                runesPinned = ui.hasPinnedRunes(equipment),
+                forced = ui.isForcedEquipment(assignments[slot.id]),
+                excluded = ui.isExcludedEquipment(assignments[slot.id]),
+                cardHeight = cardHeight,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
@@ -545,16 +573,16 @@ private fun SlotRowContent(
                             else -> WColor.border.copy(alpha = 0.75f)
                         },
                     shape = RoundedCornerShape(13.dp)
-                ).padding(12.dp),
+                ).padding(CARD_PADDING),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         if (rightAlign) {
-            SlotMeta(slot = slot, equipment = equipment, runes = runes, subs = subs, modifier = Modifier.weight(1f), align = TextAlign.End)
+            SlotMeta(slot = slot, equipment = equipment, runes = runes, subs = subs, cardHeight = cardHeight, modifier = Modifier.weight(1f), align = TextAlign.End)
             SlotIcon(slot = slot, equipment = equipment, color = color, cardHeight = cardHeight)
         } else {
             SlotIcon(slot = slot, equipment = equipment, color = color, cardHeight = cardHeight)
-            SlotMeta(slot = slot, equipment = equipment, runes = runes, subs = subs, modifier = Modifier.weight(1f), align = TextAlign.Start)
+            SlotMeta(slot = slot, equipment = equipment, runes = runes, subs = subs, cardHeight = cardHeight, modifier = Modifier.weight(1f), align = TextAlign.Start)
         }
     }
 }
@@ -883,6 +911,7 @@ private fun SlotMeta(
     runes: List<RuneType> = emptyList(),
     subs: List<Sublimation> = emptyList(),
     align: TextAlign,
+    cardHeight: Dp = 84.dp,
     modifier: Modifier = Modifier,
 ) {
     val lang = LocalLang.current
@@ -890,6 +919,7 @@ private fun SlotMeta(
         modifier = modifier,
         horizontalAlignment = if (align == TextAlign.End) Alignment.End else Alignment.Start
     ) {
+        // The slot-type label ("Helmet", "Amulet"…) — always shown, above the item name.
         Text(
             text = tr(slot.labelKey),
             style = WTypography.labelSmall,
@@ -910,44 +940,70 @@ private fun SlotMeta(
             overflow = TextOverflow.Ellipsis
         )
         if (equipment != null) {
-            Text(
-                text = "Lv ${equipment.level} · ${equipment.rarity.label(LocalLang.current)}",
-                style =
-                    WTypography.labelSmall.copy(
-                        fontFamily = WType.mono,
-                        color = WColor.muted,
-                        textAlign = align
-                    ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (subs.isNotEmpty()) {
-                // The sublimation(s) hosted on this item; a normal sub also pins a 3-socket colour pattern.
+            // Level·rarity is secondary (the rarity also shows on the icon badge; full details on hover), so a
+            // short card drops it to keep the shards large; a tall/full-screen card has room to show it.
+            val showLevel = cardHeight >= LEVEL_LINE_MIN_CARD
+            if (showLevel) {
                 Text(
-                    text = subs.joinToString("  ") { "✦ ${if (lang == Lang.FR) it.name.fr else it.name.en}" },
-                    style = WTypography.labelSmall.copy(color = WColor.accent, textAlign = align),
+                    text = "Lv ${equipment.level} · ${equipment.rarity.label(LocalLang.current)}",
+                    style =
+                        WTypography.labelSmall.copy(
+                            fontFamily = WType.mono,
+                            color = WColor.muted,
+                            textAlign = align
+                        ),
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp)
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-            // Socket loadout: a normal sub's 3 pattern colours first, then the item's runes — the at-a-glance
-            // "rune + sublimation loadout". Shapes shrink uniformly to fit the card width without clipping.
-            val loadout =
-                subs.filter { it.rarity == SublimationRarity.NORMAL }.flatMap { it.colors } + runes.map { it.color }
-            if (loadout.isNotEmpty()) {
-                val shapeCount = loadout.size.coerceAtMost(equipment.maxShardSlots.coerceAtLeast(1))
-                val gap = 3.dp
+            // The item's SOCKETS, shown as coloured shards: a normal sublimation paints its socket-colour
+            // pattern (its 3 colours) and the runes fill sockets, so the shard row = the sublimation's pattern
+            // + the runes (capped at the item's socket count). This is the "colour pattern linked to the
+            // sublimation" — a sub never removes the sockets from view. The sublimation is also NAMED to one
+            // side on the SAME line (no extra vertical line, so the shard size stays identical on every card),
+            // which surfaces epic/relic subs too (they carry no pattern). Full details stay in the hover tooltip.
+            val socketColors =
+                (subs.flatMap { it.colors } + runes.map { it.color }).take(equipment.maxShardSlots.coerceAtLeast(1))
+            val hasSub = subs.isNotEmpty()
+            if (socketColors.isNotEmpty() || hasSub) {
+                val gap = 5.dp
+                // The text above the row is identical on every card (title + name, plus the level line only on
+                // tall cards), so the shards aim for the same fixed size (capped at MAX_SHARD_SIZE) everywhere.
+                val textBlock =
+                    SMALL_LINE_HEIGHT + // title
+                        NAME_LINE_HEIGHT +
+                        (if (showLevel) SMALL_LINE_HEIGHT else 0.dp)
+                val byHeight = (cardHeight - CARD_PADDING * 2 - textBlock - 4.dp).coerceAtLeast(0.dp)
                 BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                    val shapeSize = ((maxWidth - gap * (shapeCount - 1)) / shapeCount).coerceIn(14.dp, 22.dp)
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(gap, if (align == TextAlign.End) Alignment.End else Alignment.Start),
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        loadout.take(shapeCount).forEach { color ->
-                            RuneShape(color = color, size = shapeSize)
+                    val socketCount = socketColors.size.coerceAtLeast(1)
+                    val byWidth = (maxWidth - gap * (socketCount - 1)) / socketCount
+                    val shapeSize = minOf(byWidth, byHeight, MAX_SHARD_SIZE)
+                    val socketRow: @Composable () -> Unit = {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(gap),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            socketColors.forEach { color -> RuneShape(color = color, size = shapeSize) }
                         }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, if (align == TextAlign.End) Alignment.End else Alignment.Start),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Sockets nearest the icon, sublimation name filling the rest of the line toward the centre.
+                        if (align != TextAlign.End && socketColors.isNotEmpty()) socketRow()
+                        if (hasSub) {
+                            Text(
+                                text = subs.joinToString("  ") { "✦ ${if (lang == Lang.FR) it.name.fr else it.name.en}" },
+                                style = WTypography.labelSmall.copy(color = WColor.accent),
+                                textAlign = align,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        if (align == TextAlign.End && socketColors.isNotEmpty()) socketRow()
                     }
                 }
             }
