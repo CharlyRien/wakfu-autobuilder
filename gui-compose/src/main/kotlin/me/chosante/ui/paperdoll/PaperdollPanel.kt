@@ -708,9 +708,10 @@ private fun RuneColor.displayColor(): Color =
 
 /**
  * A socketed rune's "symbol" = its official socket-shape shard, by socket colour: red = square,
- * green = pentagon, blue = triangle. These are the same shard PNGs WakForge uses (sourced from Wakfu's
- * assets into assets/runes/). The stat each rune carries is read from the tooltip text; the shape +
- * colour identify it at a glance. Falls back to a plain colour dot if an asset is missing.
+ * green = pentagon, blue = triangle. The shard PNGs are extracted from the client's gui.jar
+ * (`theme/images/shard{Red,Green,Blue}Full`) into assets/runes/ by `generateAssets`. The stat each rune
+ * carries is read from the tooltip text; the shape + colour identify it at a glance. Falls back to a plain
+ * colour dot if an asset is missing.
  */
 @Composable
 private fun RuneShape(

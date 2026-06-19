@@ -154,10 +154,13 @@ as **fixed-name** JSON files (no version in the filename):
 3. `WakfuBestBuildFinderAlgorithm` / `SpellCatalog` / `PassiveCatalog` load these by fixed name via the
    classpath at startup (e.g. `equipments.json`).
 4. The GUI's `generateAssets` Gradle task (`gui-compose`) extracts matching icons (items/spells/states +
-   class artwork) from the **local game client's** `contents/gui_jar/gui.jar` — 64×64 TGAs keyed by the same
-   ids as our data, converted to PNG under `gui-compose/src/main/resources/assets/<set>/<id>.png`. (The
-   community `Vertylo/wakassets` repo was just a PNG mirror of these.) Monster boss portraits + the name-keyed
-   HUD stat icons stay committed-static (the client only keys monsters by gfx as 132×41 banners, not portraits).
+   class artwork + equipment-slot `itemTypes` + the rune socket-colour `runes` shards + the 36 HUD stat
+   `icons`, mapped to `miscellaneous/characteristics` by the `Characteristic` each represents) from the **local
+   game client's** `contents/gui_jar/gui.jar` — TGAs keyed by the same ids as our data, converted to PNG under
+   `gui-compose/src/main/resources/assets/<set>/<id>.png`. (The community `Vertylo/wakassets` repo was just a
+   PNG mirror of these.) Two sets stay committed-static because the client has no clean equivalent: monster
+   boss **portraits** (the client only keys monsters by gfx as 132×41 banners — the 200×200 are sprite renders)
+   and the 8 **rarity** badges (gui.jar has a filled icon only for epic/relic; the rest are border frames).
 5. `bdata-extractor` decodes the **local game client's** scrambled static-data tables — `Spell` (66),
    `StaticEffect` (68), `State` (67), `Monster` (42) inside `contents/bdata/<id>.jar`, plus the
    `contents/i18n/i18n_<lang>.jar` name bundles — and writes `spell-cast-limits.json`,
