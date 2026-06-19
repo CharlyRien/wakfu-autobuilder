@@ -1,10 +1,8 @@
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.toolchain.JavaToolchainService
-import org.jetbrains.kotlin.konan.file.unzipTo
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
-import kotlin.io.path.createTempDirectory
-import kotlin.io.path.createTempFile
+import java.awt.image.BufferedImage
+import java.util.zip.ZipFile
+import javax.imageio.ImageIO
 
 plugins {
     kotlin("jvm")
@@ -144,24 +142,22 @@ tasks.test {
 tasks.register("generateAssets") {
     description =
         """
-        Downloads the artwork bundled with the Compose GUI from the community
-        https://github.com/Vertylo/wakassets repository. Hits the network, so it is run on demand
-        (not part of the normal build) and the resulting PNGs are committed alongside the others.
-        
-        It copies these sets into src/main/resources/assets:
-          - items/  filtered to the guiIds referenced by the current equipments JSON (large set)
-          - icons/  the HUD stat icons used to render characteristics + skill-tree lines (complete set)
-          - spells/ filtered to the iconIds referenced by the current spells JSON (covers active spells
-                    and passives — both are spells; named by gfxId)
+        Extracts the GUI artwork from the LOCAL Wakfu client (contents/gui_jar/gui.jar) — the official,
+        version-matched icon source (64x64 TGA, keyed by the same ids our data uses; the community
+        Vertylo/wakassets repo was just a PNG mirror of this). Maintainer-local (needs the install), run on
+        demand; the resulting PNGs are committed. Pass -Pwakfu.install=<path> (default /Applications/Ankama/Wakfu).
+
+        It converts these sets into src/main/resources/assets (TGA -> PNG):
+          - items/  filtered to the guiIds referenced by the current equipments JSON (also covers runes)
+          - spells/ filtered to the iconIds/gfxIds referenced by the current spells + passives JSON
           - states/ filtered to the appliedStateIds referenced by the passives JSON (buff/state icons)
-          - monsters/ filtered to the gfx (sprite) ids referenced by the current bestiary JSON (boss picker)
-          - breeds/ class artwork keyed by CharacterClass.breedId — icon/, illustration/ (T-pose,
-                    male variant), background/ (used on build cards, the TopBar and the compare view)
+          - breeds/ class artwork keyed by CharacterClass.breedId — icon/, illustration/ (male), background/
+        Monster portraits (boss picker) + the 40 HUD stat icons under assets/icons/ are NOT extracted — the
+        former are committed 200x200 portraits (the client only keys monsters as 132x41 banners), the latter are
+        name-keyed UI chrome. Both stay committed-static.
         Existing files are never overwritten.
         """.trimIndent()
     group = "assets"
-
-    val repoUrl = "https://github.com/Vertylo/wakassets/archive/refs/heads/main.zip"
 
     doLast {
         val assetsDir = file("src/main/resources/assets").apply { mkdirs() }
@@ -201,81 +197,95 @@ tasks.register("generateAssets") {
             readResourceJson("spell-passives")
                 .flatMap { entry -> (entry["appliedStateIds"] as? List<*> ?: emptyList<Any>()).map { (it as Number).toInt().toString() } }
                 .toSet()
-        // gfx (sprite) ids referenced by the current bestiary JSON → the monster icons the boss picker needs.
-        val monsterGfxIds =
-            readResourceJson("monsters").mapNotNull { (it["gfx"] as? Number)?.toInt()?.toString() }.toSet()
 
-        // download + unzip the wakassets repository into a temp directory
-        val destinationFile = createTempFile("wakassets", ".zip").toFile()
-        downloadRepositoryAsZip(repoUrl, destinationFile)
-        val unzippedTempDirectory = createTempDirectory()
-        destinationFile.toPath().unzipTo(unzippedTempDirectory)
-        val wakassetsRoot = unzippedTempDirectory.resolve("wakassets-main").toFile()
+        // The local client's GUI jar holds every icon as a 64x64 TGA keyed by the same ids as our data.
+        val install = (project.findProperty("wakfu.install") as String?) ?: "/Applications/Ankama/Wakfu"
+        val guiJar = file("$install/contents/gui_jar/gui.jar")
+        if (!guiJar.isFile) error("generateAssets: gui.jar not found at $guiJar — pass -Pwakfu.install=<path-to-Wakfu>.")
 
-        // copy every PNG of a wakassets subdirectory into assets/<name>, skipping already-present files
-        fun copyAssetDir(
-            sourceDirName: String,
-            keep: (File) -> Boolean = { true },
-        ) {
-            val targetDir = assetsDir.resolve(sourceDirName).apply { mkdirs() }
-            var copied = 0
-            wakassetsRoot
-                .resolve(sourceDirName)
-                .listFiles()
-                ?.filter(keep)
-                ?.forEach { asset ->
-                    val destination = targetDir.resolve(asset.name)
-                    if (!destination.exists()) {
-                        asset.copyTo(destination)
-                        copied++
-                    }
-                }
-            logger.lifecycle("generateAssets: $sourceDirName -> $copied new file(s) added")
-        }
-
-        copyAssetDir("items") { it.nameWithoutExtension in guiIdsFromCurrentEquipmentJson }
-        copyAssetDir("icons")
-        copyAssetDir("spells") { it.nameWithoutExtension in spellIconIds || it.nameWithoutExtension in passiveGfxIds }
-        copyAssetDir("states") { it.nameWithoutExtension in passiveStateIds }
-        copyAssetDir("monsters") { it.nameWithoutExtension in monsterGfxIds }
-
-        // Class ("breed") artwork, keyed by CharacterClass.breedId, baked under assets/breeds/.
-        // Illustrations are id*10 (male) / id*10+1 (female) in wakassets; we keep the male variant and
-        // re-key it to the plain breedId so BreedAssets can resolve it directly. There is no breed 17.
-        val breedIds = (1..16) + listOf(18, 19)
-
-        fun copyBreedAsset(
-            kind: String,
-            sourceDirName: String,
-            wakassetsId: (Int) -> Int,
-        ) {
-            val targetDir = assetsDir.resolve("breeds/$kind").apply { mkdirs() }
-            var copied = 0
-            breedIds.forEach { breedId ->
-                val source = wakassetsRoot.resolve("$sourceDirName/${wakassetsId(breedId)}.png")
-                val destination = targetDir.resolve("$breedId.png")
-                if (source.exists() && !destination.exists()) {
-                    source.copyTo(destination)
+        ZipFile(guiJar).use { zip ->
+            // Convert the gui.jar `<jarDir>/<id>.tga` icons named by `ids` into assets/<category>/<id>.png.
+            fun extract(
+                category: String,
+                jarDir: String,
+                ids: Iterable<String>,
+            ) {
+                val targetDir = assetsDir.resolve(category).apply { mkdirs() }
+                var copied = 0
+                ids.toSet().forEach { id ->
+                    val destination = targetDir.resolve("$id.png")
+                    if (destination.exists()) return@forEach
+                    val entry = zip.getEntry("$jarDir/$id.tga") ?: return@forEach
+                    val image = zip.getInputStream(entry).use { tgaToImage(it.readBytes()) }
+                    ImageIO.write(image, "png", destination)
                     copied++
                 }
+                logger.lifecycle("generateAssets: $category -> $copied new file(s) from gui.jar")
             }
-            logger.lifecycle("generateAssets: breeds/$kind -> $copied new file(s) added")
-        }
-        copyBreedAsset("icon", "breedsIcons") { it }
-        copyBreedAsset("illustration", "breedsIllusrations") { it * 10 }
-        copyBreedAsset("background", "breedsBackgrounds") { it }
 
-        destinationFile.delete()
-        unzippedTempDirectory.toFile().deleteRecursively()
+            extract("items", "icons/items/64", guiIdsFromCurrentEquipmentJson) // also covers runes (item shards)
+            extract("spells", "icons/spells/64", spellIconIds + passiveGfxIds)
+            extract("states", "icons/states", passiveStateIds)
+            // Monster portraits are NOT extracted: the boss picker shows only bosses (all 220 already have a
+            // committed 200x200 portrait), and the client only keys monsters by gfx as 132x41 in-game banners,
+            // not portraits — so there is nothing better to pull. The committed boss portraits stay as-is.
+
+            // Class ("breed") artwork, keyed by CharacterClass.breedId. In gui.jar: breeds/icons/<id>,
+            // breeds/illustrations/<id*10> (male; +1 is female), breeds/backgrounds/<id>. Re-keyed to the plain
+            // breedId so BreedAssets resolves it directly. There is no breed 17.
+            val breedIds = (1..16) + listOf(18, 19)
+
+            fun extractBreed(
+                kind: String,
+                jarDir: String,
+                jarId: (Int) -> Int,
+            ) {
+                val targetDir = assetsDir.resolve("breeds/$kind").apply { mkdirs() }
+                var copied = 0
+                breedIds.forEach { breedId ->
+                    val destination = targetDir.resolve("$breedId.png")
+                    if (destination.exists()) return@forEach
+                    val entry = zip.getEntry("$jarDir/${jarId(breedId)}.tga") ?: return@forEach
+                    val image = zip.getInputStream(entry).use { tgaToImage(it.readBytes()) }
+                    ImageIO.write(image, "png", destination)
+                    copied++
+                }
+                logger.lifecycle("generateAssets: breeds/$kind -> $copied new file(s) from gui.jar")
+            }
+            extractBreed("icon", "breeds/icons") { it }
+            extractBreed("illustration", "breeds/illustrations") { it * 10 }
+            extractBreed("background", "breeds/backgrounds") { it }
+        }
     }
 }
 
-fun downloadRepositoryAsZip(
-    repoUrl: String,
-    destinationFile: File,
-) {
-    val url = uri(repoUrl).toURL()
-    url.openStream().use { input ->
-        Files.copy(input, destinationFile.toPath(), StandardCopyOption.REPLACE_EXISTING)
+/**
+ * Decodes a Wakfu client icon TGA (64x64, uncompressed true-colour, 32-bit BGRA or 24-bit BGR) into an ARGB
+ * image for PNG re-encoding. Targa stores rows bottom-up unless the descriptor's top-origin bit (0x20) is set.
+ */
+fun tgaToImage(bytes: ByteArray): BufferedImage {
+    fun u8(i: Int) = bytes[i].toInt() and 0xFF
+    val idLength = u8(0)
+    val imageType = u8(2)
+    require(imageType == 2) { "generateAssets: unexpected TGA image type $imageType (only uncompressed true-colour)" }
+    val width = u8(12) or (u8(13) shl 8)
+    val height = u8(14) or (u8(15) shl 8)
+    val depth = u8(16)
+    require(depth == 32 || depth == 24) { "generateAssets: unexpected TGA pixel depth $depth" }
+    val bytesPerPixel = depth / 8
+    val topOrigin = (u8(17) and 0x20) != 0
+    var offset = 18 + idLength
+    val image = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
+    for (row in 0 until height) {
+        val y = if (topOrigin) row else height - 1 - row
+        for (x in 0 until width) {
+            val b = u8(offset)
+            val g = u8(offset + 1)
+            val r = u8(offset + 2)
+            val a = if (bytesPerPixel == 4) u8(offset + 3) else 0xFF
+            offset += bytesPerPixel
+            image.setRGB(x, y, (a shl 24) or (r shl 16) or (g shl 8) or b)
+        }
     }
+    return image
 }

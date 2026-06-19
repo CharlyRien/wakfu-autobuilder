@@ -155,7 +155,8 @@ internal fun ItemThumbnail(
 }
 
 /**
- * A passive's icon — the spell sprite at `assets/spells/<gfxId>.png` (from wakassets). Renders nothing when
+ * A passive's icon — the spell sprite at `assets/spells/<gfxId>.png` (extracted from the local client's
+ * gui.jar by generateAssets). Renders nothing when
  * the asset is absent. Shared by the passive picker row and the result card so the path/sizing live in one
  * place.
  */
