@@ -1,7 +1,6 @@
 package me.chosante.autobuilder.genetic
 
 import kotlinx.serialization.json.Json
-import me.chosante.autobuilder.VERSION
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.genetic.wakfu.assignUniformlyMasteryRandomValues
 import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
@@ -48,7 +47,7 @@ import org.junit.jupiter.api.Test
 
 class FindClosestBuildFromInputScoringTest {
     private val equipments =
-        this.javaClass.classLoader.getResourceAsStream("equipments-v$VERSION.json")?.readAllBytes()!!.let {
+        this.javaClass.classLoader.getResourceAsStream("equipments.json")?.readAllBytes()!!.let {
             Json.decodeFromString<List<Equipment>>(String(it))
         }
 

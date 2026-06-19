@@ -7,28 +7,20 @@ import me.chosante.common.Spell
 import me.chosante.common.findRepositoryRoot
 import java.io.File
 
-/**
- * Wakfu data version the produced dataset is stamped with. Must match `VERSION` in
- * `autobuilder/.../Main.kt` (the resource is loaded as `spells-v$VERSION.json`). Overridable via the
- * first CLI argument.
- */
-private const val DEFAULT_VERSION = "1.91.1.54"
-
 /** Compact (non-pretty) JSON, reused across runs — a fresh `Json {}` per call is needlessly slow. */
 private val compactJson = Json { prettyPrint = false }
 
 /**
- * Builds `autobuilder/src/main/resources/spells-v<VERSION>.json` by crawling the Ankama encyclopedia
+ * Builds `autobuilder/src/main/resources/spells.json` by crawling the Ankama encyclopedia
  * (`docs/SPELLS_AND_COMBO_RESEARCH.md`). For each of the 18 classes it reads the spell list, then each
  * spell's detail page, parsing element / AP / range / base damage with [SpellScraper]. French names are
  * enriched from the French class pages; es/pt default to the English name.
  *
  * Resumable: pages are cached under `spells-extractor/.cache/`, so a re-run only fetches what is missing.
  *
- * Run with: `./gradlew :spells-extractor:run` (optionally `--args="<version>"`).
+ * Run with: `./gradlew :spells-extractor:run`.
  */
-suspend fun main(args: Array<String>) {
-    val version = args.firstOrNull() ?: DEFAULT_VERSION
+suspend fun main() {
     val repoRoot = findRepositoryRoot()
     val client = EncyclopediaClient(cacheDir = File(repoRoot, "spells-extractor/.cache"))
 
@@ -86,7 +78,7 @@ suspend fun main(args: Array<String>) {
 
     val sorted = allSpells.sortedWith(compareBy({ it.clazz.name }, { it.id }))
     val outputDir = File(repoRoot, "autobuilder/src/main/resources").apply { mkdirs() }
-    val outputFile = File(outputDir, "spells-v$version.json")
+    val outputFile = File(outputDir, "spells.json")
     outputFile.writeText(compactJson.encodeToString(ListSerializer(Spell.serializer()), sorted))
 
     printReport(sorted, classReports, outputFile)

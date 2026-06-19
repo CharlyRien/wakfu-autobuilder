@@ -3,7 +3,6 @@ package me.chosante.autobuilder.genetic.wakfu
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
-import me.chosante.autobuilder.VERSION
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.Orientation
@@ -254,7 +253,7 @@ class WakfuBuildSolverTest {
             val character = Character(clazz = CharacterClass.CRA, level = level, minLevel = level, characterSkills)
 
             val equipments =
-                this.javaClass.classLoader.getResourceAsStream("equipments-v$VERSION.json")?.readAllBytes()!!.let {
+                this.javaClass.classLoader.getResourceAsStream("equipments.json")?.readAllBytes()!!.let {
                     Json.decodeFromString<List<Equipment>>(String(it))
                 }
 
