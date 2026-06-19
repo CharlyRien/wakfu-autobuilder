@@ -68,9 +68,7 @@ import me.chosante.ui.i18n.tr
 import me.chosante.ui.state.Phase
 import me.chosante.ui.state.Screen
 import me.chosante.ui.state.UiState
-import me.chosante.ui.state.formatCompact
 import me.chosante.ui.state.onlyDigits
-import me.chosante.ui.state.requestedMasteryTotal
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WType
 import me.chosante.ui.theme.WTypography
@@ -298,8 +296,7 @@ private fun RowScope.SearchControls(
         // second, always-visible "still working" cue so the app never looks frozen.
         pulsing = ui.phase == Phase.Searching
     )
-    Spacer(modifier = Modifier.width(if (strip) 14.dp else 16.dp))
-    SecondMeter(ui = ui)
+    SecondMeter(ui = ui, strip = strip)
     if (strip) {
         Spacer(modifier = Modifier.weight(1f))
     } else {
@@ -313,16 +310,18 @@ private fun RowScope.SearchControls(
 }
 
 /**
- * The second top meter: precision mode shows an exact "% match" with a bar; most-masteries mode has
- * no exact target, so it shows the cumulated requested mastery total (no bar).
+ * The "% match" top meter — shown **only in precision mode**, where it's an exact 0–100% fit to the
+ * requested targets. Max-damage and most-masteries have no match % (their headline metric — expected
+ * damage / cumulated mastery — is the StatsPanel hero), so the meter, and its leading spacer, are omitted.
  */
 @Composable
-private fun SecondMeter(ui: UiState) {
-    if (ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) {
-        TopMeter(label = tr(Tr.MASTERY_SHORT), value = ui.requestedMasteryTotal().formatCompact(), fill = null, color = WColor.success)
-    } else {
-        TopMeter(label = tr(Tr.MATCH), value = "${ui.match.toInt()}%", fill = ui.match.toFloat() / 100f, color = WColor.success)
-    }
+private fun SecondMeter(
+    ui: UiState,
+    strip: Boolean,
+) {
+    if (ui.mode != ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT) return
+    Spacer(modifier = Modifier.width(if (strip) 14.dp else 16.dp))
+    TopMeter(label = tr(Tr.MATCH), value = "${ui.match.toInt()}%", fill = ui.match.toFloat() / 100f, color = WColor.success)
 }
 
 /** A quiet uppercase section tag ("Request") marking the wrapped search strip — a marker, not a control. */
