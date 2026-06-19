@@ -17,8 +17,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent
 DATA = ROOT / "data"
-VERSION = "1.91.1.54"
-OUT = ROOT.parent.parent / "autobuilder" / "src" / "main" / "resources" / f"sublimations-v{VERSION}.json"
+# Resource files have fixed (version-free) names; the data version lives once in common-lib WakfuData.VERSION.
+OUT = ROOT.parent.parent / "autobuilder" / "src" / "main" / "resources" / "sublimations.json"
 
 
 def load(p):

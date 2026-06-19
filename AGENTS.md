@@ -144,28 +144,35 @@ deliberately not implemented.)
 
 ## 5. Data pipeline
 
-Item data is **not** fetched at runtime by the apps — it is baked in:
+Item data is **not** fetched at runtime by the apps — it is baked into `autobuilder/src/main/resources/`
+as **fixed-name** JSON files (no version in the filename):
 
 1. `equipments-extractor` downloads `items.json`, `equipmentItemTypes.json`, `actions.json`,
-   `recipeCategories.json` from `https://wakfu.cdn.ankama.com/gamedata/:version`.
-2. It writes `autobuilder/src/main/resources/equipments-v<version>.json` (the `Equipment` list).
-3. `WakfuBestBuildFinderAlgorithm` loads that resource via the classpath at startup
-   (`equipments-v$VERSION.json`, where `VERSION` is a const in `autobuilder/Main.kt` — currently
-   `1.91.1.54`).
+   `recipeCategories.json` from `https://wakfu.cdn.ankama.com/gamedata/:version` (auto-detecting the
+   latest version) and writes `equipments.json` (the `Equipment` list).
+2. `spells-extractor` → `spells.json`; `monsters-extractor` → `monsters.json`.
+3. `WakfuBestBuildFinderAlgorithm` / `SpellCatalog` / `PassiveCatalog` load these by fixed name via the
+   classpath at startup (e.g. `equipments.json`).
 4. The GUI's `generateAssets` Gradle task (`gui-compose`) downloads matching item icons from the
    [`Vertylo/wakassets`](https://github.com/Vertylo/wakassets) repo into
    `gui-compose/src/main/resources/assets/items/<guiId>.png`.
-5. `bdata-extractor` decodes the **local game client's** scrambled static-data tables — `Spell` (table
-   66) and `StaticEffect` (table 68) inside `contents/bdata/<id>.jar` — and writes
-   `spell-cast-limits-v<version>.json` and `spell-passives-v<version>.json`. It needs a local Wakfu
-   install (the binaries are **not** on the CDN), so unlike the other extractors it **cannot run in
-   CI** — the JSON it produces stays committed. See `docs/SPELL_CAST_LIMITS_EXTRACTION.md` /
-   `docs/SPELL_PASSIVES_EXTRACTION.md` for the format and the extraction details.
+5. `bdata-extractor` decodes the **local game client's** scrambled static-data tables — `Spell` (66),
+   `StaticEffect` (68), `State` (67) inside `contents/bdata/<id>.jar` — and writes
+   `spell-cast-limits.json`, `spell-passives.json`, and `sublimation-stacking.json` (per-sublimation
+   `max_level` + `is_cumulable`). It needs a local Wakfu install (the binaries are **not** on the CDN),
+   so unlike the other extractors it **cannot run in CI** — the JSON it produces stays committed. See
+   `docs/SPELL_CAST_LIMITS_EXTRACTION.md` / `docs/SPELL_PASSIVES_EXTRACTION.md` for the format.
 
-**Updating to a new Wakfu version** = run the extractor(s), bump `VERSION` in `autobuilder/Main.kt`,
-then run `./gradlew :gui-compose:generateAssets`. The untagged binary layout `bdata-extractor` reads
-can shift between client versions; its per-record size guard fails loudly if a table's field schema
-drifts (re-derive the schema in `Tables.kt` if so).
+**The data version is a single source of truth:** `WakfuData.VERSION` in `common-lib`
+(`common-lib/.../WakfuData.kt`). The apps stamp it as `dataVersion`; the extractors fetch CDN assets for
+it. Fixed filenames mean a bump touches only that constant — no renames, no stale `*-v<old>.json`.
+
+**Updating to a new Wakfu version** = update the local game client, then run
+`./scripts/update-game-data.sh [wakfu-install]` (auto-detects the version, bumps `WakfuData.VERSION`,
+regenerates every artifact in order, then prompts to review + test + commit). See `CONTRIBUTING.md`
+"Updating the game data". The untagged binary layout `bdata-extractor` reads can shift between client
+versions; its per-record size guard fails loudly if a table's field schema drifts (re-derive the schema
+in `Tables.kt` if so).
 
 ---
 

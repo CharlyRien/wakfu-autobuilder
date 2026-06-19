@@ -170,10 +170,8 @@ tasks.register("generateAssets") {
         @Suppress("UNCHECKED_CAST")
         val guiIdsFromCurrentEquipmentJson =
             rootProject.projectDir
-                .resolve("autobuilder/src/main/resources")
-                .listFiles()
-                ?.filter { it.extension == "json" }
-                ?.minByOrNull { it.nameWithoutExtension }
+                .resolve("autobuilder/src/main/resources/equipments.json")
+                .takeIf { it.isFile }
                 ?.let {
                     val items = groovy.json.JsonSlurper().parseText(it.readText()) as List<Map<String, Any>>
                     items.map { item -> (item["guiId"] as Int).toString() }.toSet()
@@ -186,30 +184,26 @@ tasks.register("generateAssets") {
         val autobuilderResources = rootProject.projectDir.resolve("autobuilder/src/main/resources")
 
         @Suppress("UNCHECKED_CAST")
-        fun readResourceJson(prefix: String): List<Map<String, Any>> {
-            val file =
-                autobuilderResources
-                    .listFiles()
-                    ?.filter { it.extension == "json" && it.name.startsWith(prefix) }
-                    ?.maxByOrNull { it.nameWithoutExtension }
-                    ?: error("generateAssets: no '$prefix*.json' under $autobuilderResources — run the extractor first?")
+        fun readResourceJson(name: String): List<Map<String, Any>> {
+            val file = autobuilderResources.resolve("$name.json")
+            if (!file.isFile) error("generateAssets: missing ${file.name} under $autobuilderResources — run the extractor first?")
             return groovy.json.JsonSlurper().parseText(file.readText()) as List<Map<String, Any>>
         }
 
         val spellIconIds =
-            readResourceJson("spells-v").mapNotNull { (it["iconId"] as? Number)?.toInt()?.toString() }.toSet()
+            readResourceJson("spells").mapNotNull { (it["iconId"] as? Number)?.toInt()?.toString() }.toSet()
         // Passive icons are spell sprites too — keyed by the passive's gfxId — and live in the same
         // wakassets `spells/` dir, so they are unioned into the spells filter below (the GUI renders the
         // chosen passives with their own icon). `states/` still covers the buff/state icons separately.
         val passiveGfxIds =
-            readResourceJson("spell-passives-v").mapNotNull { (it["gfxId"] as? Number)?.toInt()?.toString() }.toSet()
+            readResourceJson("spell-passives").mapNotNull { (it["gfxId"] as? Number)?.toInt()?.toString() }.toSet()
         val passiveStateIds =
-            readResourceJson("spell-passives-v")
+            readResourceJson("spell-passives")
                 .flatMap { entry -> (entry["appliedStateIds"] as? List<*> ?: emptyList<Any>()).map { (it as Number).toInt().toString() } }
                 .toSet()
         // gfx (sprite) ids referenced by the current bestiary JSON → the monster icons the boss picker needs.
         val monsterGfxIds =
-            readResourceJson("monsters-v").mapNotNull { (it["gfx"] as? Number)?.toInt()?.toString() }.toSet()
+            readResourceJson("monsters").mapNotNull { (it["gfx"] as? Number)?.toInt()?.toString() }.toSet()
 
         // download + unzip the wakassets repository into a temp directory
         val destinationFile = createTempFile("wakassets", ".zip").toFile()

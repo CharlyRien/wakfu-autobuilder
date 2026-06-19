@@ -1,7 +1,6 @@
 package me.chosante.autobuilder.domain
 
 import me.chosante.autobuilder.EmbeddedResources
-import me.chosante.autobuilder.VERSION
 import me.chosante.common.CharacterClass
 import me.chosante.common.Spell
 import me.chosante.common.SpellCastLimit
@@ -20,14 +19,14 @@ import me.chosante.common.SpellElement
  */
 object SpellCatalog {
     val spells: List<Spell> by lazy {
-        val base = EmbeddedResources.decodeList<Spell>("spells-v$VERSION.json") ?: emptyList()
+        val base = EmbeddedResources.decodeList<Spell>("spells.json") ?: emptyList()
         // Join the baked per-spell cast limits (produced by bdata-extractor, see
         // docs/SPELL_CAST_LIMITS_EXTRACTION.md) onto each spell by id. The binary id space == the
         // encyclopedia id space, so the join is direct; a spell with no matching record keeps its null
         // (unbounded) limits, which the rotation optimizer treats as "no cap" — safe by construction.
         val castLimitsBySpellId =
             EmbeddedResources
-                .decodeList<SpellCastLimit>("spell-cast-limits-v$VERSION.json")
+                .decodeList<SpellCastLimit>("spell-cast-limits.json")
                 .orEmpty()
                 .associateBy { it.spellId }
         base.map { spell ->

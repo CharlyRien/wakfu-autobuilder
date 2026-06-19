@@ -6,23 +6,14 @@ import me.chosante.common.Monster
 import java.io.File
 
 /**
- * Wakfu data version the produced dataset is stamped with. Must match `VERSION` in
- * `autobuilder/.../Main.kt` (the resource is loaded as `monsters-v$VERSION.json`). Overridable via the
- * first CLI argument so a data bump can regenerate without editing code.
- */
-private const val DEFAULT_VERSION = "1.91.1.54"
-
-/**
- * Builds `autobuilder/src/main/resources/monsters-v<VERSION>.json` from the MethodWakfu bestiary
+ * Builds `autobuilder/src/main/resources/monsters.json` from the MethodWakfu bestiary
  * (primary, flat resistances), cross-referenced against the Fandom `MonsterCard` template for
  * provenance and used as a **fallback** to recover monsters MethodWakfu cannot serve (its detail
  * endpoint HTTP 500s on some endgame bosses).
  *
- * Run with: `./gradlew :monsters-extractor:run` (optionally `--args="<version>"`).
+ * Run with: `./gradlew :monsters-extractor:run`.
  */
-suspend fun main(args: Array<String>) {
-    val version = args.firstOrNull() ?: DEFAULT_VERSION
-
+suspend fun main() {
     println("Fetching MethodWakfu bestiary…")
     val fetch = MethodWakfuBestiary.fetchAll()
     println("Fetched ${fetch.monsters.size} monsters (${fetch.failed.size} unreachable on MethodWakfu).")
@@ -62,7 +53,7 @@ suspend fun main(args: Array<String>) {
             .sortedWith(compareByDescending<Monster> { it.rank }.thenByDescending { it.level }.thenBy { it.name.en })
 
     val outputDirectory = File(findRepositoryRoot(), "autobuilder/src/main/resources").apply { mkdirs() }
-    val outputFile = File(outputDirectory, "monsters-v$version.json")
+    val outputFile = File(outputDirectory, "monsters.json")
     outputFile.writeText(Json.encodeToString(ListSerializer(Monster.serializer()), all))
 
     printReport(all, recovered, stillMissing, fandomTitles, outputFile)
