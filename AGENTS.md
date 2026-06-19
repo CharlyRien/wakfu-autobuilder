@@ -160,8 +160,17 @@ as **fixed-name** JSON files (no version in the filename):
    `StaticEffect` (68), `State` (67), `Monster` (42) inside `contents/bdata/<id>.jar`, plus the
    `contents/i18n/i18n_<lang>.jar` name bundles — and writes `spell-cast-limits.json`,
    `spell-passives.json`, `sublimation-stacking.json` (per-sublimation `max_level` + `is_cumulable`),
-   **`sublimations.json`**, and **`monsters.json`** (boss-mode data: level/HP/flat elemental resistances +
-   localized name/family + icon `gfx`, replacing the old third-party MethodWakfu/Fandom scrape).
+   **`sublimations.json`**, **`spell-damage.json`**, and **`monsters.json`** (boss-mode data: level/HP/flat
+   elemental resistances + localized name/family + icon `gfx`, replacing the old third-party MethodWakfu/Fandom
+   scrape).
+   **Spells stay on the encyclopedia** (`spells-extractor` → `spells.json`: name/element/AP/range/icon + the
+   *max-level* base hit) because the spell-damage *renderer* is client-only — no decoder reproduces it, and
+   every community tool (WakForge, Zenith) also uses Ankama's rendered output. But `bdata-extractor` adds the
+   piece the encyclopedia lacks: **`spell-damage.json`**, the per-level damage formula `floor(base + inc·level)`
+   from Spell (66) → StaticEffect (68), *anchored* on the encyclopedia value (the bdata effect whose value at
+   max level equals it). `SpellCatalog` joins it so `SpellDamage` scales each hit to the **caster's level**
+   instead of always showing max-level damage (`SpellDamageScalingBuilder`; ~86% get the exact bdata slope, the
+   rest a linear approximation through the known max-level value — never a regression at max level).
    **Sublimations** are now fully first-party too: identity/name/rarity/slot-colours from the CDN `items.json`
    (`itemTypeId` 812, `actionId` 304 → `params[0]` = `stateId`); effects, build-static condition, scenario
    gates and max level decoded from the State (67) → StaticEffect (68) tables via a small sublimation-local

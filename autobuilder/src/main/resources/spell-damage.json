@@ -1,0 +1,2603 @@
+[
+  {
+    "spellId": 623,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 625,
+    "base": 6.0,
+    "inc": 0.7200000286102295,
+    "critBase": 7.75,
+    "critInc": 0.8999999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 630,
+    "base": 5.0,
+    "inc": 0.6000000238418579,
+    "critBase": 6.25,
+    "critInc": 0.75,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 636,
+    "base": 5.0,
+    "inc": 0.6499999761581421,
+    "critBase": 6.25,
+    "critInc": 0.8125,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 645,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 749,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 750,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 751,
+    "base": 4.0,
+    "inc": 0.5199999809265137,
+    "critBase": 5.0,
+    "critInc": 0.6499999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 752,
+    "base": 3.5,
+    "inc": 0.38499999046325684,
+    "critBase": 4.375,
+    "critInc": 0.48124998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 753,
+    "base": 3.0,
+    "inc": 0.41999998688697815,
+    "critBase": 3.75,
+    "critInc": 0.5249999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 754,
+    "base": 4.0,
+    "inc": 0.4399999976158142,
+    "critBase": 5.0,
+    "critInc": 0.550000011920929,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 763,
+    "base": 0.0,
+    "inc": 0.7428571428571429,
+    "critBase": 0.0,
+    "critInc": 0.9306122448979591,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 765,
+    "base": 3.0,
+    "inc": 0.30000001192092896,
+    "critBase": 3.75,
+    "critInc": 0.375,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 766,
+    "base": 0.0,
+    "inc": 0.10204081632653061,
+    "critBase": 0.0,
+    "critInc": 0.10204081632653061,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 767,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 771,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 772,
+    "base": 3.0,
+    "inc": 0.30000001192092896,
+    "critBase": 3.75,
+    "critInc": 0.375,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 775,
+    "base": 1.0,
+    "inc": 0.14000000059604645,
+    "critBase": 1.25,
+    "critInc": 0.17499999701976776,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 779,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 780,
+    "base": 3.0,
+    "inc": 0.30000001192092896,
+    "critBase": 3.75,
+    "critInc": 0.375,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 783,
+    "base": 0.0,
+    "inc": 0.49387755102040815,
+    "critBase": 0.0,
+    "critInc": 0.6204081632653061,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 918,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 919,
+    "base": 0.0,
+    "inc": 0.12244897959183673,
+    "critBase": 0.0,
+    "critInc": 0.12244897959183673,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 921,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 922,
+    "base": 6.0,
+    "inc": 0.7200000286102295,
+    "critBase": 0.0,
+    "critInc": 0.9306122448979591,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 925,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 927,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 928,
+    "base": 4.0,
+    "inc": 0.4399999976158142,
+    "critBase": 5.0,
+    "critInc": 0.550000011920929,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 929,
+    "base": 4.0,
+    "inc": 0.5199999809265137,
+    "critBase": 5.0,
+    "critInc": 0.6499999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 930,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 931,
+    "base": 4.0,
+    "inc": 0.4000000059604645,
+    "critBase": 5.0,
+    "critInc": 0.5,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 932,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 933,
+    "base": 0.0,
+    "inc": 0.11020408163265306,
+    "critBase": 0.0,
+    "critInc": 0.11020408163265306,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 934,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 935,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 937,
+    "base": 6.0,
+    "inc": 0.6600000262260437,
+    "critBase": 7.5,
+    "critInc": 0.824999988079071,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 938,
+    "base": 2.0,
+    "inc": 0.20000000298023224,
+    "critBase": 2.5,
+    "critInc": 0.25,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 1417,
+    "base": 4.0,
+    "inc": 0.4000000059604645,
+    "critBase": 5.0,
+    "critInc": 0.5,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 1418,
+    "base": 4.0,
+    "inc": 0.4000000059604645,
+    "critBase": 5.0,
+    "critInc": 0.5,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 1532,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 1533,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 1534,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 1540,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 1541,
+    "base": 5.0,
+    "inc": 0.6499999761581421,
+    "critBase": 6.25,
+    "critInc": 0.8125,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 1542,
+    "base": 4.0,
+    "inc": 0.4000000059604645,
+    "critBase": 5.0,
+    "critInc": 0.5,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2008,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2010,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2011,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2012,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2013,
+    "base": 6.0,
+    "inc": 0.6600000262260437,
+    "critBase": 7.5,
+    "critInc": 0.824999988079071,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2014,
+    "base": 3.0,
+    "inc": 0.41999998688697815,
+    "critBase": 3.75,
+    "critInc": 0.5249999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2015,
+    "base": 2.0,
+    "inc": 0.2199999988079071,
+    "critBase": 2.5,
+    "critInc": 0.2750000059604645,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2016,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2017,
+    "base": 7.0,
+    "inc": 0.8399999737739563,
+    "critBase": 0.0,
+    "critInc": 1.0857142857142856,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2018,
+    "base": 4.0,
+    "inc": 0.4399999976158142,
+    "critBase": 5.0,
+    "critInc": 0.550000011920929,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2019,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2021,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2022,
+    "base": 6.0,
+    "inc": 0.6600000262260437,
+    "critBase": 7.5,
+    "critInc": 0.824999988079071,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2032,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2037,
+    "base": 4.0,
+    "inc": 0.4399999976158142,
+    "critBase": 5.0,
+    "critInc": 0.550000011920929,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2041,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2042,
+    "base": 7.0,
+    "inc": 0.9800000190734863,
+    "critBase": 8.75,
+    "critInc": 1.225000023841858,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2043,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2044,
+    "base": 0.0,
+    "inc": 0.5673469387755102,
+    "critBase": 0.0,
+    "critInc": 0.710204081632653,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 2045,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2046,
+    "base": 6.0,
+    "inc": 0.7799999713897705,
+    "critBase": 7.5,
+    "critInc": 0.9750000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2047,
+    "base": 1.0,
+    "inc": 0.07500000298023224,
+    "critBase": 1.25,
+    "critInc": 0.09375,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2048,
+    "base": 0.0,
+    "inc": 0.5673469387755102,
+    "critBase": 0.0,
+    "critInc": 0.710204081632653,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 2049,
+    "base": 5.0,
+    "inc": 0.6499999761581421,
+    "critBase": 6.25,
+    "critInc": 0.8125,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2050,
+    "base": 0.0,
+    "inc": 0.20816326530612245,
+    "critBase": 0.0,
+    "critInc": 0.2571428571428571,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 2061,
+    "base": 0.0,
+    "inc": 0.3020408163265306,
+    "critBase": 0.0,
+    "critInc": 0.3795918367346939,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 2065,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2066,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2067,
+    "base": 0.0,
+    "inc": 0.4530612244897959,
+    "critBase": 0.0,
+    "critInc": 0.5673469387755102,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 2072,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 2073,
+    "base": 4.0,
+    "inc": 0.5600000023841858,
+    "critBase": 5.0,
+    "critInc": 0.699999988079071,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4579,
+    "base": 0.0,
+    "inc": 0.24489795918367346,
+    "critBase": 0.0,
+    "critInc": 0.31020408163265306,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 4581,
+    "base": 0.0,
+    "inc": 0.7183673469387755,
+    "critBase": 0.0,
+    "critInc": 0.8979591836734694,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 4583,
+    "base": 0.0,
+    "inc": 0.5346938775510204,
+    "critBase": 0.0,
+    "critInc": 0.6693877551020408,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 4584,
+    "base": 0.0,
+    "inc": 0.24489795918367346,
+    "critBase": 0.0,
+    "critInc": 0.31020408163265306,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 4585,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4586,
+    "base": 6.0,
+    "inc": 0.8399999737739563,
+    "critBase": 7.5,
+    "critInc": 1.0499999523162842,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4587,
+    "base": 0.0,
+    "inc": 0.37142857142857144,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 4588,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4589,
+    "base": 0.0,
+    "inc": 0.5755102040816327,
+    "critBase": 0.0,
+    "critInc": 0.7183673469387755,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 4590,
+    "base": 0.0,
+    "inc": 0.2653061224489796,
+    "critBase": 0.0,
+    "critInc": 0.3346938775510204,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 4592,
+    "base": 0.0,
+    "inc": 0.5346938775510204,
+    "critBase": 0.0,
+    "critInc": 0.6693877551020408,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 4593,
+    "base": 0.0,
+    "inc": 0.4,
+    "critBase": 0.0,
+    "critInc": 0.5020408163265306,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 4594,
+    "base": 0.0,
+    "inc": 0.5346938775510204,
+    "critBase": 0.0,
+    "critInc": 0.6693877551020408,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 4595,
+    "base": 0.0,
+    "inc": 0.4,
+    "critBase": 0.0,
+    "critInc": 0.5020408163265306,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 4596,
+    "base": 0.0,
+    "inc": 0.33877551020408164,
+    "critBase": 0.0,
+    "critInc": 0.42448979591836733,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 4668,
+    "base": 4.0,
+    "inc": 0.4399999976158142,
+    "critBase": 5.0,
+    "critInc": 0.550000011920929,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4669,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4670,
+    "base": 4.0,
+    "inc": 0.4399999976158142,
+    "critBase": 5.0,
+    "critInc": 0.550000011920929,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4671,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4680,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4685,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4691,
+    "base": 4.0,
+    "inc": 0.5199999809265137,
+    "critBase": 5.0,
+    "critInc": 0.6499999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4692,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4693,
+    "base": 3.0,
+    "inc": 0.41999998688697815,
+    "critBase": 3.75,
+    "critInc": 0.5249999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4694,
+    "base": 7.0,
+    "inc": 0.7699999809265137,
+    "critBase": 8.75,
+    "critInc": 0.9624999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4695,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4697,
+    "base": 4.0,
+    "inc": 0.4000000059604645,
+    "critBase": 5.0,
+    "critInc": 0.5,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4698,
+    "base": 2.0,
+    "inc": 0.30000001192092896,
+    "critBase": 2.5,
+    "critInc": 0.375,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4699,
+    "base": 3.0,
+    "inc": 0.41999998688697815,
+    "critBase": 3.75,
+    "critInc": 0.5249999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4700,
+    "base": 5.0,
+    "inc": 0.6499999761581421,
+    "critBase": 6.25,
+    "critInc": 0.8125,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4701,
+    "base": 5.0,
+    "inc": 0.699999988079071,
+    "critBase": 6.25,
+    "critInc": 0.875,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4702,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4703,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4704,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4705,
+    "base": 4.0,
+    "inc": 0.4399999976158142,
+    "critBase": 5.0,
+    "critInc": 0.550000011920929,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4706,
+    "base": 5.0,
+    "inc": 0.5249999761581421,
+    "critBase": 6.25,
+    "critInc": 0.65625,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4707,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4708,
+    "base": 4.0,
+    "inc": 0.5199999809265137,
+    "critBase": 5.0,
+    "critInc": 0.6499999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4710,
+    "base": 8.0,
+    "inc": 1.0399999618530273,
+    "critBase": 10.0,
+    "critInc": 1.2999999523162842,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4711,
+    "base": 5.0,
+    "inc": 0.550000011920929,
+    "critBase": 6.25,
+    "critInc": 0.6875,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4712,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4713,
+    "base": 4.0,
+    "inc": 0.5199999809265137,
+    "critBase": 5.0,
+    "critInc": 0.6499999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4714,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4715,
+    "base": 4.0,
+    "inc": 0.4399999976158142,
+    "critBase": 5.0,
+    "critInc": 0.550000011920929,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4716,
+    "base": 7.0,
+    "inc": 0.699999988079071,
+    "critBase": 8.75,
+    "critInc": 0.875,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4769,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4775,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4776,
+    "base": 1.0,
+    "inc": 0.11999999731779099,
+    "critBase": 1.25,
+    "critInc": 0.15000000596046448,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4777,
+    "base": 4.0,
+    "inc": 0.5600000023841858,
+    "critBase": 5.0,
+    "critInc": 0.699999988079071,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4778,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4779,
+    "base": 6.0,
+    "inc": 0.7200000286102295,
+    "critBase": 0.0,
+    "critInc": 0.9306122448979591,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4780,
+    "base": 2.0,
+    "inc": 0.2800000011920929,
+    "critBase": 2.5,
+    "critInc": 0.3499999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4781,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4782,
+    "base": 2.0,
+    "inc": 0.2199999988079071,
+    "critBase": 2.5,
+    "critInc": 0.2750000059604645,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4783,
+    "base": 1.0,
+    "inc": 0.11999999731779099,
+    "critBase": 1.25,
+    "critInc": 0.15000000596046448,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4784,
+    "base": 5.0,
+    "inc": 0.6499999761581421,
+    "critBase": 6.25,
+    "critInc": 0.8125,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4785,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4786,
+    "base": 1.0,
+    "inc": 0.12999999523162842,
+    "critBase": 1.25,
+    "critInc": 0.16249999403953552,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4787,
+    "base": 0.0,
+    "inc": 0.2653061224489796,
+    "critBase": 0.0,
+    "critInc": 0.3346938775510204,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 4788,
+    "base": 6.0,
+    "inc": 0.7799999713897705,
+    "critBase": 8.0,
+    "critInc": 0.9750000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4789,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4792,
+    "base": 0.0,
+    "inc": 0.33877551020408164,
+    "critBase": 0.0,
+    "critInc": 0.33877551020408164,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 4809,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4810,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4811,
+    "base": 4.0,
+    "inc": 0.4399999976158142,
+    "critBase": 5.0,
+    "critInc": 0.550000011920929,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4812,
+    "base": 6.0,
+    "inc": 0.7200000286102295,
+    "critBase": 0.0,
+    "critInc": 0.9306122448979591,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4813,
+    "base": 2.0,
+    "inc": 0.2199999988079071,
+    "critBase": 2.5,
+    "critInc": 0.2750000059604645,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4814,
+    "base": 9.0,
+    "inc": 1.1699999570846558,
+    "critBase": 11.25,
+    "critInc": 1.462499976158142,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4815,
+    "base": 0.0,
+    "inc": 0.5673469387755102,
+    "critBase": 0.0,
+    "critInc": 0.710204081632653,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 4816,
+    "base": 3.0,
+    "inc": 0.30000001192092896,
+    "critBase": 3.75,
+    "critInc": 0.375,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4817,
+    "base": 4.0,
+    "inc": 0.5600000023841858,
+    "critBase": 5.0,
+    "critInc": 0.699999988079071,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4818,
+    "base": 3.0,
+    "inc": 0.41999998688697815,
+    "critBase": 3.75,
+    "critInc": 0.5249999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4819,
+    "base": 5.0,
+    "inc": 0.550000011920929,
+    "critBase": 6.25,
+    "critInc": 0.6875,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4820,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4821,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4822,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5028,
+    "base": 3.0,
+    "inc": 0.47999998927116394,
+    "critBase": 3.75,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5029,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5030,
+    "base": 2.0,
+    "inc": 0.2800000011920929,
+    "critBase": 2.5,
+    "critInc": 0.3499999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5031,
+    "base": 5.0,
+    "inc": 0.6499999761581421,
+    "critBase": 6.25,
+    "critInc": 0.8125,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5032,
+    "base": 6.0,
+    "inc": 0.7799999713897705,
+    "critBase": 7.5,
+    "critInc": 0.9750000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5033,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5034,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5035,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5036,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5037,
+    "base": 5.0,
+    "inc": 0.6499999761581421,
+    "critBase": 6.25,
+    "critInc": 0.8125,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5038,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5039,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5040,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5041,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5042,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5122,
+    "base": 0.0,
+    "inc": 0.37142857142857144,
+    "critBase": 0.0,
+    "critInc": 0.37142857142857144,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 5123,
+    "base": 0.0,
+    "inc": 0.004081632653061225,
+    "critBase": 0.0,
+    "critInc": 0.004081632653061225,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 5194,
+    "base": 0.0,
+    "inc": 0.004081632653061225,
+    "critBase": 0.0,
+    "critInc": 0.004081632653061225,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 5561,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5562,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.0,
+    "critInc": 0.32499998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5563,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5564,
+    "base": 2.0,
+    "inc": 0.2199999988079071,
+    "critBase": 2.5,
+    "critInc": 0.2750000059604645,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5565,
+    "base": 2.0,
+    "inc": 0.2800000011920929,
+    "critBase": 2.5,
+    "critInc": 0.3499999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5566,
+    "base": 2.0,
+    "inc": 0.2800000011920929,
+    "critBase": 2.5,
+    "critInc": 0.3499999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5567,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5568,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5569,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5570,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5571,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5572,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5590,
+    "base": 2.5,
+    "inc": 0.25,
+    "critBase": 3.125,
+    "critInc": 0.3125,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5591,
+    "base": 4.0,
+    "inc": 0.5199999809265137,
+    "critBase": 5.0,
+    "critInc": 0.6499999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5592,
+    "base": 0.0,
+    "inc": 0.4,
+    "critBase": 0.0,
+    "critInc": 0.5020408163265306,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 5593,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5594,
+    "base": 9.0,
+    "inc": 1.2599999904632568,
+    "critBase": 11.25,
+    "critInc": 1.5625,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5595,
+    "base": 2.0,
+    "inc": 0.20000000298023224,
+    "critBase": 2.5,
+    "critInc": 0.25,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5596,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 5597,
+    "base": 4.0,
+    "inc": 0.5199999809265137,
+    "critBase": 5.0,
+    "critInc": 0.6499999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6256,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6257,
+    "base": 5.0,
+    "inc": 0.6000000238418579,
+    "critBase": 6.25,
+    "critInc": 0.75,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6258,
+    "base": 2.0,
+    "inc": 0.2800000011920929,
+    "critBase": 2.5,
+    "critInc": 0.3499999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6259,
+    "base": 5.0,
+    "inc": 0.75,
+    "critBase": 6.25,
+    "critInc": 0.9375,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6260,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6261,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6262,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6263,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6264,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6265,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6266,
+    "base": 4.0,
+    "inc": 0.5199999809265137,
+    "critBase": 5.0,
+    "critInc": 0.6499999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6267,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6268,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6269,
+    "base": 1.0,
+    "inc": 0.14000000059604645,
+    "critBase": 1.25,
+    "critInc": 0.17499999701976776,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6270,
+    "base": 5.0,
+    "inc": 0.6000000238418579,
+    "critBase": 6.25,
+    "critInc": 0.75,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6279,
+    "base": 0.0,
+    "inc": 0.00816326530612245,
+    "critBase": 0.0,
+    "critInc": 0.00816326530612245,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 6282,
+    "base": 0.0,
+    "inc": 0.0,
+    "critBase": 0.0,
+    "critInc": 0.0,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 6287,
+    "base": 0.0,
+    "inc": 0.31020408163265306,
+    "critBase": 0.0,
+    "critInc": 0.31020408163265306,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 6463,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6464,
+    "base": 0.0,
+    "inc": 0.4530612244897959,
+    "critBase": 0.0,
+    "critInc": 0.5673469387755102,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 6465,
+    "base": 4.0,
+    "inc": 0.5199999809265137,
+    "critBase": 5.0,
+    "critInc": 0.6499999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6466,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6467,
+    "base": 4.0,
+    "inc": 0.5199999809265137,
+    "critBase": 5.0,
+    "critInc": 0.6499999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6468,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6469,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6470,
+    "base": 5.0,
+    "inc": 0.6499999761581421,
+    "critBase": 6.25,
+    "critInc": 0.8125,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6471,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6472,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6473,
+    "base": 2.0,
+    "inc": 0.2199999988079071,
+    "critBase": 2.5,
+    "critInc": 0.2750000059604645,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6474,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6475,
+    "base": 5.0,
+    "inc": 0.5,
+    "critBase": 6.25,
+    "critInc": 0.625,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6476,
+    "base": 4.0,
+    "inc": 0.5199999809265137,
+    "critBase": 5.0,
+    "critInc": 0.6499999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6478,
+    "base": 6.0,
+    "inc": 0.7799999713897705,
+    "critBase": 7.5,
+    "critInc": 0.9750000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6491,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.37142857142857144,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6902,
+    "base": 2.0,
+    "inc": 0.2199999988079071,
+    "critBase": 2.5,
+    "critInc": 0.2750000059604645,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6903,
+    "base": 4.0,
+    "inc": 0.5199999809265137,
+    "critBase": 5.0,
+    "critInc": 0.6499999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6904,
+    "base": 5.0,
+    "inc": 0.6499999761581421,
+    "critBase": 6.25,
+    "critInc": 0.8125,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6905,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6906,
+    "base": 0.0,
+    "inc": 0.6693877551020408,
+    "critBase": 0.0,
+    "critInc": 0.8367346938775511,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 6907,
+    "base": 2.0,
+    "inc": 0.2199999988079071,
+    "critBase": 2.5,
+    "critInc": 0.2750000059604645,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6908,
+    "base": 4.0,
+    "inc": 0.4399999976158142,
+    "critBase": 5.0,
+    "critInc": 0.550000011920929,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6909,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6910,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6911,
+    "base": 4.0,
+    "inc": 0.5600000023841858,
+    "critBase": 5.0,
+    "critInc": 0.699999988079071,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6912,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6913,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6914,
+    "base": 2.0,
+    "inc": 0.2199999988079071,
+    "critBase": 2.5,
+    "critInc": 0.2750000059604645,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6915,
+    "base": 4.0,
+    "inc": 0.4399999976158142,
+    "critBase": 5.0,
+    "critInc": 0.550000011920929,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6916,
+    "base": 0.0,
+    "inc": 0.8612244897959184,
+    "critBase": 0.0,
+    "critInc": 1.0775510204081633,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 6918,
+    "base": 6.0,
+    "inc": 0.6000000238418579,
+    "critBase": 7.5,
+    "critInc": 0.75,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6937,
+    "base": 0.0,
+    "inc": 0.06938775510204082,
+    "critBase": 0.0,
+    "critInc": 0.06938775510204082,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 6940,
+    "base": 0.0,
+    "inc": 0.49387755102040815,
+    "critBase": 0.0,
+    "critInc": 0.49387755102040815,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 6967,
+    "base": 5.0,
+    "inc": 0.699999988079071,
+    "critBase": 6.25,
+    "critInc": 0.875,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6968,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6969,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6970,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6971,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6972,
+    "base": 2.0,
+    "inc": 0.2199999988079071,
+    "critBase": 2.5,
+    "critInc": 0.2750000059604645,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6974,
+    "base": 3.0,
+    "inc": 0.30000001192092896,
+    "critBase": 3.75,
+    "critInc": 0.375,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6975,
+    "base": 3.0,
+    "inc": 0.41999998688697815,
+    "critBase": 3.75,
+    "critInc": 0.5249999761581421,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6976,
+    "base": 2.0,
+    "inc": 0.23999999463558197,
+    "critBase": 2.5,
+    "critInc": 0.30000001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6977,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6978,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6979,
+    "base": 2.0,
+    "inc": 0.30000001192092896,
+    "critBase": 2.5,
+    "critInc": 0.375,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6980,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 6981,
+    "base": 5.0,
+    "inc": 0.6000000238418579,
+    "critBase": 6.25,
+    "critInc": 0.75,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7066,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7067,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7068,
+    "base": 0.0,
+    "inc": 0.5346938775510204,
+    "critBase": 0.0,
+    "critInc": 0.6693877551020408,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 7069,
+    "base": 5.0,
+    "inc": 0.699999988079071,
+    "critBase": 6.25,
+    "critInc": 0.875,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7070,
+    "base": 6.0,
+    "inc": 0.6000000238418579,
+    "critBase": 7.5,
+    "critInc": 0.75,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7071,
+    "base": 2.0,
+    "inc": 0.2800000011920929,
+    "critBase": 2.5,
+    "critInc": 0.3499999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7073,
+    "base": 3.0,
+    "inc": 0.30000001192092896,
+    "critBase": 3.75,
+    "critInc": 0.375,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7074,
+    "base": 5.0,
+    "inc": 0.550000011920929,
+    "critBase": 6.25,
+    "critInc": 0.6875,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7075,
+    "base": 6.0,
+    "inc": 0.7799999713897705,
+    "critBase": 7.5,
+    "critInc": 0.9750000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7076,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7077,
+    "base": 1.0,
+    "inc": 0.11999999731779099,
+    "critBase": 1.25,
+    "critInc": 0.15000000596046448,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7078,
+    "base": 2.0,
+    "inc": 0.20000000298023224,
+    "critBase": 2.5,
+    "critInc": 0.25,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7079,
+    "base": 2.0,
+    "inc": 0.20000000298023224,
+    "critBase": 2.5,
+    "critInc": 0.25,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7080,
+    "base": 0.0,
+    "inc": 0.4,
+    "critBase": 0.0,
+    "critInc": 0.5020408163265306,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 7095,
+    "base": 1.0,
+    "inc": 0.05000000074505806,
+    "critBase": 0.0,
+    "critInc": 0.053061224489795916,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7187,
+    "base": 0.0,
+    "inc": 0.1306122448979592,
+    "critBase": 0.0,
+    "critInc": 0.1306122448979592,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 7195,
+    "base": 0.0,
+    "inc": 0.024489795918367346,
+    "critBase": 0.0,
+    "critInc": 0.024489795918367346,
+    "levelCap": 245,
+    "matched": false
+  },
+  {
+    "spellId": 7211,
+    "base": 10.0,
+    "inc": 0.0,
+    "critBase": 0.0,
+    "critInc": 0.04081632653061224,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7307,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7308,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7309,
+    "base": 4.0,
+    "inc": 0.4399999976158142,
+    "critBase": 5.0,
+    "critInc": 0.550000011920929,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7310,
+    "base": 4.0,
+    "inc": 0.3799999952316284,
+    "critBase": 5.0,
+    "critInc": 0.4749999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7311,
+    "base": 5.0,
+    "inc": 0.6499999761581421,
+    "critBase": 6.25,
+    "critInc": 0.8125,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7312,
+    "base": 5.0,
+    "inc": 0.6000000238418579,
+    "critBase": 6.25,
+    "critInc": 0.75,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7313,
+    "base": 2.0,
+    "inc": 0.23000000417232513,
+    "critBase": 2.5,
+    "critInc": 0.2874999940395355,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7314,
+    "base": 5.0,
+    "inc": 0.7749999761581421,
+    "critBase": 6.25,
+    "critInc": 0.96875,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7315,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7316,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7317,
+    "base": 4.0,
+    "inc": 0.5400000214576721,
+    "critBase": 5.0,
+    "critInc": 0.675000011920929,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7318,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7319,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7320,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 7321,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
+    "levelCap": 245,
+    "matched": true
+  }
+]

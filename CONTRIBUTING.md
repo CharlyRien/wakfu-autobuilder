@@ -48,8 +48,8 @@ The apps do **not** fetch game data at runtime — it is baked into `autobuilder
 | File | Produced by | Source |
 |---|---|---|
 | `equipments.json` | `equipments-extractor` | Ankama CDN (`gamedata/<version>`) |
-| `spells.json` | `spells-extractor` | Ankama encyclopedia (scraped) |
-| `monsters.json`, `spell-cast-limits.json`, `spell-passives.json`, `sublimation-stacking.json` | `bdata-extractor` | the **local game client's** scrambled binaries (+ i18n names) |
+| `spells.json` | `spells-extractor` | Ankama encyclopedia (scraped) — name/element/AP/range/icon + the max-level base hit |
+| `monsters.json`, `spell-cast-limits.json`, `spell-passives.json`, `sublimation-stacking.json`, `spell-damage.json` | `bdata-extractor` | the **local game client's** scrambled binaries (+ i18n names) |
 | `monster-overlay.json` | *(committed overlay — boss-tier `rank` by monster id; the one editorial fact not in any client table. Everything else, incl. `gfx`, is decoded from bdata.)* | — |
 | `sublimations.json` | `bdata-extractor` | effects/condition/max-level decoded from the local State (67) → StaticEffect (68) tables; identity/name/rarity/colours from the CDN `items.json` (itemTypeId 812) |
 | `runes.json` | *(currently hand-maintained — no committed extractor)* | — |
