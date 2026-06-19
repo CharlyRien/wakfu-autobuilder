@@ -381,6 +381,7 @@ class BuildSearchModelE2ETest {
                 zenithBuilder = { "" },
                 mainDispatcher = Dispatchers.Unconfined,
                 historyRepository = repo,
+                libraryPreferences = LibraryPreferences(null),
                 idGenerator = { "copy-${nextId++}" },
                 clock = { 9_000L }
             )
@@ -474,6 +475,7 @@ class BuildSearchModelE2ETest {
             copyToClipboard = copyToClipboard,
             mainDispatcher = Dispatchers.Unconfined,
             ioDispatcher = Dispatchers.Unconfined,
+            libraryPreferences = LibraryPreferences(null),
             historyRepository =
                 HistoryRepository(
                     baseDir = Files.createTempDirectory("wakfu-test-history"),

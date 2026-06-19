@@ -191,9 +191,14 @@ class BuildSearchModel(
             System.getenv("WAKFU_COMPOSE_SCREENSHOT_VARY_PRIORITY") != null
 
     init {
-        // Seed the persisted library view options + tag registry before any UI reads them.
+        // Seed the persisted UI options (language + library view) + tag registry before any UI reads them.
         tagRegistry = libraryPreferences.loadTags()
-        ui = ui.copy(librarySort = libraryPreferences.loadSort(), libraryGroupByClass = libraryPreferences.loadGroupByClass())
+        ui =
+            ui.copy(
+                lang = libraryPreferences.loadLang(),
+                librarySort = libraryPreferences.loadSort(),
+                libraryGroupByClass = libraryPreferences.loadGroupByClass()
+            )
 
         // Load the saved-build library off the UI thread. A read failure must never block startup —
         // it just yields an empty library that fills in as the user saves builds.
@@ -372,6 +377,7 @@ class BuildSearchModel(
 
     fun setLang(lang: me.chosante.ui.i18n.Lang) {
         ui = ui.copy(lang = lang)
+        libraryPreferences.saveLang(lang)
     }
 
     fun setClass(clazz: me.chosante.common.CharacterClass) {
