@@ -152,6 +152,7 @@ class SpellRotationTest {
         ap: Int,
         base: Int,
         maxCastPerTurn: Int? = null,
+        maxCastPerTarget: Int? = null,
         cooldown: Int? = null,
         id: Int = 1,
     ) = Spell(
@@ -162,8 +163,43 @@ class SpellRotationTest {
         apCost = ap,
         baseDamage = base,
         maxCastPerTurn = maxCastPerTurn,
+        maxCastPerTarget = maxCastPerTarget,
         cooldown = cooldown
     )
+
+    @Test
+    fun `maxCastsThisTurn folds cooldown, per-turn and per-target to the tightest single-target cap`() {
+        // cooldown wins outright, regardless of the looser per-turn / per-target values.
+        assertThat(damageSpell(ap = 1, base = 1, maxCastPerTurn = 4, maxCastPerTarget = 3, cooldown = 2).maxCastsThisTurn).isEqualTo(1)
+        // per-target tighter than per-turn (the Sablier shape).
+        assertThat(damageSpell(ap = 1, base = 1, maxCastPerTurn = 4, maxCastPerTarget = 1).maxCastsThisTurn).isEqualTo(1)
+        // per-turn tighter than per-target.
+        assertThat(damageSpell(ap = 1, base = 1, maxCastPerTurn = 1, maxCastPerTarget = 3).maxCastsThisTurn).isEqualTo(1)
+        // both `0`/null ("no limit" on either axis) ⇒ unbounded.
+        assertThat(damageSpell(ap = 1, base = 1, maxCastPerTurn = 0, maxCastPerTarget = 0).maxCastsThisTurn).isNull()
+        // only a per-target limit set ⇒ that value (the axis the old code ignored entirely).
+        assertThat(damageSpell(ap = 1, base = 1, maxCastPerTurn = 0, maxCastPerTarget = 2).maxCastsThisTurn).isEqualTo(2)
+    }
+
+    @Test
+    fun `the single-target rotation caps a spell at its per-target limit, not its looser per-turn total`() {
+        // Sablier-shaped: 4 casts per turn TOTAL but only 1 on a single target. Against a lone boss the
+        // model must cap it at 1 — the binding limit is per-target, not the looser per-turn total. (Before
+        // the per-target fix this returned 3× — bounded only by AP — and over-counted the damage.)
+        val sablier = damageSpell(ap = 3, base = 100, maxCastPerTurn = 4, maxCastPerTarget = 1)
+
+        val table = SpellRotationOptimizer.baseThroughputTable(listOf(sablier), maxAp = 9)
+        assertThat(table[9]).describedAs("9 AP would fit 3 casts, but per-target caps it at 1").isEqualTo(100L)
+
+        val rotation =
+            SpellRotationOptimizer.bestRotation(
+                listOf(ScoredSpell(sablier, apCost = 3, expectedDamagePerCast = 100.0)),
+                apBudget = 9
+            )
+        assertThat(rotation.casts.single().count).describedAs("1 legal cast against a lone boss").isEqualTo(1)
+        assertThat(rotation.apUsed).describedAs("only 1 cast fits the per-target cap ⇒ 6 AP idle").isEqualTo(3)
+        assertThat(rotation.totalExpectedDamage).isEqualTo(100.0)
+    }
 
     @Test
     fun `baseThroughputTable caps a spell at its per-turn limit instead of spamming it`() {
