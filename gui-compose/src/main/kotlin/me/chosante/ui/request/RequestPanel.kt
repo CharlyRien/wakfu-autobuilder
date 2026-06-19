@@ -138,7 +138,11 @@ fun RequestPanel(
                     onElementChange = onBossElementChange,
                     onDifficultyChange = onBossDifficultyChange
                 )
-                DamageScenarioCard(scenario = ui.scenario, onChange = onScenarioChange)
+                DamageScenarioCard(
+                    scenario = ui.scenario,
+                    bossSelected = ui.selectedBoss != null,
+                    onChange = onScenarioChange
+                )
             }
             RarityCard(
                 excludedRarities = ui.excludedRarities,
@@ -346,6 +350,7 @@ private fun BossCard(
 @Composable
 private fun DamageScenarioCard(
     scenario: DamageScenario,
+    bossSelected: Boolean,
     onChange: (DamageScenario) -> Unit,
 ) {
     val lang = LocalLang.current
@@ -357,13 +362,17 @@ private fun DamageScenarioCard(
             RolePresetRow(
                 onPick = { preset -> onChange(preset.apply(scenario)) }
             )
-            SegmentedEnumRow(
-                label = tr(Tr.SCENARIO_ELEMENT),
-                values = SpellElement.entries,
-                selected = scenario.element,
-                labelOf = { it.label(lang) },
-                onSelect = { onChange(scenario.copy(element = it)) }
-            )
+            // The attack element is derived from the picked boss (auto-pick the best playable element, or the
+            // boss card's element override), so this manual selector only applies to a free, no-boss search.
+            if (!bossSelected) {
+                SegmentedEnumRow(
+                    label = tr(Tr.SCENARIO_ELEMENT),
+                    values = SpellElement.entries,
+                    selected = scenario.element,
+                    labelOf = { it.label(lang) },
+                    onSelect = { onChange(scenario.copy(element = it)) }
+                )
+            }
             SegmentedEnumRow(
                 label = tr(Tr.SCENARIO_RANGE),
                 values = RangeBand.entries,
@@ -397,12 +406,16 @@ private fun DamageScenarioCard(
                     onValueChange = { onChange(scenario.copy(critCapPercent = it.coerceIn(0, 100))) },
                     modifier = Modifier.weight(1f)
                 )
-                ScenarioNumberField(
-                    label = tr(Tr.SCENARIO_ENEMY_RES),
-                    value = scenario.targetResistancePercent,
-                    onValueChange = { onChange(scenario.copy(targetResistancePercent = it.coerceIn(0, DamageScenario.MAX_RESISTANCE_PERCENT))) },
-                    modifier = Modifier.weight(1f)
-                )
+                // A picked boss supplies its real per-element resistances (the chips on the boss card), so this
+                // manual enemy-resistance field only applies to a free, no-boss damage search.
+                if (!bossSelected) {
+                    ScenarioNumberField(
+                        label = tr(Tr.SCENARIO_ENEMY_RES),
+                        value = scenario.targetResistancePercent,
+                        onValueChange = { onChange(scenario.copy(targetResistancePercent = it.coerceIn(0, DamageScenario.MAX_RESISTANCE_PERCENT))) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
             // Survivability soft-floor: opt-in toggle + its effective-HP-proxy floor (only meaningful when on).
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

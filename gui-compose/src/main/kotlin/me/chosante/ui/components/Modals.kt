@@ -724,6 +724,9 @@ private fun BossPickerModal(onPick: (Monster) -> Unit) {
     val results =
         remember {
             WakfuBestBuildFinderAlgorithm.monsters
+                // Boss mode targets bosses, not every creature in the bestiary — keep only boss-tier
+                // entries (rank ≥ 1: bosses, golems, ultimate/"Dominant" variants), ~226 of ~715.
+                .filter { it.isBoss }
                 .sortedWith(compareByDescending<Monster> { it.rank }.thenByDescending { it.level })
         }
     var query by remember { mutableStateOf("") }
