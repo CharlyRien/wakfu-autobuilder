@@ -33,7 +33,7 @@ object WakfuBestBuildFinderAlgorithm {
     // paint. Lazy init moves the parse to the first real use (icon preloading / the first search),
     // which always happens on a background thread in the GUI and on the main thread in the CLI.
     val equipments: List<Equipment> by lazy {
-        EmbeddedResources.decodeList<Equipment>("equipments-v$VERSION.json")!!
+        EmbeddedResources.decodeList<Equipment>("equipments.json")!!
     }
 
     /**
@@ -41,7 +41,7 @@ object WakfuBestBuildFinderAlgorithm {
      * absent. The OR-Tools solver socket-fills equipped items with these when [WakfuBestBuildParams.useRunes].
      */
     val runes: List<RuneType> by lazy {
-        EmbeddedResources.decodeList<RuneType>("runes-v$VERSION.json") ?: emptyList()
+        EmbeddedResources.decodeList<RuneType>("runes.json") ?: emptyList()
     }
 
     /**
@@ -50,7 +50,7 @@ object WakfuBestBuildFinderAlgorithm {
      * Sorted bosses-first / higher-level-first, as produced by the `monsters-extractor`.
      */
     val monsters: List<Monster> by lazy {
-        EmbeddedResources.decodeList<Monster>("monsters-v$VERSION.json") ?: emptyList()
+        EmbeddedResources.decodeList<Monster>("monsters.json") ?: emptyList()
     }
 
     /**
@@ -80,7 +80,7 @@ object WakfuBestBuildFinderAlgorithm {
      * user [WakfuBestBuildParams.forcedSublimations]; see docs/SUBLIMATIONS_LOT3_RESEARCH.md.
      */
     val sublimations: List<Sublimation> by lazy {
-        EmbeddedResources.decodeList<Sublimation>("sublimations-v$VERSION.json") ?: emptyList()
+        EmbeddedResources.decodeList<Sublimation>("sublimations.json") ?: emptyList()
     }
 
     fun run(params: WakfuBestBuildParams): Flow<GeneticAlgorithmResult<BuildCombination>> {

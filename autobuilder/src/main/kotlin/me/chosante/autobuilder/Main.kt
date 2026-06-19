@@ -100,6 +100,7 @@ import me.chosante.common.Equipment
 import me.chosante.common.Monster
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
+import me.chosante.common.WakfuData
 import me.chosante.common.skills.Assignable
 import me.chosante.createZenithBuild
 import kotlin.system.exitProcess
@@ -107,7 +108,10 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 private val logger = KotlinLogging.logger {}
-internal const val VERSION = "1.91.1.54"
+
+/** Convenience alias for the single source of truth ([WakfuData.VERSION]); kept so existing call sites
+ *  (`autobuilder.VERSION`) and the CLI version banner resolve unchanged. */
+internal const val VERSION = WakfuData.VERSION
 
 fun main(args: Array<String>) = WakfuAutobuild().main(args)
 

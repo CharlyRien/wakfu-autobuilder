@@ -1,7 +1,6 @@
 package me.chosante.autobuilder.domain
 
 import me.chosante.autobuilder.EmbeddedResources
-import me.chosante.autobuilder.VERSION
 import me.chosante.common.CharacterClass
 import me.chosante.common.Passive
 
@@ -15,7 +14,7 @@ import me.chosante.common.Passive
  */
 object PassiveCatalog {
     val passives: List<Passive> by lazy {
-        EmbeddedResources.decodeList<Passive>("spell-passives-v$VERSION.json", EmbeddedResources.lenientJson).orEmpty()
+        EmbeddedResources.decodeList<Passive>("spell-passives.json", EmbeddedResources.lenientJson).orEmpty()
     }
 
     private val byClass: Map<CharacterClass, List<Passive>> by lazy { passives.groupBy { it.characterClass } }
