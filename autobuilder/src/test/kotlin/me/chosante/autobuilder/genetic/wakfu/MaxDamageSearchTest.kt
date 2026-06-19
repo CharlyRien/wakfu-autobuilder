@@ -26,7 +26,7 @@ import kotlin.time.Duration.Companion.seconds
  */
 class MaxDamageSearchTest {
     @Test
-    fun `the external loop returns a damaging build and never claims proven optimality`(): Unit =
+    fun `a pinned mono no-debuff request is a single solve that reports proven optimality`(): Unit =
         runBlocking {
             val level = 50
             val character = Character(clazz = CharacterClass.CRA, level = level, minLevel = level, CharacterSkills(level))
@@ -46,6 +46,8 @@ class MaxDamageSearchTest {
                     forcedItems = emptyList(),
                     excludedItems = emptyList(),
                     scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                    // Pinned single element (mono), and CRA has no confirmed resistance debuff → no AP-window
+                    // probing and no bi-element phase, so the one CP-SAT solve is the provable optimum.
                     damageScenario = DamageScenario(element = SpellElement.FIRE),
                     useRunes = false
                 )
@@ -58,8 +60,8 @@ class MaxDamageSearchTest {
             assertThat(results).describedAs("the loop streams at least one build").isNotEmpty
             val last = results.last()
             assertThat(last.isOptimal)
-                .describedAs("a heuristic AP-window + sequencing loop must never claim a proven global optimum")
-                .isFalse()
+                .describedAs("mono + no debuff ⇒ a single proven CP-SAT solve, not a heuristic probe loop")
+                .isTrue()
             assertThat(last.matchPercentage)
                 .describedAs("found a damaging fire rotation")
                 .isGreaterThan(BigDecimal.ZERO)
@@ -152,6 +154,41 @@ class MaxDamageSearchTest {
                 .isGreaterThan(BigDecimal.ZERO)
             assertThat(last.isOptimal).isFalse()
         }
+
+    // ----- probe batching: the GUI-freeze / non-termination fix (production path, no SolverTuning) -----
+
+    @Test
+    fun `probe plan never oversubscribes cores and fits the phase budget`() {
+        // The freeze came from spawning more CPU-pinned CP-SAT solves than the host has cores, and from
+        // giving each probe the FULL phase budget so a batch ran for waves × budget. The plan must do
+        // neither, for any host size and probe count.
+        val phaseBudget = 6.seconds
+        for (host in listOf(1, 2, 3, 7, 8, 15, 32)) {
+            for (count in listOf(1, 2, 5, 6, 7, 13, 24, 100, 286)) {
+                val plan = MaxDamageSearch.probePlan(count, host, phaseBudget)
+                assertThat(plan.concurrency)
+                    .describedAs("host=%d count=%d: concurrency stays within 1..host", host, count)
+                    .isBetween(1, host)
+                assertThat(plan.workersPerProbe).isGreaterThanOrEqualTo(1)
+                assertThat(plan.concurrency * plan.workersPerProbe)
+                    .describedAs("host=%d count=%d: concurrent native solver threads never exceed cores", host, count)
+                    .isLessThanOrEqualTo(host)
+                val waves = (count + plan.concurrency - 1) / plan.concurrency
+                assertThat((plan.perProbeBudget * waves).inWholeNanoseconds)
+                    .describedAs("host=%d count=%d: the whole batch fits the phase budget (no balloon)", host, count)
+                    .isLessThanOrEqualTo(phaseBudget.inWholeNanoseconds)
+            }
+        }
+    }
+
+    @Test
+    fun `bi-element scenarios are ordered best-promise first so the cap keeps the strongest`() {
+        val scenarios = MaxDamageSearch.biElementScenarios(CharacterClass.CRA)
+        assertThat(scenarios).isNotEmpty
+        assertThat(scenarios.map { it.promise })
+            .describedAs("scenarios sorted by descending combined base throughput")
+            .isEqualTo(scenarios.map { it.promise }.sortedDescending())
+    }
 
     private fun equipment(
         id: Int,
