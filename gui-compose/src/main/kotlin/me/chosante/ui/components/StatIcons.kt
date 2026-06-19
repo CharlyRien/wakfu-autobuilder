@@ -28,7 +28,7 @@ import me.chosante.ui.theme.WTypography
 
 /*
  * Maps the domain stats and skill-tree lines onto the HUD artwork shipped under `assets/icons`
- * (sourced from https://github.com/Vertylo/wakassets). Every mapping is a `when` over the domain
+ * (name-keyed UI chrome, committed-static — these are not extracted by generateAssets). Every mapping is a `when` over the domain
  * enum so a new Characteristic fails to compile until it is given an icon (or an explicit `null`).
  *
  * Resolution is always icon-first with a graceful fallback: stats with no representative icon keep
