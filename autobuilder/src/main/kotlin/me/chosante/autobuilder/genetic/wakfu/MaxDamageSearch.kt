@@ -21,6 +21,7 @@ import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
 import java.math.BigDecimal
 import java.math.RoundingMode
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import me.chosante.autobuilder.domain.SpellElement as DomainSpellElement
 
@@ -48,6 +49,15 @@ object MaxDamageSearch {
     private const val AP_WINDOW_ABOVE = 3
     internal const val MAX_AP_TARGET = 20 // matches WakfuBuildSolver.MAX_ROTATION_AP — the throughput table's AP range
     internal const val MIN_AP_TARGET = 1
+
+    /**
+     * Cap on how many bi-element scenarios actually get a CP-SAT probe. The full enumeration is hundreds of
+     * `(pair × AP × split)` scenarios for a 3-element class (~286 for CRA); probing them all forced the phase
+     * budget into illegibly thin per-probe slices and ran far past the user's search duration. The scenarios
+     * are ordered best-promise-first ([biElementScenarios]), so the top [MAX_BI_PROBES] keep the strongest
+     * pairs/splits while leaving each probe a usable share of the budget.
+     */
+    internal const val MAX_BI_PROBES = 24
 
     fun run(
         baseParams: WakfuBestBuildParams,
@@ -77,8 +87,25 @@ object MaxDamageSearch {
         tuning: WakfuBuildSolver.SolverTuning?,
     ): Flow<GeneticAlgorithmResult<BuildCombination>> =
         callbackFlow {
-            val phaseBudget = (baseParams.searchDuration / 3).coerceAtLeast(1.seconds)
+            val clazz = baseParams.character.clazz
+            // Phase 2 (the AP-window probes) exists ONLY so a resistance-reduction debuff can shift the
+            // optimal AP — its debuff-aware re-score may prefer +d AP to fit "debuff + a damage spell".
+            // Only Sram & Sadida own a confirmed enemy resistance debuff; for the other 16 classes the
+            // debuff-aware score equals the damage-only score, so phase 1's single solve is already the mono
+            // optimum and the AP probing is provably redundant. Gate it on debuff presence.
+            val hasResistanceDebuff =
+                SpellCatalog.forClass(clazz).any { it.isConfirmedResistanceDebuff && (it.apCost ?: 0) >= 1 }
+            // Phase 3 (bi-element) only makes sense when the REQUEST puts more than one element in play
+            // (boss auto-element). A pinned single-element request is mono by definition — splitting AP
+            // across two elements would answer a question the user didn't ask and keep the result heuristic.
+            val multiElementRequest = baseParams.damageScenario.candidateElements().size > 1
+            val biScenarios = if (multiElementRequest) biElementScenarios(clazz).take(MAX_BI_PROBES) else emptyList()
+            // Split the wall-clock budget across only the phases that actually run, so skipping a phase gives
+            // the remaining solves more time (faster proofs) instead of idling part of the budget.
+            val activePhases = 1 + (if (hasResistanceDebuff) 1 else 0) + (if (biScenarios.isNotEmpty()) 1 else 0)
+            val phaseBudget = (baseParams.searchDuration / activePhases).coerceAtLeast(1.seconds)
             var best: GeneticAlgorithmResult<BuildCombination>? = null
+            var phase1Optimal = false
 
             fun consider(
                 result: GeneticAlgorithmResult<BuildCombination>,
@@ -91,80 +118,60 @@ object MaxDamageSearch {
                     // Carry the winning split so the display re-scores the same turn (null for mono probes).
                     best = result.copy(matchPercentage = score, maxDamageBiElement = probeParams.maxDamageBiElement)
                 }
+                // Streamed best-so-far is never "proven" — optimality is decided once at the final emit.
                 best?.let { trySend(it.copy(progressPercentage = progress, isOptimal = false)) }
             }
 
             val producer =
                 launch {
-                    // Phase 1 (0–30%): the unconstrained solve, streamed live but re-scored debuff-aware.
+                    // When phase 1 is the only phase it owns the whole 0–100 bar; otherwise it caps at 30%.
+                    val phase1Ceiling = if (activePhases == 1) 100 else 30
+                    // Phase 1: the unconstrained solve, streamed live but re-scored debuff-aware.
                     WakfuBuildSolver
                         .optimize(baseParams.copy(searchDuration = phaseBudget), equipmentsByItemType, runes, sublimations, tuning)
-                        .collect { consider(it, (it.progressPercentage * 30 / 100).coerceIn(0, 30)) }
-
-                    val a0 = best?.individual?.let { actualActionPoints(baseParams, it) } ?: BASE_ACTION_POINTS
-
-                    // Phase 2 (30–55%): AP-pinned mono probes around A₀, run in parallel.
-                    val monoTargets =
-                        ((a0 - AP_WINDOW_BELOW)..(a0 + AP_WINDOW_ABOVE))
-                            .filter { it in MIN_AP_TARGET..MAX_AP_TARGET && it != a0 }
-                            .toList()
-                    val monoWorkers = probeWorkers(monoTargets.size, tuning)
-                    val monoProbes =
-                        coroutineScope {
-                            monoTargets
-                                .map { target ->
-                                    async(Dispatchers.IO) {
-                                        val probeParams =
-                                            baseParams.copy(
-                                                searchDuration = phaseBudget,
-                                                maxDamageApTarget = target,
-                                                solverWorkers = monoWorkers
-                                            )
-                                        probeParams to
-                                            WakfuBuildSolver
-                                                .optimize(probeParams, equipmentsByItemType, runes, sublimations, tuning)
-                                                .toList()
-                                                .maxByOrNull { it.matchPercentage }
-                                    }
-                                }.awaitAll()
+                        .collect {
+                            phase1Optimal = it.isOptimal
+                            consider(it, (it.progressPercentage * phase1Ceiling / 100).coerceIn(0, phase1Ceiling))
                         }
-                    monoProbes.forEach { (probeParams, probe) ->
-                        if (probe != null) consider(probe, 55, probeParams)
+
+                    // Phase 2: AP-pinned mono probes around A₀ — only for a class whose resistance debuff can
+                    // make a different AP win (gated above).
+                    if (hasResistanceDebuff) {
+                        val a0 = best?.individual?.let { actualActionPoints(baseParams, it) } ?: BASE_ACTION_POINTS
+                        val monoProbeParams =
+                            ((a0 - AP_WINDOW_BELOW)..(a0 + AP_WINDOW_ABOVE))
+                                .filter { it in MIN_AP_TARGET..MAX_AP_TARGET && it != a0 }
+                                .map { target -> baseParams.copy(searchDuration = phaseBudget, maxDamageApTarget = target) }
+                        runProbeBatch(monoProbeParams, equipmentsByItemType, runes, sublimations, phaseBudget, tuning)
+                            .forEach { (probeParams, probe) -> if (probe != null) consider(probe, 55, probeParams) }
                     }
 
-                    // Phase 3 (55–100%): bi-element probes — enumerate (pair × AP × split), pruned.
-                    val biProbeScenarios = biElementScenarios(baseParams.character.clazz)
-                    if (biProbeScenarios.isNotEmpty()) {
-                        val biWorkers = probeWorkers(biProbeScenarios.size, tuning)
-                        val biProbes =
-                            coroutineScope {
-                                biProbeScenarios
-                                    .map { (pair, totalAp, split) ->
-                                        async(Dispatchers.IO) {
-                                            val probeParams =
-                                                baseParams.copy(
-                                                    searchDuration = phaseBudget,
-                                                    maxDamageApTarget = totalAp,
-                                                    maxDamageBiElement = BiElementSplit(pair.first, pair.second, split),
-                                                    solverWorkers = biWorkers
-                                                )
-                                            probeParams to
-                                                WakfuBuildSolver
-                                                    .optimize(probeParams, equipmentsByItemType, runes, sublimations, tuning)
-                                                    .toList()
-                                                    .maxByOrNull { it.matchPercentage }
-                                        }
-                                    }.awaitAll()
+                    // Phase 3: bi-element probes — enumerate (pair × AP × split), keep the best-promise
+                    // [MAX_BI_PROBES] (the full set is ~hundreds for a 3-element class). Fills to 100%.
+                    if (biScenarios.isNotEmpty()) {
+                        val biStart = if (hasResistanceDebuff) 55 else 30
+                        val biProbeParams =
+                            biScenarios.map { (pair, totalAp, split) ->
+                                baseParams.copy(
+                                    searchDuration = phaseBudget,
+                                    maxDamageApTarget = totalAp,
+                                    maxDamageBiElement = BiElementSplit(pair.first, pair.second, split)
+                                )
                             }
-                        biProbes.forEachIndexed { index, (probeParams, probe) ->
-                            if (probe != null) {
-                                val progress = 55 + ((index + 1) * 45 / biProbeScenarios.size.coerceAtLeast(1))
-                                consider(probe, progress, probeParams)
+                        runProbeBatch(biProbeParams, equipmentsByItemType, runes, sublimations, phaseBudget, tuning)
+                            .forEachIndexed { index, (probeParams, probe) ->
+                                if (probe != null) {
+                                    val progress = biStart + ((index + 1) * (100 - biStart) / biScenarios.size.coerceAtLeast(1))
+                                    consider(probe, progress, probeParams)
+                                }
                             }
-                        }
                     }
 
-                    best?.let { trySend(it.copy(progressPercentage = 100, isOptimal = false)) }
+                    // Honest optimality: when phase 1 was the ONLY phase AND CP-SAT proved it, this single
+                    // solve is the provable optimum. Any probing phase (debuff AP window or bi-element) makes
+                    // the result a heuristic max over a capped enumeration, so it stays "best found".
+                    val proven = activePhases == 1 && phase1Optimal
+                    best?.let { trySend(it.copy(progressPercentage = 100, isOptimal = proven)) }
                     close()
                 }
             awaitClose { producer.cancel() }
@@ -199,8 +206,10 @@ object MaxDamageSearch {
     // ----- bi-element enumeration helpers -----
 
     /**
-     * All `(pair, totalAp, splitOnFirst)` scenarios to probe. Dead pairs (either element has no
-     * throughput) are dropped; at each `(pair, totalAp)` only the Pareto-optimal interior splits survive.
+     * All `(pair, totalAp, splitOnFirst)` scenarios to probe, ordered **best-promise first** (descending
+     * combined base throughput `tableA[split] + tableB[totalAp − split]`) so a downstream cap
+     * ([MAX_BI_PROBES]) keeps the strongest scenarios. Dead pairs (either element has no throughput) are
+     * dropped; at each `(pair, totalAp)` only the Pareto-optimal interior splits survive.
      */
     internal fun biElementScenarios(clazz: me.chosante.common.CharacterClass): List<BiElementScenario> {
         val playable =
@@ -228,15 +237,16 @@ object MaxDamageSearch {
                     tables.getValue(a).any { it > 0L } && tables.getValue(b).any { it > 0L }
                 }
 
-        return livePairs.flatMap { pair ->
-            val tableA = tables.getValue(pair.first)
-            val tableB = tables.getValue(pair.second)
-            (MIN_AP_TARGET..MAX_AP_TARGET).flatMap { totalAp ->
-                paretoFrontierSplits(tableA, tableB, totalAp).map { split ->
-                    BiElementScenario(pair, totalAp, split)
+        return livePairs
+            .flatMap { pair ->
+                val tableA = tables.getValue(pair.first)
+                val tableB = tables.getValue(pair.second)
+                (MIN_AP_TARGET..MAX_AP_TARGET).flatMap { totalAp ->
+                    paretoFrontierSplits(tableA, tableB, totalAp).map { split ->
+                        BiElementScenario(pair, totalAp, split, promise = tableA[split] + tableB[totalAp - split])
+                    }
                 }
-            }
-        }
+            }.sortedByDescending { it.promise }
     }
 
     /**
@@ -268,15 +278,87 @@ object MaxDamageSearch {
         }
     }
 
-    private fun probeWorkers(
-        probeCount: Int,
+    /**
+     * Runs a batch of AP/element probes and returns each probe's best result (or null if it found none).
+     *
+     * Production ([tuning] == null): the single most important fix for the GUI freeze. Each probe starts a
+     * CP-SAT solve whose native workers pin cores at 100%; a plain `Dispatchers.IO` fan-out (≤64 coroutines)
+     * therefore spawned dozens of CPU-bound solves at once, oversubscribing every core and starving the
+     * Compose render thread. Here a [probePlan] bounds the concurrent solves and per-probe worker count so
+     * their union never exceeds the host's cores−1 (one left for the UI), and slices [phaseBudget] across the
+     * waves so the whole batch lands within it instead of taking `waves × phaseBudget`.
+     *
+     * Test path ([tuning] != null): det-time solves are machine-reproducible regardless of parallelism, so
+     * they run straight on `Dispatchers.IO` with the tuning's own worker count (`solverWorkers` left null).
+     */
+    private suspend fun runProbeBatch(
+        probeParams: List<WakfuBestBuildParams>,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        phaseBudget: Duration,
         tuning: WakfuBuildSolver.SolverTuning?,
-    ): Int? =
-        if (tuning == null) {
-            ((Runtime.getRuntime().availableProcessors() - 1) / probeCount.coerceAtLeast(1)).coerceAtLeast(1)
-        } else {
-            null
+    ): List<Pair<WakfuBestBuildParams, GeneticAlgorithmResult<BuildCombination>?>> {
+        if (probeParams.isEmpty()) return emptyList()
+
+        if (tuning != null) {
+            return coroutineScope {
+                probeParams
+                    .map { p -> async(Dispatchers.IO) { p to solveProbe(p, equipmentsByItemType, runes, sublimations, tuning) } }
+                    .awaitAll()
+            }
         }
+
+        val host = (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)
+        val plan = probePlan(probeParams.size, host, phaseBudget)
+        val dispatcher = Dispatchers.IO.limitedParallelism(plan.concurrency)
+        return coroutineScope {
+            probeParams
+                .map { base ->
+                    val p = base.copy(searchDuration = plan.perProbeBudget, solverWorkers = plan.workersPerProbe)
+                    async(dispatcher) { p to solveProbe(p, equipmentsByItemType, runes, sublimations, tuning) }
+                }.awaitAll()
+        }
+    }
+
+    private suspend fun solveProbe(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        tuning: WakfuBuildSolver.SolverTuning?,
+    ): GeneticAlgorithmResult<BuildCombination>? =
+        WakfuBuildSolver
+            .optimize(params, equipmentsByItemType, runes, sublimations, tuning)
+            .toList()
+            .maxByOrNull { it.matchPercentage }
+
+    /** Concurrency / per-probe worker count / per-probe time budget for a batch of probes. See [probePlan]. */
+    internal data class ProbePlan(
+        val concurrency: Int,
+        val workersPerProbe: Int,
+        val perProbeBudget: Duration,
+    )
+
+    /**
+     * Plans a batch of [probeCount] probes against a [host]-core budget and a [phaseBudget] wall-clock:
+     *  - at most `min(probeCount, host)` solves run at once, each with `host / concurrency` workers, so the
+     *    concurrent native threads (`concurrency × workersPerProbe`) never exceed [host] — leaving the UI a core;
+     *  - the budget is split evenly across the `⌈probeCount / concurrency⌉` waves, so the batch finishes within
+     *    [phaseBudget] (deliberately **no** lower floor — a floor let a 1s search balloon past its budget; the
+     *    solver's own millisecond floor keeps a degenerate slice from meaning "no limit").
+     */
+    internal fun probePlan(
+        probeCount: Int,
+        host: Int,
+        phaseBudget: Duration,
+    ): ProbePlan {
+        val safeHost = host.coerceAtLeast(1)
+        val concurrency = probeCount.coerceIn(1, safeHost)
+        val workersPerProbe = (safeHost / concurrency).coerceAtLeast(1)
+        val waves = ((probeCount + concurrency - 1) / concurrency).coerceAtLeast(1)
+        return ProbePlan(concurrency, workersPerProbe, phaseBudget / waves)
+    }
 
     private fun actualActionPoints(
         params: WakfuBestBuildParams,
@@ -296,4 +378,6 @@ internal data class BiElementScenario(
     val pair: Pair<DomainSpellElement, DomainSpellElement>,
     val totalAp: Int,
     val splitOnFirst: Int,
+    /** Combined base throughput of the split — the ordering key for the best-promise-first cap. */
+    val promise: Long = 0L,
 )

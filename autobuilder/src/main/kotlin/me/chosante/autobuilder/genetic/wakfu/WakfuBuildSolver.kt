@@ -290,14 +290,17 @@ object WakfuBuildSolver {
                     result.add(Characteristic.MASTERY_ELEMENTARY)
                     result.addAll(RANDOM_MASTERY_COUNTS.keys)
                 }
+
                 Characteristic.RESISTANCE_ELEMENTARY -> {
                     result.addAll(ELEMENTARY_RESISTANCES)
                     result.addAll(RANDOM_RESISTANCES)
                 }
+
                 in ELEMENTARY_RESISTANCES -> {
                     result.add(Characteristic.RESISTANCE_ELEMENTARY)
                     result.addAll(RANDOM_RESISTANCES)
                 }
+
                 else -> Unit
             }
         }
@@ -630,6 +633,7 @@ object WakfuBuildSolver {
             SublimationKind.CONVERSION -> if (sub.conversion == null) return false
             SublimationKind.STATIC_CONDITIONAL ->
                 if (sub.condition == null || sub.condition!!.type !in SUPPORTED_SUB_CONDITIONS) return false
+
             SublimationKind.FLAT -> {}
             SublimationKind.COMBAT_CONDITIONAL -> return false
         }
@@ -1152,7 +1156,11 @@ object WakfuBuildSolver {
             // makes the GUI window visibly freeze during a search. One fewer worker is a negligible
             // throughput loss next to a responsive UI (and keeps the terminal responsive for the CLI).
             solver.parameters.maxPresolveIterations = 1
-            solver.parameters.maxTimeInSeconds = params.searchDuration.inWholeSeconds.toDouble()
+            // Millisecond precision (not inWholeSeconds, which FLOORS): the max-damage external loop slices
+            // its phase budget into sub-second per-probe limits, and a floored 0.0 means "no time limit" to
+            // OR-Tools — which is exactly how a fan-out of probes could run unbounded. Floored to 50ms so a
+            // valid budget is never rounded down to the unlimited sentinel.
+            solver.parameters.maxTimeInSeconds = (params.searchDuration.inWholeMilliseconds.toDouble() / 1000.0).coerceAtLeast(0.05)
             solver.parameters.numSearchWorkers =
                 params.solverWorkers ?: (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)
         } else {
@@ -1278,6 +1286,7 @@ object WakfuBuildSolver {
                             ?.entries
                             ?.firstOrNull { valueOf(it.value) > 0L }
                             ?.key
+
                     SublimationRarity.EPIC -> epicItem
                     SublimationRarity.RELIC -> relicItem
                 }
@@ -1737,8 +1746,8 @@ object WakfuBuildSolver {
          * shared by both cores (read inside [perHitDamageScore]) — correctly NOT split.
          */
         fun perTurnDamageScoreBiElement(
-            elementA: me.chosante.autobuilder.domain.SpellElement,
-            elementB: me.chosante.autobuilder.domain.SpellElement,
+            elementA: SpellElement,
+            elementB: SpellElement,
             apOnA: Int,
             totalAp: Int,
             scenario: DamageScenario,
@@ -2279,6 +2288,7 @@ object WakfuBuildSolver {
                         reifyGe(preSubStat(Characteristic.ACTION_POINT), n, "${tag}_ge"),
                         tag
                     )
+
                 SublimationConditionType.CRIT_AT_MOST -> reifyLe(preSubStat(Characteristic.CRITICAL_HIT), n, tag)
                 SublimationConditionType.CRIT_AT_LEAST -> reifyGe(preSubStat(Characteristic.CRITICAL_HIT), n, tag)
                 SublimationConditionType.BLOCK_AT_LEAST -> reifyGe(preSubStat(Characteristic.BLOCK_PERCENTAGE), n, tag)
@@ -2290,10 +2300,12 @@ object WakfuBuildSolver {
                         reifyGe(preSubStat(Characteristic.RANGE), n, "${tag}_ge"),
                         tag
                     )
+
                 SublimationConditionType.DODGE_LT_PCT_OF_LEVEL -> {
                     val threshold = (n * subModel.characterLevel) / 100L
                     reifyLe(preSubStat(Characteristic.DODGE), threshold - 1, tag)
                 }
+
                 SublimationConditionType.SECONDARY_MASTERIES_AT_MOST -> {
                     val sum =
                         model.sumVar(
@@ -2304,6 +2316,7 @@ object WakfuBuildSolver {
                         )
                     reifyLe(sum, n, tag)
                 }
+
                 else -> model.newConstant(1L) // unsupported -> treated as always-on (best-achievable)
             }
         }
@@ -2431,6 +2444,7 @@ object WakfuBuildSolver {
                     addTerm(skill.first.characteristic, variable, skill.first.unitValue, skill.first.unitType)
                     addTerm(skill.second.characteristic, variable, skill.second.unitValue, skill.second.unitType)
                 }
+
                 else -> addTerm(skill.characteristic, variable, skill.unitValue, skill.unitType)
             }
         }
