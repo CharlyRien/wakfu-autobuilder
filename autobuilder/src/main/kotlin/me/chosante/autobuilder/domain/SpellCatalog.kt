@@ -32,7 +32,12 @@ object SpellCatalog {
                 .associateBy { it.spellId }
         base.map { spell ->
             val limit = castLimitsBySpellId[spell.id] ?: return@map spell
-            spell.copy(maxCastPerTurn = limit.maxCastPerTurn, cooldown = limit.cooldown, wpCost = limit.wpCost)
+            spell.copy(
+                maxCastPerTurn = limit.maxCastPerTurn,
+                maxCastPerTarget = limit.maxCastPerTarget,
+                cooldown = limit.cooldown,
+                wpCost = limit.wpCost
+            )
         }
     }
 

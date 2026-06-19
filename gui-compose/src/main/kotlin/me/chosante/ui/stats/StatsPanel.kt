@@ -310,11 +310,17 @@ private fun SpellRotationCard(ui: UiState) {
                 )
             }
         }
-        Text(
-            text = tr(Tr.SPELL_ROTATION_NOTE),
-            style = WTypography.labelSmall.copy(color = WColor.faint),
-            modifier = Modifier.padding(top = 4.dp)
-        )
+        // Per-turn / per-target cast limits and cooldowns are now modeled, so for a WP-free rotation the
+        // damage is the exact single-target optimum. WP cost is the one remaining unmodeled cap — show the
+        // upper-bound caveat ONLY when a WP-gated spell is actually in the rotation (otherwise it'd be a
+        // false disclaimer).
+        if ((rotation.casts + rotation.debuffCasts).any { (it.spell.wpCost ?: 0) > 0 }) {
+            Text(
+                text = tr(Tr.SPELL_ROTATION_NOTE),
+                style = WTypography.labelSmall.copy(color = WColor.faint),
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
     }
 }
 
