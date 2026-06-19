@@ -286,6 +286,10 @@ private fun String.toItemType(): ItemType? =
         "Familier" -> ItemType.PETS
         "Monture" -> ItemType.MOUNTS
         "Ceinture" -> ItemType.BELT
-        "Costume", "Torche", "Outil", "Poing", "Arme 1 Main", "Arme 2 Mains", "Seconde Main", "WIP" -> null
+        // "Porte-bonheur" (added in 1.92.x) shares the single in-game PET position with familiers but is a
+        // distinct Ankama item type (849). Excluded for now: there are only 6, all level <=35, so they never
+        // beat a real pet in an optimal build, and there is no dedicated domain slot for them (mapping them to
+        // PETS would also break the Zenith export, which keys off ItemType.id).
+        "Costume", "Torche", "Outil", "Poing", "Porte-bonheur", "Arme 1 Main", "Arme 2 Mains", "Seconde Main", "WIP" -> null
         else -> throw IllegalStateException("unknown type: $this")
     }

@@ -13,5 +13,5 @@ package me.chosante.common
  * sublimation pipeline reads this value too — see `scripts/update-game-data.sh`.)
  */
 object WakfuData {
-    const val VERSION: String = "1.91.1.54"
+    const val VERSION: String = "1.92.1.58"
 }

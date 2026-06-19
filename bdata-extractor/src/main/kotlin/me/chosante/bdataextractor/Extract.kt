@@ -2,8 +2,17 @@ package me.chosante.bdataextractor
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonObject
+import me.chosante.common.Monster
+import java.io.File
+import kotlin.math.abs
+
+/** Lenient JSON for reading committed artifacts/overlays — tolerates unknown keys. Shared module-wide. */
+internal val LENIENT_JSON = Json { ignoreUnknownKeys = true }
 
 /** breed_id → class label (matches the labels used in `spells-v*.json` `clazz`). */
 val BREED_TO_CLASS =
@@ -32,10 +41,10 @@ val BREED_TO_CLASS =
 val PLAYER_BREEDS: Set<Int> = BREED_TO_CLASS.keys
 
 /** Effect actions skipped as structural/meta/script-containers (no declarative stat/damage value). */
-private val STRUCTURAL_ACTIONS = setOf(330, 400, 1020, 865, 843, 1202)
+internal val STRUCTURAL_ACTIONS = setOf(330, 400, 1020, 865, 843, 1202)
 
 /** StaticEffect trigger lists; a non-empty one means the effect is a reactive proc (sets hasTriggeredEffects). */
-private val TRIGGER_KEYS =
+internal val TRIGGER_KEYS =
     listOf(
         "triggers_before_computation",
         "triggers_before_execution",
@@ -158,6 +167,97 @@ fun buildCastLimits(
                 wpCost = (r["pw_base"] as Float).toInt()
             )
         }
+
+/**
+ * Monster artifact (boss mode): everything except boss-tier `rank` is decoded straight from the Monster
+ * table (42), whose schema is auto-derived from the client bytecode ([SchemaGenerator]) — `level`
+ * (= `level_max`), `hp` (= `base_hp`), the four FLAT SIGNED elemental resistances, the localized name (i18n
+ * `content.7`) + family (i18n `content.38`, only when `family_id > 0`), and the icon `gfx` (from the record;
+ * `<= 0` means none). `rank` is the one fact absent from every client table (npc_rank/family_rank/
+ * MonsterType.kind don't reproduce Ankama's editorial taxonomy), so it comes from the committed [ranks]
+ * overlay; monsters with no entry default to 0 (regular, hidden from the GUI picker). Monsters without a
+ * localized name are dropped.
+ *
+ * Combat fields are bounds-checked as a coarse desync net (the oracle diff in verifyAndWriteMonsters is the
+ * real backstop): only IMPOSSIBLE values are flagged. Resistances stay flat+signed (engine converts flat→%
+ * at use time). Sorted bosses-first.
+ */
+fun buildMonsters(
+    monsterRecords: List<Map<String, Any?>>,
+    i18n: I18nBundle,
+    ranks: Map<Int, Int>,
+): List<Monster> {
+    var anomalies = 0
+    val monsters =
+        monsterRecords
+            .mapNotNull { r ->
+                val id = r["id"] as Int
+                val name = i18n.text(7, id) ?: return@mapNotNull null
+                val familyId = r["family_id"] as Int
+                val level = r["level_max"] as Int
+                val hp = r["base_hp"] as Int
+                val fire = r["base_fire_resistance"] as Int
+                val water = r["base_water_resistance"] as Int
+                val earth = r["base_earth_resistance"] as Int
+                val air = r["base_wind_resistance"] as Int
+                // Coarse desync net: flag only IMPOSSIBLE values — negative, or absurdly large in the
+                // Int-overflow range a positional desync produces. Legitimate edge monsters pass (NPCs hp=0;
+                // special "colossal" monsters reach level ~30000 / hp ~1e8; resistances ~1000s).
+                if (level !in 0..1_000_000 || hp !in 0..2_000_000_000 || listOf(fire, water, earth, air).any { abs(it) > 10_000_000 }) {
+                    if (anomalies < 8) {
+                        println("  WARN: monster $id (${name.fr}) decoded implausible stats (lvl=$level hp=$hp res=$fire/$water/$earth/$air) — possible schema drift.")
+                    }
+                    anomalies++
+                }
+                Monster(
+                    id = id,
+                    name = name,
+                    level = level,
+                    hp = hp,
+                    family = if (familyId > 0) i18n.text(38, familyId) else null,
+                    rank = ranks[id] ?: 0,
+                    // gfx (icon sprite id) decoded from the record; -1/0 = none -> null so the GUI degrades.
+                    gfx = (r["gfx"] as Int).takeIf { it > 0 },
+                    fireResistance = fire,
+                    waterResistance = water,
+                    earthResistance = earth,
+                    airResistance = air,
+                    source = "bdata"
+                )
+            }.sortedWith(compareByDescending<Monster> { it.rank }.thenByDescending { it.level }.thenBy { it.name.en })
+    if (anomalies > 0) println("  WARN: $anomalies monster(s) had implausible decoded stats (schema-drift suspect).")
+    val builtIds = monsters.mapTo(HashSet()) { it.id }
+    val unmatched = ranks.keys.filterNot { it in builtIds }.sorted()
+    if (unmatched.isNotEmpty()) {
+        println("  WARN: ${unmatched.size} rank-overlay id(s) matched no decoded monster (missing table record or i18n name): ${unmatched.take(20)}")
+    }
+    return monsters
+}
+
+/**
+ * The committed boss-tier overlay (`monster-overlay.json`: `{"<id>": rank}`, rank ≥ 1 only). Boss-tier is the
+ * one monster fact absent from every client table (npc_rank/family_rank/MonsterType.kind don't reproduce
+ * Ankama's editorial taxonomy), so it is carried here; everything else (incl. `gfx`) is decoded from bdata.
+ * Monsters with no entry default to rank 0 (regular, hidden from the GUI picker). An absent file yields an
+ * empty map; entries with rank < 1 are skipped with a warning; a malformed file fails with a clear message.
+ */
+fun loadMonsterRanks(file: File): Map<Int, Int> {
+    if (!file.isFile) return emptyMap()
+    val obj =
+        runCatching { LENIENT_JSON.parseToJsonElement(file.readText()).jsonObject }
+            .getOrElse { error("Malformed ${file.name}: expected a JSON object {\"<id>\": rank} — ${it.message}") }
+    val out = LinkedHashMap<Int, Int>()
+    for ((k, v) in obj) {
+        val id = k.toIntOrNull() ?: error("Malformed ${file.name}: key '$k' is not an integer monster id")
+        val rank = (v as? JsonPrimitive)?.int ?: error("Malformed ${file.name}: entry $id rank must be an integer")
+        if (rank < 1) {
+            println("  WARN: ${file.name} entry $id has rank=$rank (< 1); overlay entries must be boss-tier (≥ 1) — skipping.")
+            continue
+        }
+        out[id] = rank
+    }
+    return out
+}
 
 /** A declarative effect resolved with raw numeric values (before JSON formatting). */
 private class Resolved(

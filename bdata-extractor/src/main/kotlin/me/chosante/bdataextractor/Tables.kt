@@ -27,6 +27,11 @@ object Tables {
     const val STATE = 67
     const val STATIC_EFFECT = 68
 
+    // Monster table (TYPE_ID 42): its positional schema is **auto-derived from the client bytecode** by
+    // [SchemaGenerator] (the record layout drifts between client versions — e.g. a Vec inserted in 1.92.x —
+    // so a hand-written schema here would rot). Boss-mode field positions are pinned in `SchemaGenerator.monsterSchema`.
+    const val MONSTER = 42
+
     /** Spell table (TYPE_ID 66). Cast limits, breed, AP, the `passive` flag and `effect_ids` are early. */
     val SPELL_SCHEMA: List<Field> =
         listOf(

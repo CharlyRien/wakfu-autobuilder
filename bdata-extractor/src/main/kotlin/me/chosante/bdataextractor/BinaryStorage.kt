@@ -35,40 +35,13 @@ fun loadTable(
     typeId: Int,
     schema: List<Field>,
 ): Table {
-    val jar = File(installRoot, "contents/bdata/$typeId.jar")
-    require(jar.isFile) { "Missing $jar — is this a Wakfu install root?" }
-    val bin =
-        ZipFile(jar).use { zf ->
-            val entry =
-                zf
-                    .entries()
-                    .asSequence()
-                    .firstOrNull { !it.isDirectory && it.name.endsWith(".bin") }
-                    ?: error("$jar contains no .bin entry — unexpected table layout for type $typeId.")
-            zf.getInputStream(entry).use { it.readBytes() }
-        }
-
-    val d = BinaryDecoder.create(bin, typeId)
-
-    // --- index block ---
-    val entryCount = d.i32()
-    val entries = ArrayList<Entry>(entryCount)
-    repeat(entryCount) { entries.add(Entry(d.i64(), d.i32(), d.i32(), d.i8())) }
-    val indexGroups = d.i8()
-    repeat(indexGroups) {
-        val unique = d.bool()
-        d.string() // index name (unused)
-        val count = d.i32()
-        repeat(count) {
-            d.i64() // indexed id
-            if (unique) d.i32() else repeat(d.i32()) { d.i32() }
-        }
-    }
+    val d = BinaryDecoder.create(readBin(installRoot, typeId), typeId)
+    val entries = d.readIndex()
 
     // --- records block ---
     d.reset(typeId)
-    val records = ArrayList<Map<String, Any?>>(entryCount)
-    for (i in 0 until entryCount) {
+    val records = ArrayList<Map<String, Any?>>(entries.size)
+    for (i in entries.indices) {
         val before = d.position
         val rec = d.readRecord(schema)
         val consumed = d.position - before
@@ -82,4 +55,75 @@ fun loadTable(
         records.add(rec)
     }
     return Table(entries, records)
+}
+
+/**
+ * True if [schema] cleanly decodes the first [sample] records of table [typeId] — every record consumes
+ * exactly its indexed byte length (size-guard) and its leading field equals the index id. Records are read
+ * INDEPENDENTLY via their per-entry seed + offset, so this works as a fast "does this schema fit this table"
+ * probe without walking the whole table. [SchemaGenerator] uses it to pick which binary-data class a table id
+ * corresponds to. [schema]'s first field is taken to be the record id.
+ */
+internal fun decodesCleanly(
+    installRoot: File,
+    typeId: Int,
+    schema: List<Field>,
+    sample: Int = 50,
+): Boolean {
+    if (schema.isEmpty()) return false
+    val d = BinaryDecoder.create(readBin(installRoot, typeId), typeId)
+    val entries = d.readIndex()
+    if (entries.isEmpty()) return false
+    d.reset(typeId)
+    val idName = schema.first().name
+    for (i in 0 until minOf(sample, entries.size)) {
+        val e = entries[i]
+        d.seekRecord(e.offset, e.seed)
+        val before = d.position
+        val rec = runCatching { d.readRecord(schema) }.getOrNull() ?: return false
+        if (d.position - before != e.size) return false
+        if ((rec[idName] as? Int)?.toLong() != e.id) return false
+    }
+    return true
+}
+
+/** Reads `contents/bdata/<typeId>.jar` and returns the bytes of its single `.bin` entry. */
+private fun readBin(
+    installRoot: File,
+    typeId: Int,
+): ByteArray = readZipEntryBytes(File(installRoot, "contents/bdata/$typeId.jar")) { it.endsWith(".bin") }
+
+/** Opens [jar] and returns the bytes of the first non-directory entry whose name satisfies [predicate]. */
+internal fun readZipEntryBytes(
+    jar: File,
+    predicate: (String) -> Boolean,
+): ByteArray {
+    require(jar.isFile) { "Missing $jar — is this a Wakfu install root?" }
+    return ZipFile(jar).use { zf ->
+        val entry =
+            zf
+                .entries()
+                .asSequence()
+                .firstOrNull { !it.isDirectory && predicate(it.name) }
+                ?: error("$jar contains no entry matching the expected name — unexpected jar layout.")
+        zf.getInputStream(entry).use { it.readBytes() }
+    }
+}
+
+/** Reads the index block (entry table + secondary index groups), leaving the decoder ready for [BinaryDecoder.reset]. */
+private fun BinaryDecoder.readIndex(): List<Entry> {
+    val entryCount = i32()
+    val entries = ArrayList<Entry>(entryCount)
+    repeat(entryCount) { entries.add(Entry(i64(), i32(), i32(), i8())) }
+    val indexGroups = i8()
+    repeat(indexGroups) {
+        val unique = bool()
+        string() // index name (unused)
+        val count = i32()
+        repeat(count) {
+            i64() // indexed id
+            if (unique) i32() else repeat(i32()) { i32() }
+        }
+    }
+    return entries
 }

@@ -30,6 +30,9 @@ class BinaryDecoder private constructor(
     private var seed: Byte = 0
     private var cursor: Int = 0
 
+    /** Cursor of the records block's first record (position 4), captured by [reset]; base for [seekRecord]. */
+    private var recordsBase: Int = 0
+
     /** Seed counter (distinct from [cursor]); exposed so the container can size-guard each record. */
     var position: Int = 0
         private set
@@ -50,6 +53,22 @@ class BinaryDecoder private constructor(
         }
     }
 
+    /**
+     * Reposition to decode a record **independently** by its index [Entry], rather than sequentially.
+     * Records carry a per-entry start [seed] and an [offset] into the records block (where [position] starts
+     * at 4 after [reset]); seeking by these lets us decode any single record without walking the ones before
+     * it — and without needing the (possibly drifted) trailing fields of earlier records. Uses the
+     * [recordsBase] captured by the preceding [reset].
+     */
+    fun seekRecord(
+        offset: Int,
+        seed: Int,
+    ) {
+        cursor = recordsBase + (offset - 4)
+        position = offset
+        this.seed = seed.toByte()
+    }
+
     /** Re-seed for a new block (records block) — reads a fresh `add` at the current [cursor]. */
     fun reset(typeId: Int) {
         mul = typeId
@@ -57,6 +76,7 @@ class BinaryDecoder private constructor(
         cursor += 4
         position = 4
         seed = (mul xor add).toByte()
+        recordsBase = cursor
     }
 
     /** Advance the seed (using the pre-read [position]) and both counters by [size]; return the read offset. */
@@ -83,7 +103,8 @@ class BinaryDecoder private constructor(
         if (need < 0 || cursor.toLong() + need > buf.limit()) {
             error(
                 "bdata decode out of bounds reading $field: need $need byte(s) at offset $cursor of " +
-                    "${buf.limit()} — positional layout drift; re-derive the field schema against this client version."
+                    "${buf.limit()} — positional layout drift (re-derive the field schema against this client " +
+                    "version) or, on the seek path, a bad per-entry offset/seed."
             )
         }
     }

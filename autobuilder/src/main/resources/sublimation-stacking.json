@@ -1,0 +1,1152 @@
+[
+  {
+    "stateId": 5073,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5074,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5075,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5076,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5077,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5078,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5079,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5080,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5081,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5082,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5158,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5174,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5175,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5216,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5248,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5249,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5250,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5252,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5253,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5370,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5443,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5444,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5445,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5446,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5448,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5449,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5450,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5452,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5453,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5976,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 5980,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 5981,
+    "maxStackLevel": 3,
+    "cumulable": true
+  },
+  {
+    "stateId": 5982,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 5983,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 5984,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 5985,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 5986,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 5987,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 5988,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 5989,
+    "maxStackLevel": 2,
+    "cumulable": false
+  },
+  {
+    "stateId": 5990,
+    "maxStackLevel": 3,
+    "cumulable": true
+  },
+  {
+    "stateId": 5991,
+    "maxStackLevel": 3,
+    "cumulable": true
+  },
+  {
+    "stateId": 5992,
+    "maxStackLevel": 3,
+    "cumulable": true
+  },
+  {
+    "stateId": 5993,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 5994,
+    "maxStackLevel": 2,
+    "cumulable": false
+  },
+  {
+    "stateId": 5999,
+    "maxStackLevel": 2,
+    "cumulable": false
+  },
+  {
+    "stateId": 6000,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 6001,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6002,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6004,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6005,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 6006,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6008,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 6009,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6010,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 6011,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 6012,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6013,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6014,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6016,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6017,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6018,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6019,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6020,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6021,
+    "maxStackLevel": 2,
+    "cumulable": false
+  },
+  {
+    "stateId": 6022,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 6023,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 6024,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6025,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6026,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6027,
+    "maxStackLevel": 2,
+    "cumulable": false
+  },
+  {
+    "stateId": 6029,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6030,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 6031,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6032,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6033,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6034,
+    "maxStackLevel": 2,
+    "cumulable": false
+  },
+  {
+    "stateId": 6036,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6037,
+    "maxStackLevel": 2,
+    "cumulable": false
+  },
+  {
+    "stateId": 6038,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6039,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6041,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6042,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6328,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 6329,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6330,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 6331,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 6705,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 6706,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 6707,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 6708,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 6709,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 6711,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 6712,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 6714,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 6811,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 6812,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6813,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 6814,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 6815,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6816,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6817,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6818,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6819,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6821,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6822,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6823,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6824,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 6825,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6826,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6827,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6828,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6829,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6830,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6831,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6832,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6833,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6834,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 6842,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6926,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6927,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6928,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 6929,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 6930,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6931,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 6932,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 6933,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 7075,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 7076,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 7077,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 7078,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 7079,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 7081,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 7088,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 7115,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 7252,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 7254,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 7255,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 7256,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 7257,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 7258,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 7711,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 7712,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 7713,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 7714,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 7717,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 7719,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 7722,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 7853,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 7855,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 7856,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 7859,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 7860,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 7861,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 7862,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 7863,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 7864,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 7865,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 7867,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 7868,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 7870,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 7872,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 7873,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 7874,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 7875,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 7876,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 7877,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 7878,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 7879,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 7880,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 7881,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 7882,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 8131,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 8132,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 8366,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 8367,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 8368,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 8370,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 8372,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 8374,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 8375,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 8376,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 8379,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 8380,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 8381,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 8382,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 8383,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 8384,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 8385,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 8386,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 8387,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 8388,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 8389,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 8390,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 8391,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 8392,
+    "maxStackLevel": 2,
+    "cumulable": true
+  },
+  {
+    "stateId": 8393,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 8394,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 8395,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 8398,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 8399,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 8400,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 8402,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 8403,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 8489,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 8490,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 8492,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 8493,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 8494,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 8496,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 8497,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 8498,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 8499,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 8502,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 8505,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 8508,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 8518,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 8519,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 8520,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 8521,
+    "maxStackLevel": 4,
+    "cumulable": true
+  },
+  {
+    "stateId": 9060,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 9062,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 9064,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 9066,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 9067,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 9070,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 9071,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 9072,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 9073,
+    "maxStackLevel": 1,
+    "cumulable": false
+  },
+  {
+    "stateId": 9074,
+    "maxStackLevel": 1,
+    "cumulable": false
+  }
+]

@@ -10,7 +10,9 @@ data class ItemType(
     @Serializable
     data class Definition(
         val id: Int,
-        val parentId: Int,
+        // NB: Ankama dropped `parentId` here in 1.92.x. It was never read, so it is not modeled; the
+        // deserializer uses `ignoreUnknownKeys` (see WakfuDataRetriever.CDN_JSON), so if Ankama re-adds it
+        // — or any other field — decoding keeps working.
         val equipmentPositions: List<String>,
         val equipmentDisabledPositions: List<String>,
         val isRecyclable: Boolean,

@@ -150,18 +150,37 @@ as **fixed-name** JSON files (no version in the filename):
 1. `equipments-extractor` downloads `items.json`, `equipmentItemTypes.json`, `actions.json`,
    `recipeCategories.json` from `https://wakfu.cdn.ankama.com/gamedata/:version` (auto-detecting the
    latest version) and writes `equipments.json` (the `Equipment` list).
-2. `spells-extractor` → `spells.json`; `monsters-extractor` → `monsters.json`.
+2. `spells-extractor` → `spells.json`. (Monsters are no longer scraped — see `bdata-extractor` below.)
 3. `WakfuBestBuildFinderAlgorithm` / `SpellCatalog` / `PassiveCatalog` load these by fixed name via the
    classpath at startup (e.g. `equipments.json`).
 4. The GUI's `generateAssets` Gradle task (`gui-compose`) downloads matching item icons from the
    [`Vertylo/wakassets`](https://github.com/Vertylo/wakassets) repo into
    `gui-compose/src/main/resources/assets/items/<guiId>.png`.
 5. `bdata-extractor` decodes the **local game client's** scrambled static-data tables — `Spell` (66),
-   `StaticEffect` (68), `State` (67) inside `contents/bdata/<id>.jar` — and writes
-   `spell-cast-limits.json`, `spell-passives.json`, and `sublimation-stacking.json` (per-sublimation
-   `max_level` + `is_cumulable`). It needs a local Wakfu install (the binaries are **not** on the CDN),
-   so unlike the other extractors it **cannot run in CI** — the JSON it produces stays committed. See
-   `docs/SPELL_CAST_LIMITS_EXTRACTION.md` / `docs/SPELL_PASSIVES_EXTRACTION.md` for the format.
+   `StaticEffect` (68), `State` (67), `Monster` (42) inside `contents/bdata/<id>.jar`, plus the
+   `contents/i18n/i18n_<lang>.jar` name bundles — and writes `spell-cast-limits.json`,
+   `spell-passives.json`, `sublimation-stacking.json` (per-sublimation `max_level` + `is_cumulable`),
+   **`sublimations.json`**, and **`monsters.json`** (boss-mode data: level/HP/flat elemental resistances +
+   localized name/family + icon `gfx`, replacing the old third-party MethodWakfu/Fandom scrape).
+   **Sublimations** are now fully first-party too: identity/name/rarity/slot-colours from the CDN `items.json`
+   (`itemTypeId` 812, `actionId` 304 → `params[0]` = `stateId`); effects, build-static condition, scenario
+   gates and max level decoded from the State (67) → StaticEffect (68) tables via a small sublimation-local
+   action overlay + criterion-script parser (`SublimationBuilder.kt`) — replacing the retired WakForge /
+   noredlace / hand-curated Python pipeline (`docs/sublimations-research/`, deleted). The solver-choosable
+   set (clean permanent statics only; combat/scripted subs stay forced-input) is locked by
+   `SublimationReproductionTest`. The Spell/State/StaticEffect
+   layouts are hand-written positional schemas in `Tables.kt`; the **Monster** layout is instead
+   **auto-derived from the client's JVM bytecode** by `SchemaGenerator` — a zero-dep, pure-JVM port of
+   `jac3km4/wakfu-bdata-gen` using JDK's `java.lang.classfile`. (A table's wire layout is its binary-data
+   class's `protected` fields in class-file order; the right class for a table id is the one whose derived
+   schema cleanly decodes that `.bin`.) This is because the Monster record's layout **drifts between client
+   versions** — 1.92.x inserted a new `Vec` mid-record — which a hand-written schema can't survive; deriving
+   it from bytecode "just works" each bump. The **only** monster fact not in any client table is boss-tier
+   `rank` (an editorial Ankama taxonomy — npc_rank/family_rank/MonsterType.kind don't reproduce it), carried
+   by the committed `monster-overlay.json` (id → rank, rank ≥ 1); monsters with no entry default to rank 0
+   (regular, hidden from the GUI boss picker). It needs a local Wakfu install (the binaries are **not** on
+   the CDN), so unlike the other extractors it **cannot run in CI** — the JSON it produces stays committed.
+   See `docs/SPELL_CAST_LIMITS_EXTRACTION.md` / `docs/SPELL_PASSIVES_EXTRACTION.md` for the format.
 
 **The data version is a single source of truth:** `WakfuData.VERSION` in `common-lib`
 (`common-lib/.../WakfuData.kt`). The apps stamp it as `dataVersion`; the extractors fetch CDN assets for
@@ -233,7 +252,7 @@ JDK 25 required. Use the Gradle wrapper.
 ./gradlew :autobuilder:run --args="--help"        # CLI help
 ./gradlew :equipments-extractor:run               # regenerate the equipments JSON from Ankama CDN
 ./gradlew :spells-extractor:run                   # regenerate the class-spells JSON (scrapes encyclopedia; resumable)
-./gradlew :bdata-extractor:run                    # regenerate spell cast-limits + passives JSON (decodes the local game binaries)
+./gradlew :bdata-extractor:run                    # regenerate spell cast-limits/passives + monsters JSON (decodes the local game binaries)
 ./gradlew :gui-compose:generateAssets             # (on demand) download item icons from wakassets
 
 # Compose GUI screenshot smoke-check (renders the app, writes a PNG, exits):
