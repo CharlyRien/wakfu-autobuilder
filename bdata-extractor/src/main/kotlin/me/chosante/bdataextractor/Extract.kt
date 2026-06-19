@@ -90,8 +90,8 @@ data class PassiveEntry(
     val name: String?,
     val breedId: Int,
     @SerialName("class") val clazz: String,
-    // Spell sprite id (Spell table `gfx_id`). Names the passive's icon PNG on Vertylo/wakassets
-    // (`spells/<gfxId>.png`, the same set the active-spell icons come from) so the GUI can render it.
+    // Spell sprite id (Spell table `gfx_id`). Names the passive's icon PNG (`assets/spells/<gfxId>.png`,
+    // extracted from the client's gui.jar — the same set the active-spell icons come from) so the GUI can render it.
     val gfxId: Int,
     val description: String?,
     val effectIds: List<Int>,

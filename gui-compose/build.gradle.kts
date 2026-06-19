@@ -148,14 +148,17 @@ tasks.register("generateAssets") {
         demand; the resulting PNGs are committed. Pass -Pwakfu.install=<path> (default /Applications/Ankama/Wakfu).
 
         It converts these sets into src/main/resources/assets (TGA -> PNG):
-          - items/  filtered to the guiIds referenced by the current equipments JSON (also covers runes)
-          - spells/ filtered to the iconIds/gfxIds referenced by the current spells + passives JSON
-          - states/ filtered to the appliedStateIds referenced by the passives JSON (buff/state icons)
-          - breeds/ class artwork keyed by CharacterClass.breedId — icon/, illustration/ (male), background/
-        Monster portraits (boss picker) + the 40 HUD stat icons under assets/icons/ are NOT extracted — the
-        former are committed 200x200 portraits (the client only keys monsters as 132x41 banners), the latter are
-        name-keyed UI chrome. Both stay committed-static.
-        Existing files are never overwritten.
+          - items/     filtered to the guiIds referenced by the current equipments JSON (also covers rune items)
+          - spells/    filtered to the iconIds/gfxIds referenced by the current spells + passives JSON
+          - states/    filtered to the appliedStateIds referenced by the passives JSON (buff/state icons)
+          - breeds/    class artwork keyed by CharacterClass.breedId — icon/, illustration/ (male), background/
+          - itemTypes/ equipment-slot icons re-sourced by their numeric ids (miscellaneous/itemTypes)
+          - runes/     the 3 socket-colour shards (theme/images/shard{Red,Green,Blue}Full)
+          - icons/     the 36 HUD stat icons mapped to miscellaneous/characteristics (by Characteristic)
+        NOT extracted (stay committed-static): monster portraits (200x200 renders; the client only keys monsters
+        by gfx as 132x41 banners) and the 8 rarity badges (gui.jar has a filled icon only for epic/relic; the
+        rest are border frames, with no uncommon/souvenir icon).
+        Existing files are never overwritten, except sets that opt in (itemTypes/runes/icons re-source from the client).
         """.trimIndent()
     group = "assets"
 
@@ -188,9 +191,9 @@ tasks.register("generateAssets") {
 
         val spellIconIds =
             readResourceJson("spells").mapNotNull { (it["iconId"] as? Number)?.toInt()?.toString() }.toSet()
-        // Passive icons are spell sprites too — keyed by the passive's gfxId — and live in the same
-        // wakassets `spells/` dir, so they are unioned into the spells filter below (the GUI renders the
-        // chosen passives with their own icon). `states/` still covers the buff/state icons separately.
+        // Passive icons are spell sprites too — keyed by the passive's gfxId — and come from the same
+        // gui.jar `icons/spells/64` set, so they are unioned into the spells filter below (the GUI renders
+        // the chosen passives with their own icon). `states/` still covers the buff/state icons separately.
         val passiveGfxIds =
             readResourceJson("spell-passives").mapNotNull { (it["gfxId"] as? Number)?.toInt()?.toString() }.toSet()
         val passiveStateIds =
@@ -209,23 +212,106 @@ tasks.register("generateAssets") {
                 category: String,
                 jarDir: String,
                 ids: Iterable<String>,
+                overwrite: Boolean = false,
             ) {
                 val targetDir = assetsDir.resolve(category).apply { mkdirs() }
                 var copied = 0
                 ids.toSet().forEach { id ->
                     val destination = targetDir.resolve("$id.png")
-                    if (destination.exists()) return@forEach
+                    if (!overwrite && destination.exists()) return@forEach
                     val entry = zip.getEntry("$jarDir/$id.tga") ?: return@forEach
                     val image = zip.getInputStream(entry).use { tgaToImage(it.readBytes()) }
                     ImageIO.write(image, "png", destination)
                     copied++
                 }
-                logger.lifecycle("generateAssets: $category -> $copied new file(s) from gui.jar")
+                logger.lifecycle("generateAssets: $category -> $copied file(s) from gui.jar")
             }
 
             extract("items", "icons/items/64", guiIdsFromCurrentEquipmentJson) // also covers runes (item shards)
             extract("spells", "icons/spells/64", spellIconIds + passiveGfxIds)
             extract("states", "icons/states", passiveStateIds)
+
+            // Equipment-slot / item-type icons (keyed by Ankama's numeric itemType id) were previously
+            // committed-static; they live in gui.jar too, so re-source them from the official client
+            // (overwrite=true, so a client bump refreshes them). Same ids — any id gui.jar lacks (e.g. the
+            // synthetic 112) keeps its committed file. Derive the id set from the icons we already ship.
+            val itemTypeIds =
+                assetsDir.resolve("itemTypes").listFiles { f -> f.extension == "png" }?.map { it.nameWithoutExtension } ?: emptyList()
+            extract("itemTypes", "miscellaneous/itemTypes", itemTypeIds, overwrite = true)
+
+            // The 3 rune socket-colour shards: same art as the client's, but our target names differ from the
+            // gui.jar entry stems, so map them explicitly (the rune ITEM icons come via the items extract above).
+            fun extractNamed(
+                category: String,
+                mapping: Map<String, String>,
+            ) {
+                val targetDir = assetsDir.resolve(category).apply { mkdirs() }
+                var copied = 0
+                mapping.forEach { (target, jarEntry) ->
+                    val entry = zip.getEntry("$jarEntry.tga") ?: return@forEach
+                    val image = zip.getInputStream(entry).use { tgaToImage(it.readBytes()) }
+                    ImageIO.write(image, "png", targetDir.resolve("$target.png"))
+                    copied++
+                }
+                logger.lifecycle("generateAssets: $category -> $copied file(s) from gui.jar")
+            }
+            extractNamed(
+                "runes",
+                mapOf(
+                    "shard_red" to "theme/images/shardRedFull",
+                    "shard_green" to "theme/images/shardGreenFull",
+                    "shard_blue" to "theme/images/shardBlueFull"
+                )
+            )
+
+            // HUD stat icons (assets/icons/<stat>.png, keyed by name in StatIcons.kt). The client's
+            // miscellaneous/characteristics/<NAME> set is the official, colourful equivalent — mapped by the
+            // Characteristic each represents (not guesswork): `di` = damage-inflicted / generic mastery ->
+            // DMG_IN_PERCENT (NOT INDIRECT_DMG); `shield` = the Intelligence barrier line -> BARRIER; `control`
+            // (summon control) -> LEADERSHIP; `lock` -> TACKLE. gui.jar has a single crit glyph, so crit chance
+            // + crit mastery share it. The 4 unreferenced legacy files (barda / catchable / mastery_area /
+            // mastery_mono) map to no Characteristic and are left untouched.
+            extractNamed(
+                "icons",
+                mapOf(
+                    "ap" to "AP",
+                    "mp" to "MP",
+                    "wp" to "WP",
+                    "hp" to "HP",
+                    "range" to "RANGE",
+                    "init" to "INIT",
+                    "control" to "LEADERSHIP",
+                    "wisdom" to "WISDOM",
+                    "prosp" to "PROSPECTION",
+                    "will" to "WILLPOWER",
+                    "dodge" to "DODGE",
+                    "lock" to "TACKLE",
+                    "block" to "BLOCK",
+                    "critical" to "CRITICAL_BONUS",
+                    "mastery_crit" to "CRITICAL_BONUS",
+                    "res_crit" to "CRITICAL_RES",
+                    "armor" to "ARMOR",
+                    "armor_given" to "ARMOR_GIVEN",
+                    "armor_received" to "ARMOR_RECEIVED",
+                    "shield" to "BARRIER",
+                    "heal" to "FINAL_HEAL_IN_PERCENT",
+                    "mastery_heal" to "HEAL_IN_PERCENT",
+                    "di" to "DMG_IN_PERCENT",
+                    "fire" to "DMG_FIRE_PERCENT",
+                    "water" to "DMG_WATER_PERCENT",
+                    "earth" to "DMG_EARTH_PERCENT",
+                    "air" to "DMG_AIR_PERCENT",
+                    "fire_res" to "RES_FIRE_PERCENT",
+                    "water_res" to "RES_WATER_PERCENT",
+                    "earth_res" to "RES_EARTH_PERCENT",
+                    "air_res" to "RES_AIR_PERCENT",
+                    "mastery_dist" to "RANGED_DMG",
+                    "mastery_mel" to "MELEE_DMG",
+                    "mastery_back" to "BACKSTAB_BONUS",
+                    "mastery_berserk" to "BERSERK_DMG",
+                    "res_back" to "RES_BACKSTAB"
+                ).mapValues { "miscellaneous/characteristics/${it.value}" }
+            )
             // Monster portraits are NOT extracted: the boss picker shows only bosses (all 220 already have a
             // committed 200x200 portrait), and the client only keys monsters by gfx as 132x41 in-game banners,
             // not portraits — so there is nothing better to pull. The committed boss portraits stay as-is.

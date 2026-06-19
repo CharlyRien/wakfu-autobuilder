@@ -27,9 +27,11 @@ import me.chosante.ui.theme.WType
 import me.chosante.ui.theme.WTypography
 
 /*
- * Maps the domain stats and skill-tree lines onto the HUD artwork shipped under `assets/icons`
- * (name-keyed UI chrome, committed-static — these are not extracted by generateAssets). Every mapping is a `when` over the domain
- * enum so a new Characteristic fails to compile until it is given an icon (or an explicit `null`).
+ * Maps the domain stats and skill-tree lines onto the HUD artwork shipped under `assets/icons`. These are
+ * the official client stat icons, extracted from gui.jar's `miscellaneous/characteristics` by the
+ * `generateAssets` task (the icon name -> Ankama CHARACTERISTIC name map lives there, keyed off this `when`).
+ * Every mapping is a `when` over the domain enum so a new Characteristic fails to compile until it is given an
+ * icon (or an explicit `null`).
  *
  * Resolution is always icon-first with a graceful fallback: stats with no representative icon keep
  * their text glyph, and skill lines with no icon keep their text name — so a missing or unmapped

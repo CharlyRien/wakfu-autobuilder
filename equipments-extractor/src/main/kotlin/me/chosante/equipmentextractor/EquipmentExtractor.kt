@@ -101,6 +101,11 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
             }
         val rarity = rarityIdToRarity.getValue(equipment.definition.item.baseParameters.rarity)
 
+        // Number of enchantment sockets ("châsses") the item can hold — drives rune socketing in the
+        // solver (Equipment.maxShardSlots). Must be carried through here or every regenerated build
+        // loses its runes (no icons in the GUI, no shards exported to Zenith).
+        val maxShardSlots = equipment.definition.item.baseParameters.maximumShardSlotNumber
+
         val itemTypeId = equipment.definition.item.baseParameters.itemTypeId
         val itemType: ItemType = itemTypeIdToTypeName[itemTypeId] ?: continue
 
@@ -197,7 +202,8 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
                 name = name,
                 rarity = rarity,
                 itemType = itemType,
-                characteristics = bonus
+                characteristics = bonus,
+                maxShardSlots = maxShardSlots
             )
         equipments.add(outputDict)
     }

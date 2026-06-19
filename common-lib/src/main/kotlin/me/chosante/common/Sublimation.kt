@@ -79,8 +79,9 @@ data class SublimationConversion(
 
 /**
  * A Wakfu sublimation, keyed by its in-game `stateId` (the stable join key — 467 item rows collapse to
- * 232 distinct effects). Effect data is curated from the community WakForge dump (Ankama's `states.json`
- * carries no effect text); see docs/SUBLIMATIONS_LOT3_RESEARCH.md.
+ * 232 distinct effects). Effect data is decoded **first-party** from the local client's State (67) →
+ * StaticEffect (68) tables by `bdata-extractor` (`SublimationBuilder`); identity/name/rarity/slot colours
+ * come from the CDN `items.json` (itemTypeId 812). No third-party (WakForge) dump is used.
  *
  * Best-achievable model: a chosen sublimation contributes its **max-level** [effects].
  */

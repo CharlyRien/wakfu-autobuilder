@@ -24,7 +24,7 @@ data class Passive(
     // Game data stores the class as its readable name ("FECA", …); kept as a String because CharacterClass
     // is not @Serializable. Resolve via [characterClass].
     @SerialName("class") val clazz: String,
-    // Spell sprite id — names the icon PNG (`assets/spells/<gfxId>.png`, from Vertylo/wakassets).
+    // Spell sprite id — names the icon PNG (`assets/spells/<gfxId>.png`, extracted from the client's gui.jar).
     // Defaulted so a pre-`gfxId` artifact still decodes (lenient JSON skips extra keys, not missing ones).
     val gfxId: Int = 0,
     val description: String? = null,
