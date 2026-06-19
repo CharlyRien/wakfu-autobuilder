@@ -1,17 +1,26 @@
 package me.chosante.ui.state
 
+import me.chosante.ui.i18n.Lang
 import java.util.prefs.Preferences
 
 /**
- * Persists the two *durable* library view options — sort order and group-by-class — across launches
- * (the active search/class filters are deliberately in-memory and reset each launch). Mirrors
- * [WarmupTiming]'s Preferences pattern, but as an injectable instance so tests can point it at a
- * throwaway node. Every access is wrapped in `runCatching`: a prefs failure must never break the UI.
+ * Persists the *durable* UI options across launches — the library view options (sort order and
+ * group-by-class) and the chosen UI language (the active search/class filters are deliberately
+ * in-memory and reset each launch). Mirrors [WarmupTiming]'s Preferences pattern, but as an injectable
+ * instance so tests can point it at a throwaway node. Every access is wrapped in `runCatching`: a prefs
+ * failure must never break the UI.
  */
 class LibraryPreferences(
     private val prefs: Preferences? =
         runCatching { Preferences.userRoot().node("me/chosante/wakfu-autobuilder") }.getOrNull(),
 ) {
+    /** The UI language chosen last launch; defaults to English on first run or any read failure. */
+    fun loadLang(): Lang = runCatching { Lang.valueOf(prefs?.get(KEY_LANG, "") ?: "") }.getOrDefault(Lang.EN)
+
+    fun saveLang(lang: Lang) {
+        runCatching { prefs?.put(KEY_LANG, lang.name) }
+    }
+
     fun loadSort(): LibrarySort = runCatching { LibrarySort.valueOf(prefs?.get(KEY_SORT, "") ?: "") }.getOrDefault(LibrarySort.NEWEST)
 
     fun saveSort(sort: LibrarySort) {
@@ -43,6 +52,7 @@ class LibraryPreferences(
     }
 
     private companion object {
+        const val KEY_LANG = "language"
         const val KEY_SORT = "librarySort"
         const val KEY_GROUP = "libraryGroupByClass"
         const val KEY_TAGS = "knownTags"
