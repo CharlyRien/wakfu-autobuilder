@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import me.chosante.common.Spell
+import me.chosante.common.Sublimation
 import me.chosante.common.findRepositoryRoot
 import java.io.File
 
@@ -23,8 +24,9 @@ private val LENIENT_JSON = Json { ignoreUnknownKeys = true }
 /**
  * Regenerates the baked bdata artifacts from a local Wakfu install by decoding the scrambled static-data
  * binaries directly (no Rust, no external tool):
- *  - `spell-cast-limits-v<version>.json` (Spell table 66: per-turn / per-target / cooldown)
- *  - `spell-passives-v<version>.json`    (Spell 66 `passive` flag + StaticEffect table 68 effects)
+ *  - `spell-cast-limits-v<version>.json`   (Spell table 66: per-turn / per-target / cooldown)
+ *  - `spell-passives-v<version>.json`      (Spell 66 `passive` flag + StaticEffect table 68 effects)
+ *  - `sublimation-stacking-v<version>.json` (State table 67: per-sublimation `max_level` + `is_cumulable`)
  *
  * The source binaries live ONLY in the local install (`contents/bdata/`), never on the CDN, so this
  * tool is maintainer-local (it cannot run in CI) — the JSON it produces stays committed. `actions.json`
@@ -56,6 +58,10 @@ fun main(args: Array<String>) {
     val effects = loadTable(install, Tables.STATIC_EFFECT, Tables.STATIC_EFFECT_SCHEMA)
     println("  ${effects.records.size} records (size-guard passed)")
 
+    println("Decoding State table (67)…")
+    val states = loadTable(install, Tables.STATE, Tables.STATE_SCHEMA)
+    println("  ${states.records.size} records (size-guard passed)")
+
     println("Fetching actions.json from CDN…")
     val actions = ActionCatalog.fetch(version)
 
@@ -73,7 +79,27 @@ fun main(args: Array<String>) {
     val passivesJson = json.encodeToString(ListSerializer(PassiveEntry.serializer()), passives)
     verifyAndWrite(File(resources, "spell-passives-v$version.json"), passivesJson, "passives", passives.size, force)
 
+    // Sublimation stacking (State table 67): max_level + is_cumulable for each curated sublimation stateId,
+    // straight from the local binary — replaces the third-party "Max" column. Cross-check the decoded
+    // maxStackLevel against the current Sublimation.maxLevel to validate before switching the source over.
+    val subStateIds = loadSublimationStateIds(File(resources, "sublimations-v$version.json"))
+    println("Loaded ${subStateIds.size} sublimation stateIds")
+    val stacking = buildSublimationStacking(states, subStateIds)
+    if (stacking.size < subStateIds.size) {
+        println("  WARN: ${subStateIds.size - stacking.size} sublimation stateId(s) absent from the State table.")
+    }
+    val stackingJson = json.encodeToString(ListSerializer(SublimationStacking.serializer()), stacking)
+    verifyAndWrite(File(resources, "sublimation-stacking-v$version.json"), stackingJson, "sublimation-stacking", stacking.size, force)
+
     println("\nDone.")
+}
+
+/** The set of sublimation `stateId`s to decode stacking for — the curated identities in the committed
+ *  sublimations resource (we replace the max-stack VALUE from bdata, not the identities). */
+private fun loadSublimationStateIds(file: File): Set<Int> {
+    if (!file.isFile) error("Missing $file — build the sublimations resource first.")
+    val subs = LENIENT_JSON.decodeFromString(ListSerializer(Sublimation.serializer()), file.readText())
+    return subs.map { it.stateId }.toSet()
 }
 
 /** Reads the encyclopedia-scraped catalogue and joins FR name/description (HTML-unescaped) by spell id. */

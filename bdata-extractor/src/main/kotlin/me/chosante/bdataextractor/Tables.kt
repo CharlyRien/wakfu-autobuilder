@@ -12,7 +12,7 @@ import me.chosante.bdataextractor.FieldType.Struct
 import me.chosante.bdataextractor.FieldType.Vec
 
 /**
- * Positional field schemas for the two Wakfu static-data tables we read. The layout is **untagged**, so
+ * Positional field schemas for the Wakfu static-data tables we read. The layout is **untagged**, so
  * every field is listed in exact wire order — the *full* record must be walked for the scramble seed to
  * stay aligned, even though only a handful of fields are used downstream. Order is the entire risk
  * surface; the per-record size guard ([loadTable]) verifies each record consumes exactly its indexed
@@ -24,6 +24,7 @@ import me.chosante.bdataextractor.FieldType.Vec
  */
 object Tables {
     const val SPELL = 66
+    const val STATE = 67
     const val STATIC_EFFECT = 68
 
     /** Spell table (TYPE_ID 66). Cast limits, breed, AP, the `passive` flag and `effect_ids` are early. */
@@ -154,5 +155,41 @@ object Tables {
             Field("recompute_area_of_effect_display", Bool),
             Field("is_in_turn_in_fight", Bool),
             Field("notify_in_chat", Bool)
+        )
+
+    /**
+     * State table (TYPE_ID 67). A sublimation IS a state (keyed by [stateId] = `id`); [max_level] is the
+     * stacking/level cap (what the curated `Sublimation.maxLevel` mirrors) and [is_cumulable] is the
+     * in-game flag for whether re-applying it accumulates. Field order is Ankama's `StateBinaryData`
+     * (verbatim from the `jac3km4/wakfu-bdata` `State` decoder, the same reference the Spell schema came
+     * from); `_n` fields are unnamed/unused, still decoded for seed alignment.
+     */
+    val STATE_SCHEMA: List<Field> =
+        listOf(
+            Field("id", I32),
+            Field("max_level", I16),
+            Field("end_trigger", Vec(I32)),
+            Field("duration", Vec(I32)),
+            Field("_4", Vec(I32)),
+            Field("ends_at_end_of_turn", Bool),
+            Field("is_duration_in_full_turns", Bool),
+            Field("in_turn_in_fight", Bool),
+            Field("is_replacable", Bool),
+            Field("hmi_actions", Str),
+            Field("apply_criterion", Str),
+            Field("is_cumulable", Bool),
+            Field("duration_in_caster_turn", Bool),
+            Field("duration_in_real_time", Bool),
+            Field("effect_ids", Vec(I32)),
+            Field("state_immunities", Vec(I32)),
+            Field("state_should_be_saved", Bool),
+            Field("decursable", Bool),
+            Field("state_type", I8),
+            Field("state_power_type", I8),
+            Field("is_reapply_even_at_max_level", Bool),
+            Field("timeline_visible", Bool),
+            Field("_22", Str),
+            Field("display_caster_name", Bool),
+            Field("_24", I16)
         )
 }

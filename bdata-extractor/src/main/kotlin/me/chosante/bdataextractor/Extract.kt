@@ -96,6 +96,19 @@ data class PassiveEntry(
     val fullyDeclarative: Boolean,
 )
 
+/**
+ * Per-sublimation stacking facts decoded from the State table (66's sibling, TYPE_ID 67) — the
+ * authoritative local-binary source, replacing the third-party "Max" column. [maxStackLevel] is the
+ * state's `max_level` (the stacking/level cap), [cumulable] its `is_cumulable` flag (whether re-applying
+ * the same sublimation across items accumulates). Keyed by [stateId] to join `sublimations-v*.json`.
+ */
+@Serializable
+data class SublimationStacking(
+    val stateId: Int,
+    val maxStackLevel: Int,
+    val cumulable: Boolean,
+)
+
 /** A spell's name/description/class as joined from the encyclopedia-scraped `spells-v*.json`. */
 data class SpellInfo(
     val nameFr: String?,
@@ -103,6 +116,26 @@ data class SpellInfo(
 )
 
 // ----- builders -----
+
+/**
+ * Sublimation stacking artifact: for each sublimation [stateId] (the curated set in `sublimations-v*.json`),
+ * its `max_level` + `is_cumulable` decoded straight from the State table — no third-party data. A sublimation
+ * whose state is absent from the table (shouldn't happen) is dropped and reported by the caller.
+ */
+fun buildSublimationStacking(
+    states: Table,
+    sublimationStateIds: Set<Int>,
+): List<SublimationStacking> {
+    val byId = states.records.associateBy { it["id"] as Int }
+    return sublimationStateIds.sorted().mapNotNull { stateId ->
+        val record = byId[stateId] ?: return@mapNotNull null
+        SublimationStacking(
+            stateId = stateId,
+            maxStackLevel = record["max_level"] as Int,
+            cumulable = record["is_cumulable"] as Boolean
+        )
+    }
+}
 
 /** Cast-limit artifact: player-breed spells, raw decoded values (0 = no limit / no cooldown). */
 fun buildCastLimits(
