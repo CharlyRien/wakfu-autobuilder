@@ -13,8 +13,8 @@ import androidx.compose.ui.unit.dp
 import me.chosante.common.CharacterClass
 
 /**
- * Resolves the class ("breed") artwork baked under `assets/breeds/` (sourced from the community
- * `Vertylo/wakassets` set, keyed by [CharacterClass.breedId]). Three kinds:
+ * Resolves the class ("breed") artwork baked under `assets/breeds/` (extracted from the local client's
+ * `gui.jar` by `generateAssets`, keyed by [CharacterClass.breedId]). Three kinds:
  *  - [iconPath] — a small class badge (`breedsIcons`),
  *  - [illustrationPath] — the full character "T-pose" art (`breedsIllusrations`, male variant),
  *  - [backgroundPath] — a class-themed background (`breedsBackgrounds`).
