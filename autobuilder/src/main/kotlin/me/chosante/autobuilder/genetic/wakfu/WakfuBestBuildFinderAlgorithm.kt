@@ -47,7 +47,7 @@ object WakfuBestBuildFinderAlgorithm {
     /**
      * The embedded monster/boss catalog ([Monster]) for the current data version, or empty if the
      * resource is absent. Used by boss mode to auto-fill the attack scenario's per-element resistances.
-     * Sorted bosses-first / higher-level-first, as produced by the `monsters-extractor`.
+     * Sorted bosses-first / higher-level-first, as produced by the `bdata-extractor` (`buildMonsters`).
      */
     val monsters: List<Monster> by lazy {
         EmbeddedResources.decodeList<Monster>("monsters.json") ?: emptyList()

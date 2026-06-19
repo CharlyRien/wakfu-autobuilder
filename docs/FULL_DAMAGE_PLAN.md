@@ -64,11 +64,14 @@ Ported `Monster.kt`, `monsters-v1.91.1.54.json` (715 monsters / 226 bosses), `Bo
 
 **GUI — ⬜ TODO** (the bulk): boss picker (searchable dropdown + resistance profile + difficulty +
 turns-to-kill) wired into `main`'s `RequestPanel`/`AppShell`/`BuildSearchModel`/`UiState`/`StatsPanel` +
-`i18n/I18n.kt`. **Boss icons:** add `gfx: Int? = null` to `Monster` + parse `entry["gfx"]` in
-`MethodWakfuBestiary` (the API returns it; nullable ⇒ current json still deserializes), re-bake the json, add
-one `copyAssetDir("monsters")` line to `gui-compose:generateAssets` (source `Vertylo/wakassets/monsters/<gfx>.png`,
-the same repo as item icons), render via `rememberClasspathBitmap`. (`bossIllustrations/` is keyed by a
-dungeon-boss id, not `gfx` — unused.)
+`i18n/I18n.kt`. **Boss icons:** `gfx: Int? = null` is on `Monster`, the `copyAssetDir("monsters")` line is in
+`gui-compose:generateAssets`, and rendering goes via `rememberClasspathBitmap` (source
+`Vertylo/wakassets/monsters/<gfx>.png`). (`bossIllustrations/` is keyed by a dungeon-boss id, not `gfx` —
+unused.)
+
+> ⚠️ **Updated 2026-06-19:** `monsters-extractor` / `MethodWakfuBestiary` are removed — `monsters.json` now
+> comes from `bdata-extractor`, and `gfx` is carried by the committed `monster-overlay.json` overlay (decoding
+> it from the client's drifted GFX tail is not done), **not** parsed from the MethodWakfu API. See `AGENTS.md` §5.
 
 ---
 

@@ -221,7 +221,7 @@
   },
   {
     "spellId": 6995,
-    "name": "La meilleure défense est l’attaque",
+    "name": "La meilleure défense est l'attaque",
     "breedId": 1,
     "class": "FECA",
     "gfxId": 5245,
@@ -410,7 +410,7 @@
   },
   {
     "spellId": 7003,
-    "name": "Carapace d’épines",
+    "name": "Carapace d'épines",
     "breedId": 1,
     "class": "FECA",
     "gfxId": 685,
@@ -1529,8 +1529,8 @@
         "characteristic": null,
         "base": 50,
         "inc": 0,
-        "conditional": false,
-        "criterion": null,
+        "conditional": true,
+        "criterion": "False",
         "durationBase": 0,
         "permanent": false
       }
@@ -1539,7 +1539,7 @@
     "appliedStateIds": [
       3125
     ],
-    "hasConditionalEffects": false,
+    "hasConditionalEffects": true,
     "hasStateEffects": true,
     "hasScriptedEffects": false,
     "hasTriggeredEffects": true,
@@ -5491,8 +5491,8 @@
     "gfxId": 1816,
     "description": "At the end of their turn, the Rogue uses bombs adjacent to them as a shield by absorbing their resistance.",
     "effectIds": [
-      395592,
-      367842
+      367842,
+      395592
     ],
     "declaredEffects": [],
     "flatBuildStats": {},
@@ -5880,13 +5880,16 @@
     "description": "\"Dopu\" was a famous Masqueraider specializing in collisions. He pushed his opponents around so much that they took pushback damage. An ancestral art that was thought to have been lost since the Dofus Era...",
     "effectIds": [
       308039,
-      308062
+      308062,
+      413133
     ],
     "declaredEffects": [],
     "flatBuildStats": {},
-    "appliedStateIds": [],
+    "appliedStateIds": [
+      9271
+    ],
     "hasConditionalEffects": false,
-    "hasStateEffects": false,
+    "hasStateEffects": true,
     "hasScriptedEffects": true,
     "hasTriggeredEffects": true,
     "fullyDeclarative": false
@@ -6137,7 +6140,8 @@
     "description": "The Masqueraider increases their support potential through collisions. Add a dash of crash and smash!",
     "effectIds": [
       308128,
-      308136
+      308136,
+      413134
     ],
     "declaredEffects": [],
     "flatBuildStats": {},
@@ -6200,9 +6204,23 @@
     "description": "Collisions gain a healing effect. When you push one obstacle into another, the second one will receive the healing.",
     "effectIds": [
       308144,
-      308157
+      308157,
+      413136,
+      413137
     ],
-    "declaredEffects": [],
+    "declaredEffects": [
+      {
+        "actionId": 40,
+        "kind": "stat",
+        "characteristic": "RECEIVED_ARMOR_PERCENTAGE",
+        "base": -30,
+        "inc": 0,
+        "conditional": false,
+        "criterion": null,
+        "durationBase": -1,
+        "permanent": true
+      }
+    ],
     "flatBuildStats": {},
     "appliedStateIds": [],
     "hasConditionalEffects": false,
@@ -6314,26 +6332,36 @@
     "effectIds": [
       308117,
       308125,
-      309413
+      309413,
+      413138
     ],
     "declaredEffects": [
+      {
+        "actionId": 161,
+        "kind": "stat",
+        "characteristic": "RANGE",
+        "base": -2,
+        "inc": 0,
+        "conditional": false,
+        "criterion": null,
+        "durationBase": -1,
+        "permanent": true
+      },
       {
         "actionId": 177,
         "kind": "stat",
         "characteristic": "WILLPOWER",
         "base": 10,
         "inc": 0,
-        "conditional": false,
-        "criterion": null,
+        "conditional": true,
+        "criterion": "False",
         "durationBase": -1,
         "permanent": true
       }
     ],
-    "flatBuildStats": {
-      "WILLPOWER": 10
-    },
+    "flatBuildStats": {},
     "appliedStateIds": [],
-    "hasConditionalEffects": false,
+    "hasConditionalEffects": true,
     "hasStateEffects": false,
     "hasScriptedEffects": true,
     "hasTriggeredEffects": true,
@@ -7364,7 +7392,7 @@
     "flatBuildStats": {},
     "appliedStateIds": [
       7688,
-      9188
+      9197
     ],
     "hasConditionalEffects": true,
     "hasStateEffects": true,

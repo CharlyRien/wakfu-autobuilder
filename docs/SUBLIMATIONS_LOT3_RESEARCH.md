@@ -1,5 +1,13 @@
 # Lot 3 — Sublimations: research findings & phased implementation plan
 
+> 🛑 **SUPERSEDED (2026-06-19) — historical context only.** The WakForge / noredlace / hand-curated pipeline
+> described below (and the `docs/sublimations-research/` scripts + data) has been **removed**. Sublimations
+> are now generated entirely from first-party sources by `bdata-extractor`: effects / build-static condition /
+> scenario gates / max level from the local State (67) → StaticEffect (68) tables (`SublimationBuilder.kt`),
+> identity / name / rarity / slot-colours from the CDN `items.json`. The `SublimationKind` / condition
+> vocabulary and the solver-modeling design in §4 are still accurate and in use; the data-sourcing sections
+> (§1, §2) are obsolete. See `AGENTS.md` §5 and `SublimationReproductionTest`.
+
 **Status:** RESEARCH PHASE COMPLETE (no solver wiring yet — by design).
 **Author:** parallel research session, worktree `research/sublimations-lot3` (branched from `d83396c`).
 **Supersedes the open questions in** `docs/SUBLIMATIONS_LOT3_HANDOFF.md` (read that first for framing).
