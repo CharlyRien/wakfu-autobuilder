@@ -91,6 +91,15 @@ data class Spell(
      * `docs/SPELL_CAST_LIMITS_EXTRACTION.md`.
      */
     val maxCastPerTurn: Int? = null,
+    /**
+     * Maximum number of times this spell may be cast **on a single target** in one turn (Ankama's
+     * `cast_max_per_target`), or null when unknown. Sourced from the baked cast-limit data
+     * (`spell-cast-limits-v<VERSION>.json`, joined by [id] in `SpellCatalog`), **not** the encyclopedia.
+     * Per that data's convention `0` means "no per-target limit". The rotation is single-target, so for a
+     * lone boss this often binds **below** [maxCastPerTurn] (e.g. Sablier: 4 per turn but 1 per target ⇒
+     * 1 legal cast) — [maxCastsThisTurn] folds it in.
+     */
+    val maxCastPerTarget: Int? = null,
     val iconId: Int? = null,
     val description: I18nText? = null,
     /**
@@ -109,24 +118,28 @@ data class Spell(
     val hasDamage: Boolean get() = element != null && baseDamage != null
 
     /**
-     * How many times this spell can be cast at a single target in one turn, or `null` when it is
-     * effectively unbounded (limited only by the AP budget). Folds the two per-turn limits in the baked
-     * cast-limit data:
+     * How many times this spell can be cast **at a single target** in one turn, or `null` when it is
+     * effectively unbounded (limited only by the AP budget). The rotation models single-target damage
+     * (turns-to-kill one boss), so every cast lands on the same target and the binding per-turn cap is the
+     * tightest of the baked cast-limit fields:
      *  - [cooldown] `> 0` (a minimum-interval spell) ⇒ at most **one** cast this turn;
-     *  - otherwise [maxCastPerTurn] (`0`/null in the data means "no per-turn limit").
+     *  - otherwise the **minimum** of [maxCastPerTurn] (total casts this turn) and [maxCastPerTarget]
+     *    (casts on one target this turn) — each `0`/null in the data means "no limit" on that axis.
+     *
+     * Example: a spell with `maxCastPerTurn = 4` but `maxCastPerTarget = 1` can be cast **once** against a
+     * lone boss (4 total across targets, but only 1 on the same one).
      *
      * Per-spell **WP** cost ([wpCost]) is deliberately **not** folded in: WP is a per-*fight* pool (not a
      * per-turn allowance), so bounding a single turn by it needs a separate amortized WP-budget model —
-     * see `docs/FULL_DAMAGE_PLAN.md` "Lot 1". Per-target limits are likewise out of scope here
-     * (single-target damage only).
+     * see `docs/FULL_DAMAGE_PLAN.md` "Lot 1".
      */
     val maxCastsThisTurn: Int?
-        get() =
-            when {
-                (cooldown ?: 0) > 0 -> 1
-                (maxCastPerTurn ?: 0) > 0 -> maxCastPerTurn
-                else -> null
-            }
+        get() {
+            if ((cooldown ?: 0) > 0) return 1
+            val perTurn = (maxCastPerTurn ?: 0).takeIf { it > 0 }
+            val perTarget = (maxCastPerTarget ?: 0).takeIf { it > 0 }
+            return listOfNotNull(perTurn, perTarget).minOrNull()
+        }
 
     /** True when this active spell removes resistance from the target (usable as a rotation-opening debuff). */
     val isResistanceDebuff: Boolean get() = (targetResistanceReductionFlat ?: 0) > 0

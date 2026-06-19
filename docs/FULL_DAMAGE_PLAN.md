@@ -89,8 +89,11 @@ dungeon-boss id, not `gfx` — unused.)
    (`bestRotation` → generalized `boundedKnapsack(items, apBudget, caps: List<Int>)`) uses the **same**
    per-spell caps, keeping the objective and the re-scorer (`bestSequencedRotation`/`bestAcrossElements`,
    the lockstep guard in `WakfuBuildSolverTest`) consistent.
-3. ✅ **Cooldown** (`cooldown > 0` ⇒ cap = 1) folded into `maxCastsThisTurn`. **Per-target** skipped
-   (single-target only; `SpellCastLimit.maxCastPerTarget` is parsed but not propagated).
+3. ✅ **Cooldown** (`cooldown > 0` ⇒ cap = 1) and **per-target** (`maxCastPerTarget`) folded into
+   `maxCastsThisTurn`. The rotation is single-target (turns-to-kill one boss), so every cast lands on the
+   same target and the binding cap is `min(maxCastPerTurn, maxCastPerTarget)` (cooldown ⇒ 1) — e.g.
+   Sablier (4/turn, 1/target) caps at **1** vs a lone boss, Flèche ardente (3/turn, 2/target) at **2**.
+   `SpellCastLimit.maxCastPerTarget` is propagated to `Spell.maxCastPerTarget` in `SpellCatalog`.
 
 **Deferred — model only (data now present):** WP cost is extracted (`pw_base` → `SpellCastLimit.wpCost`
 → `Spell.wpCost`, joined in `SpellCatalog`; 103/715 player spells cost WP) and carried for display, but

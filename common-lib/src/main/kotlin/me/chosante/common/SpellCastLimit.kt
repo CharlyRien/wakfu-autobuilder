@@ -13,8 +13,9 @@ import kotlinx.serialization.Serializable
  * convention. Every field is nullable so a partial/absent record degrades to "unknown" (= no cap)
  * rather than inventing a value.
  *
- * @property maxCastPerTarget single-target caps are out of scope for the single-target damage path;
- *   carried for completeness / the future multi-target lot but not propagated to [Spell].
+ * @property maxCastPerTarget max casts of this spell on **one target** per turn (`0` = no limit).
+ *   Propagated to [Spell.maxCastPerTarget] and folded into [Spell.maxCastsThisTurn]: the rotation is
+ *   single-target, so this is the cap that binds whenever it is tighter than [maxCastPerTurn].
  */
 @Serializable
 data class SpellCastLimit(

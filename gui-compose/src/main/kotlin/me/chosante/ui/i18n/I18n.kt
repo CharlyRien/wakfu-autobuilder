@@ -96,8 +96,8 @@ enum class Tr(
         "Aucun sort jouable dans cet élément pour cette classe — essaie un autre élément d'attaque."
     ),
     SPELL_ROTATION_NOTE(
-        "Per-turn cast limits aren't modeled yet — treat as an upper bound.",
-        "Les limites de lancers par tour ne sont pas encore modélisées — à prendre comme borne haute."
+        "WP costs aren't modeled — WP-gated spells may not sustain their casts every turn (upper bound).",
+        "Le coût en PW n'est pas modélisé — les sorts à PW peuvent ne pas tenir leurs lancers chaque tour (borne haute)."
     ),
     TARGET_STATS("Target Stats", "Stats cibles"),
     MAXIMIZED_MASTERIES("Maximized Masteries", "Maîtrises à maximiser"),

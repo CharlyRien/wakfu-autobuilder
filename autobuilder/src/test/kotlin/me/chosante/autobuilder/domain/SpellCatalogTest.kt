@@ -33,11 +33,13 @@ class SpellCatalogTest {
         // Anchor on oracle-verified spells (docs/SPELL_CAST_LIMITS_EXTRACTION.md §8). The ids are pinned to
         // the current Wakfu data version; firstOrNull + isNotNull turns a future data bump that removes one
         // into a clear "update the anchor" message instead of a raw NoSuchElementException.
-        // Cra "Flèche ardente" (Blazing Arrow, 4769) reads "3 uses per turn" in-game.
+        // Cra "Flèche ardente" (Blazing Arrow, 4769) reads "3 uses per turn" in-game, but only 2 on the same
+        // target — so against a lone boss the single-target cap is the tighter per-target value, 2.
         val blazingArrow = SpellCatalog.forClass(CharacterClass.CRA).firstOrNull { it.id == 4769 }
         assertThat(blazingArrow).describedAs("oracle anchor 'Flèche ardente' (4769) — update if the data version changed").isNotNull
         assertThat(blazingArrow!!.maxCastPerTurn).isEqualTo(3)
-        assertThat(blazingArrow.maxCastsThisTurn).isEqualTo(3)
+        assertThat(blazingArrow.maxCastPerTarget).isEqualTo(2)
+        assertThat(blazingArrow.maxCastsThisTurn).describedAs("min(3 per turn, 2 per target) = 2 vs a lone boss").isEqualTo(2)
         assertThat(blazingArrow.wpCost).describedAs("a normal AP arrow costs no WP").isEqualTo(0)
 
         // WP cost is joined too (for display + future modelling): Cra "Flèche destructrice" (4814) is a
