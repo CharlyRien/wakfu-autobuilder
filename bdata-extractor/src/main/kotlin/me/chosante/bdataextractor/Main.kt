@@ -9,6 +9,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import me.chosante.common.Monster
 import me.chosante.common.Spell
+import me.chosante.common.SpellDamageScaling
 import me.chosante.common.Sublimation
 import me.chosante.common.WakfuData
 import me.chosante.common.findRepositoryRoot
@@ -26,6 +27,8 @@ private const val DEFAULT_INSTALL = "/Applications/Ankama/Wakfu"
  *  - `spell-passives.json`      (Spell 66 `passive` flag + StaticEffect table 68 effects)
  *  - `sublimation-stacking.json` (State table 67: per-sublimation `max_level` + `is_cumulable`)
  *  - `sublimations.json`        (State 67 → StaticEffect 68 effects/condition/max-level + CDN items.json metadata)
+ *  - `spell-damage.json`        (Spell 66 → StaticEffect 68 per-level `[base, inc]` formula, anchored on the
+ *                                encyclopedia `spells.json` so spell damage scales to the caster's level)
  *  - `monsters.json`            (Monster table 42 + i18n names — boss-mode data)
  *
  * The source binaries live ONLY in the local install (`contents/bdata/`), never on the CDN, so this
@@ -79,6 +82,17 @@ fun main(args: Array<String>) {
     val passives = buildPassives(spells, effects, actions, names)
     val passivesJson = json.encodeToString(ListSerializer(PassiveEntry.serializer()), passives)
     verifyAndWrite(File(resources, "spell-passives.json"), passivesJson, "passives", passives.size, force)
+
+    // Spell damage scalings: the per-level [base, inc] formula from bdata, anchored on the encyclopedia's
+    // max-level value so SpellDamage scales each hit to the caster's level (the encyclopedia only knows one
+    // level). Reads the committed encyclopedia spells.json as the anchor; produces spell-damage.json.
+    val encyclopediaSpells =
+        LENIENT_JSON.decodeFromString(ListSerializer(Spell.serializer()), File(resources, "spells.json").readText())
+    val spellDamageScalings = buildSpellDamageScalings(spells, effects, encyclopediaSpells)
+    val matchedScalings = spellDamageScalings.count { it.matched }
+    println("  ${spellDamageScalings.size} spell damage scalings ($matchedScalings exact bdata anchor-match, ${spellDamageScalings.size - matchedScalings} linear-approx fallback)")
+    val scalingJson = json.encodeToString(ListSerializer(SpellDamageScaling.serializer()), spellDamageScalings)
+    verifyAndWrite(File(resources, "spell-damage.json"), scalingJson, "spell-damage", spellDamageScalings.size, force)
 
     // Sublimations: fully first-party now — identity/metadata from the CDN items.json (itemTypeId 812), and
     // effects / condition / max level decoded from the State (67) → StaticEffect (68) tables. Replaces the

@@ -41,7 +41,8 @@ echo "==> [4/5] bdata artifacts + sublimations + monsters (local game binaries a
 # bdata reads the freshly-written spells.json (for passive/cast-limit names), so it MUST run after step 3.
 # It decodes cast-limits + passives + the Monster table (42) + the State/StaticEffect tables, and fetches the
 # CDN items.json + actions.json for sublimation metadata + action semantics. It produces spell-cast-limits.json,
-# spell-passives.json, monsters.json, sublimations.json and sublimation-stacking.json. The Monster layout is
+# spell-passives.json, spell-damage.json (per-level damage formula anchored on the encyclopedia spells.json,
+# so it MUST run after step 3), monsters.json, sublimations.json and sublimation-stacking.json. The Monster layout is
 # auto-derived from the client bytecode (SchemaGenerator), so version drift needs no hand-RE; only boss-tier
 # rank comes from the committed monster-overlay.json. Replaces the MethodWakfu/Fandom scrape AND the WakForge
 # sublimation pipeline. BDATA_FORCE_WRITE=1 accepts the (expected) data changes; the diff is printed first.

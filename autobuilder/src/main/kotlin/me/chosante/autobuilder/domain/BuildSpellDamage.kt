@@ -46,6 +46,7 @@ object BuildSpellDamage {
         return SpellDamage.expectedDamage(
             spell = spell,
             stats = stats,
+            characterLevel = character.level,
             rangeBand = rangeBand,
             rearMastery = rearMastery,
             berserkMastery = berserkMastery,
