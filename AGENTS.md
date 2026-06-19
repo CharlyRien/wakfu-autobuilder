@@ -153,9 +153,11 @@ as **fixed-name** JSON files (no version in the filename):
 2. `spells-extractor` → `spells.json`. (Monsters are no longer scraped — see `bdata-extractor` below.)
 3. `WakfuBestBuildFinderAlgorithm` / `SpellCatalog` / `PassiveCatalog` load these by fixed name via the
    classpath at startup (e.g. `equipments.json`).
-4. The GUI's `generateAssets` Gradle task (`gui-compose`) downloads matching item icons from the
-   [`Vertylo/wakassets`](https://github.com/Vertylo/wakassets) repo into
-   `gui-compose/src/main/resources/assets/items/<guiId>.png`.
+4. The GUI's `generateAssets` Gradle task (`gui-compose`) extracts matching icons (items/spells/states +
+   class artwork) from the **local game client's** `contents/gui_jar/gui.jar` — 64×64 TGAs keyed by the same
+   ids as our data, converted to PNG under `gui-compose/src/main/resources/assets/<set>/<id>.png`. (The
+   community `Vertylo/wakassets` repo was just a PNG mirror of these.) Monster boss portraits + the name-keyed
+   HUD stat icons stay committed-static (the client only keys monsters by gfx as 132×41 banners, not portraits).
 5. `bdata-extractor` decodes the **local game client's** scrambled static-data tables — `Spell` (66),
    `StaticEffect` (68), `State` (67), `Monster` (42) inside `contents/bdata/<id>.jar`, plus the
    `contents/i18n/i18n_<lang>.jar` name bundles — and writes `spell-cast-limits.json`,
@@ -262,7 +264,7 @@ JDK 25 required. Use the Gradle wrapper.
 ./gradlew :equipments-extractor:run               # regenerate the equipments JSON from Ankama CDN
 ./gradlew :spells-extractor:run                   # regenerate the class-spells JSON (scrapes encyclopedia; resumable)
 ./gradlew :bdata-extractor:run                    # regenerate spell cast-limits/passives + monsters JSON (decodes the local game binaries)
-./gradlew :gui-compose:generateAssets             # (on demand) download item icons from wakassets
+./gradlew :gui-compose:generateAssets             # (on demand) extract item/spell icons from the local client's gui.jar
 
 # Compose GUI screenshot smoke-check (renders the app, writes a PNG, exits):
 WAKFU_COMPOSE_SCREENSHOT=/tmp/out.png ./gradlew :gui-compose:run
@@ -308,8 +310,9 @@ WAKFU_COMPOSE_SCREENSHOT=/tmp/out.png ./gradlew :gui-compose:run
   (`gui-compose/build.gradle.kts`, currently `1.0.0`).
 - Item names in `--forced-items` / `--excluded-items` and in the engine's filtering are matched in
   **French** (`equipment.name.fr`), regardless of UI language.
-- The `gui-compose` `generateAssets` task hits the network (downloads the wakassets zip) — it is not
-  part of the normal build and is run on demand.
+- The `gui-compose` `generateAssets` task reads the **local** Wakfu client (`contents/gui_jar/gui.jar`,
+  via `-Pwakfu.install=`) — maintainer-local (like `bdata-extractor`), not part of the normal build, run on
+  demand. It is no longer a network download.
 - Tests use JUnit 5 + AssertJ (`autobuilder` also uses `kotlin-test`).
 - There is no `LICENSE` file yet despite README references; contact is Discord `Chosante`.
 

@@ -89,9 +89,11 @@ internal fun BossResistanceChips(
 }
 
 /**
- * Resolves a monster's icon under `assets/monsters/` — the community `Vertylo/wakassets` set keyed by
- * [Monster.gfx], the same repo/pattern as item icons. Returns `null` when the sprite id is absent or the
- * asset was never fetched (e.g. `generateAssets` was not run), so callers degrade to an empty tile rather
+ * Resolves a monster's icon under `assets/monsters/` — the committed 200×200 boss portraits keyed by
+ * [Monster.gfx]. (Unlike item/spell icons, monster portraits are NOT extracted from the client's gui.jar —
+ * it only keys monsters by gfx as 132×41 banners — so the boss-picker portraits stay committed-static; all
+ * bosses already have one.) Returns `null` when the sprite id is absent or the
+ * asset is missing (e.g. a non-boss monster), so callers degrade to an empty tile rather
  * than crash. Mirrors [BreedAssets].
  */
 internal object MonsterAssets {
