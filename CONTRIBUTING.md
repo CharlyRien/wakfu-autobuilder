@@ -49,9 +49,9 @@ The apps do **not** fetch game data at runtime — it is baked into `autobuilder
 |---|---|---|
 | `equipments.json` | `equipments-extractor` | Ankama CDN (`gamedata/<version>`) |
 | `spells.json` | `spells-extractor` | Ankama encyclopedia (scraped) |
-| `monsters.json` | `monsters-extractor` | MethodWakfu bestiary (+ Fandom fallback) |
-| `spell-cast-limits.json`, `spell-passives.json`, `sublimation-stacking.json` | `bdata-extractor` | the **local game client's** scrambled binaries |
-| `sublimations.json` | `docs/sublimations-research/build_sublimations_resource.py` | curated (WakForge + Ankama metadata) |
+| `monsters.json`, `spell-cast-limits.json`, `spell-passives.json`, `sublimation-stacking.json` | `bdata-extractor` | the **local game client's** scrambled binaries (+ i18n names) |
+| `monster-overlay.json` | *(committed overlay — boss-tier `rank` by monster id; the one editorial fact not in any client table. Everything else, incl. `gfx`, is decoded from bdata.)* | — |
+| `sublimations.json` | `bdata-extractor` | effects/condition/max-level decoded from the local State (67) → StaticEffect (68) tables; identity/name/rarity/colours from the CDN `items.json` (itemTypeId 812) |
 | `runes.json` | *(currently hand-maintained — no committed extractor)* | — |
 
 The **data version** lives in exactly one place: [`common-lib/.../WakfuData.kt`](common-lib/src/main/kotlin/me/chosante/common/WakfuData.kt)
@@ -68,8 +68,8 @@ After Ankama updates the client, **update your local Wakfu install first**, then
 ```
 
 It auto-detects the latest version from the CDN, bumps `WakfuData.VERSION`, regenerates every artifact in
-dependency order (equipments → spells/monsters → sublimations → bdata → icons), then tells you to review
-`git diff`, run `./gradlew test`, and commit.
+dependency order (equipments → spells → sublimations → bdata [spell artifacts + monsters] → icons), then
+tells you to review `git diff`, run `./gradlew test`, and commit.
 
 This is **maintainer-local**: the `bdata-extractor` step decodes the local game binaries and **cannot run
 in CI** (the binaries are never on the CDN), which is why the JSON it produces stays committed.
@@ -83,8 +83,10 @@ accept an intentional change (the diff is printed first).
 - The `bdata-extractor` reads the **untagged** binary table layout (`Tables.kt` positional schemas,
   derived from `jac3km4/wakfu-bdata`). If a table's field schema drifts between client versions, its
   per-record size guard fails loudly — re-derive that table's schema from the reference and fix `Tables.kt`.
-- The sublimation pipeline reads committed snapshots under `docs/sublimations-research/data/`. If a new
-  client adds/changes sublimations, refresh those snapshots before running the Python script.
+- Sublimation effects are decoded from bdata via a small action overlay + criterion-script parser
+  (`SublimationBuilder.kt`). The solver-choosable set is validated by `SublimationReproductionTest` (the
+  audited static subs must stay choosable; combat/scripted subs must stay forced-only). If a client bump
+  changes a sublimation's structure, that test flags it — re-run it after regenerating.
 
 ## Project layout (quick reference)
 

@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import me.chosante.common.Monster
 import me.chosante.common.Spell
 import me.chosante.common.Sublimation
 import me.chosante.common.WakfuData
@@ -18,18 +19,19 @@ import java.io.File
 private const val DEFAULT_VERSION = WakfuData.VERSION
 private const val DEFAULT_INSTALL = "/Applications/Ankama/Wakfu"
 
-private val LENIENT_JSON = Json { ignoreUnknownKeys = true }
-
 /**
  * Regenerates the baked bdata artifacts from a local Wakfu install by decoding the scrambled static-data
  * binaries directly (no Rust, no external tool):
  *  - `spell-cast-limits.json`   (Spell table 66: per-turn / per-target / cooldown)
  *  - `spell-passives.json`      (Spell 66 `passive` flag + StaticEffect table 68 effects)
  *  - `sublimation-stacking.json` (State table 67: per-sublimation `max_level` + `is_cumulable`)
+ *  - `sublimations.json`        (State 67 → StaticEffect 68 effects/condition/max-level + CDN items.json metadata)
+ *  - `monsters.json`            (Monster table 42 + i18n names — boss-mode data)
  *
  * The source binaries live ONLY in the local install (`contents/bdata/`), never on the CDN, so this
  * tool is maintainer-local (it cannot run in CI) — the JSON it produces stays committed. `actions.json`
- * (action_id semantics) is fetched from the CDN, the same source `equipments-extractor` uses.
+ * (action_id semantics) and `items.json` (sublimation metadata) are fetched from the CDN, the same source
+ * `equipments-extractor` uses.
  *
  * Run with: `./gradlew :bdata-extractor:run --args="[installRoot] [version]"`.
  */
@@ -78,27 +80,43 @@ fun main(args: Array<String>) {
     val passivesJson = json.encodeToString(ListSerializer(PassiveEntry.serializer()), passives)
     verifyAndWrite(File(resources, "spell-passives.json"), passivesJson, "passives", passives.size, force)
 
-    // Sublimation stacking (State table 67): max_level + is_cumulable for each curated sublimation stateId,
-    // straight from the local binary — replaces the third-party "Max" column. Cross-check the decoded
-    // maxStackLevel against the current Sublimation.maxLevel to validate before switching the source over.
-    val subStateIds = loadSublimationStateIds(File(resources, "sublimations.json"))
-    println("Loaded ${subStateIds.size} sublimation stateIds")
-    val stacking = buildSublimationStacking(states, subStateIds)
-    if (stacking.size < subStateIds.size) {
-        println("  WARN: ${subStateIds.size - stacking.size} sublimation stateId(s) absent from the State table.")
+    // Sublimations: fully first-party now — identity/metadata from the CDN items.json (itemTypeId 812), and
+    // effects / condition / max level decoded from the State (67) → StaticEffect (68) tables. Replaces the
+    // third-party WakForge/noredlace/manual pipeline (the docs/sublimations-research Python script is retired).
+    println("Fetching sublimation metadata from CDN items.json…")
+    val subMeta = ItemsCatalog.fetchSublimationMeta(version)
+    println("  ${subMeta.size} sublimations (itemTypeId ${ItemsCatalog.SUBLIMATION_ITEM_TYPE})")
+    val sublimations = buildSublimations(states, effects, actions, subMeta)
+    println("  ${sublimations.count { it.solverChoosable }} solver-choosable (rest forced-input-only)")
+    val sublimationsJson = json.encodeToString(ListSerializer(Sublimation.serializer()), sublimations)
+    verifyAndWrite(File(resources, "sublimations.json"), sublimationsJson, "sublimations", sublimations.size, force)
+
+    // Stacking artifact (State table 67): max_level + is_cumulable for the same sublimation set.
+    val stacking = buildSublimationStacking(states, subMeta.map { it.stateId }.toSet())
+    if (stacking.size < subMeta.size) {
+        println("  WARN: ${subMeta.size - stacking.size} sublimation stateId(s) absent from the State table.")
     }
     val stackingJson = json.encodeToString(ListSerializer(SublimationStacking.serializer()), stacking)
     verifyAndWrite(File(resources, "sublimation-stacking.json"), stackingJson, "sublimation-stacking", stacking.size, force)
 
-    println("\nDone.")
-}
+    // Monsters (boss mode): decoded from the local Monster table (42) + i18n names, replacing the third-party
+    // MethodWakfu/Fandom scrape. The table's positional schema is AUTO-DERIVED from the client bytecode
+    // (SchemaGenerator) — so a layout change between client versions (e.g. the Vec Ankama inserted into the
+    // record in 1.92.x) needs no hand-RE. All combat data + the icon `gfx` come from bdata; only the editorial
+    // boss-tier `rank` (absent from every client table) is carried by the committed monster-overlay.json.
+    println("Deriving the Monster table schema from the client bytecode…")
+    val monsterSchema = SchemaGenerator.load(install).monsterSchema(install)
+    println("Decoding Monster table (42)…")
+    val monsterRecords = loadTable(install, Tables.MONSTER, monsterSchema).records
+    println("  ${monsterRecords.size} records (size-guard passed)")
+    val i18n = I18nBundle.load(install, namespaces = setOf(7, 38))
+    val ranks = loadMonsterRanks(File(resources, "monster-overlay.json"))
+    println("Loaded ${ranks.size} boss rank overrides")
+    val monsters = buildMonsters(monsterRecords, i18n, ranks)
+    val monstersJson = json.encodeToString(ListSerializer(Monster.serializer()), monsters)
+    verifyAndWriteMonsters(File(resources, "monsters.json"), monsters, monstersJson, force)
 
-/** The set of sublimation `stateId`s to decode stacking for — the curated identities in the committed
- *  sublimations resource (we replace the max-stack VALUE from bdata, not the identities). */
-private fun loadSublimationStateIds(file: File): Set<Int> {
-    if (!file.isFile) error("Missing $file — build the sublimations resource first.")
-    val subs = LENIENT_JSON.decodeFromString(ListSerializer(Sublimation.serializer()), file.readText())
-    return subs.map { it.stateId }.toSet()
+    println("\nDone.")
 }
 
 /** Reads the encyclopedia-scraped catalogue and joins FR name/description (HTML-unescaped) by spell id. */
@@ -152,6 +170,62 @@ private fun verifyAndWrite(
         diffs.take(12).forEach { println("      $it") }
         if (force) file.writeText(newJson + "\n")
     }
+}
+
+/**
+ * Validates the freshly-built monster list against the committed `monsters.json` (the prior oracle) before
+ * overwriting: every id present in BOTH must reproduce the combat-critical fields — `level`, `hp`, and the
+ * four flat resistances — exactly. The dataset legitimately GROWS (bdata carries more monsters) and changes
+ * `source`/`gfx`, so this is not a full semantic match: only the overlap's combat data must be reproduced.
+ * All match → write; any mismatch → block unless BDATA_FORCE_WRITE=1 (mismatches printed first).
+ */
+private fun verifyAndWriteMonsters(
+    file: File,
+    monsters: List<Monster>,
+    newJson: String,
+    force: Boolean,
+) {
+    println("  built ${monsters.size} monsters (bosses rank≥1: ${monsters.count { it.isBoss }})")
+    if (file.isFile) {
+        val old =
+            runCatching {
+                LENIENT_JSON.decodeFromString(ListSerializer(Monster.serializer()), file.readText())
+            }.getOrElse {
+                println("  [monsters] existing artifact unreadable (${it.message}); skipping diff, NOT overwriting.")
+                return
+            }
+        val newById = monsters.associateBy { it.id }
+        val samples = mutableListOf<String>()
+        var overlap = 0
+        var mismatchCount = 0
+
+        fun Monster.combat() = listOf(level, hp, fireResistance, waterResistance, earthResistance, airResistance)
+        for (o in old) {
+            val n = newById[o.id] ?: continue
+            overlap++
+            if (n.combat() == o.combat()) continue
+            mismatchCount++
+            if (samples.size < 12) {
+                samples.add(
+                    "id=${o.id} ${o.name.fr}: lvl ${n.level}/${o.level} hp ${n.hp}/${o.hp} " +
+                        "res(${n.fireResistance},${n.waterResistance},${n.earthResistance},${n.airResistance}) vs " +
+                        "(${o.fireResistance},${o.waterResistance},${o.earthResistance},${o.airResistance})"
+                )
+            }
+        }
+        val absent = old.count { it.id !in newById }
+        if (mismatchCount == 0) {
+            println("  [monsters] ✓ all $overlap overlapping ids reproduce level/hp/resistances exactly (${old.size}→${monsters.size}; $absent prior id(s) absent from bdata).")
+        } else {
+            val verb = if (force) "accepting (BDATA_FORCE_WRITE) and writing" else "NOT overwriting"
+            println(
+                "  [monsters] $mismatchCount/$overlap overlapping ids differ from the (older-version) prior oracle (bdata = current client, authoritative). $absent prior id(s) absent from bdata. $verb. Sample:"
+            )
+            samples.forEach { println("      $it") }
+            if (!force) return
+        }
+    }
+    file.writeText(newJson + "\n")
 }
 
 /** Deep semantic comparison: numbers compared by value (1 == 1.0), objects by key set, arrays by order. */

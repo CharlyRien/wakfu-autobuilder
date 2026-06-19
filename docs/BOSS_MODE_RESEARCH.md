@@ -2,6 +2,12 @@
 
 Status: **research / design only** (no implementation). Author pass: 2026-06-14.
 
+> ⚠️ **Superseded data pipeline (2026-06-19).** The `monsters-extractor` module and the MethodWakfu/Fandom
+> scrape described below have been **removed**. `monsters.json` (fixed name, no `-v<version>` suffix) is now
+> produced by the **`bdata-extractor`**, decoded from the local game client's Monster table (42) + i18n names,
+> with boss-tier `rank` and icon `gfx` carried by the committed `monster-overlay.json`. The design/scoring
+> narrative below still holds; only the data *source* changed. See `AGENTS.md` §5 and `CONTRIBUTING.md`.
+
 > **Vision.** Pick a boss → get the best **max-damage** build for the player's class against it.
 > Later: richer inputs (orientation / "de dos", distance, position…). This doc answers three
 > questions: (1) does this plug into the max-damage work already on `feat/max-damage-mode`?

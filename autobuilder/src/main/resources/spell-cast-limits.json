@@ -281,7 +281,7 @@
   },
   {
     "spellId": 6995,
-    "name": "La meilleure défense est l’attaque",
+    "name": "La meilleure défense est l'attaque",
     "breedId": 1,
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
@@ -361,7 +361,7 @@
   },
   {
     "spellId": 7003,
-    "name": "Carapace d’épines",
+    "name": "Carapace d'épines",
     "breedId": 1,
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
@@ -1957,7 +1957,7 @@
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
     "cooldown": 0,
-    "wpCost": 0
+    "wpCost": 1
   },
   {
     "spellId": 2045,
@@ -2003,9 +2003,9 @@
     "spellId": 2049,
     "name": "Bataille",
     "breedId": 6,
-    "maxCastPerTurn": 1,
+    "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
-    "maxCastPerTarget": 0,
+    "maxCastPerTarget": 1,
     "cooldown": 0,
     "wpCost": 1
   },
@@ -2043,10 +2043,10 @@
     "spellId": 2061,
     "name": "Félintuition",
     "breedId": 6,
-    "maxCastPerTurn": 0,
+    "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2,
+    "cooldown": 0,
     "wpCost": 0
   },
   {
@@ -2103,9 +2103,9 @@
     "spellId": 2072,
     "name": "Bas les pattes",
     "breedId": 6,
-    "maxCastPerTurn": 0,
+    "maxCastPerTurn": 4,
     "maxCastPerTurnIncr": 0,
-    "maxCastPerTarget": 1,
+    "maxCastPerTarget": 2,
     "cooldown": 0,
     "wpCost": 0
   },
@@ -2213,10 +2213,10 @@
     "spellId": 7225,
     "name": "Trèfle",
     "breedId": 6,
-    "maxCastPerTurn": 0,
+    "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2,
+    "cooldown": 0,
     "wpCost": 0
   },
   {
@@ -5237,7 +5237,7 @@
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
     "cooldown": 0,
-    "wpCost": 0
+    "wpCost": 1
   },
   {
     "spellId": 7084,
@@ -5246,7 +5246,7 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 5,
+    "cooldown": 2,
     "wpCost": 1
   },
   {
@@ -5287,7 +5287,7 @@
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
     "cooldown": 3,
-    "wpCost": 1
+    "wpCost": 0
   },
   {
     "spellId": 7089,
