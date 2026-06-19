@@ -56,10 +56,14 @@ object SpellDamage {
      *   weakness), clamped to ≤ [MAX_RESISTANCE_PERCENT]. A flat multiplier — does not change relative
      *   build ranking, only the displayed number.
      * @param critCapPercent upper bound on the usable crit rate (e.g. 100 to allow full crit).
+     * @param characterLevel the caster's level — the spell's base hit is scaled to it via
+     *   [Spell.baseDamageAt] (Wakfu damage scales with caster level). At max level this equals the old
+     *   flat number, so existing max-level results are unchanged; lower levels are now correct.
      */
     fun expectedDamage(
         spell: Spell,
         stats: Map<Characteristic, Int>,
+        characterLevel: Int,
         rangeBand: RangeBand? = null,
         rearMastery: Boolean = false,
         berserkMastery: Boolean = false,
@@ -67,9 +71,9 @@ object SpellDamage {
         critCapPercent: Int = 100,
     ): Result? {
         val element = spell.element ?: return null
-        val base = spell.baseDamage ?: return null
+        val base = spell.baseDamageAt(characterLevel) ?: return null
         // Crit base falls back to the normal base when the page didn't expose a separate crit hit.
-        val baseCrit = spell.critDamage ?: base
+        val baseCrit = spell.critDamageAt(characterLevel) ?: base
 
         fun v(c: Characteristic): Int = stats[c] ?: 0
 

@@ -4,12 +4,16 @@ import me.chosante.autobuilder.EmbeddedResources
 import me.chosante.common.CharacterClass
 import me.chosante.common.Spell
 import me.chosante.common.SpellCastLimit
+import me.chosante.common.SpellDamageScaling
 import me.chosante.common.SpellElement
 
 /**
- * The embedded class-spell dataset (`spells-v<VERSION>.json`, produced by the `spells-extractor`
- * module from the Ankama encyclopedia), loaded the same lazy way as equipments / runes so merely
- * referencing the object never triggers the multi-hundred-KB parse on the UI thread.
+ * The embedded class-spell dataset (`spells.json`, produced by the `spells-extractor` module from the
+ * Ankama encyclopedia), loaded the same lazy way as equipments / runes so merely referencing the object
+ * never triggers the multi-hundred-KB parse on the UI thread. Two bdata-sourced side tables are joined by
+ * spell id at load: the cast limits (`spell-cast-limits.json`) and the **per-level damage formula**
+ * (`spell-damage.json`) — the latter lets `SpellDamage` scale a hit to the caster's level instead of using
+ * the encyclopedia's max-level snapshot.
  *
  * Beyond exposing the spells, it answers the question that motivated the dataset
  * (`docs/SPELLS_AND_COMBO_RESEARCH.md`): **which elements a class can actually play** — derived from
@@ -29,13 +33,24 @@ object SpellCatalog {
                 .decodeList<SpellCastLimit>("spell-cast-limits.json")
                 .orEmpty()
                 .associateBy { it.spellId }
+        // Join the per-level damage formula (bdata, produced by bdata-extractor) so SpellDamage scales the
+        // hit to the caster's level instead of using the encyclopedia's max-level snapshot. A spell with no
+        // record keeps its flat baseDamage (the old behaviour) — safe by construction.
+        val damageScalingBySpellId =
+            EmbeddedResources
+                .decodeList<SpellDamageScaling>("spell-damage.json")
+                .orEmpty()
+                .associateBy { it.spellId }
         base.map { spell ->
-            val limit = castLimitsBySpellId[spell.id] ?: return@map spell
+            val limit = castLimitsBySpellId[spell.id]
+            val scaling = damageScalingBySpellId[spell.id]
+            if (limit == null && scaling == null) return@map spell
             spell.copy(
-                maxCastPerTurn = limit.maxCastPerTurn,
-                maxCastPerTarget = limit.maxCastPerTarget,
-                cooldown = limit.cooldown,
-                wpCost = limit.wpCost
+                maxCastPerTurn = limit?.maxCastPerTurn,
+                maxCastPerTarget = limit?.maxCastPerTarget,
+                cooldown = limit?.cooldown,
+                wpCost = limit?.wpCost,
+                damageScaling = scaling
             )
         }
     }

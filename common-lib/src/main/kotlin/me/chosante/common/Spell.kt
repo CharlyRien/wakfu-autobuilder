@@ -1,6 +1,34 @@
 package me.chosante.common
 
 import kotlinx.serialization.Serializable
+import kotlin.math.floor
+import kotlin.math.min
+
+/**
+ * The **per-level damage formula** of a spell, decoded from the local client's bdata (the spell's
+ * StaticEffect `[base, inc]` params) and baked into `spell-damage.json` by the `bdata-extractor`. Joined
+ * onto [Spell] by [spellId] at catalog load, exactly like the cast limits.
+ *
+ * Wakfu spell damage scales with the **caster's level**: `hit = floor(base + inc × level)`, capped at
+ * [levelCap] (the spell's `max_level`, normally 245). This is the piece the encyclopedia can't provide —
+ * it only ever publishes the value at one level — so a level-20 build no longer gets level-245 numbers.
+ *
+ * The right bdata effect is pinned by **anchoring on the encyclopedia**: the effect whose
+ * `floor(base + inc × levelCap)` equals the encyclopedia's displayed value is the spell's base hit. When
+ * no effect reproduces it ([matched] = false — DoT/random/special spells), a linear approximation through
+ * that known value is used (`base = 0`, `inc = encyclopediaValue / levelCap`), so the value stays exact at
+ * `levelCap` and degrades gracefully below it — never worse than the old flat number.
+ */
+@Serializable
+data class SpellDamageScaling(
+    val spellId: Int,
+    val base: Double,
+    val inc: Double,
+    val critBase: Double,
+    val critInc: Double,
+    val levelCap: Int,
+    val matched: Boolean,
+)
 
 /**
  * The four Wakfu damage elements, each mapped to the elemental-mastery [Characteristic] that scales a
@@ -44,9 +72,11 @@ enum class SpellArea {
  * field off the encyclopedia page it stores `null` and records the field name in [missingFields], so
  * coverage is auditable and downstream code can tell "0" from "unknown".
  *
- * [baseDamage] / [critDamage] are the spell's base hit at the encyclopedia's **reference level** (the
- * page's default, i.e. the max character level it scales to) — the build-independent `Base` term of
- * Wakfu's damage formula. They are what [SpellDamage] multiplies by the build's masteries.
+ * [baseDamage] / [critDamage] are the spell's base hit at **max level** (the encyclopedia's reference
+ * level) — the build-independent `Base` term of Wakfu's damage formula. To get the hit at an arbitrary
+ * caster level, use [baseDamageAt] / [critDamageAt], which scale via the bdata [damageScaling] formula
+ * (falling back to these flat max-level values when no scaling is available). [SpellDamage] multiplies the
+ * level-scaled base by the build's masteries.
  *
  * @property element the spell's primary damage element, or `null` for utility / no-damage / passive
  *   spells (the gate that answers "can this class even play this element").
@@ -100,6 +130,12 @@ data class Spell(
      * 1 legal cast) — [maxCastsThisTurn] folds it in.
      */
     val maxCastPerTarget: Int? = null,
+    /**
+     * Per-level damage formula (bdata), joined by [id] in `SpellCatalog` from `spell-damage.json`, **not**
+     * the encyclopedia. Lets [baseDamageAt] scale the hit to the caster's level; null when the spell has no
+     * damage or no bdata scaling could be derived (then [baseDamageAt] falls back to the flat [baseDamage]).
+     */
+    val damageScaling: SpellDamageScaling? = null,
     val iconId: Int? = null,
     val description: I18nText? = null,
     /**
@@ -116,6 +152,17 @@ data class Spell(
 ) {
     /** True when the spell carries a readable base hit, i.e. it can be fed to [SpellDamage]. */
     val hasDamage: Boolean get() = element != null && baseDamage != null
+
+    /**
+     * The spell's **base (non-crit) hit at the caster's [level]**, level-scaled via [damageScaling]
+     * (`floor(base + inc × min(level, levelCap))`). Falls back to the flat encyclopedia [baseDamage]
+     * (the max-level value) when no scaling is available — so the result is never inflated above, and at
+     * `levelCap` equals, the old behaviour. Null only when the spell has no readable damage at all.
+     */
+    fun baseDamageAt(level: Int): Int? = damageScaling?.let { floor(it.base + it.inc * min(level, it.levelCap) + DAMAGE_FLOOR_EPSILON).toInt() } ?: baseDamage
+
+    /** The spell's **critical hit at the caster's [level]** (see [baseDamageAt]); falls back to [critDamage]. */
+    fun critDamageAt(level: Int): Int? = damageScaling?.let { floor(it.critBase + it.critInc * min(level, it.levelCap) + DAMAGE_FLOOR_EPSILON).toInt() } ?: critDamage
 
     /**
      * How many times this spell can be cast **at a single target** in one turn, or `null` when it is
@@ -155,5 +202,9 @@ data class Spell(
     companion object {
         /** [missingFields] marker the extractor adds when a resistance debuff's enemy target is unconfirmed. */
         const val RESISTANCE_TARGET_UNCERTAIN_FLAG = "resistanceTarget?"
+
+        /** Absorbs float error before flooring a level-scaled hit (e.g. `76/245·245 = 75.9999…` → 76). The
+         *  same epsilon is used when the formula is derived, so extraction and runtime agree. */
+        const val DAMAGE_FLOOR_EPSILON = 1e-6
     }
 }
