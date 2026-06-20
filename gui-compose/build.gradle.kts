@@ -274,8 +274,7 @@ tasks.register("generateAssets") {
             // Characteristic each represents (not guesswork): `di` = damage-inflicted / generic mastery ->
             // DMG_IN_PERCENT (NOT INDIRECT_DMG); `shield` = the Intelligence barrier line -> BARRIER; `control`
             // (summon control) -> LEADERSHIP; `lock` -> TACKLE. gui.jar has a single crit glyph, so crit chance
-            // + crit mastery share it. The 4 unreferenced legacy files (barda / catchable / mastery_area /
-            // mastery_mono) map to no Characteristic and are left untouched.
+            // + crit mastery share it.
             extractNamed(
                 "icons",
                 mapOf(
