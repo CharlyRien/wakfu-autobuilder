@@ -2,6 +2,12 @@
 
 _Generated 2026-06-20 by a 6-finder multi-agent audit workflow (assets · data-JSON · hardcoded tables · network · extractor-inputs · comments/docs) → adversarial verify+plan per finding. 25 raw findings → 16 deduplicated tickets; 0 false positives._
 
+> **Note (docs cleanup, 2026-06-21):** several SUPERSEDED plan/handoff docs cited below as evidence have since
+> been **deleted** (the follow-up anticipated in the `stale-comments` ticket): `FULL_DAMAGE_PLAN.md` (rôle de
+> suivi repris par [`FULL_DAMAGE_MODE_STATUS.md`](FULL_DAMAGE_MODE_STATUS.md)), `BOSS_MODE_INTEGRATION_PLAN.md`,
+> `SUBLIMATIONS_LOT3_HANDOFF.md`, `SUBLIMATIONS_LOT3_RESEARCH.md`, `TOPBAR_REDESIGN.md`. Their inline `path:line`
+> citations are kept as a point-in-time record; the file:line targets in those retired docs no longer resolve.
+
 **Goal:** every embedded data/asset input should come from an **official** source — the Ankama CDN or the local game client (decoded `bdata` tables / `gui.jar`). This file tracks what is **not** there yet and exactly how to fix each. Every ticket below is self-contained: a fresh agent can pick one up without other context.
 
 ## Classification legend

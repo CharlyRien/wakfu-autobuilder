@@ -1,6 +1,8 @@
 # Class-spells dataset
 
-How the per-class spell data (`autobuilder/src/main/resources/spells-v<VERSION>.json`) is produced and
+> **✅ Shipped.** This pipeline is implemented and merged. Resource files now use FIXED names (PR #167); the version is a single constant `WakfuData.VERSION` in `common-lib`. Kept as the data-pipeline reference.
+
+How the per-class spell data (`autobuilder/src/main/resources/spells.json`) is produced and
 used. Design rationale lives in `docs/SPELLS_AND_COMBO_RESEARCH.md` (research branch); this file
 documents the shipped pipeline.
 
@@ -25,12 +27,12 @@ encyclopedia**, the authoritative source.
    (`/classes/<id>-<slug>`) yields `(id, name, icon)` stubs; each spell's detail page yields element /
    AP / range / base+crit damage / area / line-of-sight.
 3. **`Main`** — crawls all 18 classes, enriches FR names from the FR class pages, and writes
-   `spells-v<VERSION>.json`. Every numeric field is **nullable**; a field that is *expected but
+   `spells.json`. Every numeric field is **nullable**; a field that is *expected but
    unreadable* is recorded in `Spell.missingFields` — **no value is ever invented** — and the run
    prints a coverage report.
 
 Re-generate after a data bump: `./gradlew :spells-extractor:run` (optionally `--args="<version>"`).
-Keep `VERSION` in `autobuilder/Main.kt` in sync (the resource is loaded as `spells-v$VERSION.json`).
+Keep `WakfuData.VERSION` in `common-lib` in sync (the resource is loaded by the fixed name `spells.json`).
 
 ## Coverage (v1.91.1.54)
 

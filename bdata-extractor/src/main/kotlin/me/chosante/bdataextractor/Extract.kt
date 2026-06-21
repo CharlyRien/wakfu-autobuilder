@@ -67,7 +67,7 @@ data class CastLimit(
     val maxCastPerTarget: Int,
     val cooldown: Int,
     /** WP (Wakfu Point) base cost — Ankama's `pw_base`. `0` = no WP cost. Carried for display + future
-     *  rotation modelling; WP is a per-fight pool, see `docs/FULL_DAMAGE_PLAN.md` "Lot 1". */
+     *  rotation modelling; WP is a per-fight pool, see `docs/FULL_DAMAGE_MODE_STATUS.md` "Lot 1". */
     val wpCost: Int,
 )
 

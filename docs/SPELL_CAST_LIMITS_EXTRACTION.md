@@ -1,5 +1,7 @@
 # Spell Cast-Limit Extraction — Handoff
 
+> **✅ Shipped.** The extraction is implemented (`bdata-extractor`) and its output is baked + joined in `SpellCatalog`. Resource files now use FIXED names (PR #167). Kept as the extraction howto.
+
 ## 1. TL;DR / recommended path
 
 **Use `jac3km4/wakfu-bdata` (Rust crate `wakfudecrypt`) directly.** It is the single best path: it already ships a working descrambler *and* a generated `Spell` decoder bound to `TYPE_ID = 66` (the confirmed spell table on this install), exposing every field we need (`cast_max_per_turn`, `cast_max_per_turn_incr`, `cast_max_per_target`, `cast_min_interval`, `breed_id`, `element`, `pa_base`, `range_*`). The descrambler math was **independently replayed against this machine's real `66.bin` header bytes and produced a coherent entry count (~4079 spell records)**, confirming the format layer matches the current `1.91.1.54` install. It was last pushed `2026-04-30`, contemporaneous with the install.
@@ -157,12 +159,12 @@ Field semantics:
 - `wpCost` (int|null) — `pw_base`, the spell's WP (Wakfu Point) base cost; `0` = free (emitted verbatim).
   WP is a per-*fight* pool (not refilled each turn), so unlike the per-turn caps this is **not** a per-turn
   limit — it is joined onto `Spell.wpCost` for display + a future amortized WP-budget model (see
-  `docs/FULL_DAMAGE_PLAN.md` "Lot 1").
+  `docs/FULL_DAMAGE_MODE_STATUS.md` "Lot 1").
 
 Notes:
 - A `castMaxPerTurn` of 0/absent in the binary commonly means **unlimited per turn** — decide and document the convention; do **not** silently coerce to a finite number.
 - Key the final baked artifact by `spellId`. `SpellCatalog` joins it onto `Spell` by `spellId` at load, so the engine reads `Spell.maxCastsThisTurn` / `Spell.wpCost` — never this JSON directly. (`SpellRotationOptimizer.bestRotation` also takes an optional uniform `maxCastsPerSpell` override, distinct from the per-spell data caps.)
-- This is an **offline, baked** artifact (parallel to the existing baked `equipments-v<version>.json` and class-spells JSON) — the Rust tool runs once to produce it; the Kotlin app does not parse the binary at runtime.
+- This is an **offline, baked** artifact (parallel to the existing baked `equipments.json` and class-spells JSON) — the Rust tool runs once to produce it; the Kotlin app does not parse the binary at runtime.
 
 ---
 
@@ -226,7 +228,7 @@ coerce missing/0 to a finite cap — a 0/absent maxCastPerTurn likely means "unl
 convention rather than guessing. Match the array-keyed-by-spellId shape SpellCatalog joins onto Spell.
 
 DELIVERABLE
-The baked JSON file (offline artifact, parallel to the existing equipments-v<version>.json), plus a
+The baked JSON file (offline artifact, parallel to the existing equipments.json), plus a
 short note on which path produced it and which spells you oracle-validated.
 ```
 
@@ -234,11 +236,11 @@ short note on which path produced it and which spells you oracle-validated.
 
 ## 8. Extraction results (run 2026-06-15, Wakfu data `1.91.1.54`)
 
-**Produced:** `autobuilder/src/main/resources/spell-cast-limits-v1.91.1.54.json`
+**Produced:** `autobuilder/src/main/resources/spell-cast-limits.json`
 (715 spells, ~135 KB, JSON array sorted by `breedId` then `spellId`). This is the baked, offline
-artifact — parallel to `equipments-v1.91.1.54.json` / `spells-v1.91.1.54.json`. It is now joined onto
+artifact — parallel to `equipments.json` / `spells.json`. It is now joined onto
 `Spell` in `SpellCatalog` (`maxCastPerTurn`/`cooldown` → the per-turn cap `Spell.maxCastsThisTurn` used
-by the rotation optimizer; `wpCost` carried for display) — see `docs/FULL_DAMAGE_PLAN.md` "Lot 1".
+by the rotation optimizer; `wpCost` carried for display) — see `docs/FULL_DAMAGE_MODE_STATUS.md` "Lot 1".
 
 > **Canonical reproduction is now in-repo and pure-JVM:** `./gradlew :bdata-extractor:run`. That Kotlin
 > module (clean-room decoder, `bdata-extractor/`) decodes the same binaries and **regenerates this exact
@@ -261,7 +263,7 @@ cargo run --release --bin main -- /Applications/Ankama/Wakfu   # -> Spell.json (
 The decode ran clean (no panic) over all 4079 records — the positional `String` fields
 (`cast_criterion`, `learn_criteria`) parse as valid UTF-8, which a layout drift would have broken.
 Then post-process: filter `breed_id` to the 18 player-class ids, key by `id`, French names joined
-from `spells-v1.91.1.54.json`, emit the §6 contract.
+from `spells.json`, emit the §6 contract.
 
 ### Field mapping (binary → output)
 `cast_max_per_turn` (f32) → `maxCastPerTurn`; `cast_max_per_turn_incr` (f32) → `maxCastPerTurnIncr`;
@@ -287,7 +289,7 @@ the few binary spells with no matching encyclopedia entry (sub-spells).
 `0` / `-1` / `-2` and are filtered out.
 
 ### Validation
-**1 — Field alignment (automated, 708 spells).** Joined the binary dump to `spells-v1.91.1.54.json`
+**1 — Field alignment (automated, 708 spells).** Joined the binary dump to `spells.json`
 by `id`: **708/710** scraped spells found in the binary (the binary `id` space **==** the encyclopedia
 `id` space). Agreement on independently-known fields: **icon `gfx_id` 702/708 (99.2%)**, element maps
 cleanly (`1`=Fire `2`=Water `3`=Earth `4`=Air), **`pa_base` == encyclopedia AP wherever AP lives in
