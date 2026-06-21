@@ -1,13 +1,15 @@
 # Class-Passives Extraction — Handoff
 
+> **✅ Shipped.** Implemented (`bdata-extractor` → `PassiveCatalog`, Lot 4). Resource files now use FIXED names (PR #167). Kept as the extraction howto.
+
 Companion to `SPELL_CAST_LIMITS_EXTRACTION.md`. Same toolchain (`jac3km4/wakfu-bdata`), same install
 (`/Applications/Ankama/Wakfu`, gamedata `1.91.1.54`). Produced on 2026-06-15.
 
 ## 1. Deliverable
 
-`autobuilder/src/main/resources/spell-passives-v1.91.1.54.json` — a JSON array, one entry per **player
+`autobuilder/src/main/resources/spell-passives.json` — a JSON array, one entry per **player
 class passive** (332 entries, breeds `{1–16,18,19}`, `passive==2`), sorted by `breedId` then `spellId`.
-Offline baked artifact, parallel to `equipments-v*.json` / `spells-v*.json` / `spell-cast-limits-v*.json`.
+Offline baked artifact, parallel to `equipments.json` / `spells.json` / `spell-cast-limits.json`.
 **Not wired into Kotlin.**
 
 Per-entry shape:
@@ -32,9 +34,9 @@ Per-entry shape:
 ## 2. Pipeline
 
 1. **Catalogue.** Player passives are the spell-table (66) records with `passive == 2` and a player
-   `breed_id`. The binary flag is **more reliable than the encyclopedia scraper's heuristic** (`spells-v*`
+   `breed_id`. The binary flag is **more reliable than the encyclopedia scraper's heuristic** (`spells.json`
    classifies "no AP cost" as PASSIVE → 308; the binary flag → 332). `name` (FR) and `description` are
-   joined from `spells-v1.91.1.54.json` by `spellId` (binary id == encyclopedia id, proven in the
+   joined from `spells.json` by `spellId` (binary id == encyclopedia id, proven in the
    cast-limits work).
 2. **Effects.** Each passive record carries `effect_ids` into the **StaticEffect table (TYPE_ID 68)**,
    dumped the same way (`dump_doc::<StaticEffect>` in `main.rs`; 173 805 records). Each `StaticEffect`

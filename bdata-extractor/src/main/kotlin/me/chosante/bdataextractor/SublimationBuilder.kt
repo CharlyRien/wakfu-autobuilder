@@ -21,7 +21,7 @@ import kotlin.math.floor
  * (`base + inc·(maxLevel−1)`, with the action's sign). A sublimation is [SublimationKind.solverChoosable] only
  * when every one of its effects is a cleanly-modelable static stat under a recognized build-static condition —
  * the conservative rule that keeps the solver-choosable set to the audited minimum (see
- * docs/SUBLIMATIONS_LOT3_RESEARCH.md): any trigger/proc, applied-state, unmapped/non-flat action, or
+ * AGENTS.md §5): any trigger/proc, applied-state, unmapped/non-flat action, or
  * unrecognized criterion atom drops the whole sublimation to forced-input-only.
  *
  * A sublimation **is** a State (table 67) keyed by its `stateId`; its `effect_ids` strict subtree (effect_ids

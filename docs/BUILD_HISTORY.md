@@ -1,4 +1,5 @@
 # Build history & comparison (gui-compose)
+> **✅ Shipped.** This feature is implemented & merged. Kept as the feature/architecture reference.
 
 Local, file-based history of saved builds plus a side-by-side comparison view. Lets you keep the
 builds you've found, reload one to tweak & re-run it, and compare two of them stat-by-stat — so you

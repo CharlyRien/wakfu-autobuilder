@@ -1,5 +1,7 @@
 # Boss Mode — Research & Design
 
+> **✅ Shipped (research record).** Boss mode is implemented & merged (CLI #157, GUI #161). The data source ended up being first-party `bdata-extractor` (Monster table 42) + a committed `monster-overlay.json` for boss rank — NOT the MethodWakfu/Fandom scrape this research doc explored. Resource files use FIXED names (`monsters.json`, PR #167). Kept as the design/decision record; trust the code symbols over any drifted detail below.
+
 Status: **research / design only** (no implementation). Author pass: 2026-06-14.
 
 > ⚠️ **Superseded data pipeline (2026-06-19).** The `monsters-extractor` module and the MethodWakfu/Fandom
@@ -22,7 +24,7 @@ Boss mode is **implemented** on top of the max-damage engine, following the phas
 
 - **Data pipeline (`monsters-extractor`).** Crawls the MethodWakfu Reborn bestiary **REST API**
   (`/api/bestiary` — plain JSON, cleaner than the `_payload.json` devalue route), cross-references the
-  Fandom `MonsterCard` template for provenance, and writes `autobuilder/.../monsters-v<version>.json`.
+  Fandom `MonsterCard` template for provenance, and writes `autobuilder/.../monsters.json`.
   **715 monsters (226 bosses)** ingested. Of the 111 bosses MethodWakfu cannot serve (HTTP 500
   resolving their drops — `"Unknown item: …"`, the website itself 500s), the extractor's **Fandom
   fallback** recovers the ones Fandom documents at a matching level (flat, signed resistances —
@@ -95,7 +97,7 @@ boss mechanics (G9) remain out of scope.
      Easiest to ingest; **coverage/freshness is community-edited and uneven**, newest bosses may lag.
   3. **Official in-game / web bestiary** (`wakfu.com/.../encyclopedia/monsters`) — authoritative,
      but anti-bot (HTTP 403 to scrapers) and **historically does not publish elemental resistances**.
-- **Recommended approach:** ship a **small hand-curated `monsters-vX.json`** (marquee dungeon bosses)
+- **Recommended approach:** ship a **small hand-curated `monsters.json`** (marquee dungeon bosses)
   baked into `autobuilder` resources exactly like `equipments`/`runes`; add a `Monster` model in
   `common-lib`; map boss→`DamageScenario`; expose `--boss` (CLI) and a boss-picker (GUI). **Automate
   ingestion later** (Fandom API first, MethodWakfu scrape to fill gaps).
@@ -258,15 +260,15 @@ class may have **several** usable elements. "Best build for the class vs this bo
 - **No existing build tool (WakForge, Zenith) has boss/enemy targeting** — boss mode would be novel.
 
 ### 3.5 How we'd ingest (mirrors the existing items/runes pipeline)
-The app already bakes data at build time (`equipments-vX.json`, `runes-vX.json`) and loads it lazily
+The app already bakes data at build time (`equipments.json`, `runes.json`) and loads it lazily
 from the classpath — boss data should follow the same pattern:
 
-1. **Phase 1 — curated seed:** hand-author `monsters-vX.json` (~20–40 marquee dungeon end-bosses)
+1. **Phase 1 — curated seed:** hand-author `monsters.json` (~20–40 marquee dungeon end-bosses)
    from the wiki / MethodWakfu / in-game. Highest quality, zero scraping risk, ships immediately.
 2. **Phase 3 — automation:** a small extractor (new `monsters-extractor` module, or a task in the
    existing `equipments-extractor`) pulls the **Fandom API** first (clean), falls back to/augments
    with a **MethodWakfu HTML scrape** for endgame coverage, normalizes resistance scale (G3), and
-   writes `monsters-vX.json`. Add a verification/diff step (counts, sane ranges) like a data bump.
+   writes `monsters.json`. Add a verification/diff step (counts, sane ranges) like a data bump.
 
 ---
 
@@ -289,7 +291,7 @@ data class Monster(
 )
 ```
 
-Baked resource `autobuilder/src/main/resources/monsters-v<VERSION>.json`, loaded lazily in
+Baked resource `autobuilder/src/main/resources/monsters.json`, loaded lazily in
 `WakfuBestBuildFinderAlgorithm` alongside `equipments`/`runes`.
 
 > `SpellElement` currently lives in `autobuilder/.../domain`. For `Monster` to reference it from
@@ -346,7 +348,7 @@ the max (progress = aggregate).
 
 - **Phase 0 — research/design** *(this doc)*. ✅
 - **Phase 1 — domain + curated data + CLI.**
-  `Monster` model (`common-lib`); curated `monsters-vX.json` (~20–40 marquee bosses); `forBoss`
+  `Monster` model (`common-lib`); curated `monsters.json` (~20–40 marquee bosses); `forBoss`
   mapping + `flatResToPercent`; **engine touch-ups G2 (allow negative resistance) and G3 (conversion)**;
   CLI `--boss` / `--boss-element` (fixed element; auto can land here or 1.5). Tests: mapping +
   resistance conversion (use deterministic `SolverTuning` per the engine-test-determinism note).

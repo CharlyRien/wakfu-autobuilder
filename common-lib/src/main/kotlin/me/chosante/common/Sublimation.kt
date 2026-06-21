@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
 enum class SublimationRarity { EPIC, RELIC, NORMAL }
 
 /**
- * How a sublimation's effect can be modeled by the solver (see docs/SUBLIMATIONS_LOT3_RESEARCH.md §4b):
+ * How a sublimation's effect can be modeled by the solver (see AGENTS.md §5):
  * - [FLAT]: unconditional stat contributions.
  * - [STATIC_CONDITIONAL]: applies only when a build-static start-of-combat [condition] holds (CP-SAT modelable).
  * - [CONVERSION]: moves a percentage of one stat into another (optionally under a static condition).
