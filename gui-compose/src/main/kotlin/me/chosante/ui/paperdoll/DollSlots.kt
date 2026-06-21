@@ -13,32 +13,40 @@ internal data class DollSlot(
     val id: String,
     val labelKey: Tr,
     val glyph: String,
+    /**
+     * Ankama `ItemType.id` whose slot-silhouette icon (`assets/itemTypes/<id>.png`, extracted from the
+     * client's gui.jar `miscellaneous/itemTypes`) is shown on the empty card — replacing the [glyph],
+     * which now only serves as the fallback when the asset is missing. The two weapon cards both accept a
+     * range of weapon types: the main card uses the one-handed glyph (518) as a generic weapon, the second
+     * the off-hand glyph (112).
+     */
+    val itemTypeId: Int,
 )
 
 internal val leftSlots =
     listOf(
-        DollSlot("helmet", Tr.SLOT_HELMET, "⛨"),
-        DollSlot("amulet", Tr.SLOT_AMULET, "◌"),
-        DollSlot("epaul", Tr.SLOT_EPAULETTES, "▱"),
-        DollSlot("chest", Tr.SLOT_BREASTPLATE, "▢"),
-        DollSlot("cape", Tr.SLOT_CAPE, "⊳")
+        DollSlot("helmet", Tr.SLOT_HELMET, "⛨", ItemType.HELMET.id),
+        DollSlot("amulet", Tr.SLOT_AMULET, "◌", ItemType.AMULET.id),
+        DollSlot("epaul", Tr.SLOT_EPAULETTES, "▱", ItemType.SHOULDER_PADS.id),
+        DollSlot("chest", Tr.SLOT_BREASTPLATE, "▢", ItemType.CHEST_PLATE.id),
+        DollSlot("cape", Tr.SLOT_CAPE, "⊳", ItemType.CAPE.id)
     )
 
 internal val rightSlots =
     listOf(
-        DollSlot("emblem", Tr.SLOT_EMBLEM, "✦"),
-        DollSlot("belt", Tr.SLOT_BELT, "═"),
-        DollSlot("ring1", Tr.SLOT_RING_I, "◯"),
-        DollSlot("ring2", Tr.SLOT_RING_II, "◯"),
-        DollSlot("boots", Tr.SLOT_BOOTS, "⊓")
+        DollSlot("emblem", Tr.SLOT_EMBLEM, "✦", ItemType.EMBLEM.id),
+        DollSlot("belt", Tr.SLOT_BELT, "═", ItemType.BELT.id),
+        DollSlot("ring1", Tr.SLOT_RING_I, "◯", ItemType.RING.id),
+        DollSlot("ring2", Tr.SLOT_RING_II, "◯", ItemType.RING.id),
+        DollSlot("boots", Tr.SLOT_BOOTS, "⊓", ItemType.BOOTS.id)
     )
 
 internal val bottomSlots =
     listOf(
-        DollSlot("weapon", Tr.SLOT_WEAPON, "⚔"),
-        DollSlot("weapon2", Tr.SLOT_SECOND_WEAPON, "⛉"),
-        DollSlot("pet", Tr.SLOT_PET, "❀"),
-        DollSlot("mount", Tr.SLOT_MOUNT, "≋")
+        DollSlot("weapon", Tr.SLOT_WEAPON, "⚔", ItemType.ONE_HANDED_WEAPONS.id),
+        DollSlot("weapon2", Tr.SLOT_SECOND_WEAPON, "⛉", ItemType.OFF_HAND_WEAPONS.id),
+        DollSlot("pet", Tr.SLOT_PET, "❀", ItemType.PETS.id),
+        DollSlot("mount", Tr.SLOT_MOUNT, "≋", ItemType.MOUNTS.id)
     )
 
 internal fun slotAssignments(equipments: List<Equipment>): Map<String, Equipment> {

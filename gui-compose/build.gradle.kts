@@ -155,9 +155,12 @@ tasks.register("generateAssets") {
           - itemTypes/ equipment-slot icons re-sourced by their numeric ids (miscellaneous/itemTypes)
           - runes/     the 3 socket-colour shards (theme/images/shard{Red,Green,Blue}Full)
           - icons/     the 36 HUD stat icons mapped to miscellaneous/characteristics (by Characteristic)
-        NOT extracted (stay committed-static): monster portraits (200x200 renders; the client only keys monsters
-        by gfx as 132x41 banners) and the 8 rarity badges (gui.jar has a filled icon only for epic/relic; the
-        rest are border frames, with no uncommon/souvenir icon).
+        NOT extracted here (stay committed-static): monster portraits (200x200 renders; the client only keys
+        monsters by gfx as 132x41 banners) and the 8 rarity gems in assets/rarities/. The gems ARE grounded on
+        official client art, but via a separate maintainer script (scripts/generate-rarity-gems.py): gui.jar
+        only ships a faceted gem for epic + relic (theme/images/pictos/Rarity{Epic,Relic}.tga), so epic/relic
+        are copied verbatim and the other six are derived by recolouring the official epic gem to each rarity's
+        in-game hue (the faceted shape + shading are the official gem's; only the colour changes).
         Existing files are never overwritten, except sets that opt in (itemTypes/runes/icons re-source from the client).
         """.trimIndent()
     group = "assets"
@@ -231,10 +234,12 @@ tasks.register("generateAssets") {
             extract("spells", "icons/spells/64", spellIconIds + passiveGfxIds)
             extract("states", "icons/states", passiveStateIds)
 
-            // Equipment-slot / item-type icons (keyed by Ankama's numeric itemType id) were previously
-            // committed-static; they live in gui.jar too, so re-source them from the official client
-            // (overwrite=true, so a client bump refreshes them). Same ids — any id gui.jar lacks (e.g. the
-            // synthetic 112) keeps its committed file. Derive the id set from the icons we already ship.
+            // Equipment-slot / item-type icons (keyed by Ankama's numeric itemType id), re-sourced from the
+            // official client (overwrite=true, so a client bump refreshes them). Only the 14 ids that back the
+            // ItemType enum are kept now — they are the empty-paperdoll-slot silhouettes (see DollSlots.kt);
+            // the ~95 other dormant type icons were dropped. The off-hand id 112 is a real equippable slot but
+            // gui.jar ships no miscellaneous/itemTypes/112.tga for it, so its icon stays committed-static (the
+            // only one). Derive the id set from the icons we already ship.
             val itemTypeIds =
                 assetsDir.resolve("itemTypes").listFiles { f -> f.extension == "png" }?.map { it.nameWithoutExtension } ?: emptyList()
             extract("itemTypes", "miscellaneous/itemTypes", itemTypeIds, overwrite = true)

@@ -877,15 +877,30 @@ private fun SlotIcon(
         contentAlignment = Alignment.Center
     ) {
         if (equipment == null) {
-            Text(
-                text = slot.glyph,
-                style =
-                    WTypography.headlineMedium.copy(
-                        color = WColor.faint,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 24.sp
-                    )
-            )
+            // Empty slot: show the slot's item-type silhouette (assets/itemTypes/<id>.png, extracted from
+            // the client's gui.jar) so the card reads as "the helmet/amulet/… slot" at a glance. The Unicode
+            // glyph is kept as a fallback for the one slot whose type icon the client doesn't ship (off-hand,
+            // id 112) or any missing asset.
+            val typeBitmap = rememberClasspathBitmap("assets/itemTypes/${slot.itemTypeId}.png")
+            if (typeBitmap != null) {
+                Image(
+                    bitmap = typeBitmap,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    filterQuality = FilterQuality.High,
+                    modifier = Modifier.fillMaxSize().padding(8.dp).alpha(0.82f)
+                )
+            } else {
+                Text(
+                    text = slot.glyph,
+                    style =
+                        WTypography.headlineMedium.copy(
+                            color = WColor.faint,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 24.sp
+                        )
+                )
+            }
         } else {
             val bitmap = rememberClasspathBitmap(equipment.itemResourcePath())
             if (bitmap != null) {
