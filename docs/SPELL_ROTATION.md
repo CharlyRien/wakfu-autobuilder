@@ -1,4 +1,5 @@
 # Spell rotation optimizer (P4)
+> **✅ Shipped.** The spell-aware + boss-aware max-damage objective, the rotation optimizer, the external AP-probe loop and resistance-debuff sequencing are all implemented & merged (PRs #153, #162, Lot 2). See [`FULL_DAMAGE_MODE_STATUS.md`](FULL_DAMAGE_MODE_STATUS.md) for the current state. Kept as the architecture/design record; code references may drift — trust the symbols.
 
 How the max-damage flow optimizes for the **best per-turn spell rotation**, and how that became part
 of the solver itself.
@@ -15,7 +16,7 @@ of the solver itself.
 After a max-damage search produces a build, a **post-processing pass** answers: *with this build's
 AP, which spells should I cast this turn to deal the most damage?*
 
-- Inputs: the build (its real AP, masteries, DI, crit), the class's actual spells (`spells-v*` via
+- Inputs: the build (its real AP, masteries, DI, crit), the class's actual spells (`spells.json` via
   `SpellCatalog`), and the attack `DamageScenario` (element, range band, orientation, target
   resistance, crit cap).
 - Candidates: the class's real damage spells **in the scenario element** — the element-gating that

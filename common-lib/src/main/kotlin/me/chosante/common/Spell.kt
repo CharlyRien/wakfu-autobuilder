@@ -96,7 +96,7 @@ data class Spell(
      * baked cast-limit data (`spell-cast-limits-v<VERSION>.json`, joined by [id] in `SpellCatalog`), **not**
      * the encyclopedia. Carried for display and future rotation modelling — WP is a per-fight pool, not a
      * per-turn cap, so it is deliberately **not** folded into [maxCastsThisTurn] yet (see
-     * `docs/FULL_DAMAGE_PLAN.md` "Lot 1").
+     * `docs/FULL_DAMAGE_MODE_STATUS.md` "Lot 1").
      */
     val wpCost: Int? = null,
     val rangeMin: Int? = null,
@@ -178,7 +178,7 @@ data class Spell(
      *
      * Per-spell **WP** cost ([wpCost]) is deliberately **not** folded in: WP is a per-*fight* pool (not a
      * per-turn allowance), so bounding a single turn by it needs a separate amortized WP-budget model —
-     * see `docs/FULL_DAMAGE_PLAN.md` "Lot 1".
+     * see `docs/FULL_DAMAGE_MODE_STATUS.md` "Lot 1".
      */
     val maxCastsThisTurn: Int?
         get() {

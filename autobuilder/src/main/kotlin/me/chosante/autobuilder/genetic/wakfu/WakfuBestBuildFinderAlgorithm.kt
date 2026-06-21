@@ -77,7 +77,7 @@ object WakfuBestBuildFinderAlgorithm {
     /**
      * The embedded sublimations ([Sublimation]) for the current data version, or empty if the resource
      * is absent. The solver chooses among the [Sublimation.solverChoosable] subset and applies any the
-     * user [WakfuBestBuildParams.forcedSublimations]; see docs/SUBLIMATIONS_LOT3_RESEARCH.md.
+     * user [WakfuBestBuildParams.forcedSublimations]; see AGENTS.md §5.
      */
     val sublimations: List<Sublimation> by lazy {
         EmbeddedResources.decodeList<Sublimation>("sublimations.json") ?: emptyList()

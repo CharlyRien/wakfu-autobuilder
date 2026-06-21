@@ -1,5 +1,7 @@
 # Enchantments (Runes + Sublimations) — Engine Integration Plan
 
+> **✅ Shipped.** Runes (PR #133) and sublimations (Lot 3, PR #160) are implemented & merged. Runes/sublimations data is now sourced first-party from the CDN `items.json` + bdata (PR #167), with FIXED resource names (`runes.json`, `sublimations.json`). Kept as the engine-integration design record.
+
 **Goal:** let the autobuilder account for Wakfu's **enchantment system** when searching builds —
 primarily **runes** (per-item socketed stats), and optionally **sublimations** (special
 combination/epic/relic effects). This document is the research + the concrete, phased plan.
@@ -90,7 +92,7 @@ Three consequences:
    effect text, deduped).
 
 Current data is already at `1.91.1.54`
-([equipments-v1.91.1.54.json](../autobuilder/src/main/resources/equipments-v1.91.1.54.json)); CDN
+([equipments.json](../autobuilder/src/main/resources/equipments.json)); CDN
 `config.json` confirms the same version.
 
 ---
@@ -127,7 +129,7 @@ count is tiny (see §4c).
 
 **a) Extractor** — export runes instead of discarding them
 ([EquipmentExtractor.kt](../equipments-extractor/src/main/kotlin/me/chosante/equipmentextractor/EquipmentExtractor.kt)):
-- Handle the `811` branch → emit a `runes-v<version>.json` resource (sibling of the equipments
+- Handle the `811` branch → emit a `runes.json` resource (sibling of the equipments
   resource): `{ id, name (fr/en/es/pt), color (1/2/3), characteristic, levelingCurve,
   levelRequirement, doubleBonusPosition, gfxId }`.
 - Map `actionId → Characteristic` using the table in §6. Drop `actionId 400` (single-target/area).

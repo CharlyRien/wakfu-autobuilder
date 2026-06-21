@@ -65,7 +65,7 @@ data class SpellRotation(
  * it may repeat. So the optimum is a **bounded knapsack** over the AP budget — each spell repeats up to
  * its limit (a spell with no limit repeats freely, collapsing to the unbounded knapsack) — solved
  * exactly by DP. The result is the true optimum under those caps. WP cost is carried ([Spell.wpCost])
- * but not yet folded in — WP is a per-fight pool, not a per-turn cap; see `docs/FULL_DAMAGE_PLAN.md` "Lot 1".
+ * but not yet folded in — WP is a per-fight pool, not a per-turn cap; see `docs/FULL_DAMAGE_MODE_STATUS.md` "Lot 1".
  */
 object SpellRotationOptimizer {
     /**
@@ -390,7 +390,7 @@ object SpellRotationOptimizer {
      * limit gets `c_s = maxAp`, which is `>= maxAp/cost`, so it behaves exactly like the previous
      * unbounded table. The CP-SAT objective reads this table through the **unchanged**
      * `addElement(apVar, table, throughput)` call — only the table's *contents* change, so the
-     * optimality argument is intact (see `docs/FULL_DAMAGE_PLAN.md` "Lot 1").
+     * optimality argument is intact (see `docs/FULL_DAMAGE_MODE_STATUS.md` "Lot 1").
      */
     fun baseThroughputTable(
         spells: List<Spell>,
