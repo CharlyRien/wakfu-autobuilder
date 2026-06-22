@@ -972,14 +972,16 @@ private fun SlotMeta(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            // The item's SOCKETS, shown as coloured shards: a normal sublimation paints its socket-colour
-            // pattern (its 3 colours) and the runes fill sockets, so the shard row = the sublimation's pattern
-            // + the runes (capped at the item's socket count). This is the "colour pattern linked to the
-            // sublimation" — a sub never removes the sockets from view. The sublimation is also NAMED to one
-            // side on the SAME line (no extra vertical line, so the shard size stays identical on every card),
-            // which surfaces epic/relic subs too (they carry no pattern). Full details stay in the hover tooltip.
+            // The item's SOCKETS, shown as coloured shards. A rune and a sublimation pattern colour describe the
+            // SAME physical socket (the sub dictates a socket's required colour; the chosen rune sits in it and
+            // already matches), so they are not additive: the solver's CHOSEN RUNES come first and win the socket
+            // budget, and the sublimation's pattern only fills any sockets the runes didn't (capped at the item's
+            // socket count). Ordering runes first stops a 3-colour sub pattern from consuming the whole budget and
+            // hiding the chosen runes. The sublimation is still NAMED to one side on the SAME line (no extra
+            // vertical line, so the shard size stays identical on every card), which surfaces epic/relic subs too
+            // (they carry no pattern). Full per-rune/-sub details stay in the hover tooltip.
             val socketColors =
-                (subs.flatMap { it.colors } + runes.map { it.color }).take(equipment.maxShardSlots.coerceAtLeast(1))
+                (runes.map { it.color } + subs.flatMap { it.colors }).take(equipment.maxShardSlots.coerceAtLeast(1))
             val hasSub = subs.isNotEmpty()
             if (socketColors.isNotEmpty() || hasSub) {
                 val gap = 5.dp

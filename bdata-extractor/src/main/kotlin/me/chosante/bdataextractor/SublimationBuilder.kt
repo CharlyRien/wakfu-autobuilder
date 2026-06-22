@@ -57,15 +57,7 @@ private const val ACTION_LEVEL_AS_LOCK_DODGE = 999 // "X% of level as Lock and D
  * mutually-exclusive playstyles, so summing them into the objective over-values the build. Such a sublimation is
  * dropped from the solver-choosable set (kept as forced-only) rather than inventing unreachable mastery.
  */
-private val SECONDARY_MASTERY_CHARACS =
-    setOf(
-        Characteristic.MASTERY_MELEE,
-        Characteristic.MASTERY_DISTANCE,
-        Characteristic.MASTERY_BERSERK,
-        Characteristic.MASTERY_BACK,
-        Characteristic.MASTERY_CRITICAL,
-        Characteristic.MASTERY_HEALING
-    )
+private val SECONDARY_MASTERY_CHARACS = me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
 
 fun buildSublimations(
     states: Table,

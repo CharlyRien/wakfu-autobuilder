@@ -188,8 +188,13 @@ private fun MatchHero(ui: UiState) {
                     modifier = Modifier.padding(top = 3.dp)
                 )
                 if (!ui.optimal) {
+                    // The base per-turn damage objective is now provable (reachable-sized CP-SAT domains), so a
+                    // non-optimal max-damage result is "structural" only when it's a heuristic max over
+                    // structure-changing probes — resistance-debuff sequencing or a multi-element AP split — which
+                    // the inner solve can't see; more time won't move that. A plain mono no-debuff request that
+                    // didn't prove is, like the other modes, genuinely time-limited (a bigger budget could prove it).
                     Text(
-                        text = tr(Tr.NOT_OPTIMAL_HINT),
+                        text = tr(if (ui.maxDamageStructural) Tr.NOT_OPTIMAL_STRUCTURAL_HINT else Tr.NOT_OPTIMAL_HINT),
                         style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center),
                         modifier = Modifier.padding(top = 2.dp)
                     )

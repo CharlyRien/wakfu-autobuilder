@@ -22,13 +22,23 @@ object FindMostMasteriesFromInputScoring {
         buildCombination: BuildCombination,
         characterBaseCharacteristics: Map<Characteristic, Int>,
     ): BigDecimal {
+        // Aggregate RESISTANCE_ELEMENTARY makes the resistance score a min over the four elements (water-fill
+        // optimally); specific per-element resistance targets stay capped/greedy.
+        val resistanceElementsToMinimize =
+            if (targetStats.any { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY }) {
+                targetStats.resistanceElementsWanted.keys.toList()
+            } else {
+                null
+            }
         val actualCharacteristicsValues =
             computeCharacteristicsValues(
                 buildCombination,
                 characterBaseCharacteristics,
                 targetStats.masteryElementsWanted,
                 targetStats.resistanceElementsWanted,
-                scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+                scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                masteryElementsToMinimize = targetStats.masteryElementsToMinimize,
+                resistanceElementsToMinimize = resistanceElementsToMinimize
             )
 
         val totalActualScore =

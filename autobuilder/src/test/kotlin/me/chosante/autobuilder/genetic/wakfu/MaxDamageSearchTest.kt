@@ -68,53 +68,15 @@ class MaxDamageSearchTest {
             assertThat(last.individual.equipments).describedAs("equips at least one item").isNotEmpty
         }
 
-    // ----- Lot 2 M2: bi-element enumeration -----
+    // ----- boss / multi-candidate: provable per-element enumeration -----
 
     @Test
-    fun `pareto frontier keeps only non-dominated interior splits`() {
-        //               AP:  0   1   2   3   4   5   6   7
-        val tableA = longArrayOf(0, 10, 20, 20, 30, 30, 30, 40)
-        val tableB = longArrayOf(0, 5, 10, 15, 20, 25, 30, 35)
-
-        // totalAp = 6 → interior splits a ∈ 1..5:
-        //   a=1: (10, 25)  — non-dominated
-        //   a=2: (20, 20)  — non-dominated
-        //   a=3: (20, 15)  — dominated by a=2 (20≥20, 20>15)
-        //   a=4: (30, 10)  — non-dominated
-        //   a=5: (30, 5)   — dominated by a=4 (30≥30, 10>5)
-        val frontier = MaxDamageSearch.paretoFrontierSplits(tableA, tableB, totalAp = 6)
-        assertThat(frontier).containsExactlyInAnyOrder(1, 2, 4)
-    }
-
-    @Test
-    fun `pareto frontier excludes splits where either element has zero throughput`() {
-        // Element A needs 3 AP minimum (cheapest spell costs 3 AP)
-        val tableA = longArrayOf(0, 0, 0, 50, 50, 100)
-        val tableB = longArrayOf(0, 20, 40, 60, 80, 100)
-
-        // totalAp = 5 → interior splits a ∈ 1..4:
-        //   a=1: tableA[1]=0  → excluded (zero A)
-        //   a=2: tableA[2]=0  → excluded (zero A)
-        //   a=3: (50, 40)     — non-dominated
-        //   a=4: (50, 20)     — dominated by a=3 (50≥50, 40>20)
-        val frontier = MaxDamageSearch.paretoFrontierSplits(tableA, tableB, totalAp = 5)
-        assertThat(frontier).containsExactly(3)
-    }
-
-    @Test
-    fun `bi-element scenarios are generated for a multi-element class`() {
-        val scenarios = MaxDamageSearch.biElementScenarios(CharacterClass.CRA)
-        assertThat(scenarios).describedAs("CRA has multiple playable elements → bi-element scenarios exist").isNotEmpty
-        scenarios.forEach { (pair, totalAp, split) ->
-            assertThat(pair.first).isNotEqualTo(pair.second)
-            assertThat(split).describedAs("interior split").isBetween(1, totalAp - 1)
-            assertThat(totalAp).isBetween(MaxDamageSearch.MIN_AP_TARGET, MaxDamageSearch.MAX_AP_TARGET)
-        }
-    }
-
-    @Test
-    fun `bi-element loop produces a result at least as good as mono`(): Unit =
+    fun `boss multi-element loop proves the optimum via per-element enumeration`(): Unit =
         runBlocking {
+            // A boss puts several elements in play (auto-element). The loop solves each candidate element as its
+            // OWN single-element problem (each provable) and takes the max — so the result is PROVEN, unlike the
+            // old capped bi-element enumeration which stayed "best found". CRA has no resistance debuff, so no
+            // heuristic phase runs and the boss optimum is provable.
             val level = 50
             val character = Character(clazz = CharacterClass.CRA, level = level, minLevel = level, CharacterSkills(level))
             val equipments =
@@ -147,12 +109,14 @@ class MaxDamageSearchTest {
                     .run(params, equipments.groupBy { it.itemType }, emptyList(), WakfuBuildSolver.SolverTuning())
                     .toList()
 
-            assertThat(results).describedAs("the loop with bi-element streams at least one build").isNotEmpty
+            assertThat(results).describedAs("the per-element loop streams at least one build").isNotEmpty
             val last = results.last()
             assertThat(last.matchPercentage)
-                .describedAs("bi-element-aware loop finds positive damage")
+                .describedAs("the boss-aware loop finds positive damage")
                 .isGreaterThan(BigDecimal.ZERO)
-            assertThat(last.isOptimal).isFalse()
+            assertThat(last.isOptimal)
+                .describedAs("a no-debuff boss case is PROVEN (every per-element solve proved)")
+                .isTrue()
         }
 
     // ----- probe batching: the GUI-freeze / non-termination fix (production path, no SolverTuning) -----
@@ -179,15 +143,6 @@ class MaxDamageSearchTest {
                     .isLessThanOrEqualTo(phaseBudget.inWholeNanoseconds)
             }
         }
-    }
-
-    @Test
-    fun `bi-element scenarios are ordered best-promise first so the cap keeps the strongest`() {
-        val scenarios = MaxDamageSearch.biElementScenarios(CharacterClass.CRA)
-        assertThat(scenarios).isNotEmpty
-        assertThat(scenarios.map { it.promise })
-            .describedAs("scenarios sorted by descending combined base throughput")
-            .isEqualTo(scenarios.map { it.promise }.sortedDescending())
     }
 
     private fun equipment(

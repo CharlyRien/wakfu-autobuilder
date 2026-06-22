@@ -56,7 +56,6 @@ import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.domain.against
 import me.chosante.autobuilder.domain.againstAllElements
 import me.chosante.autobuilder.domain.resistancePercent
-import me.chosante.autobuilder.genetic.wakfu.BiElementSplit
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildParams
@@ -815,10 +814,10 @@ HUPPERMAGE"""
                     }
 
             if (mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
-                terminal.println(spellRotationReport(bestCombination, character, damageScenario, bestResult.maxDamageBiElement))
+                terminal.println(spellRotationReport(bestCombination, character, damageScenario))
                 if (targetBoss != null) {
                     terminal.println(
-                        bossSummary(targetBoss, bestCombination, character, damageScenario, bossDifficulty, bestResult.maxDamageBiElement)
+                        bossSummary(targetBoss, bestCombination, character, damageScenario, bossDifficulty)
                     )
                 }
             }
@@ -916,15 +915,11 @@ private fun spellRotationReport(
     build: BuildCombination,
     character: Character,
     scenario: DamageScenario,
-    biElement: BiElementSplit?,
 ): String {
-    // bestSequencedTurn is boss-aware (picks the best playable element vs the boss profile), sequences
-    // resistance debuffs first when they raise the turn's total, and — for a bi-element split — returns a
-    // single merged turn (element = null) whose casts carry their own element.
-    val rotation: SpellRotation = SpellRotationOptimizer.bestSequencedTurn(build, character, character.clazz, scenario, biElement)
-    // For a bi-element turn the element is "mixed"; recover the played elements from the casts themselves.
-    val elements = rotation.element?.let { listOf(it) } ?: rotation.casts.mapNotNull { it.spell.element }.distinct()
-    val elementLabel = elements.joinToString(" + ") { it.name.lowercase() }.ifBlank { scenario.element.name.lowercase() }
+    // bestSequencedRotation is boss-aware (picks the best playable element vs the boss profile) and sequences
+    // resistance debuffs first when they raise the turn's total.
+    val rotation: SpellRotation = SpellRotationOptimizer.bestSequencedRotation(build, character, character.clazz, scenario)
+    val elementLabel = (rotation.element?.name ?: scenario.element.name).lowercase()
     val header = "Optimal spell rotation ($elementLabel, ${rotation.apBudget} AP)"
     if (rotation.isEmpty) {
         return "$header\n  No playable damage spells for ${character.clazz.name.lowercase()} in the " +
@@ -935,8 +930,7 @@ private fun spellRotationReport(
             "  ↳ debuff: ${cast.spell.name.en} (${cast.apCost} AP, −${cast.spell.targetResistanceReductionFlat} res)\n"
         } +
             // Show the post-all-debuffs resistance ONCE — not on every line (it's the cumulative final
-            // value, not what each individual debuff reaches). Omitted for a bi-element turn (two elements
-            // sit at two different post-debuff resistances, so there is no single value).
+            // value, not what each individual debuff reaches).
             if (rotation.debuffCasts.isNotEmpty() && rotation.effectiveResistancePercent != null) {
                 "  → after debuffs, target resistance is ${rotation.effectiveResistancePercent}%\n"
             } else {
@@ -946,16 +940,7 @@ private fun spellRotationReport(
     fun castLine(cast: SpellCast): String =
         "  ${cast.count}× ${cast.spell.name.en} " +
             "(${cast.apCost} AP, ~${cast.expectedDamagePerCast.toLong()} dmg/cast) → ~${cast.totalExpectedDamage.toLong()}"
-    // Mono: a flat list. Bi-element: group the casts under a per-element sub-header so the split reads clearly.
-    val lines =
-        if (elements.size > 1) {
-            elements.joinToString("\n") { element ->
-                "  [${element.name.lowercase()}]\n" +
-                    rotation.casts.filter { it.spell.element == element }.joinToString("\n") { castLine(it) }
-            }
-        } else {
-            rotation.casts.joinToString("\n") { castLine(it) }
-        }
+    val lines = rotation.casts.joinToString("\n") { castLine(it) }
     return "$header\n$debuffLines$lines\n" +
         "  Total: ~${rotation.totalExpectedDamage.toLong()} expected damage/turn " +
         "(${rotation.apUsed}/${rotation.apBudget} AP used)\n" +
@@ -1005,15 +990,12 @@ private fun bossSummary(
     character: Character,
     scenario: DamageScenario,
     difficulty: Double,
-    biElement: BiElementSplit?,
 ): String {
-    val rotation = SpellRotationOptimizer.bestSequencedTurn(build, character, character.clazz, scenario, biElement)
-    // rotation.element is the common-lib enum; map it 1:1 onto the domain enum the scenario/profile use. A
-    // bi-element turn has element = null, so recover the played element(s) from the casts (▶ marks them all).
-    val chosenElements =
-        rotation.element?.let { setOf(SpellElement.valueOf(it.name)) }
-            ?: rotation.casts.mapNotNull { it.spell.element?.let { e -> SpellElement.valueOf(e.name) } }.toSet()
-    val bestLabel = chosenElements.takeIf { it.isNotEmpty() }?.joinToString(" + ") { it.name.lowercase() } ?: scenario.element.name.lowercase()
+    val rotation = SpellRotationOptimizer.bestSequencedRotation(build, character, character.clazz, scenario)
+    // rotation.element is the common-lib enum; map it 1:1 onto the domain enum the scenario/profile use (empty
+    // when the class has no playable damage spells in any candidate element).
+    val chosenElements = setOfNotNull(rotation.element?.let { SpellElement.valueOf(it.name) })
+    val bestLabel = chosenElements.firstOrNull()?.name?.lowercase() ?: scenario.element.name.lowercase()
     val perTurn = rotation.totalExpectedDamage.toBigDecimal()
     val turns = BossDisplay.turnsToKill(monster, perTurn, difficulty)
     val effectiveHp = BossDisplay.effectiveHp(monster, difficulty)
