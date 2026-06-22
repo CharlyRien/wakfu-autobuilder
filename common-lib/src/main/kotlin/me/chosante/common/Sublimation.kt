@@ -37,6 +37,24 @@ enum class SublimationConditionType {
     OTHER,
 }
 
+/**
+ * The six **secondary** masteries (melee / distance / berserk / rear / critical / healing) — i.e. every
+ * mastery that is *not* an elemental one. The [SublimationConditionType.SECONDARY_MASTERIES_AT_MOST]
+ * condition (e.g. Neutrality / Ambition: "if secondary masteries ≤ 0") is evaluated against the **sum** of
+ * these. Single source of truth so the CP-SAT solver, the re-scorer and the extractor classifier stay in
+ * lockstep — omitting any of them (the solver historically summed only melee+distance) makes the condition
+ * spuriously hold for a rear/crit-stacking build and hands it the bonus for free.
+ */
+val SECONDARY_MASTERY_CHARACTERISTICS: Set<Characteristic> =
+    setOf(
+        Characteristic.MASTERY_MELEE,
+        Characteristic.MASTERY_DISTANCE,
+        Characteristic.MASTERY_BERSERK,
+        Characteristic.MASTERY_BACK,
+        Characteristic.MASTERY_CRITICAL,
+        Characteristic.MASTERY_HEALING
+    )
+
 @Serializable
 data class SublimationCondition(
     val type: SublimationConditionType,

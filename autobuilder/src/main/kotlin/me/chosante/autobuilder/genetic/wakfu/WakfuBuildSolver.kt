@@ -237,11 +237,17 @@ object WakfuBuildSolver {
         )
 
     /**
-     * Only elemental / resistance targets pull in the per-item random-element modelling that makes
-     * the full late-game pool intractable; everything else solves to a proven global optimum on the
-     * full pool, so we keep the prefilter (which trades global optimality for tractability) opt-in.
+     * The prefilter (a top-N-per-stat HEURISTIC that trades global optimality for tractability) is needed
+     * only when a single elemental fold has **more than one** wanted element: that is exactly the case where
+     * [applyGreedyRandom] mints the per-item × per-element assignment booleans + O(elements²) ordering
+     * constraints that explode the full late-game pool. A SINGLE specific element (the common request, e.g.
+     * "fire mastery") takes the cheap `effectiveCount == elementCount` random branch with no assignment vars,
+     * so the full pool stays small and proves the true global optimum fast (measured: ≤3.5 s on the full
+     * level-245 pool — see PrefilterBenchmark). Keeping the heuristic there only pruned the optimum for no
+     * tractability gain, so we now solve those on the full pool. Multi-element / aggregate requests still
+     * prefilter (the explosion is real for them); pool dominance-pruning to drop it there too is future work.
      */
-    private fun needsItemPrefilter(targetStats: TargetStats): Boolean = targetStats.masteryElementsWanted.isNotEmpty() || targetStats.resistanceElementsWanted.isNotEmpty()
+    private fun needsItemPrefilter(targetStats: TargetStats): Boolean = targetStats.masteryElementsWanted.size > 1 || targetStats.resistanceElementsWanted.size > 1
 
     /**
      * Restricts each slot to the items that can plausibly matter for the requested stats. The full
@@ -377,6 +383,9 @@ object WakfuBuildSolver {
         val skillVars: Map<SkillCharacteristic, IntVar>,
         val runeModel: RuneModel,
         val subModel: SublimationModel,
+        // Max-damage only: every tracked objective-chain var with its name and reachable [LongRange], for
+        // the soundness test (empty for the other modes). See [DomainTracker] / [maxDamageVarBoundsForTest].
+        val maxDamageTracked: List<Triple<IntVar, String, LongRange>> = emptyList(),
     )
 
     /**
@@ -390,14 +399,19 @@ object WakfuBuildSolver {
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         runes: List<RuneType>,
         sublimations: List<Sublimation>,
+        // Max-damage only: declare the objective-chain vars sized to their reachable domains (so CP-SAT can
+        // prove OPTIMAL). false reproduces the loose guard domains — the soundness test's reference build.
+        tightDomains: Boolean = true,
+        // Benchmark/test seam: bypass the prefilter so the full pool is solved regardless of the gate.
+        forceFullPool: Boolean = false,
     ): BuiltModel {
         val model = CpModel()
 
         // Full pool gives the provable *global* optimum and stays tractable for most queries.
-        // Only elemental/resistance targets activate the heavy random-element modelling that
+        // Only multi-element mastery/resistance targets activate the heavy random-element modelling that
         // explodes on the full late-game pool, so we prefilter exactly (and only) those cases.
         val pool =
-            if (needsItemPrefilter(params.targetStats)) {
+            if (!forceFullPool && needsItemPrefilter(params.targetStats)) {
                 prefilterRelevantEquipments(equipmentsByItemType, params)
             } else {
                 equipmentsByItemType
@@ -411,6 +425,7 @@ object WakfuBuildSolver {
 
         model.addBuildValidityConstraints(allEquips, equipVars)
 
+        var maxDamageTracked: List<Triple<IntVar, String, LongRange>> = emptyList()
         val objective =
             when (params.scoreComputationMode) {
                 ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
@@ -419,12 +434,27 @@ object WakfuBuildSolver {
                 ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
                     model.buildPrecisionObjective(params, allEquips, equipVars, skillVars, runeModel, subModel)
 
-                ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE ->
-                    model.buildMaxDamageObjective(params, allEquips, equipVars, skillVars, runeModel, subModel)
+                ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> {
+                    val statBuilder = StatBuilder(model, params, allEquips, equipVars, skillVars, runeModel, subModel, tight = tightDomains)
+                    val obj = model.buildMaxDamageObjective(params, statBuilder)
+                    maxDamageTracked = statBuilder.tracker.tracked()
+                    obj
+                }
             }
         model.maximize(objective)
 
-        return BuiltModel(model, objective, allEquips, equipVars, skillVars, runeModel, subModel)
+        return BuiltModel(model, objective, allEquips, equipVars, skillVars, runeModel, subModel, maxDamageTracked)
+    }
+
+    /** Configures a deterministic, machine-reproducible max-damage solver (full presolve + level-2 linearization). */
+    private fun deterministicMaxDamageSolver(tuning: SolverTuning): CpSolver {
+        val solver = CpSolver()
+        solver.parameters.logSearchProgress = false
+        solver.parameters.linearizationLevel = 2
+        solver.parameters.numSearchWorkers = tuning.numSearchWorkers
+        solver.parameters.randomSeed = tuning.randomSeed
+        solver.parameters.maxDeterministicTime = tuning.maxDeterministicTime
+        return solver
     }
 
     /**
@@ -439,14 +469,136 @@ object WakfuBuildSolver {
         tuning: SolverTuning,
     ): Long {
         val built = buildModel(params, equipmentsByItemType, emptyList(), emptyList())
+        val solver = deterministicMaxDamageSolver(tuning)
+        val status = solver.solve(built.model)
+        require(status == com.google.ortools.sat.CpSolverStatus.OPTIMAL) { "expected OPTIMAL, got $status" }
+        return solver.objectiveValue().toLong()
+    }
+
+    /** A max-damage solve's outcome: its maximized objective and whether CP-SAT *proved* it optimal. */
+    internal data class MaxDamageSolveOutcome(
+        val objective: Long,
+        val isOptimal: Boolean,
+        val hasSolution: Boolean,
+    )
+
+    /**
+     * Test-only: solve a max-damage model with either reachable ([tightDomains] = true) or loose guard
+     * ([tightDomains] = false) declared domains, returning its objective + status WITHOUT requiring OPTIMAL.
+     * The optimum-preservation lock asserts the two declare the same optimum (tight only changes provability,
+     * never the answer) and that the tight build is the one that *proves* it.
+     */
+    internal fun maxDamageSolveForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        tuning: SolverTuning,
+        tightDomains: Boolean,
+    ): MaxDamageSolveOutcome {
+        val built = buildModel(params, equipmentsByItemType, emptyList(), emptyList(), tightDomains)
+        val solver = deterministicMaxDamageSolver(tuning)
+        val status = solver.solve(built.model)
+        val hasSolution =
+            status == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                status == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+        return MaxDamageSolveOutcome(
+            objective = if (hasSolution) solver.objectiveValue().toLong() else Long.MIN_VALUE,
+            isOptimal = status == com.google.ortools.sat.CpSolverStatus.OPTIMAL,
+            hasSolution = hasSolution
+        )
+    }
+
+    /** A tracked objective-chain var's solved value against its declared reachable `[lo, hi]`. */
+    internal data class MaxDamageVarBound(
+        val name: String,
+        val value: Long,
+        val lo: Long,
+        val hi: Long,
+    ) {
+        val withinBound: Boolean get() = value in lo..hi
+    }
+
+    /**
+     * Test-only **soundness probe**: build the max-damage model with **loose** guard domains (so the solver is
+     * free to push every objective-chain var as high as a real build allows) while still *recording* each var's
+     * propagated reachable `[lo, hi]`, solve it, and return every tracked var's solved value vs that range. A
+     * value outside its range means the interval arithmetic UNDER-estimated — i.e. the production (tight) build
+     * would have declared a too-small domain and **silently cut the optimum**. The proven optimum's own var
+     * values are exactly the ones that must fit, so this catches every optimum-threatening under-estimate.
+     */
+    internal fun maxDamageVarBoundsForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        tuning: SolverTuning,
+    ): List<MaxDamageVarBound> {
+        val built = buildModel(params, equipmentsByItemType, emptyList(), emptyList(), tightDomains = false)
+        val solver = deterministicMaxDamageSolver(tuning)
+        val status = solver.solve(built.model)
+        require(status == com.google.ortools.sat.CpSolverStatus.OPTIMAL || status == com.google.ortools.sat.CpSolverStatus.FEASIBLE) {
+            "soundness probe needs a solution, got $status"
+        }
+        return built.maxDamageTracked.map { (v, name, range) ->
+            MaxDamageVarBound(name, solver.value(v), range.first, range.last)
+        }
+    }
+
+    /** Benchmark probe (any mode): model size + solve status/score, with the prefilter optionally bypassed. */
+    internal data class BenchOutcome(
+        val status: String,
+        val numVariables: Int,
+        val numConstraints: Int,
+        val wallTimeSec: Double,
+        val score: BigDecimal,
+        val poolSize: Int,
+    )
+
+    /**
+     * Test-only: build + solve [params] on [equipmentsByItemType] with a deterministic [tuning], optionally
+     * bypassing the item prefilter ([forceFullPool]); reports CP-SAT status, model size and the *scored*
+     * result so a benchmark can compare full-pool vs prefiltered on objective AND tractability.
+     */
+    internal fun solveForBenchmark(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        tuning: SolverTuning,
+        forceFullPool: Boolean,
+    ): BenchOutcome {
+        val built = buildModel(params, equipmentsByItemType, emptyList(), emptyList(), tightDomains = true, forceFullPool = forceFullPool)
         val solver = CpSolver()
         solver.parameters.logSearchProgress = false
         solver.parameters.numSearchWorkers = tuning.numSearchWorkers
         solver.parameters.randomSeed = tuning.randomSeed
         solver.parameters.maxDeterministicTime = tuning.maxDeterministicTime
+        if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) solver.parameters.linearizationLevel = 2
         val status = solver.solve(built.model)
-        require(status == com.google.ortools.sat.CpSolverStatus.OPTIMAL) { "expected OPTIMAL, got $status" }
-        return solver.objectiveValue().toLong()
+        val hasSolution =
+            status == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                status == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+        val score =
+            if (hasSolution) {
+                val build = solutionToBuild(params, built.allEquips, built.equipVars, built.skillVars, built.runeModel, built.subModel) { solver.value(it) }
+                scoreFor(params, build)
+            } else {
+                BigDecimal.ZERO
+            }
+        val proto = built.model.model()
+        return BenchOutcome(
+            status = status.toString(),
+            numVariables = proto.variablesCount,
+            numConstraints = proto.constraintsCount,
+            wallTimeSec = solver.wallTime(),
+            score = score,
+            poolSize = built.allEquips.size
+        )
+    }
+
+    /** Test-only: whether [params] would be prefiltered, and the resulting distinct-item pool size (no solve). */
+    internal fun gatedPoolSizeForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+    ): Pair<Boolean, Int> {
+        val prefiltered = needsItemPrefilter(params.targetStats)
+        val pool = if (prefiltered) prefilterRelevantEquipments(equipmentsByItemType, params) else equipmentsByItemType
+        return prefiltered to orderEquipments(pool).size
     }
 
     private fun CpModel.createSkillVariables(characterSkills: CharacterSkills): Map<SkillCharacteristic, IntVar> {
@@ -892,37 +1044,17 @@ object WakfuBuildSolver {
      */
     private fun CpModel.buildMaxDamageObjective(
         params: WakfuBestBuildParams,
-        allEquips: List<Equipment>,
-        equipVars: Map<Equipment, IntVar>,
-        skillVars: Map<SkillCharacteristic, IntVar>,
-        runeModel: RuneModel,
-        subModel: SublimationModel,
+        statBuilder: StatBuilder,
     ): IntVar {
-        val statBuilder = StatBuilder(this, params, allEquips, equipVars, skillVars, runeModel, subModel)
         statBuilder.applyOutOfCombatCaps()
-        // External-loop AP probe: pin the build to exactly N AP so each breakpoint can be evaluated.
+        // External-loop AP probe: pin the build to exactly N AP so each breakpoint can be evaluated (used by the
+        // debuff AP-window probes in MaxDamageSearch).
         params.maxDamageApTarget?.let { addEquality(statBuilder.actionPointVar(), newConstant(it.toLong())) }
-        // Bi-element (Lot 2): when a split is given, optimize the element PAIR (the split + total AP are pinned,
-        // outer-loop constants); otherwise the single/boss per-element objective. Both return a var on the SAME
-        // [DAMAGE_PERTURN_ABS_MAX] domain, so the external max over (mono OR bi, AP, split) is comparable.
-        val damageScore =
-            params.maxDamageBiElement?.let { bi ->
-                val totalAp =
-                    requireNotNull(params.maxDamageApTarget) { "bi-element requires a pinned total AP (maxDamageApTarget)" }
-                statBuilder.perTurnDamageScoreBiElement(
-                    bi.first,
-                    bi.second,
-                    bi.apSplitOnFirst,
-                    totalAp,
-                    params.damageScenario,
-                    params.character.clazz
-                )
-            } ?: statBuilder.perTurnDamageScore(params.damageScenario, params.character.clazz)
+        val damageScore = statBuilder.perTurnDamageScore(params.damageScenario, params.character.clazz)
         // Survivability soft-floor (opt-in): gently tax the damage score when the build's effective-HP
         // proxy is below the floor, BEFORE the hard-target penalty. Folding it into the core score (rather
         // than chaining a second multiply onto the already-near-Long.MAX/2 penalized objective) keeps the
-        // objective on the same DAMAGE_PERTURN_ABS_MAX domain, so applyConstraintPenalty's bounds are
-        // untouched and the external max over (mono | bi, AP, split) stays comparable.
+        // objective on the same DAMAGE_PERTURN_ABS_MAX domain, so applyConstraintPenalty's bounds are untouched.
         val scenario = params.damageScenario
         val survivableScore =
             if (scenario.survivabilityFloor && scenario.minEffectiveHp > 0) {
@@ -1145,17 +1277,25 @@ object WakfuBuildSolver {
     ) {
         val solver = CpSolver()
         solver.parameters.logSearchProgress = false
+        // Max-damage declares its objective-chain vars with reachable domains, which finally makes the LP
+        // relaxation worth building; engage the level-2 linearization so CP-SAT can certify the bound and
+        // prove OPTIMAL. Gated to max-damage to leave the other modes' tuned search paths untouched.
+        val maxDamage = params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE
+        if (maxDamage) solver.parameters.linearizationLevel = 2
         if (tuning == null) {
             // Production: a parallel portfolio (CP-SAT's equivalent of the GA's parallel scoring),
-            // bounded by the user's wall-clock search duration. Presolve is capped because full
-            // presolve on this objective never terminates within that budget; the prefiltered
-            // (small) model keeps even a light presolve effective.
+            // bounded by the user's wall-clock search duration.
             //
             // We deliberately leave one core for the host: CP-SAT spawns this many *native* threads
             // and pins them at 100%, which otherwise starves the Compose render thread / EDT and
             // makes the GUI window visibly freeze during a search. One fewer worker is a negligible
             // throughput loss next to a responsive UI (and keeps the terminal responsive for the CLI).
-            solver.parameters.maxPresolveIterations = 1
+            //
+            // The single-iteration presolve cap was a symptom of the old loose domains (full presolve never
+            // terminated on the loose max-damage objective). With reachable domains presolve folds the tight
+            // bounds through the constraint network quickly, so max-damage affords a few iterations — the
+            // other modes keep the light single pass their larger/looser models rely on to stay in budget.
+            solver.parameters.maxPresolveIterations = if (maxDamage) 3 else 1
             // Millisecond precision (not inWholeSeconds, which FLOORS): the max-damage external loop slices
             // its phase budget into sub-second per-probe limits, and a floored 0.0 means "no time limit" to
             // OR-Tools — which is exactly how a fan-out of probes could run unbounded. Floored to 50ms so a
@@ -1296,6 +1436,76 @@ object WakfuBuildSolver {
         return BuildCombination(equippedItems, optimizedSkills, runes, sublimationsByItem, resolvedPassives(params))
     }
 
+    /**
+     * Tracks the **reachable** [LongRange] of each CP-SAT variable on the max-damage objective chain, so
+     * every intermediate var — and therefore every McCormick product envelope — is declared with a domain
+     * sized to what a real build can reach, NOT the "safe huge" `*_ABS_MAX` guards. Those guards made the
+     * LP relaxation worthless (`best_bound ≈ 90× objective`, never closing) and forced a pure-branching
+     * proof that timed out; reachable domains shrink every product box so CP-SAT certifies the incumbent
+     * and returns `OPTIMAL`. See `docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md`.
+     *
+     * Each builder over-estimates its output range from its inputs' ranges (sound interval arithmetic);
+     * an **under-estimate would silently cut the optimum**, so the arithmetic must never undershoot
+     * (locked by [maxDamageVarBoundsForTest]). The old `*_ABS_MAX` constants survive only as int64
+     * overflow guards via [decl]'s `coerceIn`.
+     *
+     * [tight] = false records the same reachable ranges but declares vars with the loose guard instead —
+     * the reference model the soundness test solves against (loose domains let a solved value exceed a
+     * buggy tight bound, which is exactly how an under-estimate is detected). It is also what every
+     * non-max-damage objective uses, so those modes keep byte-identical (guard-sized) domains.
+     */
+    private class DomainTracker(
+        val tight: Boolean,
+    ) {
+        private val ranges = LinkedHashMap<IntVar, LongRange>()
+        private val names = HashMap<IntVar, String>()
+
+        /** Seed a leaf var (equip/skill/rune/sub bool or a constant) with its exact domain. */
+        fun seed(
+            v: IntVar,
+            range: LongRange,
+            name: String,
+        ): IntVar {
+            ranges[v] = range
+            names[v] = name
+            return v
+        }
+
+        /** Record a derived var's reachable range (used by downstream [of] lookups and the soundness test). */
+        fun record(
+            v: IntVar,
+            range: LongRange,
+            name: String,
+        ): IntVar {
+            ranges[v] = range
+            names[v] = name
+            return v
+        }
+
+        /**
+         * Reachable range of [v]. Untracked vars fall back to the stat-level guard `±STAT_ABS_MAX`, which is
+         * a sound over-estimate for every var that can appear as a stat-sum term (item/rune/skill/sub values
+         * are all within it); product operands on the damage chain are always explicitly tracked, so the
+         * fallback never under-bounds a large intermediate.
+         */
+        fun of(v: IntVar): LongRange = ranges[v] ?: (-STAT_ABS_MAX..STAT_ABS_MAX)
+
+        /** The `[lo, hi]` to actually declare a var with: the reachable range (clamped into the guard) when [tight], else the guard. */
+        fun decl(
+            reach: LongRange,
+            guardLo: Long,
+            guardHi: Long,
+        ): Pair<Long, Long> =
+            if (tight) {
+                reach.first.coerceIn(guardLo, guardHi) to reach.last.coerceIn(guardLo, guardHi)
+            } else {
+                guardLo to guardHi
+            }
+
+        /** Every tracked var with its name and reachable range — read back by the soundness test. */
+        fun tracked(): List<Triple<IntVar, String, LongRange>> = ranges.entries.map { Triple(it.key, names[it.key] ?: "?", it.value) }
+    }
+
     private class StatBuilder(
         private val model: CpModel,
         private val params: WakfuBestBuildParams,
@@ -1304,9 +1514,230 @@ object WakfuBuildSolver {
         skillVars: Map<SkillCharacteristic, IntVar>,
         private val runeModel: RuneModel,
         private val subModel: SublimationModel,
+        // Reachable-domain tracking for the max-damage objective chain. [tight] = true (max-damage only)
+        // declares each chain var sized to its reachable range; false reproduces the loose guard domains
+        // (every other mode, and the soundness-test reference). See [DomainTracker].
+        tight: Boolean = false,
     ) {
+        val tracker = DomainTracker(tight)
+
         private val baseValues = params.character.baseCharacteristicValues
         private val skillTerms = buildSkillTerms(skillVars)
+
+        // Reverse lookup equipVar → its item, so a stat sum's reachable bound can be computed PER mutually-
+        // exclusive slot (one item per slot, two rings) instead of summing every candidate — the per-slot
+        // bound is what brings the mastery domain down to its real ~6k from the naive Σ-all-items.
+        private val equipByVar: Map<IntVar, Equipment> = equipVars.entries.associate { (e, v) -> v to e }
+
+        init {
+            // Seed every leaf variable's exact domain so the interval arithmetic can propagate from them.
+            equipVars.forEach { (equip, v) -> tracker.seed(v, 0L..1L, "equip_${equip.equipmentId}") }
+            skillVars.forEach { (skill, v) -> tracker.seed(v, 0L..skill.maxPointsAssignable.toLong(), "skill_${skill.name}") }
+            runeModel.runeVars.forEach { (equip, perStat) ->
+                perStat.forEach { (stat, v) -> tracker.seed(v, 0L..equip.maxShardSlots.toLong(), "rune_${equip.equipmentId}_${stat.name}") }
+            }
+            subModel.subVars.forEach { (sub, v) -> tracker.seed(v, 0L..1L, "sub_${sub.stateId}") }
+        }
+
+        // ---- Domain-tracked variable builders (the max-damage objective chain) ----------------------
+        // Each mirrors a plain CpModel helper but declares the new var from its inputs' reachable ranges
+        // (via [DomainTracker]) and records its own range for downstream propagation. With tracker.tight =
+        // false they declare the exact same guard-sized domains as the untracked helpers, so non-max-damage
+        // objectives are unchanged.
+
+        /** A constant, seeded as the singleton range `v..v`. */
+        private fun tConst(v: Long): IntVar = tracker.seed(model.newConstant(v), v..v, "const_$v")
+
+        /** Reachable range of a stat sum `constant + Σ coeff·var`, **per mutually-exclusive slot** for item terms. */
+        private fun reachableSumDomain(
+            terms: List<Term>,
+            constant: Long,
+        ): LongRange {
+            var lo = constant
+            var hi = constant
+            // Item terms: one item per slot (two per RING). Bounding each itemType group by its single best
+            // (or worst) coefficient — rather than summing every candidate — is the dominant tightening, and a
+            // sound over-estimate (it even allows 2H+1H+off-hand together, which the validity rules forbid).
+            val coeffsByType = HashMap<ItemType, MutableList<Long>>()
+            for (term in terms) {
+                val equip = equipByVar[term.variable]
+                if (equip != null) {
+                    coeffsByType.getOrPut(equip.itemType) { mutableListOf() }.add(term.coefficient)
+                } else {
+                    val d = tracker.of(term.variable)
+                    val scaled = if (term.coefficient >= 0) d.first * term.coefficient..d.last * term.coefficient else d.last * term.coefficient..d.first * term.coefficient
+                    lo += scaled.first
+                    hi += scaled.last
+                }
+            }
+            for ((type, coeffs) in coeffsByType) {
+                val limit = if (type == ItemType.RING) 2L else 1L
+                hi += limit * maxOf(0L, coeffs.max())
+                lo += limit * minOf(0L, coeffs.min())
+            }
+            return lo..hi
+        }
+
+        /** Stat sum with a precomputed reachable [reach]; declares tight-or-guard and records [reach]. */
+        private fun tSum(
+            name: String,
+            terms: List<Term>,
+            constant: Long,
+            reach: LongRange,
+            guardLo: Long,
+            guardHi: Long,
+        ): IntVar {
+            if (terms.isEmpty()) return tConst(constant)
+            val (lo, hi) = tracker.decl(reach, guardLo, guardHi)
+            val v = model.newIntVar(lo, hi, name)
+            val builder = LinearExpr.newBuilder().add(constant)
+            terms.forEach { builder.addTerm(it.variable, it.coefficient) }
+            model.addEquality(v, builder.build())
+            return tracker.record(v, reach, name)
+        }
+
+        /** Stat sum whose reachable range is the naive interval sum of its (already-tracked) terms. */
+        private fun tSumNaive(
+            name: String,
+            terms: List<Term>,
+            constant: Long,
+            guardLo: Long,
+            guardHi: Long,
+        ): IntVar {
+            var reach = constant..constant
+            for (term in terms) {
+                val d = tracker.of(term.variable)
+                val scaled = if (term.coefficient >= 0) d.first * term.coefficient..d.last * term.coefficient else d.last * term.coefficient..d.first * term.coefficient
+                reach = reach.first + scaled.first..reach.last + scaled.last
+            }
+            return tSum(name, terms, constant, reach, guardLo, guardHi)
+        }
+
+        /** clamp(value, low, high): reachable range = the value's range clamped into `[low, high]`. */
+        private fun tClamp(
+            value: IntVar,
+            low: Long,
+            high: Long,
+            name: String,
+        ): IntVar {
+            val v = tracker.of(value)
+            val loweredReach = maxOf(low, v.first)..maxOf(low, v.last).coerceAtMost(CLAMP_INTERMEDIATE_MAX)
+            val (lLo, lHi) = tracker.decl(loweredReach, low, CLAMP_INTERMEDIATE_MAX)
+            val lowered = model.newIntVar(lLo, lHi, "${name}Lo")
+            model.addMaxEquality(lowered, arrayOf(value, model.newConstant(low)))
+            val clampedReach = v.first.coerceIn(low, high)..v.last.coerceIn(low, high)
+            val (cLo, cHi) = tracker.decl(clampedReach, low, high)
+            val clamped = model.newIntVar(cLo, cHi, name)
+            model.addMinEquality(clamped, arrayOf(lowered, model.newConstant(high)))
+            return tracker.record(clamped, clampedReach, name)
+        }
+
+        /** z = x·y, declared from the interval product of the operands' reachable ranges. */
+        private fun tMul(
+            name: String,
+            x: IntVar,
+            y: IntVar,
+            guardLo: Long,
+            guardHi: Long,
+        ): IntVar {
+            val reach = mulRange(tracker.of(x), tracker.of(y))
+            val (lo, hi) = tracker.decl(reach, guardLo, guardHi)
+            val z = model.newIntVar(lo, hi, name)
+            model.addMultiplicationEquality(z, arrayOf(x, y))
+            return tracker.record(z, reach, name)
+        }
+
+        /** q = num / divisor (truncated, divisor > 0), declared from num's range divided by [divisor]. */
+        private fun tDiv(
+            name: String,
+            num: IntVar,
+            divisor: Long,
+            guardLo: Long,
+            guardHi: Long,
+        ): IntVar {
+            val n = tracker.of(num)
+            val reach = n.first / divisor..n.last / divisor // truncation toward zero matches CP-SAT integer division
+            val (lo, hi) = tracker.decl(reach, guardLo, guardHi)
+            val q = model.newIntVar(lo, hi, name)
+            model.addDivisionEquality(q, num, model.newConstant(divisor))
+            return tracker.record(q, reach, name)
+        }
+
+        /** target = table[index]: reachable range = `[min(table), max(table)]`. */
+        private fun tElement(
+            name: String,
+            index: IntVar,
+            table: LongArray,
+        ): IntVar {
+            val reach = table.min()..table.max()
+            val (lo, hi) = tracker.decl(reach, 0L, table.max().coerceAtLeast(0L))
+            val target = model.newIntVar(lo, hi, name)
+            model.addElement(index, table, target)
+            return tracker.record(target, reach, name)
+        }
+
+        /** withPercent = value + round(value·percent / 100): mirrors [applyPercent], tightening every var. */
+        private fun tPercent(
+            value: IntVar,
+            percent: IntVar,
+            name: String,
+        ): IntVar {
+            val productReach = mulRange(tracker.of(value), tracker.of(percent))
+            val (pLo, pHi) = tracker.decl(productReach, -PRODUCT_ABS_MAX, PRODUCT_ABS_MAX)
+            val product = model.newIntVar(pLo, pHi, "${name}_prod")
+            model.addMultiplicationEquality(product, arrayOf(value, percent))
+
+            val quotientReach = productReach.first / 100..productReach.last / 100
+            val (qLo, qHi) = tracker.decl(quotientReach, -(PRODUCT_ABS_MAX / 100) - 1, (PRODUCT_ABS_MAX / 100) + 1)
+            val quotient = model.newIntVar(qLo, qHi, "${name}_quot")
+            model.addDivisionEquality(quotient, product, model.newConstant(100L))
+
+            val remainder = model.newIntVar(-99, 99, "${name}_rem")
+            model.addModuloEquality(remainder, product, 100L)
+
+            val inc = model.newBoolVar("${name}_inc")
+            model.addGreaterOrEqual(remainder, 50).onlyEnforceIf(inc)
+            model.addLessOrEqual(remainder, 49).onlyEnforceIf(inc.not())
+
+            val dec = model.newBoolVar("${name}_dec")
+            model.addLessOrEqual(remainder, -51).onlyEnforceIf(dec)
+            model.addGreaterOrEqual(remainder, -50).onlyEnforceIf(dec.not())
+
+            model.addLessOrEqual(
+                LinearExpr
+                    .newBuilder()
+                    .addTerm(inc, 1)
+                    .addTerm(dec, 1)
+                    .build(),
+                1
+            )
+
+            val roundedReach = quotientReach.first - 1..quotientReach.last + 1
+            val (rLo, rHi) = tracker.decl(roundedReach, -(PRODUCT_ABS_MAX / 100) - 2, (PRODUCT_ABS_MAX / 100) + 2)
+            val rounded = model.newIntVar(rLo, rHi, "${name}_rounded")
+            model.addEquality(
+                rounded,
+                LinearExpr
+                    .newBuilder()
+                    .addTerm(quotient, 1)
+                    .addTerm(inc, 1)
+                    .addTerm(dec, -1)
+                    .build()
+            )
+
+            val withReach = tracker.of(value).first + roundedReach.first..tracker.of(value).last + roundedReach.last
+            val (wLo, wHi) = tracker.decl(withReach, -STAT_WITH_PERCENT_ABS_MAX, STAT_WITH_PERCENT_ABS_MAX)
+            val withPercent = model.newIntVar(wLo, wHi, name)
+            model.addEquality(
+                withPercent,
+                LinearExpr
+                    .newBuilder()
+                    .addTerm(value, 1)
+                    .addTerm(rounded, 1)
+                    .build()
+            )
+            return tracker.record(withPercent, withReach, name)
+        }
 
         private val prePercentCache = mutableMapOf<Characteristic, IntVar>()
         private val preSubCache = mutableMapOf<Characteristic, IntVar>()
@@ -1671,7 +2102,7 @@ object WakfuBuildSolver {
             scenario: DamageScenario,
             clazz: me.chosante.common.CharacterClass,
         ): IntVar {
-            val apVar = model.clampVar(actualStat(Characteristic.ACTION_POINT), 0L, MAX_ROTATION_AP, "rotationAp")
+            val apVar = tClamp(actualStat(Characteristic.ACTION_POINT), 0L, MAX_ROTATION_AP, "rotationAp")
             val perElementDamage =
                 scenario.candidateElements().mapNotNull { (element, resistance) ->
                     val spells =
@@ -1691,137 +2122,48 @@ object WakfuBuildSolver {
                         )
                     }
                     val clampedTable = LongArray(table.size) { table[it].coerceAtMost(PER_TURN_THROUGHPUT_MAX) }
-                    val throughput = model.newIntVar(0L, clampedTable.max(), "throughput_${element.name}")
-                    model.addElement(apVar, clampedTable, throughput)
+                    val throughput = tElement("throughput_${element.name}", apVar, clampedTable)
 
                     // raw = throughput · (perHit ÷ PERHIT_DOWNSCALE) — the per-hit core scaled down to a
                     // modest domain before the multiplication, so the product stays small for CP-SAT.
                     val perHit = perHitDamageScore(scenarioElementMasteryVar(element.masteryCharacteristic), element.masteryCharacteristic.name, scenario)
-                    val perHitScaled = model.newIntVar(0L, PERHIT_SCALED_MAX, "perHitScaled_${element.name}")
-                    model.addDivisionEquality(perHitScaled, perHit, model.newConstant(PERHIT_DOWNSCALE))
-                    val raw = model.newIntVar(0L, ROTATION_RAW_MAX, "rotRaw_${element.name}")
-                    model.addMultiplicationEquality(raw, arrayOf(throughput, perHitScaled))
+                    val perHitScaled = tDiv("perHitScaled_${element.name}", perHit, PERHIT_DOWNSCALE, 0L, PERHIT_SCALED_MAX)
+                    val raw = tMul("rotRaw_${element.name}", throughput, perHitScaled, 0L, ROTATION_RAW_MAX)
 
                     // Fold in the boss's per-element resistance, then scale down once into the penalty's range.
                     val resFactor = (100L - resistance).coerceIn(RES_FACTOR_MIN, RES_FACTOR_MAX)
-                    val rawWithRes = model.newIntVar(0L, ROTATION_RAW_RES_MAX, "rotRawRes_${element.name}")
-                    model.addEquality(rawWithRes, LinearExpr.term(raw, resFactor))
-                    val damage = model.newIntVar(0L, DAMAGE_PERTURN_ABS_MAX, "rotDamage_${element.name}")
-                    model.addDivisionEquality(damage, rawWithRes, model.newConstant(FINAL_DOWNSCALE))
-                    damage
+                    val rawWithRes = tSumNaive("rotRawRes_${element.name}", listOf(Term(raw, resFactor)), 0L, 0L, ROTATION_RAW_RES_MAX)
+                    tDiv("rotDamage_${element.name}", rawWithRes, FINAL_DOWNSCALE, 0L, DAMAGE_PERTURN_ABS_MAX)
                 }
 
+            // The turn plays the single best PLAYABLE element against the boss — `max over elements`, NOT a sum
+            // (an AP split across elements was measured UNPROVABLE at every arity — 2 terms still FEASIBLE at 240
+            // det-time, 3 terms 311s FEASIBLE — for only a ~1.4% unproven gain; multi-element value is captured by
+            // element SELECTION, this max). NOTE: a single candidate (size == 1) proves in seconds, but the
+            // in-model `max` over several candidates does NOT prove on the full pool (562s FEASIBLE) — so the
+            // production boss path (MaxDamageSearch) instead solves each candidate element SEPARATELY (single
+            // candidate ⇒ provable) and takes the max externally. This in-model `max` is the correct but
+            // slower-to-prove fallback for direct/small-pool callers. See docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md.
             return when (perElementDamage.size) {
                 0 -> model.newConstant(0L)
                 1 -> perElementDamage.single()
                 else -> {
-                    val best = model.newIntVar(0L, DAMAGE_PERTURN_ABS_MAX, "rotBestElement")
+                    val reach = 0L..perElementDamage.maxOf { tracker.of(it).last }
+                    val (lo, hi) = tracker.decl(reach, 0L, DAMAGE_PERTURN_ABS_MAX)
+                    val best = model.newIntVar(lo, hi, "rotBestElement")
                     model.addMaxEquality(best, perElementDamage.toTypedArray())
-                    best
-                }
-            }
-        }
-
-        /**
-         * Spell/boss-aware per-turn damage for a BI-ELEMENT split (Lot 2): the pair [elementA]+[elementB] with
-         * [apOnA] AP routed to [elementA]'s rotation and `[totalAp] − [apOnA]` to [elementB]'s. The split and total
-         * AP are **outer-loop constants** (from [WakfuBestBuildParams.maxDamageBiElement] + `maxDamageApTarget`),
-         * so each element's throughput `T_e[ap]` is injected as a literal and the objective is
-         * `Σ_e resFactor_e · T_e[ap_e] · perHit_e` — purely **linear** (no spell-count × mastery product; contrast
-         * the mono [perTurnDamageScore], whose `addElement` + `addMultiplicationEquality` IS that bilinear term).
-         *
-         * **Scale-identical to [perTurnDamageScore]**: each element reuses the exact mono pipeline
-         * (perHit → ÷PERHIT_DOWNSCALE → ×T → ×resFactor → ÷FINAL_DOWNSCALE), so at a degenerate split
-         * (`apOnA = 0` or `= totalAp`) the other element's `T` is 0, it drops, and the result reproduces the mono
-         * objective for the surviving element exactly ⇒ bi ≥ mono (domination). The two per-element damages are
-         * summed then **clamped to [DAMAGE_PERTURN_ABS_MAX]**: the sum's natural bound is 2×, but clamping keeps the
-         * objective on the mono domain (so the external `max` over mono/bi is sound) AND keeps the constraint-penalty
-         * multiply overflow-safe (see [applyConstraintPenalty]); the clamp is physically non-binding (the cap is
-         * orders of magnitude above any real per-turn value).
-         *
-         * The **single** [elementVars] call over both mastery characteristics is the double-count fix (Lot 2b):
-         * generic "+all elements" folds in full onto each element's own damage and `*_RANDOM_ELEMENT` lines split
-         * across the pair (`effectiveCount = min(count, 2)`) — two singleton calls would add generic mastery to
-         * both cores and assign a 1-random line in full to each. Crit / DI / range / rear are build-global and
-         * shared by both cores (read inside [perHitDamageScore]) — correctly NOT split.
-         */
-        fun perTurnDamageScoreBiElement(
-            elementA: SpellElement,
-            elementB: SpellElement,
-            apOnA: Int,
-            totalAp: Int,
-            scenario: DamageScenario,
-            clazz: me.chosante.common.CharacterClass,
-        ): IntVar {
-            require(elementA != elementB) { "bi-element requires two distinct elements" }
-            val pair = listOf(elementA, elementB)
-            val resByElement = scenario.candidateElements().toMap()
-            val apByElement = mapOf(elementA to apOnA, elementB to (totalAp - apOnA))
-
-            // (Lot 2b) ONE elementVars call over both elements' masteries — see the KDoc. The cache key
-            // (MASTERY_ELEMENTARY, [eA, eB]) is distinct from the mono singleton keys, and the mono/bi paths are
-            // mutually exclusive within a solve, so there is no cache collision.
-            val masteryVars =
-                elementVars(
-                    wantedElements = pair.map { it.masteryCharacteristic },
-                    genericCharacteristic = Characteristic.MASTERY_ELEMENTARY,
-                    targets = pair.associate { it.masteryCharacteristic to 1 },
-                    randomByCount = MASTERY_RANDOM_BY_COUNT
-                )
-
-            val perElementDamage =
-                pair.mapNotNull { element ->
-                    // A pair element absent from the scenario's resistances degenerates to mono (don't invent a
-                    // neutral resistance — mirrors candidateElements()).
-                    val resistance = resByElement[element] ?: return@mapNotNull null
-                    val ap = apByElement.getValue(element).coerceIn(0, MAX_ROTATION_AP.toInt())
-                    val spells =
-                        SpellCatalog.damageSpells(clazz).filter {
-                            it.element ==
-                                me.chosante.common.SpellElement
-                                    .valueOf(element.name)
-                        }
-                    val table = SpellRotationOptimizer.baseThroughputTable(spells, MAX_ROTATION_AP.toInt())
-                    val throughput = table[ap].coerceAtMost(PER_TURN_THROUGHPUT_MAX) // same clamp as mono clampedTable
-                    if (throughput == 0L) return@mapNotNull null // dead element (no spells) or a=0 slice ⇒ contributes 0
-
-                    val s = "${element.name}_bi"
-                    val perHit = perHitDamageScore(masteryVars.getValue(element.masteryCharacteristic), s, scenario)
-                    val perHitScaled = model.newIntVar(0L, PERHIT_SCALED_MAX, "perHitScaled_$s")
-                    model.addDivisionEquality(perHitScaled, perHit, model.newConstant(PERHIT_DOWNSCALE))
-
-                    // raw = T · perHitScaled — T is an outer-loop CONSTANT, so this is LINEAR (no variable×variable).
-                    val raw = model.newIntVar(0L, ROTATION_RAW_MAX, "rotRaw_$s")
-                    model.addEquality(raw, LinearExpr.term(perHitScaled, throughput))
-
-                    val resFactor = (100L - resistance).coerceIn(RES_FACTOR_MIN, RES_FACTOR_MAX)
-                    val rawWithRes = model.newIntVar(0L, ROTATION_RAW_RES_MAX, "rotRawRes_$s")
-                    model.addEquality(rawWithRes, LinearExpr.term(raw, resFactor))
-                    val damage = model.newIntVar(0L, DAMAGE_PERTURN_ABS_MAX, "rotDamage_$s")
-                    model.addDivisionEquality(damage, rawWithRes, model.newConstant(FINAL_DOWNSCALE))
-                    damage
-                }
-
-            return when (perElementDamage.size) {
-                0 -> model.newConstant(0L)
-                1 -> perElementDamage.single() // a pair with one dead element degenerates to mono (exact, no clamp)
-                else -> {
-                    val sum = model.sumVar("rotBiSum", perElementDamage, 0L, 2L * DAMAGE_PERTURN_ABS_MAX)
-                    val total = model.newIntVar(0L, DAMAGE_PERTURN_ABS_MAX, "rotBiTotal")
-                    model.addMinEquality(total, arrayOf(sum, model.newConstant(DAMAGE_PERTURN_ABS_MAX)))
-                    total
+                    tracker.record(best, reach, "rotBestElement")
                 }
             }
         }
 
         /**
          * Build-dependent per-hit core `D · Graw` for an element whose folded elemental-mastery var is
-         * [elementMasteryVar] (see [perTurnDamageScore]). Taking the mastery var as a parameter — rather
-         * than computing it internally — lets the bi-element path feed both cores from a *single*
-         * [elementVars] call over the element pair, so generic "+all elements" and random-element mastery
-         * are folded once per element rather than double-counted. All masteries / DI / crit are clamped
-         * into the damage bounds so the two CP-SAT multiplications stay on small, stable integer domains.
-         * Var names carry [suffix] so per-element cores never collide.
+         * [elementMasteryVar] (see [perTurnDamageScore]). Taking the mastery var as a parameter — rather than
+         * computing it internally — lets the caller fold generic "+all elements" and random-element mastery onto
+         * the element once. All masteries / DI / crit are clamped into the damage bounds so the two CP-SAT
+         * multiplications stay on small, stable integer domains. Var names carry [suffix] so per-element cores
+         * never collide.
          */
         private fun perHitDamageScore(
             elementMasteryVar: IntVar,
@@ -1836,24 +2178,23 @@ object WakfuBuildSolver {
             if (scenario.berserk) masteryTerms.add(Term(actualStat(Characteristic.MASTERY_BERSERK), 1L))
             if (scenario.healing) masteryTerms.add(Term(actualStat(Characteristic.MASTERY_HEALING), 1L))
 
-            // M = clamp(100 + ΣMastery, 0, MAX); criticalMastery and DI clamped likewise.
-            val preM = model.sumVar("dmgPreM_$s", masteryTerms, 100L, -CLAMP_INTERMEDIATE_MAX, CLAMP_INTERMEDIATE_MAX)
-            val m = model.clampVar(preM, 0L, DAMAGE_MASTERY_MAX, "dmgM_$s")
-            val criticalMastery = model.clampVar(actualStat(Characteristic.MASTERY_CRITICAL), 0L, DAMAGE_MASTERY_MAX, "dmgCriticalMastery_$s")
+            // M = clamp(100 + ΣMastery, 0, MAX); criticalMastery and DI clamped likewise. The clamps inherit
+            // their inputs' reachable ranges, so M / criticalMastery / DI land on their true ~6k / ~1k domains
+            // (not the safe-huge caps), which is what shrinks the two multiplication envelopes below.
+            val preM = tSumNaive("dmgPreM_$s", masteryTerms, 100L, -CLAMP_INTERMEDIATE_MAX, CLAMP_INTERMEDIATE_MAX)
+            val m = tClamp(preM, 0L, DAMAGE_MASTERY_MAX, "dmgM_$s")
+            val criticalMastery = tClamp(actualStat(Characteristic.MASTERY_CRITICAL), 0L, DAMAGE_MASTERY_MAX, "dmgCriticalMastery_$s")
             val critCap = scenario.critCapPercent.toLong().coerceIn(0L, 100L)
-            val crit = model.clampVar(actualStat(Characteristic.CRITICAL_HIT), 0L, critCap, "dmgCrit_$s")
-            val di = model.clampVar(actualStat(Characteristic.DAMAGE_INFLICTED), -DAMAGE_DI_FLOOR, DAMAGE_DI_MAX, "dmgDI_$s")
-            val d = model.sumVar("dmgD_$s", listOf(Term(di, 1L)), 100L, 100L - DAMAGE_DI_FLOOR, 100L + DAMAGE_DI_MAX)
+            val crit = tClamp(actualStat(Characteristic.CRITICAL_HIT), 0L, critCap, "dmgCrit_$s")
+            val di = tClamp(actualStat(Characteristic.DAMAGE_INFLICTED), -DAMAGE_DI_FLOOR, DAMAGE_DI_MAX, "dmgDI_$s")
+            val d = tSumNaive("dmgD_$s", listOf(Term(di, 1L)), 100L, 100L - DAMAGE_DI_FLOOR, 100L + DAMAGE_DI_MAX)
 
             // diff = M + 5·criticalMastery ; term = crit · diff ; Graw = 400·M + term.
-            val diff = model.sumVar("dmgDiff_$s", listOf(Term(m, 1L), Term(criticalMastery, 5L)), 0L, 0L, DAMAGE_MASTERY_MAX * 6)
-            val term = model.newIntVar(0L, 100L * DAMAGE_MASTERY_MAX * 6, "dmgCritTerm_$s")
-            model.addMultiplicationEquality(term, arrayOf(crit, diff))
-            val graw = model.sumVar("dmgGraw_$s", listOf(Term(m, 400L), Term(term, 1L)), 0L, 0L, DAMAGE_GRAW_MAX)
+            val diff = tSumNaive("dmgDiff_$s", listOf(Term(m, 1L), Term(criticalMastery, 5L)), 0L, 0L, DAMAGE_MASTERY_MAX * 6)
+            val term = tMul("dmgCritTerm_$s", crit, diff, 0L, 100L * DAMAGE_MASTERY_MAX * 6)
+            val graw = tSumNaive("dmgGraw_$s", listOf(Term(m, 400L), Term(term, 1L)), 0L, 0L, DAMAGE_GRAW_MAX)
 
-            val damageScore = model.newIntVar(0L, DAMAGE_SCORE_ABS_MAX, "dmgScore_$s")
-            model.addMultiplicationEquality(damageScore, arrayOf(d, graw))
-            return damageScore
+            return tMul("dmgScore_$s", d, graw, 0L, DAMAGE_SCORE_ABS_MAX)
         }
 
         /**
@@ -1935,36 +2276,47 @@ object WakfuBuildSolver {
                 val baseElements =
                     wantedElements.associateWith { element ->
                         val baseElement = prePercentStat(element)
-                        model.sumVar(
+                        // baseElement + genericBase: both are per-slot-tight, so their interval sum is too.
+                        tSumNaive(
                             name = "pre_${element.name}",
-                            terms =
-                                listOf(
-                                    Term(baseElement, 1L),
-                                    Term(genericBase, 1L)
-                                ),
+                            terms = listOf(Term(baseElement, 1L), Term(genericBase, 1L)),
                             constant = 0L,
-                            min = -STAT_WITH_PERCENT_ABS_MAX,
-                            max = STAT_WITH_PERCENT_ABS_MAX
+                            guardLo = -STAT_WITH_PERCENT_ABS_MAX,
+                            guardHi = STAT_WITH_PERCENT_ABS_MAX
                         )
                     }
 
+                // For a monotone objective in the element vars the per-roll greedy ordering is an expensive,
+                // provably-suboptimal heuristic, so we let CP-SAT pick the random assignment FREELY (only the
+                // cardinality constraint) — the objective drives it to the true optimum — which also removes the
+                // O(elements²) ordering that exploded the multi-element pool. The scorer mirrors this exactly.
+                //  - most-masteries: the objective is a MIN (mastery always; aggregate resistance when
+                //    RESISTANCE_ELEMENTARY is requested) ⇒ exact max-min scorer ([assignMaxMinMasteryRandomValues]).
+                //  - precision: the objective is the capped sum (both mastery and resistance) ⇒ exact max-capped
+                //    scorer ([assignMaxCappedMasteryRandomValues]).
+                // max-damage stays greedy (the objective plays a single element ⇒ assignment is degenerate anyway).
+                val freeAssignment =
+                    when (params.scoreComputationMode) {
+                        ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
+                            genericCharacteristic == Characteristic.MASTERY_ELEMENTARY ||
+                                (
+                                    genericCharacteristic == Characteristic.RESISTANCE_ELEMENTARY &&
+                                        params.targetStats.any { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY }
+                                )
+
+                        ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT -> true
+                        ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> false
+                    }
                 val prePercentElements =
-                    applyGreedyRandom(wantedElements, baseElements, targets, buildRandomEntries(randomByCount))
+                    applyGreedyRandom(wantedElements, baseElements, targets, buildRandomEntries(randomByCount), freeAssignment)
 
                 prePercentElements.mapValues { (element, preElement) ->
                     val percentTerms = skillTerms.percent[element].orEmpty()
                     if (percentTerms.isEmpty()) {
                         preElement
                     } else {
-                        val percent =
-                            model.sumVar(
-                                name = "pct_${element.name}",
-                                terms = percentTerms,
-                                constant = 0L,
-                                min = -PERCENT_ABS_MAX,
-                                max = PERCENT_ABS_MAX
-                            )
-                        model.applyPercent(preElement, percent, "stat_${element.name}")
+                        val percent = tSumNaive("pct_${element.name}", percentTerms, 0L, -PERCENT_ABS_MAX, PERCENT_ABS_MAX)
+                        tPercent(preElement, percent, "stat_${element.name}")
                     }
                 }
             }
@@ -1975,16 +2327,16 @@ object WakfuBuildSolver {
             baseElements: Map<Characteristic, IntVar>,
             targets: Map<Characteristic, Int>,
             randomEntries: List<RandomEntry>,
+            // When true (most-masteries min objective): pick the per-roll element assignment FREELY — only the
+            // cardinality constraint (exactly `count` elements when equipped) — and let the maximized min drive
+            // CP-SAT to the optimal assignment. This drops the O(elements²) reified ordering that forces the
+            // suboptimal deficit-greedy and explodes the multi-element pool. When false: the original greedy.
+            freeAssignment: Boolean,
         ): Map<Characteristic, IntVar> {
             if (wantedElements.isEmpty()) return baseElements
             if (targets.isEmpty()) return baseElements
             if (randomEntries.isEmpty()) return baseElements
 
-            val priorities =
-                wantedElements
-                    .mapIndexed { index, element ->
-                        element to (wantedElements.size - index)
-                    }.toMap()
             val priorityScale = 10L
             val elementCount = wantedElements.size
 
@@ -1996,97 +2348,87 @@ object WakfuBuildSolver {
                 if (effectiveCount == elementCount) {
                     current =
                         wantedElements.associateWith { element ->
-                            val next =
-                                model.newIntVar(
-                                    -STAT_WITH_PERCENT_ABS_MAX,
-                                    STAT_WITH_PERCENT_ABS_MAX,
-                                    "rand_${index}_${element.name}"
-                                )
-                            model.addEquality(
-                                next,
-                                LinearExpr
-                                    .newBuilder()
-                                    .addTerm(current.getValue(element), 1)
-                                    .addTerm(entry.equipVar, entry.value.toLong())
-                                    .build()
+                            tSumNaive(
+                                "rand_${index}_${element.name}",
+                                listOf(Term(current.getValue(element), 1L), Term(entry.equipVar, entry.value.toLong())),
+                                0L,
+                                -STAT_WITH_PERCENT_ABS_MAX,
+                                STAT_WITH_PERCENT_ABS_MAX
                             )
-                            next
                         }
                     return@forEachIndexed
                 }
 
                 val assigns =
                     wantedElements.associateWith { element ->
-                        model.newBoolVar("assign_${index}_${entry.nameSuffix}_${element.name}")
+                        val tag = "assign_${index}_${entry.nameSuffix}_${element.name}"
+                        model.newBoolVar(tag).also { tracker.seed(it, 0L..1L, tag) }
                     }
 
+                // Cardinality: exactly `effectiveCount` of the wanted elements get this roll, and only when equipped.
                 model.addEquality(
                     LinearExpr.sum(assigns.values.toTypedArray()),
                     LinearExpr.term(entry.equipVar, effectiveCount.toLong())
                 )
 
-                val adjustedDeficits =
-                    wantedElements.associateWith { element ->
-                        val currentValue = current.getValue(element)
-                        val target = targets.getValue(element).toLong()
-                        val deficit =
-                            model.newIntVar(
-                                -STAT_WITH_PERCENT_ABS_MAX - 10_000L,
-                                STAT_WITH_PERCENT_ABS_MAX + 10_000L,
-                                "def_${index}_${element.name}"
+                if (!freeAssignment) {
+                    // Force the chosen elements to be the highest-deficit ones (replicates the scorer's greedy).
+                    val priorities = wantedElements.mapIndexed { i, element -> element to (wantedElements.size - i) }.toMap()
+                    val adjustedDeficits =
+                        wantedElements.associateWith { element ->
+                            val currentValue = current.getValue(element)
+                            val target = targets.getValue(element).toLong()
+                            val deficit =
+                                model.newIntVar(
+                                    -STAT_WITH_PERCENT_ABS_MAX - 10_000L,
+                                    STAT_WITH_PERCENT_ABS_MAX + 10_000L,
+                                    "def_${index}_${element.name}"
+                                )
+                            model.addEquality(
+                                deficit,
+                                LinearExpr
+                                    .newBuilder()
+                                    .add(target)
+                                    .addTerm(currentValue, -1)
+                                    .build()
                             )
-                        model.addEquality(
-                            deficit,
-                            LinearExpr
-                                .newBuilder()
-                                .add(target)
-                                .addTerm(currentValue, -1)
-                                .build()
-                        )
 
-                        val adjusted =
-                            model.newIntVar(
-                                -STAT_WITH_PERCENT_ABS_MAX * priorityScale,
-                                STAT_WITH_PERCENT_ABS_MAX * priorityScale + priorityScale,
-                                "adj_${index}_${element.name}"
+                            val adjusted =
+                                model.newIntVar(
+                                    -STAT_WITH_PERCENT_ABS_MAX * priorityScale,
+                                    STAT_WITH_PERCENT_ABS_MAX * priorityScale + priorityScale,
+                                    "adj_${index}_${element.name}"
+                                )
+                            model.addEquality(
+                                adjusted,
+                                LinearExpr
+                                    .newBuilder()
+                                    .addTerm(deficit, priorityScale)
+                                    .add(priorities.getValue(element).toLong())
+                                    .build()
                             )
-                        model.addEquality(
-                            adjusted,
-                            LinearExpr
-                                .newBuilder()
-                                .addTerm(deficit, priorityScale)
-                                .add(priorities.getValue(element).toLong())
-                                .build()
-                        )
-                        adjusted
-                    }
+                            adjusted
+                        }
 
-                for (i in wantedElements) {
-                    for (j in wantedElements) {
-                        if (i == j) continue
-                        model
-                            .addGreaterOrEqual(adjustedDeficits.getValue(i), adjustedDeficits.getValue(j))
-                            .onlyEnforceIf(arrayOf(assigns.getValue(i), assigns.getValue(j).not()))
+                    for (i in wantedElements) {
+                        for (j in wantedElements) {
+                            if (i == j) continue
+                            model
+                                .addGreaterOrEqual(adjustedDeficits.getValue(i), adjustedDeficits.getValue(j))
+                                .onlyEnforceIf(arrayOf(assigns.getValue(i), assigns.getValue(j).not()))
+                        }
                     }
                 }
 
                 current =
                     wantedElements.associateWith { element ->
-                        val next =
-                            model.newIntVar(
-                                -STAT_WITH_PERCENT_ABS_MAX,
-                                STAT_WITH_PERCENT_ABS_MAX,
-                                "rand_${index}_${element.name}"
-                            )
-                        model.addEquality(
-                            next,
-                            LinearExpr
-                                .newBuilder()
-                                .addTerm(current.getValue(element), 1)
-                                .addTerm(assigns.getValue(element), entry.value.toLong())
-                                .build()
+                        tSumNaive(
+                            "rand_${index}_${element.name}",
+                            listOf(Term(current.getValue(element), 1L), Term(assigns.getValue(element), entry.value.toLong())),
+                            0L,
+                            -STAT_WITH_PERCENT_ABS_MAX,
+                            STAT_WITH_PERCENT_ABS_MAX
                         )
-                        next
                     }
             }
 
@@ -2117,15 +2459,8 @@ object WakfuBuildSolver {
                 if (percentTerms.isEmpty()) {
                     pre
                 } else {
-                    val percent =
-                        model.sumVar(
-                            name = "pct_${char.name}",
-                            terms = percentTerms,
-                            constant = 0L,
-                            min = -PERCENT_ABS_MAX,
-                            max = PERCENT_ABS_MAX
-                        )
-                    model.applyPercent(pre, percent, "stat_${char.name}")
+                    val percent = tSumNaive("pct_${char.name}", percentTerms, 0L, -PERCENT_ABS_MAX, PERCENT_ABS_MAX)
+                    tPercent(pre, percent, "stat_${char.name}")
                 }
             }
 
@@ -2167,14 +2502,14 @@ object WakfuBuildSolver {
                 terms.addAll(subTermsByStat[char].orEmpty())
                 // Selected passives' flat stats fold in the same way (always-on constants).
                 terms.addAll(passiveTermsByStat[char].orEmpty())
-                model.sumVar("pre_${char.name}", terms, base, -STAT_ABS_MAX, STAT_ABS_MAX)
+                tSum("pre_${char.name}", terms, base, reachableSumDomain(terms, base), -STAT_ABS_MAX, STAT_ABS_MAX)
             }
 
         /** Pre-sublimation actual value of [char] (item + rune + skill + base), used to reify conditions. */
         private fun preSubStat(char: Characteristic): IntVar =
             preSubCache.getOrPut(char) {
                 val (terms, base) = baseTermsFor(char)
-                model.sumVar("preSub_${char.name}", terms, base, -STAT_ABS_MAX, STAT_ABS_MAX)
+                tSum("preSub_${char.name}", terms, base, reachableSumDomain(terms, base), -STAT_ABS_MAX, STAT_ABS_MAX)
             }
 
         /** AP/MP/WP folding: a `MAX_*` sublimation effect feeds the corresponding usable stat. */
@@ -2193,7 +2528,7 @@ object WakfuBuildSolver {
                 for ((characteristic, value) in passive.flatStats) {
                     map
                         .getOrPut(effectiveStat(characteristic)) { mutableListOf() }
-                        .add(Term(model.newConstant(value.toLong()), 1L))
+                        .add(Term(tConst(value.toLong()), 1L))
                 }
             }
             return map
@@ -2310,7 +2645,8 @@ object WakfuBuildSolver {
                     val sum =
                         model.sumVar(
                             "secMast_$tag",
-                            listOf(preSubStat(Characteristic.MASTERY_MELEE), preSubStat(Characteristic.MASTERY_DISTANCE)),
+                            me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
+                                .map { preSubStat(it) },
                             -STAT_ABS_MAX,
                             STAT_ABS_MAX
                         )
@@ -2649,6 +2985,21 @@ object WakfuBuildSolver {
         val product = BigInteger.valueOf(a).multiply(BigInteger.valueOf(b))
         val maxSafe = BigInteger.valueOf(Long.MAX_VALUE / 2)
         return if (product > maxSafe) (Long.MAX_VALUE / 2) else product.toLong()
+    }
+
+    /** Interval product of two reachable ranges (all four corner products; handles mixed signs). */
+    private fun mulRange(
+        a: LongRange,
+        b: LongRange,
+    ): LongRange {
+        val corners =
+            longArrayOf(
+                a.first * b.first,
+                a.first * b.last,
+                a.last * b.first,
+                a.last * b.last
+            )
+        return corners.min()..corners.max()
     }
 
     private fun orderEquipments(equipmentsByItemType: Map<ItemType, List<Equipment>>): List<Equipment> =

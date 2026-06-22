@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.SpellCatalog
 import me.chosante.autobuilder.domain.SpellRotationOptimizer
 import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
@@ -23,24 +24,21 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
-import me.chosante.autobuilder.domain.SpellElement as DomainSpellElement
 
 /**
- * External loop on top of the max-damage CP-SAT solve — the part that makes the build search aware of
- * the best **rotation sequencing** (including resistance debuffs) WITHOUT fusing that bilinear term into
- * CP-SAT.
+ * External loop on top of the max-damage CP-SAT solve. It does two things CP-SAT alone can't:
  *
- * The CP-SAT objective picks AP and masteries to maximize the *damage-only* per-turn throughput; it
- * cannot see a value of AP that only pays off once a resistance debuff is sequenced first (e.g. +1 AP
- * to fit "debuff + a damage spell"). So this loop:
- *
- *  1. runs the unconstrained boss-aware solve to find the objective's natural AP `A₀`;
- *  2. probes a window of AP targets around `A₀` — one **AP-pinned** solve each (`maxDamageApTarget`),
- *     run **in parallel**;
- *  3. (Lot 2 M2) enumerates **bi-element** probes `(element-pair × total-AP × split)` in parallel,
- *     pruned by dead pairs + Pareto frontier;
- *  4. re-scores every resulting build with the **debuff-aware** sequenced rotation ([sequencedScore]);
- *  5. keeps the build with the highest real per-turn damage across mono AND bi-element.
+ *  1. **Proves a boss optimum by per-element enumeration.** A single in-model solve over several candidate
+ *     elements (boss auto-element) does NOT prove on the full pool — summing/maxing several bilinear
+ *     `throughput·perHit` terms leaves the dual bound uncloseable. So each playable candidate element is solved
+ *     as its OWN single-element problem (one bilinear term ⇒ CP-SAT proves it), and the max over the proven
+ *     per-element optima is provably the boss optimum (the global-best build's best element is found by that
+ *     element's solve). A single-element request degenerates to one streamed solve.
+ *  2. **Sequences resistance debuffs** (Sram/Sadida only). The damage-only objective can't see a value of AP
+ *     that only pays off once a debuff is sequenced first (e.g. +1 AP to fit "debuff + a damage spell"), so for
+ *     those classes it probes a window of AP targets around the winner's AP, each an AP-pinned single-element
+ *     solve, and re-scores debuff-aware ([sequencedScore]). This phase is heuristic, so a result it improves
+ *     stays "best found" (not proven).
  *
  * Confined to max-damage: [WakfuBestBuildFinderAlgorithm.run] only routes here for that mode.
  */
@@ -49,15 +47,6 @@ object MaxDamageSearch {
     private const val AP_WINDOW_ABOVE = 3
     internal const val MAX_AP_TARGET = 20 // matches WakfuBuildSolver.MAX_ROTATION_AP — the throughput table's AP range
     internal const val MIN_AP_TARGET = 1
-
-    /**
-     * Cap on how many bi-element scenarios actually get a CP-SAT probe. The full enumeration is hundreds of
-     * `(pair × AP × split)` scenarios for a 3-element class (~286 for CRA); probing them all forced the phase
-     * budget into illegibly thin per-probe slices and ran far past the user's search duration. The scenarios
-     * are ordered best-promise-first ([biElementScenarios]), so the top [MAX_BI_PROBES] keep the strongest
-     * pairs/splits while leaving each probe a usable share of the budget.
-     */
-    internal const val MAX_BI_PROBES = 24
 
     fun run(
         baseParams: WakfuBestBuildParams,
@@ -91,32 +80,69 @@ object MaxDamageSearch {
             // Phase 2 (the AP-window probes) exists ONLY so a resistance-reduction debuff can shift the
             // optimal AP — its debuff-aware re-score may prefer +d AP to fit "debuff + a damage spell".
             // Only Sram & Sadida own a confirmed enemy resistance debuff; for the other 16 classes the
-            // debuff-aware score equals the damage-only score, so phase 1's single solve is already the mono
-            // optimum and the AP probing is provably redundant. Gate it on debuff presence.
+            // debuff-aware score equals the damage-only score, so phase 1 is already the optimum and the AP
+            // probing is provably redundant. Gate it on debuff presence.
             val hasResistanceDebuff =
                 SpellCatalog.forClass(clazz).any { it.isConfirmedResistanceDebuff && (it.apCost ?: 0) >= 1 }
-            // Phase 3 (bi-element) only makes sense when the REQUEST puts more than one element in play
-            // (boss auto-element). A pinned single-element request is mono by definition — splitting AP
-            // across two elements would answer a question the user didn't ask and keep the result heuristic.
-            val multiElementRequest = baseParams.damageScenario.candidateElements().size > 1
-            val biScenarios = if (multiElementRequest) biElementScenarios(clazz).take(MAX_BI_PROBES) else emptyList()
-            // Split the wall-clock budget across only the phases that actually run, so skipping a phase gives
-            // the remaining solves more time (faster proofs) instead of idling part of the budget.
-            val activePhases = 1 + (if (hasResistanceDebuff) 1 else 0) + (if (biScenarios.isNotEmpty()) 1 else 0)
+
+            // Phase 1 proves the boss optimum by ENUMERATING the candidate elements: each is solved as its own
+            // SINGLE-element problem (one bilinear damage term ⇒ CP-SAT proves it), and the max over the proven
+            // per-element optima is provably the boss optimum (the global-best build's best element is found by
+            // that element's solve). The in-model `max`/sum over several elements in ONE solve does NOT prove on
+            // the full pool — see docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md. A single-element request is one solve.
+            // Only PLAYABLE candidate elements are enumerated: an element the class has no damage spells in is a
+            // degenerate 0-damage solve that adds nothing (and need not be proven). If the class can play none of
+            // the boss's elements, fall back to the first candidate so a (0-damage) build is still produced.
+            val playableElements = SpellCatalog.playableElements(clazz).map { it.name }.toSet()
+            val candidates = baseParams.damageScenario.candidateElements()
+            // Whether the class can actually play any of the boss's elements. When false the search below falls
+            // back to a degenerate 0-damage solve — which proves trivially but is NOT a meaningful optimum, so it
+            // must not be reported as "proven" (see the final emit).
+            val hasPlayableElement = candidates.any { it.first.name in playableElements }
+            val elementParams =
+                candidates
+                    .filter { (element, _) -> element.name in playableElements }
+                    .ifEmpty { candidates.take(1) }
+                    .map { (element, resistance) ->
+                        baseParams.copy(
+                            damageScenario =
+                                baseParams.damageScenario.copy(
+                                    element = element,
+                                    targetResistancePercent = resistance,
+                                    elementResistances = null
+                                )
+                        )
+                    }
+            // Split the wall-clock budget across only the phases that actually run, so skipping the debuff phase
+            // gives phase 1 the whole budget (faster proofs) instead of idling part of it.
+            val activePhases = 1 + (if (hasResistanceDebuff) 1 else 0)
             val phaseBudget = (baseParams.searchDuration / activePhases).coerceAtLeast(1.seconds)
             var best: GeneticAlgorithmResult<BuildCombination>? = null
+            // The single-element scenario the winning [best] build was solved for — reused to pin the debuff
+            // phase, so we never re-derive it with another bestSequencedRotation pass.
+            var bestSolvedScenario: DamageScenario? = null
             var phase1Optimal = false
 
             fun consider(
                 result: GeneticAlgorithmResult<BuildCombination>,
+                solvedScenario: DamageScenario,
                 progress: Int,
-                probeParams: WakfuBestBuildParams = baseParams,
             ) {
-                val score = sequencedScore(probeParams, result.individual)
+                // Re-score against the FULL boss scenario (max over the build's playable elements), so the best
+                // per-element-optimal build wins regardless of which element it was solved for. This deliberately
+                // overrides the solver's own (proxy, debuff-blind) score: [sequencedScore] is the debuff-aware
+                // rotation the CLI/GUI also display, so ranking by it keeps the shown damage == the scored damage.
+                val score = sequencedScore(baseParams, result.individual)
                 val current = best
-                if (current == null || score > current.matchPercentage) {
-                    // Carry the winning split so the display re-scores the same turn (null for mono probes).
-                    best = result.copy(matchPercentage = score, maxDamageBiElement = probeParams.maxDamageBiElement)
+                // Highest score; on a tie prefer the PROVEN result so [best].isOptimal reflects the proof — the
+                // solver emits the optimum un-proven first, then proven (same build, same score), and a plain
+                // strict `>` would keep the earlier un-proven copy and under-report the proof at the final emit.
+                if (current == null ||
+                    score > current.matchPercentage ||
+                    (score.compareTo(current.matchPercentage) == 0 && result.isOptimal && !current.isOptimal)
+                ) {
+                    best = result.copy(matchPercentage = score)
+                    bestSolvedScenario = solvedScenario
                 }
                 // Streamed best-so-far is never "proven" — optimality is decided once at the final emit.
                 best?.let { trySend(it.copy(progressPercentage = progress, isOptimal = false)) }
@@ -124,64 +150,85 @@ object MaxDamageSearch {
 
             val producer =
                 launch {
-                    // When phase 1 is the only phase it owns the whole 0–100 bar; otherwise it caps at 30%.
-                    val phase1Ceiling = if (activePhases == 1) 100 else 30
-                    // Phase 1: the unconstrained solve, streamed live but re-scored debuff-aware.
-                    WakfuBuildSolver
-                        .optimize(baseParams.copy(searchDuration = phaseBudget), equipmentsByItemType, runes, sublimations, tuning)
-                        .collect {
-                            phase1Optimal = it.isOptimal
-                            consider(it, (it.progressPercentage * phase1Ceiling / 100).coerceIn(0, phase1Ceiling))
+                    // When phase 1 is the only phase it owns the whole 0–100 bar; otherwise it caps at 70%.
+                    val phase1Ceiling = if (activePhases == 1) 100 else 70
+                    if (elementParams.size == 1) {
+                        // Single-element request: stream the one (provable) solve live — the common, fast path.
+                        val solo = elementParams.single()
+                        WakfuBuildSolver
+                            .optimize(solo.copy(searchDuration = phaseBudget), equipmentsByItemType, runes, sublimations, tuning)
+                            .collect {
+                                phase1Optimal = it.isOptimal
+                                consider(it, solo.damageScenario, (it.progressPercentage * phase1Ceiling / 100).coerceIn(0, phase1Ceiling))
+                            }
+                    } else {
+                        // Boss / multi-candidate: prove each element independently (in parallel) and take the max.
+                        // The boss optimum is proven iff EVERY element solve proved. Each probe is a full solve
+                        // that rebuilds the model — the only thing that varies between them is the pinned element,
+                        // so this repeats the (single-threaded) model construction N times; that is deliberate: a
+                        // shared model would force the N solves to run SEQUENTIALLY (CP-SAT mutates solver state),
+                        // and N parallel solves with N model builds beat one shared model solved N times in a row.
+                        val elementResults =
+                            runProbeBatch(elementParams.map { it.copy(searchDuration = phaseBudget) }, equipmentsByItemType, runes, sublimations, phaseBudget, tuning)
+                        phase1Optimal = elementResults.isNotEmpty() && elementResults.all { (_, r) -> r != null && r.isOptimal }
+                        elementResults.forEachIndexed { index, (probeParams, probe) ->
+                            if (probe != null) {
+                                consider(probe, probeParams.damageScenario, ((index + 1) * phase1Ceiling / elementResults.size).coerceIn(0, phase1Ceiling))
+                            }
                         }
+                    }
 
-                    // Phase 2: AP-pinned mono probes around A₀ — only for a class whose resistance debuff can
-                    // make a different AP win (gated above).
+                    // Phase 1's best score, snapshotted before the heuristic debuff phase can move it.
+                    val phase1BestScore = best?.matchPercentage
+
+                    // Phase 2: AP-pinned probes around A₀ on the winning element — only for a class whose
+                    // resistance debuff can make a different AP win (gated above). Pinned to the phase-1 winner's
+                    // element so each probe stays a fast single-element solve.
                     if (hasResistanceDebuff) {
-                        val a0 = best?.individual?.let { actualActionPoints(baseParams, it) } ?: BASE_ACTION_POINTS
-                        val monoProbeParams =
-                            ((a0 - AP_WINDOW_BELOW)..(a0 + AP_WINDOW_ABOVE))
-                                .filter { it in MIN_AP_TARGET..MAX_AP_TARGET && it != a0 }
-                                .map { target -> baseParams.copy(searchDuration = phaseBudget, maxDamageApTarget = target) }
-                        runProbeBatch(monoProbeParams, equipmentsByItemType, runes, sublimations, phaseBudget, tuning)
-                            .forEach { (probeParams, probe) -> if (probe != null) consider(probe, 55, probeParams) }
+                        val winner = best
+                        val winnerElement = bestSolvedScenario
+                        if (winner != null && winnerElement != null) {
+                            val a0 = actualActionPoints(baseParams, winner.individual)
+                            val monoProbeParams =
+                                ((a0 - AP_WINDOW_BELOW)..(a0 + AP_WINDOW_ABOVE))
+                                    .filter { it in MIN_AP_TARGET..MAX_AP_TARGET && it != a0 }
+                                    .map { target ->
+                                        baseParams.copy(
+                                            searchDuration = phaseBudget,
+                                            maxDamageApTarget = target,
+                                            damageScenario = winnerElement
+                                        )
+                                    }
+                            runProbeBatch(monoProbeParams, equipmentsByItemType, runes, sublimations, phaseBudget, tuning)
+                                .forEach { (probeParams, probe) -> if (probe != null) consider(probe, probeParams.damageScenario, 90) }
+                        }
                     }
 
-                    // Phase 3: bi-element probes — enumerate (pair × AP × split), keep the best-promise
-                    // [MAX_BI_PROBES] (the full set is ~hundreds for a 3-element class). Fills to 100%.
-                    if (biScenarios.isNotEmpty()) {
-                        val biStart = if (hasResistanceDebuff) 55 else 30
-                        val biProbeParams =
-                            biScenarios.map { (pair, totalAp, split) ->
-                                baseParams.copy(
-                                    searchDuration = phaseBudget,
-                                    maxDamageApTarget = totalAp,
-                                    maxDamageBiElement = BiElementSplit(pair.first, pair.second, split)
-                                )
-                            }
-                        runProbeBatch(biProbeParams, equipmentsByItemType, runes, sublimations, phaseBudget, tuning)
-                            .forEachIndexed { index, (probeParams, probe) ->
-                                if (probe != null) {
-                                    val progress = biStart + ((index + 1) * (100 - biStart) / biScenarios.size.coerceAtLeast(1))
-                                    consider(probe, progress, probeParams)
-                                }
-                            }
+                    // Honest optimality. The per-element enumeration PROVES the boss optimum iff every element
+                    // solve proved (phase1Optimal), the SHOWN build is itself a proven one (finalBest.isOptimal —
+                    // guards the rare case where the streamed best is a precise-higher but un-proven intermediate),
+                    // and the class can actually play one of the boss's elements (an all-unplayable fallback is a
+                    // degenerate 0-damage solve, not a meaningful optimum). The debuff phase only makes the result
+                    // heuristic — "best found", structural non-optimality more time won't move — when it ACTUALLY
+                    // IMPROVED on phase 1; a probe that found nothing better (or never ran) leaves phase 1's
+                    // proven optimum intact.
+                    val finalBest = best
+                    val improvedByDebuff =
+                        hasResistanceDebuff && finalBest != null && phase1BestScore != null && finalBest.matchPercentage > phase1BestScore
+                    val proven = phase1Optimal && finalBest?.isOptimal == true && hasPlayableElement && !improvedByDebuff
+                    finalBest?.let {
+                        trySend(it.copy(progressPercentage = 100, isOptimal = proven, maxDamageHeuristicPhases = improvedByDebuff))
                     }
-
-                    // Honest optimality: when phase 1 was the ONLY phase AND CP-SAT proved it, this single
-                    // solve is the provable optimum. Any probing phase (debuff AP window or bi-element) makes
-                    // the result a heuristic max over a capped enumeration, so it stays "best found".
-                    val proven = activePhases == 1 && phase1Optimal
-                    best?.let { trySend(it.copy(progressPercentage = 100, isOptimal = proven)) }
                     close()
                 }
             awaitClose { producer.cancel() }
         }
 
     /**
-     * Debuff-aware per-turn damage of [build], divided by the same required-target penalty as the scorer.
-     * Routes through [SpellRotationOptimizer.bestSequencedTurn], which sums the joint bi-element turn when
-     * [params] carries a [BiElementSplit] (shared debuffs, no double-spend) and is the mono rotation
-     * otherwise — the same call the CLI/GUI use to display, so the scored and shown damage agree.
+     * Debuff-aware per-turn damage of [build] against [params]'s (boss) scenario, divided by the same
+     * required-target penalty as the scorer. Routes through [SpellRotationOptimizer.bestSequencedRotation],
+     * which picks the build's best playable element (max over [DamageScenario.candidateElements]) and sequences
+     * any resistance debuffs first — the same call the CLI/GUI use to display, so scored and shown damage agree.
      */
     private fun sequencedScore(
         params: WakfuBestBuildParams,
@@ -189,7 +236,7 @@ object MaxDamageSearch {
     ): BigDecimal {
         val totalDamage =
             SpellRotationOptimizer
-                .bestSequencedTurn(build, params.character, params.character.clazz, params.damageScenario, params.maxDamageBiElement)
+                .bestSequencedRotation(build, params.character, params.character.clazz, params.damageScenario)
                 .totalExpectedDamage
 
         val stats =
@@ -201,81 +248,6 @@ object MaxDamageSearch {
             )
         val penalty = FindMaxDamageScoring.requiredConstraintPenaltyFactor(params.targetStats, stats)
         return totalDamage.toBigDecimal().divide(penalty, 4, RoundingMode.FLOOR)
-    }
-
-    // ----- bi-element enumeration helpers -----
-
-    /**
-     * All `(pair, totalAp, splitOnFirst)` scenarios to probe, ordered **best-promise first** (descending
-     * combined base throughput `tableA[split] + tableB[totalAp − split]`) so a downstream cap
-     * ([MAX_BI_PROBES]) keeps the strongest scenarios. Dead pairs (either element has no throughput) are
-     * dropped; at each `(pair, totalAp)` only the Pareto-optimal interior splits survive.
-     */
-    internal fun biElementScenarios(clazz: me.chosante.common.CharacterClass): List<BiElementScenario> {
-        val playable =
-            SpellCatalog
-                .playableElements(clazz)
-                .map { DomainSpellElement.valueOf(it.name) }
-        if (playable.size < 2) return emptyList()
-
-        val tables =
-            playable.associateWith { element ->
-                val spells =
-                    SpellCatalog.damageSpells(clazz).filter {
-                        it.element ==
-                            me.chosante.common.SpellElement
-                                .valueOf(element.name)
-                    }
-                SpellRotationOptimizer.baseThroughputTable(spells, MAX_AP_TARGET)
-            }
-
-        val livePairs =
-            playable
-                .flatMapIndexed { i, a ->
-                    playable.drop(i + 1).map { b -> a to b }
-                }.filter { (a, b) ->
-                    tables.getValue(a).any { it > 0L } && tables.getValue(b).any { it > 0L }
-                }
-
-        return livePairs
-            .flatMap { pair ->
-                val tableA = tables.getValue(pair.first)
-                val tableB = tables.getValue(pair.second)
-                (MIN_AP_TARGET..MAX_AP_TARGET).flatMap { totalAp ->
-                    paretoFrontierSplits(tableA, tableB, totalAp).map { split ->
-                        BiElementScenario(pair, totalAp, split, promise = tableA[split] + tableB[totalAp - split])
-                    }
-                }
-            }.sortedByDescending { it.promise }
-    }
-
-    /**
-     * At fixed `(pair, totalAp)`, returns the interior splits `a ∈ 1..totalAp-1` where both elements
-     * have non-zero throughput AND no other split weakly dominates in both dimensions. With monotone
-     * throughput tables this typically prunes ~A interior points down to ~3–5.
-     */
-    internal fun paretoFrontierSplits(
-        tableA: LongArray,
-        tableB: LongArray,
-        totalAp: Int,
-    ): List<Int> {
-        val interior =
-            (1 until totalAp).filter { a ->
-                a < tableA.size &&
-                    (totalAp - a) in tableB.indices &&
-                    tableA[a] > 0L &&
-                    tableB[totalAp - a] > 0L
-            }
-        return interior.filter { a ->
-            val tA = tableA[a]
-            val tB = tableB[totalAp - a]
-            interior.none { other ->
-                other != a &&
-                    tableA[other] >= tA &&
-                    tableB[totalAp - other] >= tB &&
-                    (tableA[other] > tA || tableB[totalAp - other] > tB)
-            }
-        }
     }
 
     /**
@@ -331,7 +303,10 @@ object MaxDamageSearch {
         WakfuBuildSolver
             .optimize(params, equipmentsByItemType, runes, sublimations, tuning)
             .toList()
-            .maxByOrNull { it.matchPercentage }
+            // Highest score, tie-broken toward the PROVEN result: when CP-SAT reaches the optimal score before
+            // certifying it, the flow emits the same build first as `isOptimal=false` then as `isOptimal=true`;
+            // a plain maxBy{score} would return the earlier un-proven copy and lose the per-element proof.
+            .maxWithOrNull(compareBy({ it.matchPercentage }, { it.isOptimal }))
 
     /** Concurrency / per-probe worker count / per-probe time budget for a batch of probes. See [probePlan]. */
     internal data class ProbePlan(
@@ -373,11 +348,3 @@ object MaxDamageSearch {
 
     private const val BASE_ACTION_POINTS = 6
 }
-
-internal data class BiElementScenario(
-    val pair: Pair<DomainSpellElement, DomainSpellElement>,
-    val totalAp: Int,
-    val splitOnFirst: Int,
-    /** Combined base throughput of the split — the ordering key for the best-promise-first cap. */
-    val promise: Long = 0L,
-)

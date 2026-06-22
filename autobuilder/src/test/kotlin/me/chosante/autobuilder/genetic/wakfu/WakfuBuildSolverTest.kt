@@ -28,6 +28,7 @@ import me.chosante.common.SublimationKind
 import me.chosante.common.SublimationRarity
 import me.chosante.common.skills.CharacterSkills
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
 import kotlin.time.Duration.Companion.seconds
@@ -246,6 +247,7 @@ class WakfuBuildSolverTest {
         }
 
     @Test
+    @Tag("slow")
     fun `lp solver finds a valid feasible build on the level 245 dataset`(): Unit =
         runBlocking {
             val level = 245
@@ -1285,14 +1287,11 @@ class WakfuBuildSolverTest {
             assertThat(chosen.totalExpectedDamage).isGreaterThan(0.0)
         }
 
-    // ----- Lot 2 M1: bi-element objective -----
-
-    /** Max-damage params pinned to [totalAp] AP; [biElement] non-null selects the bi-element objective. */
+    /** Max-damage params pinned to [totalAp] AP (used by the survivability + AP-pin tests). */
     private fun apPinnedMaxDamageParams(
         character: Character,
         scenario: DamageScenario,
         totalAp: Int,
-        biElement: BiElementSplit? = null,
     ): WakfuBestBuildParams =
         WakfuBestBuildParams(
             character = character,
@@ -1305,182 +1304,8 @@ class WakfuBuildSolverTest {
             scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
             useRunes = false,
             damageScenario = scenario,
-            maxDamageApTarget = totalAp,
-            maxDamageBiElement = biElement
+            maxDamageApTarget = totalAp
         )
-
-    @Test
-    fun `bi-element degenerate splits reproduce the mono objective exactly`(): Unit =
-        runBlocking {
-            // Level-1 CRA; an AP belt (the only AP source) is forced equipped by the A=12 pin, and a dual
-            // fire+earth amulet so both elements are live and the build is identical across the solves.
-            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
-            val dual = equipment(1, ItemType.AMULET, "Dual", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100, Characteristic.MASTERY_ELEMENTARY_EARTH to 100))
-            val apBelt = equipment(2, ItemType.BELT, "ApBelt", mapOf(Characteristic.ACTION_POINT to 6))
-            val pool = listOf(dual, apBelt).groupBy { it.itemType }
-            val a = 12
-            val tuning = WakfuBuildSolver.SolverTuning()
-
-            val bi = DamageScenario(rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE, elementResistances = mapOf(SpellElement.FIRE to 0, SpellElement.EARTH to 0))
-            val monoFire =
-                WakfuBuildSolver.maxDamageObjectiveValueForTest(
-                    apPinnedMaxDamageParams(
-                        character,
-                        DamageScenario(element = SpellElement.FIRE, targetResistancePercent = 0, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE),
-                        a
-                    ),
-                    pool,
-                    tuning
-                )
-            val monoEarth =
-                WakfuBuildSolver.maxDamageObjectiveValueForTest(
-                    apPinnedMaxDamageParams(
-                        character,
-                        DamageScenario(element = SpellElement.EARTH, targetResistancePercent = 0, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE),
-                        a
-                    ),
-                    pool,
-                    tuning
-                )
-
-            // a=0 ⇒ all AP on the 2nd element ⇒ bi == mono(EARTH); a=A ⇒ all on the 1st ⇒ bi == mono(FIRE). Exact:
-            // bi reduces to the identical integer pipeline as mono at the endpoints (the throughput becomes T[A]).
-            val bi0 =
-                WakfuBuildSolver.maxDamageObjectiveValueForTest(
-                    apPinnedMaxDamageParams(character, bi, a, BiElementSplit(SpellElement.FIRE, SpellElement.EARTH, 0)),
-                    pool,
-                    tuning
-                )
-            val biA =
-                WakfuBuildSolver.maxDamageObjectiveValueForTest(
-                    apPinnedMaxDamageParams(character, bi, a, BiElementSplit(SpellElement.FIRE, SpellElement.EARTH, a)),
-                    pool,
-                    tuning
-                )
-            assertThat(monoFire).describedAs("sanity: mono FIRE is non-trivial").isGreaterThan(0)
-            assertThat(monoEarth).isGreaterThan(0)
-            assertThat(bi0).describedAs("split 0 ⇒ all AP on EARTH ⇒ reproduces mono EARTH exactly").isEqualTo(monoEarth)
-            assertThat(biA).describedAs("split A ⇒ all AP on FIRE ⇒ reproduces mono FIRE exactly").isEqualTo(monoFire)
-        }
-
-    @Test
-    fun `bi-element sums both element terms rather than taking their max`(): Unit =
-        runBlocking {
-            // FIRE is made dominant (10x EARTH mastery), so a (wrong) MAX objective would always equal the FIRE
-            // term — invariant to EARTH's resistance ⇒ obj(earthRes 0) == obj(earthRes 90). Under the correct SUM,
-            // EARTH's smaller term is still ADDED and scales with (100 − res) ⇒ obj(0) strictly > obj(90). That gap
-            // is precisely what distinguishes "sum the two element terms" from "max over elements".
-            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
-            val fireHeavy = equipment(1, ItemType.AMULET, "FireHeavy", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 1000, Characteristic.MASTERY_ELEMENTARY_EARTH to 100))
-            val apBelt = equipment(2, ItemType.BELT, "ApBelt", mapOf(Characteristic.ACTION_POINT to 6))
-            val pool = listOf(fireHeavy, apBelt).groupBy { it.itemType }
-            val a = 12
-            val split = BiElementSplit(SpellElement.FIRE, SpellElement.EARTH, 6) // FIRE 6 AP, EARTH 6 AP — both live
-            val tuning = WakfuBuildSolver.SolverTuning()
-
-            fun obj(earthRes: Int): Long =
-                WakfuBuildSolver.maxDamageObjectiveValueForTest(
-                    apPinnedMaxDamageParams(
-                        character,
-                        DamageScenario(
-                            rangeBand = RangeBand.DISTANCE,
-                            orientation = Orientation.FACE,
-                            elementResistances =
-                                mapOf(
-                                    SpellElement.FIRE to 0,
-                                    SpellElement.EARTH to earthRes
-                                )
-                        ),
-                        a,
-                        split
-                    ),
-                    pool,
-                    tuning
-                )
-
-            val earthOpen = obj(earthRes = 0)
-            val earthResisted = obj(earthRes = 90)
-            assertThat(earthResisted).describedAs("the dominant FIRE term is always present").isGreaterThan(0)
-            assertThat(earthOpen)
-                .describedAs("EARTH's term is summed in and scales with (100 − res); a max objective would ignore the dominated EARTH ⇒ equal")
-                .isGreaterThan(earthResisted)
-        }
-
-    @Test
-    fun `bi-element does not double-count a one-random-element mastery line`(): Unit =
-        runBlocking {
-            // The 2b regression. Generic "+all elements" legitimately boosts BOTH cores; a "1 random element" line
-            // may boost only ONE (the single elementVars call splits it via min(count,2)). So generic > random.
-            // A two-singleton (double-counting) fold would credit the random line to both cores ⇒ generic == random.
-            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
-            val apBelt = equipment(2, ItemType.BELT, "ApBelt", mapOf(Characteristic.ACTION_POINT to 6))
-            val a = 12
-            val split = BiElementSplit(SpellElement.FIRE, SpellElement.EARTH, 4)
-            val scenario =
-                DamageScenario(rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE, elementResistances = mapOf(SpellElement.FIRE to 0, SpellElement.EARTH to 0))
-            val tuning = WakfuBuildSolver.SolverTuning()
-
-            fun obj(masteryItem: Equipment): Long =
-                WakfuBuildSolver.maxDamageObjectiveValueForTest(apPinnedMaxDamageParams(character, scenario, a, split), listOf(masteryItem, apBelt).groupBy { it.itemType }, tuning)
-
-            val genericObj = obj(equipment(1, ItemType.AMULET, "AllElem", mapOf(Characteristic.MASTERY_ELEMENTARY to 1000)))
-            val randomObj = obj(equipment(1, ItemType.AMULET, "Rand1", mapOf(Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT to 1000)))
-            assertThat(randomObj).describedAs("a one-random line still helps one element").isGreaterThan(0)
-            assertThat(genericObj)
-                .describedAs("generic boosts BOTH cores, a one-random line only one ⇒ strictly greater (equality would mean the random line was double-counted)")
-                .isGreaterThan(randomObj)
-        }
-
-    @Test
-    fun `bi-element gates out a dead element regardless of its AP or resistance`(): Unit =
-        runBlocking {
-            // CRA has no WATER spells ⇒ all-zero WATER table. Two checks: (1) at the a=A endpoint, bi(FIRE,WATER)
-            // reduces to exactly mono FIRE (no phantom water term); (2) at an INTERIOR split WATER is given 8 of 12
-            // AP and its resistance is swung from a weakness (−100) to 0 — a contributing element would move the
-            // objective, but a properly-gated dead element leaves it invariant. (2) isolates dead-spell gating from
-            // the trivial ap=0 case that (1) alone could be explained by.
-            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
-            val fire = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100))
-            val apBelt = equipment(2, ItemType.BELT, "ApBelt", mapOf(Characteristic.ACTION_POINT to 6))
-            val pool = listOf(fire, apBelt).groupBy { it.itemType }
-            val a = 12
-            val tuning = WakfuBuildSolver.SolverTuning()
-
-            fun biFireWater(
-                apOnFire: Int,
-                waterRes: Int,
-            ): Long =
-                WakfuBuildSolver.maxDamageObjectiveValueForTest(
-                    apPinnedMaxDamageParams(
-                        character,
-                        DamageScenario(
-                            rangeBand = RangeBand.DISTANCE,
-                            orientation = Orientation.FACE,
-                            elementResistances = mapOf(SpellElement.FIRE to 0, SpellElement.WATER to waterRes)
-                        ),
-                        a,
-                        BiElementSplit(SpellElement.FIRE, SpellElement.WATER, apOnFire)
-                    ),
-                    pool,
-                    tuning
-                )
-
-            val monoFire =
-                WakfuBuildSolver.maxDamageObjectiveValueForTest(
-                    apPinnedMaxDamageParams(
-                        character,
-                        DamageScenario(element = SpellElement.FIRE, targetResistancePercent = 0, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE),
-                        a
-                    ),
-                    pool,
-                    tuning
-                )
-            assertThat(monoFire).isGreaterThan(0)
-            assertThat(biFireWater(apOnFire = a, waterRes = 0)).describedAs("a=A endpoint ⇒ WATER dropped ⇒ bi == mono FIRE").isEqualTo(monoFire)
-            assertThat(biFireWater(apOnFire = 4, waterRes = -100))
-                .describedAs("dead WATER given 8 AP + a weakness still contributes 0 ⇒ objective invariant to WATER resistance")
-                .isEqualTo(biFireWater(apOnFire = 4, waterRes = 0))
-        }
 
     // ----- Lot 5: survivability soft-floor -----
 
@@ -2301,6 +2126,412 @@ class WakfuBuildSolverTest {
                 characterBaseCharacteristics = character.baseCharacteristicValues
             )
         }
+
+    // ----- Max-damage provable optimum (reachable-domain propagation) -----
+
+    /** Production-equivalent embedded pool: rarity ≤ EPIC, level in `0..level` (+ pets/mounts), by itemType. */
+    private fun fullEpicPool(level: Int): Map<ItemType, List<Equipment>> =
+        WakfuBestBuildFinderAlgorithm.equipments
+            .filter { it.rarity <= Rarity.EPIC }
+            .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+            .groupBy { it.itemType }
+
+    /**
+     * A tiny, deliberately high-stat pool that drives the objective-chain vars (M, graw, perHit, throughput,
+     * crit, DI) to end-game magnitudes across distinct slots — so the loose-domain solve is INSTANT (a handful
+     * of items) yet stresses the reachable-domain bounds harder than the full pool (it reaches the extremes the
+     * real pool may never combine). Exactly the regime an interval under-estimate would mis-bound.
+     */
+    private fun soundnessStressPool(): Map<ItemType, List<Equipment>> =
+        listOf(
+            equipment(
+                1,
+                ItemType.AMULET,
+                "Amu",
+                mapOf(
+                    Characteristic.MASTERY_ELEMENTARY to 1000,
+                    Characteristic.MASTERY_CRITICAL to 600,
+                    Characteristic.CRITICAL_HIT to 50,
+                    Characteristic.DAMAGE_INFLICTED to 200
+                )
+            ),
+            equipment(2, ItemType.BELT, "Belt", mapOf(Characteristic.MASTERY_ELEMENTARY to 1000, Characteristic.ACTION_POINT to 10)),
+            equipment(3, ItemType.CHEST_PLATE, "Chest", mapOf(Characteristic.MASTERY_ELEMENTARY to 1000, Characteristic.DAMAGE_INFLICTED to 150)),
+            equipment(4, ItemType.CAPE, "Cape", mapOf(Characteristic.MASTERY_ELEMENTARY to 800, Characteristic.MASTERY_CRITICAL to 400)),
+            equipment(5, ItemType.BOOTS, "Boots", mapOf(Characteristic.MASTERY_DISTANCE to 1000, Characteristic.MASTERY_MELEE to 1000)),
+            equipment(6, ItemType.HELMET, "Helm", mapOf(Characteristic.MASTERY_BACK to 700, Characteristic.MASTERY_BERSERK to 700, Characteristic.CRITICAL_HIT to 50)),
+            equipment(7, ItemType.RING, "Ring1", mapOf(Characteristic.MASTERY_ELEMENTARY to 500, Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT to 500)),
+            equipment(8, ItemType.RING, "Ring2", mapOf(Characteristic.MASTERY_ELEMENTARY to 500))
+        ).groupBy { it.itemType }
+
+    /** Constraint-free CRA fire max-damage request at [level] (empty targets ⇒ the pure damage objective). */
+    private fun fireMaxDamageParams(level: Int): WakfuBestBuildParams =
+        WakfuBestBuildParams(
+            character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+            targetStats = TargetStats(emptyList()),
+            searchDuration = 60.seconds,
+            stopWhenBuildMatch = false,
+            maxRarity = Rarity.EPIC,
+            forcedItems = emptyList(),
+            excludedItems = emptyList(),
+            scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+            useRunes = false,
+            useSublimations = false,
+            damageScenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+        )
+
+    @Test
+    @Tag("slow")
+    fun `max-damage free solve proves OPTIMAL on the full level-110 pool`(): Unit =
+        runBlocking {
+            // The headline: with reachable-sized objective-chain domains the FREE solve (AP optimized jointly,
+            // no AP-pin) proves OPTIMAL on the whole level-110 EPIC pool — what burned the budget at FEASIBLE
+            // (~90× unclosed gap) before. See docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md (exp D).
+            val results =
+                WakfuBuildSolver
+                    .optimize(fireMaxDamageParams(110), fullEpicPool(110), WakfuBuildSolver.SolverTuning(maxDeterministicTime = 300.0))
+                    .toList()
+            val proven = results.lastOrNull { it.isOptimal }
+            assertThat(proven)
+                .describedAs("reachable domains must let CP-SAT PROVE the free lvl-110 max-damage optimum, not stop at FEASIBLE")
+                .isNotNull
+            assertThat(proven!!.matchPercentage.signum()).describedAs("the proven build deals real damage").isGreaterThan(0)
+        }
+
+    @Test
+    @Tag("slow")
+    fun `max-damage free solve proves OPTIMAL on the full level-245 pool`(): Unit =
+        runBlocking {
+            // The end-game pool is larger (higher masteries ⇒ wider reachable domains), so it gets more
+            // deterministic budget; the per-pool propagation must still bring every product envelope down
+            // far enough to certify the bound.
+            val results =
+                WakfuBuildSolver
+                    .optimize(fireMaxDamageParams(245), fullEpicPool(245), WakfuBuildSolver.SolverTuning(maxDeterministicTime = 600.0))
+                    .toList()
+            val proven = results.lastOrNull { it.isOptimal }
+            assertThat(proven)
+                .describedAs("reachable domains must let CP-SAT PROVE the free lvl-245 max-damage optimum")
+                .isNotNull
+            assertThat(proven!!.matchPercentage.signum()).isGreaterThan(0)
+        }
+
+    /** Constraint-free max-damage request for [clazz] at [level] against [scenario] (empty targets ⇒ pure damage). */
+    private fun maxDamageShape(
+        clazz: CharacterClass,
+        level: Int,
+        scenario: DamageScenario,
+    ): WakfuBestBuildParams =
+        WakfuBestBuildParams(
+            character = Character(clazz, level, 0, CharacterSkills(level)),
+            targetStats = TargetStats(emptyList()),
+            searchDuration = 60.seconds,
+            stopWhenBuildMatch = false,
+            maxRarity = Rarity.EPIC,
+            forcedItems = emptyList(),
+            excludedItems = emptyList(),
+            scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+            useRunes = false,
+            useSublimations = false,
+            damageScenario = scenario
+        )
+
+    @Test
+    fun `max-damage reachable bounds hold across classes, elements, scenarios and levels`() {
+        // THE soundness lock: solve each shape with LOOSE guard domains (so the solver drives every objective-
+        // chain var as high as the build allows) and check every var's solved value against the tight reachable
+        // [lo,hi] the production build would DECLARE — a value outside = an interval under-estimate that would
+        // silently cut the optimum. The tight reachable domains run for EVERY class / level / scenario in
+        // production (and the boss path now solves SEVERAL elements), so the panel spans classes, elements, the
+        // rear/berserk mastery terms, a multi-element boss, and lvl-245 — an under-estimate can't hide in a shape
+        // one fixed case never exercises. Solved on the tiny high-stat [soundnessStressPool]: instant, yet it
+        // drives the chain to end-game magnitudes — STRONGER than the real pool, which may never combine those
+        // extremes (this replaces the old single full-pool CRA-fire-110 lock, which took ~100s for less coverage).
+        val tuning = WakfuBuildSolver.SolverTuning()
+        val pool = soundnessStressPool()
+        val shapes: List<Pair<String, WakfuBestBuildParams>> =
+            listOf(
+                "cra-fire-110" to
+                    maxDamageShape(CharacterClass.CRA, 110, DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)),
+                "cra-earth-110" to
+                    maxDamageShape(CharacterClass.CRA, 110, DamageScenario(element = SpellElement.EARTH, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)),
+                "cra-air-110" to
+                    maxDamageShape(
+                        CharacterClass.CRA,
+                        110,
+                        DamageScenario(element = SpellElement.AIR, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+                    ),
+                "iop-fire-110" to
+                    maxDamageShape(
+                        CharacterClass.IOP,
+                        110,
+                        DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.MELEE, orientation = Orientation.FACE)
+                    ),
+                "sacrieur-earth-110" to
+                    maxDamageShape(CharacterClass.SACRIEUR, 110, DamageScenario(element = SpellElement.EARTH, rangeBand = RangeBand.MELEE, orientation = Orientation.FACE)),
+                "xelor-water-110" to
+                    maxDamageShape(CharacterClass.XELOR, 110, DamageScenario(element = SpellElement.WATER, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)),
+                // Rear + berserk fold the MASTERY_BACK / MASTERY_BERSERK terms into the per-hit core.
+                "cra-rear-berserk-110" to
+                    maxDamageShape(
+                        CharacterClass.CRA,
+                        110,
+                        DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.BACK, berserk = true)
+                    ),
+                // Boss (multi-candidate) exercises the in-model max over several per-element damage terms.
+                "cra-boss-110" to
+                    maxDamageShape(
+                        CharacterClass.CRA,
+                        110,
+                        DamageScenario(
+                            rangeBand = RangeBand.DISTANCE,
+                            orientation = Orientation.FACE,
+                            elementResistances =
+                                mapOf(
+                                    SpellElement.FIRE to 20,
+                                    SpellElement.EARTH to 50,
+                                    SpellElement.AIR to 30,
+                                    SpellElement.WATER to 10
+                                )
+                        )
+                    ),
+                // End-game magnitudes (higher masteries ⇒ wider reachable ranges).
+                "cra-fire-245" to
+                    maxDamageShape(CharacterClass.CRA, 245, DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE))
+            )
+
+        shapes.forEach { (name, params) ->
+            val bounds = WakfuBuildSolver.maxDamageVarBoundsForTest(params, pool, tuning)
+            assertThat(bounds).describedAs("$name: the objective chain must be tracked").isNotEmpty
+            assertThat(bounds.filterNot { it.withinBound })
+                .describedAs("$name: each is a var whose reachable bound under-estimated its real value — a silently cut optimum")
+                .isEmpty()
+        }
+    }
+
+    @Test
+    fun `tight reachable domains preserve the exact max-damage optimum`() {
+        // On a small pool BOTH the tight and the loose model prove OPTIMAL, so their optima are directly
+        // comparable: tightening the declared domains must change ONLY provability/speed, never the answer.
+        val level = 1
+        val character = Character(CharacterClass.CRA, level, level, CharacterSkills(level))
+        val equipments =
+            listOf(
+                equipment(1, ItemType.AMULET, "FireBig", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 120)),
+                equipment(2, ItemType.AMULET, "Crit", mapOf(Characteristic.CRITICAL_HIT to 40, Characteristic.MASTERY_CRITICAL to 30)),
+                equipment(3, ItemType.BELT, "Generic", mapOf(Characteristic.MASTERY_ELEMENTARY to 60)),
+                equipment(4, ItemType.BELT, "Distance", mapOf(Characteristic.MASTERY_DISTANCE to 80))
+            )
+        val params =
+            WakfuBestBuildParams(
+                character = character,
+                targetStats = TargetStats(emptyList()),
+                searchDuration = 5.seconds,
+                stopWhenBuildMatch = false,
+                maxRarity = Rarity.EPIC,
+                forcedItems = emptyList(),
+                excludedItems = emptyList(),
+                scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                useRunes = false,
+                useSublimations = false,
+                damageScenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+            )
+        val pool = equipments.groupBy { it.itemType }
+        val tuning = WakfuBuildSolver.SolverTuning()
+        val tight = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true)
+        val loose = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = false)
+
+        assertThat(tight.isOptimal).describedAs("the tight (production) model must prove OPTIMAL").isTrue()
+        assertThat(loose.isOptimal).describedAs("the loose reference also proves on this small pool").isTrue()
+        assertThat(tight.objective)
+            .describedAs("tightening declared domains must not change the optimum — only how fast it is proven")
+            .isEqualTo(loose.objective)
+    }
+
+    // ----- Multi-element random-element assignment: freed CP-SAT must match the exact-scorer optimum -----
+
+    /**
+     * Deterministically asserts the most-masteries solver's optimum re-scores (exact scorer) to the exhaustive
+     * optimum. Level 1 keeps skill points out of it (the solver optimizes skills, the exhaustive doesn't), so any
+     * remaining gap is purely the random-element ASSIGNMENT — exactly what we want to lock.
+     */
+    private fun assertMostMasteriesMatchesExhaustive(
+        equipments: List<Equipment>,
+        targetStats: TargetStats,
+        level: Int = 1,
+    ): Unit =
+        runBlocking {
+            val characterSkills = CharacterSkills(level)
+            val character = Character(CharacterClass.CRA, level, level, characterSkills)
+            val score = { build: BuildCombination -> FindMostMasteriesFromInputScoring.computeScore(targetStats, build, character.baseCharacteristicValues) }
+            val exhaustive = allValidCombinations(equipments, characterSkills).maxOf { score(it) }
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = targetStats,
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+                )
+            val best =
+                WakfuBuildSolver
+                    .optimize(params, equipments.groupBy { it.itemType }, WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .last { it.isOptimal }
+            // The freed CP-SAT random assignment must reach the SAME optimum the exact-scorer exhaustive does
+            // (consistency): a divergence means the model and the scorer disagree on the random roll placement.
+            assertThat(best.matchPercentage).isEqualByComparingTo(exhaustive)
+        }
+
+    @Test
+    fun `most-masteries aggregate matches the exhaustive optimum with random-element mastery items`() {
+        val equipments =
+            listOf(
+                equipment(1, ItemType.AMULET, "Rand2", mapOf(Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT to 80)),
+                equipment(2, ItemType.AMULET, "FireBig", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 130)),
+                equipment(3, ItemType.BELT, "Rand1", mapOf(Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT to 60)),
+                equipment(4, ItemType.BELT, "Generic", mapOf(Characteristic.MASTERY_ELEMENTARY to 40)),
+                equipment(5, ItemType.BOOTS, "Rand3", mapOf(Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT to 50)),
+                equipment(6, ItemType.BOOTS, "WaterBig", mapOf(Characteristic.MASTERY_ELEMENTARY_WATER to 95))
+            )
+        assertMostMasteriesMatchesExhaustive(equipments, TargetStats(listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY, 1))))
+    }
+
+    @Test
+    fun `most-masteries two unequal-target elements matches the exhaustive optimum (greedy was worst here)`() {
+        // Unequal targets are exactly where the old deficit-greedy starved the lowest element; the freed model
+        // + exact max-min scorer must agree on the true optimum.
+        val equipments =
+            listOf(
+                equipment(1, ItemType.AMULET, "Rand1", mapOf(Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT to 70)),
+                equipment(2, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 60)),
+                equipment(3, ItemType.BELT, "Rand2", mapOf(Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT to 50)),
+                equipment(4, ItemType.BELT, "Water", mapOf(Characteristic.MASTERY_ELEMENTARY_WATER to 40))
+            )
+        assertMostMasteriesMatchesExhaustive(
+            equipments,
+            TargetStats(listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 200), TargetStat(Characteristic.MASTERY_ELEMENTARY_WATER, 90)))
+        )
+    }
+
+    @Test
+    fun `most-masteries aggregate resistance matches the exhaustive optimum with random-resistance items`() {
+        val equipments =
+            listOf(
+                equipment(1, ItemType.AMULET, "ResRand2", mapOf(Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT to 30)),
+                equipment(2, ItemType.AMULET, "ResFire", mapOf(Characteristic.RESISTANCE_ELEMENTARY_FIRE to 40)),
+                equipment(3, ItemType.BELT, "ResRand1", mapOf(Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT to 25)),
+                equipment(4, ItemType.BOOTS, "Dist", mapOf(Characteristic.MASTERY_DISTANCE to 50))
+            )
+        assertMostMasteriesMatchesExhaustive(
+            equipments,
+            TargetStats(listOf(TargetStat(Characteristic.RESISTANCE_ELEMENTARY, 60), TargetStat(Characteristic.MASTERY_DISTANCE, 1)))
+        )
+    }
+
+    @Test
+    fun `precision aggregate matches the exhaustive optimum with random-element items`(): Unit =
+        runBlocking {
+            // Precision frees its assignment too (capped objective); the exact max-capped scorer must agree with
+            // the freed model on the optimum. Level 1 so skills don't confound the comparison.
+            val level = 1
+            val characterSkills = CharacterSkills(level)
+            val character = Character(CharacterClass.CRA, level, level, characterSkills)
+            val equipments =
+                listOf(
+                    equipment(1, ItemType.AMULET, "Rand2", mapOf(Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT to 80)),
+                    equipment(2, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 60)),
+                    equipment(3, ItemType.BELT, "Rand1", mapOf(Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT to 50)),
+                    equipment(4, ItemType.BELT, "Water", mapOf(Characteristic.MASTERY_ELEMENTARY_WATER to 40)),
+                    equipment(5, ItemType.BOOTS, "Rand3", mapOf(Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT to 40))
+                )
+            val targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY, 100)))
+            val score = { build: BuildCombination -> FindClosestBuildFromInputScoring.computeScore(targetStats, build, character.baseCharacteristicValues) }
+            val exhaustive = allValidCombinations(equipments, characterSkills).maxOf { score(it) }
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = targetStats,
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
+                )
+            val best =
+                WakfuBuildSolver
+                    .optimize(params, equipments.groupBy { it.itemType }, WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .last { it.isOptimal }
+            assertThat(best.matchPercentage).isEqualByComparingTo(exhaustive)
+        }
+
+    // ----- Prefilter scope: single-element requests now solve the full pool (proven global optimum) -----
+
+    private fun masteryParams(
+        level: Int,
+        targets: List<TargetStat>,
+    ) = WakfuBestBuildParams(
+        character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+        targetStats = TargetStats(targets),
+        searchDuration = 60.seconds,
+        stopWhenBuildMatch = false,
+        maxRarity = Rarity.EPIC,
+        forcedItems = emptyList(),
+        excludedItems = emptyList(),
+        scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+        useRunes = false,
+        useSublimations = false
+    )
+
+    @Test
+    @Tag("slow")
+    fun `a single-element mastery request is no longer prefiltered (full pool, proven optimum)`() {
+        // The prefilter is a top-N-per-stat HEURISTIC that can miss the optimum; for a SINGLE specific element
+        // the full-pool model stays small and proves the true optimum fast (measured ~1-4s on lvl 245), so the
+        // heuristic is removed there. The gate must return false ⇒ the FULL distinct-item pool is solved.
+        val pool = fullEpicPool(110)
+        val fullDistinct =
+            WakfuBuildSolver.gatedPoolSizeForTest(
+                masteryParams(110, listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 800), TargetStat(Characteristic.ACTION_POINT, 11))),
+                pool
+            )
+        assertThat(fullDistinct.first).describedAs("a single specific element must NOT trigger the prefilter").isFalse()
+
+        // And it stays tractable: the full-pool single-element solve proves OPTIMAL.
+        val r =
+            WakfuBuildSolver.solveForBenchmark(
+                masteryParams(110, listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 800), TargetStat(Characteristic.ACTION_POINT, 11))),
+                pool,
+                WakfuBuildSolver.SolverTuning(maxDeterministicTime = 120.0),
+                forceFullPool = false
+            )
+        assertThat(r.status).describedAs("single-element full pool must prove OPTIMAL, not stop at FEASIBLE").isEqualTo("OPTIMAL")
+        assertThat(r.score.signum()).isGreaterThan(0)
+        assertThat(r.poolSize).describedAs("solved on the full pool, not a prefiltered subset").isEqualTo(fullDistinct.second)
+    }
+
+    @Test
+    @Tag("slow")
+    fun `a multi-element aggregate request still prefilters the pool`() {
+        // The O(elements^2) random-element modelling explodes the full pool for multi-element requests (even
+        // prefiltered, the aggregate solve is hard), so the prefilter stays load-bearing there. No solve here.
+        val pool = fullEpicPool(110)
+        val full = WakfuBuildSolver.gatedPoolSizeForTest(masteryParams(110, listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 800))), pool)
+        val aggregate = WakfuBuildSolver.gatedPoolSizeForTest(masteryParams(110, listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY, 800))), pool)
+        val twoElement =
+            WakfuBuildSolver.gatedPoolSizeForTest(
+                masteryParams(110, listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 800), TargetStat(Characteristic.MASTERY_ELEMENTARY_WATER, 800))),
+                pool
+            )
+        assertThat(aggregate.first).describedAs("aggregate (all elements) must still prefilter").isTrue()
+        assertThat(twoElement.first).describedAs("two specific elements must still prefilter").isTrue()
+        assertThat(aggregate.second).describedAs("prefiltered pool is strictly smaller than the full single-element pool").isLessThan(full.second)
+    }
 
     private fun allValidCombinations(
         equipments: List<Equipment>,

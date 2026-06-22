@@ -1,6 +1,5 @@
 package me.chosante.autobuilder.domain
 
-import me.chosante.autobuilder.genetic.wakfu.BiElementSplit
 import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
 import me.chosante.common.Character
 import me.chosante.common.CharacterClass
@@ -9,7 +8,6 @@ import me.chosante.common.Resistances
 import me.chosante.common.Spell
 import me.chosante.common.SpellDamage
 import me.chosante.common.SpellElement
-import kotlin.math.roundToInt
 
 /** A spell scored for a specific build/scenario: its AP cost and its expected damage per cast. */
 data class ScoredSpell(
@@ -341,119 +339,6 @@ object SpellRotationOptimizer {
             }
         }
         return best ?: SpellRotation(commonElement, budget, 0, emptyList(), 0.0)
-    }
-
-    /**
-     * The honest per-turn rotation to **display and score** for a max-damage build: the mono
-     * [bestSequencedRotation] when [biElement] is null, else the joint bi-element turn
-     * ([bestSequencedTurnBiElement]). Single entry point so the CLI, GUI and the search re-scorer all
-     * render exactly what was optimized (the winning [BiElementSplit] rides on the result). The total AP
-     * is the build's real AP — the solver pinned it to the split's total, so re-deriving it here keeps
-     * this self-contained (no AP target to thread through the display).
-     */
-    fun bestSequencedTurn(
-        build: BuildCombination,
-        character: Character,
-        clazz: CharacterClass,
-        scenario: DamageScenario,
-        biElement: BiElementSplit?,
-    ): SpellRotation =
-        if (biElement == null) {
-            bestSequencedRotation(build, character, clazz, scenario)
-        } else {
-            val totalAp = resolvedActionPoints(build, character, scenario)
-            bestSequencedTurnBiElement(
-                build,
-                character,
-                clazz,
-                scenario,
-                biElement.first,
-                biElement.second,
-                biElement.apSplitOnFirst.coerceIn(0, totalAp),
-                totalAp
-            )
-        }
-
-    /**
-     * Joint bi-element turn for the pair [elementA]+[elementB] at the split [apOnA] / `[totalAp] − [apOnA]`.
-     * Unlike two independent per-element rotations, the resistance debuffs are **shared**: a single debuff
-     * subset is paid for **once** off the total AP (the data exposes no per-element debuff, so a reduction
-     * lowers the target's resistance for *both* elements' damage), then the **remaining** AP is re-split in
-     * the solver's intended A : B proportion. This removes the double-spend of charging each element its own
-     * copy of the same debuff. Returns ONE merged [SpellRotation] (element = null ⇒ "mixed"); each
-     * [SpellCast] keeps its own [Spell.element], so the display can group casts by element.
-     */
-    fun bestSequencedTurnBiElement(
-        build: BuildCombination,
-        character: Character,
-        clazz: CharacterClass,
-        scenario: DamageScenario,
-        elementA: me.chosante.autobuilder.domain.SpellElement,
-        elementB: me.chosante.autobuilder.domain.SpellElement,
-        apOnA: Int,
-        totalAp: Int,
-    ): SpellRotation {
-        val commonA = SpellElement.valueOf(elementA.name)
-        val commonB = SpellElement.valueOf(elementB.name)
-        val damageA = SpellCatalog.damageSpells(clazz).filter { it.element == commonA }
-        val damageB = SpellCatalog.damageSpells(clazz).filter { it.element == commonB }
-        val empty = SpellRotation(null, totalAp, 0, emptyList(), 0.0)
-        if (damageA.isEmpty() && damageB.isEmpty()) return empty
-
-        val resByElement = scenario.candidateElements().toMap()
-        val baseFlatA = Resistances.percentToFlat(resByElement[elementA] ?: scenario.targetResistancePercent)
-        val baseFlatB = Resistances.percentToFlat(resByElement[elementB] ?: scenario.targetResistancePercent)
-        val debuffSpells =
-            SpellCatalog
-                .forClass(clazz)
-                .filter { it.isConfirmedResistanceDebuff && (it.apCost ?: 0) in 1..totalAp }
-                .sortedByDescending { (it.targetResistanceReductionFlat ?: 0).toDouble() / (it.apCost ?: 1) }
-                .take(MAX_DEBUFFS_CONSIDERED)
-
-        var best: SpellRotation? = null
-        // One shared debuff subset for the whole turn (paid once); enumerate them.
-        for (subset in subsetsOf(debuffSpells)) {
-            val apDebuff = subset.sumOf { it.apCost ?: 0 }
-            if (apDebuff > totalAp) continue
-            val totalReduction = subset.sumOf { it.targetResistanceReductionFlat ?: 0 }
-            val effResA = Resistances.flatToPercent(baseFlatA - totalReduction)
-            val effResB = Resistances.flatToPercent(baseFlatB - totalReduction)
-
-            // Debuff AP comes off the total BEFORE the A/B damage split, so the same AP is never spent twice.
-            val remaining = totalAp - apDebuff
-            val apA = if (totalAp <= 0) 0 else (remaining.toDouble() * apOnA / totalAp).roundToInt().coerceIn(0, remaining)
-            val apB = remaining - apA
-
-            // Exclude the forced debuff spells from each damage pool (a dual-role debuff+damage spell isn't
-            // both cast as the debuff and re-spammed by the knapsack — mirrors bestSequencedForElement).
-            val rotA = bestRotation(scoreSpells(damageA.filterNot { it in subset }, build, character, scenario, effResA), apA, commonA)
-            val rotB = bestRotation(scoreSpells(damageB.filterNot { it in subset }, build, character, scenario, effResB), apB, commonB)
-
-            // Each debuff's OWN hit lands at its element's resistance reduced by the OTHER debuffs (not its own).
-            val debuffCasts =
-                subset.map { debuff ->
-                    val baseFlat = if (debuff.element == commonB) baseFlatB else baseFlatA
-                    val resBeforeOwn = Resistances.flatToPercent(baseFlat - (totalReduction - (debuff.targetResistanceReductionFlat ?: 0)))
-                    val own = scoreSpells(listOf(debuff), build, character, scenario, resBeforeOwn).firstOrNull()?.expectedDamagePerCast ?: 0.0
-                    SpellCast(debuff, count = 1, apCost = debuff.apCost ?: 0, expectedDamagePerCast = own)
-                }
-
-            val total = rotA.totalExpectedDamage + rotB.totalExpectedDamage + debuffCasts.sumOf { it.totalExpectedDamage }
-            if (best == null || total > best.totalExpectedDamage) {
-                best =
-                    SpellRotation(
-                        element = null, // mixed: each SpellCast carries its own element
-                        apBudget = totalAp,
-                        apUsed = apDebuff + rotA.apUsed + rotB.apUsed,
-                        casts = (rotA.casts + rotB.casts).sortedByDescending { it.totalExpectedDamage },
-                        totalExpectedDamage = total,
-                        debuffCasts = debuffCasts,
-                        // Two elements at two post-debuff resistances ⇒ no single value; the display omits the line.
-                        effectiveResistancePercent = null
-                    )
-            }
-        }
-        return best ?: empty
     }
 
     /** All subsets of [items] (each item at most once). [items] is kept tiny ([MAX_DEBUFFS_CONSIDERED]). */
