@@ -186,6 +186,12 @@ data class UiState(
     val progress: Int = 0,
     val match: BigDecimal = BigDecimal.ZERO,
     val optimal: Boolean = false,
+    /**
+     * Max-damage mode only: true when a non-[optimal] result is *structurally* heuristic — a best-found max
+     * over resistance-debuff sequencing / multi-element AP splits — rather than merely time-limited. Drives
+     * which "not proven" hint the stats panel shows. See [GeneticAlgorithmResult.maxDamageHeuristicPhases].
+     */
+    val maxDamageStructural: Boolean = false,
     val build: BuildCombination? = null,
     val achieved: Map<Characteristic, Int> = emptyMap(),
     /** Best spells to cast for the build's AP, in max-damage mode only (else null). Computed off-thread. */

@@ -299,16 +299,21 @@ class BuildSearchModel(
 
     fun setMode(mode: ScoreComputationMode) {
         val normalizedTargets =
-            if (mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) {
-                ui.targets.map { target ->
-                    if (target.characteristic.isMaximizableMastery()) {
-                        target.copy(value = "1")
-                    } else {
-                        target
+            when (mode) {
+                ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
+                    ui.targets.map { target ->
+                        if (target.characteristic.isMaximizableMastery()) {
+                            target.copy(value = "1")
+                        } else {
+                            target
+                        }
                     }
-                }
-            } else {
-                ui.targets
+                // Max-damage maximizes the rotation's real damage directly, so the seeded AP/MP/range/HP/crit
+                // rows would only act as hard power-6 constraints that can exclude higher-damage builds (e.g.
+                // pinning AP=11 stops the solver finding the best AP breakpoint). Start CONSTRAINT-FREE; the user
+                // can still add an explicit target row (an AP floor, a min HP…) if they want a more playable build.
+                ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> emptyList()
+                else -> ui.targets
             }
         // Switching mode invalidates any completed result: a build/match/rotation found under the old mode
         // would be reinterpreted under the new mode's display rules. Clear it so the UI returns to Idle.
@@ -349,6 +354,9 @@ class BuildSearchModel(
             ui.copy(
                 selectedBoss = monster,
                 mode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                // Same as setMode: max-damage is constraint-free by default (seeded AP/MP/HP targets would only
+                // hold the solver back from the highest-damage build vs this boss).
+                targets = emptyList(),
                 modal = null,
                 phase = Phase.Idle,
                 progress = 0,
@@ -752,25 +760,45 @@ class BuildSearchModel(
                         .conflate()
                         .collect { result ->
                             hasResult = true
+                            // Resolve the achieved per-stat grid with the SAME random-element assignment the scorer
+                            // used, so the displayed values match the score: most-masteries → exact max-min,
+                            // precision → exact max-capped, max-damage → greedy. Mirrors FindMostMasteriesFromInputScoring;
+                            // omitting the mode would fall to the greedy `else` branch and diverge from the score.
+                            val masteryElementsToMinimize =
+                                if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) {
+                                    targetStats.masteryElementsToMinimize
+                                } else {
+                                    null
+                                }
+                            val resistanceElementsToMinimize =
+                                if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+                                    targetStats.any { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY }
+                                ) {
+                                    targetStats.resistanceElementsWanted.keys.toList()
+                                } else {
+                                    null
+                                }
                             val achieved =
                                 computeCharacteristicsValues(
                                     buildCombination = result.individual,
                                     characterBaseCharacteristics = character.baseCharacteristicValues,
                                     masteryElementsWanted = targetStats.masteryElementsWanted,
-                                    resistanceElementsWanted = targetStats.resistanceElementsWanted
+                                    resistanceElementsWanted = targetStats.resistanceElementsWanted,
+                                    scoreComputationMode = params.scoreComputationMode,
+                                    masteryElementsToMinimize = masteryElementsToMinimize,
+                                    resistanceElementsToMinimize = resistanceElementsToMinimize
                                 )
                             // Best spells to cast for this build's AP — only in max-damage mode, computed
                             // here off the UI thread (like `achieved`) so the panel just reads it. Uses the
-                            // boss-overlaid `damageScenario` (not the raw `snapshot.scenario`) and the result's
-                            // winning bi-element split, so the shown rotation is exactly the turn that was scored.
+                            // boss-overlaid `damageScenario` (not the raw `snapshot.scenario`) and picks the
+                            // build's best playable element, so the shown rotation is exactly the turn that was scored.
                             val spellRotation =
                                 if (snapshot.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
-                                    SpellRotationOptimizer.bestSequencedTurn(
+                                    SpellRotationOptimizer.bestSequencedRotation(
                                         result.individual,
                                         character,
                                         character.clazz,
-                                        damageScenario,
-                                        result.maxDamageBiElement
+                                        damageScenario
                                     )
                                 } else {
                                     null
@@ -783,6 +811,7 @@ class BuildSearchModel(
                                         // the solver only emits on improvements, so don't set it here.
                                         match = result.matchPercentage,
                                         optimal = result.isOptimal,
+                                        maxDamageStructural = result.maxDamageHeuristicPhases,
                                         build = result.individual,
                                         achieved = achieved,
                                         spellRotation = spellRotation,

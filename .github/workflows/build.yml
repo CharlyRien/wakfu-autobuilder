@@ -1,6 +1,14 @@
 name: Build
 
-on: [ push, workflow_dispatch, workflow_call ]
+on:
+    push:
+    workflow_dispatch:
+    workflow_call:
+    schedule:
+        # Nightly run of the heavy full-pool OR-Tools OPTIMAL proof tests (@Tag("slow")). They are excluded
+        # from the per-push `test` task so every push/PR stays fast; 03:17 UTC keeps them off the critical path.
+        -   cron: '17 3 * * *'
+
 jobs:
     build:
         runs-on: ubuntu-latest
@@ -11,5 +19,21 @@ jobs:
             -   name: Setup Gradle
                 uses: gradle/actions/setup-gradle@v6
 
-            -   name: Verify everything is working fine
+            -   name: Verify everything is working fine (fast tests)
                 run: ./gradlew test
+
+    slow-tests:
+        # The heavy full-pool OR-Tools proof tests request 8 solver workers and burn large deterministic-time
+        # budgets, so on a 2-core runner they oversubscribe and take ~15 min. Run them nightly + on demand only,
+        # never on per-push CI.
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        runs-on: ubuntu-latest
+        steps:
+            -   name: Checkout project sources
+                uses: actions/checkout@v6.0.3
+
+            -   name: Setup Gradle
+                uses: gradle/actions/setup-gradle@v6
+
+            -   name: Run the heavy full-pool proof tests
+                run: ./gradlew :autobuilder:slowTest

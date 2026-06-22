@@ -1,6 +1,5 @@
 package me.chosante.autobuilder.genetic
 
-import me.chosante.autobuilder.genetic.wakfu.BiElementSplit
 import java.math.BigDecimal
 
 /**
@@ -17,10 +16,12 @@ data class GeneticAlgorithmResult<T>(
     val progressPercentage: Int,
     val isOptimal: Boolean = false,
     /**
-     * Max-damage mode only: the bi-element split this build was optimized for, or null when it is a
-     * mono-element (or non-max-damage) result. Set by [me.chosante.autobuilder.genetic.wakfu.MaxDamageSearch]
-     * so the display re-scores the **same** turn that won (else a bi-element build would be re-scored as its
-     * stronger single element and under-reported). See `docs/FULL_DAMAGE_PLAN.md` "Lot 2e-f".
+     * Max-damage mode only: true when this result is a **heuristic max over structure-changing probes** (the
+     * resistance-debuff AP-window sequencing, which only runs for Sram/Sadida) rather than a provable solve.
+     * Those probes are what keep the result `!isOptimal` even though the per-turn damage objective is itself
+     * provable — so a non-optimal result with this flag is *structurally* heuristic (more time won't move it),
+     * whereas a non-optimal result WITHOUT it is merely time-limited (a bigger budget could prove it). Set by
+     * [me.chosante.autobuilder.genetic.wakfu.MaxDamageSearch].
      */
-    val maxDamageBiElement: BiElementSplit? = null,
+    val maxDamageHeuristicPhases: Boolean = false,
 )

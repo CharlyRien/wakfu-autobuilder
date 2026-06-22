@@ -191,6 +191,10 @@ enum class Tr(
         "Time budget reached before proving the optimum — raise the search duration to aim higher.",
         "Budget de temps atteint avant de prouver l'optimum — augmente la durée de recherche pour viser plus haut."
     ),
+    NOT_OPTIMAL_STRUCTURAL_HINT(
+        "Best found across resistance-debuff sequencing — that turn structure is searched heuristically, so more time won't materially change the result.",
+        "Meilleur trouvé parmi les séquences de réduction de résistance — cette structure de tour est explorée heuristiquement, donc plus de temps n'y changera pas grand-chose."
+    ),
     MASTERY_SUMMARY("Mastery Summary", "Cumul maîtrises"),
     MASTERY_TOTAL("Tracked total", "Total suivi"),
     BUILD_SHEET_TITLE("Other build stats", "Autres stats du build"),

@@ -27,7 +27,8 @@ object FindClosestBuildFromInputScoring {
                 buildCombination,
                 characterBaseCharacteristics,
                 targetStats.masteryElementsWanted,
-                targetStats.resistanceElementsWanted
+                targetStats.resistanceElementsWanted,
+                scoreComputationMode = ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
             )
 
         var totalActualScore = calculateTotalActualScore(targetStats, actualCharacteristicsValues, targetStats.expectedScoreByCharacteristic, canExceedPerfectScore = false)
@@ -144,6 +145,12 @@ fun computeCharacteristicsValues(
     resistanceElementsWanted: Map<Characteristic, Int>,
     scoreComputationMode: ScoreComputationMode? = null,
     damageScenario: DamageScenario? = null,
+    // most-masteries only: the elements its objective takes the MINIMUM over (a subset of masteryElementsWanted).
+    // When set + mode is most-masteries, random mastery rolls are assigned to MAXIMIZE that minimum (optimal,
+    // matching the freed CP-SAT model) instead of the deficit-greedy used by precision / max-damage. Null ⇒ greedy.
+    masteryElementsToMinimize: List<Characteristic>? = null,
+    // Same, for aggregate RESISTANCE_ELEMENTARY in most-masteries (its objective is the min over these). Null ⇒ greedy.
+    resistanceElementsToMinimize: List<Characteristic>? = null,
 ): Map<Characteristic, Int> {
     val eachCharacteristicValueLineByEquipment =
         buildCombination.equipments
@@ -235,12 +242,21 @@ fun computeCharacteristicsValues(
     val mutableActualCharacteristics = sumWithPassives.toMutableMap()
     if (masteryElementsWanted.isNotEmpty()) {
         val currentSpecificMasteryElements = currentStatSpecificElements(masteryElementsWanted, sumWithPassives, Characteristic.MASTERY_ELEMENTARY)
+        val masteryRandoms = getMasteryRandoms(eachCharacteristicValueLineByEquipment)
         val specificMasteryElementsWithRandomValuesAssigned =
-            assignUniformlyMasteryRandomValues(
-                getMasteryRandoms(eachCharacteristicValueLineByEquipment),
-                currentSpecificMasteryElements,
-                masteryElementsWanted
-            )
+            when {
+                // Most-masteries maximizes the MIN over [masteryElementsToMinimize]; precision maximizes the capped
+                // sum. Both objectives have a provably-suboptimal deficit-greedy, so each gets its EXACT assignment
+                // (consistent with the correspondingly-freed CP-SAT model). max-damage (m=1) falls through to greedy.
+                scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT && masteryElementsToMinimize != null ->
+                    assignMaxMinMasteryRandomValues(masteryRandoms, currentSpecificMasteryElements, masteryElementsWanted, masteryElementsToMinimize)
+
+                scoreComputationMode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
+                    assignMaxCappedMasteryRandomValues(masteryRandoms, currentSpecificMasteryElements, masteryElementsWanted)
+
+                else ->
+                    assignUniformlyMasteryRandomValues(masteryRandoms, currentSpecificMasteryElements, masteryElementsWanted)
+            }
         specificMasteryElementsWithRandomValuesAssigned.forEach {
             mutableActualCharacteristics[it.key] = it.value
         }
@@ -249,12 +265,20 @@ fun computeCharacteristicsValues(
 
     val resistanceElementsCurrent = currentStatSpecificElements(resistanceElementsWanted, sumWithPassives, Characteristic.RESISTANCE_ELEMENTARY)
     if (resistanceElementsWanted.isNotEmpty()) {
+        val resistanceRandoms = getResistanceRandoms(eachCharacteristicValueLineByEquipment)
         val specificResistanceElementsWithRandomValuesAssigned =
-            assignUniformlyResistanceRandomValues(
-                getResistanceRandoms(eachCharacteristicValueLineByEquipment),
-                resistanceElementsCurrent,
-                resistanceElementsWanted
-            )
+            when {
+                scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT && resistanceElementsToMinimize != null ->
+                    // Aggregate RESISTANCE_ELEMENTARY in most-masteries maximizes the MIN resistance (exact max-min).
+                    assignMaxMinResistanceRandomValues(resistanceRandoms, resistanceElementsCurrent, resistanceElementsWanted, resistanceElementsToMinimize)
+
+                scoreComputationMode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
+                    // Precision maximizes the capped resistance sum (exact max-capped).
+                    assignMaxCappedResistanceRandomValues(resistanceRandoms, resistanceElementsCurrent, resistanceElementsWanted)
+
+                else ->
+                    assignUniformlyResistanceRandomValues(resistanceRandoms, resistanceElementsCurrent, resistanceElementsWanted)
+            }
         specificResistanceElementsWithRandomValuesAssigned.forEach {
             mutableActualCharacteristics[it.key] = it.value
         }
@@ -332,6 +356,257 @@ fun assignUniformlyResistanceRandomValues(
     }
 
     return result.assignValues(valueToNumberOfCharacteristicAssignable, characteristicToValueWanted)
+}
+
+/**
+ * Optimal random-element assignment for the "most-masteries" objective, which maximizes the MINIMUM mastery
+ * over [elementsToMaximizeMinOver] (a subset of [characteristicToValueWanted]). Each random roll adds its value
+ * to exactly `min(count, #wanted)` distinct elements; to lift the minimum we water-fill — every roll goes to the
+ * currently-lowest elements of the subset first (then spills any surplus onto non-subset wanted elements, which
+ * is free for the objective). This is provably optimal for atomic equal-value-to-k rolls (an exchange argument:
+ * moving a unit off one of the chosen lowest onto a higher element can only lower or keep the min), unlike the
+ * deficit-sorted [assignValues] greedy which is misaligned with a max-min objective. The freed CP-SAT model
+ * (WakfuBuildSolver.applyGreedyRandom, most-masteries path) reaches the SAME optimal minimum, so the two engines
+ * stay consistent. The per-element distribution may differ from the solver's — only the resulting minimum is
+ * observable by the objective, which both maximize.
+ */
+fun assignMaxMinMasteryRandomValues(
+    randomElements: Map<Characteristic, List<Int>>,
+    characteristicToValueCurrent: Map<Characteristic, Int>,
+    characteristicToValueWanted: Map<Characteristic, Int>,
+    elementsToMaximizeMinOver: List<Characteristic>,
+): Map<Characteristic, Int> =
+    seededFrom(characteristicToValueCurrent, characteristicToValueWanted)
+        .assignMaxMin(masteryRolls(randomElements), characteristicToValueWanted.keys.toList(), elementsToMaximizeMinOver)
+
+/** Resistance analogue of [assignMaxMinMasteryRandomValues] (aggregate RESISTANCE_ELEMENTARY in most-masteries). */
+fun assignMaxMinResistanceRandomValues(
+    randomElements: Map<Characteristic, List<Int>>,
+    characteristicToValueCurrent: Map<Characteristic, Int>,
+    characteristicToValueWanted: Map<Characteristic, Int>,
+    elementsToMaximizeMinOver: List<Characteristic>,
+): Map<Characteristic, Int> =
+    seededFrom(characteristicToValueCurrent, characteristicToValueWanted)
+        .assignMaxMin(resistanceRolls(randomElements), characteristicToValueWanted.keys.toList(), elementsToMaximizeMinOver)
+
+/**
+ * Optimal random-element assignment for the PRECISION objective, which maximizes `Σ min(value_e, target_e)` over
+ * the requested elements (each capped at its target). As with max-min there is no optimal greedy (the deficit-sort
+ * is beatable — RandomElementAssignmentTest), so we solve it exactly; this matches precision's freed CP-SAT model.
+ */
+fun assignMaxCappedMasteryRandomValues(
+    randomElements: Map<Characteristic, List<Int>>,
+    characteristicToValueCurrent: Map<Characteristic, Int>,
+    characteristicToValueWanted: Map<Characteristic, Int>,
+): Map<Characteristic, Int> =
+    seededFrom(characteristicToValueCurrent, characteristicToValueWanted)
+        .assignMaxCapped(masteryRolls(randomElements), characteristicToValueWanted.keys.toList(), characteristicToValueWanted)
+
+/** Resistance analogue of [assignMaxCappedMasteryRandomValues] (precision). */
+fun assignMaxCappedResistanceRandomValues(
+    randomElements: Map<Characteristic, List<Int>>,
+    characteristicToValueCurrent: Map<Characteristic, Int>,
+    characteristicToValueWanted: Map<Characteristic, Int>,
+): Map<Characteristic, Int> =
+    seededFrom(characteristicToValueCurrent, characteristicToValueWanted)
+        .assignMaxCapped(resistanceRolls(randomElements), characteristicToValueWanted.keys.toList(), characteristicToValueWanted)
+
+/** The wanted elements seeded with their current (non-random) values — the start state every assignment builds on. */
+private fun seededFrom(
+    current: Map<Characteristic, Int>,
+    wanted: Map<Characteristic, Int>,
+): MutableMap<Characteristic, Int> {
+    val result = mutableMapOf<Characteristic, Int>()
+    for ((characteristic, _) in wanted) {
+        result[characteristic] = current[characteristic] ?: 0
+    }
+    return result
+}
+
+/** The `(value, count)` rolls for the three `*_RANDOM_ELEMENT` lines under [one]/[two]/[three]. */
+private fun rollsFrom(
+    randomElements: Map<Characteristic, List<Int>>,
+    one: Characteristic,
+    two: Characteristic,
+    three: Characteristic,
+): List<Pair<Int, Int>> {
+    val rolls = mutableListOf<Pair<Int, Int>>()
+    randomElements[one]?.forEach { rolls.add(it to 1) }
+    randomElements[two]?.forEach { rolls.add(it to 2) }
+    randomElements[three]?.forEach { rolls.add(it to 3) }
+    return rolls
+}
+
+private fun masteryRolls(randomElements: Map<Characteristic, List<Int>>) =
+    rollsFrom(
+        randomElements,
+        Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT,
+        Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT,
+        Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT
+    )
+
+private fun resistanceRolls(randomElements: Map<Characteristic, List<Int>>) =
+    rollsFrom(
+        randomElements,
+        Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT,
+        Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT,
+        Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT
+    )
+
+/**
+ * Assigns atomic [rolls] (value, count) to MAXIMIZE the minimum over [subset], EXACTLY. Each roll lands on
+ * `min(count, allWanted.size)` distinct elements; of those, the `j = min(that, subset.size)` that land on subset
+ * elements are what move the min — the remainder spill onto non-subset wanted elements (free for the objective).
+ *
+ * There is NO optimal greedy here (a deficit-sort or a per-roll water-fill is provably beatable — see
+ * RandomElementAssignmentTest), so we solve the small problem exactly: branch & bound over the ≤4 subset values,
+ * one roll at a time, pruning with the admissible bound `min ≤ (Σ subset + reachable remaining mass) / |subset|`.
+ * This is exactly what the freed CP-SAT model computes, keeping the two engines consistent. Surplus is then
+ * spilled onto the lowest non-subset wanted elements for a faithful per-element display.
+ */
+private fun MutableMap<Characteristic, Int>.assignMaxMin(
+    rolls: List<Pair<Int, Int>>,
+    allWanted: List<Characteristic>,
+    subset: List<Characteristic>,
+): MutableMap<Characteristic, Int> {
+    if (subset.isEmpty() || rolls.isEmpty()) return this
+    // Reduce to: subset values + per-roll (value, how many subset elements it covers). Process biggest first.
+    val subsetBase = IntArray(subset.size) { this[subset[it]]!! }
+    val subsetRolls =
+        rolls
+            .mapNotNull { (value, count) ->
+                val eff = minOf(count, allWanted.size)
+                val coversSubset = minOf(eff, subset.size)
+                if (value == 0 || coversSubset == 0) null else value to coversSubset
+            }.sortedByDescending { it.first.toLong() * it.second }
+    if (subsetRolls.isEmpty()) return this
+
+    val best = IntArray(subset.size) { subsetBase[it] }
+    var bestMin = best.min()
+    val current = subsetBase.copyOf()
+    // Remaining reachable subset mass after roll index i (suffix sums), for the average bound.
+    val suffixMass = IntArray(subsetRolls.size + 1)
+    for (i in subsetRolls.indices.reversed()) suffixMass[i] = suffixMass[i + 1] + subsetRolls[i].first * subsetRolls[i].second
+    val combosByCover = (0..subset.size).associateWith { k -> indexCombinations(subset.size, k) }
+
+    fun recurse(rollIndex: Int) {
+        if (rollIndex == subsetRolls.size) {
+            val m = current.min()
+            if (m > bestMin) {
+                bestMin = m
+                System.arraycopy(current, 0, best, 0, current.size)
+            }
+            return
+        }
+        // Admissible bound: the min can never exceed the subset average once all remaining mass is spread.
+        val sum = current.sum()
+        if ((sum + suffixMass[rollIndex]) / subset.size <= bestMin) return
+        val (value, cover) = subsetRolls[rollIndex]
+        for (combo in combosByCover.getValue(cover)) {
+            for (idx in combo) current[idx] += value
+            recurse(rollIndex + 1)
+            for (idx in combo) current[idx] -= value
+        }
+    }
+    recurse(0)
+
+    subset.forEachIndexed { i, element -> this[element] = best[i] }
+    // Spill (count > subset.size) onto the lowest non-subset wanted elements — display only, min is unchanged.
+    val subsetSet = subset.toSet()
+    val nonSubset = allWanted.filterNot { it in subsetSet }
+    if (nonSubset.isNotEmpty()) {
+        for ((value, count) in rolls.sortedWith(compareByDescending<Pair<Int, Int>> { it.second }.thenByDescending { it.first })) {
+            val spill = minOf(count, allWanted.size) - minOf(minOf(count, allWanted.size), subset.size)
+            if (value == 0 || spill <= 0) continue
+            nonSubset.sortedBy { this[it]!! }.take(spill).forEach { this[it] = this[it]!! + value }
+        }
+    }
+    return this
+}
+
+/**
+ * Assigns atomic [rolls] (value, count) to MAXIMIZE `Σ min(value_e, target_e)` over [wanted] (precision's capped
+ * objective), EXACTLY — branch & bound over the ≤4 element values, pruning with the admissible bound
+ * `capped ≤ current capped + min(remaining reachable mass, remaining room-to-target)`. Mirrors the freed CP-SAT model.
+ */
+private fun MutableMap<Characteristic, Int>.assignMaxCapped(
+    rolls: List<Pair<Int, Int>>,
+    wanted: List<Characteristic>,
+    targets: Map<Characteristic, Int>,
+): MutableMap<Characteristic, Int> {
+    val n = wanted.size
+    if (n == 0 || rolls.isEmpty()) return this
+    val target = IntArray(n) { targets[wanted[it]] ?: Int.MAX_VALUE }
+    val effRolls =
+        rolls
+            .mapNotNull { (value, count) ->
+                val eff = minOf(count, n)
+                if (value == 0 || eff == 0) null else value to eff
+            }.sortedByDescending { it.first.toLong() * it.second }
+    if (effRolls.isEmpty()) return this
+
+    val current = IntArray(n) { this[wanted[it]]!! }
+    val best = current.copyOf()
+
+    fun cappedSum(arr: IntArray): Long {
+        var s = 0L
+        for (i in 0 until n) s += minOf(arr[i], target[i]).toLong()
+        return s
+    }
+    var bestCapped = cappedSum(current)
+    val suffixMass = LongArray(effRolls.size + 1)
+    for (i in effRolls.indices.reversed()) suffixMass[i] = suffixMass[i + 1] + effRolls[i].first.toLong() * effRolls[i].second
+    val combosByCover = (0..n).associateWith { k -> indexCombinations(n, k) }
+
+    fun recurse(rollIndex: Int) {
+        if (rollIndex == effRolls.size) {
+            val c = cappedSum(current)
+            if (c > bestCapped) {
+                bestCapped = c
+                System.arraycopy(current, 0, best, 0, n)
+            }
+            return
+        }
+        // Admissible: extra capped ≤ min(remaining mass, remaining room-to-target).
+        var room = 0L
+        for (i in 0 until n) room += maxOf(0, target[i] - current[i]).toLong()
+        if (cappedSum(current) + minOf(suffixMass[rollIndex], room) <= bestCapped) return
+        val (value, cover) = effRolls[rollIndex]
+        for (combo in combosByCover.getValue(cover)) {
+            for (idx in combo) current[idx] += value
+            recurse(rollIndex + 1)
+            for (idx in combo) current[idx] -= value
+        }
+    }
+    recurse(0)
+
+    wanted.forEachIndexed { i, element -> this[element] = best[i] }
+    return this
+}
+
+/** All k-element index subsets of [0, n). */
+private fun indexCombinations(
+    n: Int,
+    k: Int,
+): List<IntArray> {
+    val result = mutableListOf<IntArray>()
+    val combo = IntArray(k)
+
+    fun build(
+        start: Int,
+        depth: Int,
+    ) {
+        if (depth == k) {
+            result.add(combo.copyOf())
+            return
+        }
+        for (i in start..n - k + depth) {
+            combo[depth] = i
+            build(i + 1, depth + 1)
+        }
+    }
+    if (k in 0..n) build(0, 0)
+    return result
 }
 
 private fun MutableMap<Characteristic, Int>.assignValues(
@@ -431,7 +706,8 @@ private fun subConditionHolds(
         SublimationConditionType.RANGE_EXACT -> v(Characteristic.RANGE) == n
         SublimationConditionType.DODGE_LT_PCT_OF_LEVEL -> v(Characteristic.DODGE) < (n * level) / 100
         SublimationConditionType.SECONDARY_MASTERIES_AT_MOST ->
-            v(Characteristic.MASTERY_MELEE) + v(Characteristic.MASTERY_DISTANCE) <= n
+            me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
+                .sumOf { v(it) } <= n
         else -> true
     }
 }

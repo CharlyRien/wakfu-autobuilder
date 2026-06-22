@@ -36,9 +36,9 @@ kotlin {
     )
 }
 
-tasks.test {
-    useJUnitPlatform()
-    jvmArgs(
+// OR-Tools loads a native library at runtime, so every test JVM needs these (see CLAUDE.md §9).
+val orToolsTestJvmArgs =
+    listOf(
         "--enable-native-access=ALL-UNNAMED",
         "--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",
         "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED",
@@ -46,6 +46,23 @@ tasks.test {
         // protobuf-java (pulled in transitively by OR-Tools) — nothing we can fix in our own code.
         "--sun-misc-unsafe-memory-access=allow"
     )
+
+tasks.test {
+    // The heavy full-pool OR-Tools OPTIMAL *proof* tests are tagged @Tag("slow") and EXCLUDED here: each
+    // requests 8 solver workers and burns a large deterministic-time budget, so on a 2-core CI runner they
+    // oversubscribe and take ~15 min. The default `test` (every push/PR) stays fast; they run via `slowTest`
+    // (nightly + on-demand — see .github/workflows/build.yml).
+    useJUnitPlatform { excludeTags("slow") }
+    jvmArgs(orToolsTestJvmArgs)
+}
+
+tasks.register<Test>("slowTest") {
+    description = "Runs ONLY the @Tag(\"slow\") tests (the heavy full-pool OR-Tools OPTIMAL proofs)."
+    group = "verification"
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    useJUnitPlatform { includeTags("slow") }
+    jvmArgs(orToolsTestJvmArgs)
 }
 
 application {
