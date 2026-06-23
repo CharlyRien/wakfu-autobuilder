@@ -54,7 +54,7 @@ object WakfuBuildSolver {
     private const val MAX_POWER_TABLE_INDEX = 2_000
     private const val MAX_PENALTY_MULTIPLIER = 1_000_000L
     private const val MAX_SUBLIMATIONS = 10L // Wakfu: at most 10 sublimations on a build (incl. ≤1 epic, ≤1 relic).
-    private const val NORMAL_SUB_SOCKET_COST = 3L // a normal sublimation occupies 3 sockets on its carrier item.
+    private const val NORMAL_SUB_SOCKET_COST = 3L // a normal sublimation needs a 3-socket carrier for its ordered colour pattern.
 
     // Out-of-combat hardcaps (Wakfu): the equipped sheet can't exceed these. In-combat bonuses — including
     // start-of-combat sublimations — may go beyond, so the cap is on the PRE-sublimation value.
@@ -421,7 +421,11 @@ object WakfuBuildSolver {
         val skillVars = model.createSkillVariables(params.character.characterSkills)
         val runeModel = model.createRuneModel(params, allEquips, equipVars, runes)
         val subModel = model.createSublimationModel(params, allEquips, equipVars, sublimations)
-        model.addNormalSublimationSocketBudget(allEquips, equipVars, runeModel, subModel)
+        // A normal sublimation does NOT reserve rune sockets. Golden runes (colour-agnostic) form its ordered
+        // colour pattern AND still carry their stat — doubling where the item favours that colour — so a carrier
+        // keeps a full set of runes alongside the sub. Carrier eligibility (≥3-socket item) and the
+        // ≤1-normal-sub-per-item cap live in createSublimationModel; rune capacity (Σ runes ≤ sockets) lives in
+        // createRuneModel. The two no longer share a socket budget.
 
         model.addBuildValidityConstraints(allEquips, equipVars)
 
@@ -818,8 +822,9 @@ object WakfuBuildSolver {
     /**
      * Models the chosen/forced sublimations. Each modeled sub gets a [SublimationModel.subVars] boolean.
      * Epic/relic subs are gated to an equipped epic/relic item — their dedicated slot comes from that carrier
-     * ([gateSublimationsOnCarrierItems]); a normal sub is assigned to one ≥3-socket carrier item and consumes
-     * 3 of its sockets ([addNormalSublimationSocketBudget]), so it can't share sockets across items. At most 10
+     * ([gateSublimationsOnCarrierItems]); a normal sub is assigned to one ≥3-socket carrier item (at most one
+     * normal sub per item), but does NOT consume rune sockets — golden runes (colour-agnostic) form its ordered
+     * colour pattern while still carrying their stat, so the carrier keeps a full set of runes. At most 10
      * sublimations per build. Socket colours stay optimistic/re-rollable (no per-item colour data); the chosen
      * carrier + pattern are surfaced in the GUI. Effect contributions fold into the stat term loop by
      * [StatBuilder]; forced subs apply unconditionally (the user takes responsibility).
@@ -869,9 +874,10 @@ object WakfuBuildSolver {
         // Total cap: at most 10 sublimations on a build.
         addLessOrEqual(LinearExpr.sum(subVars.values.toTypedArray()), MAX_SUBLIMATIONS)
 
-        // Tie each NORMAL sub to exactly one carrier item with ≥3 sockets (y[sub,item]=1 ⇒ that item hosts it).
-        // The sub then consumes 3 of that item's sockets (addNormalSublimationSocketBudget) — i.e. it changes
-        // that item's enchantment loadout. Epic/relic subs need no socket carrier (gated on the rarity item above).
+        // Tie each NORMAL sub to exactly one carrier item with ≥3 sockets (y[sub,item]=1 ⇒ that item hosts it):
+        // it needs ≥3 sockets to lay down its ordered 3-colour pattern, but — golden runes being colour-agnostic —
+        // it does NOT take those sockets away from runes, so the carrier keeps a full rune set. Epic/relic subs
+        // need no socket carrier (gated on the rarity item above).
         val normalSubs = subVars.keys.filter { it.rarity == SublimationRarity.NORMAL }
         val carrierItems = allEquips.filter { it.maxShardSlots >= NORMAL_SUB_SOCKET_COST }
         val carrierVars = LinkedHashMap<Sublimation, Map<Equipment, IntVar>>()
@@ -2712,36 +2718,6 @@ object WakfuBuildSolver {
     ) {
         companion object {
             val EMPTY = SublimationModel(emptyMap(), emptySet(), 0)
-        }
-    }
-
-    /**
-     * Best-achievable normal-sublimation ↔ rune socket coupling (research P7): a normal sub reserves 3
-     * socket slots that can no longer hold runes, so `Σ runeCount + 3·Σ normalSubChosen ≤ Σ sockets of
-     * equipped items`. This is a global capacity budget (no per-slot colour / doubling pinning), matching
-     * the engine's existing optimistic re-rollable-colours rune model.
-     */
-    private fun CpModel.addNormalSublimationSocketBudget(
-        allEquips: List<Equipment>,
-        equipVars: Map<Equipment, IntVar>,
-        runeModel: RuneModel,
-        subModel: SublimationModel,
-    ) {
-        val normalSubs = subModel.subVars.keys.filter { it.rarity == SublimationRarity.NORMAL }
-        if (normalSubs.isEmpty()) return
-        // Per item: (runes socketed in it) + 3·(normal subs hosted on it) ≤ its sockets, when equipped. This
-        // ties each sub's 3 sockets to ONE carrier and shares the carrier's sockets with its runes, so hosting
-        // a sub reduces that item's rune capacity (no borrowing sockets across items). A normal sub with no
-        // ≥3-socket carrier is already forced off by the assignment equality in createSublimationModel.
-        for (item in allEquips) {
-            val runeVarsForItem = runeModel.runeVars[item]?.values.orEmpty()
-            val subHostsForItem = normalSubs.mapNotNull { subModel.carrierVars[it]?.get(item) }
-            if (runeVarsForItem.isEmpty() && subHostsForItem.isEmpty()) continue
-            val budget = LinearExpr.newBuilder()
-            runeVarsForItem.forEach { budget.addTerm(it, 1L) }
-            subHostsForItem.forEach { budget.addTerm(it, NORMAL_SUB_SOCKET_COST) }
-            budget.addTerm(equipVars.getValue(item), -item.maxShardSlots.toLong())
-            addLessOrEqual(budget.build(), 0L)
         }
     }
 
