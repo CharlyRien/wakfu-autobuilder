@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.7.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.6.0...wakfu-autobuilder-1.7.0) (2026-06-23)
+
+
+### Features
+
+* **gui:** item-type icons on empty equipment slots ([a535997](https://github.com/CharlyRien/wakfu-autobuilder/commit/a535997f64364bbba7ab05e11b18b5ca2a4aedb1))
+* **max-damage:** provably-optimal builds for single, boss & multi-element searches ([8923894](https://github.com/CharlyRien/wakfu-autobuilder/commit/89238940fa66176eca358b372c1ef8e3e35e4754))
+* **runes:** a normal sublimation keeps the item's full rune set, and the socket pattern is always drawn ([54761dc](https://github.com/CharlyRien/wakfu-autobuilder/commit/54761dc694e5efa6d065a1bc2937a5d30a9b64d0))
+
 ## [1.6.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.5.0...wakfu-autobuilder-1.6.0) (2026-06-21)
 
 
