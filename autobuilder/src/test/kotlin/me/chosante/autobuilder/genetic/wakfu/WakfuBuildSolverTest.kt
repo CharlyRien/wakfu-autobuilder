@@ -1792,7 +1792,7 @@ class WakfuBuildSolverTest {
         }
 
     @Test
-    fun `a normal sublimation is chosen only when enough sockets are free (socket budget)`(): Unit =
+    fun `a normal sublimation needs a carrier item with at least 3 sockets`(): Unit =
         runBlocking {
             val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
             val normalDi =
@@ -1805,7 +1805,7 @@ class WakfuBuildSolverTest {
                     slotColorPattern = listOf(1, 2, 3)
                 )
 
-            // Carrier with 4 sockets: 3 reserved for the normal sub is fine -> chosen.
+            // Carrier with 4 sockets: enough to lay down the sub's ordered 3-colour pattern -> chosen.
             val bigCarrier = equipment(1, ItemType.AMULET, "Fire4", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100), maxShardSlots = 4)
             val chosen =
                 WakfuBuildSolver
@@ -1826,6 +1826,59 @@ class WakfuBuildSolverTest {
                     .toList()
                     .maxByOrNull { it.matchPercentage }!!
             assertThat(declined.individual.sublimations).isEmpty()
+        }
+
+    @Test
+    fun `a normal sublimation does not steal rune sockets from its carrier (golden runes)`(): Unit =
+        runBlocking {
+            val level = 245
+            val character = Character(CharacterClass.CRA, level, level, CharacterSkills(level))
+            // A 4-socket carrier, a beneficial distance rune, and a FORCED normal sub needing a 3-colour pattern.
+            // Golden runes form that pattern while still carrying their stat, so the sub must NOT cost rune sockets:
+            // the carrier keeps all four runes. (The old "reserve 3 sockets" model would cap this at one rune.)
+            val carrier = equipment(1, ItemType.AMULET, "Amu", mapOf(Characteristic.MASTERY_DISTANCE to 50), maxShardSlots = 4, level = level)
+            val distanceRune =
+                RuneType(27098, I18nText("d", "d", "d", "d"), RuneColor.RED, Characteristic.MASTERY_DISTANCE, listOf(10, 15), 0)
+            val normalSub =
+                sublimation(
+                    10,
+                    SublimationRarity.NORMAL,
+                    SublimationKind.FLAT,
+                    "DistNormal",
+                    effects = listOf(SublimationEffect(Characteristic.MASTERY_DISTANCE, 10)),
+                    slotColorPattern = listOf(1, 2, 3)
+                )
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1))),
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    forcedSublimations = listOf("DistNormal"),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+                )
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(params, listOf(carrier).groupBy { it.itemType }, listOf(distanceRune), listOf(normalSub), WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            // The forced normal sub is hosted on the carrier...
+            assertThat(
+                best.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).contains("DistNormal")
+            // ...and it does not consume rune sockets: all four sockets still hold the distance rune.
+            val socketed =
+                best.individual.runes.values
+                    .flatten()
+            assertThat(socketed).hasSize(4)
+            assertThat(socketed).allMatch { it.characteristic == Characteristic.MASTERY_DISTANCE }
         }
 
     @Test

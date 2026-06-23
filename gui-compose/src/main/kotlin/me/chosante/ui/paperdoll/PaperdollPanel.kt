@@ -646,20 +646,25 @@ private fun ItemTooltip(
                 }
             }
         }
-        if (runes.isNotEmpty()) {
+        val socketRunes = socketLayout(equipment, runes, subs).filter { it.second != null }
+        if (socketRunes.isNotEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
             Text(
                 text = tr(Tr.RUNES),
                 style = WTypography.labelSmall.copy(color = WColor.faint, fontWeight = FontWeight.SemiBold)
             )
-            runes
-                .groupBy { it.characteristic }
-                .forEach { (_, sameStatRunes) ->
+            // Group by (stat, socket colour) so a hosted sublimation's pattern shows in the runes too — e.g. one
+            // green + three red distance runes — exactly matching the card. Enchantment level is gated by the
+            // carrier item's level (Ankama's table).
+            socketRunes
+                .groupBy { (color, rune) -> rune!!.characteristic to color }
+                .forEach { (statColor, cells) ->
+                    val rune = cells.first().second!!
                     TooltipRuneRow(
-                        rune = sameStatRunes.first(),
-                        count = sameStatRunes.size,
-                        // Enchantment level is gated by the carrier item's level (Ankama's table).
-                        level = sameStatRunes.first().maxLevel(equipment.level),
+                        rune = rune,
+                        color = statColor.second,
+                        count = cells.size,
+                        level = rune.maxLevel(equipment.level),
                         lang = lang
                     )
                 }
@@ -707,6 +712,31 @@ private fun RuneColor.displayColor(): Color =
     }
 
 /**
+ * The per-socket display layout for an item's enchantments, as `(socket colour, rune in it)` cells.
+ * A hosted normal sublimation paints its ordered colour pattern on the first sockets — so the pattern is
+ * ALWAYS drawn (that is how the sub is satisfied: users see the green/red/… sockets that host it) — and the
+ * remaining free sockets take the colour of the rune that fills them. Golden runes (colour-agnostic) make this
+ * always reachable: a rune in a pattern socket shows the pattern colour, a rune in a free socket shows its own
+ * (doubling) colour. Capped at the item's socket count; a pattern cell with no rune (more pattern than runes)
+ * carries a null rune. This single source drives both the paperdoll card shards and the hover tooltip so they
+ * always agree.
+ */
+private fun socketLayout(
+    equipment: Equipment,
+    runes: List<RuneType>,
+    subs: List<Sublimation>,
+): List<Pair<RuneColor, RuneType?>> {
+    val pattern = subs.flatMap { it.colors }
+    val slots = equipment.maxShardSlots.coerceAtLeast(0)
+    val cellCount = maxOf(pattern.size, runes.size).coerceAtMost(slots)
+    return (0 until cellCount).map { i ->
+        val rune = runes.getOrNull(i)
+        val color = pattern.getOrNull(i) ?: rune?.color ?: RuneColor.RED
+        color to rune
+    }
+}
+
+/**
  * A socketed rune's "symbol" = its official socket-shape shard, by socket colour: red = square,
  * green = pentagon, blue = triangle. The shard PNGs are extracted from the client's gui.jar
  * (`theme/images/shard{Red,Green,Blue}Full`) into assets/runes/ by `generateAssets`. The stat each rune
@@ -748,6 +778,7 @@ private fun RuneShape(
 @Composable
 private fun TooltipRuneRow(
     rune: RuneType,
+    color: RuneColor,
     count: Int,
     level: Int,
     lang: Lang,
@@ -756,14 +787,16 @@ private fun TooltipRuneRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp)
     ) {
-        RuneShape(color = rune.color, size = 18.dp)
+        // [color] is the SOCKET colour (a sublimation pattern colour, or the rune's own on a free socket), not
+        // necessarily the rune's nominal colour — golden runes take the colour of the socket they sit in.
+        RuneShape(color = color, size = 18.dp)
         Text(
             text = "${count}x",
             style =
                 WTypography.bodySmall.copy(
                     fontFamily = WType.mono,
                     fontWeight = FontWeight.SemiBold,
-                    color = rune.color.displayColor()
+                    color = color.displayColor()
                 )
         )
         Text(
@@ -972,16 +1005,12 @@ private fun SlotMeta(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            // The item's SOCKETS, shown as coloured shards. A rune and a sublimation pattern colour describe the
-            // SAME physical socket (the sub dictates a socket's required colour; the chosen rune sits in it and
-            // already matches), so they are not additive: the solver's CHOSEN RUNES come first and win the socket
-            // budget, and the sublimation's pattern only fills any sockets the runes didn't (capped at the item's
-            // socket count). Ordering runes first stops a 3-colour sub pattern from consuming the whole budget and
-            // hiding the chosen runes. The sublimation is still NAMED to one side on the SAME line (no extra
-            // vertical line, so the shard size stays identical on every card), which surfaces epic/relic subs too
-            // (they carry no pattern). Full per-rune/-sub details stay in the hover tooltip.
-            val socketColors =
-                (runes.map { it.color } + subs.flatMap { it.colors }).take(equipment.maxShardSlots.coerceAtLeast(1))
+            // The item's SOCKETS as coloured shards, from the shared [socketLayout]: a hosted normal sublimation
+            // paints its ordered colour pattern on the first sockets (so it is always visible — golden runes form
+            // it), then the free sockets take their rune's colour. The sublimation is still NAMED to one side on
+            // the SAME line (no extra vertical line, so the shard size stays identical on every card), which
+            // surfaces epic/relic subs too (they carry no pattern). Full per-rune/-sub details stay in the tooltip.
+            val socketColors = socketLayout(equipment, runes, subs).map { it.first }
             val hasSub = subs.isNotEmpty()
             if (socketColors.isNotEmpty() || hasSub) {
                 val gap = 5.dp
