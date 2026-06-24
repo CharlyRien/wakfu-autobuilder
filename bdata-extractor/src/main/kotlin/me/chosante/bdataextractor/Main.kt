@@ -11,6 +11,7 @@ import me.chosante.common.Monster
 import me.chosante.common.RuneType
 import me.chosante.common.Spell
 import me.chosante.common.SpellDamageScaling
+import me.chosante.common.SpellLocalization
 import me.chosante.common.Sublimation
 import me.chosante.common.WakfuData
 import me.chosante.common.findRepositoryRoot
@@ -80,9 +81,18 @@ fun main(args: Array<String>) {
     val castJson = json.encodeToString(ListSerializer(CastLimit.serializer()), castLimits)
     verifyAndWrite(File(resources, "spell-cast-limits.json"), castJson, "cast-limits", castLimits.size, force)
 
-    val passives = buildPassives(spells, effects, actions, names)
+    // Localization bundle, loaded once and reused for monsters below: spell name (3) + spell description (4)
+    // for passives, monster name (7) + family (38) for the bestiary.
+    val i18n = I18nBundle.load(install, namespaces = setOf(3, 4, 7, 38))
+    val passives = buildPassives(spells, effects, actions, names, i18n)
     val passivesJson = json.encodeToString(ListSerializer(PassiveEntry.serializer()), passives)
     verifyAndWrite(File(resources, "spell-passives.json"), passivesJson, "passives", passives.size, force)
+
+    // Per-spell localized name + description (i18n namespaces 3 + 4), joined onto spells.json by id in
+    // SpellCatalog so the GUI shows translated spell text instead of the encyclopedia's English-only descriptions.
+    val spellLocalizations = buildSpellLocalizations(spells, i18n)
+    val spellI18nJson = json.encodeToString(ListSerializer(SpellLocalization.serializer()), spellLocalizations)
+    verifyAndWrite(File(resources, "spell-i18n.json"), spellI18nJson, "spell-i18n", spellLocalizations.size, force)
 
     // Spell damage scalings: the per-level [base, inc] formula from bdata, anchored on the encyclopedia's
     // max-level value so SpellDamage scales each hit to the caster's level (the encyclopedia only knows one
@@ -133,7 +143,6 @@ fun main(args: Array<String>) {
     println("Decoding Monster table (42)…")
     val monsterRecords = loadTable(install, Tables.MONSTER, monsterSchema).records
     println("  ${monsterRecords.size} records (size-guard passed)")
-    val i18n = I18nBundle.load(install, namespaces = setOf(7, 38))
     val ranks = loadMonsterRanks(File(resources, "monster-overlay.json"))
     println("Loaded ${ranks.size} boss rank overrides")
     val monsters = buildMonsters(monsterRecords, i18n, ranks)

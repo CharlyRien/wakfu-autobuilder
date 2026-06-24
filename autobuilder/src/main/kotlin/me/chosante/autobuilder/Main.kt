@@ -1055,7 +1055,7 @@ private fun List<me.chosante.common.Passive>.asPassivesASCIITable() =
                     passive.flatStats.entries
                         .joinToString(", ") { "+${it.value} ${it.key.name}" }
                         .ifBlank { "—" }
-                row(passive.name ?: passive.spellId.toString(), flat, passive.description ?: "")
+                row(passive.name?.fr ?: passive.spellId.toString(), flat, passive.description?.fr ?: "")
             }
         }
     }

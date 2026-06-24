@@ -7,7 +7,9 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
+import me.chosante.common.I18nText
 import me.chosante.common.Monster
+import me.chosante.common.SpellLocalization
 import java.io.File
 import kotlin.math.abs
 
@@ -87,13 +89,13 @@ data class DeclaredEffect(
 @Serializable
 data class PassiveEntry(
     val spellId: Int,
-    val name: String?,
+    val name: I18nText?,
     val breedId: Int,
     @SerialName("class") val clazz: String,
     // Spell sprite id (Spell table `gfx_id`). Names the passive's icon PNG (`assets/spells/<gfxId>.png`,
     // extracted from the client's gui.jar — the same set the active-spell icons come from) so the GUI can render it.
     val gfxId: Int,
-    val description: String?,
+    val description: I18nText?,
     val effectIds: List<Int>,
     val declaredEffects: List<DeclaredEffect>,
     val flatBuildStats: Map<String, JsonElement>,
@@ -272,12 +274,36 @@ private class Resolved(
     val permanent: Boolean,
 )
 
+// i18n namespaces in the client text bundle: spell name (3) and spell description (4).
+private const val NS_SPELL_NAME = 3
+private const val NS_SPELL_DESCRIPTION = 4
+
+/**
+ * Per-spell localized name + description for the active class spells, straight from the client i18n bundle
+ * (name = namespace 3, description = namespace 4, all four languages). Joined onto `spells.json` by id in
+ * SpellCatalog so the GUI shows translated spell text — the encyclopedia scrape only carried English
+ * descriptions. Passives carry their own text in spell-passives.json, so they're excluded here.
+ */
+fun buildSpellLocalizations(
+    spells: Table,
+    i18n: I18nBundle,
+): List<SpellLocalization> =
+    spells.records
+        .filter { (it["breed_id"] as Int) in PLAYER_BREEDS && (it["passive"] as Int) != 2 }
+        .sortedWith(compareBy({ it["breed_id"] as Int }, { it["id"] as Int }))
+        .mapNotNull { r ->
+            val id = r["id"] as Int
+            val name = i18n.text(NS_SPELL_NAME, id) ?: return@mapNotNull null
+            SpellLocalization(spellId = id, name = name, description = i18n.text(NS_SPELL_DESCRIPTION, id))
+        }
+
 /** Passives artifact: catalogue + resolved declarative effects + a conservative permanent-stat rollup. */
 fun buildPassives(
     spells: Table,
     effects: Table,
     actions: ActionCatalog,
     names: Map<Int, SpellInfo>,
+    i18n: I18nBundle,
 ): List<PassiveEntry> {
     @Suppress("UNCHECKED_CAST")
     fun intList(v: Any?): List<Int> = (v as List<Any?>).map { it as Int }
@@ -388,13 +414,15 @@ fun buildPassives(
                 }
             }
 
+            // Localized name/description from the client i18n bundle (all four languages); fall back to the
+            // encyclopedia's French text (widened to all languages) only if the bundle lacks the key.
             PassiveEntry(
                 spellId = id,
-                name = names[id]?.nameFr,
+                name = i18n.text(NS_SPELL_NAME, id) ?: names[id]?.nameFr?.let { I18nText(it, it, it, it) },
                 breedId = breed,
                 clazz = BREED_TO_CLASS.getValue(breed),
                 gfxId = gfx,
-                description = names[id]?.descFr,
+                description = i18n.text(NS_SPELL_DESCRIPTION, id) ?: names[id]?.descFr?.let { I18nText(it, it, it, it) },
                 effectIds = effectIds,
                 declaredEffects =
                     resolved.map {

@@ -1,14 +1,22 @@
 package me.chosante.ui.shell
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -17,10 +25,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
@@ -33,7 +44,9 @@ import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.tr
 import me.chosante.ui.paperdoll.PaperdollPanel
 import me.chosante.ui.request.RequestPanel
+import me.chosante.ui.spells.ClassSpellsPanel
 import me.chosante.ui.state.BuildSearchModel
+import me.chosante.ui.state.BuilderTab
 import me.chosante.ui.state.Modal
 import me.chosante.ui.state.Phase
 import me.chosante.ui.state.PickerMode
@@ -42,6 +55,7 @@ import me.chosante.ui.state.folderCounts
 import me.chosante.ui.state.statCatalog
 import me.chosante.ui.stats.StatsPanel
 import me.chosante.ui.theme.WColor
+import me.chosante.ui.theme.WTypography
 import java.awt.Cursor
 
 @Composable
@@ -131,7 +145,8 @@ fun AppShell(
                             CompareScreen(
                                 ui = ui,
                                 onPick = model::setCompareSlot,
-                                onClearSlot = model::clearCompareSlot,
+                                onClear = model::clearCompareSlot,
+                                onAdd = model::addCompareSlot,
                                 onBack = { model.goToScreen(Screen.Library) }
                             )
                     }
@@ -236,37 +251,113 @@ private fun BuilderBody(
             )
         }
         ResizableSeparator(onDelta = onRequestWidthDelta)
-        ShellColumn(
-            title = tr(Tr.ZONE_BUILD),
-            hint =
-                when (ui.phase) {
-                    Phase.Idle -> tr(Tr.ZONE_BUILD_IDLE)
-                    Phase.Searching -> tr(Tr.ZONE_BUILD_SEARCHING)
-                    Phase.Done -> tr(Tr.ZONE_BUILD_DONE)
-                },
-            modifier = Modifier.weight(1f)
-        ) {
-            PaperdollPanel(
-                ui = ui,
-                onForceItem = model::forceItem,
-                onExcludeItem = model::excludeItem,
-                onEditRunes = model::openItemRunePicker
+        // The result region carries a tab strip (discovered build vs the class's spells & passives) above
+        // its content: the build tab keeps the resizable paperdoll | stats split, the spells tab is full-width.
+        Column(modifier = Modifier.weight(1f).fillMaxHeight().background(WColor.bg)) {
+            ResultTabHeader(
+                current = ui.builderTab,
+                phaseHint =
+                    if (ui.builderTab == BuilderTab.BUILD) {
+                        when (ui.phase) {
+                            Phase.Idle -> tr(Tr.ZONE_BUILD_IDLE)
+                            Phase.Searching -> tr(Tr.ZONE_BUILD_SEARCHING)
+                            Phase.Done -> tr(Tr.ZONE_BUILD_DONE)
+                        }
+                    } else {
+                        ""
+                    },
+                onSelect = model::setBuilderTab
             )
+            when (ui.builderTab) {
+                BuilderTab.BUILD ->
+                    Row(modifier = Modifier.fillMaxWidth().weight(1f).background(WColor.hairline)) {
+                        Box(modifier = Modifier.weight(1f).fillMaxHeight().background(WColor.bg)) {
+                            PaperdollPanel(
+                                ui = ui,
+                                onForceItem = model::forceItem,
+                                onExcludeItem = model::excludeItem,
+                                onEditRunes = model::openItemRunePicker
+                            )
+                        }
+                        ResizableSeparator(onDelta = onStatsWidthDelta)
+                        Box(modifier = Modifier.width(statsWidth).fillMaxHeight().background(WColor.bg)) {
+                            StatsPanel(
+                                ui = ui,
+                                onOpenZenith = model::openZenithBuild,
+                                onCopyZenith = model::copyZenithLink,
+                                onSaveBuild = model::requestSaveBuild,
+                                onExport = model::exportBuild
+                            )
+                        }
+                    }
+
+                BuilderTab.SPELLS ->
+                    ClassSpellsPanel(ui = ui, modifier = Modifier.fillMaxWidth().weight(1f))
+            }
         }
-        ResizableSeparator(onDelta = onStatsWidthDelta)
-        ShellColumn(
-            title = tr(Tr.ZONE_STATS),
-            hint = tr(Tr.ZONE_STATS_HINT),
-            modifier = Modifier.width(statsWidth)
+    }
+}
+
+/** Tab strip atop the result region: discovered build vs the class's spells & passives. */
+@Composable
+private fun ResultTabHeader(
+    current: BuilderTab,
+    phaseHint: String,
+    onSelect: (BuilderTab) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth().background(WColor.bg)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            StatsPanel(
-                ui = ui,
-                onOpenZenith = model::openZenithBuild,
-                onCopyZenith = model::copyZenithLink,
-                onSaveBuild = model::requestSaveBuild,
-                onExport = model::exportBuild
-            )
+            Row(
+                modifier =
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(WColor.bg)
+                        .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
+                        .padding(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                ResultTab(label = tr(Tr.TAB_DISCOVERED_BUILD), selected = current == BuilderTab.BUILD) {
+                    onSelect(BuilderTab.BUILD)
+                }
+                ResultTab(label = tr(Tr.TAB_CLASS_SPELLS), selected = current == BuilderTab.SPELLS) {
+                    onSelect(BuilderTab.SPELLS)
+                }
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            if (phaseHint.isNotEmpty()) {
+                Text(text = phaseHint, style = WTypography.labelSmall.copy(color = WColor.muted))
+            }
         }
+        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
+    }
+}
+
+@Composable
+private fun ResultTab(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .background(if (selected) WColor.raised else Color.Transparent)
+                .clickable(onClick = onClick)
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style =
+                WTypography.labelMedium.copy(
+                    color = if (selected) WColor.text else WColor.muted,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                )
+        )
     }
 }
 

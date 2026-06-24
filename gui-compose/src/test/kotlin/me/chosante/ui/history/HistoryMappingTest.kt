@@ -207,7 +207,7 @@ class HistoryMappingTest {
                 kind = SublimationKind.FLAT,
                 rawText = "+50 fire mastery"
             )
-        val passive = Passive(spellId = 6989, name = "Ligne", clazz = "FECA", gfxId = 6989, flatBuildStats = mapOf("RANGE" to 1.0))
+        val passive = Passive(spellId = 6989, name = I18nText("Ligne", "Ligne", "Ligne", "Ligne"), clazz = "FECA", gfxId = 6989, flatBuildStats = mapOf("RANGE" to 1.0))
         val build =
             BuildCombination(
                 equipments = listOf(amulet),
@@ -239,7 +239,7 @@ class HistoryMappingTest {
         assertThat(rebuilt.sublimations[rebuiltAmulet].orEmpty().map { it.stateId })
             .describedAs("the sublimation reattaches to its carrier item")
             .containsExactly(42)
-        assertThat(rebuilt.passives.map { it.name })
+        assertThat(rebuilt.passives.mapNotNull { it.name?.fr })
             .describedAs("the passive loadout survives the round-trip")
             .containsExactly("Ligne")
         assertThat(rebuilt.passives.single().flatStats).containsEntry(Characteristic.RANGE, 1)
