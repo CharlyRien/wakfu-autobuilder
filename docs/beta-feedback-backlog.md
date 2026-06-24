@@ -43,10 +43,10 @@ chaque fiche est autonome (symptôme, cause racine, fichiers, plan, critères d'
 
 | ID | Titre | Type | Prio | Effort | Statut | Dépend / Conflits |
 |----|-------|------|------|--------|--------|-------------------|
-| **ENG-1** | Emblème imposé → Archiemblème (force-equip) | 🐞 | P0 | S | 🔲 TODO | — |
-| **ENG-2** | Forcer 2 sublis épique/relique = recherche « sans résultat » | 🐞 | P1 | M | 🔲 TODO | partage fichiers SUB-1 |
+| **ENG-1** | Validation requête + **pop-up listant toutes les erreurs** (item non équipable, force-equip) | 🐞 | P0 | M | ✅ `fix/eng-1-emblem-force-equip` | inclut ENG-2 ; → PICK-1/PICK-2 |
+| **ENG-2** | Forcer 2 sublis épique/relique = recherche « sans résultat » | 🐞 | P1 | M | ✅ **fusionné dans ENG-1** | voir ENG-1 |
 | **ENG-3** | Sublimations conditionnelles (croisées + forcée) | 🐞 | P2 | M | 🔲 TODO | re-baseline tests |
-| **RUNE-1** | Runes builder ≠ Zenith : expliciter « all gold » | 🐞 | P2 | S | 🔲 TODO | — |
+| **RUNE-1** | Runes builder ≠ Zenith : expliciter « all gold » | 🐞 | P2 | S | ✅ mergé (#181) | — |
 | **RUNE-2** | Badge « ×2 » rune doublée dans le picker | 🧹 | P3 | S | 🔲 TODO | REF-1/REF-2 (Modals) |
 | **RUNE-3** | Bouton « verrouiller les runes actuelles » | ✨ | P3 | S | 🔲 TODO | forçage par-item déjà fait |
 | **SUB-1** | Sublis : filtre/tri par rareté + couleur sur chips | ✨ | P2 | M | 🔲 TODO | REF-1/REF-2, ENG-2 |
@@ -54,10 +54,12 @@ chaque fiche est autonome (symptôme, cause racine, fichiers, plan, critères d'
 | **FLOW-1** | Charger un build dans un autre mode (comparer dégâts) | ✨ | P1 | M | 🔲 TODO | — |
 | **FLOW-2** | DI sélectionnable en mode max-maîtrises | ✨ | P2 | S | 🔲 TODO | 💬 décision prise |
 | **FLOW-3** | Avertir des points d'aptitude non distribués | 🧹 | P2 | S | 🔲 TODO | — |
+| **PICK-1** | Picker : checkbox « équipables uniquement » (cochée par défaut) | ✨ | P2 | M | 🔲 TODO | s'appuie sur REF-1 |
+| **PICK-2** | Nettoyer les forced hors-niveau au changement de niveau (garder excluded) | 🧹 | P2 | S | 🔲 TODO | sœur d'ENG-1 |
 | **REF-1** | Abstraction partagée des pickers add/suppr (corrige #3 partout) | 🏗️ | P1 | M | 🔲 TODO | base de RUNE-2/SUB-1 |
 | **REF-2** | Tri alphabétique localisé de TOUTES les modales catalogue | 🏗️ | P2 | M | 🔲 TODO | base de SUB-1, hotspot Modals |
 | **QOL-1** | Tooltip sur libellés de stats cibles tronqués | 🧹 | P3 | S | 🔲 TODO | — |
-| **QOL-2** | Durée vide → 10 minutes | 🧹 | P2 | S | 🔲 TODO | — |
+| **QOL-2** | Durée vide → 10 minutes | 🧹 | P2 | S | ✅ mergé (#182) | — |
 | **I18N-1** | Sublis/passifs en EN sous UI FR | 🔵 | — | — | 🔵 Déjà fait (1.8.0) | résidu effect-text |
 | **CLAR-*** | Clarifications / non-bugs | 💬 | — | — | 💬 | voir section |
 
@@ -79,8 +81,8 @@ chaque fiche est autonome (symptôme, cause racine, fichiers, plan, critères d'
 
 # A. Moteur — correctness (bugs)
 
-## ENG-1 — Emblème imposé renvoie un Archiemblème  🐞 P0 · Effort S
-**Statut : 🔲 TODO**
+## ENG-1 — Validation de requête + pop-up d'erreurs (inclut ENG-2)  🐞 P0 · Effort M
+**Statut : ✅ Implémenté — branche `fix/eng-1-emblem-force-equip`** · **💬 Décisions (24/06) : rejeter (pas équiper) + pop-up listant TOUTES les erreurs.**
 
 **Symptôme (testeur).** « Imposer un emblème n'a pas l'air de fonctionner. J'ai *Emblème de Frigost I* en
 imposé mais il me met *Archiemblème de Craqnoix*, et quand enlevé *Archiemblème des Racines*. Pour les
@@ -108,28 +110,69 @@ filtré** ; le solveur choisit alors n'importe quel Archiemblème dans la fourch
   les imposés ; à re-vérifier après fix).
 - `common-lib/.../Equipment.kt:22` — `EMBLEM(646)` partagé emblèmes + Archiemblèmes.
 
-**Plan.**
-1. **Exempter les imposés des filtres qui les supprimeraient** : OR-er les prédicats des filtres rareté
-   (`:126`) et niveau (`:127-129`) avec `equipment.name.fr.lowercase() in itemsToForce`. (Garder le filtre
-   d'exclusion `:130` — un item à la fois imposé ET exclu est contradictoire ; le laisser exclu ou en faire
-   une erreur explicite.) Garantit que l'emblème imposé atteint le narrowing `:140-146`.
-2. **Belt-and-suspenders (recommandé)** : ajouter une vraie contrainte *force-equip* dans
-   `addBuildValidityConstraints` — pour chaque item imposé présent, `addEquality(equipVar, 1)`
-   (pour RING : `≥ 1` sur les deux vars d'anneaux de même nom, pas `== 1` par var). « Forcer » = « doit être
-   équipé », pas seulement « seul candidat ». Corrige aussi le cas silencieux où un slot est laissé vide
-   parce que l'item imposé n'aide aucune maîtrise demandée.
+**Solution implémentée (consolide ENG-1 + ENG-2).** Un item imposé hors niveau est **impossible à équiper en
+jeu** → on le **refuse** (pas équiper). Et l'ancien affichage (un `ErrorBanner` enfoui dans le panneau de droite,
+une seule erreur) n'était **pas clair** → remplacé par une **pop-up listant TOUTES les erreurs** au moment de la
+recherche.
+1. **Validation agrégée (moteur)** — `WakfuBestBuildFinderAlgorithm.validateRequest(params): List<RequestValidationProblem>`
+   retourne **tous** les problèmes d'un coup : bornes de niveau incohérentes (`minLevel > level`), item imposé non
+   équipable (niveau hors `[minLevel, level]` — **PETS/MOUNTS exemptés** — ou rareté > `maxRarity` / exclue), et
+   **> 1 sublimation épique ou relique imposée** (ex-ENG-2). `run()` lève `InvalidRequestException(problems)` si
+   non vide (plancher CLI). Un nom imposé qui ne matche rien = ignoré.
+2. **Force-equip conservé** — `WakfuBuildSolver.addForcedItemsEquippedConstraints` (`Σ même-nom ≥ 1`) : un item
+   imposé **éligible** est bien **équipé**. RING géré par nom (2 slots → 2 anneaux ok).
+3. **Pop-up GUI** — `BuildSearchModel.search()` appelle `validateRequest` avant de lancer ; si problèmes →
+   `UiState.requestErrors` → **`RequestErrorsDialog`** (modèle `WhatsNewDialog` : `Scrim`+`ModalCard`+`DialogButton`)
+   liste chaque problème **localisé** (item/sublis nommés) ; bloque la recherche. `dismissRequestErrors()` ferme.
 
-**Critères d'acceptation.**
-- Forcer un emblème de niveau hors fenêtre (ex. emblème lvl 110 avec `level` < 110) → ce **même** emblème est
-  équipé, pas un Archiemblème.
-- Forcer 2 emblèmes (même slot) ou un item violant 1-EPIC/1-RELIC → **message clair** (pas un modèle infaisable
-  muet, pas « aucun résultat »).
-- Test de non-régression dans `WakfuBuildSolverTest` : impose un emblème hors fenêtre, assert l'emblème exact.
+**Fichiers touchés.** `WakfuBestBuildFinderAlgorithm.kt` (`validateRequest` + `RequestValidationProblem` +
+`InvalidRequestException`), `WakfuBuildSolver.kt` (force-equip), `UiState.kt` (`requestErrors`),
+`BuildSearchModel.kt` (pré-validation + `dismissRequestErrors`), `components/RequestErrorsDialog.kt` (nouveau),
+`Main.kt` (montage), `I18n.kt` (Tr), `WakfuBuildSolverTest.kt` (tests `validateRequest`).
 
-**Risques.** (1) Exempter du filtre niveau → un emblème très hors-niveau sera désormais équipé : confirmer que
-c'est bien la sémantique « force = force » (sinon avertissement type `LEVEL_RANGE_INVALID`). (2) La contrainte
-force-equip peut rendre le modèle **infaisable** (2 imposés même slot, conflits rareté/arme) → valider en amont
-et afficher une erreur lisible. (3) RING = 2 slots, cap même-nom → forçage `≥ 1`.
+**Tests (verts).** Rejet hors-niveau / hors-rareté ; in-range + monture lvl 1 OK ; 2 épiques / 2 reliques
+rejetées ; **agrégation de plusieurs problèmes à la fois** ; item imposé équipé devant un rival meilleur.
+`:autobuilder:test` = 67 tests, 0 échec ; `:gui-compose:compileKotlin` OK.
+
+**Suite = prévention côté GUI (nouveaux tickets).** **PICK-1** (filtre « équipables » coché par défaut) empêche
+de choisir un item hors niveau ; **PICK-2** nettoie les forced devenus invalides au changement de niveau. Le cas
+« 2 imposés dans un slot à 1 place » : à ajouter à `validateRequest` (même pop-up) — TODO.
+
+---
+
+## PICK-1 — Picker « équipables uniquement » (coché par défaut)  ✨ P2 · Effort M
+**Statut : 🔲 TODO** · *(prévention GUI issue d'ENG-1 ; à implémenter dans REF-1)*
+
+**Origine.** Décision dev (24/06) : « une checkbox cochée par défaut pour n'afficher que les items possibles à
+équiper pour le build, sinon c'est la porte ouverte à n'importe quoi. »
+
+**État actuel.** Le picker d'items liste **tout le catalogue** (`equipmentCatalog` =
+`WakfuBestBuildFinderAlgorithm.equipments`, non filtré) — tous niveaux, toutes raretés. C'est ce qui laisse
+forcer un item injouable (cf. ENG-1).
+
+**Plan.** Checkbox « équipables uniquement » (**cochée par défaut**) filtrant sur le **pool éligible du moteur**
+(décision retenue : niveau dans `[minLevel, level]` — PETS/MOUNTS exemptés — ET rareté ≤ `maxRarity` / non
+exclue). Réutiliser la même éligibilité que `validateForcedItemsEquippable` (ENG-1) pour rester cohérent.
+À faire **dans REF-1** (abstraction partagée des pickers) pour couvrir tous les pickers d'items. `Tr` EN/FR.
+
+**Critères.** Par défaut le picker ne montre que les items équipables pour le build courant ; décocher montre
+tout ; changer niveau/rareté recompute la liste.
+
+---
+
+## PICK-2 — Nettoyer les forced hors-niveau au changement de niveau  🧹 P2 · Effort S
+**Statut : 🔲 TODO** · *(sœur d'ENG-1)*
+
+**Origine.** Décision dev (24/06) : « si jamais il change de level sur un build, il faut virer dans les forced
+les items qui n'ont plus de sens (on peut garder les excluded). »
+
+**Plan.** Quand `level`/`minLevel`/`maxRarity`/raretés exclues changent dans `BuildSearchModel`, retirer de
+`forcedItems` les items devenus **non éligibles** (même test que `validateForcedItemsEquippable`) + toast « N
+objet(s) imposé(s) retiré(s) — hors niveau ». **Garder `excludedItems`** (exclure un item hors niveau est
+inoffensif). Évite d'attendre le rejet d'ENG-1 au moment de la recherche.
+
+**Critères.** Baisser le niveau sous celui d'un item imposé le retire automatiquement des forced (+ toast) ; les
+excluded restent intacts.
 
 ---
 
