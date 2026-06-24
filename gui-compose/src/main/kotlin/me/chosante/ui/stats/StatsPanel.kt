@@ -44,7 +44,9 @@ import me.chosante.ui.components.PassiveIcon
 import me.chosante.ui.components.StatGlyphIcon
 import me.chosante.ui.components.VerticalScrollHints
 import me.chosante.ui.components.iconResourcePath
+import me.chosante.ui.components.localized
 import me.chosante.ui.components.rememberClasspathBitmap
+import me.chosante.ui.components.sublimationEffectText
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
@@ -1009,7 +1011,7 @@ private fun SublimationsResult(ui: UiState) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(text = sub.rarity.name, style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono))
                     }
-                    sub.rawText?.takeIf { it.isNotBlank() }?.let {
+                    sublimationEffectText(sub, ui.lang).takeIf { it.isNotBlank() }?.let {
                         Text(text = it, style = WTypography.labelSmall.copy(color = WColor.muted))
                     }
                 }
@@ -1024,13 +1026,14 @@ private fun SublimationsResult(ui: UiState) {
 private fun PassivesResult(ui: UiState) {
     val passives = ui.build?.passives.orEmpty()
     if (passives.isEmpty()) return
+    val lang = LocalLang.current
     ResultCard(title = tr(Tr.CHOSEN_PASSIVES), trailing = passives.size.toString()) {
         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             passives.forEach { passive ->
                 androidx.compose.foundation.TooltipArea(
                     delayMillis = 300,
                     tooltip = {
-                        passive.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                        passive.description?.localized(lang)?.takeIf { it.isNotBlank() }?.let { desc ->
                             Box(
                                 modifier =
                                     Modifier
@@ -1052,7 +1055,7 @@ private fun PassivesResult(ui: UiState) {
                     ) {
                         PassiveIcon(gfxId = passive.gfxId, size = 24.dp)
                         Text(
-                            text = passive.name ?: passive.spellId.toString(),
+                            text = passive.name?.localized(lang) ?: passive.spellId.toString(),
                             style = WTypography.labelMedium.copy(color = WColor.text),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,

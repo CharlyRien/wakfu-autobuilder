@@ -7,7 +7,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,17 +37,25 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import me.chosante.common.Characteristic
+import me.chosante.autobuilder.domain.BuildSpellDamage
+import me.chosante.autobuilder.domain.SpellCatalog
+import me.chosante.common.Character
+import me.chosante.common.Spell
 import me.chosante.common.history.HistoryEntry
 import me.chosante.ui.components.BreedIcon
 import me.chosante.ui.components.CharacteristicIcon
+import me.chosante.ui.components.InfoTip
 import me.chosante.ui.components.ItemThumbnail
+import me.chosante.ui.components.SpellIcon
+import me.chosante.ui.components.elementLabel
+import me.chosante.ui.components.localized
+import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.label
 import me.chosante.ui.i18n.tr
-import me.chosante.ui.state.CompareSlot
+import me.chosante.ui.state.MAX_COMPARE_SLOTS
+import me.chosante.ui.state.MIN_COMPARE_SLOTS
 import me.chosante.ui.state.UiState
 import me.chosante.ui.state.formatCompact
 import me.chosante.ui.state.isEngineInternalStat
@@ -52,23 +64,34 @@ import me.chosante.ui.theme.WDimens
 import me.chosante.ui.theme.WType
 import me.chosante.ui.theme.WTypography
 
+/** Fixed width of a per-build value column, shared by the stat and spell-damage tables so they align. */
+private val COMPARE_CELL = 80.dp
+
+/** Column label (A, B, C, D) for compare slot [index] — ties a side column to its table column. */
+private fun columnLetter(index: Int): String = ('A' + index).toString()
+
 /**
- * Side-by-side comparison of two saved builds, A | B. Each side is picked from the library; the
- * table below shows every stat where they differ with a per-row "best" marker. Cheap to render:
- * each side reads its stored `achieved` map (the same data the live Stats panel shows) — no engine
- * recomputation.
+ * Side-by-side comparison of two to four saved builds (one column each). Each column is picked from the
+ * library; below them, the stat table shows every characteristic the builds carry, and the spell-damage
+ * table shows each class spell's expected hit per build — the best cell highlighted in both. Cheap to
+ * render: the stat table reads each build's stored `achieved` map; the spell table reconstructs each build
+ * once and reuses [BuildSpellDamage]. The spell table is same-class only (spell kits differ by class).
  */
 @Composable
 fun CompareScreen(
     ui: UiState,
-    onPick: (CompareSlot, String) -> Unit,
-    onClearSlot: (CompareSlot) -> Unit,
+    onPick: (Int, String) -> Unit,
+    onClear: (Int) -> Unit,
+    onAdd: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val entryA = ui.savedBuilds.firstOrNull { it.id == ui.compareA }
-    val entryB = ui.savedBuilds.firstOrNull { it.id == ui.compareB }
     val scroll = rememberScrollState()
+    // The filled columns, paired with their A/B/C/D label, in slot order — what the tables compare.
+    val columns =
+        ui.compareSlots.mapIndexedNotNull { index, id ->
+            ui.savedBuilds.firstOrNull { it.id == id }?.let { columnLetter(index) to it }
+        }
     Column(
         modifier =
             modifier
@@ -83,28 +106,29 @@ fun CompareScreen(
             Spacer(modifier = Modifier.width(14.dp))
             Text(text = tr(Tr.COMPARE_TITLE), style = WTypography.headlineLarge.copy(fontWeight = FontWeight.Bold))
         }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(WDimens.gap)) {
-            SideColumn(
-                slot = CompareSlot.A,
-                entry = entryA,
-                builds = ui.savedBuilds,
-                placeholder = tr(Tr.COMPARE_PICK_A),
-                onPick = onPick,
-                onClear = onClearSlot,
-                modifier = Modifier.weight(1f)
-            )
-            SideColumn(
-                slot = CompareSlot.B,
-                entry = entryB,
-                builds = ui.savedBuilds,
-                placeholder = tr(Tr.COMPARE_PICK_B),
-                onPick = onPick,
-                onClear = onClearSlot,
-                modifier = Modifier.weight(1f)
-            )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(WDimens.gap),
+            verticalAlignment = Alignment.Top
+        ) {
+            ui.compareSlots.forEachIndexed { index, id ->
+                SideColumn(
+                    index = index,
+                    entry = ui.savedBuilds.firstOrNull { it.id == id },
+                    builds = ui.savedBuilds,
+                    canRemove = ui.compareSlots.size > MIN_COMPARE_SLOTS,
+                    onPick = onPick,
+                    onClear = onClear,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            if (ui.compareSlots.size < MAX_COMPARE_SLOTS) {
+                AddColumnTile(onClick = onAdd)
+            }
         }
-        if (entryA != null && entryB != null) {
-            ComparisonTable(entryA = entryA, entryB = entryB)
+        if (columns.size >= MIN_COMPARE_SLOTS) {
+            ComparisonTable(columns = columns)
+            SpellDamageTable(columns = columns)
         } else {
             Text(
                 text = tr(Tr.COMPARE_EMPTY),
@@ -115,14 +139,15 @@ fun CompareScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SideColumn(
-    slot: CompareSlot,
+    index: Int,
     entry: HistoryEntry?,
     builds: List<HistoryEntry>,
-    placeholder: String,
-    onPick: (CompareSlot, String) -> Unit,
-    onClear: (CompareSlot) -> Unit,
+    canRemove: Boolean,
+    onPick: (Int, String) -> Unit,
+    onClear: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -134,7 +159,18 @@ private fun SideColumn(
                 .padding(WDimens.pad),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        BuildPicker(slot = slot, current = entry, builds = builds, placeholder = placeholder, onPick = onPick, onClear = onClear)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LetterBadge(columnLetter(index))
+            BuildPicker(
+                index = index,
+                current = entry,
+                builds = builds,
+                canRemove = canRemove,
+                onPick = onPick,
+                onClear = onClear,
+                modifier = Modifier.weight(1f)
+            )
+        }
         if (entry != null) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 BreedIcon(clazz = entry.restoredClass(), size = 20.dp)
@@ -153,32 +189,47 @@ private fun SideColumn(
                 text = headline + if (entry.result.optimal) " · ${tr(Tr.OPTIMAL_PROVEN)}" else "",
                 style = WTypography.labelMedium.copy(color = if (entry.result.optimal) WColor.success else WColor.text)
             )
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 entry.result.equipments.take(14).forEach { equipment ->
-                    Box(modifier = Modifier.weight(1f, fill = false)) {
-                        ItemThumbnail(equipment = equipment, size = 26.dp)
-                    }
+                    ItemThumbnail(equipment = equipment, size = 22.dp)
                 }
             }
         }
     }
 }
 
+/** The A/B/C/D chip identifying a compare column (matches the table column headers). */
+@Composable
+private fun LetterBadge(letter: String) {
+    Box(
+        modifier =
+            Modifier
+                .size(22.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(WColor.raised)
+                .border(1.dp, WColor.border, RoundedCornerShape(6.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text = letter, style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.accent, fontWeight = FontWeight.Bold))
+    }
+}
+
 @Composable
 private fun BuildPicker(
-    slot: CompareSlot,
+    index: Int,
     current: HistoryEntry?,
     builds: List<HistoryEntry>,
-    placeholder: String,
-    onPick: (CompareSlot, String) -> Unit,
-    onClear: (CompareSlot) -> Unit,
+    canRemove: Boolean,
+    onPick: (Int, String) -> Unit,
+    onClear: (Int) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    Box {
+    Box(modifier = modifier) {
         Row(
             modifier =
                 Modifier
@@ -192,15 +243,17 @@ private fun BuildPicker(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = current?.name ?: placeholder,
+                text = current?.name ?: tr(Tr.COMPARE_PICK),
                 style = WTypography.bodyMedium.copy(color = if (current == null) WColor.faint else WColor.text, fontWeight = FontWeight.Medium),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
-            if (current != null) {
+            // ✕ both empties a base column and removes an extra one (the model decides which); shown for a
+            // filled column, or for any column once there are extras to remove.
+            if (current != null || canRemove) {
                 Box(
-                    modifier = Modifier.size(22.dp).clip(RoundedCornerShape(6.dp)).clickable { onClear(slot) },
+                    modifier = Modifier.size(22.dp).clip(RoundedCornerShape(6.dp)).clickable { onClear(index) },
                     contentAlignment = Alignment.Center
                 ) {
                     Text(text = "✕", style = WTypography.labelSmall.copy(color = WColor.muted))
@@ -225,7 +278,7 @@ private fun BuildPicker(
                         )
                     },
                     onClick = {
-                        onPick(slot, build.id)
+                        onPick(index, build.id)
                         expanded = false
                     }
                 )
@@ -235,19 +288,27 @@ private fun BuildPicker(
 }
 
 @Composable
-private fun ComparisonTable(
-    entryA: HistoryEntry,
-    entryB: HistoryEntry,
-) {
-    val lang = LocalLang.current
-    val rows =
-        remember(entryA, entryB) {
-            val keys = (entryA.result.achieved.keys + entryB.result.achieved.keys).filterNot { it.isEngineInternalStat() }
-            keys
-                .map { key -> Triple(key, entryA.result.achieved[key] ?: 0, entryB.result.achieved[key] ?: 0) }
-                .filter { (_, a, b) -> a != 0 || b != 0 }
-                .sortedBy { it.first.ordinal }
-        }
+private fun AddColumnTile(onClick: () -> Unit) {
+    Column(
+        modifier =
+            Modifier
+                .width(150.dp)
+                .heightIn(min = 92.dp)
+                .clip(RoundedCornerShape(WDimens.radius))
+                .background(WColor.surface)
+                .border(1.dp, WColor.border, RoundedCornerShape(WDimens.radius))
+                .clickable(onClick = onClick)
+                .padding(WDimens.pad),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = "+", style = WTypography.headlineLarge.copy(color = WColor.faint))
+        Text(text = tr(Tr.COMPARE_ADD), style = WTypography.labelSmall.copy(color = WColor.muted))
+    }
+}
+
+@Composable
+private fun CompareCard(content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier =
             Modifier
@@ -255,137 +316,207 @@ private fun ComparisonTable(
                 .clip(RoundedCornerShape(WDimens.radius))
                 .background(WColor.surface)
                 .border(1.dp, WColor.hairline, RoundedCornerShape(WDimens.radius))
-                .padding(WDimens.pad)
-    ) {
+                .padding(WDimens.pad),
+        content = content
+    )
+}
+
+@Composable
+private fun ComparisonTable(columns: List<Pair<String, HistoryEntry>>) {
+    val lang = LocalLang.current
+    val entries = columns.map { it.second }
+    val rows =
+        remember(columns.map { it.second.id }) {
+            val keys = entries.flatMap { it.result.achieved.keys }.toSet().filterNot { it.isEngineInternalStat() }
+            keys
+                .map { key -> key to entries.map { entry -> entry.result.achieved[key] ?: 0 } }
+                .filter { (_, values) -> values.any { it != 0 } }
+                .sortedBy { it.first.ordinal }
+        }
+    CompareCard {
         Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
             Text(text = tr(Tr.COMPARE_STAT), style = WTypography.labelMedium.copy(color = WColor.muted), modifier = Modifier.weight(1f))
-            Text(text = "A", style = WTypography.labelMedium.copy(fontFamily = WType.mono, color = WColor.muted), modifier = Modifier.width(72.dp))
-            Text(text = "B", style = WTypography.labelMedium.copy(fontFamily = WType.mono, color = WColor.muted), modifier = Modifier.width(72.dp))
-            Text(text = tr(Tr.COMPARE_BETTER), style = WTypography.labelMedium.copy(color = WColor.muted), modifier = Modifier.width(60.dp))
+            columns.forEach { (letter, _) ->
+                Text(text = letter, style = WTypography.labelMedium.copy(fontFamily = WType.mono, color = WColor.muted), modifier = Modifier.width(COMPARE_CELL))
+            }
         }
-        // Headline: the value the engine actually maximized (specialized summed + min of elements).
-        // This is the row that says which build the solver judges better — unlike the per-stat rows
-        // below, where a build can win several elemental lines yet lose overall.
-        EngineScoreRow(aValue = entryA.requestedMasteryTotal(), bValue = entryB.requestedMasteryTotal())
+        // Headline: the value the engine actually maximized (specialized summed + min of elements) — the
+        // row that says which build the solver judges best overall, unlike the per-stat rows below.
+        ValueRow(values = entries.map { it.requestedMasteryTotal() }, bold = true) {
+            Text(
+                text = tr(Tr.COMPARE_ENGINE_SCORE),
+                style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Bold),
+                modifier = Modifier.weight(1f)
+            )
+        }
         Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
-        rows.forEachIndexed { index, (characteristic, aValue, bValue) ->
+        rows.forEachIndexed { index, (characteristic, values) ->
             if (index > 0) {
                 Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
             }
-            ComparisonRow(characteristic = characteristic, label = characteristic.label(lang), aValue = aValue, bValue = bValue)
+            ValueRow(values = values, bold = false) {
+                CharacteristicIcon(characteristic = characteristic, size = 16.dp)
+                Spacer(modifier = Modifier.width(9.dp))
+                Text(
+                    text = characteristic.label(lang),
+                    style = WTypography.bodyMedium.copy(color = WColor.text),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
 
+/**
+ * One table row: a [leading] label (filling the width) followed by an integer value cell per build, the
+ * best cell(s) highlighted green. Ties highlight nothing (matching the original two-build behaviour).
+ * [bold] forces every cell bold (used for the headline engine-score row).
+ */
 @Composable
-private fun EngineScoreRow(
-    aValue: Int,
-    bValue: Int,
+private fun ValueRow(
+    values: List<Int>,
+    bold: Boolean,
+    leading: @Composable RowScope.() -> Unit,
 ) {
-    val winner =
-        when {
-            aValue > bValue -> CompareSlot.A
-            bValue > aValue -> CompareSlot.B
-            else -> null
-        }
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = tr(Tr.COMPARE_ENGINE_SCORE),
-            style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Bold),
-            modifier = Modifier.weight(1f)
-        )
-        EngineValueCell(value = aValue, highlighted = winner == CompareSlot.A)
-        EngineValueCell(value = bValue, highlighted = winner == CompareSlot.B)
-        Box(modifier = Modifier.width(60.dp), contentAlignment = Alignment.Center) {
-            Text(
-                text =
-                    when (winner) {
-                        CompareSlot.A -> "◀ A"
-                        CompareSlot.B -> "B ▶"
-                        null -> tr(Tr.COMPARE_EQUAL)
-                    },
-                style = WTypography.labelMedium.copy(color = if (winner == null) WColor.muted else WColor.success, fontFamily = WType.mono, lineHeight = 16.sp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun EngineValueCell(
-    value: Int,
-    highlighted: Boolean,
-) {
-    Text(
-        text = value.formatCompact(),
-        style =
-            WTypography.bodyMedium.copy(
-                fontFamily = WType.mono,
-                fontWeight = FontWeight.Bold,
-                color = if (highlighted) WColor.success else WColor.text
-            ),
-        modifier = Modifier.width(72.dp)
-    )
-}
-
-@Composable
-private fun ComparisonRow(
-    characteristic: Characteristic,
-    label: String,
-    aValue: Int,
-    bValue: Int,
-) {
-    val winner =
-        when {
-            aValue > bValue -> CompareSlot.A
-            bValue > aValue -> CompareSlot.B
-            else -> null
-        }
+    val best = values.maxOrNull() ?: 0
+    val tie = values.all { it == best }
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        CharacteristicIcon(characteristic = characteristic, size = 16.dp)
-        Spacer(modifier = Modifier.width(9.dp))
-        Text(
-            text = label,
-            style = WTypography.bodyMedium.copy(color = WColor.text),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
-        ValueCell(value = aValue, highlighted = winner == CompareSlot.A)
-        ValueCell(value = bValue, highlighted = winner == CompareSlot.B)
-        Box(modifier = Modifier.width(60.dp), contentAlignment = Alignment.Center) {
-            Text(
-                text =
-                    when (winner) {
-                        CompareSlot.A -> "◀ A"
-                        CompareSlot.B -> "B ▶"
-                        null -> tr(Tr.COMPARE_EQUAL)
-                    },
-                style =
-                    WTypography.labelMedium.copy(
-                        color = if (winner == null) WColor.muted else WColor.success,
-                        fontFamily = WType.mono,
-                        lineHeight = 16.sp
-                    )
-            )
+        leading()
+        values.forEach { value ->
+            NumberCell(text = value.formatCompact(), highlighted = value == best && !tie, bold = bold)
         }
     }
 }
 
 @Composable
-private fun ValueCell(
-    value: Int,
+private fun NumberCell(
+    text: String,
     highlighted: Boolean,
+    bold: Boolean,
 ) {
     Text(
-        text = value.formatCompact(),
+        text = text,
         style =
             WTypography.bodyMedium.copy(
                 fontFamily = WType.mono,
-                fontWeight = if (highlighted) FontWeight.Bold else FontWeight.Normal,
+                fontWeight = if (highlighted || bold) FontWeight.Bold else FontWeight.Normal,
                 color = if (highlighted) WColor.success else WColor.text
             ),
-        modifier = Modifier.width(72.dp)
+        modifier = Modifier.width(COMPARE_CELL)
     )
+}
+
+/** Spell damage of every compared build, computed once off the UI thread. [mixedClass] short-circuits the table. */
+private data class SpellDamageData(
+    val mixedClass: Boolean,
+    val spells: List<Spell>,
+    val damageByEntry: List<Map<Int, Double>>,
+)
+
+/**
+ * Reconstructs each compared build and scores every class damage spell via [BuildSpellDamage] — the same
+ * neutral 0%-resistance maths the Class spells tab uses, so the numbers agree. Returns [SpellDamageData.mixedClass]
+ * when the builds aren't all the same class (their spell kits differ, so a per-spell comparison is meaningless).
+ * Spells are pre-sorted by the strongest build's hit, so the heaviest hitters lead.
+ */
+private fun computeSpellDamage(entries: List<HistoryEntry>): SpellDamageData {
+    if (entries.map { it.restoredClass() }.toSet().size > 1) {
+        return SpellDamageData(mixedClass = true, spells = emptyList(), damageByEntry = emptyList())
+    }
+    val clazz = entries.firstOrNull()?.restoredClass() ?: return SpellDamageData(false, emptyList(), emptyList())
+    val spells = SpellCatalog.damageSpells(clazz)
+    val damageByEntry =
+        entries.map { entry ->
+            val build = entry.toBuildCombination()
+            val character = Character(entry.restoredClass(), entry.request.level, entry.request.minLevel, build.characterSkills)
+            spells.associate { spell -> spell.id to (BuildSpellDamage.expectedDamage(spell, build, character)?.expected ?: 0.0) }
+        }
+    val ordered = spells.sortedByDescending { spell -> damageByEntry.maxOfOrNull { it[spell.id] ?: 0.0 } ?: 0.0 }
+    return SpellDamageData(mixedClass = false, spells = ordered, damageByEntry = damageByEntry)
+}
+
+/**
+ * Per-spell expected damage of each compared build, side by side: one row per damage spell, one value column
+ * per build, the best cell(s) highlighted. The spell is listed once (not repeated per build) so it scales to
+ * several builds. Only meaningful for same-class builds; a mixed-class selection shows a note instead.
+ */
+@Composable
+private fun SpellDamageTable(columns: List<Pair<String, HistoryEntry>>) {
+    val lang = LocalLang.current
+    val entries = columns.map { it.second }
+    val data = remember(columns.map { it.second.id }) { computeSpellDamage(entries) }
+    val showColumns = !data.mixedClass && data.spells.isNotEmpty()
+    CompareCard {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = tr(Tr.COMPARE_SPELL_DAMAGE), style = WTypography.labelMedium.copy(color = WColor.muted))
+            Spacer(modifier = Modifier.width(6.dp))
+            InfoTip(text = tr(Tr.SPELL_EXPECTED_HIT_INFO))
+            if (showColumns) {
+                Spacer(modifier = Modifier.weight(1f))
+                columns.forEach { (letter, _) ->
+                    Text(text = letter, style = WTypography.labelMedium.copy(fontFamily = WType.mono, color = WColor.muted), modifier = Modifier.width(COMPARE_CELL))
+                }
+            }
+        }
+        when {
+            data.mixedClass ->
+                Text(text = tr(Tr.COMPARE_SPELLS_MIXED_CLASS), style = WTypography.bodySmall.copy(color = WColor.muted))
+
+            data.spells.isEmpty() ->
+                Text(text = tr(Tr.CLASS_SPELLS_EMPTY), style = WTypography.bodySmall.copy(color = WColor.muted))
+
+            else ->
+                data.spells.forEachIndexed { index, spell ->
+                    if (index > 0) {
+                        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
+                    }
+                    SpellDamageRow(
+                        spell = spell,
+                        values = data.damageByEntry.map { it[spell.id] ?: 0.0 },
+                        lang = lang
+                    )
+                }
+        }
+    }
+}
+
+@Composable
+private fun SpellDamageRow(
+    spell: Spell,
+    values: List<Double>,
+    lang: Lang,
+) {
+    val bestLong = values.maxOfOrNull { it.toLong() } ?: 0L
+    val tie = values.all { it.toLong() == bestLong }
+    val elementLabel = spell.element?.elementLabel()
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SpellIcon(iconId = spell.iconId, element = spell.element, size = 26.dp)
+        Spacer(modifier = Modifier.width(9.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = spell.name.localized(lang),
+                style = WTypography.bodyMedium.copy(color = WColor.text),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            val meta = listOfNotNull(elementLabel, spell.apCost?.let { "$it AP" }).joinToString(" · ")
+            if (meta.isNotEmpty()) {
+                Text(text = meta, style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono))
+            }
+        }
+        values.forEach { v ->
+            val vl = v.toLong()
+            NumberCell(text = if (vl > 0) vl.formatCompact() else "—", highlighted = vl == bestLong && vl > 0 && !tie, bold = false)
+        }
+    }
 }
 
 @Composable

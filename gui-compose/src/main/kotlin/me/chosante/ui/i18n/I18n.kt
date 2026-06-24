@@ -358,13 +358,18 @@ enum class Tr(
 
     // Compare view
     COMPARE_TITLE("Compare builds", "Comparer les builds"),
-    COMPARE_PICK_A("Pick build A", "Choisir le build A"),
-    COMPARE_PICK_B("Pick build B", "Choisir le build B"),
+    COMPARE_PICK("Pick a build", "Choisir un build"),
+    COMPARE_ADD("Add build", "Ajouter un build"),
     COMPARE_BETTER("Best", "Meilleur"),
     COMPARE_EQUAL("=", "="),
-    COMPARE_EMPTY("Pick two builds to compare them side by side.", "Choisis deux builds à comparer côte à côte."),
+    COMPARE_EMPTY("Pick at least two builds to compare them side by side.", "Choisis au moins deux builds à comparer côte à côte."),
     COMPARE_STAT("Stat", "Stat"),
     COMPARE_ENGINE_SCORE("Mastery score (engine)", "Score maîtrises (moteur)"),
+    COMPARE_SPELL_DAMAGE("Spell damage", "Dégâts des sorts"),
+    COMPARE_SPELLS_MIXED_CLASS(
+        "Spell damage compares only builds of the same class — these are different classes.",
+        "Les dégâts des sorts ne comparent que des builds de la même classe — ici les classes diffèrent."
+    ),
 
     // What's-new dialog (once-per-version release notes)
     WHATS_NEW_TITLE("What's new in", "Nouveautés de la version"),
@@ -372,6 +377,40 @@ enum class Tr(
     WHATS_NEW_FIXES("Bug Fixes", "Corrections"),
     WHATS_NEW_PERF("Performance Improvements", "Améliorations de performance"),
     WHATS_NEW_GOT_IT("Got it", "Compris"),
+
+    // Class spells & passives tab (build-result region)
+    TAB_DISCOVERED_BUILD("Discovered build", "Build découvert"),
+    TAB_CLASS_SPELLS("Class spells & passives", "Sorts & passifs"),
+    CLASS_SPELLS_TITLE("Class spells", "Sorts de la classe"),
+    CLASS_SPELLS_PASSIVES("Passives", "Passifs"),
+    PASSIVE_IN_BUILD("in build", "dans le build"),
+    CLASS_SPELLS_EMPTY("This class has no damage spells in the data.", "Cette classe n'a aucun sort de dégâts dans les données."),
+    CLASS_SPELLS_NO_BUILD(
+        "No build yet — showing each spell's base hit at this level. Run a search to see this build's damage.",
+        "Pas encore de build — dégâts de base affichés à ce niveau. Lance une recherche pour voir les dégâts de ce build."
+    ),
+    SPELL_EXPECTED_HIT("expected hit", "dégâts moyens"),
+    SPELL_BASE_HIT("base hit", "dégâts de base"),
+    SPELL_NONCRIT("non-crit", "non-crit"),
+    SPELL_CRIT("crit", "crit"),
+    SPELL_ALWAYS_CRITS("always crits · 100% crit", "toujours crit · 100% crit"),
+    SPELL_PER_TURN_SUFFIX("turn", "tour"),
+    SPELL_EXPECTED_HIT_INFO(
+        "Expected hit: the average damage of one cast. It blends a non-crit and a crit hit, weighted by " +
+            "this build's crit chance, from its elemental mastery, % damage inflicted and critical mastery — " +
+            "against a 0%-resistance target.",
+        "Dégâts moyens : la moyenne d'un lancer. Mélange un coup normal et un coup critique, pondérés par les " +
+            "chances de coup critique du build, d'après sa maîtrise élémentaire, ses % de dégâts infligés et sa " +
+            "maîtrise critique — contre une cible à 0% de résistance."
+    ),
+    SPELL_BASE_HIT_INFO(
+        "Base hit at this level, before the build's masteries. Run a search to see this build's expected damage.",
+        "Dégâts de base à ce niveau, avant les maîtrises du build. Lance une recherche pour voir les dégâts attendus de ce build."
+    ),
+    ELEMENT_FIRE("Fire", "Feu"),
+    ELEMENT_WATER("Water", "Eau"),
+    ELEMENT_EARTH("Earth", "Terre"),
+    ELEMENT_AIR("Air", "Air"),
     ;
 
     fun value(lang: Lang): String =

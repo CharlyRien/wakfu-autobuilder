@@ -72,7 +72,7 @@ class PassiveSolverTest {
                     .last()
                     .individual
 
-            assertThat(build.passives.map { it.name })
+            assertThat(build.passives.mapNotNull { it.name?.fr })
                 .describedAs("the forced passive loadout rides on the discovered build")
                 .contains("Ligne")
             val achieved = computeCharacteristicsValues(build, character.baseCharacteristicValues, emptyMap(), emptyMap())
@@ -89,7 +89,7 @@ class PassiveSolverTest {
         val firePassive =
             me.chosante.common.Passive(
                 spellId = -1,
-                name = "Synthetic Fire",
+                name = me.chosante.common.I18nText("Synthetic Fire", "Synthetic Fire", "Synthetic Fire", "Synthetic Fire"),
                 clazz = "FECA",
                 gfxId = 0,
                 flatBuildStats = mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE.name to 50.0)

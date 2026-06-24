@@ -66,6 +66,7 @@ import me.chosante.ui.components.RarityIcon
 import me.chosante.ui.components.iconResourcePath
 import me.chosante.ui.components.itemResourcePath
 import me.chosante.ui.components.rememberClasspathBitmap
+import me.chosante.ui.components.sublimationEffectText
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
@@ -646,23 +647,29 @@ private fun ItemTooltip(
                 }
             }
         }
-        val socketRunes = socketLayout(equipment, runes, subs).filter { it.second != null }
-        if (socketRunes.isNotEmpty()) {
+        val socketCells = socketLayout(equipment, runes, subs)
+        if (socketCells.isNotEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
             Text(
                 text = tr(Tr.RUNES),
                 style = WTypography.labelSmall.copy(color = WColor.faint, fontWeight = FontWeight.SemiBold)
             )
+            // Show EVERY socket the item has (filled show their shard, free ones show empty), matching the card,
+            // then list the runes that fill them.
+            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                socketCells.forEach { (color, _) -> RuneShape(color = color, size = 14.dp) }
+            }
             // Group by (stat, socket colour) so a hosted sublimation's pattern shows in the runes too — e.g. one
             // green + three red distance runes — exactly matching the card. Enchantment level is gated by the
             // carrier item's level (Ankama's table).
-            socketRunes
+            socketCells
+                .filter { it.second != null }
                 .groupBy { (color, rune) -> rune!!.characteristic to color }
                 .forEach { (statColor, cells) ->
                     val rune = cells.first().second!!
                     TooltipRuneRow(
                         rune = rune,
-                        color = statColor.second,
+                        color = statColor.second ?: rune.color,
                         count = cells.size,
                         level = rune.maxLevel(equipment.level),
                         lang = lang
@@ -692,7 +699,7 @@ private fun ItemTooltip(
                         // A normal sub's required 3-socket colour pattern (epic/relic carry none).
                         sub.colors.forEach { color -> RuneShape(color = color, size = 13.dp) }
                     }
-                    sub.rawText?.takeIf { it.isNotBlank() }?.let {
+                    sublimationEffectText(sub, lang).takeIf { it.isNotBlank() }?.let {
                         Text(
                             text = it,
                             style = WTypography.labelSmall.copy(color = WColor.muted)
@@ -712,26 +719,27 @@ private fun RuneColor.displayColor(): Color =
     }
 
 /**
- * The per-socket display layout for an item's enchantments, as `(socket colour, rune in it)` cells.
- * A hosted normal sublimation paints its ordered colour pattern on the first sockets — so the pattern is
- * ALWAYS drawn (that is how the sub is satisfied: users see the green/red/… sockets that host it) — and the
- * remaining free sockets take the colour of the rune that fills them. Golden runes (colour-agnostic) make this
- * always reachable: a rune in a pattern socket shows the pattern colour, a rune in a free socket shows its own
- * (doubling) colour. Capped at the item's socket count; a pattern cell with no rune (more pattern than runes)
- * carries a null rune. This single source drives both the paperdoll card shards and the hover tooltip so they
- * always agree.
+ * The per-socket display layout for an item's enchantments, as `(socket colour, rune in it)` cells — ONE cell
+ * per socket the item has ([Equipment.maxShardSlots]), so the card and tooltip always show ALL of an item's
+ * sockets (the bug fixed here: it used to stop at `max(pattern, runes)`, hiding free sockets — e.g. a 4-socket
+ * amulet with a 3-colour sublimation pattern + 1 rune only drew 3). A hosted normal sublimation paints its
+ * ordered colour pattern on the first sockets — so the pattern is ALWAYS drawn (that is how the sub is
+ * satisfied: users see the green/red/… sockets that host it) — each remaining socket takes the colour of the
+ * rune that fills it, and any still-free socket stays EMPTY (`null` colour = white wildcard). Golden runes
+ * (colour-agnostic) make the pattern always reachable: a rune in a pattern socket shows the pattern colour, a
+ * rune in a free socket shows its own (doubling) colour. This single source drives both the paperdoll card
+ * shards and the hover tooltip so they always agree.
  */
-private fun socketLayout(
+internal fun socketLayout(
     equipment: Equipment,
     runes: List<RuneType>,
     subs: List<Sublimation>,
-): List<Pair<RuneColor, RuneType?>> {
+): List<Pair<RuneColor?, RuneType?>> {
     val pattern = subs.flatMap { it.colors }
     val slots = equipment.maxShardSlots.coerceAtLeast(0)
-    val cellCount = maxOf(pattern.size, runes.size).coerceAtMost(slots)
-    return (0 until cellCount).map { i ->
+    return (0 until slots).map { i ->
         val rune = runes.getOrNull(i)
-        val color = pattern.getOrNull(i) ?: rune?.color ?: RuneColor.RED
+        val color: RuneColor? = pattern.getOrNull(i) ?: rune?.color
         color to rune
     }
 }
@@ -745,10 +753,23 @@ private fun socketLayout(
  */
 @Composable
 private fun RuneShape(
-    color: RuneColor,
+    color: RuneColor?,
     size: Dp,
     modifier: Modifier = Modifier,
 ) {
+    if (color == null) {
+        // A free / empty socket (white wildcard). The client has no white shard asset, so draw a neutral
+        // hollow shard so the user still sees that the socket exists (and is unfilled).
+        Box(
+            modifier =
+                modifier
+                    .size(size)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(WColor.surface)
+                    .border(1.5.dp, WColor.border, RoundedCornerShape(999.dp))
+        )
+        return
+    }
     val asset =
         when (color) {
             RuneColor.RED -> "assets/runes/shard_red.png"
