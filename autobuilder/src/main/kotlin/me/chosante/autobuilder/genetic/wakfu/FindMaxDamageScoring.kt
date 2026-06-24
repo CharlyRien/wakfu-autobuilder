@@ -66,7 +66,7 @@ object FindMaxDamageScoring {
         if (scenario.healing) masteryBase += value(Characteristic.MASTERY_HEALING)
 
         val critMastery = value(Characteristic.MASTERY_CRITICAL)
-        val damageInflicted = max(value(Characteristic.DAMAGE_INFLICTED), -DAMAGE_INFLICTED_FLOOR)
+        val damageInflicted = max(value(Characteristic.DAMAGE_INFLICTED), -DAMAGE_DI_FLOOR.toInt())
         val critRate = value(Characteristic.CRITICAL_HIT).coerceIn(0, 100).coerceAtMost(scenario.critCapPercent) / 100.0
 
         val constantFactor =
@@ -120,6 +120,4 @@ object FindMaxDamageScoring {
                 .coerceAtMost(BigDecimal(100))
         return (BigDecimal(100).setScale(4) / successPercentage.coerceAtLeast(BigDecimal.ONE)).pow(6)
     }
-
-    private const val DAMAGE_INFLICTED_FLOOR = 50
 }
