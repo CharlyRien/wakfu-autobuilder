@@ -341,9 +341,11 @@ prefilter stays on for multi-element requests (3.8 s vs 72 s), but no longer mis
 - [ ] **Dominance pruning** — implement, measure model-size + det-time drop, prove soundness on samples.
       (Now the lever for ~1–3 s, esp. to cut the lvl-245 ~3.5 min proof.)
 - [ ] **Warm-start hint** — measure det-time with/without.
-- [ ] Does the free model still prove with **runes + subs** enabled (more vars/products)? The tracked chain
-      stays sound with them on (sub-conversion `moved` falls back to the guard ⇒ only looser, never unsound),
-      but provability is unverified — measure.
+- [x] Does the free model still prove with **runes + subs** enabled? **MEASURED: NO** with the old per-stat
+      integer rune counts (CRA fire lvl-110, full pool: never proved in **7 min**; runes are the dominant cost —
+      subs-only proved in ~66 s, runes-only didn't in 150 s). **FIXED by the single-type rune fold (§9).** Now
+      proves in **~82–106 s walltime** / det-time 600, same optimum. (The choosable subs are all fine: 0 are
+      conversions, and the 3 `SECONDARY_MASTERIES_AT_MOST` ones have value=0 ⇒ all-elemental, no intra-item mix.)
 - [ ] Production (`tuning==null`, wall-clock, cores−1 workers) timing vs the tuning-path numbers here.
 - [x] Higher-level pools (245) — proves at `maxDeterministicTime=600` (~3.5 min walltime). Budget/fallback
       threshold tuning (graceful "best found" when a pool can't prove in the wall-clock budget) still open.
@@ -383,6 +385,49 @@ to the winning element so each probe is a fast single-element solve), and is the
 `maxDamageHeuristicPhases`. Locked by `MaxDamageSearchTest "boss multi-element loop proves the optimum via
 per-element enumeration"`. NOTE: `solveProbe` must tie-break toward `isOptimal` (CP-SAT emits the optimal build
 un-proven first, then proven — a plain `maxBy{score}` returns the un-proven copy and loses the proof).
+
+---
+
+## 8b. Landed (2026-06-24): the single-type rune FOLD cracks runes+subs provability
+
+**The wall.** With runes+subs ON (the GUI default) the free max-damage solve never proved (CRA fire lvl-110,
+full pool: no proof in **7 min**). Isolation: **runes** are the dominant cost (subs-only proved ~66 s;
+runes-only didn't in 150 s). The old rune model gave every socketable POOL item one INTEGER count var per rune
+stat (0..slots), Σ ≤ slots·equipped — hundreds of integer vars whose branching the proof can't close.
+
+**Two domain levers (sound, shipped, but not enough alone):**
+1. `fillSocketsForMaxDamage` — for max-damage the socket cap becomes Σ = slots·equipped (full fill). The generic
+   elemental-mastery rune is non-secondary and only raises the (constraint-free) objective, and overshooting a
+   required target is never penalised (`requiredConstraintPenaltyFactor` caps actual at target), so the optimum
+   always fills its sockets; pinning equality removes the underfill assignments. Cut combinations, didn't prove.
+2. `runeMasteryOverCount` — the scenario-mastery `preM` naive sum double-counts runes ACROSS its mastery stats
+   (each stat's reach assumes its rune fills every socket, but sockets are shared). Subtract that provable
+   over-count (`naiveRuneSum − socketAwareMax`, per-slot best) to tighten M's declared upper bound. Tightened
+   the bound, still didn't prove (the integer var COUNT was the wall).
+
+**The fix — single-type rune fold (`createRuneModel`).** Key fact: `RuneType.valueOn` doubles per item-SLOT,
+uniform across an item's sockets (NOT per socket), so a rune's value on an item is fixed ⇒ filling an item
+entirely with its single best-value type is ≥ any intra-item MIX (the objective is linear in each mastery for a
+fixed build; the per-item choice is build-dependent only through which marginal wins). So intra-item mixing is
+freedom the optimum never uses. Replace the per-(item,stat) integer counts with ONE BOOLEAN PICK per stat per
+item, Σ picks = equipped; a pick contributes `slots·coeff`, leaf seeded 0..1. Collapsing the integers to
+booleans is what lets CP-SAT PROVE: **runes+subs now proves in ~82–106 s** (same optimum the count model
+reaches but can't certify). Gated to where single-type is provably optimal: max-damage, no forced runes, and no
+`SECONDARY_MASTERIES_AT_MOST` sub with value>0 in play (there an intra-item secondary/elemental mix can be
+optimal — but every choosable such sub has value=0; a forced one falls back to the count model). The other
+modes / no-rune / forced-rune paths keep the count model byte-identical.
+
+**Verification.** `single-type rune fold preserves the max-damage optimum` (fold optimum == count optimum on a
+socketed rune pool, via the `forceRuneCountModel` seam) + the rune-aware `max-damage reachable bounds hold`
+panel (now socketed + runes) + a head-to-head (fold proves 6598 in 82 s; count reaches the SAME 6598 unproven
+in 200 s) + the slow det-time lock `max-damage proves OPTIMAL with runes and sublimations on the full level-110
+pool` + a 5-dimension adversarial review (all sound, 0 confirmed issues). Caveat: the fold's optimality is tied
+to per-item (not per-socket) doubling — revisit if the rune model ever gains per-socket colours.
+
+**Not "seconds".** Runes+subs is now ~bare-model proof time (~1.5 min); the ~1–3 s target still needs §7
+dominance-pruning (separate). A one-off run once showed a best-found 6752 vs the proven 6598 — a pre-existing
+PROXY-vs-sequenced-rotation gap (the CP throughput proxy ≠ the displayed rotation DP), not a fold regression
+(the head-to-head count run reached 6598 too); closing that gap is separate work.
 
 ---
 
