@@ -445,6 +445,7 @@ object WakfuBuildSolver {
         // createRuneModel. The two no longer share a socket budget.
 
         model.addBuildValidityConstraints(allEquips, equipVars)
+        model.addForcedItemsEquippedConstraints(params, allEquips, equipVars)
 
         var maxDamageTracked: List<Triple<IntVar, String, LongRange>> = emptyList()
         val objective =
@@ -1069,6 +1070,31 @@ object WakfuBuildSolver {
                 val sumExpr = LinearExpr.sum(equips.map { equipVars.getValue(it) }.toTypedArray())
                 addLessOrEqual(sumExpr, 1L)
             }
+        }
+    }
+
+    /**
+     * Forces every user-imposed item ([WakfuBestBuildParams.forcedItems], matched on the French name) to be
+     * *equipped* — not merely "the only candidate in its slot". [WakfuBestBuildFinderAlgorithm.groupAndFilterEquipments]
+     * narrows a forced slot's pool down to the forced item, but the slot itself is still optional (`Σ ≤ 1`), so an
+     * imposed item that improves no requested stat would otherwise be left unequipped — reading as "forcing didn't
+     * work". Constraining `Σ(same-named) ≥ 1` makes "forcer un objet" mean the item is actually in the build.
+     *
+     * Matched per French name and gated on existence, so a typo'd / out-of-data forced name is a no-op (you cannot
+     * force a non-existent item). Two distinct items forced into the same single-occupancy slot is a contradictory
+     * request that makes the model infeasible (no build); surfacing a clear pre-search message for that is tracked
+     * separately (backlog ENG-2). Rings are forced per name and have two slots, so two forced rings both equip.
+     */
+    private fun CpModel.addForcedItemsEquippedConstraints(
+        params: WakfuBestBuildParams,
+        allEquips: List<Equipment>,
+        equipVars: Map<Equipment, IntVar>,
+    ) {
+        if (params.forcedItems.isEmpty()) return
+        for (forcedName in params.forcedItems.map { it.lowercase() }.toSet()) {
+            val sameName = allEquips.filter { it.name.fr.lowercase() == forcedName }
+            if (sameName.isEmpty()) continue
+            addGreaterOrEqual(LinearExpr.sum(sameName.map { equipVars.getValue(it) }.toTypedArray()), 1L)
         }
     }
 

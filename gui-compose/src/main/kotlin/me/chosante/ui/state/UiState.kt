@@ -6,6 +6,7 @@ import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.ScenarioDamage
 import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.domain.SpellRotation
+import me.chosante.autobuilder.genetic.wakfu.RequestValidationProblem
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.autobuilder.genetic.wakfu.isRandomElementStat
@@ -216,6 +217,8 @@ data class UiState(
     val zenithUrl: String? = null,
     val toast: String? = null,
     val error: String? = null,
+    /** Pre-search request problems shown together in the errors pop-up; non-empty blocks the search. */
+    val requestErrors: List<RequestValidationProblem> = emptyList(),
     val modal: Modal? = null,
     // --- Build history / comparison ---
     val screen: Screen = Screen.Builder,

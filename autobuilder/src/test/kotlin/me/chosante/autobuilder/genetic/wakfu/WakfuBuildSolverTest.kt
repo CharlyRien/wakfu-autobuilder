@@ -2943,6 +2943,174 @@ class WakfuBuildSolverTest {
         return results
     }
 
+    // ENG-1/ENG-2: a search request is validated up front, and validateRequest returns ALL problems at once so
+    // the GUI shows them together in a pop-up. An imposed item the character can't equip (level/rarity) replaces
+    // the old "Archiemblème" swap; >1 epic/relic forced sublimation replaces the misleading "no result".
+    // PETS/MOUNTS have no level requirement (eligibility-filter parity).
+    @Test
+    fun `validateRequest reports a forced item above the character level`() {
+        val level = 50
+        val character = Character(clazz = CharacterClass.CRA, level = level, minLevel = level, CharacterSkills(level))
+        val pool =
+            listOf(
+                equipment(id = 1, type = ItemType.EMBLEM, name = "Forced Emblem", stats = mapOf(Characteristic.MASTERY_MELEE to 50), level = 110, rarity = Rarity.LEGENDARY)
+            )
+        val problems =
+            WakfuBestBuildFinderAlgorithm.validateRequest(
+                forcedItemsParams(character, forced = listOf("Forced Emblem")),
+                allEquipments = pool
+            )
+        assertThat(problems).hasSize(1)
+        assertThat(problems.single()).isInstanceOf(RequestValidationProblem.ForcedItemNotEquippable::class.java)
+    }
+
+    @Test
+    fun `validateRequest reports a forced item above the search max rarity`() {
+        val level = 110
+        val character = Character(clazz = CharacterClass.CRA, level = level, minLevel = 1, CharacterSkills(level))
+        val pool =
+            listOf(
+                equipment(id = 1, type = ItemType.AMULET, name = "Too Rare", stats = mapOf(Characteristic.MASTERY_MELEE to 50), level = 100, rarity = Rarity.EPIC)
+            )
+        val problems =
+            WakfuBestBuildFinderAlgorithm.validateRequest(
+                forcedItemsParams(character, forced = listOf("Too Rare"), maxRarity = Rarity.RARE),
+                allEquipments = pool
+            )
+        assertThat(problems.filterIsInstance<RequestValidationProblem.ForcedItemNotEquippable>()).hasSize(1)
+    }
+
+    @Test
+    fun `validateRequest accepts an in-range forced item and a low-level forced mount`() {
+        val level = 110
+        val character = Character(clazz = CharacterClass.CRA, level = level, minLevel = 50, CharacterSkills(level))
+        val pool =
+            listOf(
+                equipment(id = 1, type = ItemType.AMULET, name = "In Range Amulet", stats = mapOf(Characteristic.MASTERY_MELEE to 50), level = 100, rarity = Rarity.LEGENDARY),
+                // A level-1 mount is equippable at any character level (PETS/MOUNTS are level-exempt).
+                equipment(id = 2, type = ItemType.MOUNTS, name = "Low Mount", stats = mapOf(Characteristic.MASTERY_ELEMENTARY to 40), level = 1, rarity = Rarity.RARE)
+            )
+        val problems =
+            WakfuBestBuildFinderAlgorithm.validateRequest(
+                forcedItemsParams(character, forced = listOf("In Range Amulet", "Low Mount")),
+                allEquipments = pool
+            )
+        assertThat(problems).isEmpty()
+    }
+
+    @Test
+    fun `validateRequest reports forcing two epic sublimations`() {
+        val character = Character(CharacterClass.CRA, 50, 1, CharacterSkills(50))
+        val subs =
+            listOf(
+                sublimation(1, SublimationRarity.EPIC, SublimationKind.FLAT, "EpicA"),
+                sublimation(2, SublimationRarity.EPIC, SublimationKind.FLAT, "EpicB")
+            )
+        val problems =
+            WakfuBestBuildFinderAlgorithm.validateRequest(
+                forcedItemsParams(character, forced = emptyList(), forcedSublimations = listOf("EpicA", "EpicB")),
+                allSublimations = subs
+            )
+        assertThat(problems.filterIsInstance<RequestValidationProblem.ForcedSublimationRarityExceeded>()).hasSize(1)
+    }
+
+    @Test
+    fun `validateRequest reports forcing two relic sublimations`() {
+        val character = Character(CharacterClass.CRA, 50, 1, CharacterSkills(50))
+        val subs =
+            listOf(
+                sublimation(1, SublimationRarity.RELIC, SublimationKind.FLAT, "RelicA"),
+                sublimation(2, SublimationRarity.RELIC, SublimationKind.FLAT, "RelicB")
+            )
+        val problems =
+            WakfuBestBuildFinderAlgorithm.validateRequest(
+                forcedItemsParams(character, forced = emptyList(), forcedSublimations = listOf("RelicA", "RelicB")),
+                allSublimations = subs
+            )
+        assertThat(problems.filterIsInstance<RequestValidationProblem.ForcedSublimationRarityExceeded>()).hasSize(1)
+    }
+
+    @Test
+    fun `validateRequest accumulates several problems at once`() {
+        val character = Character(CharacterClass.CRA, 50, 1, CharacterSkills(50))
+        val pool =
+            listOf(
+                equipment(id = 1, type = ItemType.EMBLEM, name = "Forced Emblem", stats = mapOf(Characteristic.MASTERY_MELEE to 50), level = 110, rarity = Rarity.LEGENDARY)
+            )
+        val subs =
+            listOf(
+                sublimation(1, SublimationRarity.EPIC, SublimationKind.FLAT, "EpicA"),
+                sublimation(2, SublimationRarity.EPIC, SublimationKind.FLAT, "EpicB")
+            )
+        val problems =
+            WakfuBestBuildFinderAlgorithm.validateRequest(
+                forcedItemsParams(character, forced = listOf("Forced Emblem"), forcedSublimations = listOf("EpicA", "EpicB")),
+                allEquipments = pool,
+                allSublimations = subs
+            )
+        // Both problems reported together — the whole point of the errors pop-up.
+        assertThat(problems).hasSize(2)
+        assertThat(problems.any { it is RequestValidationProblem.ForcedItemNotEquippable }).isTrue
+        assertThat(problems.any { it is RequestValidationProblem.ForcedSublimationRarityExceeded }).isTrue
+    }
+
+    private fun forcedItemsParams(
+        character: Character,
+        forced: List<String>,
+        maxRarity: Rarity = Rarity.EPIC,
+        forcedSublimations: List<String> = emptyList(),
+    ): WakfuBestBuildParams =
+        WakfuBestBuildParams(
+            character = character,
+            targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_MELEE, 1))),
+            searchDuration = 2.seconds,
+            stopWhenBuildMatch = false,
+            maxRarity = maxRarity,
+            forcedItems = forced,
+            excludedItems = emptyList(),
+            forcedSublimations = forcedSublimations,
+            scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+        )
+
+    // ENG-1: "forcer un objet" must EQUIP the item, not merely make it the only candidate — even when a strictly
+    // better item exists in the same slot (here the un-narrowed pool keeps both, as the solver sees it).
+    @Test
+    fun `a forced item is equipped even when a better item exists in the same slot`(): Unit =
+        runBlocking {
+            val level = 1
+            val character =
+                Character(clazz = CharacterClass.CRA, level = level, minLevel = level, CharacterSkills(level))
+
+            val equipments =
+                listOf(
+                    equipment(id = 1, type = ItemType.AMULET, name = "Weak Amulet", stats = mapOf(Characteristic.MASTERY_MELEE to 10)),
+                    equipment(id = 2, type = ItemType.AMULET, name = "Strong Amulet", stats = mapOf(Characteristic.MASTERY_MELEE to 100))
+                )
+
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_MELEE, 1))),
+                    searchDuration = 2.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = listOf("Weak Amulet"),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+                )
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(params, equipments.groupBy { it.itemType }, WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            val equippedNames = best.individual.equipments.map { it.name.fr }
+            assertThat(equippedNames).contains("Weak Amulet")
+            assertThat(equippedNames).doesNotContain("Strong Amulet")
+            assertThat(best.individual.isValid()).isTrue
+        }
+
     private fun equipment(
         id: Int,
         type: ItemType,

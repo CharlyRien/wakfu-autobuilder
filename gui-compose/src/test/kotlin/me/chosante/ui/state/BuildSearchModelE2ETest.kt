@@ -14,6 +14,7 @@ import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
+import me.chosante.autobuilder.genetic.wakfu.RequestValidationProblem
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildParams
@@ -36,7 +37,6 @@ import me.chosante.common.history.TargetSnapshot
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.ui.history.HistoryRepository
 import me.chosante.ui.i18n.Lang
-import me.chosante.ui.i18n.Tr
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
@@ -354,10 +354,12 @@ class BuildSearchModelE2ETest {
 
             model.search()
 
-            // The solver is never invoked, and a clear localized error is surfaced instead of the
-            // engine silently returning a near-empty pets/mounts-only build.
+            // The solver is never invoked; the impossible level range is reported as a request problem in the
+            // errors pop-up (UiState.requestErrors), not the results-panel banner, instead of the engine
+            // silently returning a near-empty pets/mounts-only build.
             assertEquals(0, solverInvocations)
-            assertEquals(Tr.LEVEL_RANGE_INVALID.value(Lang.EN), model.ui.error)
+            assertEquals(1, model.ui.requestErrors.size)
+            assertTrue(model.ui.requestErrors.single() is RequestValidationProblem.LevelRangeInvalid)
             assertEquals(Phase.Idle, model.ui.phase)
             assertNull(model.ui.build)
         } finally {
