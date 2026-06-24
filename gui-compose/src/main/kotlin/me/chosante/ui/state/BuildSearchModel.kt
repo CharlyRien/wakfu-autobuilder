@@ -685,14 +685,6 @@ class BuildSearchModel(
     fun search() {
         job?.cancel()
         val snapshot = ui
-        // Contradictory level bounds (min above the character level) match no normal item — the
-        // engine keeps items with minLevel <= itemLevel <= level — so the solver would fall back to
-        // the only level-agnostic slots (pets/mounts) and surface a near-empty nonsense build. Fail
-        // fast with a clear, visible error instead of silently coercing the bounds and searching.
-        if (snapshot.minLevel > snapshot.level) {
-            ui = snapshot.copy(error = Tr.LEVEL_RANGE_INVALID.value(snapshot.lang))
-            return
-        }
         val character = Character(snapshot.clazz, snapshot.level, snapshot.minLevel)
         val targetStats = snapshot.toTargetStats()
         // A targeted boss overlays its per-element resistances onto the manual scenario (mirrors the CLI):
@@ -727,6 +719,14 @@ class BuildSearchModel(
                 damageScenario = damageScenario
             )
 
+        // Validate the whole request up front and surface ALL problems together in a pop-up
+        // (UiState.requestErrors) instead of throwing on the first and burying it in the results-panel banner.
+        val requestProblems = WakfuBestBuildFinderAlgorithm.validateRequest(params)
+        if (requestProblems.isNotEmpty()) {
+            ui = snapshot.copy(requestErrors = requestProblems)
+            return
+        }
+
         ui =
             snapshot.copy(
                 phase = Phase.Searching,
@@ -741,7 +741,8 @@ class BuildSearchModel(
                 zenith = ZenithState.Idle,
                 zenithUrl = null,
                 toast = null,
-                error = null
+                error = null,
+                requestErrors = emptyList()
             )
         job =
             scope.launch(Dispatchers.Default) {
@@ -884,7 +885,9 @@ class BuildSearchModel(
                 } catch (throwable: Throwable) {
                     // Catch Throwable (not just Exception): the solver can raise fatal Errors
                     // (e.g. native-access / linkage issues) that would otherwise crash the event
-                    // thread with a masked coroutines error instead of surfacing here.
+                    // thread with a masked coroutines error instead of surfacing here. Request-validation
+                    // problems are caught BEFORE the search starts (see validateRequest above), so they
+                    // don't reach here.
                     throwable.printStackTrace()
                     val message = throwable.message ?: throwable::class.qualifiedName ?: "Search failed"
                     withContext(mainDispatcher) {
@@ -900,6 +903,11 @@ class BuildSearchModel(
         job?.cancel()
         job = null
         ui = ui.copy(phase = Phase.Idle, progress = 0)
+    }
+
+    /** Dismisses the pre-search request-errors pop-up ([UiState.requestErrors]). */
+    fun dismissRequestErrors() {
+        ui = ui.copy(requestErrors = emptyList())
     }
 
     fun openZenithBuild() {

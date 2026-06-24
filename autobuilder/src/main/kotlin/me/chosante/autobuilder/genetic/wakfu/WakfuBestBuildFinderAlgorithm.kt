@@ -10,11 +10,13 @@ import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
 import me.chosante.common.Character
 import me.chosante.common.Equipment
+import me.chosante.common.I18nText
 import me.chosante.common.ItemType
 import me.chosante.common.Monster
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
+import me.chosante.common.SublimationRarity
 import kotlin.time.Duration
 
 object WakfuBestBuildFinderAlgorithm {
@@ -84,6 +86,10 @@ object WakfuBestBuildFinderAlgorithm {
     }
 
     fun run(params: WakfuBestBuildParams): Flow<GeneticAlgorithmResult<BuildCombination>> {
+        // Reject an invalid request (contradictory level bounds, a non-equippable forced item, or >1 epic/relic
+        // forced sublimation) BEFORE any work, reporting ALL problems at once. The GUI pre-validates with
+        // [validateRequest] and shows them in a pop-up; this throw is the CLI / safety floor. (ENG-1 / ENG-2)
+        validateRequest(params).let { if (it.isNotEmpty()) throw InvalidRequestException(it) }
         val equipmentsByItemType =
             groupAndFilterEquipments(
                 excludedItems = params.excludedItems,
@@ -152,7 +158,92 @@ object WakfuBestBuildFinderAlgorithm {
         }
         return equipmentsByItemType
     }
+
+    /**
+     * Validates a search request and returns ALL problems found (empty list = valid) so the GUI can show them
+     * together in one pop-up and the CLI can report them at once. Checks: contradictory level bounds; a forced
+     * item the character can't equip (level outside [minLevel, level] — PETS/MOUNTS exempt — or a rarity above
+     * [WakfuBestBuildParams.maxRarity] / in [WakfuBestBuildParams.excludedRarities]); and forcing more than one
+     * epic or relic sublimation (a build hosts at most one of each). A forced item/sub name that matches nothing
+     * is ignored (a typo can't be equipped). [allEquipments] / [allSublimations] are injectable for tests.
+     */
+    fun validateRequest(
+        params: WakfuBestBuildParams,
+        allEquipments: List<Equipment> = equipments,
+        allSublimations: List<Sublimation> = sublimations,
+    ): List<RequestValidationProblem> {
+        val problems = mutableListOf<RequestValidationProblem>()
+        val character = params.character
+
+        if (character.minLevel > character.level) {
+            problems += RequestValidationProblem.LevelRangeInvalid(character.minLevel, character.level)
+        }
+
+        for (forcedName in params.forcedItems.map { it.lowercase() }.toSet()) {
+            val matches = allEquipments.filter { it.name.fr.lowercase() == forcedName }
+            if (matches.isNotEmpty() && matches.none { it.isEquippableFor(params) }) {
+                problems += RequestValidationProblem.ForcedItemNotEquippable(matches.first(), character.minLevel, character.level)
+            }
+        }
+
+        if (params.forcedSublimations.isNotEmpty()) {
+            val forcedSubNames = params.forcedSublimations.map { it.lowercase() }.toSet()
+            val forcedSubs =
+                allSublimations.filter { it.name.fr.lowercase() in forcedSubNames || it.name.en.lowercase() in forcedSubNames }
+            for (rarity in listOf(SublimationRarity.EPIC, SublimationRarity.RELIC)) {
+                val ofRarity = forcedSubs.filter { it.rarity == rarity }
+                if (ofRarity.size > 1) {
+                    problems += RequestValidationProblem.ForcedSublimationRarityExceeded(rarity, ofRarity.map { it.name })
+                }
+            }
+        }
+
+        return problems
+    }
+
+    private fun Equipment.isEquippableFor(params: WakfuBestBuildParams): Boolean {
+        val rarityOk = rarity <= params.maxRarity && rarity !in params.excludedRarities
+        val levelOk =
+            itemType == ItemType.PETS ||
+                itemType == ItemType.MOUNTS ||
+                (level >= params.character.minLevel && level <= params.character.level)
+        return rarityOk && levelOk
+    }
 }
+
+/**
+ * A single problem with a search request, found by [WakfuBestBuildFinderAlgorithm.validateRequest]. Structured
+ * (not a pre-formatted string) so the GUI localizes each one and the CLI formats them in one go.
+ */
+sealed interface RequestValidationProblem {
+    /** The character's minimum level is above its level — no normal item fits the range. */
+    data class LevelRangeInvalid(
+        val minLevel: Int,
+        val characterLevel: Int,
+    ) : RequestValidationProblem
+
+    /** A forced [item] can't be equipped: level outside [minLevel, characterLevel] or a disallowed rarity. */
+    data class ForcedItemNotEquippable(
+        val item: Equipment,
+        val minLevel: Int,
+        val characterLevel: Int,
+    ) : RequestValidationProblem
+
+    /** More than one [rarity] (epic or relic) sublimation was forced; a build hosts at most one of each. */
+    data class ForcedSublimationRarityExceeded(
+        val rarity: SublimationRarity,
+        val sublimations: List<I18nText>,
+    ) : RequestValidationProblem
+}
+
+/**
+ * Thrown by [WakfuBestBuildFinderAlgorithm.run] when a request has one or more [problems]. The GUI pre-validates
+ * with [WakfuBestBuildFinderAlgorithm.validateRequest] and shows the problems in a pop-up, so it normally never
+ * reaches this; the throw is the CLI / safety floor.
+ */
+class InvalidRequestException(
+    val problems: List<RequestValidationProblem>,
+) : IllegalArgumentException("Invalid search request with ${problems.size} problem(s).")
 
 data class WakfuBestBuildParams(
     val character: Character,

@@ -21,6 +21,7 @@ import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
+import me.chosante.ui.components.RequestErrorsDialog
 import me.chosante.ui.components.WhatsNewDialog
 import me.chosante.ui.components.loadClasspathBitmap
 import me.chosante.ui.i18n.LocalLang
@@ -209,6 +210,14 @@ fun App(model: BuildSearchModel) {
                             WhatsNew.markSeen()
                             showWhatsNew = false
                         }
+                    )
+                }
+                // Pre-search request errors, over the shell: lists every problem so the user fixes them
+                // before searching (set by BuildSearchModel.search -> UiState.requestErrors).
+                if (model.ui.requestErrors.isNotEmpty()) {
+                    RequestErrorsDialog(
+                        problems = model.ui.requestErrors,
+                        onDismiss = { model.dismissRequestErrors() }
                     )
                 }
             }

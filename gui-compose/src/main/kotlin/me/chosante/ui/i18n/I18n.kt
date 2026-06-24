@@ -35,6 +35,26 @@ enum class Tr(
         "Min level can't be higher than the character level. Lower the min, or raise the level.",
         "Le niveau min ne peut pas dépasser le niveau du personnage. Baisse le min, ou augmente le niveau."
     ),
+    FORCED_ITEM_NOT_EQUIPPABLE(
+        "can't be equipped for this build — its level or rarity is outside the search.",
+        "n'est pas équipable pour ce build — son niveau ou sa rareté est hors de la recherche."
+    ),
+    FORCED_SUBLIMATION_RARITY_INVALID(
+        "Only one epic and one relic sublimation can be forced — remove one of:",
+        "Tu ne peux imposer qu'une sublimation épique et une relique — retire l'une de :"
+    ),
+    REQUEST_ERRORS_TITLE(
+        "Can't search yet",
+        "Recherche impossible"
+    ),
+    REQUEST_ERRORS_INTRO(
+        "Fix these before searching:",
+        "Corrige ces points avant de lancer la recherche :"
+    ),
+    REQUEST_ERRORS_DISMISS(
+        "Got it",
+        "Compris"
+    ),
     PROGRESS("Progress", "Progression"),
     PRELOAD_WARMUP("Starting the engine…", "Démarrage du moteur…"),
     MATCH("Match", "Correspondance"),
