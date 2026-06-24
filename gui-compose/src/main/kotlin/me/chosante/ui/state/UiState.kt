@@ -48,11 +48,18 @@ enum class Screen {
     Compare,
 }
 
-/** The two sides of the compare view. */
-enum class CompareSlot {
-    A,
-    B,
+/**
+ * Tabs of the build-result region (everything right of the request inputs): the discovered build's
+ * paperdoll + stats, or a reference view of the current class's damage spells & chosen passives.
+ */
+enum class BuilderTab {
+    BUILD,
+    SPELLS,
 }
+
+/** The compare view holds between two and four build columns. */
+const val MIN_COMPARE_SLOTS = 2
+const val MAX_COMPARE_SLOTS = 4
 
 /** Ordering options for the build library. See [organizeLibrary]. */
 enum class LibrarySort {
@@ -166,7 +173,9 @@ data class UiState(
     val maxRarity: Rarity = Rarity.EPIC,
     /** Rarities the user toggled off; excluded from the search. At least one rarity always stays allowed. */
     val excludedRarities: Set<Rarity> = emptySet(),
-    val duration: String = "20",
+    // 120s: long enough for max-damage (incl. runes+sublimations) to reach a PROVEN optimum at high level
+    // (~80–110s after the rune fold); shorter modes still finish early and stream their result well before.
+    val duration: String = "120",
     val stopAtMatch: Boolean = false,
     val forcedItems: List<ItemChip> = emptyList(),
     val excludedItems: List<ItemChip> = emptyList(),
@@ -196,6 +205,8 @@ data class UiState(
     val achieved: Map<Characteristic, Int> = emptyMap(),
     /** Best spells to cast for the build's AP, in max-damage mode only (else null). Computed off-thread. */
     val spellRotation: SpellRotation? = null,
+    /** Active tab of the result region: the discovered build, or the class's spells & passives. */
+    val builderTab: BuilderTab = BuilderTab.BUILD,
     val lastLandedEquipmentId: Int? = null,
     val zenith: ZenithState = ZenithState.Idle,
     val zenithUrl: String? = null,
@@ -215,9 +226,12 @@ data class UiState(
      * act (it pops [Modal.ConfirmReSearch] first). Cleared once the user confirms or starts fresh.
      */
     val searchLocked: Boolean = false,
-    /** The two builds pinned for the side-by-side compare view (entry ids), A then B. */
-    val compareA: String? = null,
-    val compareB: String? = null,
+    /**
+     * Builds pinned for the side-by-side compare view, in column order (entry ids; `null` = an empty
+     * slot still showing its picker). Starts with two slots; the user can add up to four and remove
+     * extras back down to two. See [me.chosante.ui.state.BuildSearchModel.setCompareSlot].
+     */
+    val compareSlots: List<String?> = listOf(null, null),
     /**
      * Id of the build just created by [me.chosante.ui.state.BuildSearchModel.duplicateBuild]. The
      * library briefly highlights that card (and scrolls it into view) so it's obvious where the copy

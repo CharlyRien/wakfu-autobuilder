@@ -25,11 +25,14 @@ object PassiveCatalog {
     /** The passives of [clazz] the solver may auto-pick — fully declarative with a flat stat bonus. */
     fun choosable(clazz: CharacterClass): List<Passive> = forClass(clazz).filter { it.solverChoosable }
 
-    /** Resolve a forced passive by (case-insensitive) French name within [clazz]; null if no match. */
+    /** Resolve a forced passive by (case-insensitive) name in **any** language within [clazz]; null if no match. */
     fun findByName(
         clazz: CharacterClass,
         name: String,
-    ): Passive? = forClass(clazz).firstOrNull { it.name?.equals(name, ignoreCase = true) == true }
+    ): Passive? =
+        forClass(clazz).firstOrNull { passive ->
+            passive.name?.let { n -> listOf(n.fr, n.en, n.es, n.pt).any { it.equals(name, ignoreCase = true) } } == true
+        }
 
     /**
      * Passive slots unlocked at [level]. Wakfu grants a new slot at levels 10 / 30 / 50 / 100 / 150 / 200,

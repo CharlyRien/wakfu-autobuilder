@@ -562,7 +562,7 @@ private fun SublimationPickerModal(onPick: (Sublimation) -> Unit) {
         }
     var query by remember { mutableStateOf("") }
     val filtered =
-        remember(query, results) {
+        remember(query, results, lang) {
             val q = query.trim()
             if (q.isBlank()) {
                 results
@@ -570,7 +570,7 @@ private fun SublimationPickerModal(onPick: (Sublimation) -> Unit) {
                 results.filter { sub ->
                     sub.name.fr.contains(q, ignoreCase = true) ||
                         sub.name.en.contains(q, ignoreCase = true) ||
-                        sub.rawText?.contains(q, ignoreCase = true) == true
+                        sublimationEffectText(sub, lang).contains(q, ignoreCase = true)
                 }
             }.sortedBy { (if (lang == Lang.FR) it.name.fr else it.name.en).lowercase() }
                 .take(120)
@@ -629,7 +629,7 @@ private fun SublimationResultRow(
                 style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
             )
         }
-        sub.rawText?.takeIf { it.isNotBlank() }?.let { effect ->
+        sublimationEffectText(sub, lang).takeIf { it.isNotBlank() }?.let { effect ->
             Text(
                 text = effect,
                 style = WTypography.labelSmall.copy(color = WColor.muted),
@@ -649,17 +649,21 @@ private fun PassivePickerModal(
     val all = remember(clazz) { PassiveCatalog.forClass(clazz) }
     var query by remember { mutableStateOf("") }
     val filtered =
-        remember(query, all) {
+        remember(query, all, lang) {
             val q = query.trim()
             if (q.isBlank()) {
                 all
             } else {
                 all.filter { passive ->
-                    passive.name?.contains(q, ignoreCase = true) == true ||
-                        passive.description?.contains(q, ignoreCase = true) == true
+                    passive.name?.localized(lang)?.contains(q, ignoreCase = true) == true ||
+                        passive.description?.localized(lang)?.contains(q, ignoreCase = true) == true
                 }
-            }.sortedBy { it.name?.lowercase().orEmpty() }
-                .take(120)
+            }.sortedBy {
+                it.name
+                    ?.localized(lang)
+                    ?.lowercase()
+                    .orEmpty()
+            }.take(120)
         }
     ModalCard(title = tr(Tr.REQUIRE_PASSIVE_TITLE)) {
         SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_PASSIVES))
@@ -687,6 +691,7 @@ private fun PassiveResultRow(
     passive: me.chosante.common.Passive,
     onClick: () -> Unit,
 ) {
+    val lang = LocalLang.current
     Row(
         modifier =
             Modifier
@@ -702,12 +707,12 @@ private fun PassiveResultRow(
         PassiveIcon(gfxId = passive.gfxId, size = 28.dp)
         Column(verticalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.weight(1f)) {
             Text(
-                text = passive.name ?: passive.spellId.toString(),
+                text = passive.name?.localized(lang) ?: passive.spellId.toString(),
                 style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            passive.description?.takeIf { it.isNotBlank() }?.let { effect ->
+            passive.description?.localized(lang)?.takeIf { it.isNotBlank() }?.let { effect ->
                 Text(
                     text = effect,
                     style = WTypography.labelSmall.copy(color = WColor.muted),

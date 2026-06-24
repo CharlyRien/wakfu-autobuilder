@@ -562,7 +562,8 @@ class BuildSearchModel(
      * is ignored.
      */
     fun pickPassive(passive: me.chosante.common.Passive) {
-        val name = passive.name ?: return
+        // forcedPassives stores the canonical FRENCH name (the engine matches passives by French).
+        val name = passive.name?.fr ?: return
         val slots =
             me.chosante.autobuilder.domain.PassiveCatalog
                 .slotsForLevel(ui.level)
@@ -1004,6 +1005,11 @@ class BuildSearchModel(
 
     fun goToScreen(screen: Screen) {
         ui = ui.copy(screen = screen)
+    }
+
+    /** Switch the result region between the discovered build and the class's spells & passives. */
+    fun setBuilderTab(tab: BuilderTab) {
+        ui = ui.copy(builderTab = tab)
     }
 
     // --- Library organize (search / sort / filter / group) ---
@@ -1521,28 +1527,38 @@ class BuildSearchModel(
         ui = ui.copy(modal = Modal.ConfirmDelete(id, name))
     }
 
-    /** Opens the compare view with [id] pre-selected as side A. */
+    /** Opens the compare view with [id] pre-selected in the first column. */
     fun startCompare(id: String) {
-        ui = ui.copy(screen = Screen.Compare, compareA = id, compareB = null, modal = null)
+        ui = ui.copy(screen = Screen.Compare, compareSlots = listOf(id, null), modal = null)
     }
 
+    /** Pin build [id] into compare column [index] (no-op if the index is out of range). */
     fun setCompareSlot(
-        slot: CompareSlot,
+        index: Int,
         id: String,
     ) {
+        if (index !in ui.compareSlots.indices) return
+        ui = ui.copy(compareSlots = ui.compareSlots.mapIndexed { i, slot -> if (i == index) id else slot })
+    }
+
+    /**
+     * The ✕ on compare column [index]: removes the column when more than the two base columns exist,
+     * otherwise just empties it — so there are always at least [MIN_COMPARE_SLOTS] columns to compare.
+     */
+    fun clearCompareSlot(index: Int) {
+        if (index !in ui.compareSlots.indices) return
         ui =
-            when (slot) {
-                CompareSlot.A -> ui.copy(compareA = id)
-                CompareSlot.B -> ui.copy(compareB = id)
+            if (ui.compareSlots.size > MIN_COMPARE_SLOTS) {
+                ui.copy(compareSlots = ui.compareSlots.filterIndexed { i, _ -> i != index })
+            } else {
+                ui.copy(compareSlots = ui.compareSlots.mapIndexed { i, slot -> if (i == index) null else slot })
             }
     }
 
-    fun clearCompareSlot(slot: CompareSlot) {
-        ui =
-            when (slot) {
-                CompareSlot.A -> ui.copy(compareA = null)
-                CompareSlot.B -> ui.copy(compareB = null)
-            }
+    /** Append an empty compare column, up to [MAX_COMPARE_SLOTS]. */
+    fun addCompareSlot() {
+        if (ui.compareSlots.size >= MAX_COMPARE_SLOTS) return
+        ui = ui.copy(compareSlots = ui.compareSlots + null)
     }
 
     fun deleteBuild(id: String) {
@@ -1558,8 +1574,7 @@ class BuildSearchModel(
                         activeBuildId = if (wasActive) null else ui.activeBuildId,
                         activeBuildName = if (wasActive) null else ui.activeBuildName,
                         searchLocked = if (wasActive) false else ui.searchLocked,
-                        compareA = if (ui.compareA == id) null else ui.compareA,
-                        compareB = if (ui.compareB == id) null else ui.compareB,
+                        compareSlots = ui.compareSlots.map { if (it == id) null else it },
                         knownTags = computeKnownTags(all),
                         libraryFolder = ui.libraryFolder.coercedTo(all),
                         librarySelectedTags = ui.librarySelectedTags.coercedToTags(all)

@@ -6,6 +6,7 @@ import me.chosante.common.Spell
 import me.chosante.common.SpellCastLimit
 import me.chosante.common.SpellDamageScaling
 import me.chosante.common.SpellElement
+import me.chosante.common.SpellLocalization
 
 /**
  * The embedded class-spell dataset (`spells.json`, produced by the `spells-extractor` module from the
@@ -41,11 +42,22 @@ object SpellCatalog {
                 .decodeList<SpellDamageScaling>("spell-damage.json")
                 .orEmpty()
                 .associateBy { it.spellId }
+        // Join the per-spell localized name + description (bdata i18n, all four languages) so the GUI shows
+        // translated spell text; the encyclopedia scrape only carried English descriptions. A spell with no
+        // record keeps its encyclopedia text — safe by construction.
+        val localizationBySpellId =
+            EmbeddedResources
+                .decodeList<SpellLocalization>("spell-i18n.json")
+                .orEmpty()
+                .associateBy { it.spellId }
         base.map { spell ->
             val limit = castLimitsBySpellId[spell.id]
             val scaling = damageScalingBySpellId[spell.id]
-            if (limit == null && scaling == null) return@map spell
+            val localization = localizationBySpellId[spell.id]
+            if (limit == null && scaling == null && localization == null) return@map spell
             spell.copy(
+                name = localization?.name ?: spell.name,
+                description = localization?.description ?: spell.description,
                 maxCastPerTurn = limit?.maxCastPerTurn,
                 maxCastPerTarget = limit?.maxCastPerTarget,
                 cooldown = limit?.cooldown,

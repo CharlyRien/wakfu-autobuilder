@@ -20,14 +20,19 @@ import kotlin.math.roundToInt
 @Serializable
 data class Passive(
     val spellId: Int,
-    val name: String? = null,
+    // Localized from the client i18n bundle (name = namespace 3, description = namespace 4). Read with a
+    // tolerant serializer so OLDER saved builds — which stored these as a single plain string — still load
+    // (the legacy string is widened to all four languages). See [I18nTextOrStringSerializer].
+    @Serializable(with = I18nTextOrStringSerializer::class)
+    val name: I18nText? = null,
     // Game data stores the class as its readable name ("FECA", …); kept as a String because CharacterClass
     // is not @Serializable. Resolve via [characterClass].
     @SerialName("class") val clazz: String,
     // Spell sprite id — names the icon PNG (`assets/spells/<gfxId>.png`, extracted from the client's gui.jar).
     // Defaulted so a pre-`gfxId` artifact still decodes (lenient JSON skips extra keys, not missing ones).
     val gfxId: Int = 0,
-    val description: String? = null,
+    @Serializable(with = I18nTextOrStringSerializer::class)
+    val description: I18nText? = null,
     // Permanent, unconditional, flat positive stats (keyed by Characteristic name). Decoded as Double to
     // tolerate the extractor's number formatting; folded to Int via [flatStats].
     val flatBuildStats: Map<String, Double> = emptyMap(),

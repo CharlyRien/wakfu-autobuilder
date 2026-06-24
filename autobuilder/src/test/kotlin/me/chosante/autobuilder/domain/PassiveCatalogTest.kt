@@ -20,7 +20,7 @@ class PassiveCatalogTest {
     @Test
     fun `every passive carries a usable icon gfx and resolves its class`() {
         assertThat(PassiveCatalog.passives).allSatisfy { passive ->
-            assertThat(passive.gfxId).describedAs("${passive.name}: a gfx id for the icon").isPositive
+            assertThat(passive.gfxId).describedAs("${passive.name?.fr}: a gfx id for the icon").isPositive
             assertThat(passive.characterClass).isNotEqualTo(CharacterClass.UNKNOWN)
         }
     }
