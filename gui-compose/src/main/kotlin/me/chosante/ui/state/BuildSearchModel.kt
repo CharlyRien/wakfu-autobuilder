@@ -18,6 +18,7 @@ import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.PassiveCatalog
 import me.chosante.autobuilder.domain.SpellElement
+import me.chosante.autobuilder.domain.SpellRotation
 import me.chosante.autobuilder.domain.SpellRotationOptimizer
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
@@ -327,7 +328,8 @@ class BuildSearchModel(
                 optimal = false,
                 build = null,
                 achieved = emptyMap(),
-                spellRotation = null
+                spellRotation = null,
+                scenarioDamages = emptyList()
             )
     }
 
@@ -364,7 +366,8 @@ class BuildSearchModel(
                 optimal = false,
                 build = null,
                 achieved = emptyMap(),
-                spellRotation = null
+                spellRotation = null,
+                scenarioDamages = emptyList()
             )
     }
 
@@ -730,6 +733,7 @@ class BuildSearchModel(
                 build = null,
                 achieved = emptyMap(),
                 spellRotation = null,
+                scenarioDamages = emptyList(),
                 lastLandedEquipmentId = null,
                 zenith = ZenithState.Idle,
                 zenithUrl = null,
@@ -757,6 +761,12 @@ class BuildSearchModel(
                     }
                 try {
                     var hasResult = false
+                    // The per-position damage breakdown is a result-level detail that runs 3-4 extra rotations,
+                    // so it's computed ONCE for the final build after the stream settles (below) — not on every
+                    // streamed improvement. These capture the last build/achieved/headline-rotation for that.
+                    var finalBuild: BuildCombination? = null
+                    var finalAchieved: Map<Characteristic, Int> = emptyMap()
+                    var finalRotation: SpellRotation? = null
                     buildFinder(params)
                         .conflate()
                         .collect { result ->
@@ -804,6 +814,9 @@ class BuildSearchModel(
                                 } else {
                                     null
                                 }
+                            finalBuild = result.individual
+                            finalAchieved = achieved
+                            finalRotation = spellRotation
                             withContext(mainDispatcher) {
                                 val landedEquipmentId = newlyLandedEquipmentId(ui.build, result.individual)
                                 ui =
@@ -831,11 +844,28 @@ class BuildSearchModel(
                                 }
                             }
                         }
+                    // Compute the per-position breakdown ONCE for the final build, still off the UI thread
+                    // (we're on Dispatchers.Default here), reusing the final headline rotation for the
+                    // configured combo so only the OTHER positions pay a rotation.
+                    val finalBuildSnapshot = finalBuild
+                    val scenarioDamages =
+                        if (snapshot.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE && finalBuildSnapshot != null) {
+                            SpellRotationOptimizer.scenarioBreakdown(
+                                finalBuildSnapshot,
+                                character,
+                                character.clazz,
+                                damageScenario,
+                                includeBerserk = (finalAchieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
+                                configuredRotationTotal = finalRotation?.totalExpectedDamage
+                            )
+                        } else {
+                            emptyList()
+                        }
                     withContext(mainDispatcher) {
                         if (ui.phase == Phase.Searching && hasResult) {
                             // Snap the time-based bar to a clean 100% on completion (the solver may
                             // have proven the optimum well before the wall-clock budget ran out).
-                            ui = ui.copy(phase = Phase.Done, progress = 100, lastLandedEquipmentId = null)
+                            ui = ui.copy(phase = Phase.Done, progress = 100, scenarioDamages = scenarioDamages, lastLandedEquipmentId = null)
                         } else if (ui.phase == Phase.Searching) {
                             ui =
                                 ui.copy(
@@ -1124,12 +1154,13 @@ class BuildSearchModel(
         job?.cancel()
         val loadedBuild = entry.toBuildCombination()
         // Recompute the spell rotation for a loaded max-damage build (else the Rotation card would show a
-        // rotation left over from a prior search, or nothing). Cheap — no solver, just the rotation DP.
+        // rotation left over from a prior search, or nothing). Cheap — no solver, just one rotation DP.
+        val isMaxDamage = entry.restoredMode() == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE
+        val restoredCharacter =
+            me.chosante.common.Character(entry.restoredClass(), entry.request.level, entry.request.minLevel, loadedBuild.characterSkills)
         val rotation =
-            if (entry.restoredMode() == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
-                val character =
-                    me.chosante.common.Character(entry.restoredClass(), entry.request.level, entry.request.minLevel, loadedBuild.characterSkills)
-                SpellRotationOptimizer.bestSequencedRotation(loadedBuild, character, character.clazz, entry.restoredScenario())
+            if (isMaxDamage) {
+                SpellRotationOptimizer.bestSequencedRotation(loadedBuild, restoredCharacter, restoredCharacter.clazz, entry.restoredScenario())
             } else {
                 null
             }
@@ -1154,6 +1185,7 @@ class BuildSearchModel(
                 optimal = entry.result.optimal,
                 build = loadedBuild,
                 spellRotation = rotation,
+                scenarioDamages = emptyList(),
                 achieved = entry.result.achieved,
                 lastLandedEquipmentId = null,
                 zenith = if (entry.zenithUrl != null) ZenithState.Ready else ZenithState.Idle,
@@ -1164,6 +1196,25 @@ class BuildSearchModel(
                 activeBuildName = entry.name,
                 searchLocked = true
             )
+        // The per-position breakdown runs 3-4 more rotations, so compute it OFF the UI thread (the rotation
+        // card already renders from `rotation` above) and patch it in when ready — only if this build is still
+        // the active one, so a quick load-another-build doesn't get a stale breakdown.
+        if (isMaxDamage && rotation != null) {
+            scope.launch(Dispatchers.Default) {
+                val breakdown =
+                    SpellRotationOptimizer.scenarioBreakdown(
+                        loadedBuild,
+                        restoredCharacter,
+                        restoredCharacter.clazz,
+                        entry.restoredScenario(),
+                        includeBerserk = (entry.result.achieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
+                        configuredRotationTotal = rotation.totalExpectedDamage
+                    )
+                withContext(mainDispatcher) {
+                    if (ui.activeBuildId == entry.id) ui = ui.copy(scenarioDamages = breakdown)
+                }
+            }
+        }
     }
 
     /** Opens the import dialog, where a build exported via [exportBuild] is pasted. See [importBuild]. */
