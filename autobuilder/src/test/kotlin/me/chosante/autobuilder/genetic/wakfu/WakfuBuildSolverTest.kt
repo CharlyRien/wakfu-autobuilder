@@ -2116,6 +2116,195 @@ class WakfuBuildSolverTest {
             ).contains("DistSub")
         }
 
+    private fun achievedStats(
+        build: BuildCombination,
+        character: Character,
+    ): Map<Characteristic, Int> =
+        computeCharacteristicsValues(
+            build,
+            character.baseCharacteristicValues,
+            masteryElementsWanted = emptyMap(),
+            resistanceElementsWanted = emptyMap(),
+            scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+        )
+
+    @Test
+    fun `most-masteries does not take a damage-reducing sublimation just to overshoot a met target`(): Unit =
+        runBlocking {
+            // Regression for the reported Enutrof case: most-masteries used to be blind to the % Damage Inflicted
+            // multiplier, so it grabbed Swiftness II (+1 MP, −20% DI) purely to over-satisfy an already-met MP
+            // target — inflating the mastery "match" while cutting ~20% of real damage. Now DI is folded into the
+            // objective, so a −20% DI sub buys nothing the tiny overshoot bonus can justify.
+            val character = Character(CharacterClass.ENUTROF, 1, 1, CharacterSkills(1))
+            val carrier = equipment(1, ItemType.AMULET, "Carrier", mapOf(Characteristic.MASTERY_DISTANCE to 50), maxShardSlots = 4)
+            val swiftnessLike =
+                sublimation(
+                    20,
+                    SublimationRarity.NORMAL,
+                    SublimationKind.FLAT,
+                    "Swiftness II",
+                    effects =
+                        listOf(
+                            SublimationEffect(Characteristic.DAMAGE_INFLICTED, -20),
+                            SublimationEffect(Characteristic.MOVEMENT_POINT, 1)
+                        ),
+                    slotColorPattern = listOf(1, 2, 3)
+                )
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    // MP base is 3, so the MP target is met WITHOUT the sub; the sub would only overshoot it
+                    // (3→4) for a tiny tie-breaker bonus — far less than the 20% damage it costs.
+                    targetStats =
+                        TargetStats(
+                            listOf(
+                                TargetStat(Characteristic.MASTERY_DISTANCE, 1),
+                                TargetStat(Characteristic.MOVEMENT_POINT, 3)
+                            )
+                        ),
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+                )
+            val best =
+                WakfuBuildSolver
+                    .optimize(params, listOf(carrier).groupBy { it.itemType }, emptyList(), listOf(swiftnessLike), WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(
+                best.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).doesNotContain("Swiftness II")
+            assertThat(achievedStats(best.individual, character)[Characteristic.DAMAGE_INFLICTED] ?: 0).isGreaterThanOrEqualTo(0)
+        }
+
+    @Test
+    fun `most-masteries rejects a damage-reducing sublimation even when NO mastery is requested`(): Unit =
+        runBlocking {
+            // Backstop case: a most-masteries request with only a required target (MP) and no maximizable mastery.
+            // The DI fold is then structurally 0 (nothing to multiply), so without the backstop the overshoot
+            // tie-breaker would grab the +1 MP / −20% DI sub to over-satisfy MP — the original Enutrof bug in its
+            // pure required-only form. The backstop drops the −DI sub when no mastery is being maximized.
+            val character = Character(CharacterClass.ENUTROF, 1, 1, CharacterSkills(1))
+            val carrier = equipment(1, ItemType.AMULET, "Carrier", mapOf(Characteristic.HP to 50), maxShardSlots = 4)
+            val swiftnessLike =
+                sublimation(
+                    20,
+                    SublimationRarity.NORMAL,
+                    SublimationKind.FLAT,
+                    "Swiftness II",
+                    effects =
+                        listOf(
+                            SublimationEffect(Characteristic.DAMAGE_INFLICTED, -20),
+                            SublimationEffect(Characteristic.MOVEMENT_POINT, 1)
+                        ),
+                    slotColorPattern = listOf(1, 2, 3)
+                )
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = TargetStats(listOf(TargetStat(Characteristic.MOVEMENT_POINT, 3))),
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+                )
+            val best =
+                WakfuBuildSolver
+                    .optimize(params, listOf(carrier).groupBy { it.itemType }, emptyList(), listOf(swiftnessLike), WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(
+                best.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).doesNotContain("Swiftness II")
+            assertThat(achievedStats(best.individual, character)[Characteristic.DAMAGE_INFLICTED] ?: 0).isGreaterThanOrEqualTo(0)
+        }
+
+    @Test
+    fun `most-masteries maximizes damage inflicted among equal-mastery builds`(): Unit =
+        runBlocking {
+            // DI is now a maximized factor: between two amulets with identical requested mastery, the one that
+            // also carries +% Damage Inflicted wins, because mastery × (1 + DI/100) is higher.
+            val character = Character(CharacterClass.CRA, 50, 50, CharacterSkills(50))
+            val plain = equipment(1, ItemType.AMULET, "Plain", mapOf(Characteristic.MASTERY_DISTANCE to 200))
+            val withDi = equipment(2, ItemType.AMULET, "WithDI", mapOf(Characteristic.MASTERY_DISTANCE to 200, Characteristic.DAMAGE_INFLICTED to 30))
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1))),
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+                )
+            val best =
+                WakfuBuildSolver
+                    .optimize(params, listOf(plain, withDi).groupBy { it.itemType }, emptyList(), emptyList(), WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            // The +DI amulet wins (the AMULET slot holds at most one); the build can additionally route the
+            // Major aptitude into DI now that it's maximized, so we assert the DI item was chosen, not an exact total.
+            assertThat(best.individual.equipments.map { it.name.en }).contains("WithDI").doesNotContain("Plain")
+        }
+
+    @Test
+    fun `most-masteries still takes a damage-reducing sublimation when its mastery gain outweighs the DI loss`(): Unit =
+        runBlocking {
+            // The fold is a nuanced tradeoff, not a blanket ban (the old safety filter wrongly rejected this):
+            // a −20% DI sub that ALSO adds a large chunk of the maximized mastery is net-positive for real
+            // damage, so it must be taken. 50 base distance → 550 with the sub; 550 × 0.8 = 440 > 50.
+            val character = Character(CharacterClass.CRA, 50, 50, CharacterSkills(50))
+            val carrier = equipment(1, ItemType.AMULET, "Carrier", mapOf(Characteristic.MASTERY_DISTANCE to 50), maxShardSlots = 4)
+            val bigMasterySub =
+                sublimation(
+                    21,
+                    SublimationRarity.NORMAL,
+                    SublimationKind.FLAT,
+                    "PowerfulButCostly",
+                    effects =
+                        listOf(
+                            SublimationEffect(Characteristic.MASTERY_DISTANCE, 500),
+                            SublimationEffect(Characteristic.DAMAGE_INFLICTED, -20)
+                        ),
+                    slotColorPattern = listOf(1, 2, 3)
+                )
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1))),
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+                )
+            val best =
+                WakfuBuildSolver
+                    .optimize(params, listOf(carrier).groupBy { it.itemType }, emptyList(), listOf(bigMasterySub), WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(
+                best.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).contains("PowerfulButCostly")
+        }
+
     private fun assertSolverReachesExhaustiveOptimum(
         equipments: List<Equipment>,
         targetStats: TargetStats,

@@ -50,7 +50,8 @@ object WakfuBuildSolver {
     private const val PERCENT_ABS_MAX = 10_000L
     private const val PRODUCT_ABS_MAX = STAT_ABS_MAX * PERCENT_ABS_MAX
     private const val STAT_WITH_PERCENT_ABS_MAX = STAT_ABS_MAX + (PRODUCT_ABS_MAX / 100) + 10
-    private const val MASTERY_SCORE_ABS_MAX = 100_000_000L
+
+    // MASTERY_SCORE_ABS_MAX is shared with the re-scorer — see ScoreComputationMode.kt.
     private const val MAX_POWER_TABLE_INDEX = 2_000
     private const val MAX_PENALTY_MULTIPLIER = 1_000_000L
     private const val MAX_SUBLIMATIONS = 10L // Wakfu: at most 10 sublimations on a build (incl. ≤1 epic, ≤1 relic).
@@ -65,9 +66,8 @@ object WakfuBuildSolver {
 
     // Bounds for the max-damage objective's nonlinear terms. Masteries / DI are clamped into these
     // (well above any real build) so the CP-SAT multiplication variables keep small, stable domains.
+    // DAMAGE_DI_FLOOR / DAMAGE_DI_MAX are shared with the re-scorers — see ScoreComputationMode.kt.
     private const val DAMAGE_MASTERY_MAX = 100_000L
-    private const val DAMAGE_DI_MAX = 5_000L
-    private const val DAMAGE_DI_FLOOR = 50L
     private const val CLAMP_INTERMEDIATE_MAX = 8_000_000_000L
     private const val DAMAGE_GRAW_MAX = 400L * DAMAGE_MASTERY_MAX + 100L * (DAMAGE_MASTERY_MAX * 6)
     private const val DAMAGE_SCORE_ABS_MAX = (100L + DAMAGE_DI_MAX) * DAMAGE_GRAW_MAX
@@ -850,9 +850,32 @@ object WakfuBuildSolver {
             SublimationKind.FLAT -> {}
             SublimationKind.COMBAT_CONDITIONAL -> return false
         }
+        // Backstop for the degenerate most-masteries/precision request with NO maximizable mastery to protect
+        // (only AP/MP/HP/range targets). There the DI fold `mastery × (1 + DI/100)` is structurally 0 — nothing
+        // for the DI factor to multiply — so a damage-reducing sub would otherwise be free for the overshoot
+        // tie-breaker to grab (the old Enutrof failure mode for required-only requests). When ANY maximizable
+        // mastery is requested the fold governs DI on merit, so this never fires. Max-damage models DI directly.
+        if (dropsDamageWithNoMasteryToProtect(sub, params)) return false
         // It must be able to contribute *something* in this mode/scenario.
         val hasUsableEffect = sub.effects.any { scenarioGateMatches(it.scenarioGate, params) }
         return hasUsableEffect || sub.conversion != null
+    }
+
+    /**
+     * True when [sub] reduces % Damage Inflicted in a non-max-damage request that maximizes **no** mastery,
+     * so the DI fold can't weigh it and it must not be auto-chosen (it could only ever cut real damage). When a
+     * maximizable mastery IS requested, [StatBuilder.diAdjustedMasteryScore] already prices DI in, so a −DI sub
+     * is taken only when its mastery gain outweighs the loss — and this returns false.
+     */
+    private fun dropsDamageWithNoMasteryToProtect(
+        sub: Sublimation,
+        params: WakfuBestBuildParams,
+    ): Boolean {
+        if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return false
+        if (params.targetStats.any { it.characteristic.isMaximizableMastery() }) return false
+        val netDamageInflicted =
+            sub.effects.filter { it.characteristic == Characteristic.DAMAGE_INFLICTED }.sumOf { it.value }
+        return netDamageInflicted < 0
     }
 
     /**
@@ -1050,10 +1073,11 @@ object WakfuBuildSolver {
     }
 
     /**
-     * Objective for "most masteries" mode: maximize only the *requested* masteries under the
-     * required-stat constraints. There is deliberately no tie-breaker that fills otherwise-empty
-     * slots, so a slot whose items cannot improve any requested stat is left empty in the proven
-     * optimum. This is why, e.g., an item set asking only for distance mastery + AP/MP/HP comes
+     * Objective for "most masteries" mode: maximize the *requested* masteries — scaled by the build's global
+     * **% Damage Inflicted** so the proxy is damage-faithful (see [StatBuilder.diAdjustedMasteryScore]) —
+     * under the required-stat constraints. There is deliberately no tie-breaker that fills otherwise-empty
+     * slots, so a slot whose items cannot improve any requested stat (nor the DI factor) is left empty in the
+     * proven optimum. This is why, e.g., an item set asking only for distance mastery + AP/MP/HP comes
      * back with no mount: every mount in the data carries only [Characteristic.MASTERY_ELEMENTARY],
      * which contributes to none of those targets, so adding one cannot raise the objective and the
      * proven optimum leaves the slot empty. (Decision: keep as-is; see the engine discussion in
@@ -1072,7 +1096,9 @@ object WakfuBuildSolver {
         val targetStats = params.targetStats
         val targetCharacteristics = targetStats.map { it.characteristic }.toSet()
 
-        val masteryScore = statBuilder.finalMasteryScore(targetStats, targetCharacteristics)
+        // Damage-faithful proxy: maximized mastery sum × (1 + DI/100). Mirrored exactly by the re-scorer
+        // (FindMostMasteriesFromInputScoring) so the solver optimum and the scored optimum stay in lockstep.
+        val masteryScore = statBuilder.diAdjustedMasteryScore(statBuilder.finalMasteryScore(targetStats, targetCharacteristics))
 
         val requiredTargets = targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }
         val penalized = applyConstraintPenalty(params, statBuilder, masteryScore, MASTERY_SCORE_ABS_MAX)
@@ -1303,6 +1329,9 @@ object WakfuBuildSolver {
      * — divided by the same required-target shortfall penalty as [FindMaxDamageScoring]. Kept in lockstep
      * with [buildMaxDamageObjective]: both compute `max_e (throughput_e × perHit_e × resFactor_e)` and
      * apply the AP/MP/range penalty, so the build the objective maximizes is the one the solver emits.
+     * The rotation also folds in the scenario's positional ×multiplier (face/side/back) — a uniform constant
+     * the objective deliberately drops since it scales every build equally, so it sharpens the *displayed*
+     * per-turn damage without changing which build (or element) ranks highest.
      */
     private fun maxDamageRotationScore(
         params: WakfuBestBuildParams,
@@ -2102,6 +2131,37 @@ object WakfuBuildSolver {
                     .build()
             model.addEquality(total, sumExpr)
             return total
+        }
+
+        /**
+         * Folds the global **% Damage Inflicted** multiplier into [masteryScore] so most-masteries maximizes a
+         * DAMAGE-FAITHFUL proxy `masteryScore × (1 + DI/100)` (the same DI factor the max-damage objective and
+         * the real hit formula use) instead of the raw mastery sum. So a `+DI` choice now raises the objective
+         * in proportion to the mastery already invested, and a `−DI` choice (e.g. a −20% DI sublimation grabbed
+         * to over-satisfy an AP/MP target) is taken **only** when its mastery gain outweighs the damage it
+         * costs — the engine no longer trades real damage for a hollow mastery point. DI is clamped to
+         * `[−DAMAGE_DI_FLOOR, DAMAGE_DI_MAX]` exactly as the max-damage objective and the re-scorer do.
+         *
+         * [masteryScore] is first clamped to `≥ 0` (mirroring the max-damage objective's `m = tClamp(preM, 0, …)`):
+         * the factor `100 + DI` is always positive, so multiplying a *negative* mastery by it would INVERT the DI
+         * incentive (a higher DI making the product more negative) — clamping at 0 keeps "+DI is always better"
+         * monotone. The product is then divided by 100 and clamped back onto `[0, MASTERY_SCORE_ABS_MAX]` — a
+         * no-op for any real build (mastery sums are ≤ ~1e5, far below the bound) — so the result keeps the same
+         * domain as the raw [masteryScore] and **every downstream penalty / overshoot bound is unchanged**.
+         * When the build carries no DI the factor is exactly 100, so the whole fold is the identity (×1) and
+         * DI-free requests are byte-identical to the old objective.
+         */
+        fun diAdjustedMasteryScore(masteryScore: IntVar): IntVar {
+            val nonNegativeMastery = model.clampVar(masteryScore, 0L, MASTERY_SCORE_ABS_MAX, "mmMasteryNonNeg")
+            val di = model.clampVar(actualStat(Characteristic.DAMAGE_INFLICTED), -DAMAGE_DI_FLOOR, DAMAGE_DI_MAX, "mmDI")
+            // factor = 100 + DI ∈ [100 − FLOOR, 100 + MAX]; (1 + DI/100) scaled by 100 to stay integer.
+            val factor = model.sumVar("mmDiFactor", listOf(Term(di, 1L)), 100L, 100L - DAMAGE_DI_FLOOR, 100L + DAMAGE_DI_MAX)
+            val productBound = MASTERY_SCORE_ABS_MAX * (100L + DAMAGE_DI_MAX)
+            val product = model.newIntVar(0L, productBound, "mmDiProduct")
+            model.addMultiplicationEquality(product, arrayOf(nonNegativeMastery, factor))
+            val scaled = model.newIntVar(0L, productBound / 100L, "mmDiScaled")
+            model.addDivisionEquality(scaled, product, model.newConstant(100L))
+            return model.clampVar(scaled, 0L, MASTERY_SCORE_ABS_MAX, "mmDiAdjusted")
         }
 
         // The build's resolved Action Points variable (base + gear + skills), for the external-loop AP probe.

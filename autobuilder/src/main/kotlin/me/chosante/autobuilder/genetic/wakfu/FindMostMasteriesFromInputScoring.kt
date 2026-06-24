@@ -99,6 +99,17 @@ object FindMostMasteriesFromInputScoring {
         // Combine sums and adjust for negative mastery penalties
         val finalMasteryScore = sumOfMasteriesWithoutElementary + lowestWantedElementaryMasteryValue + removeNegativeMasteries
 
-        return (finalMasteryScore.toBigDecimal() / penaltyFactor)
+        // Fold the global % Damage Inflicted multiplier in exactly as the CP-SAT objective does
+        // (StatBuilder.diAdjustedMasteryScore): maximize mastery × (1 + DI/100) so the proxy is damage-faithful
+        // and a −DI choice only pays off when its mastery gain outweighs it. The mastery is clamped to ≥ 0
+        // BEFORE the multiply (mirroring the objective, which clamps via clampVar) so a negative-mastery build
+        // can never invert the DI incentive; DI is clamped to [−FLOOR, MAX] and the product is floored back onto
+        // the objective's domain. Integer truncation mirrors CP-SAT's addDivisionEquality so the two never drift.
+        val damageInflicted = (actualCharacteristicsValues[Characteristic.DAMAGE_INFLICTED] ?: 0).coerceIn(-DAMAGE_DI_FLOOR.toInt(), DAMAGE_DI_MAX.toInt())
+        val diAdjustedScore =
+            (maxOf(finalMasteryScore.toLong(), 0L) * (100L + damageInflicted) / 100L)
+                .coerceIn(-MASTERY_SCORE_ABS_MAX, MASTERY_SCORE_ABS_MAX)
+
+        return (diAdjustedScore.toBigDecimal() / penaltyFactor)
     }
 }

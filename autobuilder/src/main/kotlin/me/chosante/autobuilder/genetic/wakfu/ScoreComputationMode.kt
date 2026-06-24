@@ -15,6 +15,23 @@ enum class ScoreComputationMode(
     }
 }
 
+/**
+ * % Damage Inflicted clamp bounds, shared by the CP-SAT objective ([me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver])
+ * and the re-scorers ([FindMostMasteriesFromInputScoring], [FindMaxDamageScoring]) so the damage-faithful score
+ * stays in lockstep. [DAMAGE_DI_FLOOR] is Wakfu's −50% damage floor (DI can't reduce a hit below ×0.5);
+ * [DAMAGE_DI_MAX] is a CP-SAT domain safety bound far above any real build. (common-lib's [me.chosante.common.SpellDamage]
+ * keeps its own copy of the floor — it cannot depend on this module.)
+ */
+internal const val DAMAGE_DI_FLOOR = 50L
+internal const val DAMAGE_DI_MAX = 5_000L
+
+/**
+ * Absolute bound of the "most-masteries" mastery-score domain, shared by the CP-SAT objective and the
+ * re-scorer so the DI-folded score is clamped onto the same range on both sides (a no-op for any real build,
+ * whose mastery sums are ≤ ~1e5).
+ */
+internal const val MASTERY_SCORE_ABS_MAX = 100_000_000L
+
 fun Characteristic.isMaximizableMastery(): Boolean =
     this in
         setOf(
