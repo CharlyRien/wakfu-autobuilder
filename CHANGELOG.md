@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.8.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.7.0...wakfu-autobuilder-1.8.0) (2026-06-24)
+
+
+### Features
+
+* most-masteries maximizes Damage Inflicted, not just raw mastery ([b6a9a02](https://github.com/CharlyRien/wakfu-autobuilder/commit/b6a9a020ebc95601c21cf40cdedb94d3a22305ac))
+* per-build-accurate spell damage with back/berserk scenario breakdowns ([622f29b](https://github.com/CharlyRien/wakfu-autobuilder/commit/622f29bc18d2274f32985dbe15546ebd05635275))
+* per-spell damage view, up-to-4-build comparison, and translated spell/passive/sublimation text ([968916d](https://github.com/CharlyRien/wakfu-autobuilder/commit/968916dd5efc2531562484fc75b82cf1ad18cb4f))
+
+
+### Bug Fixes
+
+* max-damage boss search streams instantly and proves the optimum with runes & sublimations ([a05fea0](https://github.com/CharlyRien/wakfu-autobuilder/commit/a05fea0f1db51fc90a0ac7bd83dcd7565c27a071))
+
 ## [1.7.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.6.0...wakfu-autobuilder-1.7.0) (2026-06-23)
 
 
