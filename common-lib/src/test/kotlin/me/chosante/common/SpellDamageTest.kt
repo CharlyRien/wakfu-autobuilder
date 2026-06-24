@@ -117,6 +117,19 @@ class SpellDamageTest {
     }
 
     @Test
+    fun `the orientation multiplier scales every hit (a back hit also folds in rear mastery)`() {
+        val stats = mapOf(Characteristic.MASTERY_BACK to 100)
+        // Face (default 100%) ignores rear mastery: raw base hit.
+        assertEquals(60.0, SpellDamage.expectedDamage(blazingArrow, stats, maxLevel)!!.nonCrit, 1e-9)
+        // Side: ×1.10 positional, still no rear mastery.
+        assertEquals(66.0, SpellDamage.expectedDamage(blazingArrow, stats, maxLevel, orientationMultiplierPercent = 110)!!.nonCrit, 1e-9)
+        // Back: ×1.25 positional AND +100% rear mastery → 60 × 2 × 1.25 = 150.
+        val back =
+            SpellDamage.expectedDamage(blazingArrow, stats, maxLevel, rearMastery = true, orientationMultiplierPercent = 125)!!
+        assertEquals(150.0, back.nonCrit, 1e-9)
+    }
+
+    @Test
     fun `critDamage falls back to the normal base when the spell exposes none`() {
         val noCritBase = blazingArrow.copy(critDamage = null)
         val r = SpellDamage.expectedDamage(noCritBase, mapOf(Characteristic.CRITICAL_HIT to 100), maxLevel)!!

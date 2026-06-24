@@ -10,8 +10,8 @@ import kotlin.math.max
  * the expected hit, using Wakfu's exact single-hit formula:
  *
  * ```
- * hit   = Base × (1 + ΣMastery/100) × (1 + ΣDamageInflicted/100) × (1 − Res%/100)
- * crit  = Base_crit × 1.25 × (1 + (ΣMastery + criticalMastery)/100) × (1 + ΣDI/100) × (1 − Res%/100)
+ * hit   = Base × (1 + ΣMastery/100) × (1 + ΣDamageInflicted/100) × (1 − Res%/100) × Orientation
+ * crit  = Base_crit × 1.25 × (1 + (ΣMastery + criticalMastery)/100) × (1 + ΣDI/100) × (1 − Res%/100) × Orientation
  * E[hit] = (1 − p)·hit + p·crit                       // p = usable crit rate
  * ```
  *
@@ -52,6 +52,10 @@ object SpellDamage {
      * @param rangeBand secondary mastery to fold in (melee/distance), or `null` to ignore it.
      * @param rearMastery include [Characteristic.MASTERY_BACK] (a back hit).
      * @param berserkMastery include [Characteristic.MASTERY_BERSERK] (caster at/below 50% HP).
+     * @param orientationMultiplierPercent the positional damage multiplier as a percent (100 = face, 110 =
+     *   side, 125 = back). In Wakfu a hit from behind deals ×1.25 *and* grants rear mastery, so a back-hit
+     *   scenario passes `orientationMultiplierPercent = 125` together with `rearMastery = true`. Defaults to
+     *   100 (face), leaving existing neutral calls unchanged.
      * @param targetResistancePercent target's effective elemental resistance % (signed; negative =
      *   weakness), clamped to ≤ [MAX_RESISTANCE_PERCENT]. A flat multiplier — does not change relative
      *   build ranking, only the displayed number.
@@ -67,6 +71,7 @@ object SpellDamage {
         rangeBand: RangeBand? = null,
         rearMastery: Boolean = false,
         berserkMastery: Boolean = false,
+        orientationMultiplierPercent: Int = 100,
         targetResistancePercent: Int = 0,
         critCapPercent: Int = 100,
     ): Result? {
@@ -94,9 +99,12 @@ object SpellDamage {
         val resistanceFactor =
             1.0 - targetResistancePercent.coerceIn(-100, MAX_RESISTANCE_PERCENT) / 100.0
         val diFactor = 1.0 + damageInflicted / 100.0
+        // Positional multiplier (face 1.0 / side 1.10 / back 1.25), a flat factor on every hit — mirrors
+        // FindMaxDamageScoring's orientation factor. Floored at 0 to never flip the sign of a hit.
+        val orientationFactor = max(orientationMultiplierPercent, 0) / 100.0
 
-        val nonCrit = base * (1.0 + mastery / 100.0) * diFactor * resistanceFactor
-        val crit = baseCrit * CRIT_MULTIPLIER * (1.0 + (mastery + critMastery) / 100.0) * diFactor * resistanceFactor
+        val nonCrit = base * (1.0 + mastery / 100.0) * diFactor * resistanceFactor * orientationFactor
+        val crit = baseCrit * CRIT_MULTIPLIER * (1.0 + (mastery + critMastery) / 100.0) * diFactor * resistanceFactor * orientationFactor
         val expected = (1.0 - critRate) * nonCrit + critRate * crit
         return Result(expected = expected, nonCrit = nonCrit, crit = crit)
     }

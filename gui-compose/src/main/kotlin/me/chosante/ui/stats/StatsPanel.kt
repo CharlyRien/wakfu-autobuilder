@@ -40,6 +40,7 @@ import me.chosante.common.skills.Assignable
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.common.skills.SkillCharacteristic
 import me.chosante.ui.components.CharacteristicIcon
+import me.chosante.ui.components.Hairline
 import me.chosante.ui.components.PassiveIcon
 import me.chosante.ui.components.StatGlyphIcon
 import me.chosante.ui.components.VerticalScrollHints
@@ -294,6 +295,7 @@ private fun SpellRotationCard(ui: UiState) {
                 style = WTypography.bodyMedium.copy(fontFamily = WType.mono)
             )
         }
+        ScenarioBreakdown(ui = ui)
         // Turns-to-kill against the targeted boss (its HP scaled by the difficulty multiplier; display only).
         ui.selectedBoss?.takeIf { rotation.totalExpectedDamage > 0 }?.let { boss ->
             val turns =
@@ -326,6 +328,52 @@ private fun SpellRotationCard(ui: UiState) {
                 text = tr(Tr.SPELL_ROTATION_NOTE),
                 style = WTypography.labelSmall.copy(color = WColor.faint),
                 modifier = Modifier.padding(top = 4.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Per-turn damage of the discovered build under each attack position (face / side / back / + berserk) — the
+ * levers the max-damage mode optimizes — so the player can read off what positioning is worth. The row
+ * matching the searched scenario is highlighted; the others differ only by the positional ×multiplier and
+ * the rear / berserk mastery they fold in.
+ */
+@Composable
+private fun ScenarioBreakdown(ui: UiState) {
+    val breakdown = ui.scenarioDamages
+    if (breakdown.isEmpty()) return
+    val lang = LocalLang.current
+    Hairline()
+    Text(
+        text = tr(Tr.SCENARIO_DAMAGE_BREAKDOWN),
+        style = WTypography.labelMedium.copy(color = WColor.muted),
+        modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)
+    )
+    breakdown.forEach { entry ->
+        val active = entry.orientation == ui.scenario.orientation && entry.berserk == ui.scenario.berserk
+        val label = entry.orientation.label(lang) + if (entry.berserk) " + ${tr(Tr.SPELL_VARIANT_BERSERK)}" else ""
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                style =
+                    WTypography.bodySmall.copy(
+                        color = if (active) WColor.accent else WColor.text,
+                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal
+                    ),
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = entry.totalExpectedDamage.toLong().formatCompact(),
+                style =
+                    WTypography.bodySmall.copy(
+                        fontFamily = WType.mono,
+                        color = if (active) WColor.accent else WColor.text,
+                        fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal
+                    )
             )
         }
     }
@@ -1119,11 +1167,6 @@ private fun Meter(
                     .background(color)
         )
     }
-}
-
-@Composable
-private fun Hairline() {
-    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
 }
 
 private enum class StatStatus(

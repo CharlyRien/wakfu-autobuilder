@@ -38,12 +38,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import me.chosante.autobuilder.domain.BuildSpellDamage
+import me.chosante.autobuilder.domain.RangeBand
 import me.chosante.autobuilder.domain.SpellCatalog
+import me.chosante.autobuilder.domain.toSpellDamageRangeBand
 import me.chosante.common.Character
+import me.chosante.common.Characteristic
 import me.chosante.common.Spell
 import me.chosante.common.history.HistoryEntry
 import me.chosante.ui.components.BreedIcon
 import me.chosante.ui.components.CharacteristicIcon
+import me.chosante.ui.components.Hairline
 import me.chosante.ui.components.InfoTip
 import me.chosante.ui.components.ItemThumbnail
 import me.chosante.ui.components.SpellIcon
@@ -321,17 +325,51 @@ private fun CompareCard(content: @Composable ColumnScope.() -> Unit) {
     )
 }
 
+/**
+ * The damage-driver masteries, listed first in the compare table so a player can read off *why* two builds
+ * differ in spell damage. Shown only when at least one build has a non-zero value (no all-zero clutter).
+ */
+private val COMPARE_DAMAGE_MASTERIES =
+    listOf(
+        Characteristic.MASTERY_ELEMENTARY_WATER,
+        Characteristic.MASTERY_ELEMENTARY_FIRE,
+        Characteristic.MASTERY_ELEMENTARY_EARTH,
+        Characteristic.MASTERY_ELEMENTARY_WIND,
+        Characteristic.MASTERY_DISTANCE,
+        Characteristic.MASTERY_MELEE,
+        Characteristic.MASTERY_BACK,
+        Characteristic.MASTERY_BERSERK,
+        Characteristic.MASTERY_CRITICAL,
+        Characteristic.MASTERY_HEALING
+    )
+
+/**
+ * The two global damage multipliers, **always** shown (even at 0) so a damage gap they cause — e.g. a
+ * −20% Damage Inflicted from a sublimation — is never hidden by the "non-zero only" rule.
+ */
+private val COMPARE_DAMAGE_ALWAYS =
+    listOf(Characteristic.DAMAGE_INFLICTED, Characteristic.CRITICAL_HIT)
+
 @Composable
 private fun ComparisonTable(columns: List<Pair<String, HistoryEntry>>) {
     val lang = LocalLang.current
     val entries = columns.map { it.second }
-    val rows =
+    val (damageRows, otherRows) =
         remember(columns.map { it.second.id }) {
-            val keys = entries.flatMap { it.result.achieved.keys }.toSet().filterNot { it.isEngineInternalStat() }
-            keys
-                .map { key -> key to entries.map { entry -> entry.result.achieved[key] ?: 0 } }
-                .filter { (_, values) -> values.any { it != 0 } }
-                .sortedBy { it.first.ordinal }
+            fun valuesOf(key: Characteristic) = entries.map { entry -> entry.result.achieved[key] ?: 0 }
+            val damage =
+                COMPARE_DAMAGE_MASTERIES.filter { key -> valuesOf(key).any { it != 0 } }.map { it to valuesOf(it) } +
+                    COMPARE_DAMAGE_ALWAYS.map { it to valuesOf(it) }
+            val damageKeys = damage.map { it.first }.toSet()
+            val others =
+                entries
+                    .flatMap { it.result.achieved.keys }
+                    .toSet()
+                    .filterNot { it.isEngineInternalStat() || it in damageKeys }
+                    .map { key -> key to valuesOf(key) }
+                    .filter { (_, values) -> values.any { it != 0 } }
+                    .sortedBy { it.first.ordinal }
+            damage to others
         }
     CompareCard {
         Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
@@ -349,23 +387,48 @@ private fun ComparisonTable(columns: List<Pair<String, HistoryEntry>>) {
                 modifier = Modifier.weight(1f)
             )
         }
-        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
-        rows.forEachIndexed { index, (characteristic, values) ->
-            if (index > 0) {
-                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
-            }
-            ValueRow(values = values, bold = false) {
-                CharacteristicIcon(characteristic = characteristic, size = 16.dp)
-                Spacer(modifier = Modifier.width(9.dp))
-                Text(
-                    text = characteristic.label(lang),
-                    style = WTypography.bodyMedium.copy(color = WColor.text),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
+        CompareGroupLabel(text = tr(Tr.COMPARE_GROUP_DAMAGE))
+        damageRows.forEachIndexed { index, (characteristic, values) ->
+            if (index > 0) Hairline()
+            StatValueRow(characteristic = characteristic, values = values, lang = lang)
+        }
+        if (otherRows.isNotEmpty()) {
+            CompareGroupLabel(text = tr(Tr.COMPARE_GROUP_OTHER))
+            otherRows.forEachIndexed { index, (characteristic, values) ->
+                if (index > 0) Hairline()
+                StatValueRow(characteristic = characteristic, values = values, lang = lang)
             }
         }
+    }
+}
+
+/** A small muted subheading separating the compare-table stat groups (Damage / Other). */
+@Composable
+private fun CompareGroupLabel(text: String) {
+    Text(
+        text = text,
+        style = WTypography.labelMedium.copy(color = WColor.muted),
+        modifier = Modifier.padding(top = 10.dp, bottom = 2.dp)
+    )
+}
+
+/** One stat row: the characteristic's icon + localized label, then its per-build value cells. */
+@Composable
+private fun StatValueRow(
+    characteristic: Characteristic,
+    values: List<Int>,
+    lang: Lang,
+) {
+    ValueRow(values = values, bold = false) {
+        CharacteristicIcon(characteristic = characteristic, size = 16.dp)
+        Spacer(modifier = Modifier.width(9.dp))
+        Text(
+            text = characteristic.label(lang),
+            style = WTypography.bodyMedium.copy(color = WColor.text),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 
@@ -413,13 +476,18 @@ private data class SpellDamageData(
     val mixedClass: Boolean,
     val spells: List<Spell>,
     val damageByEntry: List<Map<Int, Double>>,
+    /** The range band each build's numbers credit (its own saved scenario), shown per column for transparency. */
+    val rangeBands: List<RangeBand> = emptyList(),
 )
 
 /**
- * Reconstructs each compared build and scores every class damage spell via [BuildSpellDamage] — the same
- * neutral 0%-resistance maths the Class spells tab uses, so the numbers agree. Returns [SpellDamageData.mixedClass]
- * when the builds aren't all the same class (their spell kits differ, so a per-spell comparison is meaningless).
- * Spells are pre-sorted by the strongest build's hit, so the heaviest hitters lead.
+ * Reconstructs each compared build and scores every class damage spell via [BuildSpellDamage], crediting
+ * **each build's own range band** (distance/melee, from its saved scenario) so a distance build isn't
+ * understated by dropping its biggest secondary mastery — at the cost of builds with different bands not
+ * being perfectly apples-to-apples (the band used is shown per column). Resistance/rear/berserk stay neutral,
+ * matching the Class spells tab. Returns [SpellDamageData.mixedClass] when the builds aren't all the same
+ * class (their spell kits differ, so a per-spell comparison is meaningless). Spells are pre-sorted by the
+ * strongest build's hit, so the heaviest hitters lead.
  */
 private fun computeSpellDamage(entries: List<HistoryEntry>): SpellDamageData {
     if (entries.map { it.restoredClass() }.toSet().size > 1) {
@@ -427,14 +495,16 @@ private fun computeSpellDamage(entries: List<HistoryEntry>): SpellDamageData {
     }
     val clazz = entries.firstOrNull()?.restoredClass() ?: return SpellDamageData(false, emptyList(), emptyList())
     val spells = SpellCatalog.damageSpells(clazz)
+    val rangeBands = entries.map { it.restoredScenario().rangeBand }
     val damageByEntry =
-        entries.map { entry ->
+        entries.mapIndexed { index, entry ->
             val build = entry.toBuildCombination()
             val character = Character(entry.restoredClass(), entry.request.level, entry.request.minLevel, build.characterSkills)
-            spells.associate { spell -> spell.id to (BuildSpellDamage.expectedDamage(spell, build, character)?.expected ?: 0.0) }
+            val band = rangeBands[index].toSpellDamageRangeBand()
+            spells.associate { spell -> spell.id to (BuildSpellDamage.expectedDamage(spell, build, character, rangeBand = band)?.expected ?: 0.0) }
         }
     val ordered = spells.sortedByDescending { spell -> damageByEntry.maxOfOrNull { it[spell.id] ?: 0.0 } ?: 0.0 }
-    return SpellDamageData(mixedClass = false, spells = ordered, damageByEntry = damageByEntry)
+    return SpellDamageData(mixedClass = false, spells = ordered, damageByEntry = damageByEntry, rangeBands = rangeBands)
 }
 
 /**
@@ -458,8 +528,15 @@ private fun SpellDamageTable(columns: List<Pair<String, HistoryEntry>>) {
             InfoTip(text = tr(Tr.SPELL_EXPECTED_HIT_INFO))
             if (showColumns) {
                 Spacer(modifier = Modifier.weight(1f))
-                columns.forEach { (letter, _) ->
-                    Text(text = letter, style = WTypography.labelMedium.copy(fontFamily = WType.mono, color = WColor.muted), modifier = Modifier.width(COMPARE_CELL))
+                columns.forEachIndexed { index, (letter, _) ->
+                    // Each column credits its own build's range band; surface it so a distance-vs-melee gap is explained.
+                    val band = data.rangeBands.getOrNull(index)
+                    Column(modifier = Modifier.width(COMPARE_CELL), horizontalAlignment = Alignment.Start) {
+                        Text(text = letter, style = WTypography.labelMedium.copy(fontFamily = WType.mono, color = WColor.muted))
+                        if (band != null) {
+                            Text(text = band.label(lang), style = WTypography.labelSmall.copy(color = WColor.faint))
+                        }
+                    }
                 }
             }
         }

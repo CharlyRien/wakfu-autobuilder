@@ -1,6 +1,7 @@
 package me.chosante.autobuilder.domain
 
 import me.chosante.common.Characteristic
+import me.chosante.common.SpellDamage
 
 /** Spell element of the attack being optimized; maps to the matching elemental mastery. */
 enum class SpellElement(
@@ -19,6 +20,17 @@ enum class RangeBand(
     MELEE(Characteristic.MASTERY_MELEE),
     DISTANCE(Characteristic.MASTERY_DISTANCE),
 }
+
+/**
+ * Maps a scenario's [RangeBand] onto the calculator's [SpellDamage.RangeBand] (same MELEE/DISTANCE split)
+ * so [SpellDamage.expectedDamage] / [BuildSpellDamage] credit the build's distance or melee mastery. Shared
+ * by the spell-rotation scorer and the GUI's spell-damage views so both fold in the same secondary mastery.
+ */
+fun RangeBand.toSpellDamageRangeBand(): SpellDamage.RangeBand =
+    when (this) {
+        RangeBand.MELEE -> SpellDamage.RangeBand.MELEE
+        RangeBand.DISTANCE -> SpellDamage.RangeBand.DISTANCE
+    }
 
 /**
  * Attack orientation: the positional damage multiplier, and whether rear ("back") mastery applies.

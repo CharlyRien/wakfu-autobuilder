@@ -58,6 +58,7 @@ import me.chosante.common.Characteristic
 import me.chosante.common.Monster
 import me.chosante.common.Rarity
 import me.chosante.ui.components.BossResistanceChips
+import me.chosante.ui.components.Hairline
 import me.chosante.ui.components.MonsterIcon
 import me.chosante.ui.components.RarityIcon
 import me.chosante.ui.components.StatGlyphIcon
@@ -484,19 +485,6 @@ private fun SpellElement.label(lang: Lang): String =
         SpellElement.WATER -> if (lang == Lang.FR) "Eau" else "Water"
         SpellElement.EARTH -> if (lang == Lang.FR) "Terre" else "Earth"
         SpellElement.AIR -> if (lang == Lang.FR) "Air" else "Air"
-    }
-
-private fun RangeBand.label(lang: Lang): String =
-    when (this) {
-        RangeBand.MELEE -> if (lang == Lang.FR) "Mêlée" else "Melee"
-        RangeBand.DISTANCE -> if (lang == Lang.FR) "Distance" else "Distance"
-    }
-
-private fun Orientation.label(lang: Lang): String =
-    when (this) {
-        Orientation.FACE -> if (lang == Lang.FR) "Face" else "Face"
-        Orientation.SIDE -> if (lang == Lang.FR) "Côté" else "Side"
-        Orientation.BACK -> if (lang == Lang.FR) "Dos" else "Back"
     }
 
 @Composable
@@ -1482,11 +1470,6 @@ private fun NumberField(
             }
         }
     )
-}
-
-@Composable
-private fun Hairline() {
-    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
 }
 
 private data class TargetInputSection(

@@ -3,6 +3,8 @@ package me.chosante.ui.i18n
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
+import me.chosante.autobuilder.domain.Orientation
+import me.chosante.autobuilder.domain.RangeBand
 import me.chosante.common.Characteristic
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
@@ -365,6 +367,8 @@ enum class Tr(
     COMPARE_EMPTY("Pick at least two builds to compare them side by side.", "Choisis au moins deux builds à comparer côte à côte."),
     COMPARE_STAT("Stat", "Stat"),
     COMPARE_ENGINE_SCORE("Mastery score (engine)", "Score maîtrises (moteur)"),
+    COMPARE_GROUP_DAMAGE("Damage", "Dégâts"),
+    COMPARE_GROUP_OTHER("Other", "Autres"),
     COMPARE_SPELL_DAMAGE("Spell damage", "Dégâts des sorts"),
     COMPARE_SPELLS_MIXED_CLASS(
         "Spell damage compares only builds of the same class — these are different classes.",
@@ -397,12 +401,19 @@ enum class Tr(
     SPELL_PER_TURN_SUFFIX("turn", "tour"),
     SPELL_EXPECTED_HIT_INFO(
         "Expected hit: the average damage of one cast. It blends a non-crit and a crit hit, weighted by " +
-            "this build's crit chance, from its elemental mastery, % damage inflicted and critical mastery — " +
-            "against a 0%-resistance target.",
+            "this build's crit chance, from its elemental mastery, its distance/melee mastery, % damage " +
+            "inflicted and critical mastery — against a 0%-resistance target.",
         "Dégâts moyens : la moyenne d'un lancer. Mélange un coup normal et un coup critique, pondérés par les " +
-            "chances de coup critique du build, d'après sa maîtrise élémentaire, ses % de dégâts infligés et sa " +
-            "maîtrise critique — contre une cible à 0% de résistance."
+            "chances de coup critique du build, d'après sa maîtrise élémentaire, sa maîtrise distance/mêlée, ses " +
+            "% de dégâts infligés et sa maîtrise critique — contre une cible à 0% de résistance."
     ),
+    SPELL_DAMAGE_RANGE_NOTE("incl. %s mastery", "incl. maîtrise %s"),
+    SPELL_DAMAGE_DIST_MELEE_HINT(
+        "Distance and melee mastery both present — a hit uses only one (the scenario's), never both.",
+        "Maîtrise distance et mêlée toutes deux présentes — un coup n'en utilise qu'une (celle du scénario), jamais les deux."
+    ),
+    SPELL_VARIANT_BERSERK("berserk", "berserk"),
+    SCENARIO_DAMAGE_BREAKDOWN("Damage by position", "Dégâts par position"),
     SPELL_BASE_HIT_INFO(
         "Base hit at this level, before the build's masteries. Run a search to see this build's expected damage.",
         "Dégâts de base à ce niveau, avant les maîtrises du build. Lance une recherche pour voir les dégâts attendus de ce build."
@@ -483,6 +494,21 @@ fun Characteristic.label(lang: Lang): String {
         Characteristic.FISHERMAN_HARVEST_QUANTITY_PERCENTAGE -> if (fr) "Récolte Pêcheur %" else "Fisherman Harvest %"
     }
 }
+
+/** Localized display name for an attack's range band (the secondary mastery it credits). */
+fun RangeBand.label(lang: Lang): String =
+    when (this) {
+        RangeBand.MELEE -> if (lang == Lang.FR) "Mêlée" else "Melee"
+        RangeBand.DISTANCE -> if (lang == Lang.FR) "Distance" else "Distance"
+    }
+
+/** Localized display name for an attack orientation (the positional damage multiplier). */
+fun Orientation.label(lang: Lang): String =
+    when (this) {
+        Orientation.FACE -> if (lang == Lang.FR) "Face" else "Face"
+        Orientation.SIDE -> if (lang == Lang.FR) "Côté" else "Side"
+        Orientation.BACK -> if (lang == Lang.FR) "Dos" else "Back"
+    }
 
 /** Localized display name for an item rarity. */
 fun Rarity.label(lang: Lang): String =
