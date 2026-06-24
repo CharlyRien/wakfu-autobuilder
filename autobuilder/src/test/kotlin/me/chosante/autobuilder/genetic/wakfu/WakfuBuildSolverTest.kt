@@ -2269,11 +2269,37 @@ class WakfuBuildSolverTest {
             assertThat(proven!!.matchPercentage.signum()).isGreaterThan(0)
         }
 
+    @Test
+    @Tag("slow")
+    fun `max-damage proves OPTIMAL with runes and sublimations on the full level-110 pool`(): Unit =
+        runBlocking {
+            // Runes were the provability wall: each socketed item added per-stat integer count vars that blew
+            // up the branch space, so the full GUI config (runes + sublimations ON) never proved. The
+            // single-type rune FOLD (createRuneModel) collapses that to one boolean pick per item, restoring a
+            // PROVEN optimum here — the regression guard for the fold. Real embedded runes + sublimations.
+            val params = fireMaxDamageParams(110).copy(useRunes = true, useSublimations = true)
+            val results =
+                WakfuBuildSolver
+                    .optimize(
+                        params,
+                        fullEpicPool(110),
+                        WakfuBestBuildFinderAlgorithm.runes,
+                        WakfuBestBuildFinderAlgorithm.sublimations,
+                        WakfuBuildSolver.SolverTuning(maxDeterministicTime = 600.0)
+                    ).toList()
+            val proven = results.lastOrNull { it.isOptimal }
+            assertThat(proven)
+                .describedAs("the single-type rune fold must let CP-SAT PROVE the runes+subs lvl-110 optimum (was never proving)")
+                .isNotNull
+            assertThat(proven!!.matchPercentage.signum()).describedAs("the proven build deals real damage").isGreaterThan(0)
+        }
+
     /** Constraint-free max-damage request for [clazz] at [level] against [scenario] (empty targets ⇒ pure damage). */
     private fun maxDamageShape(
         clazz: CharacterClass,
         level: Int,
         scenario: DamageScenario,
+        useRunes: Boolean = false,
     ): WakfuBestBuildParams =
         WakfuBestBuildParams(
             character = Character(clazz, level, 0, CharacterSkills(level)),
@@ -2284,9 +2310,45 @@ class WakfuBuildSolverTest {
             forcedItems = emptyList(),
             excludedItems = emptyList(),
             scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
-            useRunes = false,
+            useRunes = useRunes,
             useSublimations = false,
             damageScenario = scenario
+        )
+
+    /**
+     * A socketed, high-stat pool + a mastery/crit-mastery rune set (some colour-doubled) for the rune-aware
+     * soundness lock. The runes let a loose solve fill every socket and drive the scenario-mastery M to its
+     * end-game max — exactly the path the socket-aware [WakfuBuildSolver] rune-overcount tightening bounds, so
+     * an under-estimate there (a silently cut optimum) surfaces as an out-of-range tracked var.
+     */
+    private fun soundnessSocketedPool(): Map<ItemType, List<Equipment>> =
+        listOf(
+            equipment(
+                1,
+                ItemType.AMULET,
+                "Amu",
+                mapOf(Characteristic.MASTERY_ELEMENTARY to 1000, Characteristic.MASTERY_CRITICAL to 600, Characteristic.CRITICAL_HIT to 50),
+                maxShardSlots = 4,
+                level = 245
+            ),
+            equipment(2, ItemType.BELT, "Belt", mapOf(Characteristic.MASTERY_ELEMENTARY to 1000, Characteristic.ACTION_POINT to 10), maxShardSlots = 4, level = 245),
+            equipment(3, ItemType.CHEST_PLATE, "Chest", mapOf(Characteristic.MASTERY_DISTANCE to 900, Characteristic.MASTERY_MELEE to 900), maxShardSlots = 4, level = 245),
+            equipment(4, ItemType.CAPE, "Cape", mapOf(Characteristic.MASTERY_BACK to 800, Characteristic.MASTERY_BERSERK to 800), maxShardSlots = 4, level = 245),
+            equipment(5, ItemType.BOOTS, "Boots", mapOf(Characteristic.MASTERY_ELEMENTARY to 700), maxShardSlots = 3, level = 245),
+            equipment(6, ItemType.HELMET, "Helm", mapOf(Characteristic.MASTERY_CRITICAL to 700, Characteristic.CRITICAL_HIT to 50), maxShardSlots = 4, level = 245),
+            equipment(7, ItemType.RING, "Ring1", mapOf(Characteristic.MASTERY_ELEMENTARY to 500), maxShardSlots = 4, level = 245),
+            equipment(8, ItemType.RING, "Ring2", mapOf(Characteristic.MASTERY_DISTANCE to 500), maxShardSlots = 4, level = 245)
+        ).groupBy { it.itemType }
+
+    /** Mastery + crit-mastery runes spanning colours (some doubled on the pool's slots) for the rune soundness lock. */
+    private fun soundnessRunes(): List<RuneType> =
+        listOf(
+            RuneType(1, I18nText("elem", "elem", "elem", "elem"), RuneColor.RED, Characteristic.MASTERY_ELEMENTARY, listOf(10, 15), 0),
+            RuneType(2, I18nText("dist", "dist", "dist", "dist"), RuneColor.GREEN, Characteristic.MASTERY_DISTANCE, listOf(10, 15), 0),
+            RuneType(3, I18nText("melee", "melee", "melee", "melee"), RuneColor.BLUE, Characteristic.MASTERY_MELEE, listOf(10, 15), 0),
+            RuneType(4, I18nText("back", "back", "back", "back"), RuneColor.RED, Characteristic.MASTERY_BACK, listOf(10, 15), 0),
+            RuneType(5, I18nText("zerk", "zerk", "zerk", "zerk"), RuneColor.GREEN, Characteristic.MASTERY_BERSERK, listOf(10, 15), 0),
+            RuneType(6, I18nText("crit", "crit", "crit", "crit"), RuneColor.BLUE, Characteristic.MASTERY_CRITICAL, listOf(10, 15), 0)
         )
 
     @Test
@@ -2359,6 +2421,88 @@ class WakfuBuildSolverTest {
             assertThat(bounds.filterNot { it.withinBound })
                 .describedAs("$name: each is a var whose reachable bound under-estimated its real value — a silently cut optimum")
                 .isEmpty()
+        }
+
+        // RUNE-AWARE shapes: runes are what the socket-aware scenario-mastery bound (runeMasteryOverCount)
+        // tightens, so a loose solve must fill every socket and still land within the tightened reachable M.
+        // Spans face/rear+berserk (different mastery-term sets) and lvl-245 magnitudes. Without these the
+        // rune-overcount tightening would be unguarded — an under-estimate there silently cuts the optimum.
+        val socketed = soundnessSocketedPool()
+        val runes = soundnessRunes()
+        val runeShapes: List<Pair<String, WakfuBestBuildParams>> =
+            listOf(
+                "cra-fire-110-runes" to
+                    maxDamageShape(
+                        CharacterClass.CRA,
+                        110,
+                        DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE),
+                        useRunes = true
+                    ),
+                "iop-fire-110-runes-melee" to
+                    maxDamageShape(
+                        CharacterClass.IOP,
+                        110,
+                        DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.MELEE, orientation = Orientation.FACE),
+                        useRunes = true
+                    ),
+                "cra-rear-berserk-110-runes" to
+                    maxDamageShape(
+                        CharacterClass.CRA,
+                        110,
+                        DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.BACK, berserk = true),
+                        useRunes = true
+                    ),
+                "cra-fire-245-runes" to
+                    maxDamageShape(
+                        CharacterClass.CRA,
+                        245,
+                        DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE),
+                        useRunes = true
+                    )
+            )
+        runeShapes.forEach { (name, params) ->
+            val bounds = WakfuBuildSolver.maxDamageVarBoundsForTest(params, socketed, tuning, runes)
+            assertThat(bounds).describedAs("$name: the objective chain must be tracked").isNotEmpty
+            assertThat(bounds.filterNot { it.withinBound })
+                .describedAs("$name: a rune-fed var exceeded its socket-aware reachable bound — runeMasteryOverCount cut the optimum")
+                .isEmpty()
+        }
+    }
+
+    @Test
+    fun `single-type rune fold preserves the max-damage optimum`() {
+        // The fold fills each item with ONE rune type (a boolean pick) instead of a free per-stat count.
+        // Because a rune's value is uniform across an item's sockets (RuneType.valueOn doubles per item-SLOT,
+        // not per socket), single-type fill is provably ≥ any intra-item mix — so the folded optimum must
+        // EQUAL the per-stat COUNT model's optimum (forceRuneCountModel) on the same rune pool. If the fold
+        // ever cut the optimum (e.g. if the model gained per-socket colours), these would diverge. Spans a
+        // face build and a rear+berserk build (more secondary mastery terms competing for the sockets).
+        val tuning = WakfuBuildSolver.SolverTuning()
+        val pool = soundnessSocketedPool()
+        val runes = soundnessRunes()
+        listOf(
+            "face" to
+                maxDamageShape(
+                    CharacterClass.CRA,
+                    110,
+                    DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE),
+                    useRunes = true
+                ),
+            "rear-berserk" to
+                maxDamageShape(
+                    CharacterClass.CRA,
+                    110,
+                    DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.BACK, berserk = true),
+                    useRunes = true
+                )
+        ).forEach { (name, params) ->
+            val fold = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, runes = runes)
+            val count = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, runes = runes, forceRuneCountModel = true)
+            assertThat(fold.isOptimal).describedAs("$name: the folded model proves OPTIMAL").isTrue()
+            assertThat(count.isOptimal).describedAs("$name: the count model proves OPTIMAL").isTrue()
+            assertThat(fold.objective)
+                .describedAs("$name: the single-type rune fold must not change the optimum (fold == count)")
+                .isEqualTo(count.objective)
         }
     }
 

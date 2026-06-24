@@ -404,6 +404,9 @@ object WakfuBuildSolver {
         tightDomains: Boolean = true,
         // Benchmark/test seam: bypass the prefilter so the full pool is solved regardless of the gate.
         forceFullPool: Boolean = false,
+        // Test seam: force the per-stat rune COUNT model even where the single-type fold would apply, so a
+        // test can assert the fold preserves the optimum (fold == count optimum on a rune pool).
+        forceRuneCountModel: Boolean = false,
     ): BuiltModel {
         val model = CpModel()
 
@@ -419,7 +422,21 @@ object WakfuBuildSolver {
         val allEquips = orderEquipments(pool)
         val equipVars = model.createEquipmentVariables(allEquips)
         val skillVars = model.createSkillVariables(params.character.characterSkills)
-        val runeModel = model.createRuneModel(params, allEquips, equipVars, runes)
+        // The single-type rune fold (createRuneModel) is sound unless a sublimation IN PLAY requires a
+        // POSITIVE secondary-mastery cap (`secondary ≤ N`, N>0): there an intra-item secondary/elemental
+        // MIX can be optimal, which the fold can't express. Every solver-choosable secondary-cap sub has
+        // N=0 (⇒ all-elemental, no mix), so the default search folds; this guard future-proofs the data and
+        // a forced sub with N>0.
+        val forcedSubNames = params.forcedSublimations.map { it.lowercase() }.toSet()
+        val secondaryCapMixSubInPlay =
+            sublimations.any { sub ->
+                val inPlay = (sub.solverChoosable && params.useSublimations) || sub.name.fr.lowercase() in forcedSubNames || sub.name.en.lowercase() in forcedSubNames
+                inPlay &&
+                    sub.condition?.type == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST &&
+                    (sub.condition?.value ?: 0) > 0
+            }
+        val allowRuneFold = !forceRuneCountModel && !secondaryCapMixSubInPlay
+        val runeModel = model.createRuneModel(params, allEquips, equipVars, runes, allowRuneFold)
         val subModel = model.createSublimationModel(params, allEquips, equipVars, sublimations)
         // A normal sublimation does NOT reserve rune sockets. Golden runes (colour-agnostic) form its ordered
         // colour pattern AND still carry their stat — doubling where the item favours that colour — so a carrier
@@ -497,8 +514,11 @@ object WakfuBuildSolver {
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         tuning: SolverTuning,
         tightDomains: Boolean,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        forceRuneCountModel: Boolean = false,
     ): MaxDamageSolveOutcome {
-        val built = buildModel(params, equipmentsByItemType, emptyList(), emptyList(), tightDomains)
+        val built = buildModel(params, equipmentsByItemType, runes, sublimations, tightDomains, forceRuneCountModel = forceRuneCountModel)
         val solver = deterministicMaxDamageSolver(tuning)
         val status = solver.solve(built.model)
         val hasSolution =
@@ -533,8 +553,10 @@ object WakfuBuildSolver {
         params: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         tuning: SolverTuning,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
     ): List<MaxDamageVarBound> {
-        val built = buildModel(params, equipmentsByItemType, emptyList(), emptyList(), tightDomains = false)
+        val built = buildModel(params, equipmentsByItemType, runes, sublimations, tightDomains = false)
         val solver = deterministicMaxDamageSolver(tuning)
         val status = solver.solve(built.model)
         require(status == com.google.ortools.sat.CpSolverStatus.OPTIMAL || status == com.google.ortools.sat.CpSolverStatus.FEASIBLE) {
@@ -649,6 +671,7 @@ object WakfuBuildSolver {
         allEquips: List<Equipment>,
         equipVars: Map<Equipment, IntVar>,
         runes: List<RuneType>,
+        allowRuneFold: Boolean,
     ): RuneModel {
         if (runes.isEmpty()) return RuneModel.EMPTY
         val runeById = runes.associateBy { it.id }
@@ -684,17 +707,51 @@ object WakfuBuildSolver {
             (if (params.useRunes) relevantRuneStats(params, runeByCharacteristic.keys) else emptySet()) + forcedRuneStats
         if (runeStats.isEmpty()) return RuneModel.EMPTY
 
+        // Max-damage can fill every socket "for free": the generic elemental-mastery rune is NOT a
+        // secondary mastery and only ever raises the damage objective, so it backfills any socket without
+        // tripping a secondary-mastery / AP / crit / range "at most" sub condition, and overshooting a
+        // required target is never penalised (the max-damage score caps actual at target — coerceAtMost in
+        // FindMaxDamageScoring.requiredConstraintPenaltyFactor). So the proven optimum ALWAYS fills its
+        // sockets (an empty one could take one more elemental rune for strictly more mastery), and pinning
+        // Σ runeCount = slots·selected (instead of ≤) removes every provably-suboptimal "underfill"
+        // assignment from the integer search WITHOUT changing the optimum — a pure search-space cut that
+        // helps the proof close. Gated on a real elemental filler being modelled; the other modes keep ≤
+        // (there a rune feeds a *requested exact* stat where full fill is not free).
+        val fillSocketsForMaxDamage =
+            params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE &&
+                Characteristic.MASTERY_ELEMENTARY in runeStats
+        // Single-type-per-item rune FOLD (max-damage, no forced runes, no secondary-cap>0 sub in play —
+        // [allowRuneFold]): because a rune's value is uniform across an item's sockets (doubling is per item
+        // SLOT, not per socket — see RuneType.valueOn), filling an item entirely with its single best-value
+        // type is ≥ any mix, so mixing types within ONE item is freedom the optimum never uses. Modelling each
+        // item's choice as ONE boolean pick per type (Σ pick = selected) instead of an integer count 0..slots
+        // collapses the rune search to binary decisions — far easier for CP-SAT to PROVE — with the SAME
+        // reachable stat contributions (a pick contributes slots·coeff; see baseTermsFor + the 0..1 leaf seed).
+        // The solver still chooses the type per item (build-dependent: mastery vs crit-mastery, elemental vs a
+        // secondary for the secondary=0 subs) and items still differ — only the never-optimal intra-item mix is
+        // dropped. Gated to where it is provably sound; forced runes / secondary-cap>0 subs keep the count model.
+        val singleTypePerItem = allowRuneFold && fillSocketsForMaxDamage && forcedRuneStats.isEmpty()
         val runeVars = mutableMapOf<Equipment, Map<Characteristic, IntVar>>()
         for (equip in allEquips) {
             val slots = equip.maxShardSlots
             if (slots <= 0) continue
-            val perStat = runeStats.associateWith { stat -> newIntVar(0, slots.toLong(), "rune_${equip.equipmentId}_${stat.name}") }
-            // Sockets only count when the item is equipped: Σ runeCount ≤ slots · selected (linear).
-            val capExpr = LinearExpr.newBuilder()
-            perStat.values.forEach { capExpr.addTerm(it, 1L) }
-            capExpr.addTerm(equipVars.getValue(equip), -slots.toLong())
-            addLessOrEqual(capExpr.build(), 0L)
-            runeVars[equip] = perStat
+            if (singleTypePerItem) {
+                // One boolean per type; exactly one type fills all the item's sockets when equipped, none otherwise.
+                val perStat = runeStats.associateWith { stat -> newBoolVar("runePick_${equip.equipmentId}_${stat.name}") }
+                val pickExpr = LinearExpr.newBuilder()
+                perStat.values.forEach { pickExpr.addTerm(it, 1L) }
+                pickExpr.addTerm(equipVars.getValue(equip), -1L)
+                addEquality(pickExpr.build(), 0L)
+                runeVars[equip] = perStat
+            } else {
+                val perStat = runeStats.associateWith { stat -> newIntVar(0, slots.toLong(), "rune_${equip.equipmentId}_${stat.name}") }
+                // Sockets only count when the item is equipped: Σ runeCount {= max-damage | ≤ other modes} slots·selected.
+                val capExpr = LinearExpr.newBuilder()
+                perStat.values.forEach { capExpr.addTerm(it, 1L) }
+                capExpr.addTerm(equipVars.getValue(equip), -slots.toLong())
+                if (fillSocketsForMaxDamage) addEquality(capExpr.build(), 0L) else addLessOrEqual(capExpr.build(), 0L)
+                runeVars[equip] = perStat
+            }
         }
         // Global forced runes must be socketed at least once across the build.
         for (stat in globalForcedRuneStats) {
@@ -727,7 +784,7 @@ object WakfuBuildSolver {
                 if (any) addGreaterOrEqual(countExpr.build(), count.toLong())
             }
         }
-        return RuneModel(runeByCharacteristic, runeVars)
+        return RuneModel(runeByCharacteristic, runeVars, singleTypePerItem)
     }
 
     /**
@@ -1412,7 +1469,13 @@ object WakfuBuildSolver {
             equippedItems
                 .associateWith { equip ->
                     runeModel.runeVars[equip].orEmpty().flatMap { (stat, runeVar) ->
-                        val count = valueOf(runeVar).toInt()
+                        // Fold model: runeVar is a boolean pick ⇒ that one type fills ALL of the item's sockets.
+                        val count =
+                            if (runeModel.singleTypePerItem) {
+                                if (valueOf(runeVar) > 0L) equip.maxShardSlots else 0
+                            } else {
+                                valueOf(runeVar).toInt()
+                            }
                         val rune = runeModel.runeByCharacteristic[stat]
                         if (count > 0 && rune != null) List(count) { rune } else emptyList()
                     }
@@ -1540,7 +1603,9 @@ object WakfuBuildSolver {
             equipVars.forEach { (equip, v) -> tracker.seed(v, 0L..1L, "equip_${equip.equipmentId}") }
             skillVars.forEach { (skill, v) -> tracker.seed(v, 0L..skill.maxPointsAssignable.toLong(), "skill_${skill.name}") }
             runeModel.runeVars.forEach { (equip, perStat) ->
-                perStat.forEach { (stat, v) -> tracker.seed(v, 0L..equip.maxShardSlots.toLong(), "rune_${equip.equipmentId}_${stat.name}") }
+                // Fold ⇒ each var is a boolean PICK (0..1, contributes slots·coeff); count model ⇒ 0..slots.
+                val runeHi = if (runeModel.singleTypePerItem) 1L else equip.maxShardSlots.toLong()
+                perStat.forEach { (stat, v) -> tracker.seed(v, 0L..runeHi, "rune_${equip.equipmentId}_${stat.name}") }
             }
             subModel.subVars.forEach { (sub, v) -> tracker.seed(v, 0L..1L, "sub_${sub.stateId}") }
         }
@@ -2187,7 +2252,37 @@ object WakfuBuildSolver {
             // M = clamp(100 + ΣMastery, 0, MAX); criticalMastery and DI clamped likewise. The clamps inherit
             // their inputs' reachable ranges, so M / criticalMastery / DI land on their true ~6k / ~1k domains
             // (not the safe-huge caps), which is what shrinks the two multiplication envelopes below.
-            val preM = tSumNaive("dmgPreM_$s", masteryTerms, 100L, -CLAMP_INTERMEDIATE_MAX, CLAMP_INTERMEDIATE_MAX)
+            //
+            // The naive sum over the per-stat mastery vars DOUBLE-COUNTS runes across those stats: each stat's
+            // reach independently assumes its rune fills every socket, but a socket holds ONE rune, so the rune
+            // mastery feeding M is ≤ Σ_slot best(item.slots × best mastery-rune coeff) — a sound, socket-aware
+            // bound. Subtracting that provable over-count keeps M's declared range tight WITH runes on (the
+            // inflation is what stalled the proof once runes were modelled); the over-count is 0 when runes are
+            // off, so every non-rune path stays byte-identical. Items/skills/subs keep their per-slot auto bound.
+            val masteryRuneStats =
+                buildList {
+                    add(Characteristic.MASTERY_ELEMENTARY)
+                    add(scenario.rangeBand.masteryCharacteristic)
+                    if (scenario.orientation.grantsRearMastery) add(Characteristic.MASTERY_BACK)
+                    if (scenario.berserk) add(Characteristic.MASTERY_BERSERK)
+                    if (scenario.healing) add(Characteristic.MASTERY_HEALING)
+                }
+            var preMLo = 100L
+            var preMHi = 100L
+            for (t in masteryTerms) {
+                val d = tracker.of(t.variable)
+                preMLo += d.first * t.coefficient
+                preMHi += d.last * t.coefficient
+            }
+            val preM =
+                tSum(
+                    "dmgPreM_$s",
+                    masteryTerms,
+                    100L,
+                    preMLo..(preMHi - runeMasteryOverCount(masteryRuneStats)),
+                    -CLAMP_INTERMEDIATE_MAX,
+                    CLAMP_INTERMEDIATE_MAX
+                )
             val m = tClamp(preM, 0L, DAMAGE_MASTERY_MAX, "dmgM_$s")
             val criticalMastery = tClamp(actualStat(Characteristic.MASTERY_CRITICAL), 0L, DAMAGE_MASTERY_MAX, "dmgCriticalMastery_$s")
             val critCap = scenario.critCapPercent.toLong().coerceIn(0L, 100L)
@@ -2201,6 +2296,38 @@ object WakfuBuildSolver {
             val graw = tSumNaive("dmgGraw_$s", listOf(Term(m, 400L), Term(term, 1L)), 0L, 0L, DAMAGE_GRAW_MAX)
 
             return tMul("dmgScore_$s", d, graw, 0L, DAMAGE_SCORE_ABS_MAX)
+        }
+
+        /**
+         * How much the naive [perHitDamageScore] mastery sum over-counts RUNE mastery across the scenario's
+         * mastery stats: each per-stat mastery var's reach independently assumes its rune fills every socket,
+         * but a socket holds ONE rune and only ONE item is equipped per slot, so the rune mastery feeding M is
+         * ≤ Σ_slot best(item.slots × best mastery-rune coeff). Returns `naiveRuneSum − socketAwareMax` (≥ 0)
+         * over [masteryRuneStats] — exactly the per-stat rune total the naive reach added minus that tight
+         * socket-aware bound — so subtracting it from the naive reach yields a SOUND, tighter upper bound on
+         * M's rune portion (never an under-estimate; the optimum's own M still fits). 0 when runes are off.
+         */
+        private fun runeMasteryOverCount(masteryRuneStats: List<Characteristic>): Long {
+            if (runeModel.runeVars.isEmpty()) return 0L
+
+            fun coeff(
+                equip: Equipment,
+                stat: Characteristic,
+            ): Long = runeModel.runeByCharacteristic[stat]?.valueOn(equip.itemType, equip.level)?.toLong() ?: 0L
+            val socketable = allEquips.filter { runeModel.runeVars.containsKey(it) }
+            if (socketable.isEmpty()) return 0L
+            val naive =
+                socketable.sumOf { equip ->
+                    val slots = equip.maxShardSlots.toLong()
+                    masteryRuneStats.sumOf { stat -> slots * coeff(equip, stat) }
+                }
+            val socketAware =
+                socketable.groupBy { it.itemType }.entries.sumOf { (type, items) ->
+                    val limit = if (type == ItemType.RING) 2L else 1L
+                    val best = items.maxOf { equip -> equip.maxShardSlots.toLong() * (masteryRuneStats.maxOfOrNull { coeff(equip, it) } ?: 0L) }
+                    limit * best.coerceAtLeast(0L)
+                }
+            return (naive - socketAware).coerceAtLeast(0L)
         }
 
         /**
@@ -2489,8 +2616,11 @@ object WakfuBuildSolver {
                     val runeVar = perStat[char] ?: continue
                     // Rune level is capped by the carrier ITEM's level, not the character's (fix 36918746).
                     val coefficient = rune.valueOn(equip.itemType, equip.level).toLong()
+                    // Fold model: runeVar is a boolean PICK — one pick fills all `slots` sockets, so it
+                    // contributes slots·coeff. Count model: runeVar is the count and contributes coeff each.
+                    val multiplier = if (runeModel.singleTypePerItem) equip.maxShardSlots.toLong() else 1L
                     if (coefficient != 0L) {
-                        terms.add(Term(runeVar, coefficient))
+                        terms.add(Term(runeVar, coefficient * multiplier))
                     }
                 }
             }
@@ -2699,6 +2829,12 @@ object WakfuBuildSolver {
     private class RuneModel(
         val runeByCharacteristic: Map<Characteristic, RuneType>,
         val runeVars: Map<Equipment, Map<Characteristic, IntVar>>,
+        /**
+         * True ⇒ [runeVars] are boolean single-type PICKS (one chosen type fills every socket of the item)
+         * rather than per-stat counts, so a pick contributes `slots·coeff` and its leaf domain is 0..1. See
+         * the rune fold in [createRuneModel].
+         */
+        val singleTypePerItem: Boolean = false,
     ) {
         companion object {
             val EMPTY = RuneModel(emptyMap(), emptyMap())

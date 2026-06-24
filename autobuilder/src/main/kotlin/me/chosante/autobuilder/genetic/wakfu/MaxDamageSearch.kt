@@ -122,6 +122,12 @@ object MaxDamageSearch {
             // phase, so we never re-derive it with another bestSequencedRotation pass.
             var bestSolvedScenario: DamageScenario? = null
             var phase1Optimal = false
+            // [consider] is called CONCURRENTLY by the parallel per-element probe collectors (a boss /
+            // multi-candidate search streams each probe's best-so-far live), so the read-modify-write of
+            // [best] and the streamed progress must be serialized. The expensive re-score runs OUTSIDE the
+            // lock. The lock is uncontended on the single-element path (one collector).
+            val considerLock = Any()
+            var lastProgressSent = 0
 
             fun consider(
                 result: GeneticAlgorithmResult<BuildCombination>,
@@ -133,19 +139,23 @@ object MaxDamageSearch {
                 // overrides the solver's own (proxy, debuff-blind) score: [sequencedScore] is the debuff-aware
                 // rotation the CLI/GUI also display, so ranking by it keeps the shown damage == the scored damage.
                 val score = sequencedScore(baseParams, result.individual)
-                val current = best
-                // Highest score; on a tie prefer the PROVEN result so [best].isOptimal reflects the proof — the
-                // solver emits the optimum un-proven first, then proven (same build, same score), and a plain
-                // strict `>` would keep the earlier un-proven copy and under-report the proof at the final emit.
-                if (current == null ||
-                    score > current.matchPercentage ||
-                    (score.compareTo(current.matchPercentage) == 0 && result.isOptimal && !current.isOptimal)
-                ) {
-                    best = result.copy(matchPercentage = score)
-                    bestSolvedScenario = solvedScenario
+                synchronized(considerLock) {
+                    val current = best
+                    // Highest score; on a tie prefer the PROVEN result so [best].isOptimal reflects the proof — the
+                    // solver emits the optimum un-proven first, then proven (same build, same score), and a plain
+                    // strict `>` would keep the earlier un-proven copy and under-report the proof at the final emit.
+                    if (current == null ||
+                        score > current.matchPercentage ||
+                        (score.compareTo(current.matchPercentage) == 0 && result.isOptimal && !current.isOptimal)
+                    ) {
+                        best = result.copy(matchPercentage = score)
+                        bestSolvedScenario = solvedScenario
+                    }
+                    // Improvements from parallel probes can arrive out of order — keep the streamed bar monotonic.
+                    lastProgressSent = maxOf(lastProgressSent, progress)
+                    // Streamed best-so-far is never "proven" — optimality is decided once at the final emit.
+                    best?.let { trySend(it.copy(progressPercentage = lastProgressSent, isOptimal = false)) }
                 }
-                // Streamed best-so-far is never "proven" — optimality is decided once at the final emit.
-                best?.let { trySend(it.copy(progressPercentage = progress, isOptimal = false)) }
             }
 
             val producer =
@@ -168,14 +178,16 @@ object MaxDamageSearch {
                         // so this repeats the (single-threaded) model construction N times; that is deliberate: a
                         // shared model would force the N solves to run SEQUENTIALLY (CP-SAT mutates solver state),
                         // and N parallel solves with N model builds beat one shared model solved N times in a row.
-                        val elementResults =
-                            runProbeBatch(elementParams.map { it.copy(searchDuration = phaseBudget) }, equipmentsByItemType, runes, sublimations, phaseBudget, tuning)
-                        phase1Optimal = elementResults.isNotEmpty() && elementResults.all { (_, r) -> r != null && r.isOptimal }
-                        elementResults.forEachIndexed { index, (probeParams, probe) ->
-                            if (probe != null) {
-                                consider(probe, probeParams.damageScenario, ((index + 1) * phase1Ceiling / elementResults.size).coerceIn(0, phase1Ceiling))
+                        //
+                        // Each probe STREAMS its improving solutions into [consider] as they arrive (not awaited
+                        // as a batch), so a build appears within seconds. Awaiting the whole batch first left the
+                        // GUI on the "Preparing OR-Tools model" overlay (build == null) for the ENTIRE budget,
+                        // which on a long boss search looked like an infinite hang that never found a build.
+                        val probesProved =
+                            streamProbeBatch(elementParams, equipmentsByItemType, runes, sublimations, phaseBudget, phase1Ceiling, tuning) { probeParams, probe, progress ->
+                                consider(probe, probeParams.damageScenario, progress)
                             }
-                        }
+                        phase1Optimal = probesProved.isNotEmpty() && probesProved.all { it }
                     }
 
                     // Phase 1's best score, snapshotted before the heuristic debuff phase can move it.
@@ -289,6 +301,64 @@ object MaxDamageSearch {
                 .map { base ->
                     val p = base.copy(searchDuration = plan.perProbeBudget, solverWorkers = plan.workersPerProbe)
                     async(dispatcher) { p to solveProbe(p, equipmentsByItemType, runes, sublimations, tuning) }
+                }.awaitAll()
+        }
+    }
+
+    /**
+     * Like [runProbeBatch] but STREAMS each probe's improving solutions to [onResult] as they are found,
+     * instead of awaiting every probe and returning the batch. This lets the caller surface a best-so-far
+     * build within seconds of the search starting — the boss / multi-element path used to await the whole
+     * batch, leaving the GUI's "Preparing OR-Tools model" overlay up (no build) for the entire budget.
+     *
+     * Returns, per probe, whether its CP-SAT solve PROVED optimality — the boss optimum is proven iff every
+     * element's solve proved. Core budgeting is identical to [runProbeBatch] (the concurrent native workers
+     * never exceed host−1, and the batch fits [phaseBudget]). [progressCeiling] scales each probe's 0–100
+     * progress into the bar's phase-1 ceiling. [onResult] is invoked concurrently from the probe collectors,
+     * so it MUST be thread-safe (see [consider], which guards its shared state).
+     */
+    private suspend fun streamProbeBatch(
+        probeParams: List<WakfuBestBuildParams>,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        phaseBudget: Duration,
+        progressCeiling: Int,
+        tuning: WakfuBuildSolver.SolverTuning?,
+        onResult: (WakfuBestBuildParams, GeneticAlgorithmResult<BuildCombination>, Int) -> Unit,
+    ): List<Boolean> {
+        if (probeParams.isEmpty()) return emptyList()
+
+        suspend fun collectProbe(params: WakfuBestBuildParams): Boolean {
+            var proved = false
+            WakfuBuildSolver
+                .optimize(params, equipmentsByItemType, runes, sublimations, tuning)
+                .collect { result ->
+                    // CP-SAT declares optimality once, on this element's final emission; its best emission is
+                    // proven iff that happened, so OR-ing over the stream matches the old per-probe `isOptimal`.
+                    if (result.isOptimal) proved = true
+                    onResult(params, result, (result.progressPercentage * progressCeiling / 100).coerceIn(0, progressCeiling))
+                }
+            return proved
+        }
+
+        // Test path ([tuning] != null): det-time solves are reproducible regardless of parallelism, so run
+        // them straight on IO with the tuning's own worker count (mirrors [runProbeBatch]).
+        if (tuning != null) {
+            return coroutineScope {
+                probeParams
+                    .map { base -> async(Dispatchers.IO) { collectProbe(base.copy(searchDuration = phaseBudget)) } }
+                    .awaitAll()
+            }
+        }
+
+        val host = (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)
+        val plan = probePlan(probeParams.size, host, phaseBudget)
+        val dispatcher = Dispatchers.IO.limitedParallelism(plan.concurrency)
+        return coroutineScope {
+            probeParams
+                .map { base ->
+                    async(dispatcher) { collectProbe(base.copy(searchDuration = plan.perProbeBudget, solverWorkers = plan.workersPerProbe)) }
                 }.awaitAll()
         }
     }
