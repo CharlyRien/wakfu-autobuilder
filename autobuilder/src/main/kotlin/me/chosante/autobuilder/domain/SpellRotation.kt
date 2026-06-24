@@ -16,6 +16,17 @@ data class ScoredSpell(
     val expectedDamagePerCast: Double,
 )
 
+/**
+ * Per-turn expected damage of the discovered build under one attack scenario variant ([orientation] + the
+ * optional [berserk] low-HP bonus). The max-damage result lists these so the player can read off how much
+ * positioning / berserk play is worth — exactly the levers the mode optimizes — instead of a single number.
+ */
+data class ScenarioDamage(
+    val orientation: Orientation,
+    val berserk: Boolean,
+    val totalExpectedDamage: Double,
+)
+
 /** A spell cast [count] times in the rotation, with its per-cast and total expected damage. */
 data class SpellCast(
     val spell: Spell,
@@ -239,6 +250,11 @@ object SpellRotationOptimizer {
                         rangeBand = scenario.rangeBand.toSpellDamageRangeBand(),
                         rearMastery = scenario.orientation.grantsRearMastery,
                         berserkMastery = scenario.berserk,
+                        // The positional multiplier (face 1.0 / side 1.10 / back 1.25) the displayed rotation
+                        // was missing: only rear MASTERY was applied, so a back-hit scenario under-showed by
+                        // ×1.25. A uniform constant per search, so it scales every build/element equally — it
+                        // never changes which build the engine picks, only the (now precise) shown number.
+                        orientationMultiplierPercent = scenario.orientation.multiplierPercent,
                         targetResistancePercent = resistancePercent,
                         critCapPercent = scenario.critCapPercent
                     )?.expected ?: return@mapNotNull null
@@ -377,6 +393,53 @@ object SpellRotationOptimizer {
             ?: SpellRotation(null, apBudget ?: 0, 0, emptyList(), 0.0)
 
     /**
+     * Per-turn expected damage of [build] under each attack-position variant, for the result breakdown:
+     * **face**, **side** and **back** (each at no berserk), plus a **back + berserk** entry when [includeBerserk]
+     * (the build actually carries berserk mastery, else it'd duplicate the back number), and ALWAYS the
+     * configured `(scenario.orientation, scenario.berserk)` combo so the row matching the headline rotation is
+     * present and can be highlighted — even for off-grid combos like side+berserk. Each entry re-runs the full
+     * debuff-aware rotation under that orientation, so the entry matching the configured scenario equals the
+     * headline rotation total. Orientation is the one lever the per-turn objective drops (a uniform factor), so
+     * this is the cheapest honest way to surface "what the other positions are worth".
+     */
+    fun scenarioBreakdown(
+        build: BuildCombination,
+        character: Character,
+        clazz: CharacterClass,
+        scenario: DamageScenario,
+        includeBerserk: Boolean,
+        // The already-computed headline rotation total for the CONFIGURED (scenario.orientation, scenario.berserk)
+        // combo, if the caller has it — reused instead of re-running that one rotation (the rest still compute).
+        configuredRotationTotal: Double? = null,
+    ): List<ScenarioDamage> {
+        // Dedup so the configured combo (added last) doesn't repeat a base row it already equals.
+        val combos = LinkedHashSet<Pair<Orientation, Boolean>>()
+        combos.add(Orientation.FACE to false)
+        combos.add(Orientation.SIDE to false)
+        combos.add(Orientation.BACK to false)
+        if (includeBerserk) combos.add(Orientation.BACK to true)
+        combos.add(scenario.orientation to scenario.berserk)
+        return combos.map { (orientation, berserk) ->
+            val isConfigured = orientation == scenario.orientation && berserk == scenario.berserk
+            ScenarioDamage(
+                orientation = orientation,
+                berserk = berserk,
+                totalExpectedDamage =
+                    if (isConfigured && configuredRotationTotal != null) {
+                        configuredRotationTotal
+                    } else {
+                        bestSequencedRotation(
+                            build,
+                            character,
+                            clazz,
+                            scenario.copy(orientation = orientation, berserk = berserk)
+                        ).totalExpectedDamage
+                    }
+            )
+        }
+    }
+
+    /**
      * Build-independent per-AP throughput table for [spells]: `table[ap]` = the maximum total **base**
      * damage castable within `ap` AP, **bounded by each spell's real per-turn cast limit**
      * ([Spell.maxCastsThisTurn]). Index `0..maxAp`. This is the spell-selection the CP-SAT objective
@@ -440,10 +503,4 @@ object SpellRotationOptimizer {
             masteryElementsWanted = mapOf(scenario.element.masteryCharacteristic to 1),
             resistanceElementsWanted = emptyMap()
         )[Characteristic.ACTION_POINT] ?: 0
-
-    private fun RangeBand.toSpellDamageRangeBand(): SpellDamage.RangeBand =
-        when (this) {
-            RangeBand.MELEE -> SpellDamage.RangeBand.MELEE
-            RangeBand.DISTANCE -> SpellDamage.RangeBand.DISTANCE
-        }
 }

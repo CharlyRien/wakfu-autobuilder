@@ -2,6 +2,7 @@ package me.chosante.autobuilder.domain
 
 import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
 import me.chosante.common.Character
+import me.chosante.common.Characteristic
 import me.chosante.common.Spell
 import me.chosante.common.SpellDamage
 
@@ -27,22 +28,11 @@ object BuildSpellDamage {
         rangeBand: SpellDamage.RangeBand? = null,
         rearMastery: Boolean = false,
         berserkMastery: Boolean = false,
+        orientationMultiplierPercent: Int = 100,
         targetResistancePercent: Int = 0,
         critCapPercent: Int = 100,
     ): SpellDamage.Result? {
-        val element = spell.element ?: return null
-        val stats =
-            computeCharacteristicsValues(
-                buildCombination = build,
-                characterBaseCharacteristics = character.baseCharacteristicValues,
-                // Fold generic elemental mastery into the spell's element, exactly like the scorers.
-                masteryElementsWanted = mapOf(element.masteryCharacteristic to 1),
-                resistanceElementsWanted = emptyMap()
-            )
-                // The generic "+all elements" mastery is now folded into the element key above, so drop
-                // the standalone entry — otherwise SpellDamage (which also adds it) would count it twice.
-                .toMutableMap()
-                .apply { remove(me.chosante.common.Characteristic.MASTERY_ELEMENTARY) }
+        val stats = resolveStats(spell, build, character) ?: return null
         return SpellDamage.expectedDamage(
             spell = spell,
             stats = stats,
@@ -50,8 +40,34 @@ object BuildSpellDamage {
             rangeBand = rangeBand,
             rearMastery = rearMastery,
             berserkMastery = berserkMastery,
+            orientationMultiplierPercent = orientationMultiplierPercent,
             targetResistancePercent = targetResistancePercent,
             critCapPercent = critCapPercent
         )
+    }
+
+    /**
+     * The build's resolved characteristic totals as [SpellDamage] reads them for [spell]'s element — the
+     * generic "+all elements" mastery folded into the element key, then the standalone entry dropped so
+     * [SpellDamage.expectedDamage] (which re-adds it) doesn't double-count. `null` when the spell has no element.
+     *
+     * Resolving a build's stats is the expensive part; expose it so a caller showing several scenarios of the
+     * SAME spell (e.g. face / back / berserk) can resolve **once** and call [SpellDamage.expectedDamage] per
+     * scenario, instead of paying a full re-resolution for each via [expectedDamage].
+     */
+    fun resolveStats(
+        spell: Spell,
+        build: BuildCombination,
+        character: Character,
+    ): Map<Characteristic, Int>? {
+        val element = spell.element ?: return null
+        return computeCharacteristicsValues(
+            buildCombination = build,
+            characterBaseCharacteristics = character.baseCharacteristicValues,
+            // Fold generic elemental mastery into the spell's element, exactly like the scorers.
+            masteryElementsWanted = mapOf(element.masteryCharacteristic to 1),
+            resistanceElementsWanted = emptyMap()
+        ).toMutableMap()
+            .apply { remove(Characteristic.MASTERY_ELEMENTARY) }
     }
 }

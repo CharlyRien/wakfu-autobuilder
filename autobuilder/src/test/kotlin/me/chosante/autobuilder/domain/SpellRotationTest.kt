@@ -76,6 +76,86 @@ class SpellRotationTest {
     }
 
     @Test
+    fun `the scenario breakdown applies the positional multiplier per orientation`() {
+        // A fire build with NO rear/berserk mastery: the only thing that changes between positions is the
+        // ×multiplier (face 1.0 / side 1.10 / back 1.25), which the rotation now applies. So side = 1.10×face
+        // and back = 1.25×face — proving the displayed damage finally includes the orientation factor.
+        val character = Character(clazz = CharacterClass.CRA, level = 200, minLevel = 1)
+        val fireItem =
+            me.chosante.common.Equipment(
+                equipmentId = 1,
+                guiId = 1,
+                level = 200,
+                name = I18nText("Amu", "Amu", "Amu", "Amu"),
+                rarity = me.chosante.common.Rarity.COMMON,
+                itemType = me.chosante.common.ItemType.AMULET,
+                characteristics = mapOf(me.chosante.common.Characteristic.MASTERY_ELEMENTARY_FIRE to 500)
+            )
+        val build = BuildCombination(equipments = listOf(fireItem), characterSkills = CharacterSkills(200))
+        val scenario = DamageScenario(element = me.chosante.autobuilder.domain.SpellElement.FIRE)
+
+        val breakdown = SpellRotationOptimizer.scenarioBreakdown(build, character, CharacterClass.CRA, scenario, includeBerserk = false)
+        val face = breakdown.single { it.orientation == Orientation.FACE && !it.berserk }.totalExpectedDamage
+        val side = breakdown.single { it.orientation == Orientation.SIDE && !it.berserk }.totalExpectedDamage
+        val back = breakdown.single { it.orientation == Orientation.BACK && !it.berserk }.totalExpectedDamage
+
+        assertThat(breakdown).hasSize(3)
+        assertThat(face).isGreaterThan(0.0)
+        assertThat(side / face).isCloseTo(
+            1.10,
+            org.assertj.core.api.Assertions
+                .within(1e-6)
+        )
+        assertThat(back / face).isCloseTo(
+            1.25,
+            org.assertj.core.api.Assertions
+                .within(1e-6)
+        )
+    }
+
+    @Test
+    fun `the scenario breakdown adds a back+berserk row only when asked`() {
+        val character = Character(clazz = CharacterClass.CRA, level = 200, minLevel = 1)
+        val build = BuildCombination(equipments = emptyList(), characterSkills = CharacterSkills(200))
+        val scenario = DamageScenario(element = me.chosante.autobuilder.domain.SpellElement.FIRE)
+
+        assertThat(SpellRotationOptimizer.scenarioBreakdown(build, character, CharacterClass.CRA, scenario, includeBerserk = false)).hasSize(3)
+        val withBerserk = SpellRotationOptimizer.scenarioBreakdown(build, character, CharacterClass.CRA, scenario, includeBerserk = true)
+        assertThat(withBerserk).hasSize(4)
+        assertThat(withBerserk.last().berserk).isTrue()
+        assertThat(withBerserk.last().orientation).isEqualTo(Orientation.BACK)
+    }
+
+    @Test
+    fun `the scenario breakdown always includes the configured off-grid combo`() {
+        // A configured side+berserk scenario is not one of the base FACE/SIDE/BACK(+BACK-berserk) rows, yet the
+        // breakdown must still contain it so the result view can highlight the searched scenario.
+        val character = Character(clazz = CharacterClass.CRA, level = 200, minLevel = 1)
+        val build = BuildCombination(equipments = emptyList(), characterSkills = CharacterSkills(200))
+        val scenario =
+            DamageScenario(element = me.chosante.autobuilder.domain.SpellElement.FIRE, orientation = Orientation.SIDE, berserk = true)
+
+        val breakdown = SpellRotationOptimizer.scenarioBreakdown(build, character, CharacterClass.CRA, scenario, includeBerserk = true)
+        assertThat(breakdown).anySatisfy({ assertThat(it.orientation == Orientation.SIDE && it.berserk).isTrue() })
+    }
+
+    @Test
+    fun `the scenario breakdown reuses a supplied total for the configured combo`() {
+        // When the caller already computed the headline rotation, the configured combo's row must reuse that
+        // exact total instead of recomputing it.
+        val character = Character(clazz = CharacterClass.CRA, level = 200, minLevel = 1)
+        val build = BuildCombination(equipments = emptyList(), characterSkills = CharacterSkills(200))
+        val scenario = DamageScenario(element = me.chosante.autobuilder.domain.SpellElement.FIRE, orientation = Orientation.BACK)
+        val sentinel = 123_456.0
+
+        val breakdown =
+            SpellRotationOptimizer.scenarioBreakdown(build, character, CharacterClass.CRA, scenario, includeBerserk = false, configuredRotationTotal = sentinel)
+        assertThat(breakdown.single { it.orientation == Orientation.BACK && !it.berserk }.totalExpectedDamage).isEqualTo(sentinel)
+        // The other (non-configured) rows are computed normally, so they are NOT the sentinel.
+        assertThat(breakdown.single { it.orientation == Orientation.FACE }.totalExpectedDamage).isNotEqualTo(sentinel)
+    }
+
+    @Test
     fun `sequencing ignores a resistance debuff whose enemy target is unconfirmed`() {
         // IOP Focus carries −50 flat resistance but its enemy target is unconfirmed (missingFields contains
         // "resistanceTarget?"), so it must NOT lower the boss's resistance in the valuation (never invent).

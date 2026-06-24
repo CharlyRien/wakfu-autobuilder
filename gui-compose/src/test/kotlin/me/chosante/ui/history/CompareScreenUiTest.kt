@@ -9,6 +9,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import me.chosante.common.Characteristic
 import me.chosante.common.Rarity
+import me.chosante.common.history.DamageScenarioSnapshot
 import me.chosante.common.history.HistoryEntry
 import me.chosante.common.history.RequestSnapshot
 import me.chosante.common.history.ResultSnapshot
@@ -33,6 +34,8 @@ class CompareScreenUiTest {
         id: String,
         name: String,
         clazz: String,
+        achieved: Map<Characteristic, Int> = mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 500),
+        rangeBand: String = "DISTANCE",
     ): HistoryEntry =
         HistoryEntry(
             id = id,
@@ -50,13 +53,14 @@ class CompareScreenUiTest {
                     stopAtMatch = false,
                     targets = emptyList(),
                     forcedItems = emptyList(),
-                    excludedItems = emptyList()
+                    excludedItems = emptyList(),
+                    scenario = DamageScenarioSnapshot(rangeBand = rangeBand)
                 ),
             result =
                 ResultSnapshot(
                     equipments = emptyList(),
                     skills = emptyMap(),
-                    achieved = mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 500),
+                    achieved = achieved,
                     match = 100.0,
                     optimal = true
                 )
@@ -106,6 +110,64 @@ class CompareScreenUiTest {
                 }
             }
             assertThat(onAllNodesWithText("different classes", substring = true).fetchSemanticsNodes()).isNotEmpty()
+        }
+
+    @Test
+    fun `damage group surfaces the damage-inflicted difference between builds`() =
+        runComposeUiTest {
+            setContent {
+                CompositionLocalProvider(LocalLang provides Lang.EN) {
+                    CompareScreen(
+                        // One build carries a −20% Damage Inflicted (the most-masteries bait); the other 0. The
+                        // grouped Damage section must surface the row so the softer-hitting build is explainable.
+                        ui =
+                            UiState(
+                                savedBuilds =
+                                    listOf(
+                                        entry("a", "Soft", "CRA", achieved = mapOf(Characteristic.DAMAGE_INFLICTED to -20, Characteristic.MASTERY_DISTANCE to 300)),
+                                        entry("b", "Hard", "CRA", achieved = mapOf(Characteristic.MASTERY_DISTANCE to 300))
+                                    ),
+                                compareSlots = listOf("a", "b")
+                            ),
+                        onPick = { _, _ -> },
+                        onClear = { },
+                        onAdd = { },
+                        onBack = { }
+                    )
+                }
+            }
+            onNodeWithText("Damage").assertExists()
+            onNodeWithText("Damage Inflicted").assertExists()
+            onNodeWithText("Distance Mastery").assertExists()
+        }
+
+    @Test
+    fun `each column shows its own range band in the spell-damage header`() =
+        runComposeUiTest {
+            setContent {
+                CompositionLocalProvider(LocalLang provides Lang.EN) {
+                    CompareScreen(
+                        ui =
+                            UiState(
+                                savedBuilds =
+                                    listOf(
+                                        entry("a", "Ranged", "CRA", rangeBand = "DISTANCE"),
+                                        entry("b", "Melee", "CRA", rangeBand = "MELEE")
+                                    ),
+                                compareSlots = listOf("a", "b")
+                            ),
+                        onPick = { _, _ -> },
+                        onClear = { },
+                        onAdd = { },
+                        onBack = { }
+                    )
+                }
+            }
+            // Each column credits its own band, so BOTH labels must render (column A = Distance, B = Melee).
+            // The builds carry no distance/melee MASTERY (achieved is fire only), so these strings can only
+            // come from the per-column band labels — proving the bands are per-column, not a single default.
+            assertThat(onAllNodesWithText("Distance", substring = true).fetchSemanticsNodes()).isNotEmpty()
+            assertThat(onAllNodesWithText("Melee", substring = true).fetchSemanticsNodes()).isNotEmpty()
         }
 
     @Test

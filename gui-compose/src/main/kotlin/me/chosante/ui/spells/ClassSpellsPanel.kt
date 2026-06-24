@@ -28,8 +28,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import me.chosante.autobuilder.domain.BuildSpellDamage
+import me.chosante.autobuilder.domain.Orientation
 import me.chosante.autobuilder.domain.PassiveCatalog
 import me.chosante.autobuilder.domain.SpellCatalog
+import me.chosante.autobuilder.domain.toSpellDamageRangeBand
 import me.chosante.common.Character
 import me.chosante.common.Characteristic
 import me.chosante.common.Passive
@@ -57,10 +59,12 @@ import me.chosante.ui.theme.WTypography
 /**
  * The "Class spells & passives" tab of the result region: every damage spell of the current class with
  * the **expected damage the discovered build would deal** with it (via [BuildSpellDamage]), plus the
- * class's passive pool (with the build's selected passives flagged). Damage is the neutral yardstick — a
- * 0%-resistance target, no positional / rear / berserk bonus — so the numbers are stable and comparable;
- * the "i" tooltip on each spell spells that out. Before any search runs (no [UiState.build]) it falls back
- * to each spell's build-independent base hit at the character level.
+ * class's passive pool (with the build's selected passives flagged). Damage credits the build's elemental,
+ * critical and **range-band (distance/melee) mastery** plus % damage inflicted, against a neutral
+ * 0%-resistance target with no rear/berserk bonus — so a distance build is no longer under-shown by
+ * dropping its biggest mastery. The range band comes from the current attack [scenario][UiState.scenario]
+ * (shown as a small label); the "i" tooltip spells the rest out. Before any search runs (no
+ * [UiState.build]) it falls back to each spell's build-independent base hit at the character level.
  */
 @Composable
 fun ClassSpellsPanel(
@@ -74,18 +78,51 @@ fun ClassSpellsPanel(
             build?.let { Character(ui.clazz, ui.level, ui.minLevel).copy(characterSkills = it.characterSkills) }
         }
     val critRate = (ui.achieved[Characteristic.CRITICAL_HIT] ?: 0).coerceIn(0, 100)
+    // Credit the build's own range band (the secondary mastery it plays with) so distance/melee builds
+    // aren't understated; the headline stays a neutral FACE hit so spells remain comparable, with the
+    // back/berserk scenarios shown as extra lines.
+    val rangeBand = ui.scenario.rangeBand
+    // Only offer the berserk variant when the build actually carries berserk mastery (otherwise it equals
+    // the neutral hit and is just noise).
+    val hasBerserk = (ui.achieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0
     val entries =
-        remember(ui.clazz, ui.level, build, ui.achieved) {
+        remember(ui.clazz, ui.level, ui.minLevel, build, ui.achieved, rangeBand) {
+            val band = rangeBand.toSpellDamageRangeBand()
             SpellCatalog
                 .damageSpells(ui.clazz)
                 .map { spell ->
-                    val damage =
-                        if (build != null && character != null) {
-                            BuildSpellDamage.expectedDamage(spell = spell, build = build, character = character)
+                    // Resolve the build's stats ONCE per spell; the face/back/berserk variants share them and
+                    // differ only by the flags passed to SpellDamage, so this avoids 3× the stat resolution.
+                    val stats = if (build != null && character != null) BuildSpellDamage.resolveStats(spell, build, character) else null
+
+                    fun hit(
+                        rear: Boolean,
+                        berserk: Boolean,
+                        orientation: Int,
+                    ): SpellDamage.Result? =
+                        if (stats != null && character != null) {
+                            SpellDamage.expectedDamage(
+                                spell = spell,
+                                stats = stats,
+                                characterLevel = character.level,
+                                rangeBand = band,
+                                rearMastery = rear,
+                                berserkMastery = berserk,
+                                orientationMultiplierPercent = orientation
+                            )
                         } else {
                             null
                         }
-                    SpellEntry(spell = spell, damage = damage, baseHit = spell.baseDamageAt(ui.level))
+                    SpellEntry(
+                        spell = spell,
+                        // Neutral reference: face hit, the build's range band, no rear/berserk.
+                        damage = hit(rear = false, berserk = false, orientation = 100),
+                        // Back hit: ×1.25 positional multiplier AND rear mastery (Wakfu couples them).
+                        back = hit(rear = true, berserk = false, orientation = 125),
+                        // Berserk: caster at/below 50% HP folds in berserk mastery (face).
+                        berserk = if (hasBerserk) hit(rear = false, berserk = true, orientation = 100) else null,
+                        baseHit = spell.baseDamageAt(ui.level)
+                    )
                 }.sortedByDescending { it.damage?.expected ?: it.baseHit?.toDouble() ?: 0.0 }
         }
     val scroll = rememberScrollState()
@@ -99,6 +136,23 @@ fun ClassSpellsPanel(
         verticalArrangement = Arrangement.spacedBy(WDimens.gap)
     ) {
         SectionTitle(title = tr(Tr.CLASS_SPELLS_TITLE), trailing = entries.size.toString())
+        if (build != null) {
+            // Transparency: say which secondary mastery the per-spell numbers credit (distance vs melee),
+            // since the build's range band, not an apples-to-apples neutral, drives the figures.
+            Text(
+                text = tr(Tr.SPELL_DAMAGE_RANGE_NOTE).format(rangeBand.label(lang).lowercase()),
+                style = WTypography.labelSmall.copy(color = WColor.faint)
+            )
+            // A hit is ranged OR melee, never both: if a build carries both masteries, only the scenario's
+            // band counts here — flag it so the displayed damage isn't read as crediting the wasted one.
+            val hasBothBands = (ui.achieved[Characteristic.MASTERY_DISTANCE] ?: 0) > 0 && (ui.achieved[Characteristic.MASTERY_MELEE] ?: 0) > 0
+            if (hasBothBands) {
+                Text(
+                    text = tr(Tr.SPELL_DAMAGE_DIST_MELEE_HINT),
+                    style = WTypography.labelSmall.copy(color = WColor.warning)
+                )
+            }
+        }
         if (build == null) {
             Text(
                 text = tr(Tr.CLASS_SPELLS_NO_BUILD),
@@ -116,10 +170,16 @@ fun ClassSpellsPanel(
     }
 }
 
-/** A damage spell paired with its build-scoped expected hit ([damage]) and a build-independent fallback. */
+/**
+ * A damage spell paired with its build-scoped expected hits: the neutral face [damage] (the headline and
+ * the build-independent [baseHit] fallback), plus the [back] (rear hit, ×1.25 + rear mastery) and optional
+ * [berserk] (≤50% HP) scenario variants shown as extra lines.
+ */
 private data class SpellEntry(
     val spell: Spell,
     val damage: SpellDamage.Result?,
+    val back: SpellDamage.Result? = null,
+    val berserk: SpellDamage.Result? = null,
     val baseHit: Int?,
 )
 
@@ -252,6 +312,7 @@ private fun DamageBlock(
             InfoTip(text = tr(Tr.SPELL_EXPECTED_HIT_INFO), modifier = Modifier.padding(bottom = 2.dp))
         }
         CritBreakdown(damage = damage, critRate = critRate)
+        ScenarioVariants(entry = entry)
     } else {
         val base = entry.baseHit ?: return
         Row(verticalAlignment = Alignment.Bottom) {
@@ -269,6 +330,26 @@ private fun DamageBlock(
             InfoTip(text = tr(Tr.SPELL_BASE_HIT_INFO), modifier = Modifier.padding(bottom = 2.dp))
         }
     }
+}
+
+/**
+ * Other-scenario expected hits below the neutral headline: the **back** hit (×1.25 positional + rear
+ * mastery) and, when the build carries berserk mastery, the **berserk** hit (≤50% HP). Lets the player
+ * read off how much a spell gains from positioning / low-HP play without switching the whole view.
+ */
+@Composable
+private fun ScenarioVariants(entry: SpellEntry) {
+    val lang = LocalLang.current
+    val parts =
+        buildList {
+            entry.back?.let { add("${Orientation.BACK.label(lang).lowercase()} ${it.expected.toLong().formatCompact()}") }
+            entry.berserk?.let { add("${tr(Tr.SPELL_VARIANT_BERSERK)} ${it.expected.toLong().formatCompact()}") }
+        }
+    if (parts.isEmpty()) return
+    Text(
+        text = parts.joinToString("  ·  "),
+        style = WTypography.labelSmall.copy(color = WColor.faint, fontFamily = WType.mono)
+    )
 }
 
 /**
