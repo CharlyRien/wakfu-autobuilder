@@ -708,7 +708,10 @@ class BuildSearchModel(
             WakfuBestBuildParams(
                 character = character,
                 targetStats = targetStats,
-                searchDuration = (snapshot.duration.toIntOrNull() ?: 20).coerceAtLeast(1).seconds,
+                // Blank duration = the longest sensible run (10 min). Kept finite on purpose: an unbounded
+                // budget would make the time-driven progress bar meaningless and risk a search that never
+                // returns on a hard input. (QOL-2)
+                searchDuration = (snapshot.duration.toIntOrNull() ?: 600).coerceAtLeast(1).seconds,
                 // "Stop at 100% match" only applies to precision mode (the only mode with an exact target);
                 // ignore a stale toggle when searching in most-masteries / max-damage.
                 stopWhenBuildMatch = snapshot.stopAtMatch && snapshot.mode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT,

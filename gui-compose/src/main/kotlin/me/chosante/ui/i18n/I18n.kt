@@ -116,7 +116,7 @@ enum class Tr(
     RARITIES("Rarities", "Raretés"),
     RARITIES_SUB("tap to allow / exclude", "clic pour autoriser / exclure"),
     SEARCH_DURATION("Search duration", "Durée de recherche"),
-    SEARCH_DURATION_SUB("time budget for the solver", "temps alloué au solveur"),
+    SEARCH_DURATION_SUB("time budget for the solver (empty = 10 min)", "temps alloué au solveur (vide = 10 min)"),
     SECONDS_SHORT("sec", "sec"),
     STOP_AT_MATCH("Stop at 100% match", "Arrêter à 100%"),
     SEARCH_NO_RESULT(
