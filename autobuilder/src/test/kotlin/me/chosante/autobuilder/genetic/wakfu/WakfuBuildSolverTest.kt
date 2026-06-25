@@ -2658,6 +2658,104 @@ class WakfuBuildSolverTest {
         }
     }
 
+    /** Constraint-rich precision request for [clazz] at [level] hitting [targets] — drives the cap/min/average/overflow chain. */
+    private fun precisionShape(
+        clazz: CharacterClass,
+        level: Int,
+        targets: List<TargetStat>,
+    ): WakfuBestBuildParams =
+        WakfuBestBuildParams(
+            character = Character(clazz, level, 0, CharacterSkills(level)),
+            targetStats = TargetStats(targets),
+            searchDuration = 60.seconds,
+            stopWhenBuildMatch = false,
+            maxRarity = Rarity.EPIC,
+            forcedItems = emptyList(),
+            excludedItems = emptyList(),
+            scoreComputationMode = ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT,
+            useRunes = false,
+            useSublimations = false
+        )
+
+    /** Shapes spanning specific + generic (multi-element) mastery, resistance, AP/MP/HP/crit and lvl-245 magnitudes. */
+    private fun precisionSoundnessShapes(): List<Pair<String, WakfuBestBuildParams>> =
+        listOf(
+            "cra-mastery-ap-crit-110" to
+                precisionShape(
+                    CharacterClass.CRA,
+                    110,
+                    listOf(
+                        TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 1500),
+                        TargetStat(Characteristic.ACTION_POINT, 12),
+                        TargetStat(Characteristic.CRITICAL_HIT, 40)
+                    )
+                ),
+            "cra-generic-mastery-di-110" to
+                precisionShape(
+                    CharacterClass.CRA,
+                    110,
+                    listOf(
+                        TargetStat(Characteristic.MASTERY_ELEMENTARY, 2000),
+                        TargetStat(Characteristic.DAMAGE_INFLICTED, 100)
+                    )
+                ),
+            "iop-melee-back-hp-110" to
+                precisionShape(
+                    CharacterClass.IOP,
+                    110,
+                    listOf(
+                        TargetStat(Characteristic.MASTERY_MELEE, 800),
+                        TargetStat(Characteristic.MASTERY_BACK, 600),
+                        TargetStat(Characteristic.HP, 500)
+                    )
+                ),
+            "cra-mastery-ap-245" to
+                precisionShape(
+                    CharacterClass.CRA,
+                    245,
+                    listOf(
+                        TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 3000),
+                        TargetStat(Characteristic.ACTION_POINT, 14)
+                    )
+                )
+        )
+
+    @Test
+    fun `precision reachable bounds hold across classes, targets and levels`() {
+        // Precision soundness lock (mirrors the max-damage one): now that the precision stat chain is declared on
+        // its reachable domains (tight=true), solve each shape with LOOSE guard domains and check every var's
+        // solved value against the tight reachable [lo,hi] the production build DECLARES. A value outside = an
+        // interval under-estimate that would silently cut the precision optimum. The tiny high-stat stress pool
+        // drives the cap/min/average/overflow chain to end-game magnitudes — stronger than the real pool.
+        val tuning = WakfuBuildSolver.SolverTuning()
+        val pool = soundnessStressPool()
+        precisionSoundnessShapes().forEach { (name, params) ->
+            val bounds = WakfuBuildSolver.precisionVarBoundsForTest(params, pool, tuning)
+            assertThat(bounds).describedAs("$name: the precision chain must be tracked").isNotEmpty
+            assertThat(bounds.filterNot { it.withinBound })
+                .describedAs("$name: a precision var whose reachable bound under-estimated its real value — a silently cut optimum")
+                .isEmpty()
+        }
+    }
+
+    @Test
+    fun `precision tight reachable domains keep the same optimum as loose guards`() {
+        // Output-preservation lock for the precision tight=true switch: tight reachable domains must declare the
+        // SAME optimum as loose guards (tight only changes provability/speed, never the answer), and the tight
+        // build is the one that proves it. Same shapes as the soundness lock, on the tiny pool both prove.
+        val tuning = WakfuBuildSolver.SolverTuning()
+        val pool = soundnessStressPool()
+        precisionSoundnessShapes().forEach { (name, params) ->
+            val tight = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true)
+            val loose = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = false)
+            assertThat(tight.isOptimal).describedAs("$name: the tight (production) precision model must prove OPTIMAL").isTrue()
+            assertThat(loose.isOptimal).describedAs("$name: the loose reference also proves on this small pool").isTrue()
+            assertThat(tight.objective)
+                .describedAs("$name: tightening declared domains must not change the precision optimum — only how fast it is proven")
+                .isEqualTo(loose.objective)
+        }
+    }
+
     @Test
     fun `single-type rune fold preserves the max-damage optimum`() {
         // The fold fills each item with ONE rune type (a boolean pick) instead of a free per-stat count.
