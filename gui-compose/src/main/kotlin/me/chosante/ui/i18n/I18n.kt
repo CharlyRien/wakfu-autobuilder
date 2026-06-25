@@ -151,6 +151,10 @@ enum class Tr(
         "Runes are pinned per item — hover a slot in the build and click ◈.",
         "Les runes se définissent par objet — survole un emplacement du build et clique sur ◈."
     ),
+    RUNES_ALLGOLD_HINT(
+        "Runes are shown \"all gold\": best stat, max level, socket colours assumed re-rolled. The Zenith link can differ (real socket colours aren't re-rolled).",
+        "Runes affichées en « tout doré » : meilleure stat, niveau max, couleurs d'emplacements supposées re-roll. Le lien Zenith peut différer (les vraies couleurs ne sont pas re-roll)."
+    ),
 
     // Paperdoll
     PREPARING_OR_TOOLS_MODEL("Preparing OR-Tools model", "Préparation du modèle OR-Tools"),
