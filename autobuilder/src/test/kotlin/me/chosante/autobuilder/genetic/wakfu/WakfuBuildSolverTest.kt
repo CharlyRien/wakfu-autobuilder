@@ -247,7 +247,6 @@ class WakfuBuildSolverTest {
         }
 
     @Test
-    @Tag("slow")
     fun `lp solver finds a valid feasible build on the level 245 dataset`(): Unit =
         runBlocking {
             val level = 245
@@ -2954,7 +2953,6 @@ class WakfuBuildSolverTest {
     }
 
     @Test
-    @Tag("slow")
     fun `domination preserves the most-masteries optimum on the full level-110 pool`() {
         // most-masteries soundness guard: its objective is the bilinear masteryScore × penaltyMultiplier (the
         // required AP/MP/HP/crit targets drive the multiplier), so this exercises the sign argument — the optimum
@@ -2990,7 +2988,6 @@ class WakfuBuildSolverTest {
     }
 
     @Test
-    @Tag("slow")
     fun `domination preserves the precision optimum on the full level-110 pool`() {
         // precision soundness guard: its objective is a sum of min(actual, target) terms (capped, monotone), so
         // componentwise->= domination must reach the same proven optimum on the full pool.
@@ -3280,7 +3277,6 @@ class WakfuBuildSolverTest {
     )
 
     @Test
-    @Tag("slow")
     fun `a single-element mastery request is no longer prefiltered (full pool, proven optimum)`() {
         // The prefilter is a top-N-per-stat HEURISTIC that can miss the optimum; for a SINGLE specific element
         // the full-pool model stays small and proves the true optimum fast (measured ~1-4s on lvl 245), so the
@@ -3307,7 +3303,6 @@ class WakfuBuildSolverTest {
     }
 
     @Test
-    @Tag("slow")
     fun `a multi-element aggregate request still prefilters the pool`() {
         // The O(elements^2) random-element modelling explodes the full pool for multi-element requests (even
         // prefiltered, the aggregate solve is hard), so the prefilter stays load-bearing there. No solve here.
