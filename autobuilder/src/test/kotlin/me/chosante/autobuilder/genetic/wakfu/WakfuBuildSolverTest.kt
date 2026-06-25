@@ -2757,6 +2757,93 @@ class WakfuBuildSolverTest {
     }
 
     @Test
+    fun `most-masteries exact fill stays sound with a secondary-cap sublimation in play`() {
+        // The exact scenario the gate is about: a choosable SECONDARY_MASTERIES_AT_MOST=0 sub puts the secondary
+        // masteries in subPinnedStats (a ≤ condition forcing more is dangerous). Exact-fill is STILL sound here
+        // because the per-stat distribution is free — every socket can take the elemental (safe filler) rune
+        // instead of a secondary rune, so the cap is never pushed over. So exact-fill fires (a safe filler exists)
+        // and must still equal the ≤ optimum. (It is gated off only if the SOLE modeled rune were a capped
+        // secondary — a self-contradictory request.)
+        val tuning = WakfuBuildSolver.SolverTuning()
+        val pool = soundnessSocketedPool()
+        val runes = soundnessRunes()
+        val secondaryCapSub =
+            sublimation(
+                9001,
+                SublimationRarity.EPIC,
+                SublimationKind.STATIC_CONDITIONAL,
+                "ElementalUnderSecondaryCap",
+                effects = listOf(SublimationEffect(Characteristic.MASTERY_ELEMENTARY, 50)),
+                condition = SublimationCondition(SublimationConditionType.SECONDARY_MASTERIES_AT_MOST, 0)
+            )
+        val params =
+            WakfuBestBuildParams(
+                character = Character(CharacterClass.CRA, 110, 0, CharacterSkills(110)),
+                targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY, 9999), TargetStat(Characteristic.ACTION_POINT, 11))),
+                searchDuration = 60.seconds,
+                stopWhenBuildMatch = false,
+                maxRarity = Rarity.EPIC,
+                forcedItems = emptyList(),
+                excludedItems = emptyList(),
+                scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                useRunes = true,
+                useSublimations = true
+            )
+        val subs = listOf(secondaryCapSub)
+        val exact = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, runes = runes, sublimations = subs)
+        val leq = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, runes = runes, sublimations = subs, forceRuneLeq = true)
+        assertThat(exact.isOptimal && leq.isOptimal).describedAs("both prove OPTIMAL").isTrue()
+        assertThat(exact.objective)
+            .describedAs("exact fill stays sound with a secondary-cap sub — elemental (safe filler) runes fill sockets without breaking the cap")
+            .isEqualTo(leq.objective)
+    }
+
+    @Test
+    fun `most-masteries exact fill proves the runes-on optimum fast on the full level-110 pool`() {
+        // Regression guard for the exact-fill win — NOT @slow on purpose: it proves in ~1.7s and CI (`test`)
+        // excludes @slow, so a @slow guard would never actually run. The ≤ model could NOT prove this case
+        // (full lvl-110 pool, runes ON, distance + AP/MP/Range) — it ran ~656s and returned FEASIBLE because
+        // every socket was an independent 0..slots underfill choice. Exact-fill pins Σ=slots so the single
+        // relevant rune (distance) is forced full, collapsing the search to a fast proof. If exact-fill ever
+        // stops firing for this shape, the proof can't close within the bounded det-time and this fails (in
+        // bounded time, not a hang). Single worker (the low-thread target) ⇒ deterministic; det-time is
+        // hardware-independent so the budget is reproducible on CI.
+        val tuning = WakfuBuildSolver.SolverTuning(numSearchWorkers = 1, randomSeed = 1, maxDeterministicTime = 40.0)
+        val params =
+            WakfuBestBuildParams(
+                character = Character(CharacterClass.CRA, 110, 0, CharacterSkills(110)),
+                targetStats =
+                    TargetStats(
+                        listOf(
+                            TargetStat(Characteristic.MASTERY_DISTANCE, 9999),
+                            TargetStat(Characteristic.ACTION_POINT, 12),
+                            TargetStat(Characteristic.MOVEMENT_POINT, 4),
+                            TargetStat(Characteristic.RANGE, 4)
+                        )
+                    ),
+                searchDuration = 60.seconds,
+                stopWhenBuildMatch = false,
+                maxRarity = Rarity.EPIC,
+                forcedItems = emptyList(),
+                excludedItems = emptyList(),
+                scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                useRunes = true,
+                useSublimations = false
+            )
+        val result =
+            WakfuBuildSolver.maxDamageSolveForTest(
+                params,
+                fullEpicPool(110),
+                tuning,
+                tightDomains = true,
+                runes = WakfuBestBuildFinderAlgorithm.runes
+            )
+        assertThat(result.isOptimal)
+            .describedAs("exact socket fill must prove the runes-on optimum (the ≤ model could not — ~656s FEASIBLE)")
+            .isTrue()
+    }
+
+    @Test
     fun `domination relation respects rarity budget, sockets and ring multiplicity`() {
         val pool =
             listOf(
@@ -2971,6 +3058,45 @@ class WakfuBuildSolverTest {
             assertThat(fold.objective)
                 .describedAs("$name: the single-type rune fold must not change the optimum (fold == count)")
                 .isEqualTo(count.objective)
+        }
+    }
+
+    @Test
+    fun `most-masteries exact socket fill preserves the leq-model optimum`() {
+        // Exact fill pins Σ runeCount = slots (no empty sockets) instead of ≤. The ≤ model allows underfill — a
+        // SUPERSET of feasible rune assignments — so its optimum is an upper bound on exact-fill's. Because the
+        // most-masteries objective is monotone non-decreasing in every modeled rune stat (masteries, shortfall-
+        // only required targets, the DI fold, the min-over-elements), underfill is never optimal, so the two must
+        // be EQUAL: exact-fill is a pure search-space cut. forceRuneLeq=true builds the ≤ reference. If exact-fill
+        // ever cut the optimum, exact < leq here. Spans a specific-mastery and a generic-elemental request.
+        val tuning = WakfuBuildSolver.SolverTuning()
+        val pool = soundnessSocketedPool()
+        val runes = soundnessRunes()
+
+        fun mm(targets: List<TargetStat>) =
+            WakfuBestBuildParams(
+                character = Character(CharacterClass.CRA, 110, 0, CharacterSkills(110)),
+                targetStats = TargetStats(targets),
+                searchDuration = 60.seconds,
+                stopWhenBuildMatch = false,
+                maxRarity = Rarity.EPIC,
+                forcedItems = emptyList(),
+                excludedItems = emptyList(),
+                scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                useRunes = true,
+                useSublimations = false
+            )
+        listOf(
+            "distance-ap" to mm(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.ACTION_POINT, 12))),
+            "generic-elem-ap" to mm(listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY, 9999), TargetStat(Characteristic.ACTION_POINT, 11)))
+        ).forEach { (name, params) ->
+            val exact = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, runes = runes)
+            val leq = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, runes = runes, forceRuneLeq = true)
+            assertThat(exact.isOptimal).describedAs("$name: the exact-fill model proves OPTIMAL").isTrue()
+            assertThat(leq.isOptimal).describedAs("$name: the ≤ reference proves OPTIMAL").isTrue()
+            assertThat(exact.objective)
+                .describedAs("$name: exact socket fill must not change the most-masteries optimum (exact == ≤)")
+                .isEqualTo(leq.objective)
         }
     }
 
