@@ -17,6 +17,19 @@ The top-pick model-level items were benchmarked on a real before/after, and the 
 56 s → 236 s → 877 s on the same solve as the CPU **thermally throttled** (4× swings). Use `numBranches`,
 not wall-clock, for any future A/B here.
 
+> **⚠️ CORRECTION (2026-06-25) — even `deterministic_time` is unreliable here; treat every `×` below as
+> soft.** A reproducibility test ran the *identical* full model back-to-back with 8 workers / seed 1:
+> det-time came out **49.1 / 111.7 / 98.3** at lvl-110 and **358 / 478 / 439** at lvl-245 — a **2.3× swing on
+> the same model in the same JVM**. CP-SAT's parallel-portfolio det-time accounting is perturbed by real-clock
+> worker scheduling, which the thermal throttling jerks around (single-worker is reproducible but times out, so
+> it's not a usable control). `numBranches` is reproducible but *non-monotone* (the domination filter posted 3.2×
+> *more* branches yet "less" det-time — a smaller model can be slower). **Net: on this machine we cannot reliably
+> attribute a proof-time speedup.** What IS solid and reproducible: (1) **soundness** — every A/B scored
+> identically, so the proven optimum is always preserved; (2) **model-size reduction** — var/pool counts are
+> deterministic. So trust the *reductions* and the *soundness*, and read the `×` figures below as "probably
+> faster, magnitude unknown — the large lvl-110 subs-off effect likely exceeds the noise; the smaller/high-level
+> ones are within it." A trustworthy magnitude would need a non-throttling host and many averaged runs.
+
 Head-to-head (full EPIC pool, `solveForBenchmark`, 8 workers / seed 1 / det-time 600; identical objective
 values on both sides ⇒ output preserved):
 
@@ -43,6 +56,91 @@ values on both sides ⇒ output preserved):
 **Shipped on `perf/solver-speedups`: §1.1 + §1.2 (+ tests) only.** Everything in §1 below is the original
 audit's *prediction*; treat §1.3/§1.6 as **measured no-ops** and the rest as **unverified** until a
 deterministic (`numBranches`) A/B shows otherwise — wall-clock will lie. The §3 cache idea is untested.
+
+### ✅ Validated win — per-slot DOMINATION pre-filter (measure with deterministic_time, not numBranches)
+
+The one idea that **does** work (and the audit had *rejected* a sloppy version of it — see §4). Within a
+slot, item A **soundly dominates** B (B can never beat A in any build, so B is removable) when **all** hold:
+- A.characteristics ≥ B on **every** characteristic (monotone objective terms, stat sums, ≥-type sub
+  conditions are all then ≥; absent key = 0);
+- A introduces no rarity-cap cost B lacked: `(A epic ⇒ B epic) ∧ (A relic ⇒ B relic)`;
+- `A.maxShardSlots ≥ B.maxShardSlots` — and the rune/sub model is **colour-agnostic** (sockets are a pure
+  count, golden runes form sub patterns; `WakfuBuildSolver.kt` ~962), so count is sufficient for both rune
+  capacity and sub-carrier eligibility — **no socket-colour multisets needed**;
+- B removable iff it has **≥ k** such dominators (k=2 for RING — two co-equippable distinct — else 1), ties
+  broken by id.
+
+**Measured (max-damage fire, full EPIC pool, no runes/subs, deterministic):**
+
+| | lvl-110 | lvl-245 |
+|---|---|---|
+| pool / vars FULL→FILTERED | 2762→1323 / 4316→2194 | 7884→3116 / 13204→5346 |
+| **deterministic_time FULL→FILTERED** | **315.5 → 71.4 (−77%, 4.4×)** | **453.6 → 288.6 (−36%, 1.6×)** |
+| proven objective | identical ✓ | identical ✓ |
+
+~50–60% of items are dominated (e.g. 97% of mounts — all carry only `MASTERY_ELEMENTARY`, totally ordered).
+**Use `deterministic_time`, NOT `numBranches`:** filtered lvl-245 took 3.2× *more* branches but they're far
+cheaper (half the vars ⇒ smaller LP/node), so total work still dropped 36%. numBranches lied here.
+
+### Conditional sublimations — pin, don't gate (so it works with subs ON, the default)
+
+A *conditional* sub makes some stats non-monotone: a build may keep a weaker (e.g. low-secondary) item
+*specifically* to satisfy a cap like `SECONDARY_MASTERIES_AT_MOST` (the choosable ones are value 0 — pure
+elemental), which domination would remove. The blunt fix is to gate domination off whenever a conditional
+choosable sub is in play — but the default has `useSublimations = true` with **12/27** choosable subs
+conditional, so that turns it off for the case users actually run.
+
+**The smart fix: pin every stat a *dangerous* (≤ / exact / parity) condition reads to equality** in the
+relation (`A == B` on those, `A ≥ B` on the rest). The swap then can't move that stat's build sum, so no sub
+can flip — while domination still fires across every stat no condition touches (the bulk of pure-**elemental**
+gear). `≥`-type conditions stay satisfied under a `≥` swap on a beneficial choosable sub ⇒ no pin. For the
+default sub set the pinned stats are **AP, crit, dodge, range, and the 6 secondary masteries**.
+
+**Measured (max-damage fire, full EPIC pool, subs ON, pinned, deterministic):** ~13–22 % of items still
+dominated, and the win *scales with difficulty* —
+
+| | lvl-110 | lvl-245 |
+|---|---|---|
+| vars FULL→FILTERED | 42360→36143 | 133358→120474 |
+| **deterministic_time** | 79.5 → 85.8 (neutral; already fast) | **716.3 → 258.3 (−64 %, 2.8×)** |
+| proven objective | identical ✓ | identical ✓ |
+
+So the default (subs ON) gets a **2.8× faster proof at lvl-245** — the slow high-level case that's actually
+painful — for free, and an immaterial wobble at the already-fast lvl-110.
+
+**IMPLEMENTED — for ALL THREE modes** (`WakfuBuildSolver.dominationPinnedStats` → `filterDominatedPool`),
+applied in `buildModel` only on the production path (`optimize` passes `applyDomination = tuning == null`, so
+deterministic tests keep the full pool and are untouched). The original max-damage-only gate was over-conservative:
+my claim that most-masteries / precision "penalize overshoot" was **wrong** — both **clamp** at the target
+(precision `min(actual, target)`; most-masteries `maxVar(actual, 1, target)` + an overshoot-rewarding tie-break),
+so all three objectives are **monotone non-decreasing in every characteristic**. The one subtlety —
+most-masteries' objective is the *product* `masteryScore × penaltyMultiplier` — is fine because the optimum
+always has `masteryScore ≥ 0` (the empty build already scores objective ≥ 0), and for `masteryScore ≥ 0` the
+swap `(m+Δm)(μ+Δμ) ≥ mμ` holds. **most-masteries is the *slowest* mode (~72 s full-pool lvl-245), so this is
+where it most helps.** `dominationPinnedStats` returns the pin set, or `null` to skip entirely:
+- **null (skip) when**: any forced item / forced rune-by-item; any *forced* conditional sub (unknown effect
+  direction); or a condition that compares two build stats / is categorical (`HIGHEST_ELEM_MASTERY_GT_*`,
+  `WEAPON_TYPE_EQUIPPED`, `OTHER`). (No longer gated by mode — all three are monotone.)
+- **else** the union of stats read by in-play dangerous choosable-sub conditions (empty ⇒ full domination).
+- **Soundness locked by 7 tests** (`WakfuBuildSolverTest`): the pure-relation edges (rarity-budget / socket /
+  ring-multiplicity), the pinning mechanism, the epic-budget counterexample, and four `@slow` full-pool lvl-110
+  guards (filtered==full *proven* optimum) — max-damage subs-off, max-damage **subs ON**, **most-masteries**
+  (exercises the bilinear `masteryScore × multiplier` sign), and **precision**. Mirrors the rune-fold lock.
+
+### Explored further and NOT pursued — per-probe read-set domination (a sound but not-worth-it refinement)
+
+A 9-agent workflow designed + adversarially verified a more aggressive variant: since `MaxDamageSearch` solves
+one element at a time, a *fire* probe's objective never reads water/earth/air masteries (or resistances, floor
+off), so domination can ignore those axes (restrict the `>=` test to the per-probe read-set `R(E,S,F,T)` + the
+existing pins + the `AT_LEAST` condition stats). It is **sound** (proven; a solve A/B scored identically) and
+removes more (subs-on potential 13–22% → **21–32%**). But (a) the verification **caught that an earlier
+"directional secondary" idea was UNSOUND** — the cap is *sum ≤ 0*, so 43 real items with *negative* secondary
+mastery (e.g. L'Ami Léhunui BERSERK −305/BACK +244) can be kept to hold the cap; and (b) a solve A/B **regressed
+at lvl-245** (324 → 523 det-time — smaller model, slower proof) while helping lvl-110, i.e. the gain is within
+the measurement noise documented above. Verdict: **not worth the soundness-critical read-set audit** for an
+unmeasurable/possibly-negative gain. The runner-up (a 2-regime Neutrality-on/off split) is parked for the same
+reason. Reproducing the read-set relation: `geStats` (elemental + DI + MP + BLOCK + AT_LEAST stats) use `>=`,
+the conditioned pins use `==`, and sibling-element + resistance/HP (floor off) axes are *ignored*.
 
 ## The one hard rule
 
