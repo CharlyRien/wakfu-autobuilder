@@ -79,6 +79,14 @@ object WakfuBuildSolver {
     // then the `× resFactor` product is divided by [FINAL_DOWNSCALE] so the value — and then the
     // power-6 constraint penalty (× MAX_PENALTY_MULTIPLIER) — stays under Long.MAX/2.
     private const val MAX_ROTATION_AP = 20L
+
+    // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
+    // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
+    // cycles from search/proof. Intermediate snapshots are pure progress — re-rendering the in-flight build
+    // more than ~twice a second has no UX value — so coalescing to one per 500ms returns those cycles to the
+    // solver without affecting the result: the FINAL build is recomputed unconditionally after solve() and
+    // delivered via a guaranteed (suspending) send, so throttling intermediates can never drop or reorder it.
+    private const val INTERMEDIATE_EMIT_THROTTLE_MS = 500L
     private const val PER_TURN_THROUGHPUT_MAX = 60_000L
     private const val RES_FACTOR_MIN = 10L // res capped at +90% → factor ≥ 10
     private const val RES_FACTOR_MAX = 200L // weakness floored at −100% → factor ≤ 200
@@ -386,6 +394,8 @@ object WakfuBuildSolver {
         // Max-damage only: every tracked objective-chain var with its name and reachable [LongRange], for
         // the soundness test (empty for the other modes). See [DomainTracker] / [maxDamageVarBoundsForTest].
         val maxDamageTracked: List<Triple<IntVar, String, LongRange>> = emptyList(),
+        // Precision only: same, for [precisionVarBoundsForTest] (empty for the other modes).
+        val precisionTracked: List<Triple<IntVar, String, LongRange>> = emptyList(),
     )
 
     /**
@@ -447,13 +457,22 @@ object WakfuBuildSolver {
         model.addBuildValidityConstraints(allEquips, equipVars)
 
         var maxDamageTracked: List<Triple<IntVar, String, LongRange>> = emptyList()
+        var precisionTracked: List<Triple<IntVar, String, LongRange>> = emptyList()
         val objective =
             when (params.scoreComputationMode) {
                 ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
                     model.buildMostMasteriesObjective(params, allEquips, equipVars, skillVars, runeModel, subModel)
 
-                ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
-                    model.buildPrecisionObjective(params, allEquips, equipVars, skillVars, runeModel, subModel)
+                ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT -> {
+                    // Declare the precision stat chain on its reachable domains (like max-damage), instead of
+                    // the loose 10M guard: every reach is a sound superset of the attainable value (locked by
+                    // [precisionVarBoundsForTest]), so the optimum is unchanged while presolve / the LP
+                    // relaxation work on tight bounds. tightDomains=false reproduces the loose reference build.
+                    val statBuilder = StatBuilder(model, params, allEquips, equipVars, skillVars, runeModel, subModel, tight = tightDomains)
+                    val obj = model.buildPrecisionObjective(params, statBuilder)
+                    precisionTracked = statBuilder.tracker.tracked()
+                    obj
+                }
 
                 ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> {
                     val statBuilder = StatBuilder(model, params, allEquips, equipVars, skillVars, runeModel, subModel, tight = tightDomains)
@@ -464,7 +483,7 @@ object WakfuBuildSolver {
             }
         model.maximize(objective)
 
-        return BuiltModel(model, objective, allEquips, equipVars, skillVars, runeModel, subModel, maxDamageTracked)
+        return BuiltModel(model, objective, allEquips, equipVars, skillVars, runeModel, subModel, maxDamageTracked, precisionTracked)
     }
 
     /** Configures a deterministic, machine-reproducible max-damage solver (full presolve + level-2 linearization). */
@@ -563,6 +582,35 @@ object WakfuBuildSolver {
             "soundness probe needs a solution, got $status"
         }
         return built.maxDamageTracked.map { (v, name, range) ->
+            MaxDamageVarBound(name, solver.value(v), range.first, range.last)
+        }
+    }
+
+    /**
+     * Test-only soundness probe for the **precision** reachable domains — the precision analogue of
+     * [maxDamageVarBoundsForTest]. Builds the precision model with loose guard domains (so the solver freely
+     * pushes every stat-chain var as high as a real build allows) while still recording each var's propagated
+     * reachable `[lo, hi]`, solves, and returns each tracked var's solved value vs that range. A value outside
+     * its range means the interval arithmetic UNDER-estimated — i.e. the production (tight) build would have
+     * declared a too-small domain and silently cut the optimum.
+     */
+    internal fun precisionVarBoundsForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        tuning: SolverTuning,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+    ): List<MaxDamageVarBound> {
+        require(params.scoreComputationMode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT) {
+            "precisionVarBoundsForTest needs precision params, got ${params.scoreComputationMode}"
+        }
+        val built = buildModel(params, equipmentsByItemType, runes, sublimations, tightDomains = false)
+        val solver = deterministicMaxDamageSolver(tuning)
+        val status = solver.solve(built.model)
+        require(status == com.google.ortools.sat.CpSolverStatus.OPTIMAL || status == com.google.ortools.sat.CpSolverStatus.FEASIBLE) {
+            "soundness probe needs a solution, got $status"
+        }
+        return built.precisionTracked.map { (v, name, range) ->
             MaxDamageVarBound(name, solver.value(v), range.first, range.last)
         }
     }
@@ -1288,13 +1336,8 @@ object WakfuBuildSolver {
 
     private fun CpModel.buildPrecisionObjective(
         params: WakfuBestBuildParams,
-        allEquips: List<Equipment>,
-        equipVars: Map<Equipment, IntVar>,
-        skillVars: Map<SkillCharacteristic, IntVar>,
-        runeModel: RuneModel,
-        subModel: SublimationModel,
+        statBuilder: StatBuilder,
     ): IntVar {
-        val statBuilder = StatBuilder(this, params, allEquips, equipVars, skillVars, runeModel, subModel)
         statBuilder.applyOutOfCombatCaps()
         return statBuilder.precisionScore(params.targetStats)
     }
@@ -1410,19 +1453,30 @@ object WakfuBuildSolver {
 
         val cb =
             object : CpSolverSolutionCallback() {
+                private var lastEmitMs = 0L
+
                 override fun onSolutionCallback() {
                     // The native solve blocks the IO thread, so coroutine cancellation can't interrupt
                     // it directly; stopping the search here (next time a solution is found) is the
-                    // CP-SAT idiom that lets the GUI's cancel actually end the work.
+                    // CP-SAT idiom that lets the GUI's cancel actually end the work. Kept BEFORE the
+                    // throttle so cancel latency is unchanged.
                     if (!scope.isActive) {
                         stopSearch()
                         return
                     }
 
+                    // Throttle the heavy rescore: building + scoring every improving solution on the solve
+                    // thread starves the search. Snapshots are best-effort progress (trySend, consumers keep
+                    // only the last), so skipping some is invisible — the proven final build is emitted
+                    // separately and unconditionally below. The first solution always passes (lastEmitMs = 0).
+                    val now = System.currentTimeMillis()
+                    if (now - lastEmitMs < INTERMEDIATE_EMIT_THROTTLE_MS) return
+                    lastEmitMs = now
+
                     val combination = solutionToBuild(params, allEquips, equipVars, skillVars, runeModel, subModel) { value(it) }
                     val actualScore = scoreFor(params, combination)
 
-                    val progress = ((System.currentTimeMillis() - startTime).toDouble() / params.searchDuration.inWholeMilliseconds.toDouble() * 100).toInt()
+                    val progress = ((now - startTime).toDouble() / params.searchDuration.inWholeMilliseconds.toDouble() * 100).toInt()
                     scope.trySend(GeneticAlgorithmResult(combination, actualScore, progress.coerceAtMost(100)))
                 }
             }
