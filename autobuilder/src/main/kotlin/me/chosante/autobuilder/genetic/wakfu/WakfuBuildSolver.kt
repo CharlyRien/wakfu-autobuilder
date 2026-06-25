@@ -522,6 +522,9 @@ object WakfuBuildSolver {
         // Test seam: force the per-stat rune COUNT model even where the single-type fold would apply, so a
         // test can assert the fold preserves the optimum (fold == count optimum on a rune pool).
         forceRuneCountModel: Boolean = false,
+        // Test seam: force the rune socket cap back to `≤` (disable exact fill), so a test can assert
+        // most-masteries exact fill preserves the ≤-model optimum (exact-fill optimum == ≤ optimum).
+        forceRuneLeq: Boolean = false,
         // Production path only: drop per-slot dominated items ([filterDominatedPool]) — provably optimum-
         // preserving in all three (monotone) modes. Off by default so the deterministic test path sees the full
         // pool unchanged; the production [optimize] passes true and the soundness lock toggles it.
@@ -541,7 +544,10 @@ object WakfuBuildSolver {
         // Sound per-slot domination: drop items provably beaten in their own slot (all three modes are monotone;
         // see [dominationPinnedStats]). Skipped for forced items / forced conditional subs and for forceFullPool
         // (the full reference). Removes no optimal build, so the proven optimum is identical — only the model shrinks.
-        val dominationPins = if (applyDomination && !forceFullPool) dominationPinnedStats(params, sublimations) else null
+        // Stats a dangerous (≤/exact/parity) conditional sub reads — non-monotone, so domination pins them AND
+        // most-masteries exact socket fill must avoid them (null = un-analyzable / forced ⇒ both stay conservative).
+        val subPinnedStats = dominationPinnedStats(params, sublimations)
+        val dominationPins = if (applyDomination && !forceFullPool) subPinnedStats else null
         val pool = if (dominationPins != null) filterDominatedPool(basePool, dominationPins) else basePool
         val allEquips = orderEquipments(pool)
         val equipVars = model.createEquipmentVariables(allEquips)
@@ -560,7 +566,7 @@ object WakfuBuildSolver {
                     (sub.condition?.value ?: 0) > 0
             }
         val allowRuneFold = !forceRuneCountModel && !secondaryCapMixSubInPlay
-        val runeModel = model.createRuneModel(params, allEquips, equipVars, runes, allowRuneFold)
+        val runeModel = model.createRuneModel(params, allEquips, equipVars, runes, allowRuneFold, subPinnedStats, forceRuneLeq)
         val subModel = model.createSublimationModel(params, allEquips, equipVars, sublimations)
         // A normal sublimation does NOT reserve rune sockets. Golden runes (colour-agnostic) form its ordered
         // colour pattern AND still carry their stat — doubling where the item favours that colour — so a carrier
@@ -651,8 +657,19 @@ object WakfuBuildSolver {
         sublimations: List<Sublimation> = emptyList(),
         forceRuneCountModel: Boolean = false,
         applyDomination: Boolean = false,
+        forceRuneLeq: Boolean = false,
     ): MaxDamageSolveOutcome {
-        val built = buildModel(params, equipmentsByItemType, runes, sublimations, tightDomains, forceRuneCountModel = forceRuneCountModel, applyDomination = applyDomination)
+        val built =
+            buildModel(
+                params,
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                tightDomains,
+                forceRuneCountModel = forceRuneCountModel,
+                applyDomination = applyDomination,
+                forceRuneLeq = forceRuneLeq
+            )
         val solver = deterministicMaxDamageSolver(tuning)
         val status = solver.solve(built.model)
         val hasSolution =
@@ -841,6 +858,11 @@ object WakfuBuildSolver {
         equipVars: Map<Equipment, IntVar>,
         runes: List<RuneType>,
         allowRuneFold: Boolean,
+        // Stats a dangerous (≤/exact/parity) conditional sub reads (null = un-analyzable / forced). A modeled
+        // rune feeding one of these makes most-masteries exact-fill unsound — see [fillSockets] below.
+        subPinnedStats: Set<Characteristic>?,
+        // Test seam: force the rune cap back to `≤` (no exact fill), for the exact-fill==≤ soundness lock.
+        forceRuneLeq: Boolean,
     ): RuneModel {
         if (runes.isEmpty()) return RuneModel.EMPTY
         val runeById = runes.associateBy { it.id }
@@ -876,19 +898,32 @@ object WakfuBuildSolver {
             (if (params.useRunes) relevantRuneStats(params, runeByCharacteristic.keys) else emptySet()) + forcedRuneStats
         if (runeStats.isEmpty()) return RuneModel.EMPTY
 
-        // Max-damage can fill every socket "for free": the generic elemental-mastery rune is NOT a
-        // secondary mastery and only ever raises the damage objective, so it backfills any socket without
-        // tripping a secondary-mastery / AP / crit / range "at most" sub condition, and overshooting a
-        // required target is never penalised (the max-damage score caps actual at target — coerceAtMost in
-        // FindMaxDamageScoring.requiredConstraintPenaltyFactor). So the proven optimum ALWAYS fills its
-        // sockets (an empty one could take one more elemental rune for strictly more mastery), and pinning
-        // Σ runeCount = slots·selected (instead of ≤) removes every provably-suboptimal "underfill"
-        // assignment from the integer search WITHOUT changing the optimum — a pure search-space cut that
-        // helps the proof close. Gated on a real elemental filler being modelled; the other modes keep ≤
-        // (there a rune feeds a *requested exact* stat where full fill is not free).
-        val fillSocketsForMaxDamage =
+        // Exact socket fill — pin `Σ runeCount = slots·selected` (instead of `≤`) so the proven optimum never
+        // leaves a socket empty. It removes every never-optimal "underfill" assignment from the integer search
+        // (a pure search-space cut that helps the proof close) AND fixes the "fewer than max runes" builds.
+        //  - MAX-DAMAGE: the generic elemental-mastery rune is NOT a secondary mastery and only ever raises the
+        //    damage objective, so it backfills any socket without tripping a secondary/AP/crit/range "at most" sub
+        //    condition, and overshooting a required target is unpenalised (the score caps actual at target —
+        //    coerceAtMost in FindMaxDamageScoring). So filling is always free. (Unchanged.)
+        //  - MOST-MASTERIES: the objective is monotone non-decreasing in every modeled rune stat — masteries,
+        //    shortfall-only required targets, the DI fold, the min-over-elements — so underfill is never optimal.
+        //    The only risk is a dangerous (≤/exact/parity) conditional sub: forcing fill could push the stat it
+        //    reads over the cap and flip the sub off. But the per-stat distribution is free (mixing preserved),
+        //    so as long as ONE modeled rune stat is *not* read by a dangerous condition, every socket can be
+        //    filled with that "safe filler" rune (HP, elemental, …) — monotone-beneficial and breaks no sub — so
+        //    exact-fill keeps the optimum. It is unsound only when EVERY modeled rune stat is dangerous (a
+        //    self-contradictory request: the sole rune-relevant stat is itself the capped one). [subPinnedStats]
+        //    is the dangerous set (null ⇒ un-analyzable/forced ⇒ stay safe with `≤`). Locked sound by an
+        //    adversarial soundness review + the exact-fill==≤ optimum test. The single-type FOLD below stays
+        //    max-damage-only, so most-masteries keeps the integer-count model (intra-item rune MIXING preserved).
+        val maxDamageFreeFill =
             params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE &&
                 Characteristic.MASTERY_ELEMENTARY in runeStats
+        val mostMasteriesExactFill =
+            params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+                subPinnedStats != null &&
+                runeStats.any { it !in subPinnedStats }
+        val fillSockets = !forceRuneLeq && (maxDamageFreeFill || mostMasteriesExactFill)
         // Single-type-per-item rune FOLD (max-damage, no forced runes, no secondary-cap>0 sub in play —
         // [allowRuneFold]): because a rune's value is uniform across an item's sockets (doubling is per item
         // SLOT, not per socket — see RuneType.valueOn), filling an item entirely with its single best-value
@@ -899,7 +934,7 @@ object WakfuBuildSolver {
         // The solver still chooses the type per item (build-dependent: mastery vs crit-mastery, elemental vs a
         // secondary for the secondary=0 subs) and items still differ — only the never-optimal intra-item mix is
         // dropped. Gated to where it is provably sound; forced runes / secondary-cap>0 subs keep the count model.
-        val singleTypePerItem = allowRuneFold && fillSocketsForMaxDamage && forcedRuneStats.isEmpty()
+        val singleTypePerItem = allowRuneFold && maxDamageFreeFill && forcedRuneStats.isEmpty()
         val runeVars = mutableMapOf<Equipment, Map<Characteristic, IntVar>>()
         for (equip in allEquips) {
             val slots = equip.maxShardSlots
@@ -918,7 +953,7 @@ object WakfuBuildSolver {
                 val capExpr = LinearExpr.newBuilder()
                 perStat.values.forEach { capExpr.addTerm(it, 1L) }
                 capExpr.addTerm(equipVars.getValue(equip), -slots.toLong())
-                if (fillSocketsForMaxDamage) addEquality(capExpr.build(), 0L) else addLessOrEqual(capExpr.build(), 0L)
+                if (fillSockets) addEquality(capExpr.build(), 0L) else addLessOrEqual(capExpr.build(), 0L)
                 runeVars[equip] = perStat
             }
         }
