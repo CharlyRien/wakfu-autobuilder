@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.9.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.8.0...wakfu-autobuilder-1.9.0) (2026-06-25)
+
+
+### Features
+
+* fill every rune socket in most-masteries, proving runes-on builds in ~1s ([540673f](https://github.com/CharlyRien/wakfu-autobuilder/commit/540673fb6cb62bffdefd0866c93f1bd742da7ba7))
+* surface the "all gold" rune assumption next to the Zenith actions ([09fd22d](https://github.com/CharlyRien/wakfu-autobuilder/commit/09fd22d174470fd5b8307084fdf19e48e71428db))
+* validate the search request up front and show all errors in a pop-up ([7d4c7b8](https://github.com/CharlyRien/wakfu-autobuilder/commit/7d4c7b879a4cf29ce5f26e7084ab3852b9d32a63))
+
+
+### Bug Fixes
+
+* a blank search duration now means 10 minutes, not 20 seconds ([b720dfe](https://github.com/CharlyRien/wakfu-autobuilder/commit/b720dfe1ac6f6c3f05376827a41340ffc7a992eb))
+* throttle solver progress emissions and lock precision reachable domains ([6ecd125](https://github.com/CharlyRien/wakfu-autobuilder/commit/6ecd1258db88c03f44849670743c1cb4a9e51487))
+
+
+### Performance Improvements
+
+* skip provably-dominated items per slot in the solver search ([1aa2fca](https://github.com/CharlyRien/wakfu-autobuilder/commit/1aa2fcae054ece469bb1e19fff018fe90052adc7))
+
 ## [1.8.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.7.0...wakfu-autobuilder-1.8.0) (2026-06-24)
 
 
