@@ -925,6 +925,20 @@ private fun ActionsCard(
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
+        // Runes are an optimistic "all gold" best-in-slot model (best stat, max level, socket colours assumed
+        // re-rolled), so the opened Zenith build can legitimately show different colours/levels. Make it explicit
+        // here, next to the Zenith actions, rather than leaving the difference a surprise. (RUNE-1)
+        if (ui.build
+                ?.runes
+                ?.values
+                ?.any { it.isNotEmpty() } == true
+        ) {
+            Text(
+                text = tr(Tr.RUNES_ALLGOLD_HINT),
+                style = WTypography.labelSmall.copy(color = WColor.muted, lineHeight = 15.sp),
+                modifier = Modifier.padding(top = 10.dp)
+            )
+        }
     }
 }
 
