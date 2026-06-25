@@ -2757,6 +2757,187 @@ class WakfuBuildSolverTest {
     }
 
     @Test
+    fun `domination relation respects rarity budget, sockets and ring multiplicity`() {
+        val pool =
+            listOf(
+                // AMULET: Junk is dominated by NonEpic (both rare, ≤ on all) ⇒ dropped. The EPIC can't dominate
+                // the non-epic (keeping it may free the single epic slot for a stronger epic elsewhere) ⇒ both kept.
+                equipment(1, ItemType.AMULET, "NonEpic", mapOf(Characteristic.MASTERY_ELEMENTARY to 100), rarity = Rarity.RARE),
+                equipment(2, ItemType.AMULET, "Epic", mapOf(Characteristic.MASTERY_ELEMENTARY to 150), rarity = Rarity.EPIC),
+                equipment(3, ItemType.AMULET, "Junk", mapOf(Characteristic.MASTERY_ELEMENTARY to 80), rarity = Rarity.RARE),
+                // BELT: a COMMON beating a RELIC on every stat DOES dominate it (a relic beaten everywhere is useless).
+                equipment(4, ItemType.BELT, "CommonBig", mapOf(Characteristic.MASTERY_ELEMENTARY to 300), rarity = Rarity.COMMON),
+                equipment(5, ItemType.BELT, "RelicSmall", mapOf(Characteristic.MASTERY_ELEMENTARY to 200), rarity = Rarity.RELIC),
+                // HELMET: more stats can't dominate fewer sockets (≥ maxShardSlots required) ⇒ both kept.
+                equipment(6, ItemType.HELMET, "HiStatNoSock", mapOf(Characteristic.MASTERY_ELEMENTARY to 200), maxShardSlots = 0, rarity = Rarity.RARE),
+                equipment(7, ItemType.HELMET, "LoStat3Sock", mapOf(Characteristic.MASTERY_ELEMENTARY to 50), maxShardSlots = 3, rarity = Rarity.RARE),
+                // RING keeps 2: R3 has TWO dominators (R1, R2) ⇒ removed; R2 has only ONE (R1) ⇒ kept; R1 kept.
+                equipment(8, ItemType.RING, "R1", mapOf(Characteristic.MASTERY_ELEMENTARY to 100), rarity = Rarity.RARE),
+                equipment(9, ItemType.RING, "R2", mapOf(Characteristic.MASTERY_ELEMENTARY to 90), rarity = Rarity.RARE),
+                equipment(10, ItemType.RING, "R3", mapOf(Characteristic.MASTERY_ELEMENTARY to 10), rarity = Rarity.RARE)
+            ).groupBy { it.itemType }
+
+        val kept = WakfuBuildSolver.filterDominatedPoolForTest(pool).mapValues { (_, v) -> v.map { it.name.fr }.toSet() }
+
+        assertThat(kept[ItemType.AMULET]).describedAs("epic can't dominate the non-epic; junk dropped").containsExactlyInAnyOrder("NonEpic", "Epic")
+        assertThat(kept[ItemType.BELT]).describedAs("a common beating a relic on every stat dominates it").containsExactly("CommonBig")
+        assertThat(kept[ItemType.HELMET]).describedAs("more stats can't dominate fewer sockets").containsExactlyInAnyOrder("HiStatNoSock", "LoStat3Sock")
+        assertThat(kept[ItemType.RING]).describedAs("ring keeps 2: R3 has two dominators, R2 only one").containsExactlyInAnyOrder("R1", "R2")
+    }
+
+    @Test
+    fun `domination keeps a non-epic that frees the epic budget — same optimum`() {
+        // The trap a naive stats-only filter falls into: drop the weaker NON-epic amulet for the stronger epic.
+        // But keeping it is exactly what lets the build spend its one epic on the far stronger epic ring. The
+        // filtered optimum must equal the full-pool optimum (if the non-epic were wrongly removed it would drop).
+        val pool =
+            listOf(
+                equipment(1, ItemType.AMULET, "NonEpicAmu", mapOf(Characteristic.MASTERY_ELEMENTARY to 100), rarity = Rarity.RARE),
+                equipment(2, ItemType.AMULET, "EpicAmu", mapOf(Characteristic.MASTERY_ELEMENTARY to 150), rarity = Rarity.EPIC),
+                equipment(3, ItemType.RING, "EpicRing", mapOf(Characteristic.MASTERY_ELEMENTARY to 400), rarity = Rarity.EPIC),
+                equipment(4, ItemType.RING, "WeakRing", mapOf(Characteristic.MASTERY_ELEMENTARY to 10), rarity = Rarity.RARE)
+            ).groupBy { it.itemType }
+        val params = maxDamageShape(CharacterClass.CRA, 110, DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE))
+        val tuning = WakfuBuildSolver.SolverTuning()
+        val full = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, applyDomination = false)
+        val filtered = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, applyDomination = true)
+        assertThat(full.isOptimal && filtered.isOptimal).describedAs("both prove OPTIMAL").isTrue()
+        assertThat(filtered.objective)
+            .describedAs("domination must keep the non-epic that frees the epic slot — optimum unchanged")
+            .isEqualTo(full.objective)
+    }
+
+    @Test
+    @Tag("slow")
+    fun `domination preserves the max-damage optimum on the full level-110 pool`() {
+        // The breadth guard: on the real EPIC pool, the per-slot domination pre-filter must reach the SAME
+        // proven optimum as the full pool — across every slot's real rarity / socket / stat mix. Runes are OFF
+        // here so the FULL solve still proves within budget (runes ~double the model and blow past it); the
+        // rune-capacity half of the relation (maxShardSlots ≥) is locked by the pure-relation unit test above.
+        val tuning = WakfuBuildSolver.SolverTuning(maxDeterministicTime = 600.0)
+        val params =
+            maxDamageShape(
+                CharacterClass.CRA,
+                110,
+                DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+            )
+        val pool = fullEpicPool(110)
+        val full = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, applyDomination = false)
+        val filtered = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, applyDomination = true)
+        assertThat(full.isOptimal && filtered.isOptimal).describedAs("both prove OPTIMAL on the full pool").isTrue()
+        assertThat(filtered.objective).describedAs("domination must preserve the proven optimum").isEqualTo(full.objective)
+    }
+
+    @Test
+    fun `domination pins conditioned stats to equality`() {
+        // With a conditional sub in play (e.g. SECONDARY_MASTERIES_AT_MOST), the stats it reads are pinned: two
+        // items differing only on a pinned stat can't dominate each other (the weaker might be the one kept to
+        // satisfy the cap). But pure ELEMENTAL gear still dominates — no condition reads elemental mastery.
+        val pool =
+            listOf(
+                equipment(1, ItemType.AMULET, "DistA", mapOf(Characteristic.MASTERY_DISTANCE to 100), rarity = Rarity.RARE),
+                equipment(2, ItemType.AMULET, "DistB", mapOf(Characteristic.MASTERY_DISTANCE to 50), rarity = Rarity.RARE),
+                equipment(3, ItemType.BELT, "ElemBig", mapOf(Characteristic.MASTERY_ELEMENTARY to 100), rarity = Rarity.RARE),
+                equipment(4, ItemType.BELT, "ElemSmall", mapOf(Characteristic.MASTERY_ELEMENTARY to 50), rarity = Rarity.RARE)
+            ).groupBy { it.itemType }
+        val kept =
+            WakfuBuildSolver
+                .filterDominatedPoolForTest(pool, setOf(Characteristic.MASTERY_DISTANCE))
+                .mapValues { (_, v) -> v.map { it.name.fr }.toSet() }
+        assertThat(kept[ItemType.AMULET]).describedAs("pinned stat ⇒ no domination across it").containsExactlyInAnyOrder("DistA", "DistB")
+        assertThat(kept[ItemType.BELT]).describedAs("unpinned elemental still dominates").containsExactly("ElemBig")
+    }
+
+    @Test
+    @Tag("slow")
+    fun `domination preserves the max-damage optimum on the full level-110 pool with sublimations`() {
+        // The smart-pinning guard — the case the default GUI search actually runs. With sublimations ON, the
+        // 9 dangerous conditional choosable subs pin AP/crit/dodge/range/secondaries, so domination can't flip
+        // any cap; it must still reach the SAME proven optimum as the full pool.
+        val tuning = WakfuBuildSolver.SolverTuning(maxDeterministicTime = 900.0)
+        val params =
+            maxDamageShape(CharacterClass.CRA, 110, DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE))
+                .copy(useSublimations = true)
+        val pool = fullEpicPool(110)
+        val subs = WakfuBestBuildFinderAlgorithm.sublimations
+        val full = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, sublimations = subs, applyDomination = false)
+        val filtered = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, sublimations = subs, applyDomination = true)
+        assertThat(full.isOptimal && filtered.isOptimal).describedAs("both prove OPTIMAL with subs on").isTrue()
+        assertThat(filtered.objective).describedAs("pinned domination must preserve the proven optimum with subs on").isEqualTo(full.objective)
+    }
+
+    @Test
+    @Tag("slow")
+    fun `domination preserves the most-masteries optimum on the full level-110 pool`() {
+        // most-masteries soundness guard: its objective is the bilinear masteryScore × penaltyMultiplier (the
+        // required AP/MP/HP/crit targets drive the multiplier), so this exercises the sign argument — the optimum
+        // has masteryScore >= 0, making the dominance swap monotone. Full pool must reach the same proven optimum.
+        val tuning = WakfuBuildSolver.SolverTuning(maxDeterministicTime = 600.0)
+        val params =
+            WakfuBestBuildParams(
+                character = Character(CharacterClass.CRA, 110, 0, CharacterSkills(110)),
+                targetStats =
+                    TargetStats(
+                        listOf(
+                            TargetStat(Characteristic.MASTERY_DISTANCE, 9999),
+                            TargetStat(Characteristic.ACTION_POINT, 12),
+                            TargetStat(Characteristic.MOVEMENT_POINT, 6),
+                            TargetStat(Characteristic.HP, 2000),
+                            TargetStat(Characteristic.CRITICAL_HIT, 30)
+                        )
+                    ),
+                searchDuration = 600.seconds,
+                stopWhenBuildMatch = false,
+                maxRarity = Rarity.EPIC,
+                forcedItems = emptyList(),
+                excludedItems = emptyList(),
+                scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                useRunes = false,
+                useSublimations = false
+            )
+        val pool = fullEpicPool(110)
+        val full = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, applyDomination = false)
+        val filtered = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, applyDomination = true)
+        assertThat(full.isOptimal && filtered.isOptimal).describedAs("both prove OPTIMAL").isTrue()
+        assertThat(filtered.objective).describedAs("domination must preserve the most-masteries optimum").isEqualTo(full.objective)
+    }
+
+    @Test
+    @Tag("slow")
+    fun `domination preserves the precision optimum on the full level-110 pool`() {
+        // precision soundness guard: its objective is a sum of min(actual, target) terms (capped, monotone), so
+        // componentwise->= domination must reach the same proven optimum on the full pool.
+        val tuning = WakfuBuildSolver.SolverTuning(maxDeterministicTime = 600.0)
+        val params =
+            WakfuBestBuildParams(
+                character = Character(CharacterClass.CRA, 110, 0, CharacterSkills(110)),
+                targetStats =
+                    TargetStats(
+                        listOf(
+                            TargetStat(Characteristic.MASTERY_DISTANCE, 800),
+                            TargetStat(Characteristic.ACTION_POINT, 12),
+                            TargetStat(Characteristic.HP, 2000),
+                            TargetStat(Characteristic.CRITICAL_HIT, 30),
+                            TargetStat(Characteristic.RANGE, 2)
+                        )
+                    ),
+                searchDuration = 600.seconds,
+                stopWhenBuildMatch = false,
+                maxRarity = Rarity.EPIC,
+                forcedItems = emptyList(),
+                excludedItems = emptyList(),
+                scoreComputationMode = ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT,
+                useRunes = false,
+                useSublimations = false
+            )
+        val pool = fullEpicPool(110)
+        val full = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, applyDomination = false)
+        val filtered = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, applyDomination = true)
+        assertThat(full.isOptimal && filtered.isOptimal).describedAs("both prove OPTIMAL").isTrue()
+        assertThat(filtered.objective).describedAs("domination must preserve the precision optimum").isEqualTo(full.objective)
+    }
+
+    @Test
     fun `single-type rune fold preserves the max-damage optimum`() {
         // The fold fills each item with ONE rune type (a boolean pick) instead of a free per-stat count.
         // Because a rune's value is uniform across an item's sockets (RuneType.valueOn doubles per item-SLOT,

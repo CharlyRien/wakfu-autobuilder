@@ -28,6 +28,7 @@ import me.chosante.common.ItemType
 import me.chosante.common.Passive
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
+import me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationConditionType
 import me.chosante.common.SublimationKind
@@ -366,7 +367,9 @@ object WakfuBuildSolver {
     ): Flow<GeneticAlgorithmResult<BuildCombination>> =
         callbackFlow {
             withContext(Dispatchers.IO) {
-                val built = buildModel(params, equipmentsByItemType, runes, sublimations)
+                // Domination runs only on the production (wall-clock) path: tuning == null. The deterministic
+                // test path keeps the full pool so existing tests are untouched; the soundness lock toggles it.
+                val built = buildModel(params, equipmentsByItemType, runes, sublimations, applyDomination = tuning == null)
                 executeSolverAndEmitResults(
                     built.model,
                     params,
@@ -399,6 +402,108 @@ object WakfuBuildSolver {
     )
 
     /**
+     * The characteristics to PIN to equality in the domination relation for these params — or `null` to not
+     * apply the pre-filter at all. An empty set means full domination (no condition to respect).
+     *
+     * Applies to **all three modes** — each maximizes an objective that is **monotone non-decreasing in every
+     * characteristic** (more of any stat is never worse), so an item beaten on every stat is never needed:
+     *  - max-damage: `throughput × perHit`, both ≥ 0;
+     *  - precision: a sum of `min(actual, target)` terms — capped at the target, so overshoot is *neutral*, not
+     *    penalized (my earlier "penalizes overshoot" claim was wrong);
+     *  - most-masteries: `masteryScore × penaltyMultiplier`, the penalty CAPPED at the target (shortfall only)
+     *    with overshoot rewarded by a tie-breaker. The product is monotone *where it matters*: the optimum
+     *    always has `masteryScore ≥ 0` (the empty build already scores objective ≥ 0, so a negative-mastery
+     *    build is strictly worse), and for `masteryScore ≥ 0` the dominance swap `(m+Δm)(μ+Δμ) ≥ mμ` holds.
+     *
+     * A **conditional** sublimation makes some stats non-monotone: a build may keep a weaker (e.g. low-secondary)
+     * item *specifically* to satisfy a cap like `SECONDARY_MASTERIES_AT_MOST`, which domination would remove.
+     * Rather than gate off, we pin **every stat a dangerous (≤ / exact / parity) condition reads** to equality,
+     * so the swap can't move that stat's build sum and no sub can flip — while domination still fires across
+     * every stat no condition touches. A `≥`-type condition stays satisfied under a `≥` swap on a beneficial
+     * choosable sub, so it needs no pin. Returns `null` (gate off) for a forced item / rune-carrier, a forced
+     * conditional sub (unknown effect direction), or a condition that compares two build stats / is categorical
+     * and can't be reduced to a stat pin.
+     */
+    private fun dominationPinnedStats(
+        params: WakfuBestBuildParams,
+        sublimations: List<Sublimation>,
+    ): Set<Characteristic>? {
+        if (params.forcedItems.isNotEmpty() || params.forcedRunesByItem.isNotEmpty()) return null
+        val forcedNames = params.forcedSublimations.map { it.lowercase() }.toSet()
+        val pinned = mutableSetOf<Characteristic>()
+        for (sub in sublimations) {
+            val choosable = sub.solverChoosable && params.useSublimations
+            val forced = sub.name.fr.lowercase() in forcedNames || sub.name.en.lowercase() in forcedNames
+            if (!choosable && !forced) continue
+            val condition = sub.condition ?: continue
+            if (forced) return null // forced conditional sub: unknown effect direction ⇒ can't pin soundly
+            when (condition.type) {
+                SublimationConditionType.AP_AT_MOST, SublimationConditionType.AP_EXACT, SublimationConditionType.AP_ODD ->
+                    pinned += Characteristic.ACTION_POINT
+                SublimationConditionType.CRIT_AT_MOST -> pinned += Characteristic.CRITICAL_HIT
+                SublimationConditionType.RANGE_AT_MOST, SublimationConditionType.RANGE_EXACT -> pinned += Characteristic.RANGE
+                SublimationConditionType.DODGE_LT_PCT_OF_LEVEL -> pinned += Characteristic.DODGE
+                SublimationConditionType.SECONDARY_MASTERIES_AT_MOST -> pinned += SECONDARY_MASTERY_CHARACTERISTICS
+                // ≥-type: a ≥ swap on a beneficial choosable sub keeps the condition satisfied ⇒ no pin needed.
+                SublimationConditionType.AP_AT_LEAST, SublimationConditionType.CRIT_AT_LEAST,
+                SublimationConditionType.BLOCK_AT_LEAST, SublimationConditionType.RANGE_AT_LEAST,
+                -> Unit
+                // Compares two build stats / categorical / unknown ⇒ can't reduce to a stat pin ⇒ gate off.
+                SublimationConditionType.HIGHEST_ELEM_MASTERY_GT_REAR, SublimationConditionType.HIGHEST_ELEM_MASTERY_GT_HEALING,
+                SublimationConditionType.WEAPON_TYPE_EQUIPPED, SublimationConditionType.OTHER,
+                -> return null
+            }
+        }
+        return pinned
+    }
+
+    /** Apply [dominatedWithin] per slot — RING keeps 2 (two are co-equippable, distinct); every other slot 1. */
+    private fun filterDominatedPool(
+        pool: Map<ItemType, List<Equipment>>,
+        pinned: Set<Characteristic>,
+    ): Map<ItemType, List<Equipment>> = pool.mapValues { (slot, items) -> dominatedWithin(items, if (slot == ItemType.RING) 2 else 1, pinned) }
+
+    /**
+     * Keep only items NOT dominated by ≥[k] others in the same slot (k = slot capacity). B is removable iff
+     * ≥k items A satisfy `A ≽ B`, with a deterministic tie-break (A strictly better, OR equal and lower id ⇒
+     * exactly one of a set of identical items is kept). RING needs k=2 because one dominator may already be
+     * worn in the other ring slot — see the proof in `docs/SOLVER_PERFORMANCE.md`.
+     *
+     * `A ≽ B` (A can replace B in any build of a monotone mode with no loss, no extra scarce-rarity budget,
+     * and no conditional-sublimation flip):
+     *  - `A.maxShardSlots ≥ B` — ≥ rune capacity AND sub-carrier eligibility (sockets are a colour-agnostic
+     *    count in this model), so any rune/sub on B fits A;
+     *  - **(A epic ⇒ B epic) ∧ (A relic ⇒ B relic)** — the swap never RAISES the build's ≤1-epic / ≤1-relic
+     *    count, so an EPIC never dominates a non-epic (keeping the non-epic may be what frees the epic budget
+     *    for a stronger epic elsewhere — the one case a naive stats-only filter gets wrong);
+     *  - `A.characteristics ≥ B` on EVERY characteristic, AND **`A == B` on every [pinned] stat** — so every
+     *    monotone objective term / ≥-type condition is still ≥, and every pinned ≤/exact/parity condition keeps
+     *    its exact truth value (its build sum is unchanged by the swap).
+     */
+    private fun dominatedWithin(
+        items: List<Equipment>,
+        k: Int,
+        pinned: Set<Characteristic>,
+    ): List<Equipment> =
+        items.filter { b ->
+            items.count { a -> a !== b && a.dominates(b, pinned) && (!b.dominates(a, pinned) || a.equipmentId < b.equipmentId) } < k
+        }
+
+    private fun Equipment.dominates(
+        other: Equipment,
+        pinned: Set<Characteristic>,
+    ): Boolean {
+        if (maxShardSlots < other.maxShardSlots) return false
+        if (rarity == Rarity.EPIC && other.rarity != Rarity.EPIC) return false
+        if (rarity == Rarity.RELIC && other.rarity != Rarity.RELIC) return false
+        return (characteristics.keys + other.characteristics.keys).all { c ->
+            val mine = characteristics.getOrDefault(c, 0)
+            val theirs = other.characteristics.getOrDefault(c, 0)
+            if (c in pinned) mine == theirs else mine >= theirs
+        }
+    }
+
+    /**
      * Assembles the full CP-SAT model — item / skill / rune / sublimation vars, validity constraints, and the
      * mode's objective — and calls [CpModel.maximize]. Extracted from [optimize] so the test-only
      * [maxDamageObjectiveValueForTest] builds a byte-identical model (no drift between the production solve and
@@ -417,18 +522,27 @@ object WakfuBuildSolver {
         // Test seam: force the per-stat rune COUNT model even where the single-type fold would apply, so a
         // test can assert the fold preserves the optimum (fold == count optimum on a rune pool).
         forceRuneCountModel: Boolean = false,
+        // Production path only: drop per-slot dominated items ([filterDominatedPool]) — provably optimum-
+        // preserving in all three (monotone) modes. Off by default so the deterministic test path sees the full
+        // pool unchanged; the production [optimize] passes true and the soundness lock toggles it.
+        applyDomination: Boolean = false,
     ): BuiltModel {
         val model = CpModel()
 
         // Full pool gives the provable *global* optimum and stays tractable for most queries.
         // Only multi-element mastery/resistance targets activate the heavy random-element modelling that
         // explodes on the full late-game pool, so we prefilter exactly (and only) those cases.
-        val pool =
+        val basePool =
             if (!forceFullPool && needsItemPrefilter(params.targetStats)) {
                 prefilterRelevantEquipments(equipmentsByItemType, params)
             } else {
                 equipmentsByItemType
             }
+        // Sound per-slot domination: drop items provably beaten in their own slot (all three modes are monotone;
+        // see [dominationPinnedStats]). Skipped for forced items / forced conditional subs and for forceFullPool
+        // (the full reference). Removes no optimal build, so the proven optimum is identical — only the model shrinks.
+        val dominationPins = if (applyDomination && !forceFullPool) dominationPinnedStats(params, sublimations) else null
+        val pool = if (dominationPins != null) filterDominatedPool(basePool, dominationPins) else basePool
         val allEquips = orderEquipments(pool)
         val equipVars = model.createEquipmentVariables(allEquips)
         val skillVars = model.createSkillVariables(params.character.characterSkills)
@@ -537,8 +651,9 @@ object WakfuBuildSolver {
         runes: List<RuneType> = emptyList(),
         sublimations: List<Sublimation> = emptyList(),
         forceRuneCountModel: Boolean = false,
+        applyDomination: Boolean = false,
     ): MaxDamageSolveOutcome {
-        val built = buildModel(params, equipmentsByItemType, runes, sublimations, tightDomains, forceRuneCountModel = forceRuneCountModel)
+        val built = buildModel(params, equipmentsByItemType, runes, sublimations, tightDomains, forceRuneCountModel = forceRuneCountModel, applyDomination = applyDomination)
         val solver = deterministicMaxDamageSolver(tuning)
         val status = solver.solve(built.model)
         val hasSolution =
@@ -550,6 +665,12 @@ object WakfuBuildSolver {
             hasSolution = hasSolution
         )
     }
+
+    /** Test seam: the per-slot domination pre-filter applied to [pool], pinning [pinned] to equality (empty = full). */
+    internal fun filterDominatedPoolForTest(
+        pool: Map<ItemType, List<Equipment>>,
+        pinned: Set<Characteristic> = emptySet(),
+    ): Map<ItemType, List<Equipment>> = filterDominatedPool(pool, pinned)
 
     /** A tracked objective-chain var's solved value against its declared reachable `[lo, hi]`. */
     internal data class MaxDamageVarBound(
