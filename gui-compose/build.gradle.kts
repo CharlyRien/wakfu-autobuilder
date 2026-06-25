@@ -44,7 +44,7 @@ dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
-    testImplementation(compose.desktop.uiTestJUnit4) // Compose UI test harness (runComposeUiTest) for widget tests
+    testImplementation(libs.compose.ui.test.junit4)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     // Per-machine artifacts Conveyor packages for each target: that OS's Compose Desktop (Skiko) +
@@ -80,19 +80,20 @@ ktlint {
 // What's-new resources: the app version (for the once-per-version gate) and the release-please
 // CHANGELOG rendered by the in-app "What's new" dialog (ui/state/WhatsNew.kt). The changelog only
 // exists once the first release PR has merged, so its copy tolerates absence.
-val generateVersionResource by tasks.registering {
-    val appVersion = version.toString()
-    val outputDir = layout.buildDirectory.dir("generated-resources/version")
-    inputs.property("appVersion", appVersion)
-    outputs.dir(outputDir)
-    doLast {
-        outputDir
-            .get()
-            .asFile
-            .resolve("app-version.txt")
-            .writeText(appVersion)
+val generateVersionResource =
+    tasks.register("generateVersionResource") {
+        val appVersion = version.toString()
+        val outputDir = layout.buildDirectory.dir("generated-resources/version")
+        inputs.property("appVersion", appVersion)
+        outputs.dir(outputDir)
+        doLast {
+            outputDir
+                .get()
+                .asFile
+                .resolve("app-version.txt")
+                .writeText(appVersion)
+        }
     }
-}
 
 sourceSets {
     main {
