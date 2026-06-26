@@ -424,44 +424,109 @@ object WakfuBuildSolver {
      * conditional sub (unknown effect direction), or a condition that compares two build stats / is categorical
      * and can't be reduced to a stat pin.
      */
-    private fun dominationPinnedStats(
+    private data class DominationShape(
+        val pinned: Set<Characteristic>,
+        val compared: Set<Characteristic>? = null,
+    )
+
+    private fun dominationShape(
         params: WakfuBestBuildParams,
         sublimations: List<Sublimation>,
-    ): Set<Characteristic>? {
+    ): DominationShape? {
         if (params.forcedItems.isNotEmpty() || params.forcedRunesByItem.isNotEmpty()) return null
         val forcedNames = params.forcedSublimations.map { it.lowercase() }.toSet()
         val pinned = mutableSetOf<Characteristic>()
+        val conditionStats = mutableSetOf<Characteristic>()
+        val subStats = mutableSetOf<Characteristic>()
         for (sub in sublimations) {
             val choosable = sub.solverChoosable && params.useSublimations
             val forced = sub.name.fr.lowercase() in forcedNames || sub.name.en.lowercase() in forcedNames
             if (!choosable && !forced) continue
+            sub.effects
+                .filter { scenarioGateMatches(it.scenarioGate, params) }
+                .forEach { subStats += effectiveStatForDomination(it.characteristic) }
+            sub.conversion?.let { conversion ->
+                subStats += effectiveStatForDomination(conversion.from)
+                subStats += effectiveStatForDomination(conversion.to)
+            }
             val condition = sub.condition ?: continue
             if (forced) return null // forced conditional sub: unknown effect direction ⇒ can't pin soundly
             when (condition.type) {
-                SublimationConditionType.AP_AT_MOST, SublimationConditionType.AP_EXACT, SublimationConditionType.AP_ODD ->
+                SublimationConditionType.AP_AT_MOST, SublimationConditionType.AP_EXACT, SublimationConditionType.AP_ODD -> {
                     pinned += Characteristic.ACTION_POINT
-                SublimationConditionType.CRIT_AT_MOST -> pinned += Characteristic.CRITICAL_HIT
-                SublimationConditionType.RANGE_AT_MOST, SublimationConditionType.RANGE_EXACT -> pinned += Characteristic.RANGE
-                SublimationConditionType.DODGE_LT_PCT_OF_LEVEL -> pinned += Characteristic.DODGE
-                SublimationConditionType.SECONDARY_MASTERIES_AT_MOST -> pinned += SECONDARY_MASTERY_CHARACTERISTICS
+                    conditionStats += Characteristic.ACTION_POINT
+                }
+                SublimationConditionType.CRIT_AT_MOST -> {
+                    pinned += Characteristic.CRITICAL_HIT
+                    conditionStats += Characteristic.CRITICAL_HIT
+                }
+                SublimationConditionType.RANGE_AT_MOST, SublimationConditionType.RANGE_EXACT -> {
+                    pinned += Characteristic.RANGE
+                    conditionStats += Characteristic.RANGE
+                }
+                SublimationConditionType.DODGE_LT_PCT_OF_LEVEL -> {
+                    pinned += Characteristic.DODGE
+                    conditionStats += Characteristic.DODGE
+                }
+                SublimationConditionType.SECONDARY_MASTERIES_AT_MOST -> {
+                    pinned += SECONDARY_MASTERY_CHARACTERISTICS
+                    conditionStats += SECONDARY_MASTERY_CHARACTERISTICS
+                }
                 // ≥-type: a ≥ swap on a beneficial choosable sub keeps the condition satisfied ⇒ no pin needed.
-                SublimationConditionType.AP_AT_LEAST, SublimationConditionType.CRIT_AT_LEAST,
-                SublimationConditionType.BLOCK_AT_LEAST, SublimationConditionType.RANGE_AT_LEAST,
-                -> Unit
+                SublimationConditionType.AP_AT_LEAST -> conditionStats += Characteristic.ACTION_POINT
+                SublimationConditionType.CRIT_AT_LEAST -> conditionStats += Characteristic.CRITICAL_HIT
+                SublimationConditionType.BLOCK_AT_LEAST -> conditionStats += Characteristic.BLOCK_PERCENTAGE
+                SublimationConditionType.RANGE_AT_LEAST -> conditionStats += Characteristic.RANGE
                 // Compares two build stats / categorical / unknown ⇒ can't reduce to a stat pin ⇒ gate off.
                 SublimationConditionType.HIGHEST_ELEM_MASTERY_GT_REAR, SublimationConditionType.HIGHEST_ELEM_MASTERY_GT_HEALING,
                 SublimationConditionType.WEAPON_TYPE_EQUIPPED, SublimationConditionType.OTHER,
                 -> return null
             }
         }
-        return pinned
+        if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+            return DominationShape(pinned)
+        }
+
+        // Max-damage does not care about every sheet stat. Comparing only stats that can affect the objective,
+        // out-of-combat caps, sublimation conditions/effects/conversions, or random-element folding makes
+        // domination much sharper while preserving the swap proof.
+        val scenario = params.damageScenario
+        val compared =
+            buildSet {
+                add(Characteristic.ACTION_POINT)
+                add(Characteristic.MOVEMENT_POINT)
+                add(Characteristic.WAKFU_POINT)
+                add(Characteristic.CRITICAL_HIT)
+                add(Characteristic.DAMAGE_INFLICTED)
+                add(Characteristic.MASTERY_CRITICAL)
+                addAll(scenarioMasteryStats(scenario))
+                addAll(MASTERY_RANDOM_BY_COUNT.map { it.first })
+                addAll(params.targetStats.map { it.characteristic })
+                addAll(conditionStats)
+                addAll(subStats)
+            }
+        // The equipped sheet has hard upper caps on these stats before in-combat sublimations. Pinning them
+        // prevents a domination swap from replacing a cap-safe item with a stronger but cap-breaking one.
+        pinned += Characteristic.ACTION_POINT
+        pinned += Characteristic.MOVEMENT_POINT
+        pinned += Characteristic.WAKFU_POINT
+        return DominationShape(pinned, compared)
     }
+
+    private fun effectiveStatForDomination(char: Characteristic): Characteristic =
+        when (char) {
+            Characteristic.MAX_ACTION_POINT -> Characteristic.ACTION_POINT
+            Characteristic.MAX_MOVEMENT_POINT -> Characteristic.MOVEMENT_POINT
+            Characteristic.MAX_WAKFU_POINTS -> Characteristic.WAKFU_POINT
+            else -> char
+        }
 
     /** Apply [dominatedWithin] per slot — RING keeps 2 (two are co-equippable, distinct); every other slot 1. */
     private fun filterDominatedPool(
         pool: Map<ItemType, List<Equipment>>,
         pinned: Set<Characteristic>,
-    ): Map<ItemType, List<Equipment>> = pool.mapValues { (slot, items) -> dominatedWithin(items, if (slot == ItemType.RING) 2 else 1, pinned) }
+        compared: Set<Characteristic>? = null,
+    ): Map<ItemType, List<Equipment>> = pool.mapValues { (slot, items) -> dominatedWithin(items, if (slot == ItemType.RING) 2 else 1, pinned, compared) }
 
     /**
      * Keep only items NOT dominated by ≥[k] others in the same slot (k = slot capacity). B is removable iff
@@ -484,19 +549,22 @@ object WakfuBuildSolver {
         items: List<Equipment>,
         k: Int,
         pinned: Set<Characteristic>,
+        compared: Set<Characteristic>?,
     ): List<Equipment> =
         items.filter { b ->
-            items.count { a -> a !== b && a.dominates(b, pinned) && (!b.dominates(a, pinned) || a.equipmentId < b.equipmentId) } < k
+            items.count { a -> a !== b && a.dominates(b, pinned, compared) && (!b.dominates(a, pinned, compared) || a.equipmentId < b.equipmentId) } < k
         }
 
     private fun Equipment.dominates(
         other: Equipment,
         pinned: Set<Characteristic>,
+        compared: Set<Characteristic>?,
     ): Boolean {
         if (maxShardSlots < other.maxShardSlots) return false
         if (rarity == Rarity.EPIC && other.rarity != Rarity.EPIC) return false
         if (rarity == Rarity.RELIC && other.rarity != Rarity.RELIC) return false
-        return (characteristics.keys + other.characteristics.keys).all { c ->
+        val chars = compared ?: (characteristics.keys + other.characteristics.keys)
+        return chars.all { c ->
             val mine = characteristics.getOrDefault(c, 0)
             val theirs = other.characteristics.getOrDefault(c, 0)
             if (c in pinned) mine == theirs else mine >= theirs
@@ -542,13 +610,13 @@ object WakfuBuildSolver {
                 equipmentsByItemType
             }
         // Sound per-slot domination: drop items provably beaten in their own slot (all three modes are monotone;
-        // see [dominationPinnedStats]). Skipped for forced items / forced conditional subs and for forceFullPool
+        // see [dominationShape]). Skipped for forced items / forced conditional subs and for forceFullPool
         // (the full reference). Removes no optimal build, so the proven optimum is identical — only the model shrinks.
         // Stats a dangerous (≤/exact/parity) conditional sub reads — non-monotone, so domination pins them AND
         // most-masteries exact socket fill must avoid them (null = un-analyzable / forced ⇒ both stay conservative).
-        val subPinnedStats = dominationPinnedStats(params, sublimations)
-        val dominationPins = if (applyDomination && !forceFullPool) subPinnedStats else null
-        val pool = if (dominationPins != null) filterDominatedPool(basePool, dominationPins) else basePool
+        val dominationShape = dominationShape(params, sublimations)
+        val activeDomination = if (applyDomination && !forceFullPool) dominationShape else null
+        val pool = if (activeDomination != null) filterDominatedPool(basePool, activeDomination.pinned, activeDomination.compared) else basePool
         val allEquips = orderEquipments(pool)
         val equipVars = model.createEquipmentVariables(allEquips)
         val skillVars = model.createSkillVariables(params.character.characterSkills)
@@ -566,7 +634,7 @@ object WakfuBuildSolver {
                     (sub.condition?.value ?: 0) > 0
             }
         val allowRuneFold = !forceRuneCountModel && !secondaryCapMixSubInPlay
-        val runeModel = model.createRuneModel(params, allEquips, equipVars, runes, allowRuneFold, subPinnedStats, forceRuneLeq)
+        val runeModel = model.createRuneModel(params, allEquips, equipVars, runes, allowRuneFold, dominationShape?.pinned, forceRuneLeq)
         val subModel = model.createSublimationModel(params, allEquips, equipVars, sublimations)
         // A normal sublimation does NOT reserve rune sockets. Golden runes (colour-agnostic) form its ordered
         // colour pattern AND still carry their stat — doubling where the item favours that colour — so a carrier
@@ -643,6 +711,49 @@ object WakfuBuildSolver {
         val hasSolution: Boolean,
     )
 
+    internal data class TimedSolveProfile(
+        val status: String,
+        val objective: Long,
+        val bestBound: Long,
+        val wallTimeSec: Double,
+        val variables: Int,
+        val constraints: Int,
+        val poolSize: Int,
+    )
+
+    internal fun timedMaxDamageSolveProfileForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        workers: Int,
+        seconds: Double,
+        applyDomination: Boolean,
+    ): TimedSolveProfile {
+        val built = buildModel(params, equipmentsByItemType, runes, sublimations, applyDomination = applyDomination)
+        val solver = CpSolver()
+        solver.parameters.logSearchProgress = false
+        solver.parameters.linearizationLevel = 2
+        solver.parameters.maxPresolveIterations = 10
+        solver.parameters.numSearchWorkers = workers
+        solver.parameters.randomSeed = 1
+        solver.parameters.maxTimeInSeconds = seconds
+        val status = solver.solve(built.model)
+        val hasSolution =
+            status == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                status == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+        val proto = built.model.model()
+        return TimedSolveProfile(
+            status = status.toString(),
+            objective = if (hasSolution) solver.objectiveValue().toLong() else Long.MIN_VALUE,
+            bestBound = solver.bestObjectiveBound().toLong(),
+            wallTimeSec = solver.wallTime(),
+            variables = proto.variablesCount,
+            constraints = proto.constraintsCount,
+            poolSize = built.allEquips.size
+        )
+    }
+
     /**
      * Test-only: solve a max-damage model with either reachable ([tightDomains] = true) or loose guard
      * ([tightDomains] = false) declared domains, returning its objective + status WITHOUT requiring OPTIMAL.
@@ -697,6 +808,27 @@ object WakfuBuildSolver {
         val hi: Long,
     ) {
         val withinBound: Boolean get() = value in lo..hi
+    }
+
+    internal data class MaxDamageReachableRange(
+        val name: String,
+        val lo: Long,
+        val hi: Long,
+    ) {
+        val span: Long get() = hi - lo
+    }
+
+    /** Test-only build probe: return the tracked max-damage objective-chain reachable ranges without solving. */
+    internal fun maxDamageReachableRangesForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        tightDomains: Boolean = true,
+        applyDomination: Boolean = false,
+    ): List<MaxDamageReachableRange> {
+        val built = buildModel(params, equipmentsByItemType, runes, sublimations, tightDomains = tightDomains, applyDomination = applyDomination)
+        return built.maxDamageTracked.map { (_, name, range) -> MaxDamageReachableRange(name, range.first, range.last) }
     }
 
     /**
@@ -824,7 +956,7 @@ object WakfuBuildSolver {
             val sumExpr = LinearExpr.newBuilder()
             for (skill in assignable.getCharacteristics()) {
                 val varName = "skill_${namePrefix}_${skill.name.toIdentifier()}"
-                val skillVar = newIntVar(0, skill.maxPointsAssignable.toLong(), varName)
+                val skillVar = newIntVar(0, skillVariableCap(skill, assignable), varName)
                 skillVars[skill] = skillVar
                 sumExpr.addTerm(skillVar, 1)
             }
@@ -838,6 +970,29 @@ object WakfuBuildSolver {
         addCategory(characterSkills.major, "major")
 
         return skillVars
+    }
+
+    private fun skillVariableCap(
+        skill: SkillCharacteristic,
+        assignable: Assignable<*>,
+    ): Long = min(skill.maxPointsAssignable, assignable.maxPointsToAssign).toLong()
+
+    private fun skillVariableCaps(characterSkills: CharacterSkills): Map<SkillCharacteristic, Long> {
+        val caps = mutableMapOf<SkillCharacteristic, Long>()
+
+        fun add(assignable: Assignable<*>) {
+            assignable.getCharacteristics().forEach { skill ->
+                caps[skill] = skillVariableCap(skill, assignable)
+            }
+        }
+
+        add(characterSkills.intelligence)
+        add(characterSkills.strength)
+        add(characterSkills.agility)
+        add(characterSkills.luck)
+        add(characterSkills.major)
+
+        return caps
     }
 
     private fun CpModel.createEquipmentVariables(allEquips: List<Equipment>): Map<Equipment, IntVar> =
@@ -936,11 +1091,99 @@ object WakfuBuildSolver {
         // secondary for the secondary=0 subs) and items still differ — only the never-optimal intra-item mix is
         // dropped. Gated to where it is provably sound; forced runes / secondary-cap>0 subs keep the count model.
         val singleTypePerItem = allowRuneFold && maxDamageFreeFill && forcedRuneStats.isEmpty()
+        val maxDamageMasteryRuneStats =
+            if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+                buildSet {
+                    val scenario = params.damageScenario
+                    // Intentionally NOT scenarioMasteryStats(): runes route all elemental mastery through the
+                    // single GENERIC elemental-mastery rune (no per-element rune exists), so the specific
+                    // element mastery is deliberately omitted here.
+                    add(Characteristic.MASTERY_ELEMENTARY)
+                    add(scenario.rangeBand.masteryCharacteristic)
+                    if (scenario.orientation.grantsRearMastery) add(Characteristic.MASTERY_BACK)
+                    if (scenario.berserk) add(Characteristic.MASTERY_BERSERK)
+                    if (scenario.healing) add(Characteristic.MASTERY_HEALING)
+                }
+            } else {
+                emptySet()
+            }
+        val maxDamageRuneChoiceCollapse =
+            singleTypePerItem &&
+                params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE &&
+                runeStats.all { it == Characteristic.MASTERY_CRITICAL || it in maxDamageMasteryRuneStats }
+        val runeTypeByVar = HashMap<IntVar, RuneType>()
+        val coefficientByVar = HashMap<IntVar, Long>()
+        val extraTerms = mutableMapOf<Characteristic, MutableList<Term>>()
+        val suppressedBy = HashMap<Pair<Equipment, Characteristic>, IntVar>()
         val runeVars = mutableMapOf<Equipment, Map<Characteristic, IntVar>>()
         for (equip in allEquips) {
             val slots = equip.maxShardSlots
             if (slots <= 0) continue
-            if (singleTypePerItem) {
+            if (maxDamageRuneChoiceCollapse) {
+                // Pure max-damage only cares about two rune effects:
+                //  - M-feeding mastery (elemental/range/back/berserk/healing all enter the same M sum);
+                //  - critical mastery.
+                // Pick the best M-feeding rune for this carrier, then keep the crit-mastery alternative only
+                // when its carrier-specific value is larger. If crit's value is ≤ the M rune's value, M
+                // dominates it for every crit rate in [0,100] because dGraw/dM = 400+crit ≥ 5*crit = dGraw/dK.
+                // NOTE: this dominance is tied to perHitDamageScore's exact Graw coefficients (400·M, 5·K); if
+                // those ever change, re-verify the inequality before trusting this fold.
+                val choices = LinkedHashMap<Characteristic, Pair<RuneType, Long>>()
+                val bestMasteryRune =
+                    maxDamageMasteryRuneStats
+                        .mapNotNull { runeByCharacteristic[it] }
+                        .map { it to it.valueOn(equip.itemType, equip.level).toLong() }
+                        .maxByOrNull { it.second }
+                if (bestMasteryRune != null) {
+                    choices[params.damageScenario.rangeBand.masteryCharacteristic] = bestMasteryRune
+                }
+                runeByCharacteristic[Characteristic.MASTERY_CRITICAL]?.let { critRune ->
+                    val critValue = critRune.valueOn(equip.itemType, equip.level).toLong()
+                    val masteryValue = bestMasteryRune?.second ?: 0L
+                    if (critValue > masteryValue) {
+                        choices[Characteristic.MASTERY_CRITICAL] = critRune to critValue
+                    }
+                }
+                if (choices.isEmpty()) continue
+
+                val perStat =
+                    if (choices.size == 1) {
+                        // The single surviving choice is forced whenever the item is equipped: substitute the
+                        // equipment variable directly and skip a redundant rune bool + equality.
+                        mapOf(choices.keys.single() to equipVars.getValue(equip))
+                    } else if (
+                        choices.size == 2 &&
+                        choices.containsKey(params.damageScenario.rangeBand.masteryCharacteristic) &&
+                        choices.containsKey(Characteristic.MASTERY_CRITICAL)
+                    ) {
+                        val masteryStat = params.damageScenario.rangeBand.masteryCharacteristic
+                        val masteryChoice = choices.getValue(masteryStat)
+                        val critVar = newBoolVar("runePick_${equip.equipmentId}_${Characteristic.MASTERY_CRITICAL.name}")
+                        addLessOrEqual(critVar, equipVars.getValue(equip))
+                        // M is the default rune on the equipment var; choosing crit suppresses that default.
+                        extraTerms
+                            .getOrPut(masteryStat) { mutableListOf() }
+                            .add(Term(critVar, -masteryChoice.second * slots.toLong()))
+                        suppressedBy[equip to masteryStat] = critVar
+                        mapOf(
+                            masteryStat to equipVars.getValue(equip),
+                            Characteristic.MASTERY_CRITICAL to critVar
+                        )
+                    } else {
+                        val vars = choices.keys.associateWith { stat -> newBoolVar("runePick_${equip.equipmentId}_${stat.name}") }
+                        val pickExpr = LinearExpr.newBuilder()
+                        vars.values.forEach { pickExpr.addTerm(it, 1L) }
+                        pickExpr.addTerm(equipVars.getValue(equip), -1L)
+                        addEquality(pickExpr.build(), 0L)
+                        vars
+                    }
+                for ((stat, choice) in choices) {
+                    val v = perStat.getValue(stat)
+                    runeTypeByVar[v] = choice.first
+                    coefficientByVar[v] = choice.second
+                }
+                runeVars[equip] = perStat
+            } else if (singleTypePerItem) {
                 // One boolean per type; exactly one type fills all the item's sockets when equipped, none otherwise.
                 val perStat = runeStats.associateWith { stat -> newBoolVar("runePick_${equip.equipmentId}_${stat.name}") }
                 val pickExpr = LinearExpr.newBuilder()
@@ -989,7 +1232,7 @@ object WakfuBuildSolver {
                 if (any) addGreaterOrEqual(countExpr.build(), count.toLong())
             }
         }
-        return RuneModel(runeByCharacteristic, runeVars, singleTypePerItem)
+        return RuneModel(runeByCharacteristic, runeVars, singleTypePerItem, runeTypeByVar, coefficientByVar, extraTerms, suppressedBy)
     }
 
     /**
@@ -1014,6 +1257,8 @@ object WakfuBuildSolver {
         // are not in targetStats (which there only carry hard AP/MP/range/… constraints).
         if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
             val scenario = params.damageScenario
+            // Intentionally NOT scenarioMasteryStats(): the rune-relevant set omits the specific element
+            // mastery (generic-rune routing) and adds MASTERY_CRITICAL (a crit rune does exist).
             result.add(Characteristic.MASTERY_ELEMENTARY)
             result.add(scenario.rangeBand.masteryCharacteristic)
             result.add(Characteristic.MASTERY_CRITICAL)
@@ -1107,12 +1352,14 @@ object WakfuBuildSolver {
     /**
      * Models the chosen/forced sublimations. Each modeled sub gets a [SublimationModel.subVars] boolean.
      * Epic/relic subs are gated to an equipped epic/relic item — their dedicated slot comes from that carrier
-     * ([gateSublimationsOnCarrierItems]); a normal sub is assigned to one ≥3-socket carrier item (at most one
-     * normal sub per item), but does NOT consume rune sockets — golden runes (colour-agnostic) form its ordered
-     * colour pattern while still carrying their stat, so the carrier keeps a full set of runes. At most 10
-     * sublimations per build. Socket colours stay optimistic/re-rollable (no per-item colour data); the chosen
-     * carrier + pattern are surfaced in the GUI. Effect contributions fold into the stat term loop by
-     * [StatBuilder]; forced subs apply unconditionally (the user takes responsibility).
+     * ([gateSublimationsOnCarrierItems]). Normal subs all share the same carrier eligibility in this optimistic
+     * model (any equipped item with ≥3 sockets, colours rerollable), so carrier assignment collapses to one
+     * aggregate capacity constraint: `selected normal subs ≤ equipped normal carriers`. That avoids a huge
+     * `(sub × carrier item)` boolean grid while preserving feasibility; [solutionToBuild] assigns selected
+     * normal subs greedily to equipped carriers for display. Normal subs do NOT consume rune sockets — golden
+     * runes (colour-agnostic) form their ordered colour pattern while still carrying their stat, so a carrier
+     * keeps a full set of runes alongside the sub. At most 10 sublimations per build. Effect contributions fold
+     * into the stat term loop by [StatBuilder]; forced subs apply unconditionally (the user takes responsibility).
      *
      * A sub is only ever *chosen* when it improves the active objective. In max-damage mode that includes its
      * DI and scenario-gated effects; in most-masteries / precision modes (which don't maximize damage) a sub is
@@ -1159,29 +1406,20 @@ object WakfuBuildSolver {
         // Total cap: at most 10 sublimations on a build.
         addLessOrEqual(LinearExpr.sum(subVars.values.toTypedArray()), MAX_SUBLIMATIONS)
 
-        // Tie each NORMAL sub to exactly one carrier item with ≥3 sockets (y[sub,item]=1 ⇒ that item hosts it):
-        // it needs ≥3 sockets to lay down its ordered 3-colour pattern, but — golden runes being colour-agnostic —
-        // it does NOT take those sockets away from runes, so the carrier keeps a full rune set. Epic/relic subs
-        // need no socket carrier (gated on the rarity item above).
+        // Normal subs only need aggregate carrier capacity: all modeled normal subs can go on any equipped
+        // ≥3-socket item, and every such item hosts at most one normal sub. The individual carrier choice is
+        // objective-neutral, so a bipartite assignment grid is unnecessary; total selected ≤ total carriers is
+        // both necessary and sufficient for this complete bipartite matching.
         val normalSubs = subVars.keys.filter { it.rarity == SublimationRarity.NORMAL }
         val carrierItems = allEquips.filter { it.maxShardSlots >= NORMAL_SUB_SOCKET_COST }
-        val carrierVars = LinkedHashMap<Sublimation, Map<Equipment, IntVar>>()
-        for (sub in normalSubs) {
-            val perItem = carrierItems.associateWith { item -> newBoolVar("subCarrier_${sub.stateId}_${item.equipmentId}") }
-            carrierVars[sub] = perItem
-            // Chosen ⇔ assigned to exactly one carrier; a carrier must itself be equipped.
-            val assigned = LinearExpr.newBuilder()
-            perItem.values.forEach { assigned.addTerm(it, 1L) }
-            addEquality(assigned.build(), subVars.getValue(sub))
-            for ((item, y) in perItem) addLessOrEqual(y, equipVars.getValue(item))
-        }
-        // A single ≥3-socket item physically hosts at most one 3-socket normal sublimation.
-        for (item in carrierItems) {
-            val hostsOnItem = normalSubs.mapNotNull { carrierVars[it]?.get(item) }
-            if (hostsOnItem.size > 1) addLessOrEqual(LinearExpr.sum(hostsOnItem.toTypedArray()), 1L)
+        if (normalSubs.isNotEmpty()) {
+            val capacity = LinearExpr.newBuilder()
+            normalSubs.forEach { capacity.addTerm(subVars.getValue(it), 1L) }
+            carrierItems.forEach { capacity.addTerm(equipVars.getValue(it), -1L) }
+            addLessOrEqual(capacity.build(), 0L)
         }
 
-        return SublimationModel(subVars, forcedSubs.toSet(), params.character.level, carrierVars)
+        return SublimationModel(subVars, forcedSubs.toSet(), params.character.level)
     }
 
     /** Σ(subs of [subRarity]) ≤ Σ(equipped items of [itemRarity]): an epic/relic sub's slot comes from its carrier item. */
@@ -1741,8 +1979,14 @@ object WakfuBuildSolver {
                             } else {
                                 valueOf(runeVar).toInt()
                             }
-                        val rune = runeModel.runeByCharacteristic[stat]
-                        if (count > 0 && rune != null) List(count) { rune } else emptyList()
+                        val effectiveCount =
+                            if (runeModel.isSuppressed(equip, stat, valueOf)) {
+                                0
+                            } else {
+                                count
+                            }
+                        val rune = runeModel.runeTypeFor(runeVar, stat)
+                        if (effectiveCount > 0 && rune != null) List(effectiveCount) { rune } else emptyList()
                     }
                 }.filterValues { it.isNotEmpty() }
 
@@ -1750,16 +1994,17 @@ object WakfuBuildSolver {
         // equipped epic/relic item (whose dedicated slot hosts it). This is what the GUI renders per item.
         val epicItem = equippedItems.firstOrNull { it.rarity == Rarity.EPIC }
         val relicItem = equippedItems.firstOrNull { it.rarity == Rarity.RELIC }
+        val normalCarrierItems = equippedItems.filter { it.maxShardSlots >= NORMAL_SUB_SOCKET_COST }
+        var nextNormalCarrierIndex = 0
         val sublimationsByItem = mutableMapOf<Equipment, MutableList<Sublimation>>()
         for ((sub, subVar) in subModel.subVars) {
             if (valueOf(subVar) <= 0L) continue
             val carrier =
                 when (sub.rarity) {
-                    SublimationRarity.NORMAL ->
-                        subModel.carrierVars[sub]
-                            ?.entries
-                            ?.firstOrNull { valueOf(it.value) > 0L }
-                            ?.key
+                    // Greedy carrier pick: any equipped ≥3-socket item hosts a normal sub identically (the sub's
+                    // stats come from the sub, not the item), and the model's aggregate normal-carrier capacity
+                    // constraint guarantees enough distinct carriers — so this assignment is objective-neutral.
+                    SublimationRarity.NORMAL -> normalCarrierItems.getOrNull(nextNormalCarrierIndex++)
 
                     SublimationRarity.EPIC -> epicItem
                     SublimationRarity.RELIC -> relicItem
@@ -1858,15 +2103,24 @@ object WakfuBuildSolver {
         private val baseValues = params.character.baseCharacteristicValues
         private val skillTerms = buildSkillTerms(skillVars)
 
-        // Reverse lookup equipVar → its item, so a stat sum's reachable bound can be computed PER mutually-
-        // exclusive slot (one item per slot, two rings) instead of summing every candidate — the per-slot
-        // bound is what brings the mastery domain down to its real ~6k from the naive Σ-all-items.
-        private val equipByVar: Map<IntVar, Equipment> = equipVars.entries.associate { (e, v) -> v to e }
+        // Reverse lookup of item-gated vars (equipment picks and their rune vars) → carrier item, so a stat
+        // sum's reachable bound can be computed PER mutually-exclusive slot (one item per slot, two rings)
+        // instead of summing every candidate. Runes need this too: a rune var can only fire when its carrier
+        // item is equipped, so counting every socketable candidate at once recreates the old huge domains.
+        private val carrierByVar: Map<IntVar, Equipment> =
+            buildMap {
+                equipVars.forEach { (equip, v) -> put(v, equip) }
+                runeModel.runeVars.forEach { (equip, perStat) ->
+                    perStat.values.forEach { put(it, equip) }
+                }
+            }
+        private val subByVar: Map<IntVar, Sublimation> = subModel.subVars.entries.associate { (sub, v) -> v to sub }
 
         init {
             // Seed every leaf variable's exact domain so the interval arithmetic can propagate from them.
             equipVars.forEach { (equip, v) -> tracker.seed(v, 0L..1L, "equip_${equip.equipmentId}") }
-            skillVars.forEach { (skill, v) -> tracker.seed(v, 0L..skill.maxPointsAssignable.toLong(), "skill_${skill.name}") }
+            val skillCaps = skillVariableCaps(params.character.characterSkills)
+            skillVars.forEach { (skill, v) -> tracker.seed(v, 0L..skillCaps.getValue(skill), "skill_${skill.name}") }
             runeModel.runeVars.forEach { (equip, perStat) ->
                 // Fold ⇒ each var is a boolean PICK (0..1, contributes slots·coeff); count model ⇒ 0..slots.
                 val runeHi = if (runeModel.singleTypePerItem) 1L else equip.maxShardSlots.toLong()
@@ -1890,28 +2144,217 @@ object WakfuBuildSolver {
             constant: Long,
         ): LongRange {
             var lo = constant
-            var hi = constant
-            // Item terms: one item per slot (two per RING). Bounding each itemType group by its single best
-            // (or worst) coefficient — rather than summing every candidate — is the dominant tightening, and a
-            // sound over-estimate (it even allows 2H+1H+off-hand together, which the validity rules forbid).
-            val coeffsByType = HashMap<ItemType, MutableList<Long>>()
+            var nonCarrierHi = constant
+            // Item-gated terms: one item per slot (two per RING). Aggregate all terms for the same carrier
+            // first (e.g. the item's own stat plus its rune contribution), then bound each itemType by the
+            // best carrier range instead of summing every candidate. This is a sound over-estimate (it even
+            // allows 2H+1H+off-hand together, which the validity rules forbid) and keeps rune-heavy stats on
+            // real build-sized domains.
+            val rangesByCarrier = LinkedHashMap<Equipment, LongRange>()
+            val rangesBySub = LinkedHashMap<Sublimation, LongRange>()
             for (term in terms) {
-                val equip = equipByVar[term.variable]
+                val equip = carrierByVar[term.variable]
                 if (equip != null) {
-                    coeffsByType.getOrPut(equip.itemType) { mutableListOf() }.add(term.coefficient)
+                    val d = tracker.of(term.variable)
+                    val scaled =
+                        if (term.coefficient >= 0) {
+                            d.first * term.coefficient..d.last * term.coefficient
+                        } else {
+                            d.last * term.coefficient..d.first * term.coefficient
+                        }
+                    val current = rangesByCarrier[equip] ?: (0L..0L)
+                    rangesByCarrier[equip] = current.first + scaled.first..current.last + scaled.last
                 } else {
+                    val sub = subByVar[term.variable]
                     val d = tracker.of(term.variable)
                     val scaled = if (term.coefficient >= 0) d.first * term.coefficient..d.last * term.coefficient else d.last * term.coefficient..d.first * term.coefficient
-                    lo += scaled.first
-                    hi += scaled.last
+                    if (sub != null) {
+                        val current = rangesBySub[sub] ?: (0L..0L)
+                        rangesBySub[sub] = current.first + scaled.first..current.last + scaled.last
+                    } else {
+                        lo += scaled.first
+                        nonCarrierHi += scaled.last
+                    }
                 }
             }
-            for ((type, coeffs) in coeffsByType) {
+            val rangesByType =
+                rangesByCarrier
+                    .entries
+                    .groupBy({ it.key.itemType }, { it.key to it.value })
+            for ((type, ranges) in rangesByType) {
                 val limit = if (type == ItemType.RING) 2L else 1L
-                hi += limit * maxOf(0L, coeffs.max())
-                lo += limit * minOf(0L, coeffs.min())
+                lo += limit * minOf(0L, ranges.minOf { it.second.first })
             }
+            for (range in rangesBySub.values) {
+                lo += minOf(0L, range.first)
+            }
+            val hi = nonCarrierHi + rarityAwareUpper(rangesByType) + sublimationAwareUpper(rangesBySub)
             return lo..hi
+        }
+
+        private fun sublimationAwareUpper(rangesBySub: Map<Sublimation, LongRange>): Long {
+            data class State(
+                val count: Int,
+                val epic: Int,
+                val relic: Int,
+            )
+
+            fun rarityCounts(sub: Sublimation): Pair<Int, Int> =
+                when (sub.rarity) {
+                    SublimationRarity.EPIC -> 1 to 0
+                    SublimationRarity.RELIC -> 0 to 1
+                    else -> 0 to 0
+                }
+
+            var dp = mapOf(State(0, 0, 0) to 0L)
+            for ((sub, range) in rangesBySub) {
+                val value = range.last
+                if (value <= 0L) continue
+                val (epicCost, relicCost) = rarityCounts(sub)
+                val next = dp.toMutableMap()
+                for ((state, current) in dp) {
+                    val count = state.count + 1
+                    val epic = state.epic + epicCost
+                    val relic = state.relic + relicCost
+                    if (count <= MAX_SUBLIMATIONS.toInt() && epic <= 1 && relic <= 1) {
+                        val candidate = State(count, epic, relic)
+                        next[candidate] = maxOf(next[candidate] ?: Long.MIN_VALUE, current + value)
+                    }
+                }
+                dp = next
+            }
+            return dp.values.maxOrNull()?.coerceAtLeast(0L) ?: 0L
+        }
+
+        /**
+         * Upper bound for item-gated terms that respects the global ≤1 EPIC / ≤1 RELIC build budgets. The
+         * equality constraints still enforce exact item choices; this only tightens the declared reachable
+         * domain used by product big-Ms. Slot feasibility stays an over-estimate (notably weapon combinations
+         * and same-name rings), but we stop granting every slot its own epic/relic fantasy item.
+         */
+        private fun rarityAwareUpper(rangesByType: Map<ItemType, List<Pair<Equipment, LongRange>>>): Long {
+            data class Option(
+                val value: Long,
+                val epic: Int,
+                val relic: Int,
+            )
+
+            fun counts(equip: Equipment): Pair<Int, Int> =
+                when (equip.rarity) {
+                    Rarity.EPIC -> 1 to 0
+                    Rarity.RELIC -> 0 to 1
+                    else -> 0 to 0
+                }
+
+            fun topByRarity(entries: List<Pair<Equipment, LongRange>>): List<Option> {
+                val best = HashMap<Pair<Int, Int>, Option>()
+                for ((equip, range) in entries) {
+                    val value = range.last
+                    if (value <= 0L) continue
+                    val (epic, relic) = counts(equip)
+                    val key = epic to relic
+                    if (value > (best[key]?.value ?: Long.MIN_VALUE)) best[key] = Option(value, epic, relic)
+                }
+                return listOf(Option(0L, 0, 0)) + best.values
+            }
+
+            fun ringOptions(entries: List<Pair<Equipment, LongRange>>): List<Option> {
+                val byRarity = HashMap<Pair<Int, Int>, MutableList<Pair<Equipment, Long>>>()
+                for ((equip, range) in entries) {
+                    val value = range.last
+                    if (value <= 0L) continue
+                    byRarity
+                        .getOrPut(counts(equip)) { mutableListOf() }
+                        .add(equip to value)
+                }
+                val top =
+                    byRarity.mapValues { (_, values) ->
+                        values
+                            .sortedByDescending { it.second }
+                            .take(2)
+                    }
+                val options = mutableListOf(Option(0L, 0, 0))
+                for ((state, values) in top) {
+                    values.firstOrNull()?.let { options.add(Option(it.second, state.first, state.second)) }
+                }
+
+                fun addPair(
+                    leftState: Pair<Int, Int>,
+                    rightState: Pair<Int, Int>,
+                ) {
+                    val left = top[leftState].orEmpty()
+                    val right = top[rightState].orEmpty()
+                    for ((leftEquip, leftValue) in left) {
+                        for ((rightEquip, rightValue) in right) {
+                            if (leftEquip == rightEquip) continue
+                            val epic = leftState.first + rightState.first
+                            val relic = leftState.second + rightState.second
+                            if (epic <= 1 && relic <= 1) options.add(Option(leftValue + rightValue, epic, relic))
+                        }
+                    }
+                }
+
+                val normal = 0 to 0
+                val epic = 1 to 0
+                val relic = 0 to 1
+                addPair(normal, normal)
+                addPair(normal, epic)
+                addPair(normal, relic)
+                addPair(epic, relic)
+                return options
+            }
+
+            fun combineOptions(
+                left: List<Option>,
+                right: List<Option>,
+            ): List<Option> {
+                val options = mutableListOf<Option>()
+                for (a in left) {
+                    for (b in right) {
+                        val epic = a.epic + b.epic
+                        val relic = a.relic + b.relic
+                        if (epic <= 1 && relic <= 1) options.add(Option(a.value + b.value, epic, relic))
+                    }
+                }
+                return options
+            }
+
+            fun weaponOptions(): List<Option> {
+                val oneHanded = topByRarity(rangesByType[ItemType.ONE_HANDED_WEAPONS].orEmpty())
+                val offHand = topByRarity(rangesByType[ItemType.OFF_HAND_WEAPONS].orEmpty())
+                val twoHanded = topByRarity(rangesByType[ItemType.TWO_HANDED_WEAPONS].orEmpty())
+                // Wakfu weapon rules: either a 2H weapon, or a 1H/off-hand pair (including either side alone).
+                return combineOptions(oneHanded, offHand) + twoHanded
+            }
+
+            val weaponTypes = setOf(ItemType.ONE_HANDED_WEAPONS, ItemType.OFF_HAND_WEAPONS, ItemType.TWO_HANDED_WEAPONS)
+            val optionSets =
+                buildList {
+                    for ((type, entries) in rangesByType) {
+                        if (type in weaponTypes) continue
+                        add(if (type == ItemType.RING) ringOptions(entries) else topByRarity(entries))
+                    }
+                    if (weaponTypes.any { it in rangesByType }) add(weaponOptions())
+                }
+
+            var dp = Array(2) { LongArray(2) { Long.MIN_VALUE / 4 } }
+            dp[0][0] = 0L
+            for (options in optionSets) {
+                val next = Array(2) { LongArray(2) { Long.MIN_VALUE / 4 } }
+                for (usedEpic in 0..1) {
+                    for (usedRelic in 0..1) {
+                        val current = dp[usedEpic][usedRelic]
+                        if (current <= Long.MIN_VALUE / 8) continue
+                        for (option in options) {
+                            val epic = usedEpic + option.epic
+                            val relic = usedRelic + option.relic
+                            if (epic <= 1 && relic <= 1) next[epic][relic] = maxOf(next[epic][relic], current + option.value)
+                        }
+                    }
+                }
+                dp = next
+            }
+            return dp.maxOf { row -> row.maxOrNull() ?: 0L }.coerceAtLeast(0L)
         }
 
         /** Stat sum with a precomputed reachable [reach]; declares tight-or-guard and records [reach]. */
@@ -1981,6 +2424,123 @@ object WakfuBuildSolver {
             val z = model.newIntVar(lo, hi, name)
             model.addMultiplicationEquality(z, arrayOf(x, y))
             return tracker.record(z, reach, name)
+        }
+
+        /**
+         * z = x·b for a boolean [selector]. In tight production builds the big-M constants use [x]'s tracked
+         * reachable range; in the loose reference build they use [xGuard] so the soundness probe is not itself
+         * constrained by a possibly-underestimated tracked range.
+         */
+        private fun tBoolGate(
+            name: String,
+            x: IntVar,
+            selector: IntVar,
+            xGuard: LongRange,
+        ): IntVar {
+            val xReach = tracker.of(x)
+            val reach = minOf(0L, xReach.first)..maxOf(0L, xReach.last)
+            val guard = minOf(0L, xGuard.first)..maxOf(0L, xGuard.last)
+            val (lo, hi) = tracker.decl(reach, guard.first, guard.last)
+            val z = model.newIntVar(lo, hi, name)
+
+            val m = if (tracker.tight) xReach else xGuard
+            val lower = m.first
+            val upper = m.last
+
+            // z <= U·b
+            model.addLessOrEqual(
+                LinearExpr
+                    .newBuilder()
+                    .addTerm(z, 1L)
+                    .addTerm(selector, -upper)
+                    .build(),
+                0L
+            )
+            // z >= L·b
+            model.addGreaterOrEqual(
+                LinearExpr
+                    .newBuilder()
+                    .addTerm(z, 1L)
+                    .addTerm(selector, -lower)
+                    .build(),
+                0L
+            )
+            // z <= x - L·(1-b)
+            model.addLessOrEqual(
+                LinearExpr
+                    .newBuilder()
+                    .addTerm(z, 1L)
+                    .addTerm(x, -1L)
+                    .addTerm(selector, -lower)
+                    .build(),
+                -lower
+            )
+            // z >= x - U·(1-b)
+            model.addGreaterOrEqual(
+                LinearExpr
+                    .newBuilder()
+                    .addTerm(z, 1L)
+                    .addTerm(x, -1L)
+                    .addTerm(selector, -upper)
+                    .build(),
+                -upper
+            )
+
+            return tracker.record(z, reach, name)
+        }
+
+        /** Creates an exact one-hot encoding of [value] over the inclusive integer range [low, high]. */
+        private fun tValueSelectors(
+            name: String,
+            value: IntVar,
+            low: Long,
+            high: Long,
+        ): List<Pair<Long, IntVar>> {
+            require(low <= high) { "empty selector domain for $name: $low..$high" }
+            val selectors =
+                (low..high).map { v ->
+                    val selector = model.newBoolVar("${name}_$v")
+                    tracker.seed(selector, 0L..1L, "${name}_$v")
+                    v to selector
+                }
+
+            model.addEquality(LinearExpr.sum(selectors.map { it.second }.toTypedArray()), 1L)
+
+            val valueExpr = LinearExpr.newBuilder()
+            for ((v, selector) in selectors) {
+                if (v != 0L) valueExpr.addTerm(selector, v)
+            }
+            model.addEquality(value, valueExpr.build())
+            return selectors
+        }
+
+        /**
+         * Exact replacement for table[index]·factor. The index is one-hot encoded over the table positions and
+         * [factor] is gated behind the selected AP value, avoiding a generic product between an element lookup
+         * and the per-hit score.
+         */
+        private fun tTableProduct(
+            name: String,
+            index: IntVar,
+            table: LongArray,
+            factor: IntVar,
+            factorGuard: LongRange,
+            productGuard: LongRange,
+        ): IntVar {
+            val selectors = tValueSelectors("${name}_idx", index, 0L, (table.size - 1).toLong())
+            val factorReach = tracker.of(factor)
+            val values = table.flatMap { throughput -> listOf(throughput * factorReach.first, throughput * factorReach.last) }
+            val reach = values.minOrNull()!!..values.maxOrNull()!!
+            val terms = mutableListOf<Term>()
+
+            selectors.forEach { (indexValue, selector) ->
+                val throughput = table[indexValue.toInt()]
+                if (throughput == 0L) return@forEach
+                val gated = tBoolGate("${name}_gate_$indexValue", factor, selector, factorGuard)
+                terms.add(Term(gated, throughput))
+            }
+
+            return tSum(name, terms, 0L, reach, productGuard.first, productGuard.last)
         }
 
         /** q = num / divisor (truncated, divisor > 0), declared from num's range divided by [divisor]. */
@@ -2077,6 +2637,13 @@ object WakfuBuildSolver {
 
         private val prePercentCache = mutableMapOf<Characteristic, IntVar>()
         private val preSubCache = mutableMapOf<Characteristic, IntVar>()
+
+        // Per-solve memo for the (scenario-pure) max-damage pre-mastery term list. damagePreMasteryTerms is
+        // called ~3× per perHitDamageScore (once via damagePreMastery, twice via damageMasteryCriticalReach)
+        // and rebuilds the full per-equipment random-mastery fold each time. The result depends only on the
+        // scenario and references already-created vars (it mints none), so caching it is value-identical. The
+        // cached LinearTermSum.terms list is read-only at every consumer; do not mutate it in place.
+        private val damagePreMasteryTermsCache = mutableMapOf<DamageScenario, LinearTermSum?>()
         private val actualCache = mutableMapOf<Characteristic, IntVar>()
         private val elementCache = mutableMapOf<Pair<Characteristic, List<Characteristic>>, Map<Characteristic, IntVar>>()
         private val appliesVarCache = mutableMapOf<Sublimation, IntVar>()
@@ -2478,7 +3045,7 @@ object WakfuBuildSolver {
                                 me.chosante.common.SpellElement
                                     .valueOf(element.name)
                         }
-                    val table = SpellRotationOptimizer.baseThroughputTable(spells, MAX_ROTATION_AP.toInt())
+                    val table = SpellRotationOptimizer.baseThroughputTable(spells, MAX_ROTATION_AP.toInt(), params.character.level)
                     if (table.all { it == 0L }) return@mapNotNull null
 
                     if (table.max() > PER_TURN_THROUGHPUT_MAX) {
@@ -2489,13 +3056,19 @@ object WakfuBuildSolver {
                         )
                     }
                     val clampedTable = LongArray(table.size) { table[it].coerceAtMost(PER_TURN_THROUGHPUT_MAX) }
-                    val throughput = tElement("throughput_${element.name}", apVar, clampedTable)
-
-                    // raw = throughput · (perHit ÷ PERHIT_DOWNSCALE) — the per-hit core scaled down to a
-                    // modest domain before the multiplication, so the product stays small for CP-SAT.
+                    // raw = throughput[AP] · (perHit ÷ PERHIT_DOWNSCALE). The AP lookup has only 21 possible
+                    // values, so encode it as a selector-gated product instead of a generic multiplication.
                     val perHit = perHitDamageScore(scenarioElementMasteryVar(element.masteryCharacteristic), element.masteryCharacteristic.name, scenario)
                     val perHitScaled = tDiv("perHitScaled_${element.name}", perHit, PERHIT_DOWNSCALE, 0L, PERHIT_SCALED_MAX)
-                    val raw = tMul("rotRaw_${element.name}", throughput, perHitScaled, 0L, ROTATION_RAW_MAX)
+                    val raw =
+                        tTableProduct(
+                            "rotRaw_${element.name}",
+                            apVar,
+                            clampedTable,
+                            perHitScaled,
+                            0L..PERHIT_SCALED_MAX,
+                            0L..ROTATION_RAW_MAX
+                        )
 
                     // Fold in the boss's per-element resistance, then scale down once into the penalty's range.
                     val resFactor = (100L - resistance).coerceIn(RES_FACTOR_MIN, RES_FACTOR_MAX)
@@ -2538,47 +3111,7 @@ object WakfuBuildSolver {
             scenario: DamageScenario,
         ): IntVar {
             val s = suffix
-            val masteryTerms = mutableListOf<Term>()
-            masteryTerms.add(Term(elementMasteryVar, 1L))
-            masteryTerms.add(Term(actualStat(scenario.rangeBand.masteryCharacteristic), 1L))
-            if (scenario.orientation.grantsRearMastery) masteryTerms.add(Term(actualStat(Characteristic.MASTERY_BACK), 1L))
-            if (scenario.berserk) masteryTerms.add(Term(actualStat(Characteristic.MASTERY_BERSERK), 1L))
-            if (scenario.healing) masteryTerms.add(Term(actualStat(Characteristic.MASTERY_HEALING), 1L))
-
-            // M = clamp(100 + ΣMastery, 0, MAX); criticalMastery and DI clamped likewise. The clamps inherit
-            // their inputs' reachable ranges, so M / criticalMastery / DI land on their true ~6k / ~1k domains
-            // (not the safe-huge caps), which is what shrinks the two multiplication envelopes below.
-            //
-            // The naive sum over the per-stat mastery vars DOUBLE-COUNTS runes across those stats: each stat's
-            // reach independently assumes its rune fills every socket, but a socket holds ONE rune, so the rune
-            // mastery feeding M is ≤ Σ_slot best(item.slots × best mastery-rune coeff) — a sound, socket-aware
-            // bound. Subtracting that provable over-count keeps M's declared range tight WITH runes on (the
-            // inflation is what stalled the proof once runes were modelled); the over-count is 0 when runes are
-            // off, so every non-rune path stays byte-identical. Items/skills/subs keep their per-slot auto bound.
-            val masteryRuneStats =
-                buildList {
-                    add(Characteristic.MASTERY_ELEMENTARY)
-                    add(scenario.rangeBand.masteryCharacteristic)
-                    if (scenario.orientation.grantsRearMastery) add(Characteristic.MASTERY_BACK)
-                    if (scenario.berserk) add(Characteristic.MASTERY_BERSERK)
-                    if (scenario.healing) add(Characteristic.MASTERY_HEALING)
-                }
-            var preMLo = 100L
-            var preMHi = 100L
-            for (t in masteryTerms) {
-                val d = tracker.of(t.variable)
-                preMLo += d.first * t.coefficient
-                preMHi += d.last * t.coefficient
-            }
-            val preM =
-                tSum(
-                    "dmgPreM_$s",
-                    masteryTerms,
-                    100L,
-                    preMLo..(preMHi - runeMasteryOverCount(masteryRuneStats)),
-                    -CLAMP_INTERMEDIATE_MAX,
-                    CLAMP_INTERMEDIATE_MAX
-                )
+            val preM = damagePreMastery(s, elementMasteryVar, scenario)
             val m = tClamp(preM, 0L, DAMAGE_MASTERY_MAX, "dmgM_$s")
             val criticalMastery = tClamp(actualStat(Characteristic.MASTERY_CRITICAL), 0L, DAMAGE_MASTERY_MAX, "dmgCriticalMastery_$s")
             val critCap = scenario.critCapPercent.toLong().coerceIn(0L, 100L)
@@ -2587,43 +3120,163 @@ object WakfuBuildSolver {
             val d = tSumNaive("dmgD_$s", listOf(Term(di, 1L)), 100L, 100L - DAMAGE_DI_FLOOR, 100L + DAMAGE_DI_MAX)
 
             // diff = M + 5·criticalMastery ; term = crit · diff ; Graw = 400·M + term.
-            val diff = tSumNaive("dmgDiff_$s", listOf(Term(m, 1L), Term(criticalMastery, 5L)), 0L, 0L, DAMAGE_MASTERY_MAX * 6)
-            val term = tMul("dmgCritTerm_$s", crit, diff, 0L, 100L * DAMAGE_MASTERY_MAX * 6)
-            val graw = tSumNaive("dmgGraw_$s", listOf(Term(m, 400L), Term(term, 1L)), 0L, 0L, DAMAGE_GRAW_MAX)
+            // Crit has a tiny non-negative integer domain (0..100), so an exact selector can turn the nested
+            // crit product into a sum of boolean-gated tight diff copies.
+            val diffReach = damageMasteryCriticalReach(scenario, masteryWeight = 1L, criticalMasteryWeight = 5L, guardHi = DAMAGE_MASTERY_MAX * 6)
+            val diff = tSum("dmgDiff_$s", listOf(Term(m, 1L), Term(criticalMastery, 5L)), 0L, diffReach, 0L, DAMAGE_MASTERY_MAX * 6)
+            val critTable = LongArray(critCap.toInt() + 1) { it.toLong() }
+            val term = tTableProduct("dmgCritTerm_$s", crit, critTable, diff, 0L..DAMAGE_MASTERY_MAX * 6, 0L..100L * DAMAGE_MASTERY_MAX * 6)
+            model.addLessOrEqual(
+                LinearExpr
+                    .newBuilder()
+                    .addTerm(term, 1L)
+                    .addTerm(diff, -critCap)
+                    .build(),
+                0L
+            )
+            model.addLessOrEqual(
+                LinearExpr
+                    .newBuilder()
+                    .addTerm(term, 1L)
+                    .addTerm(crit, -(DAMAGE_MASTERY_MAX * 6))
+                    .build(),
+                0L
+            )
+            val grawReach =
+                damageMasteryCriticalReach(
+                    scenario,
+                    masteryWeight = 400L + critCap,
+                    criticalMasteryWeight = 5L * critCap,
+                    guardHi = DAMAGE_GRAW_MAX
+                )
+            // Graw = 400·M + crit·(M + 5·criticalMastery) with M = 100 + ΣMastery. Because M folds in the base
+            // 100, Graw already equals 40000·(the per-hit multiplier of FindMaxDamageScoring.expectedDamage): the
+            // 400·M term carries the base hit (400·100 = 40000) AND the flat crit bonus (crit·100 from term), so
+            // `D·Graw` is exactly proportional to the real per-hit. (An earlier `grawFull = Graw + 40000 + 100·crit`
+            // double-counted both and distorted the ranking — reverted.)
+            val graw = tSum("dmgGraw_$s", listOf(Term(m, 400L), Term(term, 1L)), 0L, grawReach, 0L, DAMAGE_GRAW_MAX)
 
-            return tMul("dmgScore_$s", d, graw, 0L, DAMAGE_SCORE_ABS_MAX)
+            val dReach = tracker.of(d)
+            val dOffset =
+                tSumNaive(
+                    "dmgDOffset_$s",
+                    listOf(Term(d, 1L)),
+                    -dReach.first,
+                    0L,
+                    dReach.last - dReach.first
+                )
+            val dTable = LongArray((dReach.last - dReach.first + 1).toInt()) { dReach.first + it }
+            val score = tTableProduct("dmgScore_$s", dOffset, dTable, graw, 0L..DAMAGE_GRAW_MAX, 0L..DAMAGE_SCORE_ABS_MAX)
+            model.addLessOrEqual(
+                LinearExpr
+                    .newBuilder()
+                    .addTerm(score, 1L)
+                    .addTerm(graw, -dReach.last)
+                    .build(),
+                0L
+            )
+            val grawDomain = tracker.of(graw)
+            model.addLessOrEqual(
+                LinearExpr
+                    .newBuilder()
+                    .addTerm(score, 1L)
+                    .addTerm(graw, -dReach.first)
+                    .addTerm(d, -grawDomain.last)
+                    .build(),
+                -dReach.first * grawDomain.last
+            )
+            return score
         }
 
-        /**
-         * How much the naive [perHitDamageScore] mastery sum over-counts RUNE mastery across the scenario's
-         * mastery stats: each per-stat mastery var's reach independently assumes its rune fills every socket,
-         * but a socket holds ONE rune and only ONE item is equipped per slot, so the rune mastery feeding M is
-         * ≤ Σ_slot best(item.slots × best mastery-rune coeff). Returns `naiveRuneSum − socketAwareMax` (≥ 0)
-         * over [masteryRuneStats] — exactly the per-stat rune total the naive reach added minus that tight
-         * socket-aware bound — so subtracting it from the naive reach yields a SOUND, tighter upper bound on
-         * M's rune portion (never an under-estimate; the optimum's own M still fits). 0 when runes are off.
-         */
-        private fun runeMasteryOverCount(masteryRuneStats: List<Characteristic>): Long {
-            if (runeModel.runeVars.isEmpty()) return 0L
+        private data class LinearTermSum(
+            val terms: MutableList<Term>,
+            val constant: Long,
+        )
 
-            fun coeff(
-                equip: Equipment,
-                stat: Characteristic,
-            ): Long = runeModel.runeByCharacteristic[stat]?.valueOn(equip.itemType, equip.level)?.toLong() ?: 0L
-            val socketable = allEquips.filter { runeModel.runeVars.containsKey(it) }
-            if (socketable.isEmpty()) return 0L
-            val naive =
-                socketable.sumOf { equip ->
-                    val slots = equip.maxShardSlots.toLong()
-                    masteryRuneStats.sumOf { stat -> slots * coeff(equip, stat) }
+        /**
+         * `M = 100 + ΣMastery` for the max-damage formula, built as ONE slot-aware linear sum. Summing the
+         * already-aggregated elemental and secondary mastery vars loses the carrier correlation: the fire
+         * bound can pick the best fire item in a slot while the distance bound picks a different best-distance
+         * item in that same slot. Building the direct term list lets [reachableSumDomain] score each candidate
+         * item by its combined fire + generic + random + distance contribution and then keep only the best
+         * item per slot (two rings), which is the sound bound CP-SAT needs to close the damage proof.
+         */
+        private fun damagePreMastery(
+            suffix: String,
+            fallbackElementMasteryVar: IntVar,
+            scenario: DamageScenario,
+        ): IntVar {
+            val direct = damagePreMasteryTerms(scenario)
+            if (direct != null) {
+                return tSum(
+                    "dmgPreM_$suffix",
+                    direct.terms,
+                    direct.constant,
+                    reachableSumDomain(direct.terms, direct.constant),
+                    -CLAMP_INTERMEDIATE_MAX,
+                    CLAMP_INTERMEDIATE_MAX
+                )
+            }
+
+            val terms = mutableListOf(Term(fallbackElementMasteryVar, 1L), Term(actualStat(scenario.rangeBand.masteryCharacteristic), 1L))
+            if (scenario.orientation.grantsRearMastery) terms.add(Term(actualStat(Characteristic.MASTERY_BACK), 1L))
+            if (scenario.berserk) terms.add(Term(actualStat(Characteristic.MASTERY_BERSERK), 1L))
+            if (scenario.healing) terms.add(Term(actualStat(Characteristic.MASTERY_HEALING), 1L))
+            return tSumNaive("dmgPreM_$suffix", terms, 100L, -CLAMP_INTERMEDIATE_MAX, CLAMP_INTERMEDIATE_MAX)
+        }
+
+        private fun damagePreMasteryTerms(scenario: DamageScenario): LinearTermSum? = damagePreMasteryTermsCache.getOrPut(scenario) { computeDamagePreMasteryTerms(scenario) }
+
+        private fun computeDamagePreMasteryTerms(scenario: DamageScenario): LinearTermSum? {
+            val directStats = scenarioMasteryStats(scenario).distinct()
+
+            // No current mastery skill is percent-based. If a future data/model change adds one, preserve
+            // exactness by falling back to the older var-sum path for that stat instead of silently skipping
+            // the percent application.
+            if (directStats.any { skillTerms.percent[it].orEmpty().isNotEmpty() }) {
+                return null
+            }
+
+            val terms = mutableListOf<Term>()
+            var constant = 100L
+            for (stat in directStats) {
+                val (statTerms, statBase) = prePercentTermsFor(stat)
+                terms.addAll(statTerms)
+                constant += statBase
+            }
+
+            for (equip in allEquips) {
+                val equipVar = equipVars.getValue(equip)
+                for ((randomCharacteristic, count) in MASTERY_RANDOM_BY_COUNT) {
+                    if (min(count, 1) == 0) continue
+                    val value = equip.characteristics[randomCharacteristic] ?: 0
+                    if (value != 0) terms.add(Term(equipVar, value.toLong()))
                 }
-            val socketAware =
-                socketable.groupBy { it.itemType }.entries.sumOf { (type, items) ->
-                    val limit = if (type == ItemType.RING) 2L else 1L
-                    val best = items.maxOf { equip -> equip.maxShardSlots.toLong() * (masteryRuneStats.maxOfOrNull { coeff(equip, it) } ?: 0L) }
-                    limit * best.coerceAtLeast(0L)
-                }
-            return (naive - socketAware).coerceAtLeast(0L)
+            }
+
+            return LinearTermSum(terms, constant)
+        }
+
+        private fun damageMasteryCriticalReach(
+            scenario: DamageScenario,
+            masteryWeight: Long,
+            criticalMasteryWeight: Long,
+            guardHi: Long,
+        ): LongRange {
+            val mastery = damagePreMasteryTerms(scenario) ?: return 0L..guardHi
+            if (skillTerms.percent[Characteristic.MASTERY_CRITICAL].orEmpty().isNotEmpty()) return 0L..guardHi
+
+            val (criticalTerms, criticalBase) = prePercentTermsFor(Characteristic.MASTERY_CRITICAL)
+            val terms = mutableListOf<Term>()
+            mastery.terms.forEach { terms.add(Term(it.variable, it.coefficient * masteryWeight)) }
+            criticalTerms.forEach { terms.add(Term(it.variable, it.coefficient * criticalMasteryWeight)) }
+            val constant = mastery.constant * masteryWeight + criticalBase * criticalMasteryWeight
+
+            val masteryReach = reachableSumDomain(mastery.terms, mastery.constant)
+            val criticalReach = reachableSumDomain(criticalTerms, criticalBase)
+            val clampSlack = masteryWeight * -minOf(0L, masteryReach.first) + criticalMasteryWeight * -minOf(0L, criticalReach.first)
+            val hi = (reachableSumDomain(terms, constant).last + clampSlack).coerceAtLeast(0L).coerceAtMost(guardHi)
+            return 0L..hi
         }
 
         /**
@@ -2766,6 +3419,29 @@ object WakfuBuildSolver {
             if (targets.isEmpty()) return baseElements
             if (randomEntries.isEmpty()) return baseElements
 
+            if (wantedElements.size == 1) {
+                val element = wantedElements.single()
+                val terms = mutableListOf(Term(baseElements.getValue(element), 1L))
+                randomEntries
+                    .filter { min(it.count, 1) > 0 }
+                    .groupingBy { it.equipVar }
+                    .fold(0L) { acc, entry -> acc + entry.value.toLong() }
+                    .forEach { (equipVar, value) ->
+                        if (value != 0L) terms.add(Term(equipVar, value))
+                    }
+                return mapOf(
+                    element to
+                        tSum(
+                            "rand_${element.name}",
+                            terms,
+                            0L,
+                            reachableSumDomain(terms, 0L),
+                            -STAT_WITH_PERCENT_ABS_MAX,
+                            STAT_WITH_PERCENT_ABS_MAX
+                        )
+                )
+            }
+
             val priorityScale = 10L
             val elementCount = wantedElements.size
 
@@ -2907,33 +3583,37 @@ object WakfuBuildSolver {
             // Runes contribute exactly like item stats: a constant value per socketed rune of this
             // stat (max rune level + WakForge doubling on favoured slots), times the per-item rune
             // count var. The socket-cap / equipped-only constraints live on those vars (createRuneModel).
-            runeModel.runeByCharacteristic[char]?.let { rune ->
-                for ((equip, perStat) in runeModel.runeVars) {
-                    val runeVar = perStat[char] ?: continue
-                    // Rune level is capped by the carrier ITEM's level, not the character's (fix 36918746).
-                    val coefficient = rune.valueOn(equip.itemType, equip.level).toLong()
-                    // Fold model: runeVar is a boolean PICK — one pick fills all `slots` sockets, so it
-                    // contributes slots·coeff. Count model: runeVar is the count and contributes coeff each.
-                    val multiplier = if (runeModel.singleTypePerItem) equip.maxShardSlots.toLong() else 1L
-                    if (coefficient != 0L) {
-                        terms.add(Term(runeVar, coefficient * multiplier))
-                    }
+            for ((equip, perStat) in runeModel.runeVars) {
+                val runeVar = perStat[char] ?: continue
+                // Rune level is capped by the carrier ITEM's level, not the character's (fix 36918746).
+                val coefficient = runeModel.coefficientFor(equip, char)
+                // Fold model: runeVar is a boolean PICK — one pick fills all `slots` sockets, so it
+                // contributes slots·coeff. Count model: runeVar is the count and contributes coeff each.
+                val multiplier = if (runeModel.singleTypePerItem) equip.maxShardSlots.toLong() else 1L
+                if (coefficient != 0L) {
+                    terms.add(Term(runeVar, coefficient * multiplier))
                 }
             }
+            terms.addAll(runeModel.extraTerms[char].orEmpty())
 
             terms.addAll(skillTerms.fixed[char].orEmpty())
             val base = baseValues[char]?.toLong() ?: 0L
             return terms to base
         }
 
+        private fun prePercentTermsFor(char: Characteristic): Pair<MutableList<Term>, Long> {
+            val (terms, base) = baseTermsFor(char)
+            // Sublimation contributions fold in exactly like item/rune stats (FLAT always, STATIC
+            // under a reified condition, CONVERSION moving value between two stats).
+            terms.addAll(subTermsByStat[char].orEmpty())
+            // Selected passives' flat stats fold in the same way (always-on constants).
+            terms.addAll(passiveTermsByStat[char].orEmpty())
+            return terms to base
+        }
+
         private fun prePercentStat(char: Characteristic): IntVar =
             prePercentCache.getOrPut(char) {
-                val (terms, base) = baseTermsFor(char)
-                // Sublimation contributions fold in exactly like item/rune stats (FLAT always, STATIC
-                // under a reified condition, CONVERSION moving value between two stats).
-                terms.addAll(subTermsByStat[char].orEmpty())
-                // Selected passives' flat stats fold in the same way (always-on constants).
-                terms.addAll(passiveTermsByStat[char].orEmpty())
+                val (terms, base) = prePercentTermsFor(char)
                 tSum("pre_${char.name}", terms, base, reachableSumDomain(terms, base), -STAT_ABS_MAX, STAT_ABS_MAX)
             }
 
@@ -2977,8 +3657,7 @@ object WakfuBuildSolver {
                     val conv = sub.conversion ?: continue
                     // moved = clamp(percent% of the pre-sub `from` stat, >=0), zeroed when not applied.
                     val raw = percentOf(preSubStat(conv.from), conv.percent, "subConv_${sub.stateId}")
-                    val moved = model.newIntVar(0L, STAT_ABS_MAX, "subConvMoved_${sub.stateId}")
-                    model.addMultiplicationEquality(moved, arrayOf(raw, applies))
+                    val moved = tBoolGate("subConvMoved_${sub.stateId}", raw, applies, 0L..STAT_ABS_MAX)
                     map.getOrPut(effectiveStat(conv.to)) { mutableListOf() }.add(Term(moved, 1L))
                     map.getOrPut(effectiveStat(conv.from)) { mutableListOf() }.add(Term(moved, -1L))
                     continue
@@ -3095,13 +3774,23 @@ object WakfuBuildSolver {
             percent: Int,
             name: String,
         ): IntVar {
-            val scaled = model.newIntVar(-PRODUCT_ABS_MAX, PRODUCT_ABS_MAX, "${name}_scaled")
+            val scaledReach = mulRange(tracker.of(value), percent.toLong()..percent.toLong())
+            val (sLo, sHi) = tracker.decl(scaledReach, -PRODUCT_ABS_MAX, PRODUCT_ABS_MAX)
+            val scaled = model.newIntVar(sLo, sHi, "${name}_scaled")
             model.addEquality(scaled, LinearExpr.term(value, percent.toLong()))
-            val quotient = model.newIntVar(-(PRODUCT_ABS_MAX / 100) - 1, (PRODUCT_ABS_MAX / 100) + 1, "${name}_q")
+            tracker.record(scaled, scaledReach, "${name}_scaled")
+
+            val quotientReach = scaledReach.first / 100..scaledReach.last / 100
+            val (qLo, qHi) = tracker.decl(quotientReach, -(PRODUCT_ABS_MAX / 100) - 1, (PRODUCT_ABS_MAX / 100) + 1)
+            val quotient = model.newIntVar(qLo, qHi, "${name}_q")
             model.addDivisionEquality(quotient, scaled, model.newConstant(100L))
-            val positive = model.newIntVar(0L, STAT_ABS_MAX, "${name}_pos")
+            tracker.record(quotient, quotientReach, "${name}_q")
+
+            val positiveReach = maxOf(0L, quotientReach.first)..maxOf(0L, quotientReach.last)
+            val (pLo, pHi) = tracker.decl(positiveReach, 0L, STAT_ABS_MAX)
+            val positive = model.newIntVar(pLo, pHi, "${name}_pos")
             model.addMaxEquality(positive, arrayOf(quotient, model.newConstant(0L)))
-            return positive
+            return tracker.record(positive, positiveReach, "${name}_pos")
         }
     }
 
@@ -3131,7 +3820,32 @@ object WakfuBuildSolver {
          * the rune fold in [createRuneModel].
          */
         val singleTypePerItem: Boolean = false,
+        private val runeTypeByVar: Map<IntVar, RuneType> = emptyMap(),
+        private val coefficientByVar: Map<IntVar, Long> = emptyMap(),
+        val extraTerms: Map<Characteristic, List<Term>> = emptyMap(),
+        private val suppressedBy: Map<Pair<Equipment, Characteristic>, IntVar> = emptyMap(),
     ) {
+        fun runeTypeFor(
+            variable: IntVar,
+            characteristic: Characteristic,
+        ): RuneType? = runeTypeByVar[variable] ?: runeByCharacteristic[characteristic]
+
+        fun coefficientFor(
+            equip: Equipment,
+            characteristic: Characteristic,
+        ): Long {
+            val variable = runeVars[equip]?.get(characteristic) ?: return 0L
+            return coefficientByVar[variable]
+                ?: runeByCharacteristic[characteristic]?.valueOn(equip.itemType, equip.level)?.toLong()
+                ?: 0L
+        }
+
+        fun isSuppressed(
+            equip: Equipment,
+            characteristic: Characteristic,
+            valueOf: (IntVar) -> Long,
+        ): Boolean = suppressedBy[equip to characteristic]?.let { valueOf(it) > 0L } == true
+
         companion object {
             val EMPTY = RuneModel(emptyMap(), emptyMap())
         }
@@ -3145,8 +3859,6 @@ object WakfuBuildSolver {
         val subVars: Map<Sublimation, IntVar>,
         val forced: Set<Sublimation>,
         val characterLevel: Int,
-        // Per NORMAL sublimation: a per-carrier-item bool (1 ⇒ that item hosts the sub). Empty for epic/relic.
-        val carrierVars: Map<Sublimation, Map<Equipment, IntVar>> = emptyMap(),
     ) {
         companion object {
             val EMPTY = SublimationModel(emptyMap(), emptySet(), 0)
@@ -3416,3 +4128,24 @@ object WakfuBuildSolver {
                 equipmentsByItemType[type].orEmpty().sortedBy { it.equipmentId }
             }.distinctBy { it.equipmentId }
 }
+
+/**
+ * The conceptual "M-feeding" elemental-mastery stat set for a max-damage [scenario]: the generic
+ * +all-elements mastery, the spell element's own mastery, the range-band mastery, plus the conditional
+ * back / berserk / healing masteries. This is the OBJECTIVE / domination set — it INCLUDES the specific
+ * element mastery.
+ *
+ * The rune sites deliberately use DIFFERENT sets and must NOT route through this helper: runes have only a
+ * single GENERIC elemental-mastery rune (no per-element rune exists), so the rune-model mastery set omits
+ * the specific element mastery, and `relevantRuneStats` additionally adds `MASTERY_CRITICAL`. Folding the
+ * element mastery into those would inject a non-existent per-element rune and corrupt the rune model.
+ */
+private fun scenarioMasteryStats(scenario: DamageScenario): List<Characteristic> =
+    buildList {
+        add(Characteristic.MASTERY_ELEMENTARY)
+        add(scenario.element.masteryCharacteristic)
+        add(scenario.rangeBand.masteryCharacteristic)
+        if (scenario.orientation.grantsRearMastery) add(Characteristic.MASTERY_BACK)
+        if (scenario.berserk) add(Characteristic.MASTERY_BERSERK)
+        if (scenario.healing) add(Characteristic.MASTERY_HEALING)
+    }

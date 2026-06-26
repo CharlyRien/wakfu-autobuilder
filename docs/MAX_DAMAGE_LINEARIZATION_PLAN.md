@@ -1,6 +1,19 @@
 # Max-damage: linearize the bilinear objective — design note for a fresh start
 
-**Status:** NOT STARTED — design + measurements only. This note hands the next agent a self-contained plan.
+**Status:** IMPLEMENTED, WITH FINAL A/B RESULTS — `codex/max-damage-linearization-impl` keeps the exact
+AP-selector and binary-`D` product encodings, but deliberately leaves `crit·(M+5K)` as OR-Tools'
+`AddMultiplicationEquality`. The crit one-hot was exact but too bulky on the full lvl-245 pool. The real wins were
+tight leaf/rune domains and removing redundant rune/sublimation assignment grids:
+
+- skill variables are capped to their branch point budget, not `Int.MAX_VALUE`;
+- single-element random mastery is folded into one slot-aware sum;
+- rune vars are bounded per carrier slot, then pure max-damage rune choices collapse to "best M rune" vs
+  "crit rune only when it can beat M";
+- normal sublimation carriers use one aggregate capacity constraint instead of `(sub × item)` booleans.
+
+Current measured proofs: lvl-245 full runes+sublimations **63.3 s**; lvl-110 runes+sublimations **42.5 s**;
+lvl-245 free max-damage **78.6 s** on the final verification run (earlier free-only A/B was **30.6 s**, so keep
+free-pool timing noisy unless rerun in isolation).
 **Goal:** make the `FIND_BUILD_WITH_MAX_DAMAGE` proof **fast** (ideally most-masteries-class, ~1 s, low-thread),
 without changing the proven optimum.
 **Symbol-first** (line numbers drift). Background: `docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md` (how it became *provable*)
@@ -10,15 +23,14 @@ and `docs/SOLVER_PERFORMANCE.md` (the wider perf log).
 
 ## 0. TL;DR
 
-Max-damage already proves OPTIMAL, but **slowly** — every still-`@slow` test is max-damage:
+Max-damage now proves OPTIMAL fast enough for the full lvl-245 runes+sublimations guard, but it remains the slowest
+solver family. Latest cleaned-tree verification:
 
 | test (full pool, `@slow`) | wall |
 |---|---|
-| max-damage runes+subs, lvl-110 | **297 s** |
-| max-damage free, lvl-245 | **82 s** |
-| domination preserves max-damage optimum, lvl-110 | 60 s |
-| max-damage free, lvl-110 | 45 s |
-| domination preserves max-damage optimum + subs, lvl-110 | 41 s |
+| max-damage runes+subs, lvl-245 | **63.3 s** |
+| max-damage runes+subs, lvl-110 | **42.5 s** |
+| max-damage free, lvl-245 | **78.6 s** |
 
 Every **non**-max-damage proof (precision, most-masteries, feasibility) now runs in **≤12 s** and was promoted out
 of `@slow`. The split is **objective shape, not search space**: a *sum* proves fast; a *product of large sums*
@@ -64,7 +76,9 @@ So encode the small-domain factors as selectors and gate:
 
 - **crit one-hot** — `C ∈ [0, critCap]`, `critCap ≤ 100` ⇒ **~101 selectors**. `yC[c]∈{0,1}, Σ yC=1, C=Σ c·yC`.
   Then `C·M = Σ c·(M·yC[c])` and `C·K = Σ c·(K·yC[c])`, each `·yC[c]` a boolean-gated product (4 linear
-  constraints: `z≤U·y, z≥L·y, z≤x−L(1−y), z≥x−U(1−y)`). ⇒ `Graw` becomes **linear**.
+  constraints: `z≤U·y, z≥L·y, z≤x−L(1−y), z≥x−U(1−y)`). ⇒ `Graw` becomes **linear**. **Measured regression:**
+  exact but too many gates on the full lvl-245 pool; keep `crit·diff` generic unless a future benchmark proves
+  otherwise.
 - **`D·Graw`** — `D`'s *reachable* span is small (measured **~125**, `DI∈[-20,104]` with subs; see §3), so:
   - **best: binary-expand `D`** — `D = Dmin + Σ 2^b·bit_b` ⇒ `D·Graw = Dmin·Graw + Σ 2^b·(bit_b·Graw)`, only
     **~7 gated `Graw` copies** (log₂125). Cheaper and robust vs a full DI one-hot.
@@ -88,8 +102,8 @@ loose and 2a delivers little. **Measured, the operands are ~20× loose** (§3). 
 
 ## 3. Measurements (already done — trust these)
 
-Build-only probe of the tracked reachable ranges (`maxDamageReachableRangesForTest`, a throwaway seam — re-add
-it: build the model, return `built.maxDamageTracked` as `(name, lo, hi)`), CRA fire/distance/face, lvl-245:
+Build-only probe of the tracked reachable ranges (`maxDamageReachableRangesForTest`: build the model, return
+`built.maxDamageTracked` as `(name, lo, hi)`), CRA fire/distance/face, lvl-245:
 
 - **Selector axes are small & additive:** `dmgCrit` span **101**; `dmgDI` span **125** (`[-20,104]`).
 - **Operands are absurdly loose:** `dmgM = [0, 100000]` (the `DAMAGE_MASTERY_MAX` *guard*; true achievable ~6 k),
@@ -100,8 +114,24 @@ it: build the model, return `built.maxDamageTracked` as `(name, lo, hi)`), CRA f
   clamps to the 100000 guard ⇒ `Graw`/`Score` blow up. It is **the same runes-off and runes-on**, so it is the
   base random-element + percent interval arithmetic, *not* runes.
 
-So the operand looseness is **structural** to `applyGreedyRandom` / the `pre_<element>` chain, not a one-line
-guard bump.
+Follow-up measurement after implementation:
+
+- Before the skill-domain fix, the widest leaves included `skill_Mastery Elementary: 0..2147483647`, so fixed
+  mastery skills with `maxPointsAssignable = Int.MAX_VALUE` were tracked at their raw per-skill cap instead of
+  their branch's available points. That alone pushed `pre_MASTERY_ELEMENTARY` / `rand_MASTERY_ELEMENTARY_FIRE`
+  to ~1.07e10.
+- After capping each skill var to `min(skill.maxPointsAssignable, assignable.maxPointsToAssign)` and seeding
+  `DomainTracker` with the same cap, plus aggregating single-element random mastery in one slot-aware sum:
+  `dmgPreM = [-392,18099]`, `dmgM = [0,18099]`, `dmgGraw = [0,11942000]`, `dmgScore = [0,1313620000]`.
+- With runes+sublimations enabled at lvl-245, the remaining waste was structural rather than arithmetic:
+  full-pool runes initially built ~29k vars / 7.5k constraints, including ~21k rune vars. Carrier-slot rune
+  bounds, max-damage rune-choice collapse and single-choice substitution reduced the full runes+subs model to
+  ~8.7k vars / 1.2k constraints in the diagnostic profile, after which the lvl-245 runes+subs proof closed in
+  **63.3 s**.
+
+So the operand looseness was a **compound** problem: over-wide skill-variable leaves amplified the
+`applyGreedyRandom` / `pre_<element>` chain. Tighten both the skill leaves and the random fold; do not clamp
+downstream.
 
 ---
 
@@ -128,12 +158,22 @@ The host’s measurement floor means you **cannot** bundle changes and attribute
 CP-SAT is deterministic, thermal-immune) on a right-sized instance, and compare `isOptimal` + `numConflicts`/
 `numBranches`. Benchmark targets: the `@slow` `max-damage free lvl-245` (82 s) and `runes+subs lvl-110` (297 s).
 
-1. **AP-selector for `throughput·perHit`** — cheapest, ~21 selectors, isolated. Measure.
-2. **crit one-hot for `C·M`, `C·K`** — ~101 selectors; linearizes `Graw`. Measure (101 booleans may or may not
-   beat OR-Tools’ product encoding — that’s why you measure).
-3. **Tighten `M`/`K`/`Graw` reach** (§4) — likely the dominant lever; without it 1–2 underdeliver. Measure the
-   delta on the existing bilinear model *first* (it may help on its own).
-4. **binary-expand `D·Graw`** — ~7 gated `Graw` copies; only worthwhile once `Graw` is tight (step 3).
+1. **Tighten skill domains first.** This was the hidden root cause: `Int.MAX_VALUE` mastery skill caps polluted
+   the reachable ranges even though category constraints already limited them.
+2. **Use a slot-aware single-element random fold.** For max-damage's single played element, every random-element
+   mastery line with `count >= 1` can feed that element; aggregate those item terms once and bound them through
+   `reachableSumDomain`.
+3. **AP-selector for `throughput·perHit`** — cheap and still retained.
+4. **binary-expand `D·Graw`** — retained after the `Graw` bound is tight.
+5. **Do not use crit one-hot by default.** It was exact but regressed lvl-245; with tight `M`/`K`, the generic
+   `crit·diff` product is the better tradeoff.
+6. **Collapse pure max-damage rune choices.** All M-feeding runes enter the same `M` sum, so pick the best
+   carrier-specific M rune and keep a crit-mastery alternative only when its rune value is larger. Single-choice
+   carriers substitute the equipment var directly; two-choice carriers model crit as `critPick ≤ equip` and
+   subtract the default M rune when crit is chosen.
+7. **Aggregate normal sublimation carriers.** Because every normal sub has the same optimistic carrier set
+   (any equipped ≥3-socket item), replace `(sub,item)` assignment vars with
+   `selected normal subs ≤ equipped normal carriers`.
 
 After each: confirm the **proven objective is byte-identical** to the current model on the same request, and that
 it still proves `OPTIMAL`.

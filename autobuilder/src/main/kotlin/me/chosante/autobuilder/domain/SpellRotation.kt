@@ -458,14 +458,18 @@ object SpellRotationOptimizer {
     fun baseThroughputTable(
         spells: List<Spell>,
         maxAp: Int,
+        casterLevel: Int,
     ): LongArray {
         // (apCost, baseDamage, perTurnCap). perTurnCap = the spell's per-turn cast limit, or maxAp when
-        // unbounded (no more than maxAp/cost copies fit in maxAp AP anyway).
+        // unbounded (no more than maxAp/cost copies fit in maxAp AP anyway). The base hit is scaled to the
+        // CASTER'S LEVEL ([Spell.baseDamageAt]) — exactly as the displayed rotation scores it — so the
+        // objective's spell selection matches the rotation's at non-max levels (spells scale with different
+        // slopes, so a max-level base would pick a different spell mix and diverge from the shown damage).
         val items =
             spells.mapNotNull { s ->
                 val cost = s.apCost ?: return@mapNotNull null
                 if (cost < 1) return@mapNotNull null
-                val base = s.baseDamage?.toLong() ?: return@mapNotNull null
+                val base = s.baseDamageAt(casterLevel)?.toLong() ?: return@mapNotNull null
                 Triple(cost, base, s.maxCastsThisTurn ?: maxAp)
             }
         // Item-layered bounded knapsack (mirrored by [boundedKnapsack], which reconstructs per-spell counts

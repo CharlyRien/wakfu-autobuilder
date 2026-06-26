@@ -28,6 +28,7 @@ import me.chosante.common.SublimationKind
 import me.chosante.common.SublimationRarity
 import me.chosante.common.skills.CharacterSkills
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
@@ -1221,7 +1222,10 @@ class WakfuBuildSolverTest {
                     .maxByOrNull { it.matchPercentage }!!
 
             assertThat(solverBest.individual.isValid()).isTrue()
-            assertThat(solverBest.matchPercentage).isGreaterThanOrEqualTo(exhaustive)
+            // matchPercentage (sequencedScore) FLOORs to 4 decimals, so floor the raw-double exhaustive the same
+            // way before comparing — otherwise a tie is lost to sub-0.0001 representation noise (the solver finds
+            // the identical build; here it landed on 22.7249 vs a raw 22.724999…).
+            assertThat(solverBest.matchPercentage).isGreaterThanOrEqualTo(exhaustive.setScale(4, java.math.RoundingMode.FLOOR))
         }
 
     @Test
@@ -2482,6 +2486,129 @@ class WakfuBuildSolverTest {
             assertThat(proven!!.matchPercentage.signum()).describedAs("the proven build deals real damage").isGreaterThan(0)
         }
 
+    @Test
+    @Tag("slow")
+    fun `max-damage proves OPTIMAL with runes and sublimations on the full level-245 pool`(): Unit =
+        runBlocking {
+            // End-game smoke for the full GUI max-damage shape: large pool, runes auto-filled and real
+            // sublimations available. This is the case that used to spend minutes in the proof after the
+            // free-build objective was already tractable.
+            val params = fireMaxDamageParams(245).copy(useRunes = true, useSublimations = true)
+            val results =
+                WakfuBuildSolver
+                    .optimize(
+                        params,
+                        fullEpicPool(245),
+                        WakfuBestBuildFinderAlgorithm.runes,
+                        WakfuBestBuildFinderAlgorithm.sublimations,
+                        WakfuBuildSolver.SolverTuning(maxDeterministicTime = 600.0)
+                    ).toList()
+            val proven = results.lastOrNull { it.isOptimal }
+            assertThat(proven)
+                .describedAs("reachable domains must let CP-SAT PROVE the runes+subs lvl-245 max-damage optimum")
+                .isNotNull
+            assertThat(proven!!.matchPercentage.signum()).describedAs("the proven build deals real damage").isGreaterThan(0)
+        }
+
+    @Test
+    @Tag("slow")
+    @Disabled(
+        "2-worker lvl-245 proof is not achievable: the proof relies on cross-worker clause sharing that 2 " +
+            "workers starve (it does not close even at det-time 1200). The realistic 8-worker config is guarded " +
+            "by `max-damage proves OPTIMAL with runes and sublimations on the full level-245 pool` (~60s on 8 " +
+            "CPU). Kept as a record of the 2-worker exploration."
+    )
+    fun `diagnostic max-damage dominated runes and sublimations level-245 two workers`() {
+        val params = fireMaxDamageParams(245).copy(useRunes = true, useSublimations = true)
+        val result =
+            WakfuBuildSolver.maxDamageSolveForTest(
+                params,
+                fullEpicPool(245),
+                WakfuBuildSolver.SolverTuning(numSearchWorkers = 2, maxDeterministicTime = 600.0),
+                tightDomains = true,
+                runes = WakfuBestBuildFinderAlgorithm.runes,
+                sublimations = WakfuBestBuildFinderAlgorithm.sublimations,
+                applyDomination = true
+            )
+        assertThat(result.isOptimal).isTrue()
+        assertThat(result.objective).isGreaterThan(0L)
+    }
+
+    @Test
+    @Tag("slow")
+    @Disabled(
+        "2-worker lvl-245 proof is not achievable: the proof relies on cross-worker clause sharing that 2 " +
+            "workers starve (it does not close even at det-time 1200). The realistic 8-worker config is guarded " +
+            "by `max-damage proves OPTIMAL with runes and sublimations on the full level-245 pool` (~60s on 8 " +
+            "CPU). Kept as a record of the 2-worker exploration."
+    )
+    fun `diagnostic production max-damage runes and sublimations level-245 two workers under a minute`(): Unit =
+        runBlocking {
+            val params = fireMaxDamageParams(245).copy(useRunes = true, useSublimations = true, solverWorkers = 2, searchDuration = 60.seconds)
+            val results =
+                WakfuBuildSolver
+                    .optimize(
+                        params,
+                        fullEpicPool(245),
+                        WakfuBestBuildFinderAlgorithm.runes,
+                        WakfuBestBuildFinderAlgorithm.sublimations
+                    ).toList()
+            val final = results.lastOrNull()
+            assertThat(final).isNotNull
+            assertThat(final!!.isOptimal).isTrue()
+            assertThat(final.matchPercentage.signum()).isGreaterThan(0)
+        }
+
+    @Test
+    fun `diagnostic max-damage level-245 two worker timed profile`() {
+        val params = fireMaxDamageParams(245).copy(useRunes = true, useSublimations = true)
+        WakfuBuildSolver
+            .maxDamageReachableRangesForTest(
+                params,
+                fullEpicPool(245),
+                WakfuBestBuildFinderAlgorithm.runes,
+                WakfuBestBuildFinderAlgorithm.sublimations,
+                applyDomination = true
+            ).filter {
+                (
+                    it.name.contains("pre_") ||
+                        it.name.contains("rand_") ||
+                        it.name.contains("dmg") ||
+                        it.name.contains("rot") ||
+                        it.name.contains("stat_") ||
+                        it.name.contains("pct_")
+                ) &&
+                    !it.name.contains("_gate_") &&
+                    !it.name.contains("_idx_")
+            }.sortedByDescending { it.hi - it.lo }
+            .take(80)
+            .forEach { println("RANGE ${it.name} ${it.lo}..${it.hi}") }
+        for (ap in emptyList<Int>()) {
+            val apProfile =
+                WakfuBuildSolver.timedMaxDamageSolveProfileForTest(
+                    params.copy(maxDamageApTarget = ap),
+                    fullEpicPool(245),
+                    WakfuBestBuildFinderAlgorithm.runes,
+                    WakfuBestBuildFinderAlgorithm.sublimations,
+                    workers = 2,
+                    seconds = 20.0,
+                    applyDomination = true
+                )
+            println("AP $ap -> $apProfile")
+        }
+        val profile =
+            WakfuBuildSolver.timedMaxDamageSolveProfileForTest(
+                params,
+                fullEpicPool(245),
+                WakfuBestBuildFinderAlgorithm.runes,
+                WakfuBestBuildFinderAlgorithm.sublimations,
+                workers = 2,
+                seconds = 60.0,
+                applyDomination = true
+            )
+        println(profile)
+    }
+
     /** Constraint-free max-damage request for [clazz] at [level] against [scenario] (empty targets ⇒ pure damage). */
     private fun maxDamageShape(
         clazz: CharacterClass,
@@ -2611,8 +2738,9 @@ class WakfuBuildSolverTest {
                 .isEmpty()
         }
 
-        // RUNE-AWARE shapes: runes are what the socket-aware scenario-mastery bound (runeMasteryOverCount)
-        // tightens, so a loose solve must fill every socket and still land within the tightened reachable M.
+        // RUNE-AWARE shapes: runes are what the socket-aware scenario-mastery bound (reachableSumDomain's
+        // per-carrier socket aggregation) tightens, so a loose solve must fill every socket and still land
+        // within the tightened reachable M.
         // Spans face/rear+berserk (different mastery-term sets) and lvl-245 magnitudes. Without these the
         // rune-overcount tightening would be unguarded — an under-estimate there silently cuts the optimum.
         val socketed = soundnessSocketedPool()
@@ -2652,7 +2780,7 @@ class WakfuBuildSolverTest {
             val bounds = WakfuBuildSolver.maxDamageVarBoundsForTest(params, socketed, tuning, runes)
             assertThat(bounds).describedAs("$name: the objective chain must be tracked").isNotEmpty
             assertThat(bounds.filterNot { it.withinBound })
-                .describedAs("$name: a rune-fed var exceeded its socket-aware reachable bound — runeMasteryOverCount cut the optimum")
+                .describedAs("$name: a rune-fed var exceeded its socket-aware reachable bound — the bound cut the optimum")
                 .isEmpty()
         }
     }
