@@ -3346,6 +3346,20 @@ object WakfuBuildSolver {
                             System.err.println("INNER_FRONTIER_MS ap=$it ms=${(System.nanoTime() - t0) / 1_000_000}")
                         }
                     }
+                    if (System.getenv("WAKFU_MAX_DAMAGE_CERTIFIER") == "1" && candidateElements.size == 1) {
+                        params.maxDamageApTarget?.takeIf { it in clampedTable.indices }?.let { ap ->
+                            val t0 = System.nanoTime()
+                            val maxPerHit = certifyMaxPerHitAtAp(scenario, ap)
+                            val ms = (System.nanoTime() - t0) / 1_000_000
+                            val obj =
+                                if (maxPerHit == Long.MAX_VALUE) {
+                                    -1L
+                                } else {
+                                    clampedTable[ap] * (maxPerHit / PERHIT_DOWNSCALE) * resFactor / FINAL_DOWNSCALE
+                                }
+                            System.err.println("CERTIFIER ap=$ap maxPerHit=$maxPerHit objective=$obj target=14003760 ms=$ms")
+                        }
+                    }
                     if (maxDamageExperiment.perHitOnlyObjective) return@mapNotNull perHit
                     val perHitScaled = tDiv("perHitScaled_${element.name}", perHit, PERHIT_DOWNSCALE, 0L, PERHIT_SCALED_MAX)
                     val raw =
@@ -3839,12 +3853,239 @@ object WakfuBuildSolver {
         }
 
         /**
-         * PROTOTYPE (debug): the exact inner certifier piece. For each fixed crit c, graw is linear, so DP over
-         * slots with state (item-AP, item-crit) carrying the Pareto frontier of (DI, grawLin) pairs; the max
-         * D·graw over the AP+crit band states is the exact max perHit at AP=[apTarget], crit=c. Sweeps c, prints
-         * the max-over-c and the largest frontier seen (the tractability signal). Carrier items + skill maxima
-         * only (no subs / no per-sub caps yet) ⇒ a slight over-estimate, enough to gauge size + closeness to truth.
+         * EXACT certifier (stage 1: subs + crit step-1 + (DI,graw) frontier; weapons as separate slots ⇒ SOUND
+         * upper bound, slightly loose pending the weapon/rarity tightening). Returns the exact-or-over max perHit
+         * = max D·Graw over builds with total AP == [apTarget]. Long.MAX_VALUE ⇒ cannot certify this scenario
+         * (percent skills present) — caller falls back to CP-SAT. Single-element only.
          */
+        private fun certifyMaxPerHitAtAp(
+            scenario: DamageScenario,
+            apTarget: Int,
+        ): Long {
+            val mastery = damagePreMasteryTerms(scenario) ?: return Long.MAX_VALUE
+            if (skillTerms.percent[Characteristic.MASTERY_CRITICAL].orEmpty().isNotEmpty()) return Long.MAX_VALUE
+            if (skillTerms.percent[Characteristic.DAMAGE_INFLICTED].orEmpty().isNotEmpty()) return Long.MAX_VALUE
+            if (skillTerms.percent[Characteristic.ACTION_POINT].orEmpty().isNotEmpty()) return Long.MAX_VALUE
+            if (skillTerms.percent[Characteristic.CRITICAL_HIT].orEmpty().isNotEmpty()) return Long.MAX_VALUE
+            val (critMTerms, critMBase) = prePercentTermsFor(Characteristic.MASTERY_CRITICAL)
+            val (diTerms, diBase) = prePercentTermsFor(Characteristic.DAMAGE_INFLICTED)
+            val (apTerms, apBase) = prePercentTermsFor(Characteristic.ACTION_POINT)
+            val (critTerms, critBase) = prePercentTermsFor(Characteristic.CRITICAL_HIT)
+
+            val diI = perCarrierContribution(diTerms)
+            val mI = perCarrierContribution(mastery.terms)
+            val cmI = perCarrierContribution(critMTerms)
+            val apI = perCarrierContribution(apTerms)
+            val crI = perCarrierContribution(critTerms)
+            val diS = perSubContribution(diTerms)
+            val mS = perSubContribution(mastery.terms)
+            val cmS = perSubContribution(critMTerms)
+            val apS = perSubContribution(apTerms)
+            val crS = perSubContribution(critTerms)
+            val skillDi = nonCarrierNonSubContribution(diTerms)
+            val skillM = nonCarrierNonSubContribution(mastery.terms)
+            val skillCritM = nonCarrierNonSubContribution(critMTerms)
+            val maxSkillAp = nonCarrierNonSubContribution(apTerms).coerceAtLeast(0L).toInt()
+            val maxSkillCrit = nonCarrierNonSubContribution(critTerms).coerceAtLeast(0L).toInt()
+
+            // Raw stat tuple per carrier / sub: (di, m, critM, ap, crit, epic, relic). graw filled per crit c.
+            data class Raw(
+                val di: Long,
+                val m: Long,
+                val critM: Long,
+                val ap: Int,
+                val crit: Int,
+                val epic: Int,
+                val relic: Int,
+            )
+
+            fun raw(e: Equipment) =
+                Raw(
+                    diI[e] ?: 0,
+                    mI[e] ?: 0,
+                    cmI[e] ?: 0,
+                    (apI[e] ?: 0).toInt().coerceAtLeast(0),
+                    (crI[e] ?: 0).toInt().coerceAtLeast(0),
+                    if (e.rarity ==
+                        Rarity.EPIC
+                    ) {
+                        1
+                    } else {
+                        0
+                    },
+                    if (e.rarity == Rarity.RELIC) 1 else 0
+                )
+
+            fun rawSub(s: Sublimation) =
+                Raw(
+                    diS[s] ?: 0,
+                    mS[s] ?: 0,
+                    cmS[s] ?: 0,
+                    (apS[s] ?: 0).toInt().coerceAtLeast(0),
+                    (crS[s] ?: 0).toInt().coerceAtLeast(0),
+                    if (s.rarity ==
+                        SublimationRarity.EPIC
+                    ) {
+                        1
+                    } else {
+                        0
+                    },
+                    if (s.rarity == SublimationRarity.RELIC) 1 else 0
+                )
+
+            val itemsByType =
+                (diI.keys + mI.keys + cmI.keys + apI.keys + crI.keys).distinct().groupBy({ it.itemType }) { raw(it) }
+            val subRaws = (diS.keys + mS.keys + cmS.keys + apS.keys + crS.keys).distinct().map { rawSub(it) }
+
+            val critCap =
+                scenario.critCapPercent
+                    .toLong()
+                    .coerceIn(0L, 100L)
+                    .toInt()
+            val apHigh = (apTarget - apBase).toInt()
+            if (apHigh < 0) return Long.MAX_VALUE
+            val apLow = (apHigh - maxSkillAp).coerceAtLeast(0)
+            val subCap = System.getenv("WAKFU_MAX_DAMAGE_CERT_SUBCAP")?.toIntOrNull() ?: MAX_SUBLIMATIONS.toInt()
+
+            var best = 0L
+            for (c in 0..critCap) {
+                val critItemHigh = (c - critBase).toInt()
+                if (critItemHigh < 0) continue
+                val critItemLow = (critItemHigh - maxSkillCrit).coerceAtLeast(0)
+                val grawConst = (400L + c) * (mastery.constant + skillM) + 5L * c * (critMBase + skillCritM)
+                val dConst = 100L + diBase + skillDi
+
+                fun grawOf(r: Raw) = (400L + c) * r.m + 5L * c * r.critM
+                // state key packs (ap, crit, epic, relic, subCount). epic/relic in {0,1}, subCount in 0..subCap.
+                val critDim = critItemHigh + 1
+
+                fun key(
+                    ap: Int,
+                    crit: Int,
+                    epic: Int,
+                    relic: Int,
+                    n: Int,
+                ) = ((((ap.toLong() * critDim + crit) * 2 + epic) * 2 + relic) * (subCap + 1)) + n
+
+                var dp = HashMap<Long, Frontier>()
+                dp[key(0, 0, 0, 0, 0)] = Frontier().also { it.add(0, 0) }
+
+                // Reduce a slot's items to a Frontier per (ap,crit,epic,relic) cost bucket — collapses ~470 raw
+                // items to a handful of cost cells, the key speedup. Then one DP transition per cost cell.
+                fun perCost(options: List<Raw>): Map<Int, Frontier> {
+                    val m = HashMap<Int, Frontier>()
+                    for (r in options) {
+                        if (r.ap > apHigh || r.crit > critItemHigh) continue
+                        val g = grawOf(r)
+                        if (r.di <= 0 && g <= 0 && r.epic + r.relic == 0) continue
+                        val ck = ((r.ap * critDim + r.crit) * 2 + r.epic) * 2 + r.relic
+                        m.getOrPut(ck) { Frontier() }.add(r.di, g)
+                    }
+                    return m
+                }
+
+                fun applyCells(cells: Map<Int, Frontier>) {
+                    val nd = HashMap<Long, Frontier>()
+                    for ((k, fr) in dp) nd.getOrPut(k) { Frontier() }.also { for (p in fr.pts) it.add(p[0], p[1]) }
+                    for ((k, fr) in dp) {
+                        val n0 = (k % (subCap + 1)).toInt()
+                        var rest = k / (subCap + 1)
+                        val relic0 = (rest % 2).toInt()
+                        rest /= 2
+                        val epic0 = (rest % 2).toInt()
+                        rest /= 2
+                        val crit0 = (rest % critDim).toInt()
+                        val ap0 = (rest / critDim).toInt()
+                        for ((ck, cfr) in cells) {
+                            var cr = ck
+                            val rrelic = cr % 2
+                            cr /= 2
+                            val repic = cr % 2
+                            cr /= 2
+                            val rcrit = cr % critDim
+                            val rap = cr / critDim
+                            val ap1 = ap0 + rap
+                            val crit1 = crit0 + rcrit
+                            val epic1 = epic0 + repic
+                            val relic1 = relic0 + rrelic
+                            if (ap1 > apHigh || crit1 > critItemHigh || epic1 > 1 || relic1 > 1) continue
+                            val tgt = nd.getOrPut(key(ap1, crit1, epic1, relic1, n0)) { Frontier() }
+                            for (p in fr.pts) for (q in cfr.pts) tgt.add(p[0] + q[0], p[1] + q[1])
+                        }
+                    }
+                    dp = nd
+                }
+
+                // Item slots: weapons grouped (1H+offhand OR 2H) like rarityAwareUpper.weaponOptions; ring = 2 picks.
+                val weaponTypes = setOf(ItemType.ONE_HANDED_WEAPONS, ItemType.OFF_HAND_WEAPONS, ItemType.TWO_HANDED_WEAPONS)
+                for ((type, entries) in itemsByType) {
+                    if (type in weaponTypes) continue
+                    val cells = perCost(entries)
+                    repeat(if (type == ItemType.RING) 2 else 1) { applyCells(cells) }
+                }
+                if (weaponTypes.any { it in itemsByType }) {
+                    val oneH = itemsByType[ItemType.ONE_HANDED_WEAPONS].orEmpty()
+                    val offH = itemsByType[ItemType.OFF_HAND_WEAPONS].orEmpty()
+                    val twoH = itemsByType[ItemType.TWO_HANDED_WEAPONS].orEmpty()
+                    // 1H/off-hand pair (each side optional) plus the 2H alternative, as ONE combined slot.
+                    val pair = mutableListOf(Raw(0, 0, 0, 0, 0, 0, 0))
+                    val oneOpts = listOf(Raw(0, 0, 0, 0, 0, 0, 0)) + oneH
+                    val offOpts = listOf(Raw(0, 0, 0, 0, 0, 0, 0)) + offH
+                    val combined = mutableListOf<Raw>()
+                    for (a in oneOpts) {
+                        for (b in offOpts) {
+                            if (a.epic + b.epic > 1 || a.relic + b.relic > 1) continue
+                            combined.add(Raw(a.di + b.di, a.m + b.m, a.critM + b.critM, a.ap + b.ap, a.crit + b.crit, a.epic + b.epic, a.relic + b.relic))
+                        }
+                    }
+                    pair.clear()
+                    pair.addAll(combined + twoH)
+                    applyCells(perCost(pair))
+                }
+
+                // Sublimations: 0/1 each, count <= subCap (carried in the state's n field).
+                for (r in subRaws) {
+                    if (r.ap > apHigh || r.crit > critItemHigh) continue
+                    val g = grawOf(r)
+                    val nd = HashMap<Long, Frontier>()
+                    for ((k, fr) in dp) nd.getOrPut(k) { Frontier() }.also { for (p in fr.pts) it.add(p[0], p[1]) }
+                    for ((k, fr) in dp) {
+                        val n0 = (k % (subCap + 1)).toInt()
+                        if (n0 >= subCap) continue
+                        var rest = k / (subCap + 1)
+                        val relic0 = (rest % 2).toInt()
+                        rest /= 2
+                        val epic0 = (rest % 2).toInt()
+                        rest /= 2
+                        val crit0 = (rest % critDim).toInt()
+                        val ap0 = (rest / critDim).toInt()
+                        val ap1 = ap0 + r.ap
+                        val crit1 = crit0 + r.crit
+                        val epic1 = epic0 + r.epic
+                        val relic1 = relic0 + r.relic
+                        if (ap1 > apHigh || crit1 > critItemHigh || epic1 > 1 || relic1 > 1) continue
+                        val tgt = nd.getOrPut(key(ap1, crit1, epic1, relic1, n0 + 1)) { Frontier() }
+                        for (p in fr.pts) tgt.add(p[0] + r.di, p[1] + g)
+                    }
+                    dp = nd
+                }
+
+                for ((k, fr) in dp) {
+                    var rest = k / (subCap + 1)
+                    rest /= 2
+                    rest /= 2
+                    val crit = (rest % critDim).toInt()
+                    val ap = (rest / critDim).toInt()
+                    if (ap < apLow || crit < critItemLow) continue
+                    for (p in fr.pts) {
+                        val prod = (dConst + p[0]) * (grawConst + p[1])
+                        if (prod > best) best = prod
+                    }
+                }
+            }
+            return best
+        }
+
         private fun innerFrontierPrototype(
             scenario: DamageScenario,
             apTarget: Int,
