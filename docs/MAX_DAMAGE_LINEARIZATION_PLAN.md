@@ -102,7 +102,7 @@ loose and 2a delivers little. **Measured, the operands are ~20× loose** (§3). 
 
 ## 3. Measurements (already done — trust these)
 
-Build-only probe of the tracked reachable ranges (`maxDamageReachableRangesForTest`: build the model, return
+Build-only probe of the tracked reachable ranges (temporary diagnostic: build the model, return
 `built.maxDamageTracked` as `(name, lo, hi)`), CRA fire/distance/face, lvl-245:
 
 - **Selector axes are small & additive:** `dmgCrit` span **101**; `dmgDI` span **125** (`[-20,104]`).

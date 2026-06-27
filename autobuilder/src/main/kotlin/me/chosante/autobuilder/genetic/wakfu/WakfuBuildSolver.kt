@@ -336,7 +336,35 @@ object WakfuBuildSolver {
         val numSearchWorkers: Int = 8,
         val randomSeed: Int = 1,
         val maxDeterministicTime: Double = 60.0,
+        val maxDamageExperiment: MaxDamageExperimentConfig = MaxDamageExperimentConfig(),
     )
+
+    internal data class MaxDamageExperimentConfig(
+        val apCeiling: Boolean = false,
+        // BINARY is the production default: binary-expanding the D and crit one-hot product selectors (~180
+        // booleans → ~14 bits) collapses the tree-exhaustion search ~5.5× (measured, sound). TABLE is the old
+        // one-hot encoding, kept only for A/B. See solver-performance-audit.
+        val critProduct: CritProductMode = CritProductMode.BINARY,
+        val dProduct: DProductMode = DProductMode.BINARY,
+        val sameNameRingBound: Boolean = false,
+        val perApRotRawCut: Boolean = false,
+    ) {
+        companion object {
+            val DEFAULT = MaxDamageExperimentConfig()
+        }
+    }
+
+    internal enum class CritProductMode {
+        TABLE,
+        GENERIC,
+        BINARY,
+    }
+
+    internal enum class DProductMode {
+        TABLE,
+        BINARY,
+        SOURCE_DI,
+    }
 
     fun optimize(
         params: WakfuBestBuildParams,
@@ -369,7 +397,15 @@ object WakfuBuildSolver {
             withContext(Dispatchers.IO) {
                 // Domination runs only on the production (wall-clock) path: tuning == null. The deterministic
                 // test path keeps the full pool so existing tests are untouched; the soundness lock toggles it.
-                val built = buildModel(params, equipmentsByItemType, runes, sublimations, applyDomination = tuning == null)
+                val built =
+                    buildModel(
+                        params,
+                        equipmentsByItemType,
+                        runes,
+                        sublimations,
+                        applyDomination = tuning == null,
+                        maxDamageExperiment = tuning?.maxDamageExperiment ?: MaxDamageExperimentConfig.DEFAULT
+                    )
                 executeSolverAndEmitResults(
                     built.model,
                     params,
@@ -597,6 +633,7 @@ object WakfuBuildSolver {
         // preserving in all three (monotone) modes. Off by default so the deterministic test path sees the full
         // pool unchanged; the production [optimize] passes true and the soundness lock toggles it.
         applyDomination: Boolean = false,
+        maxDamageExperiment: MaxDamageExperimentConfig = MaxDamageExperimentConfig.DEFAULT,
     ): BuiltModel {
         val model = CpModel()
 
@@ -664,7 +701,8 @@ object WakfuBuildSolver {
                 }
 
                 ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> {
-                    val statBuilder = StatBuilder(model, params, allEquips, equipVars, skillVars, runeModel, subModel, tight = tightDomains)
+                    val statBuilder =
+                        StatBuilder(model, params, allEquips, equipVars, skillVars, runeModel, subModel, tight = tightDomains, maxDamageExperiment = maxDamageExperiment)
                     val obj = model.buildMaxDamageObjective(params, statBuilder)
                     maxDamageTracked = statBuilder.tracker.tracked()
                     obj
@@ -697,7 +735,7 @@ object WakfuBuildSolver {
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         tuning: SolverTuning,
     ): Long {
-        val built = buildModel(params, equipmentsByItemType, emptyList(), emptyList())
+        val built = buildModel(params, equipmentsByItemType, emptyList(), emptyList(), maxDamageExperiment = tuning.maxDamageExperiment)
         val solver = deterministicMaxDamageSolver(tuning)
         val status = solver.solve(built.model)
         require(status == com.google.ortools.sat.CpSolverStatus.OPTIMAL) { "expected OPTIMAL, got $status" }
@@ -711,17 +749,22 @@ object WakfuBuildSolver {
         val hasSolution: Boolean,
     )
 
-    internal data class TimedSolveProfile(
+    internal data class MaxDamageTimedProfile(
         val status: String,
         val objective: Long,
         val bestBound: Long,
         val wallTimeSec: Double,
+        val deterministicTime: Double,
         val variables: Int,
         val constraints: Int,
         val poolSize: Int,
-    )
+        val experiment: MaxDamageExperimentConfig,
+    ) {
+        val hasSolution: Boolean
+            get() = objective != Long.MIN_VALUE
+    }
 
-    internal fun timedMaxDamageSolveProfileForTest(
+    internal fun timedMaxDamageProfileForTest(
         params: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         runes: List<RuneType>,
@@ -729,28 +772,49 @@ object WakfuBuildSolver {
         workers: Int,
         seconds: Double,
         applyDomination: Boolean,
-    ): TimedSolveProfile {
-        val built = buildModel(params, equipmentsByItemType, runes, sublimations, applyDomination = applyDomination)
+        experiment: MaxDamageExperimentConfig = MaxDamageExperimentConfig.DEFAULT,
+        maxPresolveIterations: Int = 3,
+        linearizationLevel: Int = 2,
+        deterministicLimit: Double? = null,
+    ): MaxDamageTimedProfile {
+        val built =
+            buildModel(
+                params,
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                applyDomination = applyDomination,
+                maxDamageExperiment = experiment
+            )
         val solver = CpSolver()
         solver.parameters.logSearchProgress = false
-        solver.parameters.linearizationLevel = 2
-        solver.parameters.maxPresolveIterations = 10
+        solver.parameters.linearizationLevel = linearizationLevel
+        solver.parameters.maxPresolveIterations = maxPresolveIterations
         solver.parameters.numSearchWorkers = workers
         solver.parameters.randomSeed = 1
+        // Production proves with a DETERMINISTIC-time limit (reproducible, and a much faster solver mode for
+        // this problem than a wall-clock limit). When deterministicLimit is set, use it as the real budget and
+        // keep maxTimeInSeconds only as a safety cap so a stuck run can't hang.
+        if (deterministicLimit != null) {
+            solver.parameters.maxDeterministicTime = deterministicLimit
+        }
         solver.parameters.maxTimeInSeconds = seconds
         val status = solver.solve(built.model)
         val hasSolution =
             status == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
                 status == com.google.ortools.sat.CpSolverStatus.FEASIBLE
         val proto = built.model.model()
-        return TimedSolveProfile(
+        val stats = solver.responseStats()
+        return MaxDamageTimedProfile(
             status = status.toString(),
             objective = if (hasSolution) solver.objectiveValue().toLong() else Long.MIN_VALUE,
             bestBound = solver.bestObjectiveBound().toLong(),
             wallTimeSec = solver.wallTime(),
+            deterministicTime = deterministicTimeFrom(stats),
             variables = proto.variablesCount,
             constraints = proto.constraintsCount,
-            poolSize = built.allEquips.size
+            poolSize = built.allEquips.size,
+            experiment = experiment
         )
     }
 
@@ -780,7 +844,8 @@ object WakfuBuildSolver {
                 tightDomains,
                 forceRuneCountModel = forceRuneCountModel,
                 applyDomination = applyDomination,
-                forceRuneLeq = forceRuneLeq
+                forceRuneLeq = forceRuneLeq,
+                maxDamageExperiment = tuning.maxDamageExperiment
             )
         val solver = deterministicMaxDamageSolver(tuning)
         val status = solver.solve(built.model)
@@ -818,7 +883,6 @@ object WakfuBuildSolver {
         val span: Long get() = hi - lo
     }
 
-    /** Test-only build probe: return the tracked max-damage objective-chain reachable ranges without solving. */
     internal fun maxDamageReachableRangesForTest(
         params: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
@@ -826,8 +890,18 @@ object WakfuBuildSolver {
         sublimations: List<Sublimation> = emptyList(),
         tightDomains: Boolean = true,
         applyDomination: Boolean = false,
+        experiment: MaxDamageExperimentConfig = MaxDamageExperimentConfig.DEFAULT,
     ): List<MaxDamageReachableRange> {
-        val built = buildModel(params, equipmentsByItemType, runes, sublimations, tightDomains = tightDomains, applyDomination = applyDomination)
+        val built =
+            buildModel(
+                params,
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                tightDomains = tightDomains,
+                applyDomination = applyDomination,
+                maxDamageExperiment = experiment
+            )
         return built.maxDamageTracked.map { (_, name, range) -> MaxDamageReachableRange(name, range.first, range.last) }
     }
 
@@ -846,7 +920,7 @@ object WakfuBuildSolver {
         runes: List<RuneType> = emptyList(),
         sublimations: List<Sublimation> = emptyList(),
     ): List<MaxDamageVarBound> {
-        val built = buildModel(params, equipmentsByItemType, runes, sublimations, tightDomains = false)
+        val built = buildModel(params, equipmentsByItemType, runes, sublimations, tightDomains = false, maxDamageExperiment = tuning.maxDamageExperiment)
         val solver = deterministicMaxDamageSolver(tuning)
         val status = solver.solve(built.model)
         require(status == com.google.ortools.sat.CpSolverStatus.OPTIMAL || status == com.google.ortools.sat.CpSolverStatus.FEASIBLE) {
@@ -907,7 +981,16 @@ object WakfuBuildSolver {
         tuning: SolverTuning,
         forceFullPool: Boolean,
     ): BenchOutcome {
-        val built = buildModel(params, equipmentsByItemType, emptyList(), emptyList(), tightDomains = true, forceFullPool = forceFullPool)
+        val built =
+            buildModel(
+                params,
+                equipmentsByItemType,
+                emptyList(),
+                emptyList(),
+                tightDomains = true,
+                forceFullPool = forceFullPool,
+                maxDamageExperiment = tuning.maxDamageExperiment
+            )
         val solver = CpSolver()
         solver.parameters.logSearchProgress = false
         solver.parameters.numSearchWorkers = tuning.numSearchWorkers
@@ -2090,18 +2173,20 @@ object WakfuBuildSolver {
         private val params: WakfuBestBuildParams,
         private val allEquips: List<Equipment>,
         private val equipVars: Map<Equipment, IntVar>,
-        skillVars: Map<SkillCharacteristic, IntVar>,
+        private val skillVars: Map<SkillCharacteristic, IntVar>,
         private val runeModel: RuneModel,
         private val subModel: SublimationModel,
         // Reachable-domain tracking for the max-damage objective chain. [tight] = true (max-damage only)
         // declares each chain var sized to its reachable range; false reproduces the loose guard domains
         // (every other mode, and the soundness-test reference). See [DomainTracker].
         tight: Boolean = false,
+        private val maxDamageExperiment: MaxDamageExperimentConfig = MaxDamageExperimentConfig.DEFAULT,
     ) {
         val tracker = DomainTracker(tight)
 
         private val baseValues = params.character.baseCharacteristicValues
         private val skillTerms = buildSkillTerms(skillVars)
+        private val skillCaps = skillVariableCaps(params.character.characterSkills)
 
         // Reverse lookup of item-gated vars (equipment picks and their rune vars) → carrier item, so a stat
         // sum's reachable bound can be computed PER mutually-exclusive slot (one item per slot, two rings)
@@ -2119,7 +2204,6 @@ object WakfuBuildSolver {
         init {
             // Seed every leaf variable's exact domain so the interval arithmetic can propagate from them.
             equipVars.forEach { (equip, v) -> tracker.seed(v, 0L..1L, "equip_${equip.equipmentId}") }
-            val skillCaps = skillVariableCaps(params.character.characterSkills)
             skillVars.forEach { (skill, v) -> tracker.seed(v, 0L..skillCaps.getValue(skill), "skill_${skill.name}") }
             runeModel.runeVars.forEach { (equip, perStat) ->
                 // Fold ⇒ each var is a boolean PICK (0..1, contributes slots·coeff); count model ⇒ 0..slots.
@@ -2287,6 +2371,7 @@ object WakfuBuildSolver {
                     for ((leftEquip, leftValue) in left) {
                         for ((rightEquip, rightValue) in right) {
                             if (leftEquip == rightEquip) continue
+                            if (maxDamageExperiment.sameNameRingBound && leftEquip.name.fr.equals(rightEquip.name.fr, ignoreCase = true)) continue
                             val epic = leftState.first + rightState.first
                             val relic = leftState.second + rightState.second
                             if (epic <= 1 && relic <= 1) options.add(Option(leftValue + rightValue, epic, relic))
@@ -2540,6 +2625,81 @@ object WakfuBuildSolver {
                 terms.add(Term(gated, throughput))
             }
 
+            return tSum(name, terms, 0L, reach, productGuard.first, productGuard.last)
+        }
+
+        /** Exact replacement for `(offset + valueRange.first) * factor` using a binary expansion of [offset]. */
+        private fun tBinaryOffsetProduct(
+            name: String,
+            offset: IntVar,
+            valueRange: LongRange,
+            factor: IntVar,
+            factorGuard: LongRange,
+            productGuard: LongRange,
+        ): IntVar {
+            val span = valueRange.last - valueRange.first
+            require(span >= 0L) { "empty binary product range for $name: $valueRange" }
+            val factorReach = tracker.of(factor)
+            val reach = mulRange(valueRange, factorReach)
+            if (span == 0L) {
+                return tSum(name, listOf(Term(factor, valueRange.first)), 0L, reach, productGuard.first, productGuard.last)
+            }
+
+            val bits = mutableListOf<Pair<Long, IntVar>>()
+            var weight = 1L
+            while (weight <= span) {
+                val bit = model.newBoolVar("${name}_bit_$weight")
+                tracker.seed(bit, 0L..1L, "${name}_bit_$weight")
+                bits.add(weight to bit)
+                if (weight > Long.MAX_VALUE / 2L) break
+                weight *= 2L
+            }
+
+            val offsetExpr = LinearExpr.newBuilder()
+            bits.forEach { (bitWeight, bit) -> offsetExpr.addTerm(bit, bitWeight) }
+            model.addEquality(offset, offsetExpr.build())
+
+            val terms = mutableListOf<Term>()
+            if (valueRange.first != 0L) terms.add(Term(factor, valueRange.first))
+            bits.forEach { (bitWeight, bit) ->
+                val gated = tBoolGate("${name}_gate_$bitWeight", factor, bit, factorGuard)
+                terms.add(Term(gated, bitWeight))
+            }
+            return tSum(name, terms, 0L, reach, productGuard.first, productGuard.last)
+        }
+
+        /**
+         * Exact source expansion for `(100 + DI) * factor`, when DI is not clamped and every variable DI source
+         * is boolean. Returns null when that proof obligation is not met, so callers can fall back to a generic
+         * exact product encoding.
+         */
+        private fun tSourceExpandedDamageInflictedProduct(
+            name: String,
+            factor: IntVar,
+            factorGuard: LongRange,
+            productGuard: LongRange,
+        ): IntVar? {
+            if (skillTerms.percent[Characteristic.DAMAGE_INFLICTED].orEmpty().isNotEmpty()) return null
+            val (diTerms, diBase) = prePercentTermsFor(Characteristic.DAMAGE_INFLICTED)
+            val diReach = reachableSumDomain(diTerms, diBase)
+            if (diReach.first < -DAMAGE_DI_FLOOR || diReach.last > DAMAGE_DI_MAX) return null
+
+            var constant = 100L + diBase
+            val terms = mutableListOf<Term>()
+            for ((index, term) in diTerms.withIndex()) {
+                val d = tracker.of(term.variable)
+                if (d.first == d.last) {
+                    constant += d.first * term.coefficient
+                    continue
+                }
+                if (d.first != 0L || d.last != 1L) return null
+                val gated = tBoolGate("${name}_diSrc_$index", factor, term.variable, factorGuard)
+                terms.add(Term(gated, term.coefficient))
+            }
+            if (constant != 0L) terms.add(Term(factor, constant))
+
+            val factorReach = tracker.of(factor)
+            val reach = mulRange(100L + diReach.first..100L + diReach.last, factorReach)
             return tSum(name, terms, 0L, reach, productGuard.first, productGuard.last)
         }
 
@@ -3010,11 +3170,55 @@ object WakfuBuildSolver {
          */
         fun applyOutOfCombatCaps() {
             model.addLessOrEqual(preSubStat(Characteristic.ACTION_POINT), MAX_OUT_OF_COMBAT_AP)
+            if (maxDamageExperiment.apCeiling) {
+                model.addLessOrEqual(actualStat(Characteristic.ACTION_POINT), actualActionPointCeiling())
+            }
             model.addLessOrEqual(preSubStat(Characteristic.MOVEMENT_POINT), MAX_OUT_OF_COMBAT_MP)
             model.addLessOrEqual(preSubStat(Characteristic.WAKFU_POINT), MAX_OUT_OF_COMBAT_WP)
             // Negative-crit gear is condition-limited: the sheet can't drop below −9% Critical Hit.
             model.addGreaterOrEqual(preSubStat(Characteristic.CRITICAL_HIT), MIN_OUT_OF_COMBAT_CRIT)
         }
+
+        private fun actualActionPointCeiling(): Long =
+            (
+                MAX_OUT_OF_COMBAT_AP +
+                    positiveSublimationUpper(Characteristic.ACTION_POINT) +
+                    positiveUpper(passiveTermsByStat[Characteristic.ACTION_POINT].orEmpty())
+            ).coerceIn(0L, MAX_ROTATION_AP)
+
+        private fun positiveSublimationUpper(char: Characteristic): Long {
+            val rangesBySub = LinkedHashMap<Sublimation, LongRange>()
+            var other = 0L
+            for (term in subTermsByStat[char].orEmpty()) {
+                val d = tracker.of(term.variable)
+                val scaled =
+                    if (term.coefficient >= 0) {
+                        d.first * term.coefficient..d.last * term.coefficient
+                    } else {
+                        d.last * term.coefficient..d.first * term.coefficient
+                    }
+                val sub = subByVar[term.variable]
+                if (sub != null) {
+                    val current = rangesBySub[sub] ?: (0L..0L)
+                    rangesBySub[sub] = current.first + scaled.first..current.last + scaled.last
+                } else {
+                    other += scaled.last.coerceAtLeast(0L)
+                }
+            }
+            return other + sublimationAwareUpper(rangesBySub)
+        }
+
+        private fun positiveUpper(terms: List<Term>): Long =
+            terms.sumOf { term ->
+                val d = tracker.of(term.variable)
+                val scaled =
+                    if (term.coefficient >= 0) {
+                        d.first * term.coefficient..d.last * term.coefficient
+                    } else {
+                        d.last * term.coefficient..d.first * term.coefficient
+                    }
+                scaled.last.coerceAtLeast(0L)
+            }
 
         /**
          * Spell-aware / boss-aware per-turn damage objective for [scenario] (max-damage mode only).
@@ -3036,7 +3240,8 @@ object WakfuBuildSolver {
             scenario: DamageScenario,
             clazz: me.chosante.common.CharacterClass,
         ): IntVar {
-            val apVar = tClamp(actualStat(Characteristic.ACTION_POINT), 0L, MAX_ROTATION_AP, "rotationAp")
+            val maxRotationAp = if (maxDamageExperiment.apCeiling) actualActionPointCeiling() else MAX_ROTATION_AP
+            val apVar = tClamp(actualStat(Characteristic.ACTION_POINT), 0L, maxRotationAp, "rotationAp")
             val perElementDamage =
                 scenario.candidateElements().mapNotNull { (element, resistance) ->
                     val spells =
@@ -3045,7 +3250,7 @@ object WakfuBuildSolver {
                                 me.chosante.common.SpellElement
                                     .valueOf(element.name)
                         }
-                    val table = SpellRotationOptimizer.baseThroughputTable(spells, MAX_ROTATION_AP.toInt(), params.character.level)
+                    val table = SpellRotationOptimizer.baseThroughputTable(spells, maxRotationAp.toInt(), params.character.level)
                     if (table.all { it == 0L }) return@mapNotNull null
 
                     if (table.max() > PER_TURN_THROUGHPUT_MAX) {
@@ -3069,6 +3274,9 @@ object WakfuBuildSolver {
                             0L..PERHIT_SCALED_MAX,
                             0L..ROTATION_RAW_MAX
                         )
+                    if (maxDamageExperiment.perApRotRawCut) {
+                        maxRotRawForElement(scenario, clampedTable, PERHIT_SCALED_MAX)?.let { model.addLessOrEqual(raw, it) }
+                    }
 
                     // Fold in the boss's per-element resistance, then scale down once into the penalty's range.
                     val resFactor = (100L - resistance).coerceIn(RES_FACTOR_MIN, RES_FACTOR_MAX)
@@ -3125,7 +3333,19 @@ object WakfuBuildSolver {
             val diffReach = damageMasteryCriticalReach(scenario, masteryWeight = 1L, criticalMasteryWeight = 5L, guardHi = DAMAGE_MASTERY_MAX * 6)
             val diff = tSum("dmgDiff_$s", listOf(Term(m, 1L), Term(criticalMastery, 5L)), 0L, diffReach, 0L, DAMAGE_MASTERY_MAX * 6)
             val critTable = LongArray(critCap.toInt() + 1) { it.toLong() }
-            val term = tTableProduct("dmgCritTerm_$s", crit, critTable, diff, 0L..DAMAGE_MASTERY_MAX * 6, 0L..100L * DAMAGE_MASTERY_MAX * 6)
+            val term =
+                when (maxDamageExperiment.critProduct) {
+                    CritProductMode.TABLE ->
+                        tTableProduct("dmgCritTerm_$s", crit, critTable, diff, 0L..DAMAGE_MASTERY_MAX * 6, 0L..100L * DAMAGE_MASTERY_MAX * 6)
+
+                    CritProductMode.GENERIC ->
+                        tMul("dmgCritTerm_$s", crit, diff, 0L, 100L * DAMAGE_MASTERY_MAX * 6)
+
+                    // Binary-expand crit (0..critCap) into ~7 gated diff copies — the d-binary trick on the
+                    // crit one-hot. Distinct from GENERIC (a raw tMul, which was measured slower).
+                    CritProductMode.BINARY ->
+                        tBinaryOffsetProduct("dmgCritTerm_$s", crit, 0L..critCap, diff, 0L..DAMAGE_MASTERY_MAX * 6, 0L..100L * DAMAGE_MASTERY_MAX * 6)
+                }
             model.addLessOrEqual(
                 LinearExpr
                     .newBuilder()
@@ -3166,7 +3386,18 @@ object WakfuBuildSolver {
                     dReach.last - dReach.first
                 )
             val dTable = LongArray((dReach.last - dReach.first + 1).toInt()) { dReach.first + it }
-            val score = tTableProduct("dmgScore_$s", dOffset, dTable, graw, 0L..DAMAGE_GRAW_MAX, 0L..DAMAGE_SCORE_ABS_MAX)
+            val score =
+                when (maxDamageExperiment.dProduct) {
+                    DProductMode.TABLE ->
+                        tTableProduct("dmgScore_$s", dOffset, dTable, graw, 0L..DAMAGE_GRAW_MAX, 0L..DAMAGE_SCORE_ABS_MAX)
+
+                    DProductMode.BINARY ->
+                        tBinaryOffsetProduct("dmgScore_$s", dOffset, dReach, graw, 0L..DAMAGE_GRAW_MAX, 0L..DAMAGE_SCORE_ABS_MAX)
+
+                    DProductMode.SOURCE_DI ->
+                        tSourceExpandedDamageInflictedProduct("dmgScore_$s", graw, 0L..DAMAGE_GRAW_MAX, 0L..DAMAGE_SCORE_ABS_MAX)
+                            ?: tTableProduct("dmgScore_$s", dOffset, dTable, graw, 0L..DAMAGE_GRAW_MAX, 0L..DAMAGE_SCORE_ABS_MAX)
+                }
             model.addLessOrEqual(
                 LinearExpr
                     .newBuilder()
@@ -3186,6 +3417,60 @@ object WakfuBuildSolver {
                 -dReach.first * grawDomain.last
             )
             return score
+        }
+
+        /**
+         * Sound upper bound on `raw = throughput[AP] · perHitScaled`, tightening the AP-vs-mastery slack: a
+         * build with high AP (more throughput) spends item slots on AP gear, which lowers mastery (so perHit),
+         * but the table-product McCormick lets `throughput[high AP]` pair with `perHit[high mastery]`. Since DI
+         * and mastery do NOT compete (the per-hit `D·graw` is already tight), `perHit` at AP=a is bounded by
+         * `D_max · grawLinMaxAtAp(a)` with `grawLin = 500·M + 500·K ≥ graw`. The per-AP mastery max comes from a
+         * Lagrangian relaxation: for any μ, `max{grawLin : AP=a} ≤ max_x(grawLin(x) − μ·AP(x)) + μ·a`, and the
+         * inner max is a SINGLE [reachableSumDomain] over the μ-weighted `(grawLin − μ·AP)` terms (so all the
+         * ring/rarity/sublimation coupling comes for free). min over a μ grid ⇒ sound per-AP bound. The cut is
+         * `raw ≤ max_a throughput[a] · floor(D_max·grawLinUB(a) / PERHIT_DOWNSCALE)`. Null ⇒ cannot tighten.
+         */
+        private fun maxRotRawForElement(
+            scenario: DamageScenario,
+            clampedTable: LongArray,
+            perHitScaledMax: Long,
+        ): Long? {
+            val mastery = damagePreMasteryTerms(scenario) ?: return null
+            if (skillTerms.percent[Characteristic.MASTERY_CRITICAL].orEmpty().isNotEmpty()) return null
+            if (skillTerms.percent[Characteristic.DAMAGE_INFLICTED].orEmpty().isNotEmpty()) return null
+            if (skillTerms.percent[Characteristic.ACTION_POINT].orEmpty().isNotEmpty()) return null
+            val (critTerms, critBase) = prePercentTermsFor(Characteristic.MASTERY_CRITICAL)
+            val (diTerms, diBase) = prePercentTermsFor(Characteristic.DAMAGE_INFLICTED)
+            val (apTerms, apBase) = prePercentTermsFor(Characteristic.ACTION_POINT)
+
+            val grawLinTerms =
+                mastery.terms.map { Term(it.variable, it.coefficient * 500L) } +
+                    critTerms.map { Term(it.variable, it.coefficient * 500L) }
+            val grawLinConst = 500L * mastery.constant + 500L * critBase
+            val dHi = reachableSumDomain(diTerms, 100L + diBase).last.coerceAtLeast(1L)
+
+            val grawLinGlobalHi = reachableSumDomain(grawLinTerms, grawLinConst).last.coerceAtLeast(0L)
+            if (grawLinGlobalHi <= 0L) return 0L
+            val apSpan = (reachableSumDomain(apTerms, apBase).last - apBase).coerceAtLeast(1L)
+            val muBase = (grawLinGlobalHi / apSpan).coerceAtLeast(1L) // ≈ grawLin gained per AP point
+            val muGrid =
+                listOf(0L, muBase / 4, muBase / 2, muBase, muBase * 2, muBase * 4, muBase * 8)
+                    .filter { it >= 0L }
+                    .distinct()
+            val gByMu =
+                muGrid.map { mu ->
+                    val combined = grawLinTerms + apTerms.map { Term(it.variable, -mu * it.coefficient) }
+                    mu to reachableSumDomain(combined, grawLinConst - mu * apBase).last
+                }
+
+            var maxRotRaw = 0L
+            for (a in clampedTable.indices) {
+                if (clampedTable[a] == 0L) continue
+                val grawLinUBa = gByMu.minOf { (mu, g) -> g + mu * a }.coerceIn(0L, grawLinGlobalHi)
+                val perHitScaledUBa = ((dHi.toDouble() * grawLinUBa) / PERHIT_DOWNSCALE).toLong().coerceIn(0L, perHitScaledMax)
+                maxRotRaw = maxOf(maxRotRaw, clampedTable[a] * perHitScaledUBa)
+            }
+            return maxRotRaw
         }
 
         private data class LinearTermSum(
@@ -4121,6 +4406,14 @@ object WakfuBuildSolver {
             )
         return corners.min()..corners.max()
     }
+
+    private fun deterministicTimeFrom(responseStats: String): Double =
+        Regex("""deterministic_time:\s*([0-9.Ee+-]+)""")
+            .find(responseStats)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toDoubleOrNull()
+            ?: Double.NaN
 
     private fun orderEquipments(equipmentsByItemType: Map<ItemType, List<Equipment>>): List<Equipment> =
         ItemType.entries

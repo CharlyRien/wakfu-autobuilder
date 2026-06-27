@@ -28,7 +28,7 @@ import me.chosante.common.SublimationKind
 import me.chosante.common.SublimationRarity
 import me.chosante.common.skills.CharacterSkills
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.Disabled
+import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
@@ -1226,6 +1226,70 @@ class WakfuBuildSolverTest {
             // way before comparing — otherwise a tie is lost to sub-0.0001 representation noise (the solver finds
             // the identical build; here it landed on 22.7249 vs a raw 22.724999…).
             assertThat(solverBest.matchPercentage).isGreaterThanOrEqualTo(exhaustive.setScale(4, java.math.RoundingMode.FLOOR))
+        }
+
+    @Test
+    fun `max-damage experiment variants reach the exhaustive optimum on a small pool`(): Unit =
+        runBlocking {
+            val level = 1
+            val characterSkills = CharacterSkills(level)
+            val character = Character(CharacterClass.CRA, level, level, characterSkills)
+            val equipments =
+                listOf(
+                    equipment(1, ItemType.AMULET, "FireBig", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 120)),
+                    equipment(2, ItemType.AMULET, "Crit", mapOf(Characteristic.CRITICAL_HIT to 40, Characteristic.MASTERY_CRITICAL to 30)),
+                    equipment(3, ItemType.BELT, "Generic", mapOf(Characteristic.MASTERY_ELEMENTARY to 60)),
+                    equipment(4, ItemType.BELT, "Distance", mapOf(Characteristic.MASTERY_DISTANCE to 80))
+                )
+            val scenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.BACK)
+            val exhaustive =
+                allValidCombinations(equipments, characterSkills)
+                    .maxOf {
+                        me.chosante.autobuilder.domain.SpellRotationOptimizer
+                            .bestAcrossElements(it, character, character.clazz, scenario)
+                            .totalExpectedDamage
+                            .toBigDecimal()
+                    }.setScale(4, java.math.RoundingMode.FLOOR)
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = TargetStats(emptyList()),
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                    useRunes = false,
+                    damageScenario = scenario
+                )
+            val experiments =
+                mapOf(
+                    "ap-ceiling" to WakfuBuildSolver.MaxDamageExperimentConfig(apCeiling = true),
+                    "crit-generic" to WakfuBuildSolver.MaxDamageExperimentConfig(critProduct = WakfuBuildSolver.CritProductMode.GENERIC),
+                    "d-binary" to WakfuBuildSolver.MaxDamageExperimentConfig(dProduct = WakfuBuildSolver.DProductMode.BINARY),
+                    "source-di" to WakfuBuildSolver.MaxDamageExperimentConfig(dProduct = WakfuBuildSolver.DProductMode.SOURCE_DI),
+                    "same-name-ring-bound" to WakfuBuildSolver.MaxDamageExperimentConfig(sameNameRingBound = true),
+                    "per-ap-rotraw-cut" to WakfuBuildSolver.MaxDamageExperimentConfig(perApRotRawCut = true),
+                    "crit-binary" to WakfuBuildSolver.MaxDamageExperimentConfig(critProduct = WakfuBuildSolver.CritProductMode.BINARY),
+                    "both-binary" to
+                        WakfuBuildSolver.MaxDamageExperimentConfig(
+                            dProduct = WakfuBuildSolver.DProductMode.BINARY,
+                            critProduct = WakfuBuildSolver.CritProductMode.BINARY
+                        )
+                )
+
+            for ((name, experiment) in experiments) {
+                val solverBest =
+                    WakfuBuildSolver
+                        .optimize(params, equipments.groupBy { it.itemType }, WakfuBuildSolver.SolverTuning(maxDamageExperiment = experiment))
+                        .toList()
+                        .maxByOrNull { it.matchPercentage }!!
+
+                assertThat(solverBest.matchPercentage)
+                    .describedAs(name)
+                    .isGreaterThanOrEqualTo(exhaustive)
+            }
         }
 
     @Test
@@ -2511,56 +2575,87 @@ class WakfuBuildSolverTest {
         }
 
     @Test
-    @Tag("slow")
-    @Disabled(
-        "2-worker lvl-245 proof is not achievable: the proof relies on cross-worker clause sharing that 2 " +
-            "workers starve (it does not close even at det-time 1200). The realistic 8-worker config is guarded " +
-            "by `max-damage proves OPTIMAL with runes and sublimations on the full level-245 pool` (~60s on 8 " +
-            "CPU). Kept as a record of the 2-worker exploration."
-    )
-    fun `diagnostic max-damage dominated runes and sublimations level-245 two workers`() {
+    @Tag("manual")
+    fun `manual max-damage level-245 two-worker experiment matrix`() {
+        assumeTrue(System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENTS") == "1")
+
+        val seconds = System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_SECONDS")?.toDoubleOrNull() ?: 60.0
+        val workers = System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_WORKERS")?.toIntOrNull() ?: 2
+        val detLimit = System.getenv("WAKFU_MAX_DAMAGE_DETTIME")?.toDoubleOrNull()
+        val repeats = System.getenv("WAKFU_MAX_DAMAGE_REPEATS")?.toIntOrNull() ?: 1
         val params = fireMaxDamageParams(245).copy(useRunes = true, useSublimations = true)
-        val result =
-            WakfuBuildSolver.maxDamageSolveForTest(
-                params,
-                fullEpicPool(245),
-                WakfuBuildSolver.SolverTuning(numSearchWorkers = 2, maxDeterministicTime = 600.0),
-                tightDomains = true,
-                runes = WakfuBestBuildFinderAlgorithm.runes,
-                sublimations = WakfuBestBuildFinderAlgorithm.sublimations,
-                applyDomination = true
+        val pool = fullEpicPool(245)
+        // Default research set: the old one-hot encoding vs the production binary default, plus the gated
+        // tightness cuts stacked on binary. Override via WAKFU_MAX_DAMAGE_* env. WAKFU_MAX_DAMAGE_DETTIME picks
+        // the deterministic-mode budget — the ONLY reliable verdict; bestBound/ceiling is a vanity metric here.
+        val experiments =
+            listOf(
+                "table-baseline" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        dProduct = WakfuBuildSolver.DProductMode.TABLE,
+                        critProduct = WakfuBuildSolver.CritProductMode.TABLE
+                    ),
+                "binary" to WakfuBuildSolver.MaxDamageExperimentConfig.DEFAULT,
+                "binary+apCeiling" to WakfuBuildSolver.MaxDamageExperimentConfig(apCeiling = true),
+                "binary+per-ap" to WakfuBuildSolver.MaxDamageExperimentConfig(perApRotRawCut = true)
             )
-        assertThat(result.isOptimal).isTrue()
-        assertThat(result.objective).isGreaterThan(0L)
+
+        repeat(repeats) { rep ->
+            for ((name, experiment) in experiments) {
+                val profile =
+                    WakfuBuildSolver.timedMaxDamageProfileForTest(
+                        params,
+                        pool,
+                        WakfuBestBuildFinderAlgorithm.runes,
+                        WakfuBestBuildFinderAlgorithm.sublimations,
+                        workers = workers,
+                        seconds = seconds,
+                        applyDomination = true,
+                        experiment = experiment,
+                        deterministicLimit = detLimit
+                    )
+                println("MAX_DAMAGE_EXPERIMENT rep$rep $name $profile")
+            }
+        }
     }
 
     @Test
-    @Tag("slow")
-    @Disabled(
-        "2-worker lvl-245 proof is not achievable: the proof relies on cross-worker clause sharing that 2 " +
-            "workers starve (it does not close even at det-time 1200). The realistic 8-worker config is guarded " +
-            "by `max-damage proves OPTIMAL with runes and sublimations on the full level-245 pool` (~60s on 8 " +
-            "CPU). Kept as a record of the 2-worker exploration."
-    )
-    fun `diagnostic production max-damage runes and sublimations level-245 two workers under a minute`(): Unit =
-        runBlocking {
-            val params = fireMaxDamageParams(245).copy(useRunes = true, useSublimations = true, solverWorkers = 2, searchDuration = 60.seconds)
-            val results =
-                WakfuBuildSolver
-                    .optimize(
-                        params,
-                        fullEpicPool(245),
-                        WakfuBestBuildFinderAlgorithm.runes,
-                        WakfuBestBuildFinderAlgorithm.sublimations
-                    ).toList()
-            val final = results.lastOrNull()
-            assertThat(final).isNotNull
-            assertThat(final!!.isOptimal).isTrue()
-            assertThat(final.matchPercentage.signum()).isGreaterThan(0)
+    @Tag("manual")
+    fun `manual max-damage level-245 AP-pinned profile matrix`() {
+        assumeTrue(System.getenv("WAKFU_MAX_DAMAGE_AP_EXPERIMENTS") == "1")
+
+        val seconds = System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_SECONDS")?.toDoubleOrNull() ?: 30.0
+        val workers = System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_WORKERS")?.toIntOrNull() ?: 2
+        val apTargets =
+            System
+                .getenv("WAKFU_MAX_DAMAGE_AP_TARGETS")
+                ?.split(',')
+                ?.mapNotNull { it.trim().toIntOrNull() }
+                ?.takeIf { it.isNotEmpty() }
+                ?: (10..17).toList()
+        val params = fireMaxDamageParams(245).copy(useRunes = true, useSublimations = true)
+        val pool = fullEpicPool(245)
+
+        for (ap in apTargets) {
+            val profile =
+                WakfuBuildSolver.timedMaxDamageProfileForTest(
+                    params.copy(maxDamageApTarget = ap),
+                    pool,
+                    WakfuBestBuildFinderAlgorithm.runes,
+                    WakfuBestBuildFinderAlgorithm.sublimations,
+                    workers = workers,
+                    seconds = seconds,
+                    applyDomination = true
+                )
+            println("MAX_DAMAGE_AP_EXPERIMENT AP=$ap $profile")
         }
+    }
 
     @Test
-    fun `diagnostic max-damage level-245 two worker timed profile`() {
+    @Tag("manual")
+    fun `manual max-damage level-245 reachable range audit`() {
+        assumeTrue(System.getenv("WAKFU_MAX_DAMAGE_RANGE_AUDIT") == "1")
+
         val params = fireMaxDamageParams(245).copy(useRunes = true, useSublimations = true)
         WakfuBuildSolver
             .maxDamageReachableRangesForTest(
@@ -2580,33 +2675,9 @@ class WakfuBuildSolverTest {
                 ) &&
                     !it.name.contains("_gate_") &&
                     !it.name.contains("_idx_")
-            }.sortedByDescending { it.hi - it.lo }
+            }.sortedByDescending { it.span }
             .take(80)
-            .forEach { println("RANGE ${it.name} ${it.lo}..${it.hi}") }
-        for (ap in emptyList<Int>()) {
-            val apProfile =
-                WakfuBuildSolver.timedMaxDamageSolveProfileForTest(
-                    params.copy(maxDamageApTarget = ap),
-                    fullEpicPool(245),
-                    WakfuBestBuildFinderAlgorithm.runes,
-                    WakfuBestBuildFinderAlgorithm.sublimations,
-                    workers = 2,
-                    seconds = 20.0,
-                    applyDomination = true
-                )
-            println("AP $ap -> $apProfile")
-        }
-        val profile =
-            WakfuBuildSolver.timedMaxDamageSolveProfileForTest(
-                params,
-                fullEpicPool(245),
-                WakfuBestBuildFinderAlgorithm.runes,
-                WakfuBestBuildFinderAlgorithm.sublimations,
-                workers = 2,
-                seconds = 60.0,
-                applyDomination = true
-            )
-        println(profile)
+            .forEach { println("MAX_DAMAGE_RANGE ${it.name} ${it.lo}..${it.hi} span=${it.span}") }
     }
 
     /** Constraint-free max-damage request for [clazz] at [level] against [scenario] (empty targets ⇒ pure damage). */
