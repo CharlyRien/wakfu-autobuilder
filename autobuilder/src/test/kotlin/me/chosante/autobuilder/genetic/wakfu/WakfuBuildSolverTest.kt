@@ -2621,6 +2621,149 @@ class WakfuBuildSolverTest {
 
     @Test
     @Tag("manual")
+    fun `manual max-damage worker-count sweep`() {
+        assumeTrue(System.getenv("WAKFU_MAX_DAMAGE_WORKER_SWEEP") == "1")
+
+        // The rune+sub proof is cracked by CP-SAT's multi-worker portfolio + cross-worker clause sharing (8
+        // workers prove what 4 cannot — it's diversity, not raw parallelism). OPEN QUESTION: does OVERSUBSCRIBING
+        // past cores-1 (e.g. 16/24 workers on a 10-core host) buy MORE portfolio diversity → a faster wall-clock
+        // proof, even though each worker runs slower? Wall-mode (production's mode) + wall-time-to-OPTIMAL is the
+        // verdict (det-time is not comparable across worker counts; it sums per worker). Production caps at cores-1
+        // to leave the UI a core, so a win here is actionable only for headless/CLI — but the curve is worth knowing.
+        val seconds = System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_SECONDS")?.toDoubleOrNull() ?: 300.0
+        val repeats = System.getenv("WAKFU_MAX_DAMAGE_REPEATS")?.toIntOrNull() ?: 3
+        val level = System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_LEVEL")?.toIntOrNull() ?: 245
+        val workerList =
+            System
+                .getenv("WAKFU_MAX_DAMAGE_WORKER_LIST")
+                ?.split(',')
+                ?.mapNotNull { it.trim().toIntOrNull() }
+                ?.takeIf { it.isNotEmpty() }
+                ?: listOf(8, 12, 16, 24)
+        val params = fireMaxDamageParams(level).copy(useRunes = true, useSublimations = true)
+        val pool = fullEpicPool(level)
+
+        repeat(repeats) { rep ->
+            for (w in workerList) {
+                val profile =
+                    WakfuBuildSolver.timedMaxDamageProfileForTest(
+                        params,
+                        pool,
+                        WakfuBestBuildFinderAlgorithm.runes,
+                        WakfuBestBuildFinderAlgorithm.sublimations,
+                        workers = w,
+                        seconds = seconds,
+                        applyDomination = true,
+                        deterministicLimit = null
+                    )
+                println("MAX_DAMAGE_WORKER_SWEEP rep$rep lvl$level workers=$w $profile")
+            }
+        }
+    }
+
+    @Test
+    @Tag("manual")
+    fun `manual max-damage solver-mode comparison`() {
+        assumeTrue(System.getenv("WAKFU_MAX_DAMAGE_SOLVER_MODE") == "1")
+
+        // PRODUCTION QUESTION: production (tuning==null, WakfuBuildSolver.kt:~1941) bounds the solve with a
+        // WALL-clock limit (maxTimeInSeconds) only; the fast @slow proof tests bound it with a DETERMINISTIC-time
+        // limit (maxDeterministicTime). The audit note claims deterministic mode reaches OPTIMAL in ~8× less
+        // *deterministic* work — but does that translate to less WALL time? If yes, production should also set a
+        // (high) maxDeterministicTime to flip CP-SAT into the faster parallel mode while keeping its real wall cap.
+        // VERDICT METRIC HERE = wallTimeSec at status==OPTIMAL (det-time is NOT comparable across the two modes).
+        val seconds = System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_SECONDS")?.toDoubleOrNull() ?: 300.0
+        val workers = System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_WORKERS")?.toIntOrNull() ?: 8
+        val repeats = System.getenv("WAKFU_MAX_DAMAGE_REPEATS")?.toIntOrNull() ?: 3
+        val level = System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_LEVEL")?.toIntOrNull() ?: 245
+        val params = fireMaxDamageParams(level).copy(useRunes = true, useSublimations = true)
+        val pool = fullEpicPool(level)
+
+        // det-mode uses a generous det budget that never binds before OPTIMAL (proof closes ~134-250 det @245);
+        // both share the same 300s wall safety cap so a non-proving run can't hang.
+        val modes = listOf("wall-mode" to null, "det-mode" to 100_000.0)
+        repeat(repeats) { rep ->
+            for ((name, detLimit) in modes) {
+                val profile =
+                    WakfuBuildSolver.timedMaxDamageProfileForTest(
+                        params,
+                        pool,
+                        WakfuBestBuildFinderAlgorithm.runes,
+                        WakfuBestBuildFinderAlgorithm.sublimations,
+                        workers = workers,
+                        seconds = seconds,
+                        applyDomination = true,
+                        deterministicLimit = detLimit
+                    )
+                println("MAX_DAMAGE_SOLVER_MODE rep$rep lvl$level $name $profile")
+            }
+        }
+    }
+
+    @Test
+    @Tag("manual")
+    fun `manual max-damage solver-parameter matrix`() {
+        assumeTrue(System.getenv("WAKFU_MAX_DAMAGE_SOLVER_PARAMS") == "1")
+
+        // Same binary model as production; vary ONLY CP-SAT solver params. Soundness-safe by construction
+        // (CP-SAT proves the same optimum regardless), so the only verdict is deterministic-time-to-OPTIMAL.
+        // Screen on level 110 (faster, ~19s) then confirm winners on 245. Verdict metric = `deterministicTime`
+        // in the printed profile when status == OPTIMAL; bestBound/ceiling is a vanity metric here.
+        val seconds = System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_SECONDS")?.toDoubleOrNull() ?: 300.0
+        val workers = System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_WORKERS")?.toIntOrNull() ?: 8
+        val detLimit = System.getenv("WAKFU_MAX_DAMAGE_DETTIME")?.toDoubleOrNull() ?: 600.0
+        val repeats = System.getenv("WAKFU_MAX_DAMAGE_REPEATS")?.toIntOrNull() ?: 1
+        val level = System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_LEVEL")?.toIntOrNull() ?: 245
+        val params = fireMaxDamageParams(level).copy(useRunes = true, useSublimations = true)
+        val pool = fullEpicPool(level)
+
+        data class Knobs(
+            val symmetryLevel: Int? = null,
+            val probingLevel: Int? = null,
+            val objectiveShaving: Boolean = false,
+            val maxPresolveIterations: Int = 3,
+            val searchBranching: Int? = null,
+        )
+        val variants =
+            listOf(
+                "baseline" to Knobs(),
+                "probing3" to Knobs(probingLevel = 3),
+                "presolve6" to Knobs(maxPresolveIterations = 6),
+                "objShaving" to Knobs(objectiveShaving = true),
+                "symmetry3" to Knobs(symmetryLevel = 3),
+                // search_branching: 5 = PORTFOLIO_WITH_QUICK_RESTART (a portfolio that restarts stuck workers —
+                // the only override that doesn't collapse the multi-worker diversity the proof relies on);
+                // 2 = PORTFOLIO (plain). Other values (FIXED/LP/PSEUDO_COST) would force one strategy and are
+                // expected to regress, so they are not screened.
+                "portfolioQuickRestart" to Knobs(searchBranching = 5),
+                "portfolio" to Knobs(searchBranching = 2)
+            )
+
+        repeat(repeats) { rep ->
+            for ((name, k) in variants) {
+                val profile =
+                    WakfuBuildSolver.timedMaxDamageProfileForTest(
+                        params,
+                        pool,
+                        WakfuBestBuildFinderAlgorithm.runes,
+                        WakfuBestBuildFinderAlgorithm.sublimations,
+                        workers = workers,
+                        seconds = seconds,
+                        applyDomination = true,
+                        maxPresolveIterations = k.maxPresolveIterations,
+                        deterministicLimit = detLimit,
+                        symmetryLevel = k.symmetryLevel,
+                        probingLevel = k.probingLevel,
+                        objectiveShaving = k.objectiveShaving,
+                        searchBranching = k.searchBranching
+                    )
+                println("MAX_DAMAGE_SOLVER_PARAM rep$rep lvl$level $name $profile")
+            }
+        }
+    }
+
+    @Test
+    @Tag("manual")
     fun `manual max-damage level-245 AP-pinned profile matrix`() {
         assumeTrue(System.getenv("WAKFU_MAX_DAMAGE_AP_EXPERIMENTS") == "1")
 

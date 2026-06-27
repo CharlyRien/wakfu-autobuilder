@@ -776,6 +776,13 @@ object WakfuBuildSolver {
         maxPresolveIterations: Int = 3,
         linearizationLevel: Int = 2,
         deterministicLimit: Double? = null,
+        // Pure CP-SAT solver-parameter knobs (no model change) — A/B research only. CP-SAT proves the SAME
+        // optimum regardless of these, so they are soundness-safe by construction; the only question they answer
+        // is whether the proof closes in less deterministic time. null/false = CP-SAT's default.
+        symmetryLevel: Int? = null,
+        probingLevel: Int? = null,
+        objectiveShaving: Boolean = false,
+        searchBranching: Int? = null,
     ): MaxDamageTimedProfile {
         val built =
             buildModel(
@@ -792,6 +799,14 @@ object WakfuBuildSolver {
         solver.parameters.maxPresolveIterations = maxPresolveIterations
         solver.parameters.numSearchWorkers = workers
         solver.parameters.randomSeed = 1
+        if (symmetryLevel != null) solver.parameters.symmetryLevel = symmetryLevel
+        if (probingLevel != null) solver.parameters.cpModelProbingLevel = probingLevel
+        if (objectiveShaving) solver.parameters.useObjectiveShavingSearch = true
+        if (searchBranching != null) {
+            solver.parameters.searchBranching =
+                com.google.ortools.sat.SatParameters.SearchBranching
+                    .forNumber(searchBranching)
+        }
         // Production proves with a DETERMINISTIC-time limit (reproducible, and a much faster solver mode for
         // this problem than a wall-clock limit). When deterministicLimit is set, use it as the real budget and
         // keep maxTimeInSeconds only as a safety cap so a stuck run can't hang.
