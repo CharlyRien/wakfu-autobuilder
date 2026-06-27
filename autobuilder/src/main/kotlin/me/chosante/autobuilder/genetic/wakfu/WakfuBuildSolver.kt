@@ -3336,6 +3336,16 @@ object WakfuBuildSolver {
                     if (maxDamageExperiment.dGrawJointBound && candidateElements.size == 1) {
                         maxPerHitProductBound(scenario)?.let { model.addLessOrEqual(perHit, it) }
                     }
+                    if (System.getenv("WAKFU_MAX_DAMAGE_DEBUG_JOINT") == "1" && candidateElements.size == 1) {
+                        params.maxDamageApTarget?.let { apCapacitatedProbe(scenario, it) }
+                    }
+                    if (System.getenv("WAKFU_MAX_DAMAGE_INNER_FRONTIER") == "1" && candidateElements.size == 1) {
+                        params.maxDamageApTarget?.let {
+                            val t0 = System.nanoTime()
+                            innerFrontierPrototype(scenario, it)
+                            System.err.println("INNER_FRONTIER_MS ap=$it ms=${(System.nanoTime() - t0) / 1_000_000}")
+                        }
+                    }
                     if (maxDamageExperiment.perHitOnlyObjective) return@mapNotNull perHit
                     val perHitScaled = tDiv("perHitScaled_${element.name}", perHit, PERHIT_DOWNSCALE, 0L, PERHIT_SCALED_MAX)
                     val raw =
@@ -3632,6 +3642,343 @@ object WakfuBuildSolver {
                 )
             }
             return best
+        }
+
+        /** Per carrier (item), the summed max contribution of [terms] (positive coef ⇒ item's high value). */
+        private fun perCarrierContribution(terms: List<Term>): LinkedHashMap<Equipment, Long> {
+            val byCarrier = LinkedHashMap<Equipment, Long>()
+            for (term in terms) {
+                val equip = carrierByVar[term.variable] ?: continue
+                val d = tracker.of(term.variable)
+                val contrib = if (term.coefficient >= 0) d.last * term.coefficient else d.first * term.coefficient
+                byCarrier[equip] = (byCarrier[equip] ?: 0L) + contrib
+            }
+            return byCarrier
+        }
+
+        /** Per sublimation, the summed max contribution of [terms]. */
+        private fun perSubContribution(terms: List<Term>): LinkedHashMap<Sublimation, Long> {
+            val bySub = LinkedHashMap<Sublimation, Long>()
+            for (term in terms) {
+                val sub = subByVar[term.variable] ?: continue
+                val d = tracker.of(term.variable)
+                val contrib = if (term.coefficient >= 0) d.last * term.coefficient else d.first * term.coefficient
+                bySub[sub] = (bySub[sub] ?: 0L) + contrib
+            }
+            return bySub
+        }
+
+        /** The summed max contribution of [terms] that come from neither an item nor a sublimation (skills). */
+        private fun nonCarrierNonSubContribution(terms: List<Term>): Long {
+            var sum = 0L
+            for (term in terms) {
+                if (carrierByVar[term.variable] != null || subByVar[term.variable] != null) continue
+                val d = tracker.of(term.variable)
+                sum += if (term.coefficient >= 0) d.last * term.coefficient else d.first * term.coefficient
+            }
+            return sum
+        }
+
+        /**
+         * Knapsack DP over carrier slots (ring ≤2 as two pseudo-slots) + sublimations (≤MAX_SUBLIMATIONS), AP as the
+         * capacity axis. Returns dp[a] = max Σ value over builds whose item+sub AP totals EXACTLY a, for a in
+         * 0..[axisMax]. Skips epic/relic rarity caps (probe). Lets the caller read the exact AP band a build with a
+         * given total AP must occupy.
+         */
+        private fun apAxisValueDp(
+            valueByCarrier: Map<Equipment, Long>,
+            apByCarrier: Map<Equipment, Long>,
+            valueBySub: Map<Sublimation, Long>,
+            apBySub: Map<Sublimation, Long>,
+            axisMax: Int,
+        ): LongArray {
+            data class Opt(
+                val value: Long,
+                val ap: Int,
+            )
+            val slots = mutableListOf<List<Opt>>()
+            for ((type, equips) in valueByCarrier.keys.groupBy { it.itemType }) {
+                val bestByAp = HashMap<Int, Long>()
+                for (e in equips) {
+                    val v = valueByCarrier[e] ?: 0L
+                    if (v <= 0L) continue
+                    val ap = (apByCarrier[e] ?: 0L).toInt().coerceIn(0, axisMax)
+                    bestByAp[ap] = maxOf(bestByAp[ap] ?: Long.MIN_VALUE, v)
+                }
+                val opts = listOf(Opt(0L, 0)) + bestByAp.map { Opt(it.value, it.key) }
+                repeat(if (type == ItemType.RING) 2 else 1) { slots.add(opts) }
+            }
+
+            var dp = LongArray(axisMax + 1) { if (it == 0) 0L else Long.MIN_VALUE }
+
+            fun apply(opts: List<Opt>) {
+                val nd = dp.copyOf()
+                for (a in 0..axisMax) {
+                    if (dp[a] == Long.MIN_VALUE) continue
+                    for (o in opts) {
+                        if (o.value == 0L && o.ap == 0) continue
+                        val na = a + o.ap
+                        if (na > axisMax) continue
+                        if (dp[a] + o.value > nd[na]) nd[na] = dp[a] + o.value
+                    }
+                }
+                dp = nd
+            }
+            for (slotOpts in slots) apply(slotOpts)
+            // Sublimations: 0/1 each, ≤MAX_SUBLIMATIONS — track count as a second axis only while applying.
+            val subList = valueBySub.entries.filter { (it.value) > 0L }
+            if (subList.isNotEmpty()) {
+                val maxSubs = MAX_SUBLIMATIONS.toInt()
+                var dpk = Array(maxSubs + 1) { k -> if (k == 0) dp else LongArray(axisMax + 1) { Long.MIN_VALUE } }
+                for ((sub, value) in subList) {
+                    val ap = (apBySub[sub] ?: 0L).toInt().coerceIn(0, axisMax)
+                    val nd = Array(maxSubs + 1) { k -> dpk[k].copyOf() }
+                    for (k in 0 until maxSubs) {
+                        for (a in 0..axisMax) {
+                            if (dpk[k][a] == Long.MIN_VALUE) continue
+                            val na = a + ap
+                            if (na > axisMax) continue
+                            if (dpk[k][a] + value > nd[k + 1][na]) nd[k + 1][na] = dpk[k][a] + value
+                        }
+                    }
+                    dpk = nd
+                }
+                val merged = LongArray(axisMax + 1) { Long.MIN_VALUE }
+                for (k in 0..maxSubs) {
+                    for (a in 0..axisMax) merged[a] = maxOf(merged[a], dpk[k][a])
+                }
+                dp = merged
+            }
+            return dp
+        }
+
+        /**
+         * Sharper debug probe: includes ALL value + AP sources (items, sublimations, skills) and the EXACT total-AP
+         * band a build must occupy. Reaching AP=[apTarget] forces item+sub AP into [apTarget − apBase − maxSkillAP,
+         * apTarget − apBase] (skills fill the rest, capped by their scarce Major points). Compares the AM-GM
+         * product bound with NO AP band vs WITH the band. Skips epic/relic rarity caps, so absolute numbers are
+         * over-estimates — but the band-vs-noband RATIO answers whether exact-AP-equality is the lever.
+         */
+        private fun apCapacitatedProbe(
+            scenario: DamageScenario,
+            apTarget: Int,
+        ) {
+            val mastery = damagePreMasteryTerms(scenario) ?: return
+            if (skillTerms.percent[Characteristic.MASTERY_CRITICAL].orEmpty().isNotEmpty()) return
+            if (skillTerms.percent[Characteristic.DAMAGE_INFLICTED].orEmpty().isNotEmpty()) return
+            val (critTerms, critBase) = prePercentTermsFor(Characteristic.MASTERY_CRITICAL)
+            val (diTerms, diBase) = prePercentTermsFor(Characteristic.DAMAGE_INFLICTED)
+            val (apTerms, apBase) = prePercentTermsFor(Characteristic.ACTION_POINT)
+            val critCap = scenario.critCapPercent.toLong().coerceIn(0L, 100L)
+            val masteryCoef = 400L + critCap
+            val critCoef = 5L * critCap
+            val grawLinTerms =
+                mastery.terms.map { Term(it.variable, it.coefficient * masteryCoef) } +
+                    critTerms.map { Term(it.variable, it.coefficient * critCoef) }
+            val grawLinConst = masteryCoef * mastery.constant + critCoef * critBase
+            val dBase = 100L + diBase
+
+            val apByCarrier = perCarrierContribution(apTerms)
+            val apBySub = perSubContribution(apTerms)
+            val maxSkillAp = nonCarrierNonSubContribution(apTerms).coerceAtLeast(0L)
+            val axisMax = 60
+            val apHigh = (apTarget - apBase).toInt()
+            val apLow = (apTarget - apBase - maxSkillAp).toInt().coerceAtLeast(0)
+            if (apHigh < 0) {
+                System.err.println("AP_DP_PROBE2 ap=$apTarget apBase=$apBase apHigh<0 (base exceeds target)")
+                return
+            }
+            val bandHi = apHigh.coerceAtMost(axisMax)
+
+            val dHi = reachableSumDomain(diTerms, dBase).last.coerceAtLeast(1L)
+            val grawLinHi = reachableSumDomain(grawLinTerms, grawLinConst).last.coerceAtLeast(1L)
+            val independent = dHi * grawLinHi
+            val muBase = (grawLinHi / dHi).coerceAtLeast(1L)
+            val muGrid = listOf(muBase / 4, muBase / 2, muBase, muBase * 2, muBase * 4).filter { it > 0L }.distinct()
+
+            var bestNoBand = independent
+            var bestBand = independent
+            for (mu in muGrid) {
+                val valueTerms = diTerms.map { Term(it.variable, mu * it.coefficient) } + grawLinTerms
+                val base = mu * dBase + grawLinConst + nonCarrierNonSubContribution(valueTerms)
+                val dp = apAxisValueDp(perCarrierContribution(valueTerms), apByCarrier, perSubContribution(valueTerms), apBySub, axisMax)
+                val noBand = dp.filter { it != Long.MIN_VALUE }.maxOrNull() ?: 0L
+                val band = (apLow..bandHi).map { dp[it] }.filter { it != Long.MIN_VALUE }.maxOrNull() ?: 0L
+                val cNoBand = base + noBand
+                val cBand = base + band
+                bestNoBand = minOf(bestNoBand, cNoBand * cNoBand / (4L * mu))
+                bestBand = minOf(bestBand, cBand * cBand / (4L * mu))
+            }
+            System.err.println(
+                "AP_DP_PROBE2 ap=$apTarget apBase=$apBase maxSkillAp=$maxSkillAp band=[$apLow,$bandHi] " +
+                    "independent=$independent noBandBound=$bestNoBand bandBound=$bestBand " +
+                    "bandVsNoBand=${"%.4f".format(bestBand.toDouble() / bestNoBand)} bandVsIndep=${"%.4f".format(bestBand.toDouble() / independent)}"
+            )
+        }
+
+        /** A 2-D Pareto frontier of (DI, graw) pairs — both maximized. Kept sorted by DI desc, graw strictly asc. */
+        private class Frontier {
+            // di descending; graw strictly increasing across the kept points (the non-dominated staircase).
+            val pts = ArrayList<LongArray>()
+
+            fun add(
+                di: Long,
+                graw: Long,
+            ) {
+                // dominated by an existing point?
+                for (p in pts) if (p[0] >= di && p[1] >= graw) return
+                pts.removeAll { it[0] <= di && it[1] <= graw }
+                pts.add(longArrayOf(di, graw))
+            }
+
+            fun copy(): Frontier {
+                val f = Frontier()
+                for (p in pts) f.pts.add(p.copyOf())
+                return f
+            }
+        }
+
+        /**
+         * PROTOTYPE (debug): the exact inner certifier piece. For each fixed crit c, graw is linear, so DP over
+         * slots with state (item-AP, item-crit) carrying the Pareto frontier of (DI, grawLin) pairs; the max
+         * D·graw over the AP+crit band states is the exact max perHit at AP=[apTarget], crit=c. Sweeps c, prints
+         * the max-over-c and the largest frontier seen (the tractability signal). Carrier items + skill maxima
+         * only (no subs / no per-sub caps yet) ⇒ a slight over-estimate, enough to gauge size + closeness to truth.
+         */
+        private fun innerFrontierPrototype(
+            scenario: DamageScenario,
+            apTarget: Int,
+        ) {
+            val mastery = damagePreMasteryTerms(scenario) ?: return
+            if (skillTerms.percent[Characteristic.MASTERY_CRITICAL].orEmpty().isNotEmpty()) return
+            if (skillTerms.percent[Characteristic.DAMAGE_INFLICTED].orEmpty().isNotEmpty()) return
+            val (critMTerms, critMBase) = prePercentTermsFor(Characteristic.MASTERY_CRITICAL)
+            val (diTerms, diBase) = prePercentTermsFor(Characteristic.DAMAGE_INFLICTED)
+            val (apTerms, apBase) = prePercentTermsFor(Characteristic.ACTION_POINT)
+            val (critTerms, critBase) = prePercentTermsFor(Characteristic.CRITICAL_HIT)
+
+            val diByItem = perCarrierContribution(diTerms)
+            val mByItem = perCarrierContribution(mastery.terms)
+            val critMByItem = perCarrierContribution(critMTerms)
+            val apByItem = perCarrierContribution(apTerms)
+            val critByItem = perCarrierContribution(critTerms)
+            val skillDi = nonCarrierNonSubContribution(diTerms)
+            val skillM = nonCarrierNonSubContribution(mastery.terms)
+            val skillCritM = nonCarrierNonSubContribution(critMTerms)
+            val maxSkillAp = nonCarrierNonSubContribution(apTerms).coerceAtLeast(0L).toInt()
+            val maxSkillCrit = nonCarrierNonSubContribution(critTerms).coerceAtLeast(0L).toInt()
+
+            data class ItemContrib(
+                val di: Long,
+                val m: Long,
+                val critM: Long,
+                val ap: Int,
+                val crit: Int,
+            )
+            val items = (diByItem.keys + mByItem.keys + critMByItem.keys + apByItem.keys + critByItem.keys).distinct()
+            val byType =
+                items.groupBy({ it.itemType }) {
+                    it to
+                        ItemContrib(
+                            diByItem[it] ?: 0,
+                            mByItem[it] ?: 0,
+                            critMByItem[it] ?: 0,
+                            (apByItem[it] ?: 0).toInt().coerceAtLeast(0),
+                            (critByItem[it] ?: 0).toInt().coerceAtLeast(0)
+                        )
+                }
+
+            val apHigh = (apTarget - apBase).toInt()
+            if (apHigh < 0) return
+            val apLow = (apHigh - maxSkillAp).coerceAtLeast(0)
+
+            run {
+                val withDi = items.count { (diByItem[it] ?: 0) > 0 }
+                val withM = items.count { (mByItem[it] ?: 0) > 0 }
+                val withCrit = items.count { (critByItem[it] ?: 0) > 0 }
+                val naiveMaxM =
+                    byType.entries.sumOf { (type, entries) ->
+                        val best = entries.maxOf { (_, ic) -> ic.m }.coerceAtLeast(0)
+                        if (type == ItemType.RING) 2 * best else best
+                    }
+                val perTypeM =
+                    byType.entries.joinToString(",") { (type, entries) ->
+                        "$type:${entries.maxOf { (_, ic) -> ic.m }.coerceAtLeast(0)}"
+                    }
+                System.err.println(
+                    "INNER_FRONTIER_DIAG items=${items.size} withDi=$withDi withM=$withM withCrit=$withCrit " +
+                        "skillM=$skillM naiveMaxM(+mConst${mastery.constant})=${naiveMaxM + mastery.constant} optimumFireM≈3890 perType[$perTypeM]"
+                )
+            }
+            var globalMax = 0L
+            var globalMaxFrontier = 0
+            var bestC = -1
+            val critGrid = (0..100 step 2).toList()
+            for (c in critGrid) {
+                val critItemHigh = (c - critBase).toInt()
+                if (critItemHigh < 0) continue
+                val critItemLow = (critItemHigh - maxSkillCrit).coerceAtLeast(0)
+                val grawConst = (400L + c) * (mastery.constant + skillM) + 5L * c * (critMBase + skillCritM)
+                val dConst = 100L + diBase + skillDi
+                // DP state key = ap*(critItemHigh+1)+crit ; value = Frontier
+                var dp = HashMap<Int, Frontier>()
+                dp[0] = Frontier().also { it.add(0, 0) }
+                val critDim = critItemHigh + 1
+
+                fun key(
+                    ap: Int,
+                    crit: Int,
+                ) = ap * critDim + crit
+                for ((type, entries) in byType) {
+                    // reduce: best (di,graw) per (ap,crit) cost for this slot
+                    val bestPerCost = HashMap<Int, Frontier>()
+                    for ((_, ic) in entries) {
+                        if (ic.ap > apHigh || ic.crit > critItemHigh) continue
+                        val g = (400L + c) * ic.m + 5L * c * ic.critM
+                        if (ic.di <= 0 && g <= 0) continue
+                        bestPerCost.getOrPut(key(ic.ap, ic.crit)) { Frontier() }.add(ic.di, g)
+                    }
+                    val picks = if (type == ItemType.RING) 2 else 1
+                    repeat(picks) {
+                        val nd = HashMap<Int, Frontier>()
+                        for ((k, fr) in dp) {
+                            val ap0 = k / critDim
+                            val crit0 = k % critDim
+                            // skip (take nothing in this slot)
+                            nd.getOrPut(k) { Frontier() }.also { for (p in fr.pts) it.add(p[0], p[1]) }
+                            for ((ck, cfr) in bestPerCost) {
+                                val ap1 = ap0 + ck / critDim
+                                val crit1 = crit0 + ck % critDim
+                                if (ap1 > apHigh || crit1 > critItemHigh) continue
+                                val tgt = nd.getOrPut(key(ap1, crit1)) { Frontier() }
+                                for (p in fr.pts) for (q in cfr.pts) tgt.add(p[0] + q[0], p[1] + q[1])
+                            }
+                        }
+                        dp = nd
+                    }
+                }
+                var maxProd = 0L
+                var maxFr = 0
+                for ((k, fr) in dp) {
+                    val ap = k / critDim
+                    val crit = k % critDim
+                    maxFr = maxOf(maxFr, fr.pts.size)
+                    if (ap < apLow || crit < critItemLow) continue
+                    for (p in fr.pts) {
+                        val prod = (dConst + p[0]) * (grawConst + p[1])
+                        if (prod > maxProd) maxProd = prod
+                    }
+                }
+                globalMaxFrontier = maxOf(globalMaxFrontier, maxFr)
+                if (maxProd > globalMax) {
+                    globalMax = maxProd
+                    bestC = c
+                }
+            }
+            System.err.println(
+                "INNER_FRONTIER ap=$apTarget bestCrit=$bestC maxPerHit=$globalMax maxFrontierSize=$globalMaxFrontier " +
+                    "(carrier+skill, no subs)"
+            )
         }
 
         private data class LinearTermSum(
