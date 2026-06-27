@@ -348,6 +348,9 @@ object WakfuBuildSolver {
         val dProduct: DProductMode = DProductMode.BINARY,
         val sameNameRingBound: Boolean = false,
         val perApRotRawCut: Boolean = false,
+        val perHitOnlyObjective: Boolean = false,
+        val dGrawCutoff: Boolean = false,
+        val dGrawJointBound: Boolean = false,
     ) {
         companion object {
             val DEFAULT = MaxDamageExperimentConfig()
@@ -634,6 +637,7 @@ object WakfuBuildSolver {
         // pool unchanged; the production [optimize] passes true and the soundness lock toggles it.
         applyDomination: Boolean = false,
         maxDamageExperiment: MaxDamageExperimentConfig = MaxDamageExperimentConfig.DEFAULT,
+        maxDamageObjectiveCutoff: Long? = null,
     ): BuiltModel {
         val model = CpModel()
 
@@ -703,7 +707,7 @@ object WakfuBuildSolver {
                 ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> {
                     val statBuilder =
                         StatBuilder(model, params, allEquips, equipVars, skillVars, runeModel, subModel, tight = tightDomains, maxDamageExperiment = maxDamageExperiment)
-                    val obj = model.buildMaxDamageObjective(params, statBuilder)
+                    val obj = model.buildMaxDamageObjective(params, statBuilder, maxDamageObjectiveCutoff)
                     maxDamageTracked = statBuilder.tracker.tracked()
                     obj
                 }
@@ -798,7 +802,8 @@ object WakfuBuildSolver {
                 runes,
                 sublimations,
                 applyDomination = applyDomination,
-                maxDamageExperiment = experiment
+                maxDamageExperiment = experiment,
+                maxDamageObjectiveCutoff = objectiveCutoff
             )
         objectiveCutoff?.let { built.model.addGreaterOrEqual(built.objective, it) }
         val solver = CpSolver()
@@ -1714,12 +1719,13 @@ object WakfuBuildSolver {
     private fun CpModel.buildMaxDamageObjective(
         params: WakfuBestBuildParams,
         statBuilder: StatBuilder,
+        objectiveCutoff: Long? = null,
     ): IntVar {
         statBuilder.applyOutOfCombatCaps()
         // External-loop AP probe: pin the build to exactly N AP so each breakpoint can be evaluated (used by the
         // debuff AP-window probes in MaxDamageSearch).
         params.maxDamageApTarget?.let { addEquality(statBuilder.actionPointVar(), newConstant(it.toLong())) }
-        val damageScore = statBuilder.perTurnDamageScore(params.damageScenario, params.character.clazz)
+        val damageScore = statBuilder.perTurnDamageScore(params.damageScenario, params.character.clazz, objectiveCutoff)
         // Survivability soft-floor (opt-in): gently tax the damage score when the build's effective-HP
         // proxy is below the floor, BEFORE the hard-target penalty. Folding it into the core score (rather
         // than chaining a second multiply onto the already-near-Long.MAX/2 penalized objective) keeps the
@@ -3268,11 +3274,16 @@ object WakfuBuildSolver {
         fun perTurnDamageScore(
             scenario: DamageScenario,
             clazz: me.chosante.common.CharacterClass,
+            objectiveCutoff: Long? = null,
         ): IntVar {
             val maxRotationAp = if (maxDamageExperiment.apCeiling) actualActionPointCeiling() else MAX_ROTATION_AP
             val apVar = tClamp(actualStat(Characteristic.ACTION_POINT), 0L, maxRotationAp, "rotationAp")
+            val candidateElements = scenario.candidateElements()
+            val directCutoff =
+                objectiveCutoff
+                    ?.takeIf { it > 0L && candidateElements.size == 1 && !maxDamageExperiment.perHitOnlyObjective }
             val perElementDamage =
-                scenario.candidateElements().mapNotNull { (element, resistance) ->
+                candidateElements.mapNotNull { (element, resistance) ->
                     val spells =
                         SpellCatalog.damageSpells(clazz).filter {
                             it.element ==
@@ -3292,7 +3303,40 @@ object WakfuBuildSolver {
                     val clampedTable = LongArray(table.size) { table[it].coerceAtMost(PER_TURN_THROUGHPUT_MAX) }
                     // raw = throughput[AP] · (perHit ÷ PERHIT_DOWNSCALE). The AP lookup has only 21 possible
                     // values, so encode it as a selector-gated product instead of a generic multiplication.
-                    val perHit = perHitDamageScore(scenarioElementMasteryVar(element.masteryCharacteristic), element.masteryCharacteristic.name, scenario)
+                    // Fold in the boss's per-element resistance, then scale down once into the penalty's range.
+                    val resFactor = (100L - resistance).coerceIn(RES_FACTOR_MIN, RES_FACTOR_MAX)
+                    // dGrawCutoff: push the per-turn floor down to the per-hit product `score = D·Graw`, so its step
+                    // can reason per-D-value (see [perHitDamageScore]). Same exact chain as the raw/perHit floors
+                    // below: raw ≥ rawLower ⟹ perHitScaled ≥ ⌈rawLower/throughput⌉ ⟹ perHit ≥ that · DOWNSCALE.
+                    val dGrawCutoffLowerBound: Long? =
+                        if (maxDamageExperiment.dGrawCutoff && directCutoff != null) {
+                            params.maxDamageApTarget
+                                ?.takeIf { it in clampedTable.indices }
+                                ?.let { apTarget ->
+                                    val throughput = clampedTable[apTarget]
+                                    if (throughput > 0L) {
+                                        val rawLower = ceilDivPositive(directCutoff * FINAL_DOWNSCALE, resFactor)
+                                        ceilDivPositive(rawLower, throughput) * PERHIT_DOWNSCALE
+                                    } else {
+                                        null
+                                    }
+                                }
+                        } else {
+                            null
+                        }
+                    val perHit =
+                        perHitDamageScore(
+                            scenarioElementMasteryVar(element.masteryCharacteristic),
+                            element.masteryCharacteristic.name,
+                            scenario,
+                            dGrawCutoffLowerBound
+                        )
+                    // Joint AM-GM product bound on perHit = D·Graw (sound for any build; tightens the McCormick
+                    // independent-max looseness). Single-element only, where the scenario mastery IS this element's.
+                    if (maxDamageExperiment.dGrawJointBound && candidateElements.size == 1) {
+                        maxPerHitProductBound(scenario)?.let { model.addLessOrEqual(perHit, it) }
+                    }
+                    if (maxDamageExperiment.perHitOnlyObjective) return@mapNotNull perHit
                     val perHitScaled = tDiv("perHitScaled_${element.name}", perHit, PERHIT_DOWNSCALE, 0L, PERHIT_SCALED_MAX)
                     val raw =
                         tTableProduct(
@@ -3307,8 +3351,18 @@ object WakfuBuildSolver {
                         maxRotRawForElement(scenario, clampedTable, PERHIT_SCALED_MAX)?.let { model.addLessOrEqual(raw, it) }
                     }
 
-                    // Fold in the boss's per-element resistance, then scale down once into the penalty's range.
-                    val resFactor = (100L - resistance).coerceIn(RES_FACTOR_MIN, RES_FACTOR_MAX)
+                    if (directCutoff != null) {
+                        val rawLower = ceilDivPositive(directCutoff * FINAL_DOWNSCALE, resFactor)
+                        model.addGreaterOrEqual(raw, rawLower)
+                        params.maxDamageApTarget?.takeIf { it in clampedTable.indices }?.let { apTarget ->
+                            val throughput = clampedTable[apTarget]
+                            if (throughput > 0L) {
+                                val perHitScaledLower = ceilDivPositive(rawLower, throughput)
+                                model.addGreaterOrEqual(perHitScaled, perHitScaledLower)
+                                model.addGreaterOrEqual(perHit, perHitScaledLower * PERHIT_DOWNSCALE)
+                            }
+                        }
+                    }
                     val rawWithRes = tSumNaive("rotRawRes_${element.name}", listOf(Term(raw, resFactor)), 0L, 0L, ROTATION_RAW_RES_MAX)
                     tDiv("rotDamage_${element.name}", rawWithRes, FINAL_DOWNSCALE, 0L, DAMAGE_PERTURN_ABS_MAX)
                 }
@@ -3346,6 +3400,7 @@ object WakfuBuildSolver {
             elementMasteryVar: IntVar,
             suffix: String,
             scenario: DamageScenario,
+            dGrawCutoffLowerBound: Long? = null,
         ): IntVar {
             val s = suffix
             val preM = damagePreMastery(s, elementMasteryVar, scenario)
@@ -3445,6 +3500,32 @@ object WakfuBuildSolver {
                     .build(),
                 -dReach.first * grawDomain.last
             )
+
+            // Cutoff (incumbent-optimality proof) ONLY: a sound lower bound `tScore` on the per-hit product
+            // score = D·Graw. CP-SAT's product relaxation lets a fractional (D high)×(Graw high) meet tScore even
+            // when no integer build does — high DI gear costs mastery, so it lowers Graw. Add the EXACT per-D-value
+            // disjunction `(D==v) ⟹ Graw ≥ ⌈tScore/v⌉` (only over the band where it bites), plus the cheap box
+            // projections `D ≥ ⌈tScore/Grawmax⌉` and `Graw ≥ ⌈tScore/Dmax⌉`. Every constraint is implied by
+            // score ≥ tScore (so it never removes a feasible build), but they engage the integer item-coupling the
+            // bilinear McCormick envelope misses. Fires only when dGrawCutoff is set AND a cutoff bound was derived,
+            // so the normal (no-cutoff) objective — and its exactness tests — are untouched.
+            if (dGrawCutoffLowerBound != null && maxDamageExperiment.dGrawCutoff) {
+                val tScore = dGrawCutoffLowerBound
+                val grawDom = tracker.of(graw)
+                model.addGreaterOrEqual(score, tScore)
+                if (grawDom.last > 0L) model.addGreaterOrEqual(d, ceilDivPositive(tScore, grawDom.last))
+                if (dReach.last > 0L) model.addGreaterOrEqual(graw, ceilDivPositive(tScore, dReach.last))
+                for (v in maxOf(dReach.first, 1L)..dReach.last) {
+                    val grawMin = ceilDivPositive(tScore, v)
+                    // Below the band the bound is free (already implied); above it `D==v` is impossible and is
+                    // already pruned by the `D ≥ ⌈tScore/Grawmax⌉` box cut, so only reify the middle.
+                    if (grawMin <= grawDom.first || grawMin > grawDom.last) continue
+                    val isV = model.newBoolVar("dGrawCut_${suffix}_$v")
+                    model.addEquality(d, v).onlyEnforceIf(isV)
+                    model.addDifferent(d, model.newConstant(v)).onlyEnforceIf(isV.not())
+                    model.addGreaterOrEqual(graw, grawMin).onlyEnforceIf(isV)
+                }
+            }
             return score
         }
 
@@ -3500,6 +3581,57 @@ object WakfuBuildSolver {
                 maxRotRaw = maxOf(maxRotRaw, clampedTable[a] * perHitScaledUBa)
             }
             return maxRotRaw
+        }
+
+        /**
+         * Sound CONSTANT upper bound on the per-hit product `score = D · Graw` (D = 100+DI, Graw ≤ grawLin =
+         * 500·M + 500·K). The McCormick relaxation of the product bounds it by the INDEPENDENT maxes `Dmax ·
+         * grawLinMax` — loose because high DI and high mastery COMPETE for the same slots (the best-DI item in a
+         * slot is rarely the best-mastery one). For any weight μ>0 the joint reachable bound `μ·D + grawLin ≤
+         * C(μ)` is a SINGLE [reachableSumDomain] over the μ-weighted `(μ·DI ∪ grawLin)` terms (so all the per-slot
+         * / ring / rarity / sublimation competition is captured exactly), and by AM-GM `D·grawLin ≤ C(μ)²/(4μ)`.
+         * The min over a μ grid is a sound upper bound on `score` for EVERY build — valid for the normal objective,
+         * not only the cutoff proof. Null ⇒ a %-skill term makes the slot decomposition unsound (cannot tighten).
+         */
+        private fun maxPerHitProductBound(scenario: DamageScenario): Long? {
+            val mastery = damagePreMasteryTerms(scenario) ?: return null
+            if (skillTerms.percent[Characteristic.MASTERY_CRITICAL].orEmpty().isNotEmpty()) return null
+            if (skillTerms.percent[Characteristic.DAMAGE_INFLICTED].orEmpty().isNotEmpty()) return null
+            val (critTerms, critBase) = prePercentTermsFor(Characteristic.MASTERY_CRITICAL)
+            val (diTerms, diBase) = prePercentTermsFor(Characteristic.DAMAGE_INFLICTED)
+
+            // graw = 400·M + crit·(M + 5·critM) with crit ≤ critCap, so the tightest crit-free upper bound is
+            // (400+critCap)·M + 5·critCap·critM (NOT 500·M + 500·critM, which assumed crit ≤ 100 — far too loose
+            // when the scenario caps crit well below 100).
+            val critCap = scenario.critCapPercent.toLong().coerceIn(0L, 100L)
+            val masteryCoef = 400L + critCap
+            val critCoef = 5L * critCap
+            val grawLinTerms =
+                mastery.terms.map { Term(it.variable, it.coefficient * masteryCoef) } +
+                    critTerms.map { Term(it.variable, it.coefficient * critCoef) }
+            val grawLinConst = masteryCoef * mastery.constant + critCoef * critBase
+            val dBase = 100L + diBase
+            val dHi = reachableSumDomain(diTerms, dBase).last.coerceAtLeast(1L)
+            val grawLinHi = reachableSumDomain(grawLinTerms, grawLinConst).last.coerceAtLeast(1L)
+
+            // The AM-GM bound is tightest when μ·D ≈ grawLin, i.e. μ ≈ grawLin / D; grid around it.
+            val muBase = (grawLinHi / dHi).coerceAtLeast(1L)
+            val muGrid = listOf(muBase / 4, muBase / 2, muBase, muBase * 2, muBase * 4).filter { it > 0L }.distinct()
+            val independent = dHi * grawLinHi
+            var best = independent // independent-max fallback (always valid; the cut only helps if a μ beats it)
+            for (mu in muGrid) {
+                val combined = diTerms.map { Term(it.variable, mu * it.coefficient) } + grawLinTerms
+                val cMu = reachableSumDomain(combined, mu * dBase + grawLinConst).last
+                val uMu = (cMu.toDouble() * cMu / (4.0 * mu)).toLong()
+                best = minOf(best, uMu)
+            }
+            if (System.getenv("WAKFU_MAX_DAMAGE_DEBUG_JOINT") == "1") {
+                System.err.println(
+                    "JOINT_BOUND_DEBUG critCap=$critCap dHi=$dHi grawLinHi=$grawLinHi independent=$independent " +
+                        "jointU=$best ratio=${"%.4f".format(best.toDouble() / independent)}"
+                )
+            }
+            return best
         }
 
         private data class LinearTermSum(
@@ -4434,6 +4566,15 @@ object WakfuBuildSolver {
                 a.last * b.last
             )
         return corners.min()..corners.max()
+    }
+
+    private fun ceilDivPositive(
+        numerator: Long,
+        denominator: Long,
+    ): Long {
+        require(numerator >= 0L) { "ceilDivPositive numerator must be non-negative: $numerator" }
+        require(denominator > 0L) { "ceilDivPositive denominator must be positive: $denominator" }
+        return if (numerator == 0L) 0L else 1L + (numerator - 1L) / denominator
     }
 
     private fun deterministicTimeFrom(responseStats: String): Double =

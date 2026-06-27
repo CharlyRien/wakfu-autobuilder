@@ -1285,6 +1285,14 @@ class WakfuBuildSolverTest {
                         WakfuBuildSolver.MaxDamageExperimentConfig(
                             dProduct = WakfuBuildSolver.DProductMode.BINARY,
                             critProduct = WakfuBuildSolver.CritProductMode.BINARY
+                        ),
+                    // Soundness lock for the always-on AM-GM product bound: if its upper bound under-shot the true
+                    // max D·Graw it would cap the objective below the exhaustive optimum and fail this assertion.
+                    "joint-bound" to WakfuBuildSolver.MaxDamageExperimentConfig(dGrawJointBound = true),
+                    "joint+per-ap" to
+                        WakfuBuildSolver.MaxDamageExperimentConfig(
+                            dGrawJointBound = true,
+                            perApRotRawCut = true
                         )
                 )
 
@@ -2585,6 +2593,61 @@ class WakfuBuildSolverTest {
 
     @Test
     @Tag("manual")
+    fun `manual max-damage level-245 incumbent shape`() =
+        runBlocking {
+            assumeTrue(System.getenv("WAKFU_MAX_DAMAGE_INCUMBENT_SHAPE") == "1")
+
+            val seconds = System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_SECONDS")?.toLongOrNull() ?: 180L
+            val workers = System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_WORKERS")?.toIntOrNull() ?: 8
+            val detLimit = System.getenv("WAKFU_MAX_DAMAGE_DETTIME")?.toDoubleOrNull() ?: 100_000.0
+            val params = fireMaxDamageParams(245).copy(searchDuration = seconds.seconds, useRunes = true, useSublimations = true)
+            val best =
+                WakfuBuildSolver
+                    .optimize(
+                        params,
+                        fullEpicPool(245),
+                        WakfuBestBuildFinderAlgorithm.runes,
+                        WakfuBestBuildFinderAlgorithm.sublimations,
+                        WakfuBuildSolver.SolverTuning(
+                            numSearchWorkers = workers,
+                            maxDeterministicTime = detLimit
+                        )
+                    ).toList()
+                    .maxWithOrNull(compareBy({ it.matchPercentage }, { it.isOptimal }))
+
+            requireNotNull(best) { "No max-damage incumbent found" }
+            val stats =
+                computeCharacteristicsValues(
+                    best.individual,
+                    params.character.baseCharacteristicValues,
+                    masteryElementsWanted = mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 1),
+                    resistanceElementsWanted = emptyMap()
+                )
+            val rotation =
+                me.chosante.autobuilder.domain.SpellRotationOptimizer.bestAcrossElements(
+                    best.individual,
+                    params.character,
+                    params.character.clazz,
+                    params.damageScenario
+                )
+            val itemSummary =
+                best.individual.equipments
+                    .sortedWith(compareBy<Equipment> { it.itemType.ordinal }.thenBy { it.name.fr })
+                    .joinToString(" | ") { "${it.itemType}:${it.name.fr}#${it.equipmentId}" }
+            println(
+                "MAX_DAMAGE_INCUMBENT_SHAPE " +
+                    "optimal=${best.isOptimal} score=${best.matchPercentage} " +
+                    "ap=${stats[Characteristic.ACTION_POINT]} crit=${stats[Characteristic.CRITICAL_HIT]} " +
+                    "di=${stats[Characteristic.DAMAGE_INFLICTED]} fire=${stats[Characteristic.MASTERY_ELEMENTARY_FIRE]} " +
+                    "elem=${stats[Characteristic.MASTERY_ELEMENTARY]} critMastery=${stats[Characteristic.MASTERY_CRITICAL]} " +
+                    "dist=${stats[Characteristic.MASTERY_DISTANCE]} apBudget=${rotation.apBudget} apUsed=${rotation.apUsed} " +
+                    "damage=${rotation.totalExpectedDamage} casts=${rotation.casts.joinToString { "${it.spell.name}:${it.count}" }}"
+            )
+            println("MAX_DAMAGE_INCUMBENT_ITEMS $itemSummary")
+        }
+
+    @Test
+    @Tag("manual")
     fun `manual max-damage level-245 two-worker experiment matrix`() {
         assumeTrue(System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENTS") == "1")
 
@@ -2626,7 +2689,26 @@ class WakfuBuildSolverTest {
                 "binary+apCeiling" to WakfuBuildSolver.MaxDamageExperimentConfig(apCeiling = true),
                 "binary+per-ap" to WakfuBuildSolver.MaxDamageExperimentConfig(perApRotRawCut = true),
                 "binary+ring-bound" to WakfuBuildSolver.MaxDamageExperimentConfig(sameNameRingBound = true),
-                "binary+ap+per-ap" to WakfuBuildSolver.MaxDamageExperimentConfig(apCeiling = true, perApRotRawCut = true)
+                "binary+ring+per-ap" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        sameNameRingBound = true,
+                        perApRotRawCut = true
+                    ),
+                "binary+ap+per-ap" to WakfuBuildSolver.MaxDamageExperimentConfig(apCeiling = true, perApRotRawCut = true),
+                "binary+ring+ap+per-ap" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        apCeiling = true,
+                        sameNameRingBound = true,
+                        perApRotRawCut = true
+                    ),
+                // AM-GM joint product bound — the only cut that can lower the FREE objective's stuck ceiling
+                // (it's a valid upper bound on D·Graw, unlike the lower-bound cutoff cuts).
+                "binary+joint" to WakfuBuildSolver.MaxDamageExperimentConfig(dGrawJointBound = true),
+                "binary+joint+per-ap" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        dGrawJointBound = true,
+                        perApRotRawCut = true
+                    )
             )
         val defaultExperimentNames = setOf("table-baseline", "binary", "binary+apCeiling", "binary+per-ap")
         val selectedNames =
@@ -2758,7 +2840,11 @@ class WakfuBuildSolverTest {
         val detLimit = System.getenv("WAKFU_MAX_DAMAGE_DETTIME")?.toDoubleOrNull() ?: 600.0
         val repeats = System.getenv("WAKFU_MAX_DAMAGE_REPEATS")?.toIntOrNull() ?: 1
         val level = System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_LEVEL")?.toIntOrNull() ?: 245
-        val params = fireMaxDamageParams(level).copy(useRunes = true, useSublimations = true)
+        val apTarget = System.getenv("WAKFU_MAX_DAMAGE_AP_TARGET")?.toIntOrNull()
+        val objectiveCutoff = System.getenv("WAKFU_MAX_DAMAGE_OBJECTIVE_CUTOFF")?.toLongOrNull()
+        val params =
+            fireMaxDamageParams(level)
+                .copy(useRunes = true, useSublimations = true, maxDamageApTarget = apTarget)
         val pool = fullEpicPool(level)
 
         data class Knobs(
@@ -2766,11 +2852,14 @@ class WakfuBuildSolverTest {
             val probingLevel: Int? = null,
             val objectiveShaving: Boolean = false,
             val maxPresolveIterations: Int = 3,
+            val linearizationLevel: Int = 2,
             val searchBranching: Int? = null,
         )
         val variants =
             listOf(
                 "baseline" to Knobs(),
+                "linear1" to Knobs(linearizationLevel = 1),
+                "linear0" to Knobs(linearizationLevel = 0),
                 "probing3" to Knobs(probingLevel = 3),
                 "presolve6" to Knobs(maxPresolveIterations = 6),
                 "objShaving" to Knobs(objectiveShaving = true),
@@ -2795,13 +2884,15 @@ class WakfuBuildSolverTest {
                         seconds = seconds,
                         applyDomination = true,
                         maxPresolveIterations = k.maxPresolveIterations,
+                        linearizationLevel = k.linearizationLevel,
                         deterministicLimit = detLimit,
                         symmetryLevel = k.symmetryLevel,
                         probingLevel = k.probingLevel,
                         objectiveShaving = k.objectiveShaving,
-                        searchBranching = k.searchBranching
+                        searchBranching = k.searchBranching,
+                        objectiveCutoff = objectiveCutoff
                     )
-                println("MAX_DAMAGE_SOLVER_PARAM rep$rep lvl$level $name $profile")
+                println("MAX_DAMAGE_SOLVER_PARAM rep$rep lvl$level ap=${apTarget ?: "free"} $name $profile")
             }
         }
     }
@@ -2824,21 +2915,127 @@ class WakfuBuildSolverTest {
                 ?: (10..17).toList()
         val params = fireMaxDamageParams(245).copy(useRunes = true, useSublimations = true)
         val pool = fullEpicPool(245)
+        val allExperiments =
+            listOf(
+                "table-baseline" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        dProduct = WakfuBuildSolver.DProductMode.TABLE,
+                        critProduct = WakfuBuildSolver.CritProductMode.TABLE
+                    ),
+                "binary" to WakfuBuildSolver.MaxDamageExperimentConfig.DEFAULT,
+                "perhit-binary" to WakfuBuildSolver.MaxDamageExperimentConfig(perHitOnlyObjective = true),
+                "perhit-table" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        dProduct = WakfuBuildSolver.DProductMode.TABLE,
+                        critProduct = WakfuBuildSolver.CritProductMode.TABLE,
+                        perHitOnlyObjective = true
+                    ),
+                "perhit-source-di" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        dProduct = WakfuBuildSolver.DProductMode.SOURCE_DI,
+                        perHitOnlyObjective = true
+                    ),
+                "perhit-crit-generic" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        critProduct = WakfuBuildSolver.CritProductMode.GENERIC,
+                        perHitOnlyObjective = true
+                    ),
+                "d-binary-only" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        dProduct = WakfuBuildSolver.DProductMode.BINARY,
+                        critProduct = WakfuBuildSolver.CritProductMode.TABLE
+                    ),
+                "crit-binary-only" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        dProduct = WakfuBuildSolver.DProductMode.TABLE,
+                        critProduct = WakfuBuildSolver.CritProductMode.BINARY
+                    ),
+                "crit-generic" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        dProduct = WakfuBuildSolver.DProductMode.BINARY,
+                        critProduct = WakfuBuildSolver.CritProductMode.GENERIC
+                    ),
+                "source-di" to WakfuBuildSolver.MaxDamageExperimentConfig(dProduct = WakfuBuildSolver.DProductMode.SOURCE_DI),
+                "binary+apCeiling" to WakfuBuildSolver.MaxDamageExperimentConfig(apCeiling = true),
+                "binary+per-ap" to WakfuBuildSolver.MaxDamageExperimentConfig(perApRotRawCut = true),
+                "binary+ring-bound" to WakfuBuildSolver.MaxDamageExperimentConfig(sameNameRingBound = true),
+                "binary+ring+per-ap" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        sameNameRingBound = true,
+                        perApRotRawCut = true
+                    ),
+                "binary+ap+per-ap" to WakfuBuildSolver.MaxDamageExperimentConfig(apCeiling = true, perApRotRawCut = true),
+                "binary+ring+ap+per-ap" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        apCeiling = true,
+                        sameNameRingBound = true,
+                        perApRotRawCut = true
+                    ),
+                // dGrawCutoff: exact per-D-value Graw disjunction on the cutoff (needs an AP target + objective
+                // cutoff). Attacks the D·Graw McCormick looseness directly — the AP16 lock.
+                "binary+dgraw" to WakfuBuildSolver.MaxDamageExperimentConfig(dGrawCutoff = true),
+                "binary+dgraw+per-ap" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        dGrawCutoff = true,
+                        perApRotRawCut = true
+                    ),
+                "binary+ring+dgraw" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        sameNameRingBound = true,
+                        dGrawCutoff = true
+                    ),
+                "binary+ring+dgraw+per-ap" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        sameNameRingBound = true,
+                        dGrawCutoff = true,
+                        perApRotRawCut = true
+                    ),
+                // dGrawJointBound: constant AM-GM upper bound on perHit = D·Graw via the joint (μ·D + grawLin)
+                // reachable sum — cuts the independent-max corner the McCormick exploits. Sound for any build
+                // (works without a cutoff), so it can also tighten the free production proof.
+                "binary+joint" to WakfuBuildSolver.MaxDamageExperimentConfig(dGrawJointBound = true),
+                "binary+joint+dgraw" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        dGrawJointBound = true,
+                        dGrawCutoff = true
+                    ),
+                "binary+joint+per-ap" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        dGrawJointBound = true,
+                        perApRotRawCut = true
+                    )
+            )
+        val selectedNames =
+            System
+                .getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_NAMES")
+                ?.split(',')
+                ?.map { it.trim() }
+                ?.filter { it.isNotEmpty() }
+                ?.toSet()
+                ?: setOf("binary")
+        val selectedExperiments =
+            allExperiments.filter { (name, _) -> name in selectedNames }
+        require(selectedExperiments.isNotEmpty()) {
+            "No max-damage AP experiments selected. Available: ${allExperiments.joinToString { it.first }}"
+        }
 
         for (ap in apTargets) {
-            val profile =
-                WakfuBuildSolver.timedMaxDamageProfileForTest(
-                    params.copy(maxDamageApTarget = ap),
-                    pool,
-                    WakfuBestBuildFinderAlgorithm.runes,
-                    WakfuBestBuildFinderAlgorithm.sublimations,
-                    workers = workers,
-                    seconds = seconds,
-                    applyDomination = true,
-                    deterministicLimit = detLimit,
-                    objectiveCutoff = objectiveCutoff
-                )
-            println("MAX_DAMAGE_AP_EXPERIMENT AP=$ap $profile")
+            for ((name, experiment) in selectedExperiments) {
+                val profile =
+                    WakfuBuildSolver.timedMaxDamageProfileForTest(
+                        params.copy(maxDamageApTarget = ap),
+                        pool,
+                        WakfuBestBuildFinderAlgorithm.runes,
+                        WakfuBestBuildFinderAlgorithm.sublimations,
+                        workers = workers,
+                        seconds = seconds,
+                        applyDomination = true,
+                        experiment = experiment,
+                        deterministicLimit = detLimit,
+                        objectiveCutoff = objectiveCutoff
+                    )
+                println("MAX_DAMAGE_AP_EXPERIMENT AP=$ap $name $profile")
+            }
         }
     }
 
