@@ -1,9 +1,10 @@
 # Max-damage: linearize the bilinear objective — design note for a fresh start
 
 **Status:** IMPLEMENTED, WITH FINAL A/B RESULTS — `codex/max-damage-linearization-impl` keeps the exact
-AP-selector and binary-`D` product encodings, but deliberately leaves `crit·(M+5K)` as OR-Tools'
-`AddMultiplicationEquality`. The crit one-hot was exact but too bulky on the full lvl-245 pool. The real wins were
-tight leaf/rune domains and removing redundant rune/sublimation assignment grids:
+AP-selector plus binary expansions for both `D·Graw` and `crit·(M+5K)`. The old one-hot selectors were exact but
+too bulky on the full lvl-245 pool; the binary encoding preserves the exact objective while collapsing the
+branching surface. The earlier wins also matter: tight leaf/rune domains and removing redundant rune/sublimation
+assignment grids made the binary products useful instead of hiding behind fantasy bounds:
 
 - skill variables are capped to their branch point budget, not `Int.MAX_VALUE`;
 - single-element random mastery is folded into one slot-aware sum;
@@ -11,9 +12,9 @@ tight leaf/rune domains and removing redundant rune/sublimation assignment grids
   "crit rune only when it can beat M";
 - normal sublimation carriers use one aggregate capacity constraint instead of `(sub × item)` booleans.
 
-Current measured proofs: lvl-245 full runes+sublimations **63.3 s**; lvl-110 runes+sublimations **42.5 s**;
-lvl-245 free max-damage **78.6 s** on the final verification run (earlier free-only A/B was **30.6 s**, so keep
-free-pool timing noisy unless rerun in isolation).
+Current measured proofs after the binary product change: lvl-245 full runes+sublimations **~61 s** (8 workers);
+lvl-110 runes+sublimations **~19 s**. The exact optimum remains **14,003,760** on the lvl-245 runes+sublimations
+fixture.
 **Goal:** make the `FIND_BUILD_WITH_MAX_DAMAGE` proof **fast** (ideally most-masteries-class, ~1 s, low-thread),
 without changing the proven optimum.
 **Symbol-first** (line numbers drift). Background: `docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md` (how it became *provable*)
@@ -28,17 +29,53 @@ solver family. Latest cleaned-tree verification:
 
 | test (full pool, `@slow`) | wall |
 |---|---|
-| max-damage runes+subs, lvl-245 | **63.3 s** |
-| max-damage runes+subs, lvl-110 | **42.5 s** |
-| max-damage free, lvl-245 | **78.6 s** |
+| max-damage runes+subs, lvl-245 | **~61 s** after binary products |
+| max-damage runes+subs, lvl-110 | **~19 s** after binary products |
+| max-damage free, lvl-245 | noisy; rerun in isolation before quoting |
 
 Every **non**-max-damage proof (precision, most-masteries, feasibility) now runs in **≤12 s** and was promoted out
 of `@slow`. The split is **objective shape, not search space**: a *sum* proves fast; a *product of large sums*
 does not. Max-damage maximizes `Score = D · Graw` (bilinear, with `crit·M` nested) — the LP relaxation of a
 product of two big variable sums is loose, so CP-SAT must branch hard to close the gap.
 
-**The plan:** replace the generic products with **boolean-gated / one-hot** encodings (tight LP), **and** fix the
-**loose operand bounds** that otherwise blunt the gating. The two are coupled — do them together.
+**The remaining problem:** the model now finds the incumbent quickly enough, but the proof is still a product-bound
+closure problem on low-worker runs. On a 2-worker lvl-245 runes+sublimations run, the binary model found the known
+optimum `14,003,760` by 120 s but did not prove it (`FEASIBLE`; bound still above the incumbent). Further wins must
+tighten the remaining relaxation or change the proof strategy, not retune CP-SAT knobs.
+
+### 0b. Follow-up A/B: 2-worker target
+
+Manual harness additions:
+
+- `MaxDamageTimedProfile` now reports `booleans`, `branches`, `conflicts`, `restarts`, `lpIterations`, and an
+  optional `objectiveCutoff`.
+- `WAKFU_MAX_DAMAGE_EXPERIMENT_NAMES` filters the model matrix, so targeted A/B can run one or two variants
+  instead of the whole set.
+- `WAKFU_MAX_DAMAGE_OBJECTIVE_CUTOFF` adds an exact `objective >= cutoff` constraint for proof experiments.
+
+Measurements on lvl-245 runes+sublimations, 2 workers, `caffeinate`, same fixture as the slow proof:
+
+| experiment | budget | status | objective | bound | note |
+|---|---:|---|---:|---:|---|
+| binary, wall mode | 120 s | FEASIBLE | 14,003,760 | 26,737,770 | finds optimum, no proof |
+| binary, deterministic-limit mode | 120 s | FEASIBLE | 14,003,760 | 18,054,990 | better bound, still no proof |
+| binary + AP ceiling | 120 s | FEASIBLE | 13,779,660 | 23,190,040 | not a win |
+| binary + per-AP rot raw cut | 120 s | FEASIBLE | 13,944,000 | 24,967,200 | not a win |
+| global cutoff `objective >= 14,003,761` | 60 s | UNKNOWN | - | 26,737,770 | incumbent cutoff alone does not close |
+
+AP-pinned cutoff is more promising but not enough yet. With `objective >= 14,003,761`, AP 6..14 and 17 prove
+`INFEASIBLE` in 0-18 s each, but AP 15 and AP 16 remain `UNKNOWN` after 60 s (bounds `14,216,750` and `18,294,030`).
+So an exact two-phase proof should focus on AP 15/16, especially AP 16, rather than enumerating every AP blindly.
+
+Current reachable-range audit after all tightening:
+
+- `rotDamage_FIRE = 0..26,737,770` while the optimum is `14,003,760`;
+- `dmgGraw = 0..5,442,500`, `dmgM = 0..9,238`, `criticalMastery = 0..5,556`;
+- `dmgDI = -20..59` and `rotationAp = 0..16` are already small.
+
+This says the remaining gap is no longer fantasy billion-sized random mastery. It is mostly incompatible maxima in
+the damage product/rotation upper bound. Next useful exact experiments should target a tighter joint upper bound
+for AP 15/16 or move to a frontier/meet-in-the-middle proof, not more CP-SAT parameter toggles.
 
 ---
 
@@ -52,14 +89,14 @@ K    = clamp(MASTERY_CRITICAL, 0, DAMAGE_MASTERY_MAX)      // dmgCriticalMastery
 C    = clamp(CRITICAL_HIT, 0, critCap≤100)                 // dmgCrit_s        (crit chance %)
 D    = 100 + clamp(DAMAGE_INFLICTED, -FLOOR, DI_MAX)       // dmgD_s
 diff = M + 5·K                                             // dmgDiff_s   (tSumNaive)
-term = C · diff                                            // dmgCritTerm_s (tMul → addMultiplicationEquality)
+term = C · diff                                            // dmgCritTerm_s (binary-expanded in production)
 Graw = 400·M + term                                       // dmgGraw_s   (tSumNaive)
-Score= D · Graw                                            // dmgScore_s  (tMul → addMultiplicationEquality)
+Score= D · Graw                                            // dmgScore_s  (binary-expanded in production)
 ```
 
-The two generic products — `tMul(C, diff)` and `tMul(D, Graw)` — are the cost. Expanded: `Score = 400 D·M +
-D·C·M + 5 D·C·K` (bilinear + trilinear). `tMul` calls `addMultiplicationEquality`; CP-SAT's generic product
-propagation + a loose McCormick relaxation = the slow proof.
+The two products — `C·diff` and `D·Graw` — are the cost. Expanded: `Score = 400 D·M + D·C·M + 5 D·C·K`
+(bilinear + trilinear). The old generic `addMultiplicationEquality` propagation + a loose McCormick relaxation
+made the proof slow; the current model binary-expands the small-domain factors instead.
 
 The scenario’s element / orientation / resistance / positional factors are constants that scale every build
 equally and are dropped, so only this core matters. Per-element enumeration (`MaxDamageSearch`) solves each
@@ -74,11 +111,8 @@ candidate element separately and takes the max — the linearization slots **ins
 A product `x · boolean` has an **exact, tight** LP relaxation; a product of two large variable sums does not.
 So encode the small-domain factors as selectors and gate:
 
-- **crit one-hot** — `C ∈ [0, critCap]`, `critCap ≤ 100` ⇒ **~101 selectors**. `yC[c]∈{0,1}, Σ yC=1, C=Σ c·yC`.
-  Then `C·M = Σ c·(M·yC[c])` and `C·K = Σ c·(K·yC[c])`, each `·yC[c]` a boolean-gated product (4 linear
-  constraints: `z≤U·y, z≥L·y, z≤x−L(1−y), z≥x−U(1−y)`). ⇒ `Graw` becomes **linear**. **Measured regression:**
-  exact but too many gates on the full lvl-245 pool; keep `crit·diff` generic unless a future benchmark proves
-  otherwise.
+- **crit one-hot** — `C ∈ [0, critCap]`, `critCap ≤ 100` ⇒ **~101 selectors**. This was exact but too bulky on the
+  full lvl-245 pool. Rejected in favor of binary-expanding `C` into ~7 gated `diff` copies.
 - **`D·Graw`** — `D`'s *reachable* span is small (measured **~125**, `DI∈[-20,104]` with subs; see §3), so:
   - **best: binary-expand `D`** — `D = Dmin + Σ 2^b·bit_b` ⇒ `D·Graw = Dmin·Graw + Σ 2^b·(bit_b·Graw)`, only
     **~7 gated `Graw` copies** (log₂125). Cheaper and robust vs a full DI one-hot.
@@ -88,9 +122,8 @@ So encode the small-domain factors as selectors and gate:
 - **`throughput · perHitScaled`** — throughput is a **table lookup by AP (≈6–12 values)**; an AP-selector gating
   replaces that product almost for free. Cheapest single win; do it first.
 
-Selectors are **separate `Σy=1` sets** ⇒ they **add** (crit 101 + DI-bits ~7), they do **not** multiply. (An
-*outer enumeration* — a separate solve per `(crit, DI)` cell — multiplies to ~12 k solves; **rejected**, do not
-do that.)
+Selectors/bits are **separate** ⇒ they **add** (crit bits ~7 + DI bits ~7), they do **not** multiply. (An *outer
+enumeration* — a separate solve per `(crit, DI)` cell — multiplies to ~12 k solves; **rejected**, do not do that.)
 
 ### 2b. Tighten the operand bounds (or 2a barely helps)
 
@@ -165,8 +198,8 @@ CP-SAT is deterministic, thermal-immune) on a right-sized instance, and compare 
    `reachableSumDomain`.
 3. **AP-selector for `throughput·perHit`** — cheap and still retained.
 4. **binary-expand `D·Graw`** — retained after the `Graw` bound is tight.
-5. **Do not use crit one-hot by default.** It was exact but regressed lvl-245; with tight `M`/`K`, the generic
-   `crit·diff` product is the better tradeoff.
+5. **binary-expand `crit·diff`; do not use crit one-hot.** The one-hot version was exact but regressed lvl-245;
+   the binary expansion keeps the selector count low enough to win in production.
 6. **Collapse pure max-damage rune choices.** All M-feeding runes enter the same `M` sum, so pick the best
    carrier-specific M rune and keep a crit-mastery alternative only when its rune value is larger. Single-choice
    carriers substitute the equipment var directly; two-choice carriers model crit as `critPick ≤ equip` and
@@ -196,8 +229,8 @@ Every reformulation is **exact** (same optimum) by construction, but verify:
 
 ## 7. Rejected / dead ends (don't re-try)
 
-- **Outer enumeration** (separate solve per `(crit, DI)` cell): grid ≈ 101×125 ≈ 12 k solves. Inner one-hot adds,
-  not multiplies — use that.
+- **Outer enumeration** (separate solve per `(crit, DI)` cell): grid ≈ 101×125 ≈ 12 k solves. Inner encodings add,
+  not multiply — use the binary-gated products instead.
 - **One-hot `D` over the full clamp guard** (`DI_MAX`=5000 ⇒ ~5100 selectors): too fat. The *reachable* span is
   ~125 (one-hot fine, binary-expand better).
 - **Clamping only `M`** (§4): no-op; `preM`/`rand_*` stay loose.

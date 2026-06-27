@@ -753,8 +753,14 @@ object WakfuBuildSolver {
         val status: String,
         val objective: Long,
         val bestBound: Long,
+        val objectiveCutoff: Long?,
         val wallTimeSec: Double,
         val deterministicTime: Double,
+        val booleans: Long,
+        val branches: Long,
+        val conflicts: Long,
+        val restarts: Long,
+        val lpIterations: Long,
         val variables: Int,
         val constraints: Int,
         val poolSize: Int,
@@ -783,6 +789,7 @@ object WakfuBuildSolver {
         probingLevel: Int? = null,
         objectiveShaving: Boolean = false,
         searchBranching: Int? = null,
+        objectiveCutoff: Long? = null,
     ): MaxDamageTimedProfile {
         val built =
             buildModel(
@@ -793,6 +800,7 @@ object WakfuBuildSolver {
                 applyDomination = applyDomination,
                 maxDamageExperiment = experiment
             )
+        objectiveCutoff?.let { built.model.addGreaterOrEqual(built.objective, it) }
         val solver = CpSolver()
         solver.parameters.logSearchProgress = false
         solver.parameters.linearizationLevel = linearizationLevel
@@ -824,8 +832,14 @@ object WakfuBuildSolver {
             status = status.toString(),
             objective = if (hasSolution) solver.objectiveValue().toLong() else Long.MIN_VALUE,
             bestBound = solver.bestObjectiveBound().toLong(),
+            objectiveCutoff = objectiveCutoff,
             wallTimeSec = solver.wallTime(),
             deterministicTime = deterministicTimeFrom(stats),
+            booleans = longStatFrom(stats, "booleans"),
+            branches = solver.numBranches(),
+            conflicts = solver.numConflicts(),
+            restarts = longStatFrom(stats, "restarts"),
+            lpIterations = longStatFrom(stats, "lp_iterations"),
             variables = proto.variablesCount,
             constraints = proto.constraintsCount,
             poolSize = built.allEquips.size,
@@ -4429,6 +4443,17 @@ object WakfuBuildSolver {
             ?.getOrNull(1)
             ?.toDoubleOrNull()
             ?: Double.NaN
+
+    private fun longStatFrom(
+        responseStats: String,
+        key: String,
+    ): Long =
+        Regex("""(?m)^\s*$key:\s*([0-9]+)""")
+            .find(responseStats)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toLongOrNull()
+            ?: 0L
 
     private fun orderEquipments(equipmentsByItemType: Map<ItemType, List<Equipment>>): List<Equipment> =
         ItemType.entries

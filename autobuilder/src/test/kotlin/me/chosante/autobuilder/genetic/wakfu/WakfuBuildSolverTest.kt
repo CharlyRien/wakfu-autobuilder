@@ -1267,7 +1267,16 @@ class WakfuBuildSolverTest {
                 mapOf(
                     "ap-ceiling" to WakfuBuildSolver.MaxDamageExperimentConfig(apCeiling = true),
                     "crit-generic" to WakfuBuildSolver.MaxDamageExperimentConfig(critProduct = WakfuBuildSolver.CritProductMode.GENERIC),
-                    "d-binary" to WakfuBuildSolver.MaxDamageExperimentConfig(dProduct = WakfuBuildSolver.DProductMode.BINARY),
+                    "d-binary-only" to
+                        WakfuBuildSolver.MaxDamageExperimentConfig(
+                            dProduct = WakfuBuildSolver.DProductMode.BINARY,
+                            critProduct = WakfuBuildSolver.CritProductMode.TABLE
+                        ),
+                    "crit-binary-only" to
+                        WakfuBuildSolver.MaxDamageExperimentConfig(
+                            dProduct = WakfuBuildSolver.DProductMode.TABLE,
+                            critProduct = WakfuBuildSolver.CritProductMode.BINARY
+                        ),
                     "source-di" to WakfuBuildSolver.MaxDamageExperimentConfig(dProduct = WakfuBuildSolver.DProductMode.SOURCE_DI),
                     "same-name-ring-bound" to WakfuBuildSolver.MaxDamageExperimentConfig(sameNameRingBound = true),
                     "per-ap-rotraw-cut" to WakfuBuildSolver.MaxDamageExperimentConfig(perApRotRawCut = true),
@@ -2583,25 +2592,59 @@ class WakfuBuildSolverTest {
         val workers = System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_WORKERS")?.toIntOrNull() ?: 2
         val detLimit = System.getenv("WAKFU_MAX_DAMAGE_DETTIME")?.toDoubleOrNull()
         val repeats = System.getenv("WAKFU_MAX_DAMAGE_REPEATS")?.toIntOrNull() ?: 1
+        val objectiveCutoff = System.getenv("WAKFU_MAX_DAMAGE_OBJECTIVE_CUTOFF")?.toLongOrNull()
         val params = fireMaxDamageParams(245).copy(useRunes = true, useSublimations = true)
         val pool = fullEpicPool(245)
         // Default research set: the old one-hot encoding vs the production binary default, plus the gated
-        // tightness cuts stacked on binary. Override via WAKFU_MAX_DAMAGE_* env. WAKFU_MAX_DAMAGE_DETTIME picks
-        // the deterministic-mode budget — the ONLY reliable verdict; bestBound/ceiling is a vanity metric here.
-        val experiments =
+        // tightness cuts stacked on binary. Extra component variants are banked for targeted A/B via
+        // WAKFU_MAX_DAMAGE_EXPERIMENT_NAMES. WAKFU_MAX_DAMAGE_DETTIME picks the deterministic-mode budget — the
+        // ONLY reliable verdict; bestBound/ceiling is a vanity metric here.
+        val allExperiments =
             listOf(
                 "table-baseline" to
                     WakfuBuildSolver.MaxDamageExperimentConfig(
                         dProduct = WakfuBuildSolver.DProductMode.TABLE,
                         critProduct = WakfuBuildSolver.CritProductMode.TABLE
                     ),
+                "d-binary-only" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        dProduct = WakfuBuildSolver.DProductMode.BINARY,
+                        critProduct = WakfuBuildSolver.CritProductMode.TABLE
+                    ),
+                "crit-binary-only" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        dProduct = WakfuBuildSolver.DProductMode.TABLE,
+                        critProduct = WakfuBuildSolver.CritProductMode.BINARY
+                    ),
+                "crit-generic" to
+                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                        dProduct = WakfuBuildSolver.DProductMode.BINARY,
+                        critProduct = WakfuBuildSolver.CritProductMode.GENERIC
+                    ),
+                "source-di" to WakfuBuildSolver.MaxDamageExperimentConfig(dProduct = WakfuBuildSolver.DProductMode.SOURCE_DI),
                 "binary" to WakfuBuildSolver.MaxDamageExperimentConfig.DEFAULT,
                 "binary+apCeiling" to WakfuBuildSolver.MaxDamageExperimentConfig(apCeiling = true),
-                "binary+per-ap" to WakfuBuildSolver.MaxDamageExperimentConfig(perApRotRawCut = true)
+                "binary+per-ap" to WakfuBuildSolver.MaxDamageExperimentConfig(perApRotRawCut = true),
+                "binary+ring-bound" to WakfuBuildSolver.MaxDamageExperimentConfig(sameNameRingBound = true),
+                "binary+ap+per-ap" to WakfuBuildSolver.MaxDamageExperimentConfig(apCeiling = true, perApRotRawCut = true)
             )
+        val defaultExperimentNames = setOf("table-baseline", "binary", "binary+apCeiling", "binary+per-ap")
+        val selectedNames =
+            System
+                .getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_NAMES")
+                ?.split(',')
+                ?.map { it.trim() }
+                ?.filter { it.isNotEmpty() }
+                ?.toSet()
+                ?: defaultExperimentNames
+        val selectedExperiments =
+            allExperiments.filter { (name, _) -> name in selectedNames }
+        require(selectedExperiments.isNotEmpty()) {
+            "No max-damage experiments selected. Available: ${allExperiments.joinToString { it.first }}"
+        }
 
         repeat(repeats) { rep ->
-            for ((name, experiment) in experiments) {
+            for ((name, experiment) in selectedExperiments) {
                 val profile =
                     WakfuBuildSolver.timedMaxDamageProfileForTest(
                         params,
@@ -2612,7 +2655,8 @@ class WakfuBuildSolverTest {
                         seconds = seconds,
                         applyDomination = true,
                         experiment = experiment,
-                        deterministicLimit = detLimit
+                        deterministicLimit = detLimit,
+                        objectiveCutoff = objectiveCutoff
                     )
                 println("MAX_DAMAGE_EXPERIMENT rep$rep $name $profile")
             }
@@ -2769,6 +2813,8 @@ class WakfuBuildSolverTest {
 
         val seconds = System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_SECONDS")?.toDoubleOrNull() ?: 30.0
         val workers = System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_WORKERS")?.toIntOrNull() ?: 2
+        val detLimit = System.getenv("WAKFU_MAX_DAMAGE_DETTIME")?.toDoubleOrNull()
+        val objectiveCutoff = System.getenv("WAKFU_MAX_DAMAGE_OBJECTIVE_CUTOFF")?.toLongOrNull()
         val apTargets =
             System
                 .getenv("WAKFU_MAX_DAMAGE_AP_TARGETS")
@@ -2788,7 +2834,9 @@ class WakfuBuildSolverTest {
                     WakfuBestBuildFinderAlgorithm.sublimations,
                     workers = workers,
                     seconds = seconds,
-                    applyDomination = true
+                    applyDomination = true,
+                    deterministicLimit = detLimit,
+                    objectiveCutoff = objectiveCutoff
                 )
             println("MAX_DAMAGE_AP_EXPERIMENT AP=$ap $profile")
         }
