@@ -148,8 +148,9 @@ Item data is **not** fetched at runtime by the apps — it is baked into `autobu
 as **fixed-name** JSON files (no version in the filename):
 
 1. `equipments-extractor` downloads `items.json`, `equipmentItemTypes.json`, `actions.json`,
-   `recipeCategories.json` from `https://wakfu.cdn.ankama.com/gamedata/:version` (auto-detecting the
-   latest version) and writes `equipments.json` (the `Equipment` list).
+   `recipeCategories.json` from `https://wakfu.cdn.ankama.com/gamedata/:version` (the `:version` is read
+   from `WakfuData.VERSION`, not auto-detected, so every extractor pins the same version) and writes
+   `equipments.json` (the `Equipment` list).
 2. `spells-extractor` → `spells.json`. (Monsters are no longer scraped — see `bdata-extractor` below.)
 3. `WakfuBestBuildFinderAlgorithm` / `SpellCatalog` / `PassiveCatalog` load these by fixed name via the
    classpath at startup (e.g. `equipments.json`).
