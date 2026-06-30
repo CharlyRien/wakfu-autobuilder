@@ -3399,6 +3399,67 @@ class WakfuBuildSolverTest {
     }
 
     @Test
+    fun `validateRequest level-gates a level-restricted pet-slot item (Lucky Charm) but not a familier`() {
+        // A Lucky Charm shares the PETS slot but carries a real level requirement (levelRestricted = true), so a
+        // level-35 one is NOT equippable on a level-10 character — unlike a level-less familier, which always is.
+        val level = 10
+        val character = Character(clazz = CharacterClass.CRA, level = level, minLevel = 1, CharacterSkills(level))
+        val pool =
+            listOf(
+                equipment(
+                    id = 1,
+                    type = ItemType.PETS,
+                    name = "Lucky Charm 35",
+                    stats = mapOf(Characteristic.MASTERY_DISTANCE to 10),
+                    level = 35,
+                    rarity = Rarity.MYTHIC,
+                    levelRestricted = true
+                ),
+                equipment(id = 2, type = ItemType.PETS, name = "Familier 50", stats = mapOf(Characteristic.MASTERY_ELEMENTARY to 40), level = 50, rarity = Rarity.RARE)
+            )
+
+        val luckyCharmProblems =
+            WakfuBestBuildFinderAlgorithm.validateRequest(
+                forcedItemsParams(character, forced = listOf("Lucky Charm 35")),
+                allEquipments = pool
+            )
+        assertThat(luckyCharmProblems).hasSize(1)
+        assertThat(luckyCharmProblems.single()).isInstanceOf(RequestValidationProblem.ForcedItemNotEquippable::class.java)
+
+        // The level-less familier in the same slot stays equippable at level 10.
+        val familierProblems =
+            WakfuBestBuildFinderAlgorithm.validateRequest(
+                forcedItemsParams(character, forced = listOf("Familier 50")),
+                allEquipments = pool
+            )
+        assertThat(familierProblems).isEmpty()
+    }
+
+    @Test
+    fun `validateRequest accepts a level-restricted pet-slot item at its level`() {
+        val level = 35
+        val character = Character(clazz = CharacterClass.CRA, level = level, minLevel = 1, CharacterSkills(level))
+        val pool =
+            listOf(
+                equipment(
+                    id = 1,
+                    type = ItemType.PETS,
+                    name = "Lucky Charm 35",
+                    stats = mapOf(Characteristic.MASTERY_DISTANCE to 10),
+                    level = 35,
+                    rarity = Rarity.MYTHIC,
+                    levelRestricted = true
+                )
+            )
+        val problems =
+            WakfuBestBuildFinderAlgorithm.validateRequest(
+                forcedItemsParams(character, forced = listOf("Lucky Charm 35")),
+                allEquipments = pool
+            )
+        assertThat(problems).isEmpty()
+    }
+
+    @Test
     fun `validateRequest reports forcing two epic sublimations`() {
         val character = Character(CharacterClass.CRA, 50, 1, CharacterSkills(50))
         val subs =
@@ -3519,6 +3580,7 @@ class WakfuBuildSolverTest {
         maxShardSlots: Int = 0,
         level: Int = 1,
         rarity: Rarity = Rarity.COMMON,
+        levelRestricted: Boolean = false,
     ): Equipment =
         Equipment(
             equipmentId = id,
@@ -3528,6 +3590,7 @@ class WakfuBuildSolverTest {
             rarity = rarity,
             itemType = type,
             characteristics = stats,
-            maxShardSlots = maxShardSlots
+            maxShardSlots = maxShardSlots,
+            levelRestricted = levelRestricted
         )
 }

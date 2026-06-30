@@ -109,11 +109,21 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
         val itemTypeId = equipment.definition.item.baseParameters.itemTypeId
         val itemType: ItemType = itemTypeIdToTypeName[itemTypeId] ?: continue
 
+        // A Lucky Charm ("Porte-bonheur") sits in the PETS slot but, unlike a familier (raw level 0), carries a
+        // real level requirement — flag it from the RAW level (before the force-level below) so the searcher
+        // level-filters it like ordinary gear instead of treating it as a level-less companion. Familiers and
+        // mounts leave this false and stay equippable at any character level.
+        val levelRestricted = itemType == ItemType.PETS && level != 0
+
         if (itemType == ItemType.MOUNTS) {
             level = 50
         }
 
-        if (itemType == ItemType.PETS) {
+        // Familiers carry no level in the CDN (raw level 0); stamp them to 50 (Gélutins to 25) so the UI shows
+        // a sensible level instead of "Lvl 0" — display-only, since familiers stay level-exempt (levelRestricted
+        // is false). Lucky Charms ("Porte-bonheur") share the PETS slot but DO carry a real CDN level (12..35);
+        // leave it untouched so they are level-filtered honestly.
+        if (itemType == ItemType.PETS && level == 0) {
             level =
                 if (equipment.title.fr.contains("Gélutin")) {
                     25
@@ -203,7 +213,8 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
                 rarity = rarity,
                 itemType = itemType,
                 characteristics = bonus,
-                maxShardSlots = maxShardSlots
+                maxShardSlots = maxShardSlots,
+                levelRestricted = levelRestricted
             )
         equipments.add(outputDict)
     }
@@ -292,10 +303,15 @@ private fun String.toItemType(): ItemType? =
         "Familier" -> ItemType.PETS
         "Monture" -> ItemType.MOUNTS
         "Ceinture" -> ItemType.BELT
-        // "Porte-bonheur" (added in 1.92.x) shares the single in-game PET position with familiers but is a
-        // distinct Ankama item type (849). Excluded for now: there are only 6, all level <=35, so they never
-        // beat a real pet in an optimal build, and there is no dedicated domain slot for them (mapping them to
-        // PETS would also break the Zenith export, which keys off ItemType.id).
-        "Costume", "Torche", "Outil", "Poing", "Porte-bonheur", "Arme 1 Main", "Arme 2 Mains", "Seconde Main", "WIP" -> null
+        // "Porte-bonheur" (Lucky Charm, Ankama item type 849, added in 1.92.x) equips in the single in-game PET
+        // position, shared with familiers — so we model it as a PETS candidate competing for that slot. There
+        // are only 6 (all level 12..35, Mythic) and the PETS pool bypasses the level filter (familiers have no
+        // level requirement in Wakfu — see the grouping in WakfuBestBuildFinderAlgorithm), so a stronger
+        // familier almost always dominates them; including them is the faithful in-game model and lets the
+        // solver take one only on the rare request where it is Pareto-best. Caveat: the Zenith export keys off
+        // ItemType.id, so a chosen Lucky Charm exports as a pet id that Zenith mis-slots/ignores — accepted,
+        // the Zenith integration is already stale.
+        "Porte-bonheur" -> ItemType.PETS
+        "Costume", "Torche", "Outil", "Poing", "Arme 1 Main", "Arme 2 Mains", "Seconde Main", "WIP" -> null
         else -> throw IllegalStateException("unknown type: $this")
     }
