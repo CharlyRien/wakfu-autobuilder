@@ -410,6 +410,10 @@ object WakfuBuildSolver {
         val maxDamageTracked: List<Triple<IntVar, String, LongRange>> = emptyList(),
         // Precision only: same, for [precisionVarBoundsForTest] (empty for the other modes).
         val precisionTracked: List<Triple<IntVar, String, LongRange>> = emptyList(),
+        // Max-damage only: the EXACT per-AP-cell certifier objective (single-element), captured when buildModel
+        // is called with certifyAllApForTest = true. Key = AP, value = certifier objective (or -1 where the
+        // certifier bails to CP-SAT). Empty otherwise. See [certifierCellObjectivesForTest].
+        val certifierObjectivesForTest: Map<Int, Long> = emptyMap(),
     )
 
     /**
@@ -674,6 +678,9 @@ object WakfuBuildSolver {
         applyDomination: Boolean = false,
         maxDamageExperiment: MaxDamageExperimentConfig = MaxDamageExperimentConfig.DEFAULT,
         maxDamageObjectiveCutoff: Long? = null,
+        // Test seam: when true, the max-damage build also runs [certifyMaxPerHitAtAp] for every AP cell and
+        // stores the resulting objectives in [BuiltModel.certifierObjectivesForTest] (single-element only).
+        certifyAllApForTest: Boolean = false,
     ): BuiltModel {
         val model = CpModel()
 
@@ -724,6 +731,7 @@ object WakfuBuildSolver {
 
         var maxDamageTracked: List<Triple<IntVar, String, LongRange>> = emptyList()
         var precisionTracked: List<Triple<IntVar, String, LongRange>> = emptyList()
+        var certifierObjectives: Map<Int, Long> = emptyMap()
         val objective =
             when (params.scoreComputationMode) {
                 ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
@@ -742,15 +750,27 @@ object WakfuBuildSolver {
 
                 ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> {
                     val statBuilder =
-                        StatBuilder(model, params, allEquips, equipVars, skillVars, runeModel, subModel, tight = tightDomains, maxDamageExperiment = maxDamageExperiment)
+                        StatBuilder(
+                            model,
+                            params,
+                            allEquips,
+                            equipVars,
+                            skillVars,
+                            runeModel,
+                            subModel,
+                            tight = tightDomains,
+                            maxDamageExperiment = maxDamageExperiment,
+                            certifyForTest = certifyAllApForTest
+                        )
                     val obj = model.buildMaxDamageObjective(params, statBuilder, maxDamageObjectiveCutoff)
                     maxDamageTracked = statBuilder.tracker.tracked()
+                    certifierObjectives = statBuilder.certifierObjectivesForTest
                     obj
                 }
             }
         model.maximize(objective)
 
-        return BuiltModel(model, objective, allEquips, equipVars, skillVars, runeModel, subModel, maxDamageTracked, precisionTracked)
+        return BuiltModel(model, objective, allEquips, equipVars, skillVars, runeModel, subModel, maxDamageTracked, precisionTracked, certifierObjectives)
     }
 
     /** Configures a deterministic, machine-reproducible max-damage solver (full presolve + level-2 linearization). */
@@ -864,6 +884,19 @@ object WakfuBuildSolver {
         }
         solver.parameters.maxTimeInSeconds = seconds
         val status = solver.solve(built.model)
+        if (System.getenv("WAKFU_MAX_DAMAGE_CERT_DEBUG") == "1" &&
+            (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL || status == com.google.ortools.sat.CpSolverStatus.FEASIBLE)
+        ) {
+            val skills =
+                built.skillVars.entries
+                    .mapNotNull { (ch, v) -> solver.value(v).takeIf { it > 0 }?.let { "${ch.characteristic}=$it" } }
+            System.err.println("SOLVE_DEBUG ap=${params.maxDamageApTarget} obj=${solver.objectiveValue().toLong()} skills=$skills")
+            val subs =
+                built.subModel.subVars.entries
+                    .filter { solver.value(it.value) > 0 }
+                    .map { it.key.name.en }
+            System.err.println("SOLVE_DEBUG_SUBS $subs")
+        }
         val hasSolution =
             status == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
                 status == com.google.ortools.sat.CpSolverStatus.FEASIBLE
@@ -887,6 +920,30 @@ object WakfuBuildSolver {
             experiment = experiment
         )
     }
+
+    /**
+     * Test-only: assemble the max-damage model like [optimize] and return the EXACT per-AP-cell certifier
+     * objective for every AP cell (single-element only). Key = AP, value = the certifier's objective for a
+     * build pinned to that AP, or -1 where [certifyMaxPerHitAtAp] bails (the production path falls back to
+     * CP-SAT there). One model build certifies every cell, so a soundness / exactness test can compare the
+     * certifier against the per-cell CP-SAT optimum (via [timedMaxDamageProfileForTest] with a pinned
+     * `maxDamageApTarget`) without rebuilding per AP.
+     */
+    internal fun certifierCellObjectivesForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        applyDomination: Boolean = false,
+    ): Map<Int, Long> =
+        buildModel(
+            params,
+            equipmentsByItemType,
+            runes,
+            sublimations,
+            applyDomination = applyDomination,
+            certifyAllApForTest = true
+        ).certifierObjectivesForTest
 
     /**
      * Test-only: solve a max-damage model with either reachable ([tightDomains] = true) or loose guard
@@ -2275,8 +2332,14 @@ object WakfuBuildSolver {
         // (every other mode, and the soundness-test reference). See [DomainTracker].
         tight: Boolean = false,
         private val maxDamageExperiment: MaxDamageExperimentConfig = MaxDamageExperimentConfig.DEFAULT,
+        // Test seam: when true, [perTurnDamageScore] certifies the exact per-AP-cell max objective for every
+        // AP into [certifierObjectivesForTest] (single-element only). See [certifyMaxPerHitAtAp].
+        private val certifyForTest: Boolean = false,
     ) {
         val tracker = DomainTracker(tight)
+
+        // Test seam (see [certifyForTest]): AP cell → certifier objective, or -1 where the certifier bails.
+        val certifierObjectivesForTest = linkedMapOf<Int, Long>()
 
         private val baseValues = params.character.baseCharacteristicValues
         private val skillTerms = buildSkillTerms(skillVars)
@@ -3482,7 +3545,21 @@ object WakfuBuildSolver {
                                 } else {
                                     clampedTable[ap] * (maxPerHit / PERHIT_DOWNSCALE) * resFactor / FINAL_DOWNSCALE
                                 }
-                            System.err.println("CERTIFIER ap=$ap maxPerHit=$maxPerHit objective=$obj target=14003760 ms=$ms")
+                            // Compare `objective` against the CP-SAT cell-max from a paired AP-pinned solve; the
+                            // pre-2026-06-27 lvl-245 AP16 baseline (14,003,760 via Measure III + Influence II) is
+                            // stale after the sublimation pre-combat-condition fix — re-establish before pinning.
+                            System.err.println("CERTIFIER ap=$ap maxPerHit=$maxPerHit objective=$obj ms=$ms")
+                        }
+                    }
+                    if (certifyForTest && candidateElements.size == 1) {
+                        for (apCell in clampedTable.indices) {
+                            val maxPerHit = certifyMaxPerHitAtAp(scenario, apCell)
+                            certifierObjectivesForTest[apCell] =
+                                if (maxPerHit == Long.MAX_VALUE) {
+                                    -1L
+                                } else {
+                                    clampedTable[apCell] * (maxPerHit / PERHIT_DOWNSCALE) * resFactor / FINAL_DOWNSCALE
+                                }
                         }
                     }
                     if (maxDamageExperiment.perHitOnlyObjective) return@mapNotNull perHit
@@ -3809,6 +3886,21 @@ object WakfuBuildSolver {
             return bySub
         }
 
+        /**
+         * Per sublimation, the EXACT contribution of [terms] when the sub is SELECTED (its 0/1 var = 1) — i.e.
+         * the raw coefficient sum, which (unlike [perSubContribution]) keeps NEGATIVE effects such as Carapace's
+         * MAX_ACTION_POINT −2. The certifier always either takes a sub whole or not at all, so this is the value
+         * to fold in; the max-form would silently zero a negative AP/stat and hide that lever.
+         */
+        private fun perSubValue(terms: List<Term>): LinkedHashMap<Sublimation, Long> {
+            val bySub = LinkedHashMap<Sublimation, Long>()
+            for (term in terms) {
+                val sub = subByVar[term.variable] ?: continue
+                bySub[sub] = (bySub[sub] ?: 0L) + term.coefficient
+            }
+            return bySub
+        }
+
         /** The summed max contribution of [terms] that come from neither an item nor a sublimation (skills). */
         private fun nonCarrierNonSubContribution(terms: List<Term>): Long {
             var sum = 0L
@@ -3994,6 +4086,16 @@ object WakfuBuildSolver {
             if (skillTerms.percent[Characteristic.DAMAGE_INFLICTED].orEmpty().isNotEmpty()) return Long.MAX_VALUE
             if (skillTerms.percent[Characteristic.ACTION_POINT].orEmpty().isNotEmpty()) return Long.MAX_VALUE
             if (skillTerms.percent[Characteristic.CRITICAL_HIT].orEmpty().isNotEmpty()) return Long.MAX_VALUE
+            // Conversion subs flow through a `moved` variable [subByVar] cannot attribute (it would leak
+            // into the skills constant, unconditional + un-gated); forced subs must apply unconditionally
+            // and bind their carrier. The certifier models neither — bail so the caller uses CP-SAT.
+            if (subModel.subVars.keys.any { it.kind == SublimationKind.CONVERSION }) return Long.MAX_VALUE
+            if (subModel.forced.isNotEmpty()) return Long.MAX_VALUE
+            // Best-element-concentration / per-stat-step subs (added after this certifier was written) are NOT
+            // bailed: their Damage-Inflicted enters [diTerms] and is folded at each term's MAX contribution
+            // below, so the certified value stays a SOUND upper bound (looser, never an under-estimate). Tighten
+            // + add covering tests before wiring the certifier into the production proof (see
+            // docs/code-review-followups.md).
             val (critMTerms, critMBase) = prePercentTermsFor(Characteristic.MASTERY_CRITICAL)
             val (diTerms, diBase) = prePercentTermsFor(Characteristic.DAMAGE_INFLICTED)
             val (apTerms, apBase) = prePercentTermsFor(Characteristic.ACTION_POINT)
@@ -4004,16 +4106,85 @@ object WakfuBuildSolver {
             val cmI = perCarrierContribution(critMTerms)
             val apI = perCarrierContribution(apTerms)
             val crI = perCarrierContribution(critTerms)
-            val diS = perSubContribution(diTerms)
-            val mS = perSubContribution(mastery.terms)
-            val cmS = perSubContribution(critMTerms)
-            val apS = perSubContribution(apTerms)
-            val crS = perSubContribution(critTerms)
-            val skillDi = nonCarrierNonSubContribution(diTerms)
-            val skillM = nonCarrierNonSubContribution(mastery.terms)
-            val skillCritM = nonCarrierNonSubContribution(critMTerms)
-            val maxSkillAp = nonCarrierNonSubContribution(apTerms).coerceAtLeast(0L).toInt()
-            val maxSkillCrit = nonCarrierNonSubContribution(critTerms).coerceAtLeast(0L).toInt()
+            val diS = perSubValue(diTerms)
+            val mS = perSubValue(mastery.terms)
+            val cmS = perSubValue(critMTerms)
+            val apS = perSubValue(apTerms)
+            val crS = perSubValue(critTerms)
+            // Skill points are a per-branch SHARED pool (addSkillConstraints: Σ branch points ≤ pool), so the
+            // certifier cannot fold each objective skill stat at its individual max — that over-allocates the
+            // pool (e.g. Luck's 61 pts can't be 20 crit AND 61 critM at once). Split skill contributions into
+            // the PASSIVE constant part (base + always-on passives) which stays a constant, and the SKILL-VAR
+            // part which is folded into the DP per branch as a pseudo-slot (below) so the allocation is solved
+            // jointly with items/subs. mastery/critM may also reach the constant via passives — kept general.
+            val skillVarSet = skillVars.values.toSet()
+
+            fun passivePart(terms: List<Term>): Long {
+                var sum = 0L
+                for (t in terms) {
+                    if (carrierByVar[t.variable] != null || subByVar[t.variable] != null || t.variable in skillVarSet) continue
+                    val d = tracker.of(t.variable)
+                    sum += if (t.coefficient >= 0) d.last * t.coefficient else d.first * t.coefficient
+                }
+                return sum
+            }
+            val mConst = mastery.constant + passivePart(mastery.terms)
+            val diConst = diBase + passivePart(diTerms)
+            val critMConst = critMBase + passivePart(critMTerms)
+            val critConst = critBase + passivePart(critTerms)
+            val apConst = apBase + passivePart(apTerms)
+
+            // Per objective-relevant skill var: its per-point contribution to crit / ap / di / mastery / critM
+            // (read from the model's own term coefficients), and the points it can take (its cap ∧ the pool).
+            data class SkillVarInfo(
+                val crit: Int,
+                val ap: Int,
+                val di: Long,
+                val m: Long,
+                val critM: Long,
+                val cap: Int,
+            )
+
+            fun skillCoef(
+                terms: List<Term>,
+                v: IntVar,
+            ): Long = terms.filter { it.variable == v }.sumOf { it.coefficient }
+
+            fun branchInfos(
+                chars: List<SkillCharacteristic>,
+                pool: Int,
+            ): List<SkillVarInfo> =
+                chars.mapNotNull { ch ->
+                    val v = skillVars[ch] ?: return@mapNotNull null
+                    val crit = skillCoef(critTerms, v)
+                    val ap = skillCoef(apTerms, v)
+                    val di = skillCoef(diTerms, v)
+                    val m = skillCoef(mastery.terms, v)
+                    val cm = skillCoef(critMTerms, v)
+                    if (crit == 0L && ap == 0L && di == 0L && m == 0L && cm == 0L) {
+                        null
+                    } else {
+                        SkillVarInfo(crit.toInt(), ap.toInt(), di, m, cm, minOf(ch.maxPointsAssignable, pool))
+                    }
+                }
+
+            val cs = params.character.characterSkills
+            val skillBranches =
+                listOf(cs.strength, cs.intelligence, cs.agility, cs.luck, cs.major)
+                    .mapNotNull { b ->
+                        branchInfos(b.getCharacteristics(), b.maxPointsToAssign)
+                            .takeIf { it.isNotEmpty() }
+                            ?.let { b.maxPointsToAssign to it }
+                    }
+            // The per-branch knapsack assumes ≤1 crit var and ≤1 ap var, and no var mixing a cost dimension
+            // (crit/ap) with anything else. True for the current skill tree; bail otherwise (sound fallback).
+            for ((_, infos) in skillBranches) {
+                if (infos.count { it.crit != 0 } > 1 || infos.count { it.ap != 0 } > 1) return Long.MAX_VALUE
+                if (infos.any { (it.crit != 0 || it.ap != 0) && (it.di != 0L || it.m != 0L || it.critM != 0L) }) {
+                    return Long.MAX_VALUE
+                }
+                if (infos.any { it.crit != 0 && it.ap != 0 }) return Long.MAX_VALUE
+            }
 
             // Raw stat tuple per carrier / sub: (di, m, critM, ap, crit, epic, relic). graw filled per crit c.
             data class Raw(
@@ -4048,8 +4219,8 @@ object WakfuBuildSolver {
                     diS[s] ?: 0,
                     mS[s] ?: 0,
                     cmS[s] ?: 0,
-                    (apS[s] ?: 0).toInt().coerceAtLeast(0),
-                    (crS[s] ?: 0).toInt().coerceAtLeast(0),
+                    (apS[s] ?: 0).toInt(),
+                    (crS[s] ?: 0).toInt(),
                     if (s.rarity ==
                         SublimationRarity.EPIC
                     ) {
@@ -4060,27 +4231,246 @@ object WakfuBuildSolver {
                     if (s.rarity == SublimationRarity.RELIC) 1 else 0
                 )
 
+            // Max-damage runes fold to ONE type per item (maxDamageRuneChoiceCollapse): the best M-feeding
+            // mastery rune OR the critical-mastery rune — never both. perCarrierContribution counted BOTH
+            // (mI has the mastery rune, cmI the critM rune), so split a dual-rune item into two Raw options
+            // (mastery-rune-on / critM-rune-on); the DP keeps whichever wins at each crit rate c. Items with a
+            // single always-on rune (or none) keep their single Raw. Bail on rune models we cannot mirror.
+            val rangeBandMasteryChar = scenario.rangeBand.masteryCharacteristic
+            if (runeModel.runeVars.isNotEmpty()) {
+                if (!runeModel.singleTypePerItem) return Long.MAX_VALUE
+                val allowed = setOf(rangeBandMasteryChar, Characteristic.MASTERY_CRITICAL)
+                if (runeModel.runeVars.any { (_, perStat) -> perStat.keys.any { it !in allowed } }) return Long.MAX_VALUE
+            }
+
+            fun rawOptions(e: Equipment): List<Raw> {
+                val base = raw(e)
+                runeModel.runeVars[e]?.get(Characteristic.MASTERY_CRITICAL) ?: return listOf(base)
+                val slots = e.maxShardSlots.toLong()
+                val runeMastery = runeModel.coefficientFor(e, rangeBandMasteryChar) * slots
+                val runeCritM = runeModel.coefficientFor(e, Characteristic.MASTERY_CRITICAL) * slots
+                // base counts BOTH runes; strip the one not chosen for each option.
+                return listOf(base.copy(critM = base.critM - runeCritM), base.copy(m = base.m - runeMastery))
+            }
+
+            val itemEquips = (diI.keys + mI.keys + cmI.keys + apI.keys + crI.keys).distinct()
+            // Equipment vars are boolean, so the build equips TWO DISTINCT rings (Σ ringVar ≤ 2). Applying the
+            // ring cells twice would let the certifier double the single best ring — keep rings per-equip and
+            // pick the top-2 DISTINCT rings per cost cell below. Other slots flatten to their rune options.
             val itemsByType =
-                (diI.keys + mI.keys + cmI.keys + apI.keys + crI.keys).distinct().groupBy({ it.itemType }) { raw(it) }
-            val subRaws = (diS.keys + mS.keys + cmS.keys + apS.keys + crS.keys).distinct().map { rawSub(it) }
+                itemEquips
+                    .filter { it.itemType != ItemType.RING }
+                    .groupBy { it.itemType }
+                    .mapValues { (_, equips) -> equips.flatMap { rawOptions(it) } }
+            val ringOptionsByEquip = itemEquips.filter { it.itemType == ItemType.RING }.map { rawOptions(it) }
+            val subEntries =
+                (diS.keys + mS.keys + cmS.keys + apS.keys + crS.keys)
+                    .distinct()
+                    .map { it to rawSub(it) }
 
             val critCap =
                 scenario.critCapPercent
                     .toLong()
                     .coerceIn(0L, 100L)
                     .toInt()
-            val apHigh = (apTarget - apBase).toInt()
+            // The crit DP dimension is item crit = c − critConst, enumerated over total crit c ∈ 0..critCap, so
+            // it assumes critCap ≥ critConst (the always-on base+passive crit). If the scenario caps usable crit
+            // BELOW the base (critCapPercent < base crit — never the production default of 100, but the CLI/GUI
+            // can lower it), every c < critConst is skipped and the DP would under-count to 0. Bail to CP-SAT.
+            if (critCap < critConst) return Long.MAX_VALUE
+            val apHigh = (apTarget - apConst).toInt()
             if (apHigh < 0) return Long.MAX_VALUE
-            val apLow = (apHigh - maxSkillAp).coerceAtLeast(0)
             val subCap = System.getenv("WAKFU_MAX_DAMAGE_CERT_SUBCAP")?.toIntOrNull() ?: MAX_SUBLIMATIONS.toInt()
 
+            // --- Sublimation couplings (mirror createSublimationModel) -------------------------------
+            // Subs touch DI / crit% / AP / mastery (no current choosable sub gives mastery, but a FLAT one
+            // would fold into graw via grawOf — kept fully general). Couplings vs the old free 0/1 pool:
+            //  • epic/relic subs need an equipped epic/relic ITEM (Σ subRarity ≤ Σ itemRarity); modeled as a
+            //    dedicated slot requiring state itemRarity≥1 — they do NOT consume the item's own ≤1 cap.
+            //  • a NORMAL sub needs a distinct ≥3-socket carrier item (Σ normalSub ≤ Σ carriers); vacuous
+            //    when there are ≥ that many carrier slots (the build hosts a damage-irrelevant carrier in
+            //    any otherwise-spent slot) — guarded, else bail.
+            //  • conditions read PRE-sub build stats. AP/CRIT are tracked, so gated EXACTLY; a defensive
+            //    condition a max-damage build never satisfies (secMast≤0 when the objective stacks a
+            //    secondary mastery, so satisfying it strips M to its elemental part; block≥40) is dropped
+            //    (sound, locked by ==CP-SAT). Conditions a damage build naturally meets are credited.
+            // Crit reaches a total `c` from items (the tracked DP dimension) OR pure-crit subs (a free
+            // budget). The graw-max build sources crit from subs first, so pre-sub crit = c − subCrit;
+            // tracking ITEM crit lets every CRIT_AT_MOST condition be gated exactly per state.
+            val objectiveSecondaryOverlap =
+                scenarioMasteryStats(scenario).any { it in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS }
+
+            fun structurallyDropped(sub: Sublimation): Boolean {
+                val cond = sub.condition ?: return false
+                return when (cond.type) {
+                    SublimationConditionType.SECONDARY_MASTERIES_AT_MOST ->
+                        (cond.value ?: 0) <= 0 && objectiveSecondaryOverlap
+                    SublimationConditionType.BLOCK_AT_LEAST -> true
+                    else -> false
+                }
+            }
+
+            val keptSubs = subEntries.filter { !structurallyDropped(it.first) }
+
+            // Pure-crit / pure-AP subs (a crit%-only or AP-only effect) form free BUDGETS that fill the gap
+            // between the build's PRE-sub crit/AP (the tracked DP dimensions) and the pinned total; every other
+            // kept sub is a frontier transition (di + graw). The budgets make CRIT_AT_MOST / AP_AT_MOST exact
+            // per state (pre-sub crit = critConst + critDim; pre-sub AP = apConst + apDim). Vivacity is +1 AP,
+            // Carapace −2 AP (lets the build over-equip AP gear, the budget pulls the total back to the pin). A
+            // kept sub mixing crit% or AP with di/mastery would need an extra source axis — bail instead.
+            fun isPureCrit(r: Raw) = r.crit > 0 && r.di == 0L && r.m == 0L && r.critM == 0L && r.ap == 0
+
+            fun isPureAp(r: Raw) = r.ap != 0 && r.di == 0L && r.m == 0L && r.critM == 0L && r.crit == 0
+            if (keptSubs.any { (it.second.crit != 0 || it.second.ap != 0) && !isPureCrit(it.second) && !isPureAp(it.second) }) {
+                return Long.MAX_VALUE
+            }
+            val critBudgetSubs = keptSubs.filter { isPureCrit(it.second) }
+            val apBudgetSubs = keptSubs.filter { isPureAp(it.second) }
+
+            fun isTransition(r: Raw) = !isPureCrit(r) && !isPureAp(r)
+            val normalTransitionSubs =
+                keptSubs.filter { isTransition(it.second) && it.first.rarity == SublimationRarity.NORMAL }
+            val epicSubs = keptSubs.filter { isTransition(it.second) && it.first.rarity == SublimationRarity.EPIC }
+            val relicSubs = keptSubs.filter { isTransition(it.second) && it.first.rarity == SublimationRarity.RELIC }
+
+            val maxSubCrit = critBudgetSubs.sumOf { it.second.crit.toLong() }
+            // Sub AP ranges over [minSubAp, maxSubAp]; items + skills supply the pre-sub AP dimension and the
+            // budget fills the gap to the pin, so apDim ranges [apHigh − maxSubAp, apHigh − minSubAp].
+            val maxSubAp = apBudgetSubs.sumOf { maxOf(0, it.second.ap) }
+            val minSubAp = apBudgetSubs.sumOf { minOf(0, it.second.ap) }
+            val apCeil = apHigh - minSubAp
+            val apFloor = (apHigh - maxSubAp).coerceAtLeast(0)
+
+            // Pre-combat-condition split (mirrors [preCombatStat] / [permanentSubTermsByStat]): only PERMANENT
+            // (appliesBeforeCombat) sub crit/AP shows on the character sheet, so only it feeds a build-static
+            // start-of-combat condition. A start-of-combat crit budget sub (Secondary Devastation II, +7) still
+            // reaches the in-combat crit `c` but does NOT raise the pre-combat crit a CRIT_AT_MOST reads; a
+            // permanent one (Influence II, +15) does. So at a state the pre-combat crit can be pushed as low as
+            // max(itemCrit, c − Σstart) (hide the rest behind start subs) or as high as min(c, itemCrit + Σperm).
+            val permCritByVar = permanentSubTermsByStat[Characteristic.CRITICAL_HIT].orEmpty().associate { it.variable to it.coefficient }
+            val permApByVar = permanentSubTermsByStat[Characteristic.ACTION_POINT].orEmpty().associate { it.variable to it.coefficient }
+
+            fun permCritOf(entry: Pair<Sublimation, Raw>) = subModel.subVars[entry.first]?.let { permCritByVar[it] } ?: 0L
+
+            fun permApOf(entry: Pair<Sublimation, Raw>) = subModel.subVars[entry.first]?.let { permApByVar[it] } ?: 0L
+            val maxStartCrit = critBudgetSubs.sumOf { (it.second.crit - permCritOf(it)).coerceAtLeast(0L) }
+            val maxPermCrit = critBudgetSubs.sumOf { permCritOf(it).coerceAtLeast(0L) }
+            val maxStartAp = apBudgetSubs.sumOf { (it.second.ap - permApOf(it)).coerceAtLeast(0L) }
+            val maxPermAp = apBudgetSubs.sumOf { permApOf(it).coerceAtLeast(0L) }
+
+            // Socket capacity: a NORMAL sub needs a distinct ≥3-socket carrier slot. Vacuous when there are
+            // ≥ that many carrier slots; otherwise the constraint could bind and we bail to CP-SAT.
+            val carrierSlotCount =
+                allEquips.groupBy { it.itemType }.entries.sumOf { (type, candidates) ->
+                    if (candidates.none { it.maxShardSlots >= NORMAL_SUB_SOCKET_COST }) {
+                        0
+                    } else if (type == ItemType.RING) {
+                        2
+                    } else {
+                        1
+                    }
+                }
+            val normalKeptCount = keptSubs.count { it.first.rarity == SublimationRarity.NORMAL }
+            if (normalKeptCount > carrierSlotCount) return Long.MAX_VALUE
+            if (keptSubs.size > subCap) return Long.MAX_VALUE
+
+            // Whether [sub]'s condition can hold at a DP state with item crit/AP `preCrit`/`preAp` and total
+            // in-combat crit `c`. The condition reads the PRE-COMBAT (character-sheet) crit/AP — base + item +
+            // rune + skill + PERMANENT subs — NOT the start-of-combat budget (see [preCombatStat]). AT_MOST can
+            // hide crit behind start-of-combat subs (min pre-combat = max(itemCrit, c − Σstart)); AT_LEAST can
+            // stack permanent subs (max pre-combat = min(c, itemCrit + Σperm)). AP has no start-of-combat source
+            // (Vivacity / Carapace are permanent), so pre-combat AP == the pinned total apTarget. Conditions on
+            // stats the certifier does not track fall through to `true`.
+            fun subAllowedAt(
+                sub: Sublimation,
+                preCrit: Int,
+                preAp: Int,
+                c: Int,
+            ): Boolean {
+                val cond = sub.condition ?: return true
+                val n = (cond.value ?: 0).toLong()
+                val preCombatCritMin = maxOf(critConst + preCrit, c - maxStartCrit)
+                val preCombatCritMax = minOf(c.toLong(), critConst + preCrit + maxPermCrit)
+                val preCombatApMin = maxOf(apConst + preAp, apTarget - maxStartAp)
+                val preCombatApMax = minOf(apTarget.toLong(), apConst + preAp + maxPermAp)
+                return when (cond.type) {
+                    SublimationConditionType.AP_AT_MOST -> preCombatApMin <= n
+                    SublimationConditionType.AP_AT_LEAST -> preCombatApMax >= n
+                    SublimationConditionType.AP_EXACT -> preCombatApMin <= n && n <= preCombatApMax
+                    SublimationConditionType.CRIT_AT_MOST -> preCombatCritMin <= n
+                    SublimationConditionType.CRIT_AT_LEAST -> preCombatCritMax >= n
+                    else -> true
+                }
+            }
+
+            if (System.getenv("WAKFU_MAX_DAMAGE_CERT_DEBUG") == "1") {
+                System.err.println(
+                    "CERT_DEBUG ap=$apTarget apBase=$apBase apConst=$apConst apHigh=$apHigh critCap=$critCap " +
+                        "critConst=$critConst diConst=$diConst critMConst=$critMConst mConst=$mConst " +
+                        "branches=${skillBranches.map { it.first }}"
+                )
+                for ((sub, _) in subModel.subVars) {
+                    val di = diS[sub] ?: 0L
+                    val m = mS[sub] ?: 0L
+                    val cm = cmS[sub] ?: 0L
+                    val ap = apS[sub] ?: 0L
+                    val cr = crS[sub] ?: 0L
+                    if (di == 0L && m == 0L && cm == 0L && ap == 0L && cr == 0L) continue
+                    System.err.println(
+                        "CERT_DEBUG_SUB id=${sub.stateId} '${sub.name.en}' rarity=${sub.rarity} kind=${sub.kind} " +
+                            "cond=${sub.condition?.type}/${sub.condition?.value} forced=${sub in subModel.forced} " +
+                            "di=$di m=$m critM=$cm ap=$ap crit=$cr"
+                    )
+                }
+                val socketByType =
+                    allEquips.groupBy { it.itemType }.mapValues { (_, es) ->
+                        "${es.count { it.maxShardSlots >= NORMAL_SUB_SOCKET_COST }}/${es.size}"
+                    }
+                System.err.println("CERT_DEBUG_SOCKETS perType=$socketByType")
+                val branches =
+                    mapOf(
+                        "STR" to params.character.characterSkills.strength,
+                        "INT" to params.character.characterSkills.intelligence,
+                        "AGI" to params.character.characterSkills.agility,
+                        "LUCK" to params.character.characterSkills.luck,
+                        "MAJOR" to params.character.characterSkills.major
+                    )
+
+                fun coef(
+                    terms: List<Term>,
+                    v: IntVar,
+                ) = terms.filter { it.variable == v }.sumOf { it.coefficient }
+                for ((bn, branch) in branches) {
+                    System.err.println("CERT_DEBUG_BRANCH $bn pool=${branch.maxPointsToAssign}")
+                    for (ch in branch.getCharacteristics()) {
+                        val v = skillVars[ch] ?: continue
+                        val cm = coef(mastery.terms, v)
+                        val ccm = coef(critMTerms, v)
+                        val ccr = coef(critTerms, v)
+                        val cap = coef(apTerms, v)
+                        val cdi = coef(diTerms, v)
+                        if (cm == 0L && ccm == 0L && ccr == 0L && cap == 0L && cdi == 0L) continue
+                        System.err.println(
+                            "CERT_DEBUG_SKILL $bn ${ch.characteristic} cap=${ch.maxPointsAssignable} " +
+                                "m=$cm critM=$ccm crit=$ccr ap=$cap di=$cdi"
+                        )
+                    }
+                }
+                val epicItems = allEquips.count { it.rarity == Rarity.EPIC }
+                val relicItems = allEquips.count { it.rarity == Rarity.RELIC }
+                System.err.println("CERT_DEBUG_RARITY epicItems=$epicItems relicItems=$relicItems")
+            }
+
             var best = 0L
+            var bestDbg = ""
             for (c in 0..critCap) {
-                val critItemHigh = (c - critBase).toInt()
+                // The crit dimension is the build's PRE-sub crit (base+passive folded into critConst): items,
+                // runes and folded skill (Luck) crit. Pure-crit subs fill the gap to the total crit c.
+                val critItemHigh = (c - critConst).toInt()
                 if (critItemHigh < 0) continue
-                val critItemLow = (critItemHigh - maxSkillCrit).coerceAtLeast(0)
-                val grawConst = (400L + c) * (mastery.constant + skillM) + 5L * c * (critMBase + skillCritM)
-                val dConst = 100L + diBase + skillDi
+                val critItemLow = (critItemHigh - maxSubCrit.toInt()).coerceAtLeast(0)
+                val grawConst = (400L + c) * mConst + 5L * c * critMConst
+                val dConst = 100L + diConst
 
                 fun grawOf(r: Raw) = (400L + c) * r.m + 5L * c * r.critM
                 // state key packs (ap, crit, epic, relic, subCount). epic/relic in {0,1}, subCount in 0..subCap.
@@ -4102,7 +4492,7 @@ object WakfuBuildSolver {
                 fun perCost(options: List<Raw>): Map<Int, Frontier> {
                     val m = HashMap<Int, Frontier>()
                     for (r in options) {
-                        if (r.ap > apHigh || r.crit > critItemHigh) continue
+                        if (r.ap > apCeil || r.crit > critItemHigh) continue
                         val g = grawOf(r)
                         if (r.di <= 0 && g <= 0 && r.epic + r.relic == 0) continue
                         val ck = ((r.ap * critDim + r.crit) * 2 + r.epic) * 2 + r.relic
@@ -4135,7 +4525,7 @@ object WakfuBuildSolver {
                             val crit1 = crit0 + rcrit
                             val epic1 = epic0 + repic
                             val relic1 = relic0 + rrelic
-                            if (ap1 > apHigh || crit1 > critItemHigh || epic1 > 1 || relic1 > 1) continue
+                            if (ap1 > apCeil || crit1 > critItemHigh || epic1 > 1 || relic1 > 1) continue
                             val tgt = nd.getOrPut(key(ap1, crit1, epic1, relic1, n0)) { Frontier() }
                             for (p in fr.pts) for (q in cfr.pts) tgt.add(p[0] + q[0], p[1] + q[1])
                         }
@@ -4143,12 +4533,11 @@ object WakfuBuildSolver {
                     dp = nd
                 }
 
-                // Item slots: weapons grouped (1H+offhand OR 2H) like rarityAwareUpper.weaponOptions; ring = 2 picks.
+                // Item slots: weapons grouped (1H+offhand OR 2H) like rarityAwareUpper.weaponOptions.
                 val weaponTypes = setOf(ItemType.ONE_HANDED_WEAPONS, ItemType.OFF_HAND_WEAPONS, ItemType.TWO_HANDED_WEAPONS)
                 for ((type, entries) in itemsByType) {
                     if (type in weaponTypes) continue
-                    val cells = perCost(entries)
-                    repeat(if (type == ItemType.RING) 2 else 1) { applyCells(cells) }
+                    applyCells(perCost(entries))
                 }
                 if (weaponTypes.any { it in itemsByType }) {
                     val oneH = itemsByType[ItemType.ONE_HANDED_WEAPONS].orEmpty()
@@ -4170,9 +4559,126 @@ object WakfuBuildSolver {
                     applyCells(perCost(pair))
                 }
 
-                // Sublimations: 0/1 each, count <= subCap (carried in the state's n field).
-                for (r in subRaws) {
-                    if (r.ap > apHigh || r.crit > critItemHigh) continue
+                // Ring slot = TWO DISTINCT rings. Per ring take its best rune option's graw at this crit rate,
+                // keep the top-2 graw per cost cell, then offer every 1-ring and 2-distinct-ring combination as
+                // one slot (the same ring is never paired with itself; a same-cost pair uses best + 2nd-best).
+                if (ringOptionsByEquip.isNotEmpty()) {
+                    val top2 = HashMap<Int, LongArray>()
+                    for (opts in ringOptionsByEquip) {
+                        var bestG = Long.MIN_VALUE
+                        var bestCk = -1
+                        for (r in opts) {
+                            if (r.ap > apCeil || r.crit > critItemHigh) continue
+                            val g = grawOf(r)
+                            if (g > bestG) {
+                                bestG = g
+                                bestCk = ((r.ap * critDim + r.crit) * 2 + r.epic) * 2 + r.relic
+                            }
+                        }
+                        if (bestCk < 0 || bestG <= 0) continue
+                        val cur = top2.getOrPut(bestCk) { longArrayOf(Long.MIN_VALUE, Long.MIN_VALUE) }
+                        if (bestG > cur[0]) {
+                            cur[1] = cur[0]
+                            cur[0] = bestG
+                        } else if (bestG > cur[1]) {
+                            cur[1] = bestG
+                        }
+                    }
+                    val cks = top2.keys.toList()
+                    val ringCells = HashMap<Int, Frontier>()
+
+                    fun decodeAp(ck: Int) = (ck / 2 / 2) / critDim
+
+                    fun decodeCrit(ck: Int) = (ck / 2 / 2) % critDim
+
+                    fun decodeEpic(ck: Int) = (ck / 2) % 2
+
+                    fun decodeRelic(ck: Int) = ck % 2
+                    for (i in cks.indices) {
+                        ringCells.getOrPut(cks[i]) { Frontier() }.add(0, top2.getValue(cks[i])[0]) // one ring
+                        for (j in i until cks.size) {
+                            val a = cks[i]
+                            val b = cks[j]
+                            val graw =
+                                if (a == b) {
+                                    val g = top2.getValue(a)
+                                    if (g[1] == Long.MIN_VALUE) continue
+                                    g[0] + g[1]
+                                } else {
+                                    top2.getValue(a)[0] + top2.getValue(b)[0]
+                                }
+                            val ap = decodeAp(a) + decodeAp(b)
+                            val crit = decodeCrit(a) + decodeCrit(b)
+                            val epic = decodeEpic(a) + decodeEpic(b)
+                            val relic = decodeRelic(a) + decodeRelic(b)
+                            if (ap > apCeil || crit > critItemHigh || epic > 1 || relic > 1) continue
+                            ringCells.getOrPut(((ap * critDim + crit) * 2 + epic) * 2 + relic) { Frontier() }.add(0, graw)
+                        }
+                    }
+                    applyCells(ringCells)
+                }
+
+                // Skill branches as pseudo-slots: enumerate the pool allocation between the single crit var
+                // (→ crit dimension) and ap var (→ ap dimension), with the remaining points giving the best
+                // (di, graw) frontier — di vars on the frontier, mastery/critM filled greedily by graw-per-point.
+                // This solves the skill allocation jointly with items/subs under the real per-branch pool cap.
+                fun branchCells(
+                    infos: List<SkillVarInfo>,
+                    pool: Int,
+                ): Map<Int, Frontier> {
+                    val critVar = infos.firstOrNull { it.crit != 0 }
+                    val apVar = infos.firstOrNull { it.ap != 0 }
+                    val diVars = infos.filter { it.di != 0L }.sortedByDescending { it.di }
+                    val grawVars = infos.filter { it.di == 0L && it.crit == 0 && it.ap == 0 }
+
+                    fun fillGraw(points: Int): Long {
+                        var rem = points
+                        var g = 0L
+                        for (gv in grawVars.sortedByDescending { (400L + c) * it.m + 5L * c * it.critM }) {
+                            if (rem <= 0) break
+                            val per = (400L + c) * gv.m + 5L * c * gv.critM
+                            if (per <= 0) continue
+                            val take = minOf(rem, gv.cap)
+                            g += take * per
+                            rem -= take
+                        }
+                        return g
+                    }
+                    val diCapTotal = diVars.sumOf { it.cap }
+                    val cells = HashMap<Int, Frontier>()
+                    val critCap = critVar?.let { minOf(it.cap, pool) } ?: 0
+                    val apCap = apVar?.let { minOf(it.cap, pool) } ?: 0
+                    for (ccPts in 0..critCap) {
+                        val crit = ccPts * (critVar?.crit ?: 0)
+                        if (crit > critItemHigh) break
+                        for (apPts in 0..minOf(apCap, pool - ccPts)) {
+                            val ap = apPts * (apVar?.ap ?: 0)
+                            if (ap > apCeil) break
+                            val rem0 = pool - ccPts - apPts
+                            for (d in 0..minOf(rem0, diCapTotal)) {
+                                var di = 0L
+                                var left = d
+                                for (dv in diVars) {
+                                    val take = minOf(left, dv.cap)
+                                    di += take * dv.di
+                                    left -= take
+                                    if (left <= 0) break
+                                }
+                                val graw = fillGraw(rem0 - d)
+                                val ck = (ap * critDim + crit) * 2 * 2
+                                cells.getOrPut(ck) { Frontier() }.add(di, graw)
+                            }
+                        }
+                    }
+                    return cells
+                }
+                for ((pool, infos) in skillBranches) applyCells(branchCells(infos, pool))
+
+                // Normal transition subs: 0/1 each, count ≤ subCap (state's n field). crit==0 (pure-crit
+                // subs are the budget, not transitions) so they never move the item-crit dimension. They
+                // never consume the item epic/relic budget; mastery/critM (if any) fold into graw.
+                for ((sub, r) in normalTransitionSubs) {
+                    if (r.ap > apCeil) continue
                     val g = grawOf(r)
                     val nd = HashMap<Long, Frontier>()
                     for ((k, fr) in dp) nd.getOrPut(k) { Frontier() }.also { for (p in fr.pts) it.add(p[0], p[1]) }
@@ -4186,16 +4692,49 @@ object WakfuBuildSolver {
                         rest /= 2
                         val crit0 = (rest % critDim).toInt()
                         val ap0 = (rest / critDim).toInt()
+                        if (!subAllowedAt(sub, crit0, ap0, c)) continue
                         val ap1 = ap0 + r.ap
-                        val crit1 = crit0 + r.crit
-                        val epic1 = epic0 + r.epic
-                        val relic1 = relic0 + r.relic
-                        if (ap1 > apHigh || crit1 > critItemHigh || epic1 > 1 || relic1 > 1) continue
-                        val tgt = nd.getOrPut(key(ap1, crit1, epic1, relic1, n0 + 1)) { Frontier() }
+                        if (ap1 < 0 || ap1 > apCeil) continue
+                        val tgt = nd.getOrPut(key(ap1, crit0, epic0, relic0, n0 + 1)) { Frontier() }
                         for (p in fr.pts) tgt.add(p[0] + r.di, p[1] + g)
                     }
                     dp = nd
                 }
+
+                // Epic/relic sub slot: at most ONE, hosted on an equipped epic/relic ITEM (state rarity ≥1).
+                // It does NOT increment the item rarity count (Σ subRarity ≤ Σ itemRarity, they coexist).
+                // Per-state condition gate uses the state's item crit so CRIT_AT_MOST is exact.
+                fun applyRaritySub(
+                    options: List<Pair<Sublimation, Raw>>,
+                    epic: Boolean,
+                ) {
+                    if (options.isEmpty()) return
+                    val nd = HashMap<Long, Frontier>()
+                    for ((k, fr) in dp) nd.getOrPut(k) { Frontier() }.also { for (p in fr.pts) it.add(p[0], p[1]) }
+                    for ((k, fr) in dp) {
+                        val n0 = (k % (subCap + 1)).toInt()
+                        if (n0 >= subCap) continue
+                        var rest = k / (subCap + 1)
+                        val relic0 = (rest % 2).toInt()
+                        rest /= 2
+                        val epic0 = (rest % 2).toInt()
+                        rest /= 2
+                        val crit0 = (rest % critDim).toInt()
+                        val ap0 = (rest / critDim).toInt()
+                        if (epic && epic0 < 1) continue
+                        if (!epic && relic0 < 1) continue
+                        for ((sub, r) in options) {
+                            if (!subAllowedAt(sub, crit0, ap0, c)) continue
+                            val ap1 = ap0 + r.ap
+                            if (ap1 < 0 || ap1 > apCeil) continue
+                            val tgt = nd.getOrPut(key(ap1, crit0, epic0, relic0, n0 + 1)) { Frontier() }
+                            for (p in fr.pts) tgt.add(p[0] + r.di, p[1] + grawOf(r))
+                        }
+                    }
+                    dp = nd
+                }
+                applyRaritySub(epicSubs, epic = true)
+                applyRaritySub(relicSubs, epic = false)
 
                 for ((k, fr) in dp) {
                     var rest = k / (subCap + 1)
@@ -4203,13 +4742,20 @@ object WakfuBuildSolver {
                     rest /= 2
                     val crit = (rest % critDim).toInt()
                     val ap = (rest / critDim).toInt()
-                    if (ap < apLow || crit < critItemLow) continue
+                    // apDim is PRE-sub AP; the sub-AP budget fills the gap to the pin ⇒ apDim ∈ [apFloor, apCeil].
+                    if (ap < apFloor || ap > apCeil || crit < critItemLow) continue
                     for (p in fr.pts) {
                         val prod = (dConst + p[0]) * (grawConst + p[1])
-                        if (prod > best) best = prod
+                        if (prod > best) {
+                            best = prod
+                            if (System.getenv("WAKFU_MAX_DAMAGE_CERT_DEBUG") == "1") {
+                                bestDbg = "c=$c ap=$ap critDim$crit di=${dConst + p[0]} graw=${grawConst + p[1]}"
+                            }
+                        }
                     }
                 }
             }
+            if (System.getenv("WAKFU_MAX_DAMAGE_CERT_DEBUG") == "1") System.err.println("CERT_DEBUG_BEST $bestDbg")
             return best
         }
 

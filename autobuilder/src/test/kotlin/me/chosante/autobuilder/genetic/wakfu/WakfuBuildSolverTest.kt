@@ -4685,4 +4685,202 @@ class WakfuBuildSolverTest {
             characteristics = stats,
             maxShardSlots = maxShardSlots
         )
+
+    // ---- AP-cell certifier (certifyMaxPerHitAtAp) validation -----------------------------------------
+
+    /**
+     * Adversarial frontier: a pool whose optimum is a strict DI×mastery MIX — neither the highest-mastery
+     * nor the highest-DI selection. A base-mastery anchor gives DI something to multiply; two slots each
+     * pick mastery OR DI, tuned (ΔM=2000 / ΔDI=100) so one-of-each strictly beats both all-mastery and
+     * all-DI. So the certifier MUST keep a ≥2-point (DI, graw) Pareto frontier and convolve it across slots:
+     * a frontier collapsed to "max graw only" would pick all-mastery, "max DI only" would pick all-DI, and
+     * either would disagree with CP-SAT. The pool carries no high-crit source, so the reachable crit stays
+     * far below the c≈97-100 band where the certifier's known residual lives — it is exact here, and we
+     * assert it equals the proven CP-SAT cell-max. No sublimations ⇒ this is unaffected by the in-flight
+     * pre-combat-condition fix, so the `==` is durable.
+     */
+    @Test
+    fun `max-damage AP-cell certifier matches CP-SAT on a forced DI-vs-mastery frontier`() {
+        val params = fireMaxDamageParams(50)
+        val anchor = equipment(1, ItemType.HELMET, "Anchor", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 1000))
+        val amuMastery = equipment(2, ItemType.AMULET, "AmuM", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 2000))
+        val amuDi = equipment(3, ItemType.AMULET, "AmuDI", mapOf(Characteristic.DAMAGE_INFLICTED to 100))
+        val beltMastery = equipment(4, ItemType.BELT, "BeltM", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 2000))
+        val beltDi = equipment(5, ItemType.BELT, "BeltDI", mapOf(Characteristic.DAMAGE_INFLICTED to 100))
+        val full = listOf(anchor, amuMastery, amuDi, beltMastery, beltDi).groupBy { it.itemType }
+        val masteryOnly = listOf(anchor, amuMastery, beltMastery).groupBy { it.itemType }
+        val diOnly = listOf(anchor, amuDi, beltDi).groupBy { it.itemType }
+
+        val cert = WakfuBuildSolver.certifierCellObjectivesForTest(params, full, applyDomination = false)
+        var compared = 0
+        for ((ap, certObj) in cert) {
+            if (certObj < 0) continue // certifier bailed → CP-SAT path, no exact claim
+            val fullObj = optimalMaxDamageObjective(params, full, ap) ?: continue // AP unreachable
+            assertThat(certObj)
+                .describedAs("AP=%d: the exact certifier must equal the proven CP-SAT cell-max", ap)
+                .isEqualTo(fullObj)
+            val masteryObj = optimalMaxDamageObjective(params, masteryOnly, ap)!!
+            val diObj = optimalMaxDamageObjective(params, diOnly, ap)!!
+            assertThat(fullObj)
+                .describedAs("AP=%d: the optimum strictly beats all-mastery (a max-graw-only collapse)", ap)
+                .isGreaterThan(masteryObj)
+            assertThat(fullObj)
+                .describedAs("AP=%d: the optimum strictly beats all-DI (a max-DI-only collapse)", ap)
+                .isGreaterThan(diObj)
+            compared++
+        }
+        assertThat(compared).describedAs("at least one reachable AP cell exercised the frontier").isGreaterThan(0)
+    }
+
+    /**
+     * The certifier's crit DP assumes the usable crit cap is ≥ the always-on base+passive crit. A scenario
+     * that caps usable crit BELOW the base (critCapPercent = 0 while CRA has 3 base crit) breaks that
+     * assumption — without a guard the DP skips every crit state and silently returns 0 (an UNSOUND
+     * under-count). It must instead BAIL (objective -1 here) so the caller falls back to CP-SAT, which still
+     * finds a real positive build. Locks the `critCap < critConst` guard.
+     */
+    @Test
+    fun `max-damage AP-cell certifier bails when the crit cap is below base crit`() {
+        val params =
+            fireMaxDamageParams(50)
+                .copy(
+                    damageScenario =
+                        DamageScenario(
+                            element = SpellElement.FIRE,
+                            rangeBand = RangeBand.DISTANCE,
+                            orientation = Orientation.FACE,
+                            critCapPercent = 0
+                        )
+                )
+        val pool =
+            listOf(
+                equipment(1, ItemType.HELMET, "Helm", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 1000)),
+                equipment(2, ItemType.AMULET, "Amu", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 800))
+            ).groupBy { it.itemType }
+        val cert = WakfuBuildSolver.certifierCellObjectivesForTest(params, pool, applyDomination = false)
+        assertThat(cert).describedAs("the certifier runs over the AP cells").isNotEmpty
+        assertThat(cert.values)
+            .describedAs("crit cap below base crit ⇒ every cell bails (-1) instead of under-counting to 0")
+            .allMatch { it == -1L }
+        // The fallback path (CP-SAT) still proves a real, positive optimum for the same scenario.
+        val obj = optimalMaxDamageObjective(params, pool, ap = 6)
+        assertThat(obj).describedAs("CP-SAT still finds a positive build at AP=6").isNotNull
+        assertThat(obj!!).isGreaterThan(0L)
+    }
+
+    /**
+     * Soundness guard: [WakfuBuildSolver] `certifyMaxPerHitAtAp` claims to UPPER-BOUND the per-hit of every
+     * feasible build at a pinned AP. On a pool that exercises the full coupling set — an epic item + an
+     * epic-bound DI sub, four socket carriers + normal / conditional / crit-budget subs, two distinct rings,
+     * AP + crit items, the level-50 skill pools — we assert the certifier objective ≥ the CP-SAT objective for
+     * every AP cell. It also exercises the pre-combat-condition split: a PERMANENT crit sub (Influence-like,
+     * `appliesBeforeCombat`) and a START-of-combat one (Secondary-Devastation-like) both feed the in-combat
+     * crit, but only the permanent one feeds the `CondDi` `CRIT_AT_MOST` condition — so a wrong split would
+     * make the certifier wrongly forbid (under-count) `CondDi` and trip this guard. Because it is `≥` (an upper
+     * bound, not an exact match) it SURVIVES the condition fix unchanged: that fix only ever shrinks the
+     * feasible set, so the certifier stays a valid bound; the dangerous UNDER-count direction is what trips it.
+     */
+    @Test
+    fun `max-damage AP-cell certifier upper-bounds every CP-SAT cell-max`() {
+        val params = fireMaxDamageParams(50).copy(useSublimations = true)
+        val pool =
+            listOf(
+                equipment(1, ItemType.HELMET, "Helm", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 800), maxShardSlots = 4),
+                equipment(2, ItemType.AMULET, "EpicAmu", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 600), rarity = Rarity.EPIC),
+                equipment(3, ItemType.BELT, "Belt", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 500, Characteristic.ACTION_POINT to 2), maxShardSlots = 4),
+                equipment(4, ItemType.RING, "Ring1", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 400, Characteristic.CRITICAL_HIT to 10)),
+                equipment(5, ItemType.RING, "Ring2", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 400)),
+                equipment(6, ItemType.CAPE, "Cape", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 500, Characteristic.DAMAGE_INFLICTED to 50)),
+                equipment(7, ItemType.BOOTS, "Boots", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 400, Characteristic.ACTION_POINT to 2), maxShardSlots = 3),
+                equipment(8, ItemType.CHEST_PLATE, "Chest", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 600), maxShardSlots = 3)
+            ).groupBy { it.itemType }
+        val subs =
+            listOf(
+                sublimation(9001, "FlatDi", SublimationRarity.NORMAL, SublimationKind.FLAT, mapOf(Characteristic.DAMAGE_INFLICTED to 30)),
+                sublimation(9002, "CritStart", SublimationRarity.NORMAL, SublimationKind.FLAT, mapOf(Characteristic.CRITICAL_HIT to 20)),
+                // Permanent (character-sheet) crit — appliesBeforeCombat ⇒ it DOES feed a CRIT_AT_MOST condition.
+                sublimation(9005, "CritPermanent", SublimationRarity.NORMAL, SublimationKind.FLAT, mapOf(Characteristic.CRITICAL_HIT to 15), permanent = true),
+                sublimation(9003, "EpicDi", SublimationRarity.EPIC, SublimationKind.FLAT, mapOf(Characteristic.DAMAGE_INFLICTED to 40)),
+                sublimation(
+                    9004,
+                    "CondDi",
+                    SublimationRarity.NORMAL,
+                    SublimationKind.STATIC_CONDITIONAL,
+                    mapOf(Characteristic.DAMAGE_INFLICTED to 25),
+                    condition = SublimationCondition(SublimationConditionType.CRIT_AT_MOST, 30)
+                )
+            )
+
+        val cert = WakfuBuildSolver.certifierCellObjectivesForTest(params, pool, sublimations = subs, applyDomination = false)
+        assertThat(cert.values.any { it > 0 })
+            .describedAs("the certifier must actually certify this pool (not bail on every cell)")
+            .isTrue()
+        var compared = 0
+        for ((ap, certObj) in cert) {
+            if (certObj < 0) continue // certifier bailed → CP-SAT path, no claim to check
+            val profile =
+                WakfuBuildSolver.timedMaxDamageProfileForTest(
+                    params.copy(maxDamageApTarget = ap),
+                    pool,
+                    emptyList(),
+                    subs,
+                    workers = 1,
+                    seconds = 10.0,
+                    applyDomination = false,
+                    deterministicLimit = 6.0
+                )
+            if (!profile.hasSolution) continue // AP unreachable → INFEASIBLE
+            assertThat(certObj)
+                .describedAs("AP=%d: certifier (%d) must upper-bound the CP-SAT objective (%d)", ap, certObj, profile.objective)
+                .isGreaterThanOrEqualTo(profile.objective)
+            compared++
+        }
+        assertThat(compared).describedAs("at least one AP cell was compared against CP-SAT").isGreaterThan(0)
+    }
+
+    /** Proven-OPTIMAL max-damage objective for [pool] pinned to [ap], or null when the cell is infeasible. */
+    private fun optimalMaxDamageObjective(
+        params: WakfuBestBuildParams,
+        pool: Map<ItemType, List<Equipment>>,
+        ap: Int,
+    ): Long? {
+        val profile =
+            WakfuBuildSolver.timedMaxDamageProfileForTest(
+                params.copy(maxDamageApTarget = ap),
+                pool,
+                emptyList(),
+                emptyList(),
+                workers = 1,
+                seconds = 10.0,
+                applyDomination = false,
+                deterministicLimit = 6.0
+            )
+        if (!profile.hasSolution) return null
+        check(profile.status == "OPTIMAL") { "AP=$ap: expected OPTIMAL on the tiny synthetic pool, got ${profile.status}" }
+        return profile.objective
+    }
+
+    /**
+     * A synthetic solver-choosable sublimation for the certifier coupling tests. [permanent] marks every
+     * effect [SublimationEffect.appliesBeforeCombat] — a character-sheet stat that feeds a pre-combat
+     * start-of-combat condition (default false = applied at combat start, never fed to a condition).
+     */
+    private fun sublimation(
+        stateId: Int,
+        name: String,
+        rarity: SublimationRarity,
+        kind: SublimationKind,
+        effects: Map<Characteristic, Int>,
+        condition: SublimationCondition? = null,
+        permanent: Boolean = false,
+    ): Sublimation =
+        Sublimation(
+            stateId = stateId,
+            name = I18nText(name, name, name, name),
+            rarity = rarity,
+            kind = kind,
+            solverChoosable = true,
+            condition = condition,
+            effects = effects.map { (characteristic, value) -> SublimationEffect.Flat(characteristic, value, appliesBeforeCombat = permanent) }
+        )
 }

@@ -60,6 +60,17 @@ state). After B1: relocate to a test-source `MaxDamageCertifier`/experiments har
 `innerFrontierPrototype` is a likely straight **delete** — but confirm with the maintainer first, it may be
 deliberately *banked research* (cf. the `test: bank …` commits + the Chaos "kept for a future fast model" note).
 
+### B2c — tighten the AP-cell certifier for the new sublimation types
+
+The enhanced AP-cell certifier (ported from the `wip/ap-cell-certifier` branch, validated by 3 CP-SAT soundness
+tests) upper-bounds every per-AP-cell max so the optimum proves faster on low-core machines. It is **test-gated**
+(`certifyForTest` / the `WAKFU_MAX_DAMAGE_CERTIFIER` env hook), **not yet wired into the production proof**. It
+bails to CP-SAT for conversion / forced subs; for the newer **best-element-concentration** and **per-stat-step**
+subs it does NOT bail — their Damage-Inflicted is folded at each term's MAX contribution, a SOUND but looser
+upper bound (`certifyMaxPerHitAtAp`). **Before wiring it into the production proof:** tighten those two families
+(or bail) and add a certifier-vs-CP-SAT test whose pool contains them, so the tight-bound claim is covered for the
+current sublimation set.
+
 ### B3 — single source of truth for sublimation semantics
 
 The CP-SAT objective (`buildSublimationTerms` `:4834`, `perHitDamageScore` `:3548`) and the re-scorers
