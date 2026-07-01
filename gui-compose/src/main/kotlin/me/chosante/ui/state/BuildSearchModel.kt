@@ -24,7 +24,7 @@ import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.domain.against
 import me.chosante.autobuilder.domain.againstAllElements
-import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
+import me.chosante.autobuilder.genetic.SolverResult
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildParams
@@ -63,7 +63,7 @@ import kotlin.math.ceil
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-private typealias BuildFinder = (WakfuBestBuildParams) -> Flow<GeneticAlgorithmResult<BuildCombination>>
+private typealias BuildFinder = (WakfuBestBuildParams) -> Flow<SolverResult<BuildCombination>>
 private typealias ZenithBuilder = suspend (ZenithInputParameters) -> String
 
 /** The four specific elemental masteries, mutually exclusive with the aggregate "all elements". */

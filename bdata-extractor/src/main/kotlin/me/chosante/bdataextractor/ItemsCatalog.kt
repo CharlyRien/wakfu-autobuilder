@@ -28,6 +28,13 @@ data class SublimationMeta(
     val rarity: SublimationRarity,
     /** Normal subs: 3 socket colours (1=red, 2=green, 3=blue). Empty for epic/relic. */
     val slotColorPattern: List<Int>,
+    /**
+     * The sublimation's **real** best-achievable level (1..3): the max of the per-item level grants
+     * ([APPLY_STATE_ACTION] `params[2]`) across all item rows sharing this [stateId] (the I/II/III tiers grant
+     * 1/2/3 levels). This — NOT the State table's theoretical `max_level` (often 6) — is the level the value
+     * formula scales to: `buildSublimations` evaluates `floor(base + inc·maxTier)`. Always ≥ 1.
+     */
+    val maxTier: Int,
 )
 
 /**
@@ -105,8 +112,29 @@ object ItemsCatalog {
         return out
     }
 
+    /** The sublimation item's `apply-state` ([APPLY_STATE_ACTION]) equip-effect: `params[0]` = stateId, `params[2]` = levels granted. */
+    private fun ItemDto.applyStateEffect(): EffectInner? =
+        definition.equipEffects
+            .firstOrNull { e -> e.effect.definition.actionId == APPLY_STATE_ACTION }
+            ?.effect
+            ?.definition
+
     internal fun parse(json: String): List<SublimationMeta> {
         val items = LENIENT_JSON.decodeFromString<List<ItemDto>>(json)
+
+        // Pass 1: aggregate the real best-achievable level per stateId. The I/II/III item tiers SHARE one
+        // stateId and grant 1/2/3 levels (`apply-state` action `params[2]`); the sublimation's real max is the
+        // MAX of those grants (≈ 2 or 3, never the State table's theoretical `max_level` of ~6). Several rows
+        // share a stateId, so we must scan them all here before the first-row-wins identity pass below.
+        val maxTierByState = HashMap<Int, Int>()
+        for (it in items) {
+            if (it.definition.item.baseParameters.itemTypeId != SUBLIMATION_ITEM_TYPE) continue
+            val def = it.applyStateEffect() ?: continue
+            val stateId = def.params.firstOrNull()?.toInt() ?: continue
+            val tier = def.params.getOrNull(2)?.toInt() ?: 1
+            maxTierByState[stateId] = maxOf(maxTierByState[stateId] ?: 1, tier)
+        }
+
         val seen = HashSet<Int>()
         val out = ArrayList<SublimationMeta>()
         for (it in items) {
@@ -114,14 +142,12 @@ object ItemsCatalog {
             if (core.baseParameters.itemTypeId != SUBLIMATION_ITEM_TYPE) continue
             val sp = core.sublimationParameters ?: continue
             val stateId =
-                it.definition.equipEffects
-                    .firstOrNull { e -> e.effect.definition.actionId == APPLY_STATE_ACTION }
-                    ?.effect
-                    ?.definition
+                it
+                    .applyStateEffect()
                     ?.params
                     ?.firstOrNull()
                     ?.toInt() ?: continue
-            if (!seen.add(stateId)) continue // first CDN-order row wins (patterns are unique per stateId)
+            if (!seen.add(stateId)) continue // first CDN-order row wins for identity (patterns are unique per stateId)
             val title = it.title ?: continue
             out.add(
                 SublimationMeta(
@@ -140,7 +166,8 @@ object ItemsCatalog {
                             sp.isRelic -> SublimationRarity.RELIC
                             else -> SublimationRarity.NORMAL
                         },
-                    slotColorPattern = sp.slotColorPattern
+                    slotColorPattern = sp.slotColorPattern,
+                    maxTier = (maxTierByState[stateId] ?: 1).coerceAtLeast(1)
                 )
             )
         }

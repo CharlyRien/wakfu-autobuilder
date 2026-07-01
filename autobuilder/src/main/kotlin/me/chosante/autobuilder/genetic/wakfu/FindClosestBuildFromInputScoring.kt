@@ -4,7 +4,10 @@ import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.autobuilder.domain.firesInMostMasteries
+import me.chosante.autobuilder.domain.perElementDiMastery
 import me.chosante.common.Characteristic
+import me.chosante.common.ItemType
 import me.chosante.common.ScenarioGate
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationCondition
@@ -151,6 +154,12 @@ fun computeCharacteristicsValues(
     masteryElementsToMinimize: List<Characteristic>? = null,
     // Same, for aggregate RESISTANCE_ELEMENTARY in most-masteries (its objective is the min over these). Null ⇒ greedy.
     resistanceElementsToMinimize: List<Characteristic>? = null,
+    // most-masteries per-element-DI fold: per-element weights (factor_e = 100 + clamp(globalDI + elementDI_e)) and the
+    // shared offset (nonElemNeg) that the mastery random-element roll assignment maximizes the WEIGHTED min over, so
+    // it mirrors the solver's freed objective when a per-element DI sub makes the element factors unequal. Null ⇒
+    // unweighted (the default / common path). See FindMostMasteriesFromInputScoring.computeScore.
+    masteryRollWeights: Map<Characteristic, Long>? = null,
+    masteryRollOffset: Long = 0L,
 ): Map<Characteristic, Int> {
     val eachCharacteristicValueLineByEquipment =
         buildCombination.equipments
@@ -206,13 +215,19 @@ fun computeCharacteristicsValues(
     // StatBuilder.prePercentStat (FLAT always, STATIC only when the condition holds on the pre-sub
     // stats, CONVERSION moving value, scenario gates only in max-damage). Conditions are evaluated on
     // the sub-excluded stats above, mirroring the solver's preSubStat, so scoreFor matches the objective.
+    val usesOffhandOrTwoHanded =
+        buildCombination.equipments.any {
+            it.itemType == ItemType.OFF_HAND_WEAPONS || it.itemType == ItemType.TWO_HANDED_WEAPONS
+        }
     val sublimationContributions =
         sublimationFixedContributions(
             buildCombination.sublimations.values.flatten(),
             sumOfCharacteristicFixedValuesWithoutSublimations,
             scoreComputationMode,
             damageScenario,
-            characterLevel
+            characterLevel,
+            usesOffhandOrTwoHanded,
+            wantedElements = masteryElementsWanted.keys
         )
     val sumOfCharacteristicFixedValues =
         if (sublimationContributions.isEmpty()) {
@@ -249,7 +264,14 @@ fun computeCharacteristicsValues(
                 // sum. Both objectives have a provably-suboptimal deficit-greedy, so each gets its EXACT assignment
                 // (consistent with the correspondingly-freed CP-SAT model). max-damage (m=1) falls through to greedy.
                 scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT && masteryElementsToMinimize != null ->
-                    assignMaxMinMasteryRandomValues(masteryRandoms, currentSpecificMasteryElements, masteryElementsWanted, masteryElementsToMinimize)
+                    assignMaxMinMasteryRandomValues(
+                        masteryRandoms,
+                        currentSpecificMasteryElements,
+                        masteryElementsWanted,
+                        masteryElementsToMinimize,
+                        masteryRollWeights,
+                        masteryRollOffset
+                    )
 
                 scoreComputationMode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
                     assignMaxCappedMasteryRandomValues(masteryRandoms, currentSpecificMasteryElements, masteryElementsWanted)
@@ -301,7 +323,36 @@ fun computeCharacteristicsValues(
             } ?: return@mapValues value
         }
 
-    return actualCharacteristics
+    // Featherweight-style perStatStep ramps ([Sublimation.perStatStep]): clamp(perStep·(source − threshold), 0, cap)
+    // added to the target stat — applied HERE, after the stat sums, because its magnitude depends on a build
+    // variable (the source stat, e.g. MP), not on level, so it cannot ride the flat magnitudeAtLevel path above.
+    // Mirrors the solver's StatBuilder.perStatStepGatedVar exactly (same clamp on the same final source value).
+    val perStatStepContributions = perStatStepContributions(buildCombination.sublimations.values.flatten(), actualCharacteristics)
+    return if (perStatStepContributions.isEmpty()) {
+        actualCharacteristics
+    } else {
+        mergeAndSumCharacteristicValues(actualCharacteristics, perStatStepContributions)
+    }
+}
+
+/**
+ * The [Sublimation.perStatStep] contributions of the build's chosen/forced sublimations, keyed by target stat —
+ * a build-static `clamp(perStep · (source − threshold), 0, cap)` read off the already-totalled [finalStats].
+ * Mirrors the solver's `StatBuilder.perStatStepGatedVar`; COMBAT_CONDITIONAL subs are skipped (as there). Empty
+ * for every build without a perStatStep sub (the common case).
+ */
+private fun perStatStepContributions(
+    sublimations: List<Sublimation>,
+    finalStats: Map<Characteristic, Int>,
+): Map<Characteristic, Int> {
+    val out = mutableMapOf<Characteristic, Int>()
+    for (sub in sublimations) {
+        if (sub.kind == SublimationKind.COMBAT_CONDITIONAL) continue
+        val spec = sub.perStatStep ?: continue
+        val contribution = spec.contribution(finalStats[spec.source.foldedForSublimation()] ?: 0)
+        if (contribution != 0) out.merge(spec.target.foldedForSublimation(), contribution, Int::plus)
+    }
+    return out
 }
 
 fun mergeAndSumCharacteristicValues(vararg characteristicValuesMaps: Map<Characteristic, Int>): Map<Characteristic, Int> =
@@ -375,9 +426,11 @@ fun assignMaxMinMasteryRandomValues(
     characteristicToValueCurrent: Map<Characteristic, Int>,
     characteristicToValueWanted: Map<Characteristic, Int>,
     elementsToMaximizeMinOver: List<Characteristic>,
+    weights: Map<Characteristic, Long>? = null,
+    offset: Long = 0L,
 ): Map<Characteristic, Int> =
     seededFrom(characteristicToValueCurrent, characteristicToValueWanted)
-        .assignMaxMin(masteryRolls(randomElements), characteristicToValueWanted.keys.toList(), elementsToMaximizeMinOver)
+        .assignMaxMin(masteryRolls(randomElements), characteristicToValueWanted.keys.toList(), elementsToMaximizeMinOver, weights, offset)
 
 /** Resistance analogue of [assignMaxMinMasteryRandomValues] (aggregate RESISTANCE_ELEMENTARY in most-masteries). */
 fun assignMaxMinResistanceRandomValues(
@@ -468,6 +521,12 @@ private fun MutableMap<Characteristic, Int>.assignMaxMin(
     rolls: List<Pair<Int, Int>>,
     allWanted: List<Characteristic>,
     subset: List<Characteristic>,
+    // Per-element WEIGHTS (and a shared [offset]) for the most-masteries per-element-DI fold: when present, the
+    // assignment maximizes `min_e weight_e·(offset + value_e)` instead of the plain `min_e value_e`, mirroring the
+    // solver's freed objective once a per-element "+X% <element> damage" sub makes the element factors unequal.
+    // null ⇒ the plain unweighted max-min — byte-identical to before, the common path (no per-element DI).
+    weights: Map<Characteristic, Long>? = null,
+    offset: Long = 0L,
 ): MutableMap<Characteristic, Int> {
     if (subset.isEmpty() || rolls.isEmpty()) return this
     // Reduce to: subset values + per-roll (value, how many subset elements it covers). Process biggest first.
@@ -481,8 +540,15 @@ private fun MutableMap<Characteristic, Int>.assignMaxMin(
             }.sortedByDescending { it.first.toLong() * it.second }
     if (subsetRolls.isEmpty()) return this
 
+    // The objective each assignment maximizes: plain min, or the weighted `min_e weight_e·max(0, offset + value_e)`
+    // (the `max(0)` mirrors the solver's `clamp(mastery ≥ 0)` before the DI factor; the /100 floor of the fold is
+    // monotone in this min, so a maximizer of the un-floored weighted min is also floored-optimal — same fold value).
+    val weightArr = LongArray(subset.size) { weights?.get(subset[it]) ?: 1L }
+
+    fun objective(arr: IntArray): Long = if (weights == null) arr.min().toLong() else subset.indices.minOf { weightArr[it] * maxOf(0L, offset + arr[it].toLong()) }
+
     val best = IntArray(subset.size) { subsetBase[it] }
-    var bestMin = best.min()
+    var bestMin = objective(best)
     val current = subsetBase.copyOf()
     // Remaining reachable subset mass after roll index i (suffix sums), for the average bound.
     val suffixMass = IntArray(subsetRolls.size + 1)
@@ -491,16 +557,17 @@ private fun MutableMap<Characteristic, Int>.assignMaxMin(
 
     fun recurse(rollIndex: Int) {
         if (rollIndex == subsetRolls.size) {
-            val m = current.min()
+            val m = objective(current)
             if (m > bestMin) {
                 bestMin = m
                 System.arraycopy(current, 0, best, 0, current.size)
             }
             return
         }
-        // Admissible bound: the min can never exceed the subset average once all remaining mass is spread.
-        val sum = current.sum()
-        if ((sum + suffixMass[rollIndex]) / subset.size <= bestMin) return
+        // Admissible bound (UNWEIGHTED only): the min can never exceed the subset average once all remaining mass is
+        // spread. The weighted fold has unequal per-element factors, so this average bound is invalid there — solve
+        // it brute-force (exact; the random-element roll count is small, so the unpruned recursion stays cheap).
+        if (weights == null && (current.sum() + suffixMass[rollIndex]) / subset.size <= bestMin) return
         val (value, cover) = subsetRolls[rollIndex]
         for (combo in combosByCover.getValue(cover)) {
             for (idx in combo) current[idx] += value
@@ -679,18 +746,21 @@ private val SCORE_SUPPORTED_SUB_CONDITIONS =
         SublimationConditionType.AP_EXACT,
         SublimationConditionType.CRIT_AT_MOST,
         SublimationConditionType.CRIT_AT_LEAST,
+        SublimationConditionType.CRITICAL_MASTERY_AT_MOST,
         SublimationConditionType.BLOCK_AT_LEAST,
         SublimationConditionType.RANGE_AT_MOST,
         SublimationConditionType.RANGE_AT_LEAST,
         SublimationConditionType.RANGE_EXACT,
         SublimationConditionType.DODGE_LT_PCT_OF_LEVEL,
-        SublimationConditionType.SECONDARY_MASTERIES_AT_MOST
+        SublimationConditionType.SECONDARY_MASTERIES_AT_MOST,
+        SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED
     )
 
 private fun subConditionHolds(
     cond: SublimationCondition,
     preSub: Map<Characteristic, Int>,
     level: Int,
+    usesOffhandOrTwoHanded: Boolean,
 ): Boolean {
     fun v(c: Characteristic) = preSub[c] ?: 0
     val n = cond.value ?: 0
@@ -700,6 +770,7 @@ private fun subConditionHolds(
         SublimationConditionType.AP_EXACT -> v(Characteristic.ACTION_POINT) == n
         SublimationConditionType.CRIT_AT_MOST -> v(Characteristic.CRITICAL_HIT) <= n
         SublimationConditionType.CRIT_AT_LEAST -> v(Characteristic.CRITICAL_HIT) >= n
+        SublimationConditionType.CRITICAL_MASTERY_AT_MOST -> v(Characteristic.MASTERY_CRITICAL) <= n
         SublimationConditionType.BLOCK_AT_LEAST -> v(Characteristic.BLOCK_PERCENTAGE) >= n
         SublimationConditionType.RANGE_AT_MOST -> v(Characteristic.RANGE) <= n
         SublimationConditionType.RANGE_AT_LEAST -> v(Characteristic.RANGE) >= n
@@ -708,8 +779,32 @@ private fun subConditionHolds(
         SublimationConditionType.SECONDARY_MASTERIES_AT_MOST ->
             me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
                 .sumOf { v(it) } <= n
+        SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED -> !usesOffhandOrTwoHanded
         else -> true
     }
+}
+
+/** The four per-element elemental masteries — used to test which element is the build's strongest. */
+private val ELEMENT_MASTERY_CHARACTERISTICS =
+    listOf(
+        Characteristic.MASTERY_ELEMENTARY_FIRE,
+        Characteristic.MASTERY_ELEMENTARY_WATER,
+        Characteristic.MASTERY_ELEMENTARY_EARTH,
+        Characteristic.MASTERY_ELEMENTARY_WIND
+    )
+
+/**
+ * Whether the max-damage scenario's element is (weakly) the build's strongest element, comparing per-element
+ * pre-combat masteries (the generic "+all elements" mastery is common to all four and cancels). Mirrors the
+ * solver's `scenarioElementStrongestVar`; gates [Sublimation.bestElementConcentration] (Elemental Concentration).
+ */
+private fun scenarioElementIsStrongest(
+    scenario: DamageScenario,
+    stats: Map<Characteristic, Int>,
+): Boolean {
+    val scenarioMastery = scenario.element.masteryCharacteristic
+    val scenarioValue = stats[scenarioMastery] ?: 0
+    return ELEMENT_MASTERY_CHARACTERISTICS.filter { it != scenarioMastery }.all { (stats[it] ?: 0) <= scenarioValue }
 }
 
 private fun subScenarioGateMatches(
@@ -717,11 +812,17 @@ private fun subScenarioGateMatches(
     mode: ScoreComputationMode?,
     scenario: DamageScenario?,
     level: Int,
+    wantedElements: Set<Characteristic>,
 ): Boolean {
     if (gate == null) return true
+    // Mono-element most-masteries: a pure element gate fires (mirrors the solver's scenarioGateMatches).
+    if (mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT && gate.firesInMostMasteries(wantedElements)) {
+        return true
+    }
     if (mode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE || scenario == null) return false
     gate.rangeBand?.let { if (scenario.rangeBand.name != it) return false }
     gate.orientation?.let { if (scenario.orientation.name != it) return false }
+    gate.element?.let { if (scenario.element.name != it) return false }
     if (gate.berserk == true && !scenario.berserk) return false
     if (gate.ranged == true && scenario.rangeBand.name != "DISTANCE") return false
     gate.minCharacterLevel?.let { if (level < it) return false }
@@ -731,8 +832,10 @@ private fun subScenarioGateMatches(
 /**
  * The flat per-characteristic value contributed by a build's chosen/forced sublimations, mirroring
  * [WakfuBuildSolver]'s StatBuilder so the recomputed score matches the solver objective. Combat-conditional
- * subs are not auto-credited (situational); static conditions are evaluated on [preSub] (the sub-excluded
- * stats); scenario-gated effects count only in max-damage with a matching scenario.
+ * subs are not auto-credited (situational); static conditions are evaluated on the **pre-combat** stats
+ * ([preCombatSubStats] = [preSub] + permanent subs), mirroring the solver's `preCombatStat`; scenario-gated
+ * effects count only in max-damage with a matching scenario. [usesOffhandOrTwoHanded] (whether the build
+ * equips an off-hand or two-handed weapon) drives the [SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED] gate.
  */
 fun sublimationFixedContributions(
     sublimations: List<Sublimation>,
@@ -740,14 +843,25 @@ fun sublimationFixedContributions(
     mode: ScoreComputationMode?,
     scenario: DamageScenario?,
     level: Int,
+    usesOffhandOrTwoHanded: Boolean = false,
+    // most-masteries only: the requested element masteries (`targetStats.masteryElementsWanted` keys). When the
+    // request is mono-element, a per-element "+% <element> damage" sub's gate fires (see [firesInMostMasteries]).
+    wantedElements: Set<Characteristic> = emptySet(),
 ): Map<Characteristic, Int> {
     if (sublimations.isEmpty()) return emptyMap()
+    // Pre-combat (character-sheet) stats a start-of-combat condition reads: preSub + the PERMANENT sub
+    // contributions. A permanent +crit (Influence II) feeds a CRIT_AT_MOST; a start-of-combat / conditional
+    // +crit (Secondary Devastation II, Ambition) does not — same split as the solver's preCombatStat. A
+    // CONVERSION's `from` base still reads `preSub` (no subs), exactly as the solver's preSubStat.
+    val preCombat = preCombatSubStats(sublimations, preSub, mode, scenario, level, wantedElements)
     val out = mutableMapOf<Characteristic, Int>()
     for (sub in sublimations) {
         if (sub.kind == SublimationKind.COMBAT_CONDITIONAL) continue
         val cond = sub.condition
         val applies =
-            cond == null || cond.type !in SCORE_SUPPORTED_SUB_CONDITIONS || subConditionHolds(cond, preSub, level)
+            cond == null ||
+                cond.type !in SCORE_SUPPORTED_SUB_CONDITIONS ||
+                subConditionHolds(cond, preCombat, level, usesOffhandOrTwoHanded)
         if (!applies) continue
         if (sub.kind == SublimationKind.CONVERSION) {
             val conv = sub.conversion ?: continue
@@ -756,9 +870,88 @@ fun sublimationFixedContributions(
             out.merge(conv.from.foldedForSublimation(), -moved, Int::plus)
             continue
         }
+        val bec = sub.bestElementConcentration
+        if (bec != null) {
+            // Elemental Concentration: max-damage single-element only (mirrors the solver's isModelableSublimation +
+            // buildSublimationTerms). Credit +DI iff the scenario element is the build's strongest element — the
+            // solver constrains that for any build it produces, so this is the exact in-game value there.
+            if (mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE &&
+                scenario != null &&
+                scenario.candidateElements().size == 1 &&
+                scenarioElementIsStrongest(scenario, preCombat)
+            ) {
+                out.merge(Characteristic.DAMAGE_INFLICTED, bec.damageInflictedBonus, Int::plus)
+            }
+            continue
+        }
         for (effect in sub.effects) {
-            if (!subScenarioGateMatches(effect.scenarioGate, mode, scenario, level)) continue
-            out.merge(effect.characteristic.foldedForSublimation(), effect.value, Int::plus)
+            if (!subScenarioGateMatches(effect.scenarioGate, mode, scenario, level, wantedElements)) continue
+            // Per-element DI in most-masteries is routed to a per-element bucket ([perElementDiContributions]), NOT
+            // the global DAMAGE_INFLICTED — mirroring the solver's buildSublimationTerms so the two engines' global
+            // DI agree. Skip it here. (Other modes keep it global, matching the solver.)
+            if (mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+                effect.characteristic == Characteristic.DAMAGE_INFLICTED &&
+                effect.scenarioGate?.perElementDiMastery() != null
+            ) {
+                continue
+            }
+            out.merge(effect.characteristic.foldedForSublimation(), effect.magnitudeAtLevel(level), Int::plus)
+        }
+    }
+    return out
+}
+
+/**
+ * The per-element % Damage Inflicted contributed by the build's chosen/forced sublimations in **most-masteries**
+ * mode, keyed by the element's MASTERY characteristic (FIRE → MASTERY_ELEMENTARY_FIRE, …) — mirroring the solver's
+ * `elementDiTermsByMastery`. A "+12% fire damage" sub lands under MASTERY_ELEMENTARY_FIRE so the re-scorer can
+ * multiply only the fire damage line in its per-element fold. Empty outside most-masteries (the gate never fires).
+ * The per-element DI family is FLAT (no [SublimationCondition]), so — like the solver, which gates these on the
+ * raw `appliesVar` — no pre-combat condition check is needed; the build's chosen subs are exactly the applied ones.
+ */
+fun perElementDiContributions(
+    sublimations: List<Sublimation>,
+    mode: ScoreComputationMode?,
+    scenario: DamageScenario?,
+    level: Int,
+    wantedElements: Set<Characteristic>,
+): Map<Characteristic, Int> {
+    if (mode != ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) return emptyMap()
+    val out = mutableMapOf<Characteristic, Int>()
+    for (sub in sublimations) {
+        if (sub.kind == SublimationKind.COMBAT_CONDITIONAL || sub.kind == SublimationKind.CONVERSION) continue
+        for (effect in sub.effects) {
+            if (effect.characteristic != Characteristic.DAMAGE_INFLICTED) continue
+            val diMastery = effect.scenarioGate?.perElementDiMastery() ?: continue
+            if (!subScenarioGateMatches(effect.scenarioGate, mode, scenario, level, wantedElements)) continue
+            out.merge(diMastery, effect.magnitudeAtLevel(level), Int::plus)
+        }
+    }
+    return out
+}
+
+/**
+ * [preSub] (base + items + runes + skills, no subs) plus the **permanent** (before-combat) sublimation
+ * contributions — the effects flagged [SublimationEffect.appliesBeforeCombat], which live only on FLAT subs.
+ * This is the character-sheet value a build-static start-of-combat condition is evaluated against; it mirrors
+ * the solver's `preCombatStat`/`buildPermanentSubTerms`. Start-of-combat / conditional and combat-conditional
+ * sub effects are excluded, so a conditional sub's own crit never feeds its (or any) condition.
+ */
+private fun preCombatSubStats(
+    sublimations: List<Sublimation>,
+    preSub: Map<Characteristic, Int>,
+    mode: ScoreComputationMode?,
+    scenario: DamageScenario?,
+    level: Int,
+    wantedElements: Set<Characteristic>,
+): Map<Characteristic, Int> {
+    val out = preSub.toMutableMap()
+    for (sub in sublimations) {
+        if (sub.kind == SublimationKind.COMBAT_CONDITIONAL || sub.kind == SublimationKind.CONVERSION) continue
+        for (effect in sub.effects) {
+            if (!effect.appliesBeforeCombat) continue
+            if (!subScenarioGateMatches(effect.scenarioGate, mode, scenario, level, wantedElements)) continue
+            out.merge(effect.characteristic.foldedForSublimation(), effect.magnitudeAtLevel(level), Int::plus)
         }
     }
     return out

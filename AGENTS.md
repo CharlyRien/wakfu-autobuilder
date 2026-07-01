@@ -91,8 +91,9 @@ enforcing slot/rarity/weapon rules.
 ## 4. The search engine (`autobuilder`)
 
 The engine is the **Google OR-Tools CP-SAT solver**. It streams its best-so-far build as a
-`Flow<GeneticAlgorithmResult<BuildCombination>>` — a legacy type name; there is now a single engine,
-so the CLI and GUI consume it identically.
+`Flow<SolverResult<BuildCombination>>` (there is a single engine, so the CLI and GUI consume it
+identically). `SolverResult` was formerly `GeneticAlgorithmResult`; the enclosing package is still
+named `genetic` for historical reasons.
 
 `WakfuBestBuildFinderAlgorithm.run(params)` is the entry point: it filters & groups the embedded
 equipments by `ItemType` (applying level/rarity/forced/excluded filters), then hands them to the

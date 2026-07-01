@@ -24,7 +24,7 @@ class SublimationTextTest {
             rarity = SublimationRarity.EPIC,
             kind = SublimationKind.STATIC_CONDITIONAL,
             condition = SublimationCondition(SublimationConditionType.AP_AT_MOST, value = 10),
-            effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 15)),
+            effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 15)),
             rawText = "If AP ≤ 10 | +15% Damage Inflicted"
         )
 

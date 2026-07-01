@@ -200,7 +200,7 @@ data class UiState(
     /**
      * Max-damage mode only: true when a non-[optimal] result is *structurally* heuristic — a best-found max
      * over resistance-debuff sequencing / multi-element AP splits — rather than merely time-limited. Drives
-     * which "not proven" hint the stats panel shows. See [GeneticAlgorithmResult.maxDamageHeuristicPhases].
+     * which "not proven" hint the stats panel shows. See [SolverResult.maxDamageHeuristicPhases].
      */
     val maxDamageStructural: Boolean = false,
     val build: BuildCombination? = null,

@@ -3,14 +3,15 @@ package me.chosante.autobuilder.genetic
 import java.math.BigDecimal
 
 /**
- * A best-so-far result streamed by the build engine: the build, its score / match %, search progress
- * and whether it is the proven optimum.
+ * A best-so-far result streamed by the build engine: the build ([individual]), its score / match %, search
+ * progress and whether it is the proven optimum. The single streaming type consumed identically by the CLI and
+ * the GUI; the OR-Tools CP-SAT solver ([me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver]) is its only
+ * producer.
  *
- * The name is historical — it used to be emitted by the genetic algorithm. That engine has been
- * removed; the OR-Tools CP-SAT solver ([me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver]) is
- * now the only producer. Kept as the shared streaming type consumed identically by the CLI and GUI.
+ * (Formerly `GeneticAlgorithmResult`, from the long-removed genetic-algorithm engine — renamed so the name no
+ * longer implies a GA that does not exist. The enclosing `genetic` package keeps its historical name.)
  */
-data class GeneticAlgorithmResult<T>(
+data class SolverResult<T>(
     val individual: T,
     val matchPercentage: BigDecimal,
     val progressPercentage: Int,

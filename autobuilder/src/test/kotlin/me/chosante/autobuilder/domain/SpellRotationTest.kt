@@ -1,10 +1,18 @@
 package me.chosante.autobuilder.domain
 
+import me.chosante.common.BestElementConcentration
 import me.chosante.common.Character
 import me.chosante.common.CharacterClass
+import me.chosante.common.Characteristic
+import me.chosante.common.Equipment
 import me.chosante.common.I18nText
+import me.chosante.common.ItemType
+import me.chosante.common.Rarity
 import me.chosante.common.Spell
 import me.chosante.common.SpellElement
+import me.chosante.common.Sublimation
+import me.chosante.common.SublimationKind
+import me.chosante.common.SublimationRarity
 import me.chosante.common.skills.CharacterSkills
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -368,5 +376,52 @@ class SpellRotationTest {
                 apBudget = 12
             )
         assertThat(water.isEmpty).describedAs("Cra cannot play Water — rotation must be empty").isTrue()
+    }
+
+    @Test
+    fun `resolveStats credits best-element-concentration DI only under a max-damage scenario`() {
+        // Regression guard for the objective↔display/selection mismatch: the CP-SAT objective credits a build's
+        // best-element-concentration +20% Damage Inflicted (gated on the scenario element being strongest), but
+        // the display/selection stat resolution used to run scenario-blind and silently dropped it. Fire is the
+        // build's only ⇒ strongest element, so the bonus applies.
+        val character = Character(clazz = CharacterClass.CRA, level = 1, minLevel = 1)
+        val fireAmulet =
+            Equipment(
+                equipmentId = 1,
+                guiId = 1,
+                level = 1,
+                name = I18nText("Fire", "Fire", "Fire", "Fire"),
+                rarity = Rarity.COMMON,
+                itemType = ItemType.AMULET,
+                characteristics = mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300)
+            )
+        val elementalConcentration =
+            Sublimation(
+                stateId = 5449,
+                name = I18nText("EC", "EC", "EC", "EC"),
+                rarity = SublimationRarity.NORMAL,
+                kind = SublimationKind.FLAT,
+                solverChoosable = true,
+                bestElementConcentration = BestElementConcentration(damageInflictedBonus = 20, masteryPenaltyPercent = 30)
+            )
+        val build =
+            BuildCombination(
+                equipments = listOf(fireAmulet),
+                characterSkills = CharacterSkills(1),
+                sublimations = mapOf(fireAmulet to listOf(elementalConcentration))
+            )
+        val fireSpell =
+            Spell(id = 1, clazz = CharacterClass.CRA, name = I18nText("s", "s", "s", "s"), element = SpellElement.FIRE, apCost = 3, baseDamage = 100)
+        val scenario = DamageScenario(element = me.chosante.autobuilder.domain.SpellElement.FIRE, orientation = Orientation.FACE)
+
+        val underScenario = BuildSpellDamage.resolveStats(fireSpell, build, character, scenario)!!
+        val scenarioAgnostic = BuildSpellDamage.resolveStats(fireSpell, build, character, null)!!
+
+        assertThat(underScenario[Characteristic.DAMAGE_INFLICTED] ?: 0)
+            .describedAs("Elemental Concentration's +20% DI is credited once the (fire-strongest) scenario is known — matching the objective")
+            .isEqualTo(20)
+        assertThat(scenarioAgnostic[Characteristic.DAMAGE_INFLICTED] ?: 0)
+            .describedAs("scenario-agnostic resolution (the generic compare grid) keeps the pre-fix behaviour: the gated DI is not creditable")
+            .isEqualTo(0)
     }
 }

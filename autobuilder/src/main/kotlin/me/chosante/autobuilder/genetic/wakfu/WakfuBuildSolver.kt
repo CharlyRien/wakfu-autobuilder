@@ -21,7 +21,9 @@ import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.domain.SpellRotationOptimizer
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
-import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
+import me.chosante.autobuilder.domain.firesInMostMasteries
+import me.chosante.autobuilder.domain.perElementDiMastery
+import me.chosante.autobuilder.genetic.SolverResult
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
@@ -339,55 +341,25 @@ object WakfuBuildSolver {
         val maxDamageExperiment: MaxDamageExperimentConfig = MaxDamageExperimentConfig(),
     )
 
-    internal data class MaxDamageExperimentConfig(
-        val apCeiling: Boolean = false,
-        // BINARY is the production default: binary-expanding the D and crit one-hot product selectors (~180
-        // booleans → ~14 bits) collapses the tree-exhaustion search ~5.5× (measured, sound). TABLE is the old
-        // one-hot encoding, kept only for A/B. See solver-performance-audit.
-        val critProduct: CritProductMode = CritProductMode.BINARY,
-        val dProduct: DProductMode = DProductMode.BINARY,
-        val sameNameRingBound: Boolean = false,
-        val perApRotRawCut: Boolean = false,
-        val perHitOnlyObjective: Boolean = false,
-        val dGrawCutoff: Boolean = false,
-        val dGrawJointBound: Boolean = false,
-    ) {
-        companion object {
-            val DEFAULT = MaxDamageExperimentConfig()
-        }
-    }
-
-    internal enum class CritProductMode {
-        TABLE,
-        GENERIC,
-        BINARY,
-    }
-
-    internal enum class DProductMode {
-        TABLE,
-        BINARY,
-        SOURCE_DI,
-    }
-
     fun optimize(
         params: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         runes: List<RuneType> = emptyList(),
         sublimations: List<Sublimation> = emptyList(),
-    ): Flow<GeneticAlgorithmResult<BuildCombination>> = optimize(params, equipmentsByItemType, runes, sublimations, tuning = null)
+    ): Flow<SolverResult<BuildCombination>> = optimize(params, equipmentsByItemType, runes, sublimations, tuning = null)
 
     internal fun optimize(
         params: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         tuning: SolverTuning?,
-    ): Flow<GeneticAlgorithmResult<BuildCombination>> = optimize(params, equipmentsByItemType, emptyList(), emptyList(), tuning)
+    ): Flow<SolverResult<BuildCombination>> = optimize(params, equipmentsByItemType, emptyList(), emptyList(), tuning)
 
     internal fun optimize(
         params: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         runes: List<RuneType>,
         tuning: SolverTuning?,
-    ): Flow<GeneticAlgorithmResult<BuildCombination>> = optimize(params, equipmentsByItemType, runes, emptyList(), tuning)
+    ): Flow<SolverResult<BuildCombination>> = optimize(params, equipmentsByItemType, runes, emptyList(), tuning)
 
     internal fun optimize(
         params: WakfuBestBuildParams,
@@ -395,7 +367,7 @@ object WakfuBuildSolver {
         runes: List<RuneType>,
         sublimations: List<Sublimation>,
         tuning: SolverTuning?,
-    ): Flow<GeneticAlgorithmResult<BuildCombination>> =
+    ): Flow<SolverResult<BuildCombination>> =
         callbackFlow {
             withContext(Dispatchers.IO) {
                 // Domination runs only on the production (wall-clock) path: tuning == null. The deterministic
@@ -463,12 +435,17 @@ object WakfuBuildSolver {
      * conditional sub (unknown effect direction), or a condition that compares two build stats / is categorical
      * and can't be reduced to a stat pin.
      */
-    private data class DominationShape(
+    internal data class DominationShape(
         val pinned: Set<Characteristic>,
         val compared: Set<Characteristic>? = null,
+        // Stats where LOWER is better for the swap proof, so a dominator must be `≤` (not `≥`). Used for the three
+        // non-scenario elemental masteries when a best-element concentration sub (Elemental Concentration) is
+        // choosable: in a single-element solve they do nothing for the scored element and only risk flipping which
+        // element is "strongest", so more of them is never beneficial — see the swap proof in the sub's decode.
+        val minimized: Set<Characteristic> = emptySet(),
     )
 
-    private fun dominationShape(
+    internal fun dominationShape(
         params: WakfuBestBuildParams,
         sublimations: List<Sublimation>,
     ): DominationShape? {
@@ -499,6 +476,10 @@ object WakfuBuildSolver {
                     pinned += Characteristic.CRITICAL_HIT
                     conditionStats += Characteristic.CRITICAL_HIT
                 }
+                SublimationConditionType.CRITICAL_MASTERY_AT_MOST -> {
+                    pinned += Characteristic.MASTERY_CRITICAL
+                    conditionStats += Characteristic.MASTERY_CRITICAL
+                }
                 SublimationConditionType.RANGE_AT_MOST, SublimationConditionType.RANGE_EXACT -> {
                     pinned += Characteristic.RANGE
                     conditionStats += Characteristic.RANGE
@@ -516,9 +497,10 @@ object WakfuBuildSolver {
                 SublimationConditionType.CRIT_AT_LEAST -> conditionStats += Characteristic.CRITICAL_HIT
                 SublimationConditionType.BLOCK_AT_LEAST -> conditionStats += Characteristic.BLOCK_PERCENTAGE
                 SublimationConditionType.RANGE_AT_LEAST -> conditionStats += Characteristic.RANGE
-                // Compares two build stats / categorical / unknown ⇒ can't reduce to a stat pin ⇒ gate off.
+                // Compares two build stats / categorical / slot-based / unknown ⇒ can't reduce to a stat pin ⇒ gate off.
                 SublimationConditionType.HIGHEST_ELEM_MASTERY_GT_REAR, SublimationConditionType.HIGHEST_ELEM_MASTERY_GT_HEALING,
-                SublimationConditionType.WEAPON_TYPE_EQUIPPED, SublimationConditionType.OTHER,
+                SublimationConditionType.WEAPON_TYPE_EQUIPPED, SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED,
+                SublimationConditionType.OTHER,
                 -> return null
             }
         }
@@ -543,13 +525,38 @@ object WakfuBuildSolver {
                 addAll(params.targetStats.map { it.characteristic })
                 addAll(conditionStats)
                 addAll(subStats)
+                // When the survivability soft-floor is active the objective ALSO depends on effective-HP — HP and
+                // the four elemental resistances (plus their generic / random-element sources), via
+                // [StatBuilder.effectiveHpVar]. Those are not damage stats, so without comparing them a
+                // higher-damage / lower-EHP item would dominate and evict the item a floor-clearing build needs,
+                // pruning the true (survivability-constrained) optimum. Add them so per-slot domination stays
+                // optimum-preserving when the floor is on.
+                if (scenario.survivabilityFloor && scenario.minEffectiveHp > 0) {
+                    add(Characteristic.HP)
+                    addAll(ELEMENTARY_RESISTANCES)
+                    add(Characteristic.RESISTANCE_ELEMENTARY)
+                    addAll(RANDOM_RESISTANCES)
+                }
             }
         // The equipped sheet has hard upper caps on these stats before in-combat sublimations. Pinning them
         // prevents a domination swap from replacing a cap-safe item with a stronger but cap-breaking one.
         pinned += Characteristic.ACTION_POINT
         pinned += Characteristic.MOVEMENT_POINT
         pinned += Characteristic.WAKFU_POINT
-        return DominationShape(pinned, compared)
+
+        // Best-element concentration (Elemental Concentration) breaks item domination's monotonicity: more OFF-scenario
+        // elemental mastery can COST the "+DI when your element is strongest" bonus. In a single-element solve those
+        // masteries do nothing for the scored element, so a dominator having MORE of them is never beneficial — mark
+        // them MINIMIZED (dominator must be ≤). Sound and cheap (3 extra compared stats). If one is also a beneficial
+        // target the two directions can't be reconciled by a pin, so gate domination off for that rare request.
+        val ecChoosable = sublimations.any { it.bestElementConcentration != null && it.solverChoosable && params.useSublimations }
+        val minimized = mutableSetOf<Characteristic>()
+        if (ecChoosable && scenario.candidateElements().size == 1) {
+            val offElements = SpellElement.entries.map { it.masteryCharacteristic } - scenario.element.masteryCharacteristic
+            if (offElements.any { it in compared }) return null
+            minimized += offElements
+        }
+        return DominationShape(pinned, compared + minimized, minimized)
     }
 
     private fun effectiveStatForDomination(char: Characteristic): Characteristic =
@@ -560,12 +567,31 @@ object WakfuBuildSolver {
             else -> char
         }
 
+    /**
+     * Exact `floor((a · b) / divisor)` clamped to `[0, cap]`. Used where a HARD CP-SAT upper bound is derived
+     * from a product of two Longs: computing it as a `Double` (`a.toDouble() * b`) silently loses precision once
+     * the product exceeds 2^53, and rounding the bound DOWN below the true maximum would cut the optimum out of
+     * the model. BigInteger keeps the floor exact; the clamp both enforces the `[0, cap]` domain and keeps the
+     * final `.toLong()` in range (an over-cap product would otherwise wrap negative).
+     */
+    internal fun clampedProductQuotient(
+        a: Long,
+        b: Long,
+        divisor: Long,
+        cap: Long,
+    ): Long =
+        (BigInteger.valueOf(a) * BigInteger.valueOf(b) / BigInteger.valueOf(divisor))
+            .max(BigInteger.ZERO)
+            .min(BigInteger.valueOf(cap))
+            .toLong()
+
     /** Apply [dominatedWithin] per slot — RING keeps 2 (two are co-equippable, distinct); every other slot 1. */
     private fun filterDominatedPool(
         pool: Map<ItemType, List<Equipment>>,
         pinned: Set<Characteristic>,
         compared: Set<Characteristic>? = null,
-    ): Map<ItemType, List<Equipment>> = pool.mapValues { (slot, items) -> dominatedWithin(items, if (slot == ItemType.RING) 2 else 1, pinned, compared) }
+        minimized: Set<Characteristic> = emptySet(),
+    ): Map<ItemType, List<Equipment>> = pool.mapValues { (slot, items) -> dominatedWithin(items, if (slot == ItemType.RING) 2 else 1, pinned, compared, minimized) }
 
     /**
      * Keep only items NOT dominated by ≥[k] others in the same slot (k = slot capacity). B is removable iff
@@ -589,15 +615,21 @@ object WakfuBuildSolver {
         k: Int,
         pinned: Set<Characteristic>,
         compared: Set<Characteristic>?,
+        minimized: Set<Characteristic> = emptySet(),
     ): List<Equipment> =
         items.filter { b ->
-            items.count { a -> a !== b && a.dominates(b, pinned, compared) && (!b.dominates(a, pinned, compared) || a.equipmentId < b.equipmentId) } < k
+            items.count { a ->
+                a !== b &&
+                    a.dominates(b, pinned, compared, minimized) &&
+                    (!b.dominates(a, pinned, compared, minimized) || a.equipmentId < b.equipmentId)
+            } < k
         }
 
     private fun Equipment.dominates(
         other: Equipment,
         pinned: Set<Characteristic>,
         compared: Set<Characteristic>?,
+        minimized: Set<Characteristic> = emptySet(),
     ): Boolean {
         if (maxShardSlots < other.maxShardSlots) return false
         if (rarity == Rarity.EPIC && other.rarity != Rarity.EPIC) return false
@@ -606,7 +638,11 @@ object WakfuBuildSolver {
         return chars.all { c ->
             val mine = characteristics.getOrDefault(c, 0)
             val theirs = other.characteristics.getOrDefault(c, 0)
-            if (c in pinned) mine == theirs else mine >= theirs
+            when {
+                c in pinned -> mine == theirs
+                c in minimized -> mine <= theirs
+                else -> mine >= theirs
+            }
         }
     }
 
@@ -657,7 +693,7 @@ object WakfuBuildSolver {
         // most-masteries exact socket fill must avoid them (null = un-analyzable / forced ⇒ both stay conservative).
         val dominationShape = dominationShape(params, sublimations)
         val activeDomination = if (applyDomination && !forceFullPool) dominationShape else null
-        val pool = if (activeDomination != null) filterDominatedPool(basePool, activeDomination.pinned, activeDomination.compared) else basePool
+        val pool = if (activeDomination != null) filterDominatedPool(basePool, activeDomination.pinned, activeDomination.compared, activeDomination.minimized) else basePool
         val allEquips = orderEquipments(pool)
         val equipVars = model.createEquipmentVariables(allEquips)
         val skillVars = model.createSkillVariables(params.character.characterSkills)
@@ -731,7 +767,7 @@ object WakfuBuildSolver {
     /**
      * Test-only: assemble the model exactly like [optimize] (via [buildModel]) and return the **maximized
      * objective value**, requiring a deterministic [SolverTuning] and a proven `OPTIMAL` status. Needed because
-     * the streamed [GeneticAlgorithmResult.matchPercentage] is computed by the single-element scorer and so
+     * the streamed [SolverResult.matchPercentage] is computed by the single-element scorer and so
      * cannot read the bi-element objective for an interior split — see the Lot 2 tests in WakfuBuildSolverTest.
      */
     internal fun maxDamageObjectiveValueForTest(
@@ -1394,12 +1430,14 @@ object WakfuBuildSolver {
             SublimationConditionType.AP_EXACT,
             SublimationConditionType.CRIT_AT_MOST,
             SublimationConditionType.CRIT_AT_LEAST,
+            SublimationConditionType.CRITICAL_MASTERY_AT_MOST,
             SublimationConditionType.BLOCK_AT_LEAST,
             SublimationConditionType.RANGE_AT_MOST,
             SublimationConditionType.RANGE_AT_LEAST,
             SublimationConditionType.RANGE_EXACT,
             SublimationConditionType.DODGE_LT_PCT_OF_LEVEL,
-            SublimationConditionType.SECONDARY_MASTERIES_AT_MOST
+            SublimationConditionType.SECONDARY_MASTERIES_AT_MOST,
+            SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED
         )
 
     /** A solver-choosable sub the engine can correctly model in this request's mode/scenario. */
@@ -1410,7 +1448,10 @@ object WakfuBuildSolver {
         if (!sub.solverChoosable) return false
         // Conversions are handled by a dedicated path; static-conditionals need a supported condition.
         when (sub.kind) {
-            SublimationKind.CONVERSION -> if (sub.conversion == null) return false
+            // A conversion applies via appliesVar, which only enforces a SUPPORTED condition — a conversion carrying
+            // an UNsupported condition would move stats unconditionally (over-credit), so it must stay forced-only.
+            SublimationKind.CONVERSION ->
+                if (sub.conversion == null || (sub.condition != null && sub.condition!!.type !in SUPPORTED_SUB_CONDITIONS)) return false
             SublimationKind.STATIC_CONDITIONAL ->
                 if (sub.condition == null || sub.condition!!.type !in SUPPORTED_SUB_CONDITIONS) return false
 
@@ -1423,15 +1464,24 @@ object WakfuBuildSolver {
         // tie-breaker to grab (the old Enutrof failure mode for required-only requests). When ANY maximizable
         // mastery is requested the fold governs DI on merit, so this never fires. Max-damage models DI directly.
         if (dropsDamageWithNoMasteryToProtect(sub, params)) return false
-        // It must be able to contribute *something* in this mode/scenario.
+        // Best-element concentration (Elemental Concentration): its sound model — "+DI gated so the scenario element
+        // is the build's strongest" — needs a SINGLE fixed damage element to protect. That holds in max-damage with
+        // one candidate element (MaxDamageSearch enumerates one element per solve). Elsewhere (multi-element / boss
+        // max-damage, most-masteries, precision) it stays forced-input-only — a clean follow-up.
+        if (sub.bestElementConcentration != null) {
+            return params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE &&
+                params.damageScenario.candidateElements().size == 1
+        }
+        // It must be able to contribute *something* in this mode/scenario. A perStatStep ramp (Featherweight)
+        // contributes via a build-stat-driven term (no flat effect), so it counts too.
         val hasUsableEffect = sub.effects.any { scenarioGateMatches(it.scenarioGate, params) }
-        return hasUsableEffect || sub.conversion != null
+        return hasUsableEffect || sub.conversion != null || sub.perStatStep != null
     }
 
     /**
      * True when [sub] reduces % Damage Inflicted in a non-max-damage request that maximizes **no** mastery,
      * so the DI fold can't weigh it and it must not be auto-chosen (it could only ever cut real damage). When a
-     * maximizable mastery IS requested, [StatBuilder.diAdjustedMasteryScore] already prices DI in, so a −DI sub
+     * maximizable mastery IS requested, [StatBuilder.diAdjustedPerElementMasteryScore] already prices DI in, so a −DI sub
      * is taken only when its mastery gain outweighs the loss — and this returns false.
      */
     private fun dropsDamageWithNoMasteryToProtect(
@@ -1441,7 +1491,9 @@ object WakfuBuildSolver {
         if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return false
         if (params.targetStats.any { it.characteristic.isMaximizableMastery() }) return false
         val netDamageInflicted =
-            sub.effects.filter { it.characteristic == Characteristic.DAMAGE_INFLICTED }.sumOf { it.value }
+            sub.effects
+                .filter { it.characteristic == Characteristic.DAMAGE_INFLICTED }
+                .sumOf { it.magnitudeAtLevel(params.character.level) }
         return netDamageInflicted < 0
     }
 
@@ -1456,10 +1508,17 @@ object WakfuBuildSolver {
         params: WakfuBestBuildParams,
     ): Boolean {
         if (gate == null) return true
-        if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return false
+        if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+            // Outside max-damage there is no attack scenario, so scenario gates don't fire — except a pure element
+            // gate in a mono-element most-masteries request (the build is single-element, so a "+% <element> damage"
+            // sub boosts all of its damage). Orientation/berserk/range gates stay max-damage-only.
+            return params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+                gate.firesInMostMasteries(params.targetStats.masteryElementsWanted.keys)
+        }
         val s = params.damageScenario
         gate.rangeBand?.let { if (s.rangeBand.name != it) return false }
         gate.orientation?.let { if (s.orientation.name != it) return false }
+        gate.element?.let { if (s.element.name != it) return false }
         if (gate.berserk == true && !s.berserk) return false
         if (gate.ranged == true && s.rangeBand.name != "DISTANCE") return false
         gate.minCharacterLevel?.let { if (params.character.level < it) return false }
@@ -1659,7 +1718,7 @@ object WakfuBuildSolver {
 
     /**
      * Objective for "most masteries" mode: maximize the *requested* masteries — scaled by the build's global
-     * **% Damage Inflicted** so the proxy is damage-faithful (see [StatBuilder.diAdjustedMasteryScore]) —
+     * **% Damage Inflicted** so the proxy is damage-faithful (see [StatBuilder.diAdjustedPerElementMasteryScore]) —
      * under the required-stat constraints. There is deliberately no tie-breaker that fills otherwise-empty
      * slots, so a slot whose items cannot improve any requested stat (nor the DI factor) is left empty in the
      * proven optimum. This is why, e.g., an item set asking only for distance mastery + AP/MP/HP comes
@@ -1683,7 +1742,7 @@ object WakfuBuildSolver {
 
         // Damage-faithful proxy: maximized mastery sum × (1 + DI/100). Mirrored exactly by the re-scorer
         // (FindMostMasteriesFromInputScoring) so the solver optimum and the scored optimum stay in lockstep.
-        val masteryScore = statBuilder.diAdjustedMasteryScore(statBuilder.finalMasteryScore(targetStats, targetCharacteristics))
+        val masteryScore = statBuilder.diAdjustedPerElementMasteryScore(targetStats, targetCharacteristics)
 
         val requiredTargets = targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }
         val penalized = applyConstraintPenalty(params, statBuilder, masteryScore, MASTERY_SCORE_ABS_MAX)
@@ -1945,7 +2004,7 @@ object WakfuBuildSolver {
         skillVars: Map<SkillCharacteristic, IntVar>,
         runeModel: RuneModel,
         subModel: SublimationModel,
-        scope: ProducerScope<GeneticAlgorithmResult<BuildCombination>>,
+        scope: ProducerScope<SolverResult<BuildCombination>>,
         tuning: SolverTuning?,
     ) {
         val solver = CpSolver()
@@ -2015,7 +2074,7 @@ object WakfuBuildSolver {
                     val actualScore = scoreFor(params, combination)
 
                     val progress = ((now - startTime).toDouble() / params.searchDuration.inWholeMilliseconds.toDouble() * 100).toInt()
-                    scope.trySend(GeneticAlgorithmResult(combination, actualScore, progress.coerceAtMost(100)))
+                    scope.trySend(SolverResult(combination, actualScore, progress.coerceAtMost(100)))
                 }
             }
 
@@ -2032,7 +2091,7 @@ object WakfuBuildSolver {
                 // final/optimal build must never be lost to a saturated callbackFlow buffer.
                 if (scope.isActive) {
                     scope.send(
-                        GeneticAlgorithmResult(
+                        SolverResult(
                             individual = finalComb,
                             matchPercentage = finalScore,
                             progressPercentage = 100,
@@ -2832,6 +2891,7 @@ object WakfuBuildSolver {
 
         private val prePercentCache = mutableMapOf<Characteristic, IntVar>()
         private val preSubCache = mutableMapOf<Characteristic, IntVar>()
+        private val preCombatCache = mutableMapOf<Characteristic, IntVar>()
 
         // Per-solve memo for the (scenario-pure) max-damage pre-mastery term list. damagePreMasteryTerms is
         // called ~3× per perHitDamageScore (once via damagePreMastery, twice via damageMasteryCriticalReach)
@@ -2843,10 +2903,30 @@ object WakfuBuildSolver {
         private val elementCache = mutableMapOf<Pair<Characteristic, List<Characteristic>>, Map<Characteristic, IntVar>>()
         private val appliesVarCache = mutableMapOf<Sublimation, IntVar>()
 
+        // The PERMANENT (out-of-combat / character-sheet) sublimation contributions — the subset of FLAT-sub
+        // effects flagged [SublimationEffect.appliesBeforeCombat]. These are present BEFORE combat starts, so
+        // they (and only they) feed build-static start-of-combat conditions via [preCombatStat]: a permanent
+        // +crit (Influence II) counts toward another sub's CRIT_AT_MOST, while a start-of-combat / conditional
+        // +crit (Secondary Devastation II, Ambition) does not. Gated by the raw subVar (FLAT subs have no
+        // condition), so referencing it from [reifyCondition] never recurses through [appliesVar]. Built BEFORE
+        // [subTermsByStat] because that map's init reifies conditions, which read [preCombatStat] → this map.
+        private val permanentSubTermsByStat: Map<Characteristic, List<Term>> = buildPermanentSubTerms()
+
+        // Per-element DI sub contributions (Brûlure/Gel/Tellurisme/Ventilation) routed by their OWN element's
+        // mastery, in most-masteries mode only — kept OUT of the global DAMAGE_INFLICTED so a "+12% fire damage"
+        // sub multiplies only the fire damage line of [diAdjustedPerElementMasteryScore], not water's. Populated
+        // as a side effect of [buildSublimationTerms]; declared before it so it is initialized first (empty).
+        private val elementDiTermsByMastery = mutableMapOf<Characteristic, MutableList<Term>>()
+
+        // Per-sub reified "scenario element is the build's strongest" boolean for best-element concentration subs
+        // (Elemental Concentration). Declared BEFORE [subTermsByStat] because that map's eager init
+        // ([buildSublimationTerms]) reads it via [scenarioElementStrongestVar].
+        private val bestElementStrongestCache = HashMap<Int, IntVar>()
+
         // Sublimation stat contributions folded into the term loop, grouped by the (AP/MP/WP-folded)
         // characteristic they feed. Built eagerly so prePercentStat sees them; conversions are excluded
-        // here and applied by [conversionContributions]. Conditions reify against [preSubStat] (the
-        // pre-sublimation stat value) to keep the constraint network acyclic.
+        // here and applied by [conversionContributions]. Conditions reify against [preCombatStat] (base +
+        // items + runes + skills + PERMANENT subs) to keep the constraint network acyclic.
         private val subTermsByStat: Map<Characteristic, List<Term>> = buildSublimationTerms()
 
         // The selected passives' flat stats ([Passive.flatStats] — the extractor's permanent + unconditional
@@ -2855,6 +2935,17 @@ object WakfuBuildSolver {
         // the static solver can't see) is not modeled; the full loadout still rides on the build for display.
         // Grouped by the AP/MP/WP-folded stat, like [subTermsByStat].
         private val passiveTermsByStat: Map<Characteristic, List<Term>> = buildPassiveTerms()
+
+        // Featherweight-style "per <source> above threshold, +<target> (capped)" ramps ([Sublimation.perStatStep]),
+        // grouped by their target stat. Their magnitude depends on a build VARIABLE (the source stat), so unlike a
+        // flat sub effect they can't be a constant term — [prePercentTermsFor] adds a memoized reified clamped var
+        // ([perStatStepGatedVar]) built from actualStat(source). source ≠ target (e.g. MP vs DI), so building it
+        // never re-enters the target stat's own term loop. COMBAT_CONDITIONAL subs are skipped (like the flat loop).
+        private val perStatStepSpecsByTarget: Map<Characteristic, List<Sublimation>> =
+            subModel.subVars.keys
+                .filter { it.kind != SublimationKind.COMBAT_CONDITIONAL && it.perStatStep != null }
+                .groupBy { effectiveStat(it.perStatStep!!.target) }
+        private val perStatStepVarCache = HashMap<Int, IntVar>()
 
         fun totalActualScore(
             requiredTargets: List<TargetStat>,
@@ -3080,7 +3171,31 @@ object WakfuBuildSolver {
             return penalized
         }
 
-        fun finalMasteryScore(
+        /**
+         * The "most-masteries" objective: maximize the requested masteries scaled by a damage-faithful
+         * `(1 + DI/100)` factor (the same factor the max-damage objective and the real hit formula use). The
+         * previous single GLOBAL fold becomes a **per-element** fold, so a per-element "+X% <element> damage"
+         * sublimation (Brûlure/Gel/Tellurisme/Ventilation) multiplies ONLY its own element's damage line:
+         *
+         *  - BRANCH A (no element requested — `minElements` empty): one product `clamp(nonElemNeg,≥0) × (100 +
+         *    globalDI) / 100`. Byte-identical (in value) to the old `finalMasteryScore × diAdjustedMasteryScore`
+         *    (where `lowestElementMastery == 0`). The common distance/melee-only request stays on this path.
+         *  - BRANCH B (element(s) requested): `min over e in minElements of clamp(nonElemNeg + mastery_e, ≥0) ×
+         *    (100 + clamp(globalDI + elementDI_e, [-FLOOR,MAX])) / 100`. Each element's OWN per-element DI sits
+         *    inside ITS factor; the weakest element governs (the existing balance philosophy). With no per-element
+         *    DI all `factor_e` are equal, so by monotonicity `min_e floor(g(m_e)) == floor(g(min_e m_e))` ⇒ value
+         *    reduces to BRANCH A — no-element / no-sub requests are unchanged.
+         *
+         * The combined DI is clamped as ONE sum `clamp(globalDI + elementDI_e)`, mirroring the old mono path
+         * (which folded the per-element +12 into the global DAMAGE_INFLICTED bucket). The re-scorer
+         * (FindMostMasteriesFromInputScoring) mirrors this exactly, including the per-element integer truncation.
+         *
+         * Each product clamps `mastery ≥ 0` before the multiply (the factor `100 + DI` is positive, so multiplying
+         * a negative mastery would invert the DI incentive), divides by 100 (floor), and clamps onto
+         * `[0, MASTERY_SCORE_ABS_MAX]`, so the result keeps the same domain as before ⇒ every downstream penalty /
+         * overshoot bound is unchanged.
+         */
+        fun diAdjustedPerElementMasteryScore(
             targetStats: TargetStats,
             targetCharacteristics: Set<Characteristic>,
         ): IntVar {
@@ -3101,65 +3216,75 @@ object WakfuBuildSolver {
                     }
             val negativePenalty = model.sumVar("negMasteryPenalty", negativePenaltyVars, -MASTERY_SCORE_ABS_MAX, 0)
 
-            // Fold the generic "+all elements" stat into every wanted element (matching the scorer's
-            // computeCharacteristicsValues), but take the minimum over only the elements the user
-            // actually asked for: a co-requested MASTERY_ELEMENTARY no longer forces balancing the
-            // off-elements. minElements is always a subset of foldElements — see
-            // TargetStats.masteryElementsToMinimize.
-            val foldElements = targetStats.masteryElementsWanted.keys.toList()
-            val minElements = targetStats.masteryElementsToMinimize
+            // The element-independent base shared by every per-element damage line: non-element masteries
+            // (distance/melee/crit/…) + the negative-mastery penalty.
+            val nonElemNeg =
+                model.sumVar(
+                    "mmNonElemNeg",
+                    listOf(Term(nonElemSum, 1L), Term(negativePenalty, 1L)),
+                    0L,
+                    -MASTERY_SCORE_ABS_MAX,
+                    MASTERY_SCORE_ABS_MAX
+                )
 
-            val lowestElementMastery =
-                if (minElements.isEmpty()) {
-                    model.newConstant(0L)
-                } else {
-                    val elementVars = elementMasteryVars(foldElements)
-                    val minVar = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, STAT_WITH_PERCENT_ABS_MAX, "minElementMastery")
-                    model.addMinEquality(minVar, minElements.map { elementVars.getValue(it) }.toTypedArray())
-                    minVar
-                }
-
-            val total = model.newIntVar(-MASTERY_SCORE_ABS_MAX, MASTERY_SCORE_ABS_MAX, "masteryScore")
-            val sumExpr =
-                LinearExpr
-                    .newBuilder()
-                    .addTerm(nonElemSum, 1)
-                    .addTerm(negativePenalty, 1)
-                    .addTerm(lowestElementMastery, 1)
-                    .build()
-            model.addEquality(total, sumExpr)
-            return total
-        }
-
-        /**
-         * Folds the global **% Damage Inflicted** multiplier into [masteryScore] so most-masteries maximizes a
-         * DAMAGE-FAITHFUL proxy `masteryScore × (1 + DI/100)` (the same DI factor the max-damage objective and
-         * the real hit formula use) instead of the raw mastery sum. So a `+DI` choice now raises the objective
-         * in proportion to the mastery already invested, and a `−DI` choice (e.g. a −20% DI sublimation grabbed
-         * to over-satisfy an AP/MP target) is taken **only** when its mastery gain outweighs the damage it
-         * costs — the engine no longer trades real damage for a hollow mastery point. DI is clamped to
-         * `[−DAMAGE_DI_FLOOR, DAMAGE_DI_MAX]` exactly as the max-damage objective and the re-scorer do.
-         *
-         * [masteryScore] is first clamped to `≥ 0` (mirroring the max-damage objective's `m = tClamp(preM, 0, …)`):
-         * the factor `100 + DI` is always positive, so multiplying a *negative* mastery by it would INVERT the DI
-         * incentive (a higher DI making the product more negative) — clamping at 0 keeps "+DI is always better"
-         * monotone. The product is then divided by 100 and clamped back onto `[0, MASTERY_SCORE_ABS_MAX]` — a
-         * no-op for any real build (mastery sums are ≤ ~1e5, far below the bound) — so the result keeps the same
-         * domain as the raw [masteryScore] and **every downstream penalty / overshoot bound is unchanged**.
-         * When the build carries no DI the factor is exactly 100, so the whole fold is the identity (×1) and
-         * DI-free requests are byte-identical to the old objective.
-         */
-        fun diAdjustedMasteryScore(masteryScore: IntVar): IntVar {
-            val nonNegativeMastery = model.clampVar(masteryScore, 0L, MASTERY_SCORE_ABS_MAX, "mmMasteryNonNeg")
-            val di = model.clampVar(actualStat(Characteristic.DAMAGE_INFLICTED), -DAMAGE_DI_FLOOR, DAMAGE_DI_MAX, "mmDI")
-            // factor = 100 + DI ∈ [100 − FLOOR, 100 + MAX]; (1 + DI/100) scaled by 100 to stay integer.
-            val factor = model.sumVar("mmDiFactor", listOf(Term(di, 1L)), 100L, 100L - DAMAGE_DI_FLOOR, 100L + DAMAGE_DI_MAX)
+            val globalDi = model.clampVar(actualStat(Characteristic.DAMAGE_INFLICTED), -DAMAGE_DI_FLOOR, DAMAGE_DI_MAX, "mmDI")
             val productBound = MASTERY_SCORE_ABS_MAX * (100L + DAMAGE_DI_MAX)
-            val product = model.newIntVar(0L, productBound, "mmDiProduct")
-            model.addMultiplicationEquality(product, arrayOf(nonNegativeMastery, factor))
-            val scaled = model.newIntVar(0L, productBound / 100L, "mmDiScaled")
-            model.addDivisionEquality(scaled, product, model.newConstant(100L))
-            return model.clampVar(scaled, 0L, MASTERY_SCORE_ABS_MAX, "mmDiAdjusted")
+
+            // The shared `clamp(mastery,≥0) × factor / 100 → clamp` kernel (one bilinear product).
+            fun diProduct(
+                masteryTier: IntVar,
+                diFactor: IntVar,
+                tag: String,
+            ): IntVar {
+                val nonNeg = model.clampVar(masteryTier, 0L, MASTERY_SCORE_ABS_MAX, "mmNN_$tag")
+                val product = model.newIntVar(0L, productBound, "mmProd_$tag")
+                model.addMultiplicationEquality(product, arrayOf(nonNeg, diFactor))
+                val scaled = model.newIntVar(0L, productBound / 100L, "mmScaled_$tag")
+                model.addDivisionEquality(scaled, product, model.newConstant(100L))
+                return model.clampVar(scaled, 0L, MASTERY_SCORE_ABS_MAX, "mmAdj_$tag")
+            }
+
+            val minElements = targetStats.masteryElementsToMinimize
+            if (minElements.isEmpty()) {
+                // BRANCH A: no element requested ⇒ one product on (nonElemNeg × globalFactor).
+                val factor = model.sumVar("mmDiFactor", listOf(Term(globalDi, 1L)), 100L, 100L - DAMAGE_DI_FLOOR, 100L + DAMAGE_DI_MAX)
+                return diProduct(nonElemNeg, factor, "global")
+            }
+
+            // BRANCH B: per-element products (each with its own element DI inside its factor), then weakest-min.
+            val foldElements = targetStats.masteryElementsWanted.keys.toList()
+            val elementVars = elementMasteryVars(foldElements)
+            val perElementAdj =
+                minElements.associateWith { e ->
+                    val tier =
+                        model.sumVar(
+                            "mmTier_${e.name}",
+                            listOf(Term(nonElemNeg, 1L), Term(elementVars.getValue(e), 1L)),
+                            0L,
+                            -MASTERY_SCORE_ABS_MAX,
+                            MASTERY_SCORE_ABS_MAX
+                        )
+                    // combinedDi = clamp(globalDI + elementDI_e, [-FLOOR, MAX]) — ONE clamp of the sum (mirrors mono).
+                    val combinedDi =
+                        model.clampVar(
+                            model.sumVar(
+                                "mmDiSum_${e.name}",
+                                listOf(Term(globalDi, 1L), Term(elementDiVar(e), 1L)),
+                                0L,
+                                -DAMAGE_DI_FLOOR,
+                                DAMAGE_DI_MAX + DAMAGE_DI_MAX
+                            ),
+                            -DAMAGE_DI_FLOOR,
+                            DAMAGE_DI_MAX,
+                            "mmDiClamp_${e.name}"
+                        )
+                    val factor =
+                        model.sumVar("mmDiFactor_${e.name}", listOf(Term(combinedDi, 1L)), 100L, 100L - DAMAGE_DI_FLOOR, 100L + DAMAGE_DI_MAX)
+                    diProduct(tier, factor, e.name)
+                }
+            val result = model.newIntVar(0L, MASTERY_SCORE_ABS_MAX, "mmDiAdjustedMin")
+            model.addMinEquality(result, minElements.map { perElementAdj.getValue(it) }.toTypedArray())
+            return result
         }
 
         // The build's resolved Action Points variable (base + gear + skills), for the external-loop AP probe.
@@ -3601,7 +3726,7 @@ object WakfuBuildSolver {
             for (a in clampedTable.indices) {
                 if (clampedTable[a] == 0L) continue
                 val grawLinUBa = gByMu.minOf { (mu, g) -> g + mu * a }.coerceIn(0L, grawLinGlobalHi)
-                val perHitScaledUBa = ((dHi.toDouble() * grawLinUBa) / PERHIT_DOWNSCALE).toLong().coerceIn(0L, perHitScaledMax)
+                val perHitScaledUBa = clampedProductQuotient(dHi, grawLinUBa, PERHIT_DOWNSCALE, perHitScaledMax)
                 maxRotRaw = maxOf(maxRotRaw, clampedTable[a] * perHitScaledUBa)
             }
             return maxRotRaw
@@ -3646,8 +3771,10 @@ object WakfuBuildSolver {
             for (mu in muGrid) {
                 val combined = diTerms.map { Term(it.variable, mu * it.coefficient) } + grawLinTerms
                 val cMu = reachableSumDomain(combined, mu * dBase + grawLinConst).last
-                val uMu = (cMu.toDouble() * cMu / (4.0 * mu)).toLong()
-                best = minOf(best, uMu)
+                // Clamp the AM-GM bound `cMu² / (4μ)` to the running [best] (its only role is to lower the min),
+                // computed EXACTLY: a Double `cMu * cMu` loses precision past 2^53 and could round this hard
+                // bound below the true per-hit max, cutting the optimum.
+                best = clampedProductQuotient(cMu, cMu, 4L * mu, best)
             }
             if (System.getenv("WAKFU_MAX_DAMAGE_DEBUG_JOINT") == "1") {
                 System.err.println(
@@ -4642,6 +4769,11 @@ object WakfuBuildSolver {
             terms.addAll(subTermsByStat[char].orEmpty())
             // Selected passives' flat stats fold in the same way (always-on constants).
             terms.addAll(passiveTermsByStat[char].orEmpty())
+            // Featherweight-style ramps that TARGET this stat: a build-static clamp(perStep·(source−threshold), 0,
+            // cap), gated on the sub. source ≠ target (MP vs DI), so actualStat(source) inside never re-enters here.
+            for (sub in perStatStepSpecsByTarget[char].orEmpty()) {
+                terms.add(Term(perStatStepGatedVar(sub), 1L))
+            }
             return terms to base
         }
 
@@ -4651,11 +4783,30 @@ object WakfuBuildSolver {
                 tSum("pre_${char.name}", terms, base, reachableSumDomain(terms, base), -STAT_ABS_MAX, STAT_ABS_MAX)
             }
 
-        /** Pre-sublimation actual value of [char] (item + rune + skill + base), used to reify conditions. */
+        /**
+         * Pre-sublimation actual value of [char] (item + rune + skill + base, NO subs) — the base for a
+         * CONVERSION's `from` stat and the out-of-combat AP/MP/WP/crit caps. Start-of-combat **conditions** read
+         * [preCombatStat] instead (which adds the permanent subs).
+         */
         private fun preSubStat(char: Characteristic): IntVar =
             preSubCache.getOrPut(char) {
                 val (terms, base) = baseTermsFor(char)
                 tSum("preSub_${char.name}", terms, base, reachableSumDomain(terms, base), -STAT_ABS_MAX, STAT_ABS_MAX)
+            }
+
+        /**
+         * Pre-combat (character-sheet) value of [char]: `preSubStat` + the PERMANENT sublimation contributions
+         * ([permanentSubTermsByStat]). This is exactly what a build-static start-of-combat condition is evaluated
+         * against — a permanent +crit (Influence II) IS part of the pre-combat crit and so can push the build past
+         * a CRIT_AT_MOST, whereas a start-of-combat / conditional +crit (Secondary Devastation II, Ambition) is
+         * excluded (it is applied *at* combat start, after the condition is read; a conditional sub must never
+         * feed its own condition). Acyclic: permanent terms are gated by the raw `subVar`, never a reified bool.
+         */
+        private fun preCombatStat(char: Characteristic): IntVar =
+            preCombatCache.getOrPut(char) {
+                val (terms, base) = baseTermsFor(char)
+                terms.addAll(permanentSubTermsByStat[char].orEmpty())
+                tSum("preCombat_${char.name}", terms, base, reachableSumDomain(terms, base), -STAT_ABS_MAX, STAT_ABS_MAX)
             }
 
         /** AP/MP/WP folding: a `MAX_*` sublimation effect feeds the corresponding usable stat. */
@@ -4696,11 +4847,108 @@ object WakfuBuildSolver {
                     map.getOrPut(effectiveStat(conv.from)) { mutableListOf() }.add(Term(moved, -1L))
                     continue
                 }
+                val bec = sub.bestElementConcentration
+                if (bec != null) {
+                    // Elemental Concentration: +damageInflictedBonus% Damage Inflicted, sound-gated so the max-damage
+                    // scenario element is the build's strongest — constrain `subVar ≤ strongest`. When it is NOT
+                    // strongest the in-game −penalty lands on the scored element and makes the sub strictly worse, so
+                    // such a build is never optimal: the guard excludes only dominated builds and never over-credits
+                    // the DI. (Only reachable in max-damage single-element — see isModelableSublimation.)
+                    model.addLessOrEqual(subModel.subVars.getValue(sub), scenarioElementStrongestVar(sub))
+                    map.getOrPut(Characteristic.DAMAGE_INFLICTED) { mutableListOf() }.add(Term(applies, bec.damageInflictedBonus.toLong()))
+                    continue
+                }
                 for (effect in sub.effects) {
+                    if (!scenarioGateMatches(effect.scenarioGate, params)) continue
+                    val magnitude = effect.magnitudeAtLevel(subModel.characterLevel).toLong()
+                    // Per-element DI in most-masteries: route into the element's OWN bucket so it only multiplies
+                    // that element's damage fold (NOT the global DI). Other modes (max-damage) keep it global —
+                    // there the single scenario element IS the global DI, so the existing routing is correct.
+                    val diMastery = effect.scenarioGate?.perElementDiMastery()
+                    if (diMastery != null &&
+                        effect.characteristic == Characteristic.DAMAGE_INFLICTED &&
+                        params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+                    ) {
+                        elementDiTermsByMastery.getOrPut(diMastery) { mutableListOf() }.add(Term(applies, magnitude))
+                        continue
+                    }
+                    map.getOrPut(effectiveStat(effect.characteristic)) { mutableListOf() }.add(Term(applies, magnitude))
+                }
+            }
+            return map
+        }
+
+        /**
+         * The per-element % Damage Inflicted routed to [mastery]'s element (sum of the chosen Brûlure/Gel/… subs
+         * for that element), 0 when none — read only inside that element's own factor in
+         * [diAdjustedPerElementMasteryScore]. Most-masteries only; empty in other modes.
+         */
+        private fun elementDiVar(mastery: Characteristic): IntVar = model.sumVar("mmElemDI_${mastery.name}", elementDiTermsByMastery[mastery].orEmpty(), 0L, 0L, DAMAGE_DI_MAX)
+
+        /**
+         * The reified [Sublimation.perStatStep] contribution of [sub] to its target stat:
+         * `clamp(perStep·(actualStat(source) − threshold), 0, cap)`, gated to 0 when the sub is not chosen.
+         * Memoized per sub. Built lazily (on the first [prePercentTermsFor] of the target, during objective build),
+         * so `actualStat(source)` is ready; source ≠ target keeps it acyclic (it never re-enters the target loop).
+         */
+        private fun perStatStepGatedVar(sub: Sublimation): IntVar =
+            perStatStepVarCache.getOrPut(sub.stateId) {
+                val spec = sub.perStatStep!!
+                // scaled = perStep·source − perStep·threshold  (= perStep·(source − threshold)); clamp to [0, cap].
+                val scaled =
+                    tSumNaive(
+                        "fwScaled_${sub.stateId}",
+                        listOf(Term(actualStat(spec.source), spec.perStep.toLong())),
+                        -(spec.perStep.toLong() * spec.threshold),
+                        -CLAMP_INTERMEDIATE_MAX,
+                        CLAMP_INTERMEDIATE_MAX
+                    )
+                val clamped = tClamp(scaled, 0L, spec.cap.toLong(), "fwClamp_${sub.stateId}")
+                tBoolGate("fwGate_${sub.stateId}", clamped, appliesVar(sub), 0L..spec.cap.toLong())
+            }
+
+        /**
+         * Reified boolean: the max-damage SCENARIO element is (weakly) the build's strongest element — its pre-combat
+         * elemental mastery ≥ every other element's. Gates [Sublimation.bestElementConcentration] (Elemental
+         * Concentration): only then does the −penalty spare the scored element, so crediting the +DI is exact. The
+         * generic "+all elements" mastery is common to all four and cancels in the comparison, so the per-element
+         * [preCombatStat] suffices (and matches the re-scorer, which compares the same per-element pre-combat totals).
+         */
+        private fun scenarioElementStrongestVar(sub: Sublimation): IntVar =
+            bestElementStrongestCache.getOrPut(sub.stateId) {
+                val scenarioMastery = params.damageScenario.element.masteryCharacteristic
+                val others = SpellElement.entries.map { it.masteryCharacteristic }.filter { it != scenarioMastery }
+                val maxOther = model.newIntVar(-STAT_ABS_MAX, STAT_ABS_MAX, "becMaxOther_${sub.stateId}")
+                model.addMaxEquality(maxOther, others.map { preCombatStat(it) }.toTypedArray())
+                // reify (scenario elemental mastery − maxOther ≥ 0) ⇔ scenario element weakly strongest.
+                val diff =
+                    model.sumVar(
+                        "becDiff_${sub.stateId}",
+                        listOf(Term(preCombatStat(scenarioMastery), 1L), Term(maxOther, -1L)),
+                        0L,
+                        -2 * STAT_ABS_MAX,
+                        2 * STAT_ABS_MAX
+                    )
+                reifyGe(diff, 0L, "becStrongest_${sub.stateId}")
+            }
+
+        /**
+         * The PERMANENT (before-combat) sublimation contributions, grouped by the AP/MP/WP-folded stat — only
+         * effects flagged [SublimationEffect.appliesBeforeCombat]. These feed [preCombatStat], the value a
+         * start-of-combat condition reads. Gated by the raw `subVar` (these effects live only on condition-less
+         * FLAT subs, so `subVar == appliesVar`), which keeps [reifyCondition] → [preCombatStat] acyclic: it
+         * never pulls in a conditional sub's own (or any other sub's) reified-condition variable.
+         */
+        private fun buildPermanentSubTerms(): Map<Characteristic, List<Term>> {
+            val map = mutableMapOf<Characteristic, MutableList<Term>>()
+            for ((sub, subVar) in subModel.subVars) {
+                if (sub.kind == SublimationKind.COMBAT_CONDITIONAL || sub.kind == SublimationKind.CONVERSION) continue
+                for (effect in sub.effects) {
+                    if (!effect.appliesBeforeCombat) continue
                     if (!scenarioGateMatches(effect.scenarioGate, params)) continue
                     map
                         .getOrPut(effectiveStat(effect.characteristic)) { mutableListOf() }
-                        .add(Term(applies, effect.value.toLong()))
+                        .add(Term(subVar, effect.magnitudeAtLevel(subModel.characterLevel).toLong()))
                 }
             }
             return map
@@ -4755,35 +5003,40 @@ object WakfuBuildSolver {
             return out
         }
 
-        /** A reified boolean for a supported [SublimationCondition] over the pre-sublimation build stats. */
+        /**
+         * A reified boolean for a supported [SublimationCondition], evaluated against the **pre-combat**
+         * (character-sheet) build stats — [preCombatStat], i.e. base + items + runes + skills + permanent subs.
+         * Start-of-combat / conditional sub effects are deliberately excluded (see [preCombatStat]).
+         */
         private fun reifyCondition(cond: me.chosante.common.SublimationCondition): IntVar {
             val n = (cond.value ?: 0).toLong()
             val tag = "subCond_${cond.type}_${n}_${appliesVarCache.size}"
             return when (cond.type) {
-                SublimationConditionType.AP_AT_MOST -> reifyLe(preSubStat(Characteristic.ACTION_POINT), n, tag)
-                SublimationConditionType.AP_AT_LEAST -> reifyGe(preSubStat(Characteristic.ACTION_POINT), n, tag)
+                SublimationConditionType.AP_AT_MOST -> reifyLe(preCombatStat(Characteristic.ACTION_POINT), n, tag)
+                SublimationConditionType.AP_AT_LEAST -> reifyGe(preCombatStat(Characteristic.ACTION_POINT), n, tag)
                 SublimationConditionType.AP_EXACT ->
                     and(
-                        reifyLe(preSubStat(Characteristic.ACTION_POINT), n, "${tag}_le"),
-                        reifyGe(preSubStat(Characteristic.ACTION_POINT), n, "${tag}_ge"),
+                        reifyLe(preCombatStat(Characteristic.ACTION_POINT), n, "${tag}_le"),
+                        reifyGe(preCombatStat(Characteristic.ACTION_POINT), n, "${tag}_ge"),
                         tag
                     )
 
-                SublimationConditionType.CRIT_AT_MOST -> reifyLe(preSubStat(Characteristic.CRITICAL_HIT), n, tag)
-                SublimationConditionType.CRIT_AT_LEAST -> reifyGe(preSubStat(Characteristic.CRITICAL_HIT), n, tag)
-                SublimationConditionType.BLOCK_AT_LEAST -> reifyGe(preSubStat(Characteristic.BLOCK_PERCENTAGE), n, tag)
-                SublimationConditionType.RANGE_AT_MOST -> reifyLe(preSubStat(Characteristic.RANGE), n, tag)
-                SublimationConditionType.RANGE_AT_LEAST -> reifyGe(preSubStat(Characteristic.RANGE), n, tag)
+                SublimationConditionType.CRIT_AT_MOST -> reifyLe(preCombatStat(Characteristic.CRITICAL_HIT), n, tag)
+                SublimationConditionType.CRIT_AT_LEAST -> reifyGe(preCombatStat(Characteristic.CRITICAL_HIT), n, tag)
+                SublimationConditionType.CRITICAL_MASTERY_AT_MOST -> reifyLe(preCombatStat(Characteristic.MASTERY_CRITICAL), n, tag)
+                SublimationConditionType.BLOCK_AT_LEAST -> reifyGe(preCombatStat(Characteristic.BLOCK_PERCENTAGE), n, tag)
+                SublimationConditionType.RANGE_AT_MOST -> reifyLe(preCombatStat(Characteristic.RANGE), n, tag)
+                SublimationConditionType.RANGE_AT_LEAST -> reifyGe(preCombatStat(Characteristic.RANGE), n, tag)
                 SublimationConditionType.RANGE_EXACT ->
                     and(
-                        reifyLe(preSubStat(Characteristic.RANGE), n, "${tag}_le"),
-                        reifyGe(preSubStat(Characteristic.RANGE), n, "${tag}_ge"),
+                        reifyLe(preCombatStat(Characteristic.RANGE), n, "${tag}_le"),
+                        reifyGe(preCombatStat(Characteristic.RANGE), n, "${tag}_ge"),
                         tag
                     )
 
                 SublimationConditionType.DODGE_LT_PCT_OF_LEVEL -> {
                     val threshold = (n * subModel.characterLevel) / 100L
-                    reifyLe(preSubStat(Characteristic.DODGE), threshold - 1, tag)
+                    reifyLe(preCombatStat(Characteristic.DODGE), threshold - 1, tag)
                 }
 
                 SublimationConditionType.SECONDARY_MASTERIES_AT_MOST -> {
@@ -4791,11 +5044,25 @@ object WakfuBuildSolver {
                         model.sumVar(
                             "secMast_$tag",
                             me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
-                                .map { preSubStat(it) },
+                                .map { preCombatStat(it) },
                             -STAT_ABS_MAX,
                             STAT_ABS_MAX
                         )
                     reifyLe(sum, n, tag)
+                }
+
+                SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED -> {
+                    // Holds iff the build equips no off-hand and no two-handed weapon: the sum of those slots'
+                    // pick vars (each 0/1) is 0. Empty pool ⇒ trivially satisfiable.
+                    val picks =
+                        allEquips
+                            .filter { it.itemType == ItemType.OFF_HAND_WEAPONS || it.itemType == ItemType.TWO_HANDED_WEAPONS }
+                            .map { equipVars.getValue(it) }
+                    if (picks.isEmpty()) {
+                        model.newConstant(1L)
+                    } else {
+                        reifyLe(model.sumVar("offOr2H_$tag", picks, 0L, picks.size.toLong()), 0L, tag)
+                    }
                 }
 
                 else -> model.newConstant(1L) // unsupported -> treated as always-on (best-achievable)

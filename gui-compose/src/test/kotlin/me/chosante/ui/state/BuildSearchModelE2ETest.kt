@@ -13,7 +13,7 @@ import kotlinx.coroutines.withTimeout
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
-import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
+import me.chosante.autobuilder.genetic.SolverResult
 import me.chosante.autobuilder.genetic.wakfu.RequestValidationProblem
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
@@ -147,7 +147,7 @@ class BuildSearchModelE2ETest {
                     scope = scope,
                     buildFinder = {
                         flowOf(
-                            GeneticAlgorithmResult(
+                            SolverResult(
                                 individual = fakeBuild,
                                 matchPercentage = BigDecimal("100"),
                                 progressPercentage = 100,
@@ -464,7 +464,7 @@ class BuildSearchModelE2ETest {
      */
     private fun newModel(
         scope: CoroutineScope,
-        buildFinder: (WakfuBestBuildParams) -> Flow<GeneticAlgorithmResult<BuildCombination>> = { emptyFlow() },
+        buildFinder: (WakfuBestBuildParams) -> Flow<SolverResult<BuildCombination>> = { emptyFlow() },
         zenithBuilder: suspend (me.chosante.ZenithInputParameters) -> String = { "" },
         openBrowser: (String) -> Unit = {},
         copyToClipboard: (String) -> Unit = {},

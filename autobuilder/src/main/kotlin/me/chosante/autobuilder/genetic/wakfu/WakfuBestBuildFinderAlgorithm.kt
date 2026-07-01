@@ -7,7 +7,7 @@ import me.chosante.autobuilder.VERSION
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.TargetStats
-import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
+import me.chosante.autobuilder.genetic.SolverResult
 import me.chosante.common.Character
 import me.chosante.common.Equipment
 import me.chosante.common.I18nText
@@ -85,7 +85,7 @@ object WakfuBestBuildFinderAlgorithm {
         EmbeddedResources.decodeList<Sublimation>("sublimations.json") ?: emptyList()
     }
 
-    fun run(params: WakfuBestBuildParams): Flow<GeneticAlgorithmResult<BuildCombination>> {
+    fun run(params: WakfuBestBuildParams): Flow<SolverResult<BuildCombination>> {
         // Reject an invalid request (contradictory level bounds, a non-equippable forced item, or >1 epic/relic
         // forced sublimation) BEFORE any work, reporting ALL problems at once. The GUI pre-validates with
         // [validateRequest] and shows them in a pop-up; this throw is the CLI / safety floor. (ENG-1 / ENG-2)

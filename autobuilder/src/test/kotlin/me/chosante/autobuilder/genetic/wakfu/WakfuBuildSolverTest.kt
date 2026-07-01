@@ -10,19 +10,23 @@ import me.chosante.autobuilder.domain.RangeBand
 import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
-import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
+import me.chosante.autobuilder.genetic.SolverResult
+import me.chosante.common.BestElementConcentration
 import me.chosante.common.Character
 import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.I18nText
 import me.chosante.common.ItemType
+import me.chosante.common.PerStatStepSpec
 import me.chosante.common.Rarity
 import me.chosante.common.RuneColor
 import me.chosante.common.RuneType
+import me.chosante.common.ScenarioGate
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationCondition
 import me.chosante.common.SublimationConditionType
+import me.chosante.common.SublimationConversion
 import me.chosante.common.SublimationEffect
 import me.chosante.common.SublimationKind
 import me.chosante.common.SublimationRarity
@@ -1031,7 +1035,7 @@ class WakfuBuildSolverTest {
         equipments: List<Equipment>,
         targetStats: TargetStats,
         level: Int = 1,
-    ): GeneticAlgorithmResult<BuildCombination> =
+    ): SolverResult<BuildCombination> =
         runBlocking {
             val character = Character(clazz = CharacterClass.CRA, level = level, minLevel = level, CharacterSkills(level))
             val params =
@@ -1265,32 +1269,32 @@ class WakfuBuildSolverTest {
                 )
             val experiments =
                 mapOf(
-                    "ap-ceiling" to WakfuBuildSolver.MaxDamageExperimentConfig(apCeiling = true),
-                    "crit-generic" to WakfuBuildSolver.MaxDamageExperimentConfig(critProduct = WakfuBuildSolver.CritProductMode.GENERIC),
+                    "ap-ceiling" to MaxDamageExperimentConfig(apCeiling = true),
+                    "crit-generic" to MaxDamageExperimentConfig(critProduct = CritProductMode.GENERIC),
                     "d-binary-only" to
-                        WakfuBuildSolver.MaxDamageExperimentConfig(
-                            dProduct = WakfuBuildSolver.DProductMode.BINARY,
-                            critProduct = WakfuBuildSolver.CritProductMode.TABLE
+                        MaxDamageExperimentConfig(
+                            dProduct = DProductMode.BINARY,
+                            critProduct = CritProductMode.TABLE
                         ),
                     "crit-binary-only" to
-                        WakfuBuildSolver.MaxDamageExperimentConfig(
-                            dProduct = WakfuBuildSolver.DProductMode.TABLE,
-                            critProduct = WakfuBuildSolver.CritProductMode.BINARY
+                        MaxDamageExperimentConfig(
+                            dProduct = DProductMode.TABLE,
+                            critProduct = CritProductMode.BINARY
                         ),
-                    "source-di" to WakfuBuildSolver.MaxDamageExperimentConfig(dProduct = WakfuBuildSolver.DProductMode.SOURCE_DI),
-                    "same-name-ring-bound" to WakfuBuildSolver.MaxDamageExperimentConfig(sameNameRingBound = true),
-                    "per-ap-rotraw-cut" to WakfuBuildSolver.MaxDamageExperimentConfig(perApRotRawCut = true),
-                    "crit-binary" to WakfuBuildSolver.MaxDamageExperimentConfig(critProduct = WakfuBuildSolver.CritProductMode.BINARY),
+                    "source-di" to MaxDamageExperimentConfig(dProduct = DProductMode.SOURCE_DI),
+                    "same-name-ring-bound" to MaxDamageExperimentConfig(sameNameRingBound = true),
+                    "per-ap-rotraw-cut" to MaxDamageExperimentConfig(perApRotRawCut = true),
+                    "crit-binary" to MaxDamageExperimentConfig(critProduct = CritProductMode.BINARY),
                     "both-binary" to
-                        WakfuBuildSolver.MaxDamageExperimentConfig(
-                            dProduct = WakfuBuildSolver.DProductMode.BINARY,
-                            critProduct = WakfuBuildSolver.CritProductMode.BINARY
+                        MaxDamageExperimentConfig(
+                            dProduct = DProductMode.BINARY,
+                            critProduct = CritProductMode.BINARY
                         ),
                     // Soundness lock for the always-on AM-GM product bound: if its upper bound under-shot the true
                     // max D·Graw it would cap the objective below the exhaustive optimum and fail this assertion.
-                    "joint-bound" to WakfuBuildSolver.MaxDamageExperimentConfig(dGrawJointBound = true),
+                    "joint-bound" to MaxDamageExperimentConfig(dGrawJointBound = true),
                     "joint+per-ap" to
-                        WakfuBuildSolver.MaxDamageExperimentConfig(
+                        MaxDamageExperimentConfig(
                             dGrawJointBound = true,
                             perApRotRawCut = true
                         )
@@ -1466,6 +1470,72 @@ class WakfuBuildSolverTest {
                 .describedAs("with both available the survivability-aware optimum picks the tanky amulet")
                 .isEqualTo(tankyWithFloor)
         }
+
+    /**
+     * Soundness guard for the per-slot domination pre-filter under the survivability floor. With the floor ON
+     * the objective ALSO depends on effective-HP (HP + the four elemental resistances), so those MUST be in the
+     * domination `compared` set — otherwise a higher-damage / lower-EHP item would dominate and evict the item a
+     * floor-clearing build needs, pruning the true optimum out of the pool while still reporting OPTIMAL.
+     */
+    @Test
+    fun `domination compares HP and elemental resistances when the survivability floor is active`() {
+        val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+        val floorScenario =
+            DamageScenario(
+                element = SpellElement.FIRE,
+                rangeBand = RangeBand.DISTANCE,
+                orientation = Orientation.FACE,
+                survivabilityFloor = true,
+                minEffectiveHp = 1500
+            )
+
+        val withFloor = WakfuBuildSolver.dominationShape(apPinnedMaxDamageParams(character, floorScenario, 12), emptyList())
+        assertThat(withFloor?.compared)
+            .describedAs("the floor makes the objective depend on HP + resistances ⇒ domination must compare them")
+            .isNotNull()
+            .contains(
+                Characteristic.HP,
+                Characteristic.RESISTANCE_ELEMENTARY_FIRE,
+                Characteristic.RESISTANCE_ELEMENTARY_WATER,
+                Characteristic.RESISTANCE_ELEMENTARY_EARTH,
+                Characteristic.RESISTANCE_ELEMENTARY_WIND,
+                Characteristic.RESISTANCE_ELEMENTARY
+            )
+
+        // Floor OFF: HP/resist are not damage stats ⇒ (correctly) NOT compared. This is the exact state that made
+        // the prune unsound while the floor was on — the regression this test locks.
+        val noFloor =
+            WakfuBuildSolver.dominationShape(
+                apPinnedMaxDamageParams(character, floorScenario.copy(survivabilityFloor = false), 12),
+                emptyList()
+            )
+        assertThat(noFloor?.compared)
+            .describedAs("without the floor HP/resist are not damage stats ⇒ not compared")
+            .isNotNull()
+            .doesNotContain(Characteristic.HP, Characteristic.RESISTANCE_ELEMENTARY_FIRE)
+    }
+
+    /**
+     * The joint / per-AP McCormick bounds derive a HARD CP-SAT ceiling from a product of two Longs. Computing it
+     * as a Double loses precision once the product exceeds 2^53, and a ceiling rounded the wrong way cuts the
+     * optimum — so [WakfuBuildSolver.clampedProductQuotient] must return the exact BigInteger floor.
+     */
+    @Test
+    fun `clampedProductQuotient is an exact floor where a double product would lose precision`() {
+        // a·a is a ~60-bit ODD value ⇒ not exactly representable as a Double (53-bit mantissa), so the previous
+        // `(a.toDouble() * a / …).toLong()` bound rounded. The exact floor must be returned instead.
+        val a = 1_234_567_891L
+        val exact = java.math.BigInteger.valueOf(a) * java.math.BigInteger.valueOf(a)
+        assertThat(WakfuBuildSolver.clampedProductQuotient(a, a, 1L, Long.MAX_VALUE)).isEqualTo(exact.toLong())
+        assertThat(WakfuBuildSolver.clampedProductQuotient(a, a, 1L, Long.MAX_VALUE))
+            .describedAs("must NOT be the lossy double computation the fix replaced")
+            .isNotEqualTo((a.toDouble() * a).toLong())
+
+        // Plain floor semantics and the [0, cap] clamp (the clamp also keeps the toLong() in range).
+        assertThat(WakfuBuildSolver.clampedProductQuotient(7L, 3L, 2L, Long.MAX_VALUE)).isEqualTo(10L) // floor(21/2)
+        assertThat(WakfuBuildSolver.clampedProductQuotient(a, a, 1L, 1_000L)).isEqualTo(1_000L) // clamped to cap
+        assertThat(WakfuBuildSolver.clampedProductQuotient(-5L, 3L, 2L, Long.MAX_VALUE)).isEqualTo(0L) // clamped to ≥ 0
+    }
 
     /**
      * The floor only *nudges*: it must not disturb the damage ranking among builds that already clear it.
@@ -1709,6 +1779,10 @@ class WakfuBuildSolverTest {
         condition: SublimationCondition? = null,
         slotColorPattern: List<Int> = emptyList(),
         solverChoosable: Boolean = true,
+        perStatStep: PerStatStepSpec? = null,
+        conversion: SublimationConversion? = null,
+        bestElementConcentration: BestElementConcentration? = null,
+        zeroesElementalMastery: Boolean = false,
     ): Sublimation =
         Sublimation(
             stateId = stateId,
@@ -1720,13 +1794,17 @@ class WakfuBuildSolverTest {
             solverChoosable = solverChoosable,
             condition = condition,
             effects = effects,
-            conversion = null,
+            conversion = conversion,
+            perStatStep = perStatStep,
+            bestElementConcentration = bestElementConcentration,
+            zeroesElementalMastery = zeroesElementalMastery,
             rawText = name
         )
 
     private fun maxDamageParams(
         character: Character,
         forcedSublimations: List<String> = emptyList(),
+        forcedItems: List<String> = emptyList(),
     ): WakfuBestBuildParams =
         WakfuBestBuildParams(
             character = character,
@@ -1734,7 +1812,7 @@ class WakfuBuildSolverTest {
             searchDuration = 5.seconds,
             stopWhenBuildMatch = false,
             maxRarity = Rarity.EPIC,
-            forcedItems = emptyList(),
+            forcedItems = forcedItems,
             excludedItems = emptyList(),
             scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
             useRunes = false,
@@ -1756,7 +1834,7 @@ class WakfuBuildSolverTest {
                     SublimationRarity.EPIC,
                     SublimationKind.STATIC_CONDITIONAL,
                     "Inflexibility",
-                    effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 15)),
+                    effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 15)),
                     condition = SublimationCondition(SublimationConditionType.AP_AT_MOST, 10)
                 )
 
@@ -1798,7 +1876,7 @@ class WakfuBuildSolverTest {
                     SublimationRarity.EPIC,
                     SublimationKind.STATIC_CONDITIONAL,
                     "Unreachable",
-                    effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 50)),
+                    effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 50)),
                     condition = SublimationCondition(SublimationConditionType.AP_AT_LEAST, 99)
                 )
 
@@ -1812,6 +1890,396 @@ class WakfuBuildSolverTest {
         }
 
     @Test
+    fun `Devastate-style multi-secondary-mastery sub credits only the scenario's range-band mastery`(): Unit =
+        runBlocking {
+            // Devastate (5982): +15% of level to elemental + EVERY secondary mastery (here: both distance AND melee).
+            // It was forced-only under the old multiMastery guard for fear of summing mutually-exclusive masteries.
+            // This locks the invariant that justified removing that guard: the objective and re-scorer credit only
+            // the scenario's range-band mastery (distance XOR melee, never both), so a multi-mastery sub never
+            // over-values. Level 100 ⇒ each "% of level" resolves to a clean 15.
+            val character = Character(CharacterClass.CRA, 100, 1, CharacterSkills(100))
+            val amulet = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100))
+            val epicCarrier = equipment(2, ItemType.CAPE, "EpicCarrier", emptyMap(), rarity = Rarity.EPIC)
+
+            fun devastate(withMelee: Boolean) =
+                sublimation(
+                    5982,
+                    SublimationRarity.EPIC,
+                    SublimationKind.FLAT,
+                    "Devastate",
+                    effects =
+                        listOfNotNull(
+                            SublimationEffect.PercentOfLevel(Characteristic.MASTERY_ELEMENTARY, 15),
+                            SublimationEffect.PercentOfLevel(Characteristic.MASTERY_DISTANCE, 15),
+                            SublimationEffect.PercentOfLevel(Characteristic.MASTERY_MELEE, 15).takeIf { withMelee }
+                        )
+                )
+
+            suspend fun run(
+                withMelee: Boolean,
+                rangeBand: RangeBand,
+            ) = WakfuBuildSolver
+                .optimize(
+                    maxDamageParams(character).copy(
+                        damageScenario = DamageScenario(element = SpellElement.FIRE, rangeBand = rangeBand, orientation = Orientation.FACE)
+                    ),
+                    listOf(amulet, epicCarrier).groupBy { it.itemType },
+                    emptyList(),
+                    listOf(devastate(withMelee)),
+                    WakfuBuildSolver.SolverTuning(numSearchWorkers = 1)
+                ).toList()
+                .maxByOrNull { it.matchPercentage }!!
+
+            fun chose(best: me.chosante.autobuilder.genetic.SolverResult<BuildCombination>) =
+                best.individual.sublimations.values
+                    .flatten()
+                    .any { it.name.en == "Devastate" }
+
+            // DISTANCE scenario: melee mastery must NOT be credited → adding it leaves the optimum score unchanged.
+            val distWithMelee = run(withMelee = true, RangeBand.DISTANCE)
+            val distNoMelee = run(withMelee = false, RangeBand.DISTANCE)
+            assertThat(chose(distWithMelee)).describedAs("Devastate chosen (distance + elemental help the fire-distance hit)").isTrue()
+            assertThat(chose(distNoMelee)).isTrue()
+            assertThat(distWithMelee.matchPercentage)
+                .describedAs("melee mastery is gated out of a distance scenario — the multi-mastery sub never over-values")
+                .isEqualByComparingTo(distNoMelee.matchPercentage)
+
+            // MELEE scenario: the melee mastery now applies → it strictly raises the score. Proves the gating is
+            // scenario-correct (the sub's masteries are credited when applicable), not a blanket drop of melee.
+            val meleeWithMelee = run(withMelee = true, RangeBand.MELEE)
+            val meleeNoMelee = run(withMelee = false, RangeBand.MELEE)
+            assertThat(meleeWithMelee.matchPercentage)
+                .describedAs("melee mastery is credited in a melee scenario")
+                .isGreaterThan(meleeNoMelee.matchPercentage)
+        }
+
+    @Test
+    fun `solver credits a Featherweight-style perStatStep DI ramp driven by the build's MP`(): Unit =
+        runBlocking {
+            // Featherweight: +6% Damage Inflicted per MP above 4 (max 24). source=MP, so the MP item is useless for
+            // damage EXCEPT via the ramp — the solver equips it only if its objective credits the ramp (proving the
+            // wiring), and the re-scorer must reproduce the exact clamp. Base CRA MP (3) + 3 = 6 ⇒ DI = 6·(6−4) = 12.
+            val character = Character(CharacterClass.CRA, 100, 1, CharacterSkills(100))
+            val amulet = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100))
+            val mpBoots = equipment(2, ItemType.BOOTS, "MPBoots", mapOf(Characteristic.MOVEMENT_POINT to 3))
+            val epicCarrier = equipment(3, ItemType.CAPE, "EpicCarrier", emptyMap(), rarity = Rarity.EPIC)
+            val featherweight =
+                sublimation(
+                    7088,
+                    SublimationRarity.EPIC,
+                    SublimationKind.FLAT,
+                    "Featherweight",
+                    perStatStep =
+                        PerStatStepSpec(
+                            source = Characteristic.MOVEMENT_POINT,
+                            threshold = 4,
+                            perStep = 6,
+                            cap = 24,
+                            target = Characteristic.DAMAGE_INFLICTED
+                        )
+                )
+            val params = maxDamageParams(character)
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(
+                        params,
+                        listOf(amulet, mpBoots, epicCarrier).groupBy { it.itemType },
+                        emptyList(),
+                        listOf(featherweight),
+                        WakfuBuildSolver.SolverTuning(numSearchWorkers = 1)
+                    ).toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(
+                best.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).contains("Featherweight")
+            val stats =
+                computeCharacteristicsValues(
+                    best.individual,
+                    character.baseCharacteristicValues,
+                    emptyMap(),
+                    emptyMap(),
+                    ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                    params.damageScenario
+                )
+            val mp = stats[Characteristic.MOVEMENT_POINT] ?: 0
+            assertThat(mp).describedAs("the solver equipped the MP item to unlock the ramp").isGreaterThan(4)
+            // Exact mirror of both engines: DI = clamp(6·(MP − 4), 0, 24).
+            assertThat(stats[Characteristic.DAMAGE_INFLICTED]).isEqualTo((6 * (mp - 4)).coerceIn(0, 24))
+        }
+
+    @Test
+    fun `solver applies an Unraveling-style crit-mastery to elemental conversion when the crit condition holds`(): Unit =
+        runBlocking {
+            // Unraveling: convert 100% crit mastery → elemental mastery, if Crit ≥ 40%. With crit ≥ 40 (condition
+            // holds) and crit mastery to convert, moving it to always-on elemental raises max-damage — so the solver
+            // picks it (the FIRST real use of the dormant SublimationConversion path) and the re-scorer reflects the
+            // move (crit mastery → 0, elemental gains it).
+            val character = Character(CharacterClass.CRA, 100, 1, CharacterSkills(100))
+            val amulet = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100))
+            val critRing = equipment(2, ItemType.RING, "Crit", mapOf(Characteristic.CRITICAL_HIT to 40))
+            val critMasteryBelt = equipment(3, ItemType.BELT, "CritMastery", mapOf(Characteristic.MASTERY_CRITICAL to 200))
+            val epicCarrier = equipment(4, ItemType.CAPE, "EpicCarrier", emptyMap(), rarity = Rarity.EPIC)
+            val unraveling =
+                sublimation(
+                    5077,
+                    SublimationRarity.EPIC,
+                    SublimationKind.CONVERSION,
+                    "Unraveling",
+                    condition = SublimationCondition(SublimationConditionType.CRIT_AT_LEAST, 40),
+                    conversion = SublimationConversion(Characteristic.MASTERY_CRITICAL, Characteristic.MASTERY_ELEMENTARY, 100)
+                )
+            val params = maxDamageParams(character)
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(
+                        params,
+                        listOf(amulet, critRing, critMasteryBelt, epicCarrier).groupBy { it.itemType },
+                        emptyList(),
+                        listOf(unraveling),
+                        WakfuBuildSolver.SolverTuning(numSearchWorkers = 1)
+                    ).toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(
+                best.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).contains("Unraveling")
+            val stats =
+                computeCharacteristicsValues(
+                    best.individual,
+                    character.baseCharacteristicValues,
+                    emptyMap(),
+                    emptyMap(),
+                    ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                    params.damageScenario
+                )
+            // 100% of the 200 crit mastery is moved to elemental mastery: crit mastery → 0, elemental gains ≥ 200.
+            assertThat(stats[Characteristic.MASTERY_CRITICAL]).describedAs("crit mastery converted away").isEqualTo(0)
+            assertThat(stats[Characteristic.MASTERY_ELEMENTARY]).describedAs("elemental gained the converted crit mastery").isGreaterThanOrEqualTo(200)
+        }
+
+    @Test
+    fun `solver credits an Elemental Concentration DI bonus when the scenario element is strongest`(): Unit =
+        runBlocking {
+            // Elemental Concentration: +20% Damage Inflicted, sound-gated so the scenario (fire) element is the
+            // build's strongest. A mono-fire build makes fire strongest, so the solver picks it and credits +20% DI.
+            // Level 1 (like the per-element-DI test) so no skill-point DI confounds the isolated +20 assertion.
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            val amulet = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300))
+            val epicCarrier = equipment(2, ItemType.CAPE, "EpicCarrier", emptyMap(), rarity = Rarity.EPIC)
+            val elementalConcentration =
+                sublimation(
+                    5449,
+                    SublimationRarity.EPIC,
+                    SublimationKind.FLAT,
+                    "Elemental Concentration",
+                    bestElementConcentration = BestElementConcentration(damageInflictedBonus = 20, masteryPenaltyPercent = 30)
+                )
+            val params = maxDamageParams(character)
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(
+                        params,
+                        listOf(amulet, epicCarrier).groupBy { it.itemType },
+                        emptyList(),
+                        listOf(elementalConcentration),
+                        WakfuBuildSolver.SolverTuning(numSearchWorkers = 1)
+                    ).toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(
+                best.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).contains("Elemental Concentration")
+            val stats =
+                computeCharacteristicsValues(
+                    best.individual,
+                    character.baseCharacteristicValues,
+                    emptyMap(),
+                    emptyMap(),
+                    ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                    params.damageScenario
+                )
+            assertThat(stats[Characteristic.DAMAGE_INFLICTED]).describedAs("+20% DI credited when fire is strongest").isEqualTo(20)
+        }
+
+    @Test
+    fun `solver declines Elemental Concentration when the scenario element is not the strongest`(): Unit =
+        runBlocking {
+            // A forced water-heavy epic carrier makes WATER strongest in a FIRE scenario, so the strongest-guard
+            // (subVar ≤ fire-is-strongest) forbids picking Elemental Concentration — its +DI would over-credit a
+            // build the in-game −30% penalty would actually hit. The solve stays feasible; EC is simply not chosen.
+            val character = Character(CharacterClass.CRA, 100, 1, CharacterSkills(100))
+            val fireAmulet = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100))
+            val waterEpicCarrier =
+                equipment(2, ItemType.CAPE, "EauForce", mapOf(Characteristic.MASTERY_ELEMENTARY_WATER to 400), rarity = Rarity.EPIC)
+            val elementalConcentration =
+                sublimation(
+                    5449,
+                    SublimationRarity.EPIC,
+                    SublimationKind.FLAT,
+                    "Elemental Concentration",
+                    bestElementConcentration = BestElementConcentration(damageInflictedBonus = 20, masteryPenaltyPercent = 30)
+                )
+            val params = maxDamageParams(character, forcedItems = listOf("EauForce"))
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(
+                        params,
+                        listOf(fireAmulet, waterEpicCarrier).groupBy { it.itemType },
+                        emptyList(),
+                        listOf(elementalConcentration),
+                        WakfuBuildSolver.SolverTuning(numSearchWorkers = 1)
+                    ).toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(
+                best.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).describedAs("EC declined when fire is not the strongest element").doesNotContain("Elemental Concentration")
+        }
+
+    @Test
+    fun `solver takes Anatomy in a BACK scenario for net rear DI but declines it face-on`(): Unit =
+        runBlocking {
+            // Anatomy: −20% DI (always) + +40% DI (rear). In a BACK scenario that nets +20% DI ⇒ the solver takes it;
+            // face-on only the −20% applies ⇒ it is declined. Its self-condition ("elem mastery + %dmg > rear
+            // mastery") is optimistically ignored in the decoder, so here it is a plain monotone DI sub the existing
+            // machinery handles. Level 100 (a real fire spell ⇒ non-degenerate damage, so the +20% DI actually moves
+            // the objective — at level 1 there is no fire spell and every build ties at 0 damage).
+            val character = Character(CharacterClass.CRA, 100, 1, CharacterSkills(100))
+            val amulet = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 3000))
+            val epicCarrier = equipment(2, ItemType.CAPE, "EpicCarrier", emptyMap(), rarity = Rarity.EPIC)
+            val anatomy =
+                sublimation(
+                    5445,
+                    SublimationRarity.EPIC,
+                    SublimationKind.FLAT,
+                    "Anatomy",
+                    effects =
+                        listOf(
+                            SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, -20),
+                            SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 40, ScenarioGate(orientation = "BACK"))
+                        )
+                )
+            val pool = listOf(amulet, epicCarrier).groupBy { it.itemType }
+
+            val backParams =
+                maxDamageParams(character).copy(
+                    damageScenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.BACK)
+                )
+            val back =
+                WakfuBuildSolver
+                    .optimize(backParams, pool, emptyList(), listOf(anatomy), WakfuBuildSolver.SolverTuning(numSearchWorkers = 1))
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+            assertThat(
+                back.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).describedAs("Anatomy taken from the rear (net +20% DI)")
+                .contains("Anatomy")
+
+            // FACE scenario (maxDamageParams default) → only the −20% applies → declined.
+            val face =
+                WakfuBuildSolver
+                    .optimize(maxDamageParams(character), pool, emptyList(), listOf(anatomy), WakfuBuildSolver.SolverTuning(numSearchWorkers = 1))
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+            assertThat(
+                face.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).describedAs("Anatomy declined face-on (net −20% DI)")
+                .doesNotContain("Anatomy")
+        }
+
+    @Test
+    fun `solver chooses a per-element DI sub in its own element's scenario`(): Unit =
+        runBlocking {
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            val amulet = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100))
+            val epicCarrier = equipment(2, ItemType.CAPE, "EpicCarrier", emptyMap(), rarity = Rarity.EPIC)
+            // Brûlure-like: "+12% Fire damage". The request is a FIRE scenario, so the element gate fires.
+            val fireDamage =
+                sublimation(
+                    8518,
+                    SublimationRarity.EPIC,
+                    SublimationKind.FLAT,
+                    "Burn",
+                    effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 12, ScenarioGate(element = "FIRE")))
+                )
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(
+                        maxDamageParams(character),
+                        listOf(amulet, epicCarrier).groupBy { it.itemType },
+                        emptyList(),
+                        listOf(fireDamage),
+                        WakfuBuildSolver.SolverTuning(numSearchWorkers = 1)
+                    ).toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(
+                best.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).contains("Burn")
+            val scenario = maxDamageParams(character).damageScenario
+            val stats =
+                computeCharacteristicsValues(
+                    best.individual,
+                    character.baseCharacteristicValues,
+                    emptyMap(),
+                    emptyMap(),
+                    ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                    scenario
+                )
+            assertThat(stats[Characteristic.DAMAGE_INFLICTED]).isEqualTo(12)
+        }
+
+    @Test
+    fun `solver ignores a per-element DI sub in a different element's scenario`(): Unit =
+        runBlocking {
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            val amulet = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100))
+            val epicCarrier = equipment(2, ItemType.CAPE, "EpicCarrier", emptyMap(), rarity = Rarity.EPIC)
+            // Earthbound-like: "+12% Earth damage". The request is a FIRE scenario, so the gate never fires and the
+            // sub has no usable effect — it is not modeled and never chosen (no spurious DI credit for fire).
+            val earthDamage =
+                sublimation(
+                    8520,
+                    SublimationRarity.EPIC,
+                    SublimationKind.FLAT,
+                    "Earthbound",
+                    effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 12, ScenarioGate(element = "EARTH")))
+                )
+
+            val best =
+                WakfuBuildSolver
+                    .optimize(maxDamageParams(character), listOf(amulet, epicCarrier).groupBy { it.itemType }, emptyList(), listOf(earthDamage), WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(
+                best.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).doesNotContain("Earthbound")
+        }
+
+    @Test
     fun `at most one epic sublimation is chosen`(): Unit =
         runBlocking {
             val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
@@ -1819,9 +2287,9 @@ class WakfuBuildSolverTest {
             // A single epic carrier item -> at most one epic sub can be hosted (Σ epicSub ≤ Σ epicItems = 1).
             val epicCarrier = equipment(2, ItemType.CAPE, "EpicCarrier", emptyMap(), rarity = Rarity.EPIC)
             val epicA =
-                sublimation(1, SublimationRarity.EPIC, SublimationKind.FLAT, "EpicA", effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 10)))
+                sublimation(1, SublimationRarity.EPIC, SublimationKind.FLAT, "EpicA", effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 10)))
             val epicB =
-                sublimation(2, SublimationRarity.EPIC, SublimationKind.FLAT, "EpicB", effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 12)))
+                sublimation(2, SublimationRarity.EPIC, SublimationKind.FLAT, "EpicB", effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 12)))
 
             val best =
                 WakfuBuildSolver
@@ -1851,7 +2319,7 @@ class WakfuBuildSolverTest {
             // A relic sub needs a relic ITEM to host it; forcing the sub must pull its relic carrier in.
             val relicCarrier = equipment(2, ItemType.CAPE, "RelicCarrier", emptyMap(), rarity = Rarity.RELIC)
             val relic =
-                sublimation(7, SublimationRarity.RELIC, SublimationKind.FLAT, "Directives", effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 15)))
+                sublimation(7, SublimationRarity.RELIC, SublimationKind.FLAT, "Directives", effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 15)))
 
             val best =
                 WakfuBuildSolver
@@ -1885,7 +2353,7 @@ class WakfuBuildSolverTest {
                     SublimationRarity.NORMAL,
                     SublimationKind.FLAT,
                     "DiNormal",
-                    effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 10)),
+                    effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 10)),
                     slotColorPattern = listOf(1, 2, 3)
                 )
 
@@ -1929,7 +2397,7 @@ class WakfuBuildSolverTest {
                     SublimationRarity.NORMAL,
                     SublimationKind.FLAT,
                     "DistNormal",
-                    effects = listOf(SublimationEffect(Characteristic.MASTERY_DISTANCE, 10)),
+                    effects = listOf(SublimationEffect.Flat(Characteristic.MASTERY_DISTANCE, 10)),
                     slotColorPattern = listOf(1, 2, 3)
                 )
             val params =
@@ -1976,7 +2444,7 @@ class WakfuBuildSolverTest {
                     SublimationRarity.NORMAL,
                     SublimationKind.FLAT,
                     "DiNormal",
-                    effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 10)),
+                    effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 10)),
                     slotColorPattern = listOf(1, 2, 3)
                 )
 
@@ -2006,7 +2474,7 @@ class WakfuBuildSolverTest {
                     SublimationRarity.NORMAL,
                     SublimationKind.FLAT,
                     "DiA",
-                    effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 10)),
+                    effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 10)),
                     slotColorPattern = listOf(1, 2, 3)
                 )
             val diB =
@@ -2015,7 +2483,7 @@ class WakfuBuildSolverTest {
                     SublimationRarity.NORMAL,
                     SublimationKind.FLAT,
                     "DiB",
-                    effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 12)),
+                    effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 12)),
                     slotColorPattern = listOf(1, 2, 3)
                 )
 
@@ -2038,7 +2506,7 @@ class WakfuBuildSolverTest {
             // The only item is common — no epic carrier, so the epic sublimation slot does not exist.
             val amulet = equipment(1, ItemType.AMULET, "Fire", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100))
             val epicDi =
-                sublimation(1, SublimationRarity.EPIC, SublimationKind.FLAT, "EpicDI", effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 50)))
+                sublimation(1, SublimationRarity.EPIC, SublimationKind.FLAT, "EpicDI", effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 50)))
 
             val best =
                 WakfuBuildSolver
@@ -2058,7 +2526,7 @@ class WakfuBuildSolverTest {
             // A blank epic item with no useful stat: the only reason to equip it is to host the forced epic sub.
             val epicCarrier = equipment(2, ItemType.CAPE, "EpicCarrier", emptyMap(), rarity = Rarity.EPIC)
             val epicSub =
-                sublimation(1, SublimationRarity.EPIC, SublimationKind.FLAT, "ForcedEpic", effects = listOf(SublimationEffect(Characteristic.DAMAGE_INFLICTED, 10)))
+                sublimation(1, SublimationRarity.EPIC, SublimationKind.FLAT, "ForcedEpic", effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 10)))
 
             val best =
                 WakfuBuildSolver
@@ -2134,7 +2602,7 @@ class WakfuBuildSolverTest {
                     SublimationRarity.NORMAL,
                     SublimationKind.FLAT,
                     "LockSub",
-                    effects = listOf(SublimationEffect(Characteristic.LOCK, 250)),
+                    effects = listOf(SublimationEffect.Flat(Characteristic.LOCK, 250)),
                     slotColorPattern = listOf(1, 2, 3)
                 )
             val params =
@@ -2172,7 +2640,7 @@ class WakfuBuildSolverTest {
                     SublimationRarity.NORMAL,
                     SublimationKind.FLAT,
                     "DistSub",
-                    effects = listOf(SublimationEffect(Characteristic.MASTERY_DISTANCE, 100)),
+                    effects = listOf(SublimationEffect.Flat(Characteristic.MASTERY_DISTANCE, 100)),
                     slotColorPattern = listOf(1, 2, 3)
                 )
             val params =
@@ -2198,6 +2666,106 @@ class WakfuBuildSolverTest {
                     .flatten()
                     .map { it.name.en }
             ).contains("DistSub")
+        }
+
+    @Test
+    fun `most-masteries mode chooses a per-element DI sub for a mono-element request`(): Unit =
+        runBlocking {
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            // Fire mastery on the carrier so there is fire damage for the +12% fire DI to multiply (the most-masteries
+            // objective maximizes `mastery × (1 + DI/100)`); 3+ sockets so the normal sub can be hosted.
+            val carrier = equipment(1, ItemType.AMULET, "FireCarrier", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100), maxShardSlots = 4)
+            // Brûlure-like "+12% Fire damage". The request targets ONLY fire mastery, so the build is mono-fire and
+            // the element gate fires even outside max-damage.
+            val fireDiSub =
+                sublimation(
+                    8518,
+                    SublimationRarity.NORMAL,
+                    SublimationKind.FLAT,
+                    "Burn",
+                    effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 12, ScenarioGate(element = "FIRE"))),
+                    slotColorPattern = listOf(1, 2, 3)
+                )
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 1))),
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+                )
+            val best =
+                WakfuBuildSolver
+                    .optimize(params, listOf(carrier).groupBy { it.itemType }, emptyList(), listOf(fireDiSub), WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(
+                best.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).contains("Burn")
+        }
+
+    @Test
+    fun `most-masteries multi-element request credits a per-element DI sub for EACH element`(): Unit =
+        runBlocking {
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            // BALANCED fire + water carriers (equal mastery) ⇒ both elements are co-bottlenecks of the min-over-
+            // elements objective. A per-element DI sub only lifts the weakest element, so socketing just ONE leaves
+            // the min pinned to the other (no gain) — only socketing BOTH raises the min. So the optimum takes both,
+            // each crediting ONLY its own element's damage (the multi-element fold). Two 3+-socket carriers host them.
+            val fireCarrier = equipment(1, ItemType.AMULET, "FireCarrier", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100), maxShardSlots = 4)
+            val waterCarrier = equipment(2, ItemType.BELT, "WaterCarrier", mapOf(Characteristic.MASTERY_ELEMENTARY_WATER to 100), maxShardSlots = 4)
+            val burn =
+                sublimation(
+                    8518,
+                    SublimationRarity.NORMAL,
+                    SublimationKind.FLAT,
+                    "Burn",
+                    effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 12, ScenarioGate(element = "FIRE"))),
+                    slotColorPattern = listOf(1, 2, 3)
+                )
+            val freeze =
+                sublimation(
+                    8519,
+                    SublimationRarity.NORMAL,
+                    SublimationKind.FLAT,
+                    "Freeze",
+                    effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 12, ScenarioGate(element = "WATER"))),
+                    slotColorPattern = listOf(1, 2, 3)
+                )
+            val params =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats =
+                        TargetStats(
+                            listOf(
+                                TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 1),
+                                TargetStat(Characteristic.MASTERY_ELEMENTARY_WATER, 1)
+                            )
+                        ),
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+                )
+            val best =
+                WakfuBuildSolver
+                    .optimize(params, listOf(fireCarrier, waterCarrier).groupBy { it.itemType }, emptyList(), listOf(burn, freeze), WakfuBuildSolver.SolverTuning())
+                    .toList()
+                    .maxByOrNull { it.matchPercentage }!!
+
+            assertThat(
+                best.individual.sublimations.values
+                    .flatten()
+                    .map { it.name.en }
+            ).contains("Burn", "Freeze")
         }
 
     private fun achievedStats(
@@ -2229,8 +2797,8 @@ class WakfuBuildSolverTest {
                     "Swiftness II",
                     effects =
                         listOf(
-                            SublimationEffect(Characteristic.DAMAGE_INFLICTED, -20),
-                            SublimationEffect(Characteristic.MOVEMENT_POINT, 1)
+                            SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, -20),
+                            SublimationEffect.Flat(Characteristic.MOVEMENT_POINT, 1)
                         ),
                     slotColorPattern = listOf(1, 2, 3)
                 )
@@ -2284,8 +2852,8 @@ class WakfuBuildSolverTest {
                     "Swiftness II",
                     effects =
                         listOf(
-                            SublimationEffect(Characteristic.DAMAGE_INFLICTED, -20),
-                            SublimationEffect(Characteristic.MOVEMENT_POINT, 1)
+                            SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, -20),
+                            SublimationEffect.Flat(Characteristic.MOVEMENT_POINT, 1)
                         ),
                     slotColorPattern = listOf(1, 2, 3)
                 )
@@ -2360,8 +2928,8 @@ class WakfuBuildSolverTest {
                     "PowerfulButCostly",
                     effects =
                         listOf(
-                            SublimationEffect(Characteristic.MASTERY_DISTANCE, 500),
-                            SublimationEffect(Characteristic.DAMAGE_INFLICTED, -20)
+                            SublimationEffect.Flat(Characteristic.MASTERY_DISTANCE, 500),
+                            SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, -20)
                         ),
                     slotColorPattern = listOf(1, 2, 3)
                 )
@@ -2665,47 +3233,47 @@ class WakfuBuildSolverTest {
         val allExperiments =
             listOf(
                 "table-baseline" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
-                        dProduct = WakfuBuildSolver.DProductMode.TABLE,
-                        critProduct = WakfuBuildSolver.CritProductMode.TABLE
+                    MaxDamageExperimentConfig(
+                        dProduct = DProductMode.TABLE,
+                        critProduct = CritProductMode.TABLE
                     ),
                 "d-binary-only" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
-                        dProduct = WakfuBuildSolver.DProductMode.BINARY,
-                        critProduct = WakfuBuildSolver.CritProductMode.TABLE
+                    MaxDamageExperimentConfig(
+                        dProduct = DProductMode.BINARY,
+                        critProduct = CritProductMode.TABLE
                     ),
                 "crit-binary-only" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
-                        dProduct = WakfuBuildSolver.DProductMode.TABLE,
-                        critProduct = WakfuBuildSolver.CritProductMode.BINARY
+                    MaxDamageExperimentConfig(
+                        dProduct = DProductMode.TABLE,
+                        critProduct = CritProductMode.BINARY
                     ),
                 "crit-generic" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
-                        dProduct = WakfuBuildSolver.DProductMode.BINARY,
-                        critProduct = WakfuBuildSolver.CritProductMode.GENERIC
+                    MaxDamageExperimentConfig(
+                        dProduct = DProductMode.BINARY,
+                        critProduct = CritProductMode.GENERIC
                     ),
-                "source-di" to WakfuBuildSolver.MaxDamageExperimentConfig(dProduct = WakfuBuildSolver.DProductMode.SOURCE_DI),
-                "binary" to WakfuBuildSolver.MaxDamageExperimentConfig.DEFAULT,
-                "binary+apCeiling" to WakfuBuildSolver.MaxDamageExperimentConfig(apCeiling = true),
-                "binary+per-ap" to WakfuBuildSolver.MaxDamageExperimentConfig(perApRotRawCut = true),
-                "binary+ring-bound" to WakfuBuildSolver.MaxDamageExperimentConfig(sameNameRingBound = true),
+                "source-di" to MaxDamageExperimentConfig(dProduct = DProductMode.SOURCE_DI),
+                "binary" to MaxDamageExperimentConfig.DEFAULT,
+                "binary+apCeiling" to MaxDamageExperimentConfig(apCeiling = true),
+                "binary+per-ap" to MaxDamageExperimentConfig(perApRotRawCut = true),
+                "binary+ring-bound" to MaxDamageExperimentConfig(sameNameRingBound = true),
                 "binary+ring+per-ap" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                    MaxDamageExperimentConfig(
                         sameNameRingBound = true,
                         perApRotRawCut = true
                     ),
-                "binary+ap+per-ap" to WakfuBuildSolver.MaxDamageExperimentConfig(apCeiling = true, perApRotRawCut = true),
+                "binary+ap+per-ap" to MaxDamageExperimentConfig(apCeiling = true, perApRotRawCut = true),
                 "binary+ring+ap+per-ap" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                    MaxDamageExperimentConfig(
                         apCeiling = true,
                         sameNameRingBound = true,
                         perApRotRawCut = true
                     ),
                 // AM-GM joint product bound — the only cut that can lower the FREE objective's stuck ceiling
                 // (it's a valid upper bound on D·Graw, unlike the lower-bound cutoff cuts).
-                "binary+joint" to WakfuBuildSolver.MaxDamageExperimentConfig(dGrawJointBound = true),
+                "binary+joint" to MaxDamageExperimentConfig(dGrawJointBound = true),
                 "binary+joint+per-ap" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                    MaxDamageExperimentConfig(
                         dGrawJointBound = true,
                         perApRotRawCut = true
                     )
@@ -2918,74 +3486,74 @@ class WakfuBuildSolverTest {
         val allExperiments =
             listOf(
                 "table-baseline" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
-                        dProduct = WakfuBuildSolver.DProductMode.TABLE,
-                        critProduct = WakfuBuildSolver.CritProductMode.TABLE
+                    MaxDamageExperimentConfig(
+                        dProduct = DProductMode.TABLE,
+                        critProduct = CritProductMode.TABLE
                     ),
-                "binary" to WakfuBuildSolver.MaxDamageExperimentConfig.DEFAULT,
-                "perhit-binary" to WakfuBuildSolver.MaxDamageExperimentConfig(perHitOnlyObjective = true),
+                "binary" to MaxDamageExperimentConfig.DEFAULT,
+                "perhit-binary" to MaxDamageExperimentConfig(perHitOnlyObjective = true),
                 "perhit-table" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
-                        dProduct = WakfuBuildSolver.DProductMode.TABLE,
-                        critProduct = WakfuBuildSolver.CritProductMode.TABLE,
+                    MaxDamageExperimentConfig(
+                        dProduct = DProductMode.TABLE,
+                        critProduct = CritProductMode.TABLE,
                         perHitOnlyObjective = true
                     ),
                 "perhit-source-di" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
-                        dProduct = WakfuBuildSolver.DProductMode.SOURCE_DI,
+                    MaxDamageExperimentConfig(
+                        dProduct = DProductMode.SOURCE_DI,
                         perHitOnlyObjective = true
                     ),
                 "perhit-crit-generic" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
-                        critProduct = WakfuBuildSolver.CritProductMode.GENERIC,
+                    MaxDamageExperimentConfig(
+                        critProduct = CritProductMode.GENERIC,
                         perHitOnlyObjective = true
                     ),
                 "d-binary-only" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
-                        dProduct = WakfuBuildSolver.DProductMode.BINARY,
-                        critProduct = WakfuBuildSolver.CritProductMode.TABLE
+                    MaxDamageExperimentConfig(
+                        dProduct = DProductMode.BINARY,
+                        critProduct = CritProductMode.TABLE
                     ),
                 "crit-binary-only" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
-                        dProduct = WakfuBuildSolver.DProductMode.TABLE,
-                        critProduct = WakfuBuildSolver.CritProductMode.BINARY
+                    MaxDamageExperimentConfig(
+                        dProduct = DProductMode.TABLE,
+                        critProduct = CritProductMode.BINARY
                     ),
                 "crit-generic" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
-                        dProduct = WakfuBuildSolver.DProductMode.BINARY,
-                        critProduct = WakfuBuildSolver.CritProductMode.GENERIC
+                    MaxDamageExperimentConfig(
+                        dProduct = DProductMode.BINARY,
+                        critProduct = CritProductMode.GENERIC
                     ),
-                "source-di" to WakfuBuildSolver.MaxDamageExperimentConfig(dProduct = WakfuBuildSolver.DProductMode.SOURCE_DI),
-                "binary+apCeiling" to WakfuBuildSolver.MaxDamageExperimentConfig(apCeiling = true),
-                "binary+per-ap" to WakfuBuildSolver.MaxDamageExperimentConfig(perApRotRawCut = true),
-                "binary+ring-bound" to WakfuBuildSolver.MaxDamageExperimentConfig(sameNameRingBound = true),
+                "source-di" to MaxDamageExperimentConfig(dProduct = DProductMode.SOURCE_DI),
+                "binary+apCeiling" to MaxDamageExperimentConfig(apCeiling = true),
+                "binary+per-ap" to MaxDamageExperimentConfig(perApRotRawCut = true),
+                "binary+ring-bound" to MaxDamageExperimentConfig(sameNameRingBound = true),
                 "binary+ring+per-ap" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                    MaxDamageExperimentConfig(
                         sameNameRingBound = true,
                         perApRotRawCut = true
                     ),
-                "binary+ap+per-ap" to WakfuBuildSolver.MaxDamageExperimentConfig(apCeiling = true, perApRotRawCut = true),
+                "binary+ap+per-ap" to MaxDamageExperimentConfig(apCeiling = true, perApRotRawCut = true),
                 "binary+ring+ap+per-ap" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                    MaxDamageExperimentConfig(
                         apCeiling = true,
                         sameNameRingBound = true,
                         perApRotRawCut = true
                     ),
                 // dGrawCutoff: exact per-D-value Graw disjunction on the cutoff (needs an AP target + objective
                 // cutoff). Attacks the D·Graw McCormick looseness directly — the AP16 lock.
-                "binary+dgraw" to WakfuBuildSolver.MaxDamageExperimentConfig(dGrawCutoff = true),
+                "binary+dgraw" to MaxDamageExperimentConfig(dGrawCutoff = true),
                 "binary+dgraw+per-ap" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                    MaxDamageExperimentConfig(
                         dGrawCutoff = true,
                         perApRotRawCut = true
                     ),
                 "binary+ring+dgraw" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                    MaxDamageExperimentConfig(
                         sameNameRingBound = true,
                         dGrawCutoff = true
                     ),
                 "binary+ring+dgraw+per-ap" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                    MaxDamageExperimentConfig(
                         sameNameRingBound = true,
                         dGrawCutoff = true,
                         perApRotRawCut = true
@@ -2993,14 +3561,14 @@ class WakfuBuildSolverTest {
                 // dGrawJointBound: constant AM-GM upper bound on perHit = D·Graw via the joint (μ·D + grawLin)
                 // reachable sum — cuts the independent-max corner the McCormick exploits. Sound for any build
                 // (works without a cutoff), so it can also tighten the free production proof.
-                "binary+joint" to WakfuBuildSolver.MaxDamageExperimentConfig(dGrawJointBound = true),
+                "binary+joint" to MaxDamageExperimentConfig(dGrawJointBound = true),
                 "binary+joint+dgraw" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                    MaxDamageExperimentConfig(
                         dGrawJointBound = true,
                         dGrawCutoff = true
                     ),
                 "binary+joint+per-ap" to
-                    WakfuBuildSolver.MaxDamageExperimentConfig(
+                    MaxDamageExperimentConfig(
                         dGrawJointBound = true,
                         perApRotRawCut = true
                     )
@@ -3359,7 +3927,7 @@ class WakfuBuildSolverTest {
                 SublimationRarity.EPIC,
                 SublimationKind.STATIC_CONDITIONAL,
                 "ElementalUnderSecondaryCap",
-                effects = listOf(SublimationEffect(Characteristic.MASTERY_ELEMENTARY, 50)),
+                effects = listOf(SublimationEffect.Flat(Characteristic.MASTERY_ELEMENTARY, 50)),
                 condition = SublimationCondition(SublimationConditionType.SECONDARY_MASTERIES_AT_MOST, 0)
             )
         val params =

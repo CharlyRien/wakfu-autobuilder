@@ -238,8 +238,15 @@ object SpellRotationOptimizer {
         character: Character,
         scenario: DamageScenario,
         resistancePercent: Int,
-    ): List<ScoredSpell> =
-        spells.mapNotNull { spell ->
+    ): List<ScoredSpell> {
+        // Resolve the build's stats under THIS single-element scenario (at the post-debuff resistance) so the
+        // scenario-gated / best-element-concentration / per-element sublimation Damage-Inflicted the CP-SAT
+        // objective credits is credited here too — otherwise the displayed rotation AND the debuff-aware
+        // sequencedScore the external loop ranks builds by silently drop it (objective↔display mismatch).
+        // elementResistances is cleared so the best-element gate sees a single element, mirroring the
+        // per-element solve MaxDamageSearch runs; callers set [scenario].element to the scored element.
+        val resolutionScenario = scenario.copy(targetResistancePercent = resistancePercent, elementResistances = null)
+        return spells.mapNotNull { spell ->
             val ap = spell.apCost ?: return@mapNotNull null
             val damage =
                 BuildSpellDamage
@@ -256,10 +263,12 @@ object SpellRotationOptimizer {
                         // never changes which build the engine picks, only the (now precise) shown number.
                         orientationMultiplierPercent = scenario.orientation.multiplierPercent,
                         targetResistancePercent = resistancePercent,
-                        critCapPercent = scenario.critCapPercent
+                        critCapPercent = scenario.critCapPercent,
+                        damageScenario = resolutionScenario
                     )?.expected ?: return@mapNotNull null
             ScoredSpell(spell, ap, damage)
         }
+    }
 
     /**
      * Best per-turn rotation **including resistance-reduction debuff sequencing**, over all candidate
@@ -312,6 +321,10 @@ object SpellRotationOptimizer {
         // including a cross-element debuff's own hit, which would otherwise rank an unplayable element.
         if (damageSpells.isEmpty()) return SpellRotation(commonElement, budget, 0, emptyList(), 0.0)
         val baseFlat = Resistances.percentToFlat(resistancePercent)
+        // Score/resolve this element's rotation under a scenario pinned to [element] (not the outer scenario's
+        // element), so the best-element-concentration DI is credited iff THIS element is the build's strongest —
+        // matching the per-element single-element solve the CP-SAT objective ranks by.
+        val scenarioForElement = scenario.copy(element = element)
 
         var best: SpellRotation? = null
         // Each debuff applies at most once (its state doesn't stack with itself); enumerate subsets.
@@ -325,7 +338,7 @@ object SpellRotationOptimizer {
             // spells themselves so a dual-role (debuff + same-element damage) spell isn't both cast as the
             // debuff and additionally spammed by the knapsack (which would double-list it and over-count AP).
             val damagePool = damageSpells.filterNot { it in subset }
-            val scored = scoreSpells(damagePool, build, character, scenario, effectiveResistance)
+            val scored = scoreSpells(damagePool, build, character, scenarioForElement, effectiveResistance)
             val rotation = bestRotation(scored, budget - apDebuff, commonElement)
 
             // Each debuff's OWN hit lands at the resistance reduced by the OTHER debuffs in the subset, not
@@ -336,7 +349,7 @@ object SpellRotationOptimizer {
                     val resBeforeOwn =
                         Resistances.flatToPercent(baseFlat - (totalReduction - (debuff.targetResistanceReductionFlat ?: 0)))
                     val own =
-                        scoreSpells(listOf(debuff), build, character, scenario, resBeforeOwn).firstOrNull()?.expectedDamagePerCast ?: 0.0
+                        scoreSpells(listOf(debuff), build, character, scenarioForElement, resBeforeOwn).firstOrNull()?.expectedDamagePerCast ?: 0.0
                     SpellCast(debuff, count = 1, apCost = debuff.apCost ?: 0, expectedDamagePerCast = own)
                 }
 

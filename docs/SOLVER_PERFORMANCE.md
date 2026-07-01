@@ -335,7 +335,7 @@ its inputs. That makes caching *trivially* optimum-safe for exact matches — a 
 descending hit-rate value:
 
 ### 3.1 — Exact-match result cache (in-process, optionally on-disk)
-A `Map<QueryKey, GeneticAlgorithmResult>` consulted before solving; on a miss, solve and store **only if
+A `Map<QueryKey, SolverResult>` consulted before solving; on a miss, solve and store **only if
 `isOptimal == true`**. Helps repeated identical searches in a session (re-runs, the default request) and,
 if persisted, across launches.
 - **Cache only proven results.** A FEASIBLE (timed-out, non-proven) result is run-dependent and a longer

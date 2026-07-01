@@ -52,7 +52,7 @@ mono solve (AP optimized jointly, no pin) returns **OPTIMAL gap-0** on the real 
 
 **Follow-ups that also landed:** the external loop already computed `proven = (activePhases==1) && phase1Optimal`
 (= mono ∧ no-debuff ∧ CP-SAT proved), so it now reports `isOptimal=true` for the mono no-debuff case for free —
-no AP-enumeration scaffolding remained to drop. `GeneticAlgorithmResult.maxDamageHeuristicPhases` now carries
+no AP-enumeration scaffolding remained to drop. `SolverResult.maxDamageHeuristicPhases` now carries
 whether a non-optimal result is *structural* (debuff-sequencing / multi-element split) vs merely time-limited,
 and the GUI hint (`NOT_OPTIMAL_STRUCTURAL_HINT`) was rewritten — the old "the damage objective can't be proven"
 copy is obsolete now that it can.
@@ -128,7 +128,7 @@ that is *worse* (see exp E in §4). A declared domain at the true reachable max 
 Setup: real solver via `WakfuBuildSolver.optimize(params, pool, SolverTuning())`; full lvl-110 EPIC pool
 (`equipments` filtered `rarity≤EPIC`, `level∈0..110`), CRA, fire, **empty targets** (so `applyConstraintPenalty`
 adds no extra product), no runes/subs unless noted. `SolverTuning` = full presolve + det-time 60/worker + seed 1.
-`OPTIMAL` is read off `GeneticAlgorithmResult.isOptimal` (= `status==OPTIMAL`); `responseStats()` for the rest.
+`OPTIMAL` is read off `SolverResult.isOptimal` (= `status==OPTIMAL`); `responseStats()` for the rest.
 Walltime is noisy under concurrent load — **det-time is the machine-independent metric**.
 
 | # | Config | status | objective | best_bound | gap | lp_iters | branches | det-time | walltime |
@@ -379,7 +379,7 @@ f(B*)`, so `max_i f(B_i) = max_B f(B)`. Measured all OPTIMAL (wide lvl-1..110 po
 
 **Removed.** The external bi-element enumeration (`biElementScenarios`/`paretoFrontierSplits`/`MAX_BI_PROBES`),
 the in-model `perTurnDamageScoreBiElement`, `BiElementSplit` + its `maxDamageBiElement` plumbing,
-`bestSequencedTurn`/`bestSequencedTurnBiElement`, and `GeneticAlgorithmResult.maxDamageBiElement`. `proven =
+`bestSequencedTurn`/`bestSequencedTurnBiElement`, and `SolverResult.maxDamageBiElement`. `proven =
 allElementSolvesProved && !hasResistanceDebuff`; the Sram/Sadida debuff AP-window phase stays (gated, now pinned
 to the winning element so each probe is a fast single-element solve), and is the only thing that keeps a result
 `maxDamageHeuristicPhases`. Locked by `MaxDamageSearchTest "boss multi-element loop proves the optimum via

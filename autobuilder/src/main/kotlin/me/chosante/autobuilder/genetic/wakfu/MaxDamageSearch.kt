@@ -14,7 +14,7 @@ import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.SpellCatalog
 import me.chosante.autobuilder.domain.SpellRotationOptimizer
-import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
+import me.chosante.autobuilder.genetic.SolverResult
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
@@ -53,7 +53,7 @@ object MaxDamageSearch {
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         runes: List<RuneType>,
         sublimations: List<Sublimation>,
-    ): Flow<GeneticAlgorithmResult<BuildCombination>> = run(baseParams, equipmentsByItemType, runes, sublimations, tuning = null)
+    ): Flow<SolverResult<BuildCombination>> = run(baseParams, equipmentsByItemType, runes, sublimations, tuning = null)
 
     /** Back-compat for tests that drive the loop deterministically without sublimations. */
     internal fun run(
@@ -61,7 +61,7 @@ object MaxDamageSearch {
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         runes: List<RuneType>,
         tuning: WakfuBuildSolver.SolverTuning?,
-    ): Flow<GeneticAlgorithmResult<BuildCombination>> = run(baseParams, equipmentsByItemType, runes, emptyList(), tuning)
+    ): Flow<SolverResult<BuildCombination>> = run(baseParams, equipmentsByItemType, runes, emptyList(), tuning)
 
     /**
      * [tuning] is for tests only: when supplied, every underlying solve runs the deterministic CP-SAT
@@ -74,7 +74,7 @@ object MaxDamageSearch {
         runes: List<RuneType>,
         sublimations: List<Sublimation>,
         tuning: WakfuBuildSolver.SolverTuning?,
-    ): Flow<GeneticAlgorithmResult<BuildCombination>> =
+    ): Flow<SolverResult<BuildCombination>> =
         callbackFlow {
             val clazz = baseParams.character.clazz
             // Phase 2 (the AP-window probes) exists ONLY so a resistance-reduction debuff can shift the
@@ -117,7 +117,7 @@ object MaxDamageSearch {
             // gives phase 1 the whole budget (faster proofs) instead of idling part of it.
             val activePhases = 1 + (if (hasResistanceDebuff) 1 else 0)
             val phaseBudget = (baseParams.searchDuration / activePhases).coerceAtLeast(1.seconds)
-            var best: GeneticAlgorithmResult<BuildCombination>? = null
+            var best: SolverResult<BuildCombination>? = null
             // The single-element scenario the winning [best] build was solved for — reused to pin the debuff
             // phase, so we never re-derive it with another bestSequencedRotation pass.
             var bestSolvedScenario: DamageScenario? = null
@@ -130,7 +130,7 @@ object MaxDamageSearch {
             var lastProgressSent = 0
 
             fun consider(
-                result: GeneticAlgorithmResult<BuildCombination>,
+                result: SolverResult<BuildCombination>,
                 solvedScenario: DamageScenario,
                 progress: Int,
             ) {
@@ -228,8 +228,15 @@ object MaxDamageSearch {
                     val improvedByDebuff =
                         hasResistanceDebuff && finalBest != null && phase1BestScore != null && finalBest.matchPercentage > phase1BestScore
                     val proven = phase1Optimal && finalBest?.isOptimal == true && hasPlayableElement && !improvedByDebuff
+                    // Guaranteed delivery (suspending `send`, not `trySend`): the streamed best-so-far above is
+                    // best-effort progress and may be dropped under back-pressure, but the FINAL/best build — what
+                    // the CLI/GUI show and tests assert on — must never be lost to a saturated buffer. This mirrors
+                    // the standard-path final emit (WakfuBuildSolver.executeSolverAndEmitResults). Using `trySend`
+                    // here was a latent bug: under concurrency the many streamed intermediate emissions could
+                    // saturate the buffer so the final build (incl. the proven optimum) was silently dropped, and
+                    // the collected result fell back to an earlier, worse incumbent.
                     finalBest?.let {
-                        trySend(it.copy(progressPercentage = 100, isOptimal = proven, maxDamageHeuristicPhases = improvedByDebuff))
+                        send(it.copy(progressPercentage = 100, isOptimal = proven, maxDamageHeuristicPhases = improvedByDebuff))
                     }
                     close()
                 }
@@ -282,7 +289,7 @@ object MaxDamageSearch {
         sublimations: List<Sublimation>,
         phaseBudget: Duration,
         tuning: WakfuBuildSolver.SolverTuning?,
-    ): List<Pair<WakfuBestBuildParams, GeneticAlgorithmResult<BuildCombination>?>> {
+    ): List<Pair<WakfuBestBuildParams, SolverResult<BuildCombination>?>> {
         if (probeParams.isEmpty()) return emptyList()
 
         if (tuning != null) {
@@ -325,7 +332,7 @@ object MaxDamageSearch {
         phaseBudget: Duration,
         progressCeiling: Int,
         tuning: WakfuBuildSolver.SolverTuning?,
-        onResult: (WakfuBestBuildParams, GeneticAlgorithmResult<BuildCombination>, Int) -> Unit,
+        onResult: (WakfuBestBuildParams, SolverResult<BuildCombination>, Int) -> Unit,
     ): List<Boolean> {
         if (probeParams.isEmpty()) return emptyList()
 
@@ -369,7 +376,7 @@ object MaxDamageSearch {
         runes: List<RuneType>,
         sublimations: List<Sublimation>,
         tuning: WakfuBuildSolver.SolverTuning?,
-    ): GeneticAlgorithmResult<BuildCombination>? =
+    ): SolverResult<BuildCombination>? =
         WakfuBuildSolver
             .optimize(params, equipmentsByItemType, runes, sublimations, tuning)
             .toList()
