@@ -321,6 +321,12 @@
     },
     "level": 82,
     "hp": 1539,
+    "family": {
+      "fr": "Gliglis",
+      "en": "Bliblis",
+      "es": "Balíes",
+      "pt": "Valilis"
+    },
     "rank": 4,
     "gfx": 100702119,
     "fireResistance": 100,
@@ -1635,6 +1641,12 @@
     },
     "level": 88,
     "hp": 6201,
+    "family": {
+      "fr": "Gliglis",
+      "en": "Bliblis",
+      "es": "Balíes",
+      "pt": "Valilis"
+    },
     "rank": 2,
     "gfx": 100701645,
     "fireResistance": 97,
@@ -4449,6 +4461,12 @@
     },
     "level": 88,
     "hp": 5281,
+    "family": {
+      "fr": "Gliglis",
+      "en": "Bliblis",
+      "es": "Balíes",
+      "pt": "Valilis"
+    },
     "rank": 1,
     "gfx": 100701727,
     "fireResistance": 248,
@@ -38977,6 +38995,12 @@
     },
     "level": 78,
     "hp": 1359,
+    "family": {
+      "fr": "Gliglis",
+      "en": "Bliblis",
+      "es": "Balíes",
+      "pt": "Valilis"
+    },
     "gfx": 100700054,
     "fireResistance": 132,
     "waterResistance": 232,
@@ -40264,6 +40288,12 @@
     },
     "level": 74,
     "hp": 1104,
+    "family": {
+      "fr": "Gliglis",
+      "en": "Bliblis",
+      "es": "Balíes",
+      "pt": "Valilis"
+    },
     "gfx": 100700058,
     "fireResistance": 184,
     "waterResistance": 284,
@@ -40591,6 +40621,12 @@
     },
     "level": 72,
     "hp": 849,
+    "family": {
+      "fr": "Gliglis",
+      "en": "Bliblis",
+      "es": "Balíes",
+      "pt": "Valilis"
+    },
     "gfx": 100700057,
     "fireResistance": -11,
     "waterResistance": 89,
@@ -41761,6 +41797,12 @@
     },
     "level": 68,
     "hp": 886,
+    "family": {
+      "fr": "Gliglis",
+      "en": "Bliblis",
+      "es": "Balíes",
+      "pt": "Valilis"
+    },
     "gfx": 100700052,
     "fireResistance": 132,
     "waterResistance": 32,

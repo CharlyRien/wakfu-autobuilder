@@ -91,8 +91,9 @@ enforcing slot/rarity/weapon rules.
 ## 4. The search engine (`autobuilder`)
 
 The engine is the **Google OR-Tools CP-SAT solver**. It streams its best-so-far build as a
-`Flow<GeneticAlgorithmResult<BuildCombination>>` — a legacy type name; there is now a single engine,
-so the CLI and GUI consume it identically.
+`Flow<SolverResult<BuildCombination>>` (there is a single engine, so the CLI and GUI consume it
+identically). `SolverResult` was formerly `GeneticAlgorithmResult`; the enclosing package is still
+named `genetic` for historical reasons.
 
 `WakfuBestBuildFinderAlgorithm.run(params)` is the entry point: it filters & groups the embedded
 equipments by `ItemType` (applying level/rarity/forced/excluded filters), then hands them to the
@@ -139,6 +140,30 @@ carries only `MASTERY_ELEMENTARY` — which matches none of those targets, so ad
 the objective and the proven optimum leaves the slot empty. (A lexicographic secondary objective —
 "max total elemental mastery among optimal builds" — would fill such slots and was considered, but
 deliberately not implemented.)
+
+### The max-damage optimality certificate ("proven optimal" badge)
+Max-damage mode can **prove** the build it found is the global optimum, and the GUI/CLI show a badge
+saying so. The proof is an independent **certificate**, not a re-solve: `MaxDamageSearch.proveOptimality`
+(entry point `WakfuBestBuildFinderAlgorithm.proveMaxDamageOptimality`) calls
+`WakfuBuildSolver.maxDamageCertificate`, a two-tier per-AP-cell dynamic program (`WakfuBuildSolver.kt`,
+`certifyLedger` → `certifyAllCellsFast` + `exactForCells`). It computes a **sound upper bound** on the
+best achievable objective for every AP cell; the badge is awarded iff the incumbent (the best build
+found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal**, **proven within X%**
+(`maxCellObjective / incumbent − 1`), or **unavailable** (a shape the certifier bails on — multi-element
+/ boss, or a forced-rune / unsupported-sub shape; a bail is always sound, it just withholds the badge).
+- **The one invariant is soundness: the certificate must never UNDER-count a cell** (that would award a
+  wrong badge). Every pass is a *sound upper bound*, exact on most shapes but legitimately loose on some
+  (crit bands, couplings) — so its locks assert `≥`, never `==`, and **when in doubt the certifier BAILS**
+  (`Long.MAX_VALUE`, always sound). Below the AP constant the exact pass bails and the sound fast bound
+  carries the cell.
+- **`CERTIFIER_VERSION` (`WakfuBuildSolver.kt`) must be bumped on ANY certifier change** (fast pass,
+  exact pass, orchestrator, scaling formula, world/sub enumeration). It keys the in-memory per-cell
+  cache alongside `WakfuData.VERSION`, so a bump invalidates every cached bound instead of serving a
+  stale (possibly now-unsound) one.
+- **Guards:** a CI-runnable fuzz lock (`WakfuBuildSolverTest`, seeded random pools → `certExact/fast ≥`
+  pinned CP-SAT, ledger `≥` true optimum) plus a nightly `@Tag("slow")` lvl-245 ledger oracle keyed on
+  `WakfuData.VERSION`. The full campaign log lives in `docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md`; the plan +
+  execution log in `docs/CERTIFICATE_PROD_PLAN.md`.
 
 ---
 
