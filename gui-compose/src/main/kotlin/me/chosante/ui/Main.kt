@@ -21,6 +21,7 @@ import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
+import me.chosante.autobuilder.genetic.wakfu.MaxDamageSearch
 import me.chosante.ui.components.RequestErrorsDialog
 import me.chosante.ui.components.WhatsNewDialog
 import me.chosante.ui.components.loadClasspathBitmap
@@ -44,6 +45,7 @@ const val SCREENSHOT_PATH_PROPERTY = "wakfu.compose.screenshot"
 private const val APP_ICON_PATH = "assets/branding/app-icon.png"
 
 fun main() {
+    MaxDamageSearch.enableCertificateDiskCache()
     setDockIcon()
     application {
         val screenshotPath = System.getProperty(SCREENSHOT_PATH_PROPERTY) ?: System.getenv("WAKFU_COMPOSE_SCREENSHOT")

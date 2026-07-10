@@ -1,5 +1,12 @@
 package me.chosante.ui.stats
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,17 +28,26 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import me.chosante.autobuilder.domain.BossDisplay
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.common.Characteristic
@@ -55,6 +71,9 @@ import me.chosante.ui.i18n.label
 import me.chosante.ui.i18n.skillLabel
 import me.chosante.ui.i18n.tr
 import me.chosante.ui.state.Phase
+import me.chosante.ui.state.ProofPhase
+import me.chosante.ui.state.ProofProgress
+import me.chosante.ui.state.ProofState
 import me.chosante.ui.state.TargetRow
 import me.chosante.ui.state.UiState
 import me.chosante.ui.state.ZenithState
@@ -75,6 +94,7 @@ fun StatsPanel(
     onCopyZenith: () -> Unit,
     onSaveBuild: () -> Unit,
     onExport: () -> Unit,
+    onViewAsDamage: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
@@ -101,7 +121,8 @@ fun StatsPanel(
                     onOpenZenith = onOpenZenith,
                     onCopyZenith = onCopyZenith,
                     onSaveBuild = onSaveBuild,
-                    onExport = onExport
+                    onExport = onExport,
+                    onViewAsDamage = onViewAsDamage
                 )
                 if (ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
                     SpellRotationCard(ui)
@@ -111,7 +132,10 @@ fun StatsPanel(
                 BuildSheet(ui)
                 SublimationsResult(ui)
                 PassivesResult(ui)
-                SkillTree(ui.build?.characterSkills ?: CharacterSkills(ui.level))
+                SkillTree(
+                    skills = ui.build?.characterSkills ?: CharacterSkills(ui.level),
+                    showLeftoverWarning = ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE
+                )
             }
         }
         VerticalScrollHints(scroll)
@@ -185,22 +209,49 @@ private fun MatchHero(ui: UiState) {
             // Only judge optimality once the search has actually FINISHED — during Searching the streamed
             // best-so-far is naturally "not proven optimal" yet, so showing it then is premature/misleading.
             if (ui.phase == Phase.Done && ui.build != null) {
+                // The AP-cell certificate can prove an optimum CP-SAT left un-closed, so the headline is "proven"
+                // when EITHER the solver or the certificate proved it (P4.4).
+                val certProven = ui.proofState is ProofState.ProvenOptimal
+                val showOptimal = ui.optimal || certProven
                 Text(
-                    text = tr(if (ui.optimal) Tr.OPTIMAL_PROVEN else Tr.BEST_FOUND),
-                    style = WTypography.labelSmall.copy(color = if (ui.optimal) WColor.success else WColor.warning),
+                    text = tr(if (showOptimal) Tr.OPTIMAL_PROVEN else Tr.BEST_FOUND),
+                    style = WTypography.labelSmall.copy(color = if (showOptimal) WColor.success else WColor.warning),
                     modifier = Modifier.padding(top = 3.dp)
                 )
-                if (!ui.optimal) {
-                    // The base per-turn damage objective is now provable (reachable-sized CP-SAT domains), so a
-                    // non-optimal max-damage result is "structural" only when it's a heuristic max over
-                    // structure-changing probes — resistance-debuff sequencing or a multi-element AP split — which
-                    // the inner solve can't see; more time won't move that. A plain mono no-debuff request that
-                    // didn't prove is, like the other modes, genuinely time-limited (a bigger budget could prove it).
-                    Text(
-                        text = tr(if (ui.maxDamageStructural) Tr.NOT_OPTIMAL_STRUCTURAL_HINT else Tr.NOT_OPTIMAL_HINT),
-                        style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center),
-                        modifier = Modifier.padding(top = 2.dp)
-                    )
+                when {
+                    // The certificate is still running — show the phase and a live elapsed timer with a
+                    // spinner, so a minutes-long proof never looks like a hang.
+                    ui.proofState is ProofState.Proving ->
+                        ProofProgressIndicator(
+                            progress = (ui.proofState as ProofState.Proving).progress,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    // Not proven optimal, but the certificate BOUNDS the gap — more useful than the vague hint.
+                    ui.proofState is ProofState.ProvenWithin && !ui.optimal -> {
+                        // Locale.ROOT so an FR UI shows "2.0", not "2,0" (the %s in PROVEN_WITHIN keeps the point).
+                        val pct = String.format(java.util.Locale.ROOT, "%.1f", (ui.proofState as ProofState.ProvenWithin).fraction * 100)
+                        Text(
+                            text = tr(Tr.PROVEN_WITHIN).format(pct),
+                            style = WTypography.labelSmall.copy(color = WColor.warning, textAlign = TextAlign.Center),
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                    // Certificate unavailable because of forced runes/subs — name the reason (honest, not "proven").
+                    ui.proofState == ProofState.Unavailable &&
+                        !showOptimal &&
+                        (ui.forcedRunesByItem.isNotEmpty() || ui.forcedSublimations.isNotEmpty()) ->
+                        Text(
+                            text = tr(Tr.PROOF_UNAVAILABLE_FORCED),
+                            style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center),
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    // Otherwise fall back to the existing "not proven" hint (structural vs time-limited).
+                    !showOptimal ->
+                        Text(
+                            text = tr(if (ui.maxDamageStructural) Tr.NOT_OPTIMAL_STRUCTURAL_HINT else Tr.NOT_OPTIMAL_HINT),
+                            style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center),
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
                 }
             }
             if (!headlineNumberMode) {
@@ -211,6 +262,100 @@ private fun MatchHero(ui: UiState) {
                 )
             }
         }
+    }
+}
+
+/**
+ * "Verifying optimality… (2 min 10 s)" with a small indeterminate spinner, ticking once per second
+ * while the certificate proof runs; the wording switches to "Building the proven optimal build…"
+ * during the E8 construct phase. If the certifier later reports per-cell progress
+ * ([ProofProgress.cellsDone]/[ProofProgress.cellsTotal]), this is the single place to upgrade the
+ * indeterminate spinner to a determinate fraction.
+ */
+@Composable
+private fun ProofProgressIndicator(
+    progress: ProofProgress,
+    modifier: Modifier = Modifier,
+) {
+    val nowMs = remember(progress.startedAtMs) { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(progress.startedAtMs) {
+        while (true) {
+            delay(1_000)
+            nowMs.value = System.currentTimeMillis()
+        }
+    }
+    val elapsedSeconds = (nowMs.value - progress.startedAtMs).coerceAtLeast(0L) / 1_000L
+    val label =
+        when (progress.phase) {
+            ProofPhase.CERTIFYING -> Tr.PROVING_OPTIMALITY
+            ProofPhase.CONSTRUCTING -> Tr.PROOF_CONSTRUCTING
+        }
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        ProofSpinner(color = WColor.accent)
+        Text(
+            text = tr(label).format(formatElapsed(elapsedSeconds)),
+            style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center)
+        )
+    }
+}
+
+/** "45 s" below a minute, "2 min 10 s" above — locale-neutral unit abbreviations shared by EN/FR. */
+private fun formatElapsed(totalSeconds: Long): String {
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return if (minutes > 0) "$minutes min $seconds s" else "$seconds s"
+}
+
+/**
+ * A small indeterminate spinner — a faint full ring with one bright arc sweeping around it — the same
+ * "working…" cue as the Search button's spinner (kept private to the top bar).
+ */
+@Composable
+private fun ProofSpinner(
+    color: Color,
+    size: Dp = 11.dp,
+) {
+    val transition = rememberInfiniteTransition(label = "proof-spinner")
+    val angle =
+        transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec =
+                infiniteRepeatable(
+                    animation = tween(durationMillis = 700, easing = LinearEasing),
+                    repeatMode = RepeatMode.Restart
+                ),
+            label = "proof-spinner-angle"
+        )
+    Canvas(modifier = Modifier.size(size)) {
+        val stroke = this.size.width * 0.16f
+        val inset = stroke / 2f
+        val ring = Size(this.size.width - stroke, this.size.height - stroke)
+        val topLeft = Offset(inset, inset)
+        // Faint full track…
+        drawArc(
+            color = color.copy(alpha = 0.25f),
+            startAngle = 0f,
+            sweepAngle = 360f,
+            useCenter = false,
+            topLeft = topLeft,
+            size = ring,
+            style = Stroke(width = stroke)
+        )
+        // …and the bright head sweeping around it.
+        drawArc(
+            color = color,
+            startAngle = angle.value,
+            sweepAngle = 90f,
+            useCenter = false,
+            topLeft = topLeft,
+            size = ring,
+            style = Stroke(width = stroke, cap = StrokeCap.Round)
+        )
     }
 }
 
@@ -771,12 +916,24 @@ private fun StatRow(
 }
 
 @Composable
-private fun SkillTree(skills: CharacterSkills) {
+private fun SkillTree(
+    skills: CharacterSkills,
+    showLeftoverWarning: Boolean,
+) {
+    val branches = skillBranches(skills)
+    val leftoverPoints = branches.sumOf { (it.max - it.points).coerceAtLeast(0) }
     ResultCard(
         title = tr(Tr.SKILL_ALLOCATION),
         trailing = tr(Tr.BRANCHES_COUNT)
     ) {
-        skillBranches(skills).forEachIndexed { index, branch ->
+        if (showLeftoverWarning && leftoverPoints > 0) {
+            Text(
+                text = tr(Tr.SKILL_LEFTOVER_WARNING).format(leftoverPoints),
+                style = WTypography.labelSmall.copy(color = WColor.warning, lineHeight = 15.sp),
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+        branches.forEachIndexed { index, branch ->
             if (index > 0) Hairline()
             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -868,6 +1025,7 @@ private fun ActionsCard(
     onCopyZenith: () -> Unit,
     onSaveBuild: () -> Unit,
     onExport: () -> Unit,
+    onViewAsDamage: () -> Unit,
 ) {
     ResultCard {
         if (ui.error != null) {
@@ -882,6 +1040,17 @@ private fun ActionsCard(
             onClick = onSaveBuild
         )
         Spacer(modifier = Modifier.height(9.dp))
+        if (ui.build != null && ui.mode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+            ActionButton(
+                text = tr(Tr.VIEW_AS_DAMAGE),
+                color = Color.Transparent,
+                contentColor = WColor.warning,
+                enabled = ui.phase == Phase.Done,
+                borderColor = WColor.border,
+                onClick = onViewAsDamage
+            )
+            Spacer(modifier = Modifier.height(9.dp))
+        }
         ActionButton(
             text = if (ui.zenith == ZenithState.Loading) tr(Tr.OPENING) else tr(Tr.OPEN_IN_ZENITH),
             color = WColor.accent2,

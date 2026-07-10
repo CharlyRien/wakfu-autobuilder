@@ -54,9 +54,11 @@ import me.chosante.autobuilder.domain.RangeBand
 import me.chosante.autobuilder.domain.RolePreset
 import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
+import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.common.Characteristic
 import me.chosante.common.Monster
 import me.chosante.common.Rarity
+import me.chosante.common.SublimationRarity
 import me.chosante.ui.components.BossResistanceChips
 import me.chosante.ui.components.Hairline
 import me.chosante.ui.components.MonsterIcon
@@ -78,6 +80,7 @@ import me.chosante.ui.state.statCatalog
 import me.chosante.ui.state.statDefFor
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WDimens
+import me.chosante.ui.theme.WRarityColor
 import me.chosante.ui.theme.WType
 import me.chosante.ui.theme.WTypography
 
@@ -103,8 +106,11 @@ fun RequestPanel(
     onAddExcludedItem: () -> Unit,
     onRemoveExcludedItem: (ItemChip) -> Unit,
     onToggleSublimations: (Boolean) -> Unit = {},
+    onMaxSublimationTierChange: (Int?) -> Unit = {},
     onOpenSublimationPicker: () -> Unit = {},
     onRemoveForcedSublimation: (String) -> Unit = {},
+    onOpenExcludedSublimationPicker: () -> Unit = {},
+    onRemoveExcludedSublimation: (String) -> Unit = {},
     onOpenPassivePicker: () -> Unit = {},
     onRemoveForcedPassive: (String) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -176,10 +182,15 @@ fun RequestPanel(
             )
             SublimationsRunesCard(
                 useSublimations = ui.useSublimations,
+                maxSublimationTier = ui.maxSublimationTier,
                 forcedSublimations = ui.forcedSublimations,
+                excludedSublimations = ui.excludedSublimations,
                 onToggleSublimations = onToggleSublimations,
+                onMaxSublimationTierChange = onMaxSublimationTierChange,
                 onOpenSublimationPicker = onOpenSublimationPicker,
-                onRemoveForcedSublimation = onRemoveForcedSublimation
+                onRemoveForcedSublimation = onRemoveForcedSublimation,
+                onOpenExcludedSublimationPicker = onOpenExcludedSublimationPicker,
+                onRemoveExcludedSublimation = onRemoveExcludedSublimation
             )
             PassivesCard(
                 forcedPassives = ui.forcedPassives,
@@ -664,6 +675,11 @@ private fun TargetStatsCard(
             }
         if (maximizedMasteriesMode) {
             SelectedMasteriesSummary(targets = targets)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = tr(Tr.DI_AUTOMAX_HINT),
+                style = WTypography.labelSmall.copy(color = WColor.muted, lineHeight = 15.sp)
+            )
             Spacer(modifier = Modifier.height(12.dp))
         }
         sections.forEachIndexed { sectionIndex, section ->
@@ -924,6 +940,7 @@ private fun AddTargetButton(onAdd: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TargetStatRow(
     target: TargetRow,
@@ -939,12 +956,29 @@ private fun TargetStatRow(
         GlyphChip(characteristic = target.characteristic, label = target.glyph, color = target.color)
         Spacer(modifier = Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = target.characteristic.label(LocalLang.current),
-                style = WTypography.bodyLarge,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            val fullLabel = target.characteristic.label(LocalLang.current)
+            TooltipArea(
+                delayMillis = 350,
+                tooltip = {
+                    Box(
+                        modifier =
+                            Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(WColor.raised)
+                                .border(1.dp, WColor.border, RoundedCornerShape(8.dp))
+                                .padding(horizontal = 10.dp, vertical = 7.dp)
+                    ) {
+                        Text(text = fullLabel, style = WTypography.labelMedium.copy(color = WColor.text))
+                    }
+                }
+            ) {
+                Text(
+                    text = fullLabel,
+                    style = WTypography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             Text(text = kind, style = WTypography.labelSmall)
         }
         NumberField(
@@ -1228,11 +1262,35 @@ private fun ItemChipsCard(
 @Composable
 private fun SublimationsRunesCard(
     useSublimations: Boolean,
+    maxSublimationTier: Int?,
     forcedSublimations: List<String>,
+    excludedSublimations: List<String>,
     onToggleSublimations: (Boolean) -> Unit,
+    onMaxSublimationTierChange: (Int?) -> Unit,
     onOpenSublimationPicker: () -> Unit,
     onRemoveForcedSublimation: (String) -> Unit,
+    onOpenExcludedSublimationPicker: () -> Unit,
+    onRemoveExcludedSublimation: (String) -> Unit,
 ) {
+    val forcedSublimationColors =
+        remember {
+            WakfuBestBuildFinderAlgorithm.sublimations
+                .distinctBy { it.stateId }
+                .flatMap { sub ->
+                    listOf(
+                        sub.name.fr to sub.rarity.displayColor(),
+                        sub.name.en to sub.rarity.displayColor()
+                    )
+                }.toMap()
+        }
+    val availableLevels =
+        remember {
+            WakfuBestBuildFinderAlgorithm.sublimations
+                .map { it.nameTier }
+                .filter { it > 0 }
+                .distinct()
+                .sorted()
+        }
     RequestCard(title = tr(Tr.SUBLIMATIONS_RUNES)) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
@@ -1254,19 +1312,111 @@ private fun SublimationsRunesCard(
                 )
                 Text(text = tr(Tr.SOLVER_PICKS_SUBLIMATIONS), style = WTypography.labelMedium.copy(color = WColor.text))
             }
+            SublimationLevelCapFilter(
+                levels = availableLevels,
+                selected = maxSublimationTier,
+                enabled = useSublimations,
+                onSelect = onMaxSublimationTierChange
+            )
             ForcedNameChips(
                 label = tr(Tr.FORCED_SUBLIMATIONS),
                 addLabel = tr(Tr.ADD_SUBLIMATION_CHIP),
                 selected = forcedSublimations,
                 accent = WColor.success,
+                accentForName = { name -> forcedSublimationColors[name] ?: WColor.success },
                 onAdd = onOpenSublimationPicker,
                 onRemove = onRemoveForcedSublimation
+            )
+            ForcedNameChips(
+                label = tr(Tr.EXCLUDED_SUBLIMATIONS),
+                addLabel = tr(Tr.BAN_SUBLIMATION_CHIP),
+                selected = excludedSublimations,
+                accent = WColor.danger,
+                onAdd = onOpenExcludedSublimationPicker,
+                onRemove = onRemoveExcludedSublimation
             )
             Text(
                 text = tr(Tr.RUNES_PER_ITEM_HINT),
                 style = WTypography.labelSmall.copy(color = WColor.muted, lineHeight = 15.sp)
             )
+            Text(
+                text = tr(Tr.RUNES_ALLGOLD_HINT),
+                style = WTypography.labelSmall.copy(color = WColor.muted, lineHeight = 15.sp)
+            )
         }
+    }
+}
+
+private fun SublimationRarity.displayColor(): Color =
+    when (this) {
+        SublimationRarity.EPIC -> WRarityColor.epic
+        SublimationRarity.RELIC -> WRarityColor.relic
+        SublimationRarity.NORMAL -> WColor.success
+    }
+
+@Composable
+private fun SublimationLevelCapFilter(
+    levels: List<Int>,
+    selected: Int?,
+    enabled: Boolean,
+    onSelect: (Int?) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.alpha(if (enabled) 1f else 0.45f)) {
+        Text(text = tr(Tr.SUBLIMATION_LEVEL_CAP), style = WTypography.labelMedium.copy(color = WColor.muted))
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            SublimationLevelChip(
+                label = tr(Tr.SUBLIMATION_LEVEL_ALL),
+                selected = selected == null,
+                enabled = enabled,
+                onClick = { onSelect(null) }
+            )
+            levels.forEach { level ->
+                SublimationLevelChip(
+                    label = tr(Tr.SUBLIMATION_LEVEL_UP_TO).format(level),
+                    selected = selected == level,
+                    enabled = enabled,
+                    onClick = { onSelect(level) }
+                )
+            }
+        }
+        Text(
+            text = tr(Tr.SUBLIMATION_LEVEL_CAP_HINT),
+            style = WTypography.labelSmall.copy(color = WColor.muted, lineHeight = 15.sp)
+        )
+    }
+}
+
+@Composable
+private fun SublimationLevelChip(
+    label: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val color = if (selected) WColor.accent else WColor.border
+    Box(
+        modifier =
+            Modifier
+                .height(28.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (selected) WColor.accent.copy(alpha = 0.16f) else WColor.bg)
+                .border(1.dp, if (selected) WColor.accent.copy(alpha = 0.55f) else WColor.border, RoundedCornerShape(8.dp))
+                .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
+                .padding(horizontal = 9.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style =
+                WTypography.labelSmall.copy(
+                    color = if (selected) color else WColor.muted,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                )
+        )
     }
 }
 
@@ -1300,6 +1450,7 @@ private fun ForcedNameChips(
     addLabel: String,
     selected: List<String>,
     accent: Color,
+    accentForName: (String) -> Color = { accent },
     onAdd: () -> Unit,
     onRemove: (String) -> Unit,
 ) {
@@ -1311,13 +1462,14 @@ private fun ForcedNameChips(
             verticalArrangement = Arrangement.spacedBy(7.dp)
         ) {
             selected.forEach { name ->
+                val chipAccent = accentForName(name)
                 Row(
                     modifier =
                         Modifier
                             .height(30.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(WColor.raised)
-                            .border(1.dp, accent.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
+                            .border(1.dp, chipAccent.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
                             .padding(horizontal = 9.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {

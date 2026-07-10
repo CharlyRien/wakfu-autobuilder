@@ -13,7 +13,8 @@ import kotlinx.coroutines.withTimeout
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
-import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
+import me.chosante.autobuilder.genetic.SolverResult
+import me.chosante.autobuilder.genetic.wakfu.MaxDamageSearch
 import me.chosante.autobuilder.genetic.wakfu.RequestValidationProblem
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
@@ -147,7 +148,7 @@ class BuildSearchModelE2ETest {
                     scope = scope,
                     buildFinder = {
                         flowOf(
-                            GeneticAlgorithmResult(
+                            SolverResult(
                                 individual = fakeBuild,
                                 matchPercentage = BigDecimal("100"),
                                 progressPercentage = 100,
@@ -174,6 +175,7 @@ class BuildSearchModelE2ETest {
                 val excluded = equipmentByFrenchName("Solomonk")
                 model.openModal(Modal.ItemPicker(PickerMode.Excluded))
                 model.pickItem(excluded)
+                model.closeModal()
 
                 assertEquals(forcedEquipmentNames.size, model.ui.forcedItems.size)
                 assertEquals(
@@ -322,13 +324,13 @@ class BuildSearchModelE2ETest {
             model.openModal(Modal.ItemPicker(PickerMode.Forced))
             model.pickItem(item)
             assertEquals(listOf("Solomonk"), model.ui.forcedItems.map { it.matchName })
-            assertNull(model.ui.modal)
+            assertEquals(Modal.ItemPicker(PickerMode.Forced), model.ui.modal)
 
             model.openModal(Modal.ItemPicker(PickerMode.Excluded))
             model.pickItem(item)
             assertTrue(model.ui.forcedItems.isEmpty())
             assertEquals(listOf("Solomonk"), model.ui.excludedItems.map { it.matchName })
-            assertNull(model.ui.modal)
+            assertEquals(Modal.ItemPicker(PickerMode.Excluded), model.ui.modal)
         } finally {
             scope.cancel()
         }
@@ -423,6 +425,55 @@ class BuildSearchModelE2ETest {
         }
     }
 
+    @Test
+    fun `loading a build clears a stale optimality proof badge`(
+        @TempDir tempDir: Path,
+    ) = runBlocking {
+        val repo = HistoryRepository(baseDir = tempDir, ioDispatcher = Dispatchers.Unconfined)
+        repo.save(historyEntry(id = "saved", name = "Saved build"))
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val fakeBuild = BuildCombination(equipments = emptyList(), characterSkills = CharacterSkills(110))
+        val model =
+            BuildSearchModel(
+                scope = scope,
+                buildFinder = {
+                    flowOf(
+                        SolverResult(
+                            individual = fakeBuild,
+                            matchPercentage = BigDecimal("1000"),
+                            progressPercentage = 100,
+                            isOptimal = false,
+                            maxDamageObjective = 5_000L
+                        )
+                    )
+                },
+                // Prove instantly so proofState reaches ProvenOptimal without a real (minutes-long) solve.
+                optimalityProver = { _, _, _ -> MaxDamageSearch.MaxDamageProof.ProvenOptimal },
+                zenithBuilder = { "" },
+                mainDispatcher = Dispatchers.Unconfined,
+                ioDispatcher = Dispatchers.Unconfined,
+                libraryPreferences = LibraryPreferences(null),
+                historyRepository = repo
+            )
+
+        try {
+            awaitUntil { model.ui.savedBuilds.any { it.id == "saved" } }
+            model.setMode(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE)
+            model.setDuration("1")
+            model.search()
+            // The certificate proof resolves to ProvenOptimal after the max-damage search completes.
+            awaitUntil { model.ui.proofState == ProofState.ProvenOptimal }
+
+            // Loading a DIFFERENT build must clear the stale proof — otherwise StatsPanel would paint a green
+            // "Proven optimal" on a build the certificate never saw (P4.4 wrong-badge bug).
+            model.loadBuild("saved")
+            assertEquals(Phase.Done, model.ui.phase)
+            assertEquals(ProofState.Idle, model.ui.proofState)
+        } finally {
+            scope.cancel()
+        }
+    }
+
     private fun historyEntry(
         id: String,
         name: String,
@@ -464,7 +515,7 @@ class BuildSearchModelE2ETest {
      */
     private fun newModel(
         scope: CoroutineScope,
-        buildFinder: (WakfuBestBuildParams) -> Flow<GeneticAlgorithmResult<BuildCombination>> = { emptyFlow() },
+        buildFinder: (WakfuBestBuildParams) -> Flow<SolverResult<BuildCombination>> = { emptyFlow() },
         zenithBuilder: suspend (me.chosante.ZenithInputParameters) -> String = { "" },
         openBrowser: (String) -> Unit = {},
         copyToClipboard: (String) -> Unit = {},

@@ -43,6 +43,34 @@ enum class Tr(
         "Only one epic and one relic sublimation can be forced — remove one of:",
         "Tu ne peux imposer qu'une sublimation épique et une relique — retire l'une de :"
     ),
+    SUBLIMATION_FORCED_AND_EXCLUDED(
+        "is both forced and excluded — remove it from one of the two lists.",
+        "est à la fois imposée et exclue — retire-la de l'une des deux listes."
+    ),
+    FORCED_ITEM_ALSO_EXCLUDED(
+        "is both forced and excluded — remove it from one of the two lists.",
+        "est à la fois imposé et exclu — retire-le de l'une des deux listes."
+    ),
+    FORCED_ITEMS_SLOT_CONFLICT(
+        "Too many forced items for the same slot — remove one of:",
+        "Trop d'objets imposés pour le même emplacement — retire l'un de :"
+    ),
+    FORCED_WEAPONS_CONFLICT(
+        "A forced two-handed weapon occupies both hands — it can't be combined with:",
+        "Une arme à deux mains imposée occupe les deux mains — elle ne peut pas être combinée avec :"
+    ),
+    FORCED_ITEM_RARITY_BUDGET(
+        "A build can equip only one epic and one relic item — remove one of:",
+        "Un build ne peut équiper qu'un objet épique et une relique — retire l'un de :"
+    ),
+    FORCED_SUBLIMATION_NO_CARRIER(
+        "needs an equipped item of its rarity (epic/relic), but that rarity is excluded from the search.",
+        "nécessite un objet équipé de sa rareté (épique/relique), mais cette rareté est exclue de la recherche."
+    ),
+    FORCED_SUBLIMATIONS_EXCEED_CAPACITY(
+        "A build can socket at most 10 sublimations — remove some forced sublimations.",
+        "Un build ne peut recevoir que 10 sublimations au maximum — retire des sublimations imposées."
+    ),
     REQUEST_ERRORS_TITLE(
         "Can't search yet",
         "Recherche impossible"
@@ -124,6 +152,10 @@ enum class Tr(
     TARGET_STATS("Target Stats", "Stats cibles"),
     MAXIMIZED_MASTERIES("Maximized Masteries", "Maîtrises à maximiser"),
     NO_MASTERY_SELECTED("None selected", "Aucune sélection"),
+    DI_AUTOMAX_HINT(
+        "Damage Inflicted is already optimized in this mode; add it as a target only if you need a minimum.",
+        "Les Dommages infligés sont déjà optimisés dans ce mode ; ajoute-les en cible seulement si tu veux un minimum."
+    ),
     PRIORITY("Priority", "Priorité"),
     PRIORITY_HINT(
         "Priority (1–5): higher targets win when they can't all be met",
@@ -149,10 +181,21 @@ enum class Tr(
     BAN_ITEM_CHIP("＋ ban item", "＋ exclure un objet"),
     SUBLIMATIONS_RUNES("Sublimations & Runes", "Sublimations & Runes"),
     SOLVER_PICKS_SUBLIMATIONS("Solver picks sublimations", "Le solveur choisit les sublimations"),
+    SUBLIMATION_LEVEL_CAP("Max auto-picked sublimation tier", "Palier max des sublimations auto"),
+    SUBLIMATION_LEVEL_ALL("All tiers", "Tous paliers"),
+    SUBLIMATION_LEVEL_UP_TO("≤ %d", "≤ %d"),
+    SUBLIMATION_TIER_SHORT("T%d", "P%d"),
+    SUBLIMATION_LEVEL_CAP_HINT(
+        "The tier is the sublimation's I/II/III generation. Caps only solver-picked sublimations; forced ones can exceed it.",
+        "Le palier est la génération I/II/III de la sublimation. Limite seulement les sublimations choisies par le solveur ; les imposées peuvent dépasser."
+    ),
     FORCED_SUBLIMATIONS("Forced Sublimations", "Sublimations imposées"),
     ADD_SUBLIMATION_CHIP("＋ Force a sublimation", "＋ Forcer une sublimation"),
     CHOSEN_SUBLIMATIONS("Sublimations", "Sublimations"),
     REQUIRE_SUBLIMATION_TITLE("Force a sublimation", "Forcer une sublimation"),
+    EXCLUDED_SUBLIMATIONS("Excluded Sublimations", "Sublimations exclues"),
+    BAN_SUBLIMATION_CHIP("＋ Exclude a sublimation", "＋ Exclure une sublimation"),
+    EXCLUDE_SUBLIMATION_TITLE("Exclude a sublimation", "Exclure une sublimation"),
     SEARCH_SUBLIMATIONS("Search sublimations (title / effect)…", "Rechercher des sublimations (titre / effet)…"),
     NO_MATCHING_SUBLIMATION("No matching sublimation", "Aucune sublimation correspondante"),
     FORCED_PASSIVES("Passive loadout", "Passifs équipés"),
@@ -167,6 +210,7 @@ enum class Tr(
     RUNE_SOCKETS_LABEL("Sockets", "Emplacements"),
     SEARCH_RUNES("Search runes…", "Rechercher des runes…"),
     NO_MATCHING_RUNE("No matching rune", "Aucune rune correspondante"),
+    LOCK_CURRENT_RUNES("Lock current runes", "Verrouiller les runes actuelles"),
     RUNES_PER_ITEM_HINT(
         "Runes are pinned per item — hover a slot in the build and click ◈.",
         "Les runes se définissent par objet — survole un emplacement du build et clique sur ◈."
@@ -183,6 +227,13 @@ enum class Tr(
         "Le premier build apparaîtra ici dès que le solveur en a un."
     ),
     EMPTY("empty", "vide"),
+
+    // Empty-slot explanations ("explain the solver's choices"): %s = the sublimation's localized name.
+    EMPTY_SLOT_SUB_HINT("Kept empty for %s", "Laissé vide pour %s"),
+    EMPTY_SLOT_NO_GAIN_HINT(
+        "No item here improves the requested stats",
+        "Aucun objet ici n'améliore les stats demandées"
+    ),
     LEVEL_PREFIX_LONG("Level", "Niveau"),
     LEVEL_PREFIX_SHORT("Lv", "Niv"),
     DISCLAIMER(
@@ -221,6 +272,12 @@ enum class Tr(
         "Best found across resistance-debuff sequencing — that turn structure is searched heuristically, so more time won't materially change the result.",
         "Meilleur trouvé parmi les séquences de réduction de résistance — cette structure de tour est explorée heuristiquement, donc plus de temps n'y changera pas grand-chose."
     ),
+
+    // Max-damage certificate proof state (P4.4). The %s is the elapsed time ("2 min 10 s").
+    PROVING_OPTIMALITY("Verifying optimality… (%s)", "Vérification de l'optimalité… (%s)"),
+    PROOF_CONSTRUCTING("Building the proven optimal build… (%s)", "Construction du build optimal prouvé… (%s)"),
+    PROVEN_WITHIN("Proven within %s%% of optimal", "Optimal prouvé à %s%% près"),
+    PROOF_UNAVAILABLE_FORCED("Proof unavailable (forced runes/sublimations)", "Preuve indisponible (runes/sublimations imposées)"),
     MASTERY_SUMMARY("Mastery Summary", "Cumul maîtrises"),
     MASTERY_TOTAL("Tracked total", "Total suivi"),
     BUILD_SHEET_TITLE("Other build stats", "Autres stats du build"),
@@ -234,6 +291,7 @@ enum class Tr(
     SKILL_ALLOCATION("Skill Allocation", "Répartition des aptitudes"),
     BRANCHES_COUNT("5 branches", "5 branches"),
     OPEN_IN_ZENITH("Open in Zenith ↗", "Ouvrir dans Zenith ↗"),
+    VIEW_AS_DAMAGE("View this build as damage", "Voir ce build en dégâts"),
     OPENING("Opening...", "Ouverture..."),
     COPY_BUILD_LINK("Copy build link", "Copier le lien"),
     EXPORT_BUILD("Export build", "Exporter le build"),
@@ -249,6 +307,10 @@ enum class Tr(
     BRANCH_AGILITY("Agility", "Agilité"),
     BRANCH_LUCK("Luck", "Chance"),
     BRANCH_MAJOR("Major", "Majeur"),
+    SKILL_LEFTOVER_WARNING(
+        "%d aptitude point(s) are unassigned because they do not change this build's damage; assign them in game for survivability or comfort.",
+        "%d point(s) d'aptitude ne sont pas placés car ils ne changent pas les dégâts de ce build ; répartis-les en jeu pour la survie ou le confort."
+    ),
 
     // Modals
     ADD_TARGET_STAT_TITLE("Add target stat", "Ajouter une stat cible"),
@@ -262,6 +324,9 @@ enum class Tr(
     BAN_ITEM_TITLE("Ban item", "Exclure un objet"),
     SEARCH_ITEMS("Search items (FR / EN)…", "Rechercher des objets (FR / EN)…"),
     NO_MATCHING_ITEM("No matching item", "Aucun objet correspondant"),
+    EQUIPPABLE_ONLY("Equippable only", "Équipables uniquement"),
+    RARITY_ALL("All", "Toutes"),
+    DONE("Done", "Terminé"),
     REQUIRE("Require", "Imposer"),
     BAN("Ban", "Exclure"),
     RUNES("Runes", "Châsses"),
@@ -286,6 +351,11 @@ enum class Tr(
     TOAST_BUILD_DUPLICATED("Build duplicated", "Build dupliqué"),
     TOAST_BUILD_EXPORTED("Build copied to clipboard", "Build copié dans le presse-papiers"),
     TOAST_BUILD_IMPORTED("Build imported", "Build importé"),
+    TOAST_RUNES_LOCKED("Current runes locked for this item", "Runes actuelles verrouillées pour cet objet"),
+    TOAST_FORCED_ITEMS_REMOVED(
+        "%d forced item(s) removed because they no longer fit the level/rarity range",
+        "%d objet(s) imposé(s) retiré(s) car ils ne correspondent plus au niveau ou à la rareté"
+    ),
 
     // Navigation / active build
     NAV_BUILDER("Builder", "Builder"),

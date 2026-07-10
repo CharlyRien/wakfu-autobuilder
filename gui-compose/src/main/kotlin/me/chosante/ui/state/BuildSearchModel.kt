@@ -17,6 +17,7 @@ import me.chosante.ZenithInputParameters
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.PassiveCatalog
+import me.chosante.autobuilder.domain.ScenarioDamage
 import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.domain.SpellRotation
 import me.chosante.autobuilder.domain.SpellRotationOptimizer
@@ -24,7 +25,8 @@ import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.domain.against
 import me.chosante.autobuilder.domain.againstAllElements
-import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
+import me.chosante.autobuilder.genetic.SolverResult
+import me.chosante.autobuilder.genetic.wakfu.MaxDamageSearch
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildParams
@@ -33,6 +35,8 @@ import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.common.Character
 import me.chosante.common.Characteristic
+import me.chosante.common.Equipment
+import me.chosante.common.ItemType
 import me.chosante.common.Monster
 import me.chosante.common.Rarity
 import me.chosante.common.history.HistoryEntry
@@ -63,8 +67,9 @@ import kotlin.math.ceil
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
-private typealias BuildFinder = (WakfuBestBuildParams) -> Flow<GeneticAlgorithmResult<BuildCombination>>
+private typealias BuildFinder = (WakfuBestBuildParams) -> Flow<SolverResult<BuildCombination>>
 private typealias ZenithBuilder = suspend (ZenithInputParameters) -> String
+private typealias OptimalityProver = (WakfuBestBuildParams, SolverResult<BuildCombination>, () -> Boolean) -> MaxDamageSearch.MaxDamageProof
 
 /** The four specific elemental masteries, mutually exclusive with the aggregate "all elements". */
 private val ELEMENTAL_MASTERY_ELEMENTS =
@@ -109,6 +114,9 @@ internal fun expandGlobalResistance(targets: List<TargetStat>): List<TargetStat>
 class BuildSearchModel(
     private val scope: CoroutineScope,
     private val buildFinder: BuildFinder = { WakfuBestBuildFinderAlgorithm.run(it) },
+    // Post-search certificate optimality proof (P4.4). Injectable so tests drive proofState deterministically
+    // without a real (minutes-long) exact solve.
+    private val optimalityProver: OptimalityProver = { params, result, isCancelled -> WakfuBestBuildFinderAlgorithm.proveMaxDamageOptimality(params, result, isCancelled) },
     private val zenithBuilder: ZenithBuilder = { it.createZenithBuild() },
     private val openBrowser: (String) -> Unit = { link -> Desktop.getDesktop().browse(URI(link)) },
     private val copyToClipboard: (String) -> Unit = { link -> Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(link), null) },
@@ -159,6 +167,17 @@ class BuildSearchModel(
         private set
 
     private var job: Job? = null
+
+    // The post-search optimality proof runs independently of [job] (it can take minutes after the search
+    // already finished), so it has its own handle — cancelled when a new search starts.
+    private var proofJob: Job? = null
+
+    // B8: cancelling [proofJob] only stops the coroutine, not the blocking certifier DP running inside it (which
+    // can hold a core for minutes). This flag — set at every proof-cancel site, polled once per certifier DP
+    // stage — makes the DP bail promptly. AtomicBoolean because the parallel exact tier polls it off pool threads.
+    private val proofCancelled =
+        java.util.concurrent.atomic
+            .AtomicBoolean(false)
 
     /** Persisted tag registry (display casing). Tags here survive having no build, until deleted. */
     private var tagRegistry: List<String> = emptyList()
@@ -407,6 +426,7 @@ class BuildSearchModel(
         // Lowering the level shrinks the passive-slot budget — trim the loadout so the shown chips match
         // exactly what the engine folds (resolvedPassives caps with the same slot count).
         ui = ui.copy(level = parsed, forcedPassives = reconcilePassives(ui.forcedPassives, ui.clazz, parsed))
+        reconcileForcedItemsForCurrentRequest()
     }
 
     /** Keep only passives that belong to [clazz], capped to [level]'s passive slots (preserving order). */
@@ -427,6 +447,7 @@ class BuildSearchModel(
                 .toIntOrNull()
                 ?.coerceIn(0, 245) ?: return
         ui = ui.copy(minLevel = parsed)
+        reconcileForcedItemsForCurrentRequest()
     }
 
     fun updateTargetValue(
@@ -450,14 +471,12 @@ class BuildSearchModel(
 
     fun addTarget(characteristic: Characteristic) {
         if (ui.targets.any { it.characteristic == characteristic }) {
-            ui = ui.copy(modal = null)
             return
         }
         statDefFor(characteristic)?.let { def ->
             ui =
                 ui.copy(
-                    targets = ui.targets + def.toRow(if (characteristic.isMaximizableMastery()) "1" else "0"),
-                    modal = null
+                    targets = ui.targets + def.toRow(if (characteristic.isMaximizableMastery()) "1" else "0")
                 )
         }
     }
@@ -503,7 +522,7 @@ class BuildSearchModel(
      */
     fun toggleRarity(rarity: Rarity) {
         val excluded = ui.excludedRarities
-        ui =
+        val next =
             if (rarity in excluded) {
                 ui.copy(excludedRarities = excluded - rarity)
             } else if (excluded.size < Rarity.entries.size - 1) {
@@ -511,6 +530,43 @@ class BuildSearchModel(
             } else {
                 return
             }
+        ui = next
+        reconcileForcedItemsForCurrentRequest()
+    }
+
+    private fun reconcileForcedItemsForCurrentRequest() {
+        val snapshot = ui
+        if (snapshot.forcedItems.isEmpty()) return
+        scope.launch(Dispatchers.Default) {
+            val byFrenchName = WakfuBestBuildFinderAlgorithm.equipments.groupBy { it.name.fr }
+            val kept =
+                snapshot.forcedItems.filter { chip ->
+                    val matches = byFrenchName[chip.matchName].orEmpty()
+                    matches.isEmpty() || matches.any { it.isEquippableIn(snapshot) }
+                }
+            val removed = snapshot.forcedItems.size - kept.size
+            if (removed <= 0) return@launch
+            withContext(mainDispatcher) {
+                if (ui.level == snapshot.level &&
+                    ui.minLevel == snapshot.minLevel &&
+                    ui.maxRarity == snapshot.maxRarity &&
+                    ui.excludedRarities == snapshot.excludedRarities &&
+                    ui.forcedItems == snapshot.forcedItems
+                ) {
+                    ui =
+                        ui.copy(
+                            forcedItems = kept,
+                            toast = Tr.TOAST_FORCED_ITEMS_REMOVED.value(ui.lang).format(removed)
+                        )
+                }
+            }
+        }
+    }
+
+    private fun Equipment.isEquippableIn(state: UiState): Boolean {
+        val levelOk = itemType == ItemType.PETS || itemType == ItemType.MOUNTS || level in state.minLevel..state.level
+        val rarityOk = rarity <= state.maxRarity && rarity !in state.excludedRarities
+        return levelOk && rarityOk
     }
 
     fun setDuration(duration: String) {
@@ -538,6 +594,10 @@ class BuildSearchModel(
         ui = ui.copy(useSublimations = enabled)
     }
 
+    fun setMaxSublimationTier(tier: Int?) {
+        ui = ui.copy(maxSublimationTier = tier)
+    }
+
     fun addForcedSublimation(name: String) {
         if (name.isNotBlank() && name !in ui.forcedSublimations) ui = ui.copy(forcedSublimations = ui.forcedSublimations + name)
     }
@@ -546,13 +606,22 @@ class BuildSearchModel(
         ui = ui.copy(forcedSublimations = ui.forcedSublimations - name)
     }
 
+    fun addExcludedSublimation(name: String) {
+        if (name.isNotBlank() && name !in ui.excludedSublimations) ui = ui.copy(excludedSublimations = ui.excludedSublimations + name)
+    }
+
+    fun removeExcludedSublimation(name: String) {
+        ui = ui.copy(excludedSublimations = ui.excludedSublimations - name)
+    }
+
     /**
-     * Force the sublimation chosen from the [Modal.SublimationPicker] modal, then close it. The engine
-     * matches sublimations by their **French** name, so that's the key we store (regardless of UI lang).
+     * Apply the sublimation chosen from the [Modal.SublimationPicker] modal — forced by default, EXCLUDED
+     * when the picker was opened in exclude mode — then close it. The engine matches sublimations by their
+     * **French** name, so that's the key we store (regardless of UI lang).
      */
     fun pickSublimation(sub: me.chosante.common.Sublimation) {
-        addForcedSublimation(sub.name.fr)
-        ui = ui.copy(modal = null)
+        val exclude = (ui.modal as? Modal.SublimationPicker)?.exclude == true
+        if (exclude) addExcludedSublimation(sub.name.fr) else addForcedSublimation(sub.name.fr)
     }
 
     fun removeForcedPassive(name: String) {
@@ -573,7 +642,6 @@ class BuildSearchModel(
         if (name !in ui.forcedPassives && ui.forcedPassives.size < slots) {
             ui = ui.copy(forcedPassives = ui.forcedPassives + name)
         }
-        ui = ui.copy(modal = null)
     }
 
     /** Open the per-item rune picker for [equipment] (only meaningful when the item has sockets). */
@@ -596,6 +664,22 @@ class BuildSearchModel(
                 ui.forcedRunesByItem + (itemName to runeIds)
             }
         ui = ui.copy(forcedRunesByItem = updated, modal = null)
+    }
+
+    /** Copy the runes currently displayed on [equipment] into the per-item forced-runes request. */
+    fun lockCurrentRunes(equipment: me.chosante.common.Equipment) {
+        val runeIds =
+            ui.build
+                ?.runes
+                ?.get(equipment)
+                .orEmpty()
+                .map { it.id }
+        if (runeIds.isEmpty()) return
+        ui =
+            ui.copy(
+                forcedRunesByItem = ui.forcedRunesByItem + (equipment.name.fr to runeIds),
+                toast = Tr.TOAST_RUNES_LOCKED.value(ui.lang)
+            )
     }
 
     /**
@@ -653,7 +737,6 @@ class BuildSearchModel(
             PickerMode.Excluded -> pinExcluded(chip)
             null -> {}
         }
-        ui = ui.copy(modal = null)
     }
 
     /**
@@ -684,6 +767,8 @@ class BuildSearchModel(
 
     fun search() {
         job?.cancel()
+        proofCancelled.set(true) // B8: stop the certifier DP inside the job, not just the coroutine
+        proofJob?.cancel()
         val snapshot = ui
         val character = Character(snapshot.clazz, snapshot.level, snapshot.minLevel)
         val targetStats = snapshot.toTargetStats()
@@ -713,7 +798,9 @@ class BuildSearchModel(
                 excludedItems = snapshot.excludedItems.map { it.matchName },
                 scoreComputationMode = snapshot.mode,
                 useSublimations = snapshot.useSublimations,
+                maxSublimationTier = snapshot.maxSublimationTier,
                 forcedSublimations = snapshot.forcedSublimations,
+                excludedSublimations = snapshot.excludedSublimations,
                 forcedPassives = snapshot.forcedPassives,
                 forcedRunesByItem = snapshot.forcedRunesByItem,
                 damageScenario = damageScenario
@@ -733,6 +820,7 @@ class BuildSearchModel(
                 progress = 0,
                 match = java.math.BigDecimal.ZERO,
                 optimal = false,
+                proofState = ProofState.Idle,
                 build = null,
                 achieved = emptyMap(),
                 spellRotation = null,
@@ -771,6 +859,9 @@ class BuildSearchModel(
                     var finalBuild: BuildCombination? = null
                     var finalAchieved: Map<Characteristic, Int> = emptyMap()
                     var finalRotation: SpellRotation? = null
+                    // The final SolverResult (build + isOptimal + CP-SAT objective) drives the post-search
+                    // optimality certificate below.
+                    var finalResult: SolverResult<BuildCombination>? = null
                     buildFinder(params)
                         .conflate()
                         .collect { result ->
@@ -821,6 +912,7 @@ class BuildSearchModel(
                             finalBuild = result.individual
                             finalAchieved = achieved
                             finalRotation = spellRotation
+                            finalResult = result
                             withContext(mainDispatcher) {
                                 val landedEquipmentId = newlyLandedEquipmentId(ui.build, result.individual)
                                 ui =
@@ -865,11 +957,19 @@ class BuildSearchModel(
                         } else {
                             emptyList()
                         }
+                    val completedResult = finalResult
                     withContext(mainDispatcher) {
                         if (ui.phase == Phase.Searching && hasResult) {
                             // Snap the time-based bar to a clean 100% on completion (the solver may
                             // have proven the optimum well before the wall-clock budget ran out).
                             ui = ui.copy(phase = Phase.Done, progress = 100, scenarioDamages = scenarioDamages, lastLandedEquipmentId = null)
+                            // Certificate optimality proof (P4.4): only for max-damage, and off the search's
+                            // critical path — a full exact solve can take minutes, so it runs in its own job and
+                            // streams its verdict into [UiState.proofState] when ready. It can prove an optimum
+                            // CP-SAT left un-closed (badge flips to proven even when `optimal` was false).
+                            if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE && completedResult != null) {
+                                launchOptimalityProof(params, completedResult, character, damageScenario)
+                            }
                         } else if (ui.phase == Phase.Searching) {
                             ui =
                                 ui.copy(
@@ -899,11 +999,182 @@ class BuildSearchModel(
             }
     }
 
+    /**
+     * Computes the AP-cell certificate optimality proof (P4.4) off the UI thread and streams the verdict into
+     * [UiState.proofState]. The certificate solve is a blocking call that can take minutes, so it runs in its
+     * own [proofJob]; the result is only applied while the shown build is still the one it was proving (a new
+     * search / build swap invalidates it). Failures degrade to [ProofState.Unavailable] — never a wrong badge.
+     */
+    private fun launchOptimalityProof(
+        params: WakfuBestBuildParams,
+        result: SolverResult<BuildCombination>,
+        character: Character,
+        damageScenario: DamageScenario,
+    ) {
+        val provenBuild = result.individual
+        proofCancelled.set(false)
+        val proofStartMs = clock()
+
+        // The proof-progress callback (v1): phase transitions observed HERE feed it; a later per-cell hook
+        // from the certifier DP can call the same function with cellsDone/cellsTotal filled in.
+        suspend fun reportProofProgress(progress: ProofProgress) {
+            withContext(mainDispatcher) {
+                // Only while the shown build is still the one being proven, and never resurrect a badge a
+                // cancel/load already reset (proofState must still be Proving — or Idle for the first report).
+                if (ui.phase == Phase.Done &&
+                    ui.build == provenBuild &&
+                    (ui.proofState is ProofState.Proving || ui.proofState == ProofState.Idle)
+                ) {
+                    ui = ui.copy(proofState = ProofState.Proving(progress))
+                }
+            }
+        }
+        proofJob =
+            scope.launch(Dispatchers.Default) {
+                reportProofProgress(ProofProgress(phase = ProofPhase.CERTIFYING, startedAtMs = proofStartMs))
+                val proof =
+                    try {
+                        optimalityProver(params, result) { proofCancelled.get() }
+                    } catch (cancellation: CancellationException) {
+                        throw cancellation
+                    } catch (throwable: Throwable) {
+                        throwable.printStackTrace()
+                        MaxDamageSearch.MaxDamageProof.Unavailable
+                    }
+                // E8 fast-path: a ProvenWithin verdict means the certificate has proven a strictly better build
+                // EXISTS than the search reached. Try to CONSTRUCT that proven optimum from the same certificate DP
+                // (off the UI thread, here). On success we swap the shown build to it and flip the badge to
+                // ProvenOptimal — recomputing its stats / rotation / scenario breakdown EXACTLY as the search did
+                // (same character + boss-overlaid scenario), so the whole sheet stays consistent with the paperdoll.
+                val upgrade =
+                    if (proof is MaxDamageSearch.MaxDamageProof.ProvenWithin) {
+                        reportProofProgress(ProofProgress(phase = ProofPhase.CONSTRUCTING, startedAtMs = proofStartMs))
+                        try {
+                            WakfuBestBuildFinderAlgorithm.constructMaxDamageProvenOptimum(params, result)?.let { up ->
+                                val upBuild = up.individual
+                                val upAchieved =
+                                    computeCharacteristicsValues(
+                                        buildCombination = upBuild,
+                                        characterBaseCharacteristics = character.baseCharacteristicValues,
+                                        masteryElementsWanted = params.targetStats.masteryElementsWanted,
+                                        resistanceElementsWanted = params.targetStats.resistanceElementsWanted,
+                                        scoreComputationMode = params.scoreComputationMode,
+                                        masteryElementsToMinimize = null,
+                                        resistanceElementsToMinimize = null
+                                    )
+                                val upRotation = SpellRotationOptimizer.bestSequencedRotation(upBuild, character, character.clazz, damageScenario)
+                                val upScenario =
+                                    SpellRotationOptimizer.scenarioBreakdown(
+                                        upBuild,
+                                        character,
+                                        character.clazz,
+                                        damageScenario,
+                                        includeBerserk = (upAchieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
+                                        configuredRotationTotal = upRotation?.totalExpectedDamage
+                                    )
+                                UpgradedBuild(upBuild, upAchieved, upRotation, upScenario, up.matchPercentage)
+                            }
+                        } catch (cancellation: CancellationException) {
+                            throw cancellation
+                        } catch (throwable: Throwable) {
+                            throwable.printStackTrace()
+                            null
+                        }
+                    } else {
+                        null
+                    }
+                val state =
+                    when (proof) {
+                        MaxDamageSearch.MaxDamageProof.ProvenOptimal -> ProofState.ProvenOptimal
+                        is MaxDamageSearch.MaxDamageProof.ProvenWithin -> if (upgrade != null) ProofState.ProvenOptimal else ProofState.ProvenWithin(proof.fraction)
+                        MaxDamageSearch.MaxDamageProof.Unavailable -> ProofState.Unavailable
+                    }
+                withContext(mainDispatcher) {
+                    if (ui.phase == Phase.Done && ui.build == provenBuild) {
+                        ui =
+                            if (upgrade != null) {
+                                ui.copy(
+                                    build = upgrade.build,
+                                    achieved = upgrade.achieved,
+                                    spellRotation = upgrade.rotation,
+                                    scenarioDamages = upgrade.scenario,
+                                    match = upgrade.match,
+                                    optimal = true,
+                                    proofState = state
+                                )
+                            } else {
+                                ui.copy(proofState = state)
+                            }
+                    }
+                }
+            }
+    }
+
+    // The E8-constructed proven optimum + its derived sheet fields, computed off the UI thread in
+    // [launchOptimalityProof] and applied together so the swapped build's stats stay consistent.
+    private data class UpgradedBuild(
+        val build: BuildCombination,
+        val achieved: Map<Characteristic, Int>,
+        val rotation: SpellRotation?,
+        val scenario: List<ScenarioDamage>,
+        val match: java.math.BigDecimal,
+    )
+
     fun cancel() {
         job?.cancel()
         job = null
-        ui = ui.copy(phase = Phase.Idle, progress = 0)
+        proofCancelled.set(true) // B8: stop the certifier DP inside the job, not just the coroutine
+        proofJob?.cancel()
+        proofJob = null
+        ui = ui.copy(phase = Phase.Idle, progress = 0, proofState = ProofState.Idle)
     }
+
+    /** View the currently displayed build through max-damage damage/rotation cards without re-running the solver. */
+    fun viewCurrentBuildAsMaxDamage() {
+        val snapshot = ui
+        val build = snapshot.build ?: return
+        job?.cancel()
+        proofCancelled.set(true)
+        proofJob?.cancel()
+        val character = Character(snapshot.clazz, snapshot.level, snapshot.minLevel).copy(characterSkills = build.characterSkills)
+        val damageScenario = snapshot.currentDamageScenario()
+        ui =
+            snapshot.copy(
+                mode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                phase = Phase.Done,
+                progress = 100,
+                optimal = false,
+                proofState = ProofState.Idle,
+                spellRotation = null,
+                scenarioDamages = emptyList(),
+                error = null,
+                toast = null
+            )
+        scope.launch(Dispatchers.Default) {
+            val rotation = SpellRotationOptimizer.bestSequencedRotation(build, character, character.clazz, damageScenario)
+            val breakdown =
+                SpellRotationOptimizer.scenarioBreakdown(
+                    build,
+                    character,
+                    character.clazz,
+                    damageScenario,
+                    includeBerserk = (snapshot.achieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
+                    configuredRotationTotal = rotation.totalExpectedDamage
+                )
+            withContext(mainDispatcher) {
+                if (ui.build == build && ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+                    ui = ui.copy(spellRotation = rotation, scenarioDamages = breakdown)
+                }
+            }
+        }
+    }
+
+    private fun UiState.currentDamageScenario(): DamageScenario =
+        when {
+            selectedBoss != null && bossElement != null -> scenario.against(selectedBoss, bossElement)
+            selectedBoss != null -> scenario.againstAllElements(selectedBoss)
+            else -> scenario
+        }
 
     /** Dismisses the pre-search request-errors pop-up ([UiState.requestErrors]). */
     fun dismissRequestErrors() {
@@ -1163,6 +1434,12 @@ class BuildSearchModel(
     fun loadBuild(id: String) {
         val entry = ui.savedBuilds.firstOrNull { it.id == id } ?: return
         job?.cancel()
+        // Cancel any in-flight optimality proof: it is proving the PREVIOUS build, and the loaded build has no
+        // certificate (its stored CP-SAT `optimal` flag is restored below). Without this, a running proof could
+        // leave "Proving optimality…" stuck, or a prior ProvenOptimal could paint a green badge on this build
+        // that the certificate never saw (proofState is reset to Idle in the copy below).
+        proofCancelled.set(true) // B8: stop the certifier DP inside the job, not just the coroutine
+        proofJob?.cancel()
         val loadedBuild = entry.toBuildCombination()
         // Recompute the spell rotation for a loaded max-damage build (else the Rotation card would show a
         // rotation left over from a prior search, or nothing). Cheap — no solver, just one rotation DP.
@@ -1190,10 +1467,17 @@ class BuildSearchModel(
                 targets = entry.toTargetRows(),
                 forcedItems = entry.toForcedChips(),
                 excludedItems = entry.toExcludedChips(),
+                useSublimations = entry.request.useSublimations,
+                maxSublimationTier = entry.request.maxSublimationTier,
+                forcedSublimations = entry.request.forcedSublimations,
+                excludedSublimations = entry.request.excludedSublimations,
                 phase = Phase.Done,
                 progress = 100,
                 match = entry.result.match.toBigDecimal(),
                 optimal = entry.result.optimal,
+                // A loaded build is not re-proven by the certificate (only its stored CP-SAT `optimal` flag is
+                // restored above) — reset the proof state so a prior search's verdict can't leak onto it.
+                proofState = ProofState.Idle,
                 build = loadedBuild,
                 spellRotation = rotation,
                 scenarioDamages = emptyList(),

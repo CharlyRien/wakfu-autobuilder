@@ -1,10 +1,17 @@
 package me.chosante.ui.paperdoll
 
+import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.I18nText
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
+import me.chosante.common.Sublimation
+import me.chosante.common.SublimationCondition
+import me.chosante.common.SublimationConditionType
+import me.chosante.common.SublimationKind
+import me.chosante.common.SublimationRarity
+import me.chosante.common.skills.CharacterSkills
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
@@ -47,6 +54,71 @@ class DollSlotsTest {
     fun `an empty equipment list yields an empty map`() {
         assertThat(slotAssignments(emptyList())).isEmpty()
     }
+
+    // ---- emptySlotHints ("explain the solver's choices") -----------------------------------------
+
+    @Test
+    fun `no build means no hints`() {
+        assertThat(emptySlotHints(emptyMap(), null)).isEmpty()
+    }
+
+    @Test
+    fun `an empty off-hand names the no-off-hand sublimation that requires it`() {
+        val sword = item(4, ItemType.ONE_HANDED_WEAPONS, "Épée")
+        val lwe = noOffhandSub("Expert des armes légères II")
+        val build =
+            BuildCombination(
+                equipments = listOf(sword),
+                characterSkills = CharacterSkills(110),
+                sublimations = mapOf(sword to listOf(lwe))
+            )
+        val hints = emptySlotHints(slotAssignments(build.equipments), build)
+
+        assertThat(hints["weapon2"]).isEqualTo(EmptySlotHint.SubRequiresEmpty(lwe))
+        // Other empty slots get the generic explanation, not the sub one.
+        assertThat(hints["mount"]).isEqualTo(EmptySlotHint.NoUsefulItem)
+    }
+
+    @Test
+    fun `without the sub an empty off-hand gets the generic explanation`() {
+        val sword = item(4, ItemType.ONE_HANDED_WEAPONS, "Épée")
+        val build = BuildCombination(equipments = listOf(sword), characterSkills = CharacterSkills(110))
+
+        val hints = emptySlotHints(slotAssignments(build.equipments), build)
+
+        assertThat(hints["weapon2"]).isEqualTo(EmptySlotHint.NoUsefulItem)
+    }
+
+    @Test
+    fun `a two-handed weapon fills both tiles so no weapon hint appears`() {
+        val staff = item(3, ItemType.TWO_HANDED_WEAPONS, "Bâton")
+        val build = BuildCombination(equipments = listOf(staff), characterSkills = CharacterSkills(110))
+
+        val hints = emptySlotHints(slotAssignments(build.equipments), build)
+
+        assertThat(hints).doesNotContainKeys("weapon", "weapon2")
+    }
+
+    @Test
+    fun `filled slots get no hint`() {
+        val boots = item(6, ItemType.BOOTS, "Bottes")
+        val build = BuildCombination(equipments = listOf(boots), characterSkills = CharacterSkills(110))
+
+        val hints = emptySlotHints(slotAssignments(build.equipments), build)
+
+        assertThat(hints).doesNotContainKey("boots")
+        assertThat(hints["helmet"]).isEqualTo(EmptySlotHint.NoUsefulItem)
+    }
+
+    private fun noOffhandSub(name: String): Sublimation =
+        Sublimation(
+            stateId = 6821,
+            name = I18nText(fr = name, en = name, es = name, pt = name),
+            rarity = SublimationRarity.NORMAL,
+            kind = SublimationKind.STATIC_CONDITIONAL,
+            solverChoosable = true,
+            condition = SublimationCondition(type = SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED)
+        )
 
     private fun item(
         id: Int,

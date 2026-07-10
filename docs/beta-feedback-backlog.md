@@ -41,24 +41,29 @@ chaque fiche est autonome (symptôme, cause racine, fichiers, plan, critères d'
 
 ## Tableau récapitulatif
 
+> **État au 2026-07-09.** Deux commits (`b146b68e` picker/flow, `c7cac999` cap de tier) ont fusionné **11
+> items** (RUNE-2/3, SUB-1/2, FLOW-1/2/3, PICK-1/2, REF-2, QOL-1) — suite complète verte
+> (common-lib + autobuilder + gui-compose). **Restent ouverts : ENG-3** (seul item moteur, P2) et **REF-1**
+> (partiel — les widgets/tri partagés sont faits, l'unification des 6 modales picker ne l'est pas).
+
 | ID | Titre | Type | Prio | Effort | Statut | Dépend / Conflits |
 |----|-------|------|------|--------|--------|-------------------|
 | **ENG-1** | Validation requête + **pop-up listant toutes les erreurs** (item non équipable, force-equip) | 🐞 | P0 | M | ✅ `fix/eng-1-emblem-force-equip` | inclut ENG-2 ; → PICK-1/PICK-2 |
 | **ENG-2** | Forcer 2 sublis épique/relique = recherche « sans résultat » | 🐞 | P1 | M | ✅ **fusionné dans ENG-1** | voir ENG-1 |
-| **ENG-3** | Sublimations conditionnelles (croisées + forcée) | 🐞 | P2 | M | 🔲 TODO | re-baseline tests |
+| **ENG-3** | Sublimations conditionnelles (croisées + forcée) | 🐞 | P2 | M | 🔲 **TODO — seul item moteur restant** | re-baseline tests |
 | **RUNE-1** | Runes builder ≠ Zenith : expliciter « all gold » | 🐞 | P2 | S | ✅ mergé (#181) | — |
-| **RUNE-2** | Badge « ×2 » rune doublée dans le picker | 🧹 | P3 | S | 🔲 TODO | REF-1/REF-2 (Modals) |
-| **RUNE-3** | Bouton « verrouiller les runes actuelles » | ✨ | P3 | S | 🔲 TODO | forçage par-item déjà fait |
-| **SUB-1** | Sublis : filtre/tri par rareté + couleur sur chips | ✨ | P2 | M | 🔲 TODO | REF-1/REF-2, ENG-2 |
-| **SUB-2** | Cap niveau de subli (filtre « prix » lvl 1/2/3) | ✨ | P2 | M | 🔲 TODO | ⚠️ investigation moteur |
-| **FLOW-1** | Charger un build dans un autre mode (comparer dégâts) | ✨ | P1 | M | 🔲 TODO | — |
-| **FLOW-2** | DI sélectionnable en mode max-maîtrises | ✨ | P2 | S | 🔲 TODO | 💬 décision prise |
-| **FLOW-3** | Avertir des points d'aptitude non distribués | 🧹 | P2 | S | 🔲 TODO | — |
-| **PICK-1** | Picker : checkbox « équipables uniquement » (cochée par défaut) | ✨ | P2 | M | 🔲 TODO | s'appuie sur REF-1 |
-| **PICK-2** | Nettoyer les forced hors-niveau au changement de niveau (garder excluded) | 🧹 | P2 | S | 🔲 TODO | sœur d'ENG-1 |
-| **REF-1** | Abstraction partagée des pickers add/suppr (corrige #3 partout) | 🏗️ | P1 | M | 🔲 TODO | base de RUNE-2/SUB-1 |
-| **REF-2** | Tri alphabétique localisé de TOUTES les modales catalogue | 🏗️ | P2 | M | 🔲 TODO | base de SUB-1, hotspot Modals |
-| **QOL-1** | Tooltip sur libellés de stats cibles tronqués | 🧹 | P3 | S | 🔲 TODO | — |
+| **RUNE-2** | Badge « ×2 » rune doublée dans le picker | 🧹 | P3 | S | ✅ `b146b68e` (RuneDoubleBadge + `RuneType.isDoubledOn`) | — |
+| **RUNE-3** | Bouton « verrouiller les runes actuelles » | ✨ | P3 | S | ✅ `b146b68e` (`lockCurrentRunes`) | — |
+| **SUB-1** | Sublis : filtre/tri par rareté + couleur sur chips | ✨ | P2 | M | ✅ `b146b68e` (SublimationRarityFilter/Chip) | — |
+| **SUB-2** | Cap niveau de subli (filtre « prix » lvl 1/2/3) | ✨ | P2 | M | ✅ `c7cac999` (`maxSublimationTier` + `Sublimation` tier) | — |
+| **FLOW-1** | Charger un build dans un autre mode (comparer dégâts) | ✨ | P1 | M | ✅ `b146b68e` (VIEW_AS_DAMAGE, StatsPanel) | — |
+| **FLOW-2** | DI sélectionnable en mode max-maîtrises | ✨ | P2 | S | ✅ `b146b68e` (DI_AUTOMAX_HINT, floor-only) | — |
+| **FLOW-3** | Avertir des points d'aptitude non distribués | 🧹 | P2 | S | ✅ `b146b68e` (SKILL_LEFTOVER_WARNING) | — |
+| **PICK-1** | Picker : checkbox « équipables uniquement » (cochée par défaut) | ✨ | P2 | M | ✅ `b146b68e` (EQUIPPABLE_ONLY) | — |
+| **PICK-2** | Nettoyer les forced hors-niveau au changement de niveau (garder excluded) | 🧹 | P2 | S | ✅ `b146b68e` (TOAST_FORCED_ITEMS_REMOVED) | — |
+| **REF-1** | Abstraction partagée des pickers add/suppr (corrige #3 partout) | 🏗️ | P1 | M | ⚠️ **PARTIEL** — widgets partagés (PickerToggle/DoneButton/RuneDoubleBadge) + tri REF-2, mais les 6 `*PickerModal` restent séparés | base de RUNE-2/SUB-1 |
+| **REF-2** | Tri alphabétique localisé de TOUTES les modales catalogue | 🏗️ | P2 | M | ✅ `b146b68e` (LocalizedSort.kt, 6 modales + TopBar) | — |
+| **QOL-1** | Tooltip sur libellés de stats cibles tronqués | 🧹 | P3 | S | ✅ `b146b68e` (TooltipArea sur le libellé cible) | — |
 | **QOL-2** | Durée vide → 10 minutes | 🧹 | P2 | S | ✅ mergé (#182) | — |
 | **I18N-1** | Sublis/passifs en EN sous UI FR | 🔵 | — | — | 🔵 Déjà fait (1.8.0) | résidu effect-text |
 | **CLAR-*** | Clarifications / non-bugs | 💬 | — | — | 💬 | voir section |

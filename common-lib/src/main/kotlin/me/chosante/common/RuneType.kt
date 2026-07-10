@@ -65,9 +65,10 @@ data class RuneType(
         itemLevel: Int,
     ): Int {
         val base = baseValueTable()[maxLevel(itemLevel) - 1]
-        val doubled = slotRawIds(itemType).any { it in doubleBonusPosition }
-        return if (doubled) base * 2 else base
+        return if (isDoubledOn(itemType)) base * 2 else base
     }
+
+    fun isDoubledOn(itemType: ItemType): Boolean = slotRawIds(itemType).any { it in doubleBonusPosition }
 
     private fun baseValueTable(): List<Int> =
         when (characteristic) {

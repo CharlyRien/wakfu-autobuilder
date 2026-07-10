@@ -88,4 +88,30 @@ internal fun RequestValidationProblem.localizedMessage(lang: Lang): String =
             val names = sublimations.joinToString { if (lang == Lang.FR) it.fr else it.en }
             "${Tr.FORCED_SUBLIMATION_RARITY_INVALID.value(lang)} $names"
         }
+        is RequestValidationProblem.ForcedItemAlsoExcluded -> {
+            val name = if (lang == Lang.FR) item.name.fr else item.name.en
+            "$name ${Tr.FORCED_ITEM_ALSO_EXCLUDED.value(lang)}"
+        }
+        is RequestValidationProblem.ForcedItemsSlotConflict -> {
+            val names = items.joinToString { if (lang == Lang.FR) it.fr else it.en }
+            "${Tr.FORCED_ITEMS_SLOT_CONFLICT.value(lang)} $names"
+        }
+        is RequestValidationProblem.ForcedWeaponsConflict -> {
+            val names = items.joinToString { if (lang == Lang.FR) it.fr else it.en }
+            "${Tr.FORCED_WEAPONS_CONFLICT.value(lang)} $names"
+        }
+        is RequestValidationProblem.ForcedItemRarityBudgetExceeded -> {
+            val names = items.joinToString { if (lang == Lang.FR) it.fr else it.en }
+            "${Tr.FORCED_ITEM_RARITY_BUDGET.value(lang)} $names"
+        }
+        is RequestValidationProblem.ForcedSublimationNoCarrier -> {
+            val name = if (lang == Lang.FR) sublimation.fr else sublimation.en
+            "$name ${Tr.FORCED_SUBLIMATION_NO_CARRIER.value(lang)}"
+        }
+        is RequestValidationProblem.ForcedSublimationsExceedCapacity ->
+            Tr.FORCED_SUBLIMATIONS_EXCEED_CAPACITY.value(lang)
+        is RequestValidationProblem.SublimationForcedAndExcluded -> {
+            val name = if (lang == Lang.FR) sublimation.fr else sublimation.en
+            "$name ${Tr.SUBLIMATION_FORCED_AND_EXCLUDED.value(lang)}"
+        }
     }

@@ -35,6 +35,52 @@ enum class ZenithState {
     Error,
 }
 
+/** The coarse phase the running optimality proof is in. See [ProofProgress]. */
+enum class ProofPhase {
+    /** The AP-cell certificate DP is computing the per-cell upper bounds (the long part). */
+    CERTIFYING,
+
+    /** The certificate proved a better build exists and the E8 fast-path is constructing it. */
+    CONSTRUCTING,
+}
+
+/**
+ * Live progress of the running optimality proof, shown while [ProofState.Proving].
+ *
+ * v1 carries only what is observable today: the [phase] and [startedAtMs] (the UI derives the elapsed
+ * time from it). It is deliberately shaped for a later per-cell hook from the certifier DP —
+ * [cellsDone]/[cellsTotal] stay null until the engine reports them, at which point the UI can upgrade
+ * the indeterminate spinner to a real fraction without another state change.
+ */
+data class ProofProgress(
+    val phase: ProofPhase,
+    val startedAtMs: Long,
+    val cellsDone: Int? = null,
+    val cellsTotal: Int? = null,
+)
+
+/** Max-damage AP-cell certificate verdict for the finished build (P4.4). See [UiState.proofState]. */
+sealed interface ProofState {
+    /** No proof yet (not max-damage, or before the async computation starts). */
+    data object Idle : ProofState
+
+    /** The certificate is being computed off-thread; [progress] says which phase and since when. */
+    data class Proving(
+        val progress: ProofProgress,
+    ) : ProofState
+
+    /** The build is the PROVEN optimum (CP-SAT closed the gap, or the certificate did). */
+    data object ProvenOptimal : ProofState
+
+    /** Not proven optimal, but the certificate bounds the gap: the true optimum is at most [fraction] above. */
+    data class ProvenWithin(
+        val fraction: Double,
+    ) : ProofState
+
+    /** No proof available (forced runes/sublimations, required-stat targets, or an un-proven boss). */
+    data object Unavailable : ProofState
+}
+
 enum class PickerMode {
     Forced,
     Excluded,
@@ -89,8 +135,10 @@ sealed interface Modal {
         val mode: PickerMode,
     ) : Modal
 
-    /** Pick a sublimation to force, by translated title + effect text — a centered modal like the item picker. */
-    data object SublimationPicker : Modal
+    /** Pick a sublimation by translated title + effect text — to FORCE it, or to EXCLUDE it ([exclude]). */
+    data class SublimationPicker(
+        val exclude: Boolean = false,
+    ) : Modal
 
     /** Pick a passive to add to the loadout (filtered to the current class), by name / effect. */
     data object PassivePicker : Modal
@@ -183,8 +231,12 @@ data class UiState(
     val excludedItems: List<ItemChip> = emptyList(),
     /** When true (default), the solver may pick statically-modelable sublimations. */
     val useSublimations: Boolean = true,
+    /** Optional max item tier for solver-picked sublimations; forced sublimations can still override it. */
+    val maxSublimationTier: Int? = null,
     /** Sublimations the user forces into the build (French names; incl. combat-conditional ones). */
     val forcedSublimations: List<String> = emptyList(),
+    /** Sublimations the solver must never pick (French names). */
+    val excludedSublimations: List<String> = emptyList(),
     /** The passive loadout the user selected (French names, capped to the level's slots). */
     val forcedPassives: List<String> = emptyList(),
     /**
@@ -200,9 +252,16 @@ data class UiState(
     /**
      * Max-damage mode only: true when a non-[optimal] result is *structurally* heuristic — a best-found max
      * over resistance-debuff sequencing / multi-element AP splits — rather than merely time-limited. Drives
-     * which "not proven" hint the stats panel shows. See [GeneticAlgorithmResult.maxDamageHeuristicPhases].
+     * which "not proven" hint the stats panel shows. See [SolverResult.maxDamageHeuristicPhases].
      */
     val maxDamageStructural: Boolean = false,
+    /**
+     * Max-damage mode only: the AP-cell certificate's optimality verdict for the finished build (P4.4).
+     * Computed asynchronously AFTER the search completes (a full exact solve can take minutes), so it starts
+     * [ProofState.Idle], becomes [ProofState.Proving], then resolves. It can prove optimality CP-SAT left
+     * un-closed ([optimal] false but [ProofState.ProvenOptimal]). See [ProofState].
+     */
+    val proofState: ProofState = ProofState.Idle,
     val build: BuildCombination? = null,
     val achieved: Map<Characteristic, Int> = emptyMap(),
     /** Best spells to cast for the build's AP, in max-damage mode only (else null). Computed off-thread. */
