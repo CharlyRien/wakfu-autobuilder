@@ -52,7 +52,7 @@ mono solve (AP optimized jointly, no pin) returns **OPTIMAL gap-0** on the real 
 
 **Follow-ups that also landed:** the external loop already computed `proven = (activePhases==1) && phase1Optimal`
 (= mono ∧ no-debuff ∧ CP-SAT proved), so it now reports `isOptimal=true` for the mono no-debuff case for free —
-no AP-enumeration scaffolding remained to drop. `GeneticAlgorithmResult.maxDamageHeuristicPhases` now carries
+no AP-enumeration scaffolding remained to drop. `SolverResult.maxDamageHeuristicPhases` now carries
 whether a non-optimal result is *structural* (debuff-sequencing / multi-element split) vs merely time-limited,
 and the GUI hint (`NOT_OPTIMAL_STRUCTURAL_HINT`) was rewritten — the old "the damage objective can't be proven"
 copy is obsolete now that it can.
@@ -128,7 +128,7 @@ that is *worse* (see exp E in §4). A declared domain at the true reachable max 
 Setup: real solver via `WakfuBuildSolver.optimize(params, pool, SolverTuning())`; full lvl-110 EPIC pool
 (`equipments` filtered `rarity≤EPIC`, `level∈0..110`), CRA, fire, **empty targets** (so `applyConstraintPenalty`
 adds no extra product), no runes/subs unless noted. `SolverTuning` = full presolve + det-time 60/worker + seed 1.
-`OPTIMAL` is read off `GeneticAlgorithmResult.isOptimal` (= `status==OPTIMAL`); `responseStats()` for the rest.
+`OPTIMAL` is read off `SolverResult.isOptimal` (= `status==OPTIMAL`); `responseStats()` for the rest.
 Walltime is noisy under concurrent load — **det-time is the machine-independent metric**.
 
 | # | Config | status | objective | best_bound | gap | lp_iters | branches | det-time | walltime |
@@ -379,7 +379,7 @@ f(B*)`, so `max_i f(B_i) = max_B f(B)`. Measured all OPTIMAL (wide lvl-1..110 po
 
 **Removed.** The external bi-element enumeration (`biElementScenarios`/`paretoFrontierSplits`/`MAX_BI_PROBES`),
 the in-model `perTurnDamageScoreBiElement`, `BiElementSplit` + its `maxDamageBiElement` plumbing,
-`bestSequencedTurn`/`bestSequencedTurnBiElement`, and `GeneticAlgorithmResult.maxDamageBiElement`. `proven =
+`bestSequencedTurn`/`bestSequencedTurnBiElement`, and `SolverResult.maxDamageBiElement`. `proven =
 allElementSolvesProved && !hasResistanceDebuff`; the Sram/Sadida debuff AP-window phase stays (gated, now pinned
 to the winning element so each probe is a fast single-element solve), and is the only thing that keeps a result
 `maxDamageHeuristicPhases`. Locked by `MaxDamageSearchTest "boss multi-element loop proves the optimum via
@@ -431,8 +431,33 @@ PROXY-vs-sequenced-rotation gap (the CP throughput proxy ≠ the displayed rotat
 
 ---
 
+## 8c. Landed (2026-07-04): the certificate is in PRODUCTION — final state of the campaign
+
+The research above became a shipped feature: max-damage builds now carry a **"proven optimal" badge**
+in the GUI and CLI, backed by an independent per-AP-cell **certificate** (a two-tier DP that soundly
+upper-bounds every cell; the badge is awarded iff the incumbent ≥ the ledger's `maxCellObjective`).
+The full six-phase plan + execution log lives in **`docs/CERTIFICATE_PROD_PLAN.md`** (link, not
+duplicated here) — the short version of where it landed:
+
+- **Two-tier orchestrator** (`WakfuBuildSolver.certifyLedger`): a fast tier-1 bound eliminates cells
+  ≤ incumbent; only survivors pay the exact tier-2. Parallelism is correct but ships **serial** (the
+  245 exact DP holds ~1 GB, so fanning worlds OOMs a stock heap).
+- **Production wiring**: `MaxDamageSearch.proveOptimality` →
+  `WakfuBestBuildFinderAlgorithm.proveMaxDamageOptimality`, consumed by the CLI proof line and the GUI
+  `proofState` badge (proven optimal / within X% / unavailable). Memory-only per-cell cache keyed on
+  `WakfuData.VERSION` + `CERTIFIER_VERSION`.
+- **Coverage**: forced-item pinning and forced-sublimation credit (FLAT, conditional, conversion,
+  crit-secret, combat-conditional) are all certified where sound; every unsupported shape BAILS.
+- **The one law — never under-count** (a wrong badge). Every pass is a sound upper bound, exact on most
+  shapes, loose on some; locks assert `≥`, not `==`. The P6.1 fuzz lock caught a real pre-existing
+  under-count in the **below-AP-constant** (negative-AP charging) exact DP — now walled off by a bail so
+  those cells keep the sound fast bound. `CERTIFIER_VERSION` is bumped on every certifier change.
+- **Guards**: the CI fuzz lock (seeded random pools) + a nightly `@Tag("slow")` lvl-245 ledger oracle
+  keyed on `WakfuData.VERSION` (re-bank intentionally on a data bump).
+
 ## 9. References
 - Engine: `autobuilder/.../genetic/wakfu/WakfuBuildSolver.kt`, external loop `MaxDamageSearch.kt`.
+- Certificate plan + execution log: `docs/CERTIFICATE_PROD_PLAN.md`.
 - Memory: `maxdamage-optimum-unprovable.md`. Plan context: `FULL_DAMAGE_MODE_STATUS.md`.
 - OR-Tools CP-SAT: McCormick relaxation of `AddMultiplicationEquality`; `linearization_level`,
   `num_search_workers`, `max_presolve_iterations`, `relative_gap_limit`.

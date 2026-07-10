@@ -1,6 +1,7 @@
 package me.chosante.autobuilder.domain
 
 import me.chosante.common.Characteristic
+import me.chosante.common.ScenarioGate
 import me.chosante.common.SpellDamage
 
 /** Spell element of the attack being optimized; maps to the matching elemental mastery. */
@@ -11,6 +12,45 @@ enum class SpellElement(
     WATER(Characteristic.MASTERY_ELEMENTARY_WATER),
     EARTH(Characteristic.MASTERY_ELEMENTARY_EARTH),
     AIR(Characteristic.MASTERY_ELEMENTARY_WIND),
+}
+
+/**
+ * True iff this gate restricts only by damage element ([ScenarioGate.element]) and nothing else — the shape of the
+ * per-element-damage sublimations (Brûlure/Gel/Tellurisme/Ventilation). Orientation/berserk/range gates are not
+ * pure element gates and remain max-damage-only.
+ */
+val ScenarioGate.isPureElementGate: Boolean
+    get() =
+        element != null &&
+            rangeBand == null &&
+            orientation == null &&
+            berserk != true &&
+            ranged != true &&
+            area != true &&
+            minCharacterLevel == null
+
+/**
+ * The elemental-mastery characteristic a pure element-DI gate is keyed to (FIRE → MASTERY_ELEMENTARY_FIRE,
+ * AIR → MASTERY_ELEMENTARY_WIND, …), or null if this is not a pure element gate. In most-masteries mode the
+ * per-element "+X% <element> damage" bonus is routed into the per-element damage fold of THIS mastery, so it only
+ * multiplies that element's damage (see `WakfuBuildSolver.diAdjustedPerElementMasteryScore`).
+ */
+fun ScenarioGate.perElementDiMastery(): Characteristic? = if (isPureElementGate) runCatching { SpellElement.valueOf(element!!) }.getOrNull()?.masteryCharacteristic else null
+
+/**
+ * Whether a scenario [ScenarioGate] should fire for a **most-masteries** request whose wanted element masteries
+ * are [wantedMasteries] (the `targetStats.masteryElementsWanted` keys). Most-masteries has no fixed attack
+ * scenario, so scenario-gated effects normally don't apply there — the lone exception is a **pure element gate**
+ * whose element is among the requested masteries: that element's damage is then real for the build, so a
+ * per-element "+X% <element> damage" sublimation can be credited into that element's own damage fold. MEMBERSHIP
+ * (not equality): a mono-element request ({fire}) is the special case where exactly one element matches; a
+ * multi-element request ({fire, water}) fires the matching subs independently — each routed to ITS OWN element's
+ * fold (see `WakfuBuildSolver.diAdjustedPerElementMasteryScore`), so fire's +12% never multiplies water's damage.
+ * An element-agnostic request (∅) fires nothing.
+ */
+fun ScenarioGate.firesInMostMasteries(wantedMasteries: Set<Characteristic>): Boolean {
+    val mastery = perElementDiMastery() ?: return false
+    return mastery in wantedMasteries
 }
 
 /** Distance band of the attack; selects the applicable secondary mastery. */

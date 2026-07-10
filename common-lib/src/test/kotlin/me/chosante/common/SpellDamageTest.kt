@@ -52,10 +52,10 @@ class SpellDamageTest {
                 Characteristic.MASTERY_CRITICAL to 100
             )
         val r = SpellDamage.expectedDamage(blazingArrow, stats, maxLevel)!!
-        // nonCrit = 60 × (1+5) = 360 ; crit = 76 × 1.25 × (1 + (500+100)/100) = 76 × 1.25 × 7 = 665
+        // nonCrit = 60 × (1+5) = 360 ; crit = 76 × (1 + (500+100)/100) = 76 × 7 = 532 (critDamage already +25%)
         assertEquals(360.0, r.nonCrit, 1e-9)
-        assertEquals(665.0, r.crit, 1e-9)
-        assertEquals(0.5 * 360.0 + 0.5 * 665.0, r.expected, 1e-9)
+        assertEquals(532.0, r.crit, 1e-9)
+        assertEquals(0.5 * 360.0 + 0.5 * 532.0, r.expected, 1e-9)
     }
 
     @Test
@@ -141,7 +141,7 @@ class SpellDamageTest {
     fun `negative critical mastery is clamped to zero in the crit term`() {
         val stats = mapOf(Characteristic.CRITICAL_HIT to 100, Characteristic.MASTERY_CRITICAL to -500)
         val r = SpellDamage.expectedDamage(blazingArrow, stats, maxLevel)!!
-        assertEquals(95.0, r.crit, 1e-9) // 76 × 1.25 × (1 + 0/100), negative crit mastery clamped to 0
+        assertEquals(76.0, r.crit, 1e-9) // 76 × (1 + 0/100), negative crit mastery clamped to 0 (critDamage already +25%)
     }
 
     @Test

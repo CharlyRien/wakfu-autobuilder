@@ -11,9 +11,13 @@ import kotlin.math.max
  *
  * ```
  * hit   = Base × (1 + ΣMastery/100) × (1 + ΣDamageInflicted/100) × (1 − Res%/100) × Orientation
- * crit  = Base_crit × 1.25 × (1 + (ΣMastery + criticalMastery)/100) × (1 + ΣDI/100) × (1 − Res%/100) × Orientation
+ * crit  = Base_crit × (1 + (ΣMastery + criticalMastery)/100) × (1 + ΣDI/100) × (1 − Res%/100) × Orientation
  * E[hit] = (1 − p)·hit + p·crit                       // p = usable crit rate
  * ```
+ *
+ * `Base_crit` is the spell's critical-hit base, which ALREADY includes Wakfu's global +25% crit bonus
+ * (the bdata crit scaling is the normal scaling × 1.25). It is NOT multiplied by 1.25 again. When a spell
+ * exposes no separate crit base, `Base_crit` falls back to `Base × 1.25`.
  *
  * `ΣMastery` is the element's mastery (with the generic "+all elements" `MASTERY_ELEMENTARY` folded
  * in) plus the optional secondary masteries the caller says apply ([rangeBand], rear, berserk). It is
@@ -77,8 +81,11 @@ object SpellDamage {
     ): Result? {
         val element = spell.element ?: return null
         val base = spell.baseDamageAt(characterLevel) ?: return null
-        // Crit base falls back to the normal base when the page didn't expose a separate crit hit.
-        val baseCrit = spell.critDamageAt(characterLevel) ?: base
+        // The crit-hit base. The bdata/encyclopedia critical value ALREADY includes the global +25% crit
+        // bonus — its bdata scaling is the normal scaling × CRIT_MULTIPLIER (e.g. Blazing Arrow critBase 2.5 =
+        // 2.0 × 1.25, critInc 0.30 = 0.24 × 1.25) — so it is used as-is. Only when a spell exposes NO separate
+        // crit value do we apply the standard +25% to the normal base.
+        val critHitBase = spell.critDamageAt(characterLevel)?.toDouble() ?: (base * CRIT_MULTIPLIER)
 
         fun v(c: Characteristic): Int = stats[c] ?: 0
 
@@ -104,7 +111,9 @@ object SpellDamage {
         val orientationFactor = max(orientationMultiplierPercent, 0) / 100.0
 
         val nonCrit = base * (1.0 + mastery / 100.0) * diFactor * resistanceFactor * orientationFactor
-        val crit = baseCrit * CRIT_MULTIPLIER * (1.0 + (mastery + critMastery) / 100.0) * diFactor * resistanceFactor * orientationFactor
+        // crit hit = critHitBase (already +25%) × mastery factor — NOT × CRIT_MULTIPLIER again (that double-
+        // counted the +25%, inflating every crit-build's displayed damage). Expected = blend by the crit rate.
+        val crit = critHitBase * (1.0 + (mastery + critMastery) / 100.0) * diFactor * resistanceFactor * orientationFactor
         val expected = (1.0 - critRate) * nonCrit + critRate * crit
         return Result(expected = expected, nonCrit = nonCrit, crit = crit)
     }

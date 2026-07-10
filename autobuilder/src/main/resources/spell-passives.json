@@ -7701,8 +7701,8 @@
       "pt": "Reforça a túnica e as armas do Ladino, aumentando seus pontos de vida e os de suas bombas."
     },
     "effectIds": [
-      367842,
-      395592
+      395592,
+      367842
     ],
     "declaredEffects": [],
     "flatBuildStats": {},

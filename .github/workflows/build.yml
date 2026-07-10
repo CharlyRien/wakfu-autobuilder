@@ -23,10 +23,13 @@ jobs:
                 run: ./gradlew test
 
     slow-tests:
-        # The heavy full-pool OR-Tools proof tests request 8 solver workers and burn large deterministic-time
-        # budgets, so on a 2-core runner they oversubscribe and take ~15 min. Run them nightly + on demand only,
-        # never on per-push CI.
+        # The heavy full-pool OR-Tools proof tests burn large deterministic-time budgets (the two bare
+        # free-solve proofs run the 1-worker deterministic protocol; the runes+subs guards run a short
+        # search plus the certificate), so on a 2-core runner the nightly takes a while. Run them nightly +
+        # on demand only, never on per-push CI. The det budgets are CAPS — a green proof returns as soon as
+        # OPTIMAL lands — so the timeout below is a hang/regression backstop, not the expected runtime.
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        timeout-minutes: 240 # the pre-existing catalog no-bail proof alone runs ~1 h; the rest ~30 min
         runs-on: ubuntu-latest
         steps:
             -   name: Checkout project sources

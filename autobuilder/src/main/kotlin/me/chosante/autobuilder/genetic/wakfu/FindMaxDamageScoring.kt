@@ -52,7 +52,16 @@ object FindMaxDamageScoring {
         return expectedDamage.divide(penaltyFactor, 4, RoundingMode.FLOOR)
     }
 
-    /** Expected damage of a single hit for [scenario] given the build's resolved [stats]. */
+    /**
+     * Expected damage of a single hit for [scenario] given the build's resolved [stats].
+     *
+     * This is the **CP-SAT objective's mirror** — it matches `WakfuBuildSolver.perHitDamageScore`'s `graw`:
+     * crit is modelled as `base × 1.25`, deliberately NOT the level-scaled `critDamage` the GUI display uses
+     * (`SpellDamage.expectedDamage`). Keep it that way: re-aligning this to the display's per-spell `critDamage`
+     * would make it diverge from what the solver actually optimizes and re-introduce the objective↔display
+     * mismatch (the proven optimum would no longer be the displayed best). The two converge at realistic levels
+     * anyway (`critDamage ≈ base × 1.25` once damage numbers are large).
+     */
     fun expectedDamage(
         stats: Map<Characteristic, Int>,
         scenario: DamageScenario,
@@ -78,6 +87,7 @@ object FindMaxDamageScoring {
                 (1.0 - scenario.targetResistancePercent.coerceIn(-100, DamageScenario.MAX_RESISTANCE_PERCENT) / 100.0)
 
         val nonCrit = constantFactor * (1.0 + masteryBase / 100.0)
+        // Crit = base × 1.25 (the objective's model — see the kdoc; NOT the display's level-scaled critDamage).
         val crit = constantFactor * 1.25 * (1.0 + (masteryBase + critMastery) / 100.0)
         val expected = (1.0 - critRate) * nonCrit + critRate * crit
         return expected.toBigDecimal()

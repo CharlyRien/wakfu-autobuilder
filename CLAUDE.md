@@ -9,8 +9,9 @@ it is imported below so both files stay in sync.
 
 - **Engine.** The solver is the Google OR-Tools CP-SAT solver
   (`autobuilder/.../WakfuBuildSolver.kt`, deterministic & optimal). It streams its result as a
-  `Flow<GeneticAlgorithmResult<BuildCombination>>` (legacy type name). The original genetic-algorithm
-  engine has been **removed** — OR-Tools is the only solver (no `WakfuSolver` toggle). See `AGENTS.md` §4.
+  `Flow<SolverResult<BuildCombination>>` (`SolverResult` was formerly `GeneticAlgorithmResult`; the
+  enclosing package is still named `genetic`). The original genetic-algorithm engine has been
+  **removed** — OR-Tools is the only solver (no `WakfuSolver` toggle). See `AGENTS.md` §4.
 - **OR-Tools is native.** It loads a native library at runtime, so running/testing the engine needs
   extra JVM args (`--enable-native-access=ALL-UNNAMED`, `--add-opens …`) — already wired in the
   `autobuilder` and `gui-compose` build scripts. The first search pays a one-time cold start; the

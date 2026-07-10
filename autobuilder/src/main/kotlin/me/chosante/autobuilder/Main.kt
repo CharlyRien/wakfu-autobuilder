@@ -56,9 +56,12 @@ import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.domain.against
 import me.chosante.autobuilder.domain.againstAllElements
 import me.chosante.autobuilder.domain.resistancePercent
+import me.chosante.autobuilder.genetic.wakfu.InvalidRequestException
+import me.chosante.autobuilder.genetic.wakfu.MaxDamageSearch
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildParams
+import me.chosante.autobuilder.genetic.wakfu.describe
 import me.chosante.common.Character
 import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
@@ -102,6 +105,7 @@ import me.chosante.common.RuneType
 import me.chosante.common.WakfuData
 import me.chosante.common.skills.Assignable
 import me.chosante.createZenithBuild
+import java.util.Locale
 import kotlin.system.exitProcess
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -112,7 +116,10 @@ private val logger = KotlinLogging.logger {}
  *  (`autobuilder.VERSION`) and the CLI version banner resolve unchanged. */
 internal const val VERSION = WakfuData.VERSION
 
-fun main(args: Array<String>) = WakfuAutobuild().main(args)
+fun main(args: Array<String>) {
+    MaxDamageSearch.enableCertificateDiskCache()
+    WakfuAutobuild().main(args)
+}
 
 private val additionalHelpOnStats =
     """note that, it is also possible to pass an optional weight with the following format 
@@ -480,6 +487,16 @@ HUPPERMAGE"""
             """.trimIndent()
     ).split(",").default(listOf())
 
+    private val excludedSublimations: List<String> by option(
+        "--excluded-sublimations",
+        "--sublimations-a-exclure",
+        help =
+            """
+            Forbid specific sublimations (matched on the French or English name) — the solver will never
+            pick them, e.g. --excluded-sublimations 'Expert des armes legeres II','Vivacite II'
+            """.trimIndent()
+    ).split(",").default(listOf())
+
     private val passives: List<String> by option(
         "--passives",
         "--passifs",
@@ -732,26 +749,37 @@ HUPPERMAGE"""
 
         runBlocking {
             val progressBar = progressBar(terminal)
+            val searchParams =
+                WakfuBestBuildParams(
+                    character = character,
+                    targetStats = targetStats,
+                    searchDuration = searchDuration,
+                    stopWhenBuildMatch = stopWhenBuildMatch,
+                    maxRarity = maxRarity,
+                    forcedItems = forceItems,
+                    excludedItems = excludedItems,
+                    scoreComputationMode = mode,
+                    useRunes = !noRunes,
+                    forcedRunes = forcedRunes,
+                    useSublimations = !noSublimations,
+                    forcedSublimations = forcedSublimations,
+                    excludedSublimations = excludedSublimations,
+                    forcedPassives = passives,
+                    damageScenario = damageScenario
+                )
+            // An invalid-by-construction request (contradictory forced items/sublimations, level bounds…)
+            // throws before any search work — print every problem cleanly instead of a stacktrace.
+            val resultFlow =
+                try {
+                    WakfuBestBuildFinderAlgorithm.run(searchParams)
+                } catch (invalid: InvalidRequestException) {
+                    terminal.println(TextColors.brightRed("The search request is invalid:"))
+                    invalid.problems.forEach { problem -> terminal.println(TextColors.brightRed("  • ${problem.describe()}")) }
+                    exitProcess(1)
+                }
             val bestResult =
-                WakfuBestBuildFinderAlgorithm
-                    .run(
-                        WakfuBestBuildParams(
-                            character = character,
-                            targetStats = targetStats,
-                            searchDuration = searchDuration,
-                            stopWhenBuildMatch = stopWhenBuildMatch,
-                            maxRarity = maxRarity,
-                            forcedItems = forceItems,
-                            excludedItems = excludedItems,
-                            scoreComputationMode = mode,
-                            useRunes = !noRunes,
-                            forcedRunes = forcedRunes,
-                            useSublimations = !noSublimations,
-                            forcedSublimations = forcedSublimations,
-                            forcedPassives = passives,
-                            damageScenario = damageScenario
-                        )
-                    ).buffer(CONFLATED)
+                resultFlow
+                    .buffer(CONFLATED)
                     .onStart { progressBar.execute() }
                     .onEach {
                         progressBar.update {
@@ -777,42 +805,45 @@ HUPPERMAGE"""
                     printError = true
                 )
             }
-            val bestCombination =
-                bestResult
-                    .individual
-                    .also {
-                        terminal.println("Research result")
-                        terminal.println("Equipment")
-                        terminal.println(it.equipments.asASCIITable())
-                        if (it.runes.isNotEmpty()) {
-                            terminal.println("Runes")
-                            terminal.println(it.runes.asRunesASCIITable())
-                        }
-                        if (it.sublimations.isNotEmpty()) {
-                            terminal.println("Sublimations")
-                            terminal.println(
-                                it.sublimations.values
-                                    .flatten()
-                                    .asSublimationsASCIITable()
-                            )
-                        }
-                        if (it.passives.isNotEmpty()) {
-                            terminal.println("Passives")
-                            terminal.println(it.passives.asPassivesASCIITable())
-                        }
-                        terminal.println("Skills")
-                        terminal.println("Intelligence")
-                        terminal.println(it.characterSkills.intelligence.asASCIITable())
-                        terminal.println("Strength")
-                        terminal.println(it.characterSkills.strength.asASCIITable())
-                        terminal.println("Luck")
-                        terminal.println(it.characterSkills.luck.asASCIITable())
-                        terminal.println("Agility")
-                        terminal.println(it.characterSkills.agility.asASCIITable())
-                        terminal.println("Major")
-                        terminal.println(it.characterSkills.major.asASCIITable())
-                    }
 
+            fun printBuildSheet(combination: BuildCombination) {
+                terminal.println("Equipment")
+                terminal.println(combination.equipments.asASCIITable())
+                if (combination.runes.isNotEmpty()) {
+                    terminal.println("Runes")
+                    terminal.println(combination.runes.asRunesASCIITable())
+                }
+                if (combination.sublimations.isNotEmpty()) {
+                    terminal.println("Sublimations")
+                    terminal.println(
+                        combination.sublimations.values
+                            .flatten()
+                            .asSublimationsASCIITable()
+                    )
+                }
+                if (combination.passives.isNotEmpty()) {
+                    terminal.println("Passives")
+                    terminal.println(combination.passives.asPassivesASCIITable())
+                }
+                terminal.println("Skills")
+                terminal.println("Intelligence")
+                terminal.println(combination.characterSkills.intelligence.asASCIITable())
+                terminal.println("Strength")
+                terminal.println(combination.characterSkills.strength.asASCIITable())
+                terminal.println("Luck")
+                terminal.println(combination.characterSkills.luck.asASCIITable())
+                terminal.println("Agility")
+                terminal.println(combination.characterSkills.agility.asASCIITable())
+                terminal.println("Major")
+                terminal.println(combination.characterSkills.major.asASCIITable())
+            }
+
+            terminal.println("Research result")
+            val bestCombination = bestResult.individual.also { printBuildSheet(it) }
+
+            // The build used for the Zenith export — the search's best, unless the E8 fast-path below constructs
+            // the (strictly better) proven optimum, in which case the shareable link uses that instead.
+            var zenithCombination = bestCombination
             if (mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
                 terminal.println(spellRotationReport(bestCombination, character, damageScenario))
                 if (targetBoss != null) {
@@ -820,16 +851,48 @@ HUPPERMAGE"""
                         bossSummary(targetBoss, bestCombination, character, damageScenario, bossDifficulty)
                     )
                 }
+                // Optimality proof via the AP-cell certificate (P4.5). The build is already printed above; this
+                // may take extra time when CP-SAT did not close the gap within --duration (a full exact solve),
+                // so it prints a hint first, then ALWAYS a verdict (so the hint is never left dangling).
+                terminal.println("Checking optimality…")
+                when (val proof = WakfuBestBuildFinderAlgorithm.proveMaxDamageOptimality(searchParams, bestResult)) {
+                    is MaxDamageSearch.MaxDamageProof.ProvenOptimal ->
+                        // Name the actual proof authority (D1): when CP-SAT closed the gap itself the proof
+                        // short-circuits on `isOptimal` and no certificate ever runs — crediting "(certificate)"
+                        // there was wrong.
+                        terminal.println(TextStyles.bold(if (bestResult.isOptimal) "Proven optimal (solver)" else "Proven optimal (certificate)"))
+                    is MaxDamageSearch.MaxDamageProof.ProvenWithin -> {
+                        // The certificate proves a strictly better build EXISTS than the search reached (E8). Try to
+                        // CONSTRUCT that proven optimum directly from the certificate DP (reusing the ledger just
+                        // computed). On success it IS the global optimum — show it and route the Zenith link to it;
+                        // otherwise fall back to the honest "within X%" verdict on the search's build.
+                        terminal.println("Constructing the proven-optimal build (certificate)…")
+                        val upgrade = WakfuBestBuildFinderAlgorithm.constructMaxDamageProvenOptimum(searchParams, bestResult)
+                        if (upgrade != null) {
+                            zenithCombination = upgrade.individual
+                            terminal.println(TextStyles.bold("Proven optimal — the certificate constructed a build the search had not reached:"))
+                            printBuildSheet(upgrade.individual)
+                            terminal.println(spellRotationReport(upgrade.individual, character, damageScenario))
+                        } else {
+                            terminal.println("Proven within ${String.format(Locale.ROOT, "%.1f", proof.fraction * 100)}% of optimal")
+                        }
+                    }
+                    MaxDamageSearch.MaxDamageProof.Unavailable ->
+                        // Not "no certificate for this request": the certificate now runs for required-target
+                        // requests too (it just can't rank this one — e.g. a target the incumbent misses, a boss /
+                        // multi-element shape, forced runes, or a certifier bail). Keep the verdict honest and vague.
+                        terminal.println("Optimality not proven for this request")
+                }
             }
 
             if (createZenithBuild) {
                 try {
                     val zenithInputParameters =
                         ZenithInputParameters(
-                            character = character.copy(characterSkills = bestCombination.characterSkills),
-                            equipments = bestCombination.equipments,
-                            runes = bestCombination.runes,
-                            sublimations = bestCombination.sublimations
+                            character = character.copy(characterSkills = zenithCombination.characterSkills),
+                            equipments = zenithCombination.equipments,
+                            runes = zenithCombination.runes,
+                            sublimations = zenithCombination.sublimations
                         )
                     val link = zenithInputParameters.createZenithBuild()
                     terminal.println(TextStyles.bold("Zenith Build Link: $link"))

@@ -11,27 +11,25 @@ import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.PassiveCatalog
-import me.chosante.autobuilder.domain.SpellCatalog
-import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.domain.SpellRotationOptimizer
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
-import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
+import me.chosante.autobuilder.genetic.SolverResult
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Passive
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
-import me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationConditionType
-import me.chosante.common.SublimationKind
 import me.chosante.common.SublimationRarity
 import me.chosante.common.skills.Assignable
 import me.chosante.common.skills.CharacterSkills
@@ -44,34 +42,109 @@ import kotlin.math.ceil
 import kotlin.math.min
 import kotlin.math.roundToLong
 
+/**
+ * Two-tier max-damage certificate for a single element (see `docs/CERTIFICATE_PROD_PLAN.md` §P3). All
+ * values are in OBJECTIVE units (the ONE scaling formula
+ * `clampedTable[ap] * (maxPerHit / PERHIT_DOWNSCALE) * resFactor / FINAL_DOWNSCALE`), so they compare
+ * directly against CP-SAT objectives.
+ *
+ * - [cellObjectives]: per-AP-cell certified upper bound — the EXACT value for [tier2Cells], the fast
+ *   value for cells eliminated below the incumbent (both are sound upper bounds; eliminated cells only
+ *   ever need `≤ incumbent`). Excludes [bailedCells].
+ * - [bailedCells]: cells with NO sound bound at all (the fast pass shape-bailed — all-or-nothing in
+ *   practice). Their presence forces [maxCellObjective] to `null`.
+ * - [tier2Cells]: cells CONFIRMED by the exact pass. A surviving cell on which the exact pass itself
+ *   bails keeps its (still sound) fast value and is deliberately NOT listed here — that is not a bail.
+ * - [maxCellObjective]: `max` over [cellObjectives]; `null` iff [bailedCells] is non-empty (an
+ *   unbounded cell means no provable ceiling for the element).
+ */
+data class CertLedger(
+    val cellObjectives: Map<Int, Long>,
+    val bailedCells: Set<Int>,
+    val tier2Cells: Set<Int>,
+    val maxCellObjective: Long?,
+    // B4 (incumbent-free cache): the RAW, incumbent-independent per-cell parts, so a re-search of the SAME shape
+    // with a different incumbent can reconstruct its ledger from cache instead of re-running the DPs.
+    // - [fastObjectives]: the fast-tier upper bound for EVERY cell (empty iff [bailedCells] non-empty). Unlike
+    //   [cellObjectives] (which is the exact value on [tier2Cells]), this is the pure fast array, so a new
+    //   incumbent's elimination boundary can be recomputed. A value-typed Map (not LongArray) so data-class
+    //   equality stays structural.
+    // - [exactBailedCells]: survivors whose EXACT pass itself bailed (a sound bound still exists — they keep fast).
+    //   Cached so the reconstruction knows to keep such a cell at fast rather than treating it as "not yet computed".
+    // - [tier15Objectives] (B7): survivors sharpened by the step-1 tier-1.5 pass, incumbent-independent, in OBJECTIVE
+    //   units. A cell CLEARED by tier-1.5 (bound ≤ incumbent) carries this value in [cellObjectives]; cached so a
+    //   re-search reconstructs the elimination without re-running the sharpened DP. Empty on the oracle
+    //   (`forceTier2All` / no-incumbent) path, which confirms every survivor exactly.
+    val fastObjectives: Map<Int, Long> = emptyMap(),
+    val exactBailedCells: Set<Int> = emptySet(),
+    val tier15Objectives: Map<Int, Long> = emptyMap(),
+    // E8 item A (perf): the winning (certifier world, crit-step) per EXACT-confirmed cell ([tier2Cells]). Captured
+    // for free during the exact pass so the E8 fast-path replays that ONE (world, c) as a single explain pass to
+    // recover the argmax build's items, instead of re-running the whole N-worlds provenance scan (~minutes at high
+    // level). Additive + optional: a cell absent here (an old cache entry, or a tier-1.5-cleared argmax) makes the
+    // fast-path fall back to the full scan — sound and correct, just slower. It changes NO bound, so there is NO
+    // CERTIFIER_VERSION bump and NO oracle re-run.
+    val cellProvenance: Map<Int, CellProvenance> = emptyMap(),
+)
+
+/**
+ * E8 item A (perf): the winning (certifier world, crit-step) of a cell's EXACT certificate bound — see
+ * [CertLedger.cellProvenance]. [worldIndex] indexes the deterministic `certifierWorlds` list and [c] is the
+ * arithmetic crit total; both are re-derived under the same [WakfuBuildSolver.CERTIFIER_VERSION] (which the
+ * cache key pins), so a cached pointer can never bind to a different world enumeration.
+ */
+@Serializable
+data class CellProvenance(
+    val worldIndex: Int,
+    val c: Int,
+)
+
+// Solver-wide numeric bounds/scales, de-nested from the object so StatBuilder.kt (same package) sees them
+// by bare name instead of importing 30+ object members (B1 of docs/code-review-followups.md).
+internal const val STAT_ABS_MAX = 10_000_000L
+internal const val PERCENT_ABS_MAX = 10_000L
+internal const val PRODUCT_ABS_MAX = STAT_ABS_MAX * PERCENT_ABS_MAX
+internal const val STAT_WITH_PERCENT_ABS_MAX = STAT_ABS_MAX + (PRODUCT_ABS_MAX / 100) + 10
+internal const val MAX_POWER_TABLE_INDEX = 2_000
+internal const val MAX_PENALTY_MULTIPLIER = 1_000_000L
+internal const val MAX_NORMAL_SUBLIMATIONS = 10L // Wakfu: at most 10 NORMAL sublimations (one per socketed gear slot).
+internal const val MAX_SUBLIMATIONS_TOTAL = MAX_NORMAL_SUBLIMATIONS + 2L // + 1 epic + 1 relic (dedicated slots) = 12.
+internal const val NORMAL_SUB_SOCKET_COST = 3L // a normal sublimation needs a 3-socket carrier for its ordered colour pattern.
+internal const val MAX_OUT_OF_COMBAT_AP = 16L
+internal const val MAX_OUT_OF_COMBAT_MP = 8L
+internal const val MAX_OUT_OF_COMBAT_WP = 20L
+internal const val MIN_OUT_OF_COMBAT_CRIT = -9L // negative-crit gear is condition-limited to ≥ −9% total.
+internal const val DAMAGE_MASTERY_MAX = 100_000L
+internal const val CLAMP_INTERMEDIATE_MAX = 8_000_000_000L
+internal const val DAMAGE_GRAW_MAX = 400L * DAMAGE_MASTERY_MAX + 100L * (DAMAGE_MASTERY_MAX * 6)
+internal const val DAMAGE_SCORE_ABS_MAX = (100L + DAMAGE_DI_MAX) * DAMAGE_GRAW_MAX
+internal const val MAX_ROTATION_AP = 20L
+internal const val PER_TURN_THROUGHPUT_MAX = 60_000L
+internal const val RES_FACTOR_MIN = 10L // res capped at +90% → factor ≥ 10
+internal const val RES_FACTOR_MAX = 200L // weakness floored at −100% → factor ≤ 200
+internal const val PERHIT_DOWNSCALE = 100_000L
+internal const val PERHIT_SCALED_MAX = DAMAGE_SCORE_ABS_MAX / PERHIT_DOWNSCALE + 1 // ≈ 5.1e6
+internal const val ROTATION_RAW_MAX = PER_TURN_THROUGHPUT_MAX * PERHIT_SCALED_MAX // ≈ 3.06e11
+internal const val ROTATION_RAW_RES_MAX = ROTATION_RAW_MAX * RES_FACTOR_MAX // ≈ 6.12e13
+internal const val FINAL_DOWNSCALE = 20L
+internal const val DAMAGE_PERTURN_ABS_MAX = ROTATION_RAW_RES_MAX / FINAL_DOWNSCALE // ≈ 3.06e12
+internal const val FAST_C_SEGMENT_STEP = 8
+internal const val EHP_HP_MAX = 1_000_000L
+internal const val EHP_AVG_RESIST_CAP = 80L
+internal const val EHP_MAX = EHP_HP_MAX * (100L + EHP_AVG_RESIST_CAP) / 100L
+internal const val PRECISION_OVERFLOW_BOUND = 1_000_000_000L
+
 object WakfuBuildSolver {
     private val logger = KotlinLogging.logger {}
 
-    private const val STAT_ABS_MAX = 10_000_000L
-    private const val PERCENT_ABS_MAX = 10_000L
-    private const val PRODUCT_ABS_MAX = STAT_ABS_MAX * PERCENT_ABS_MAX
-    private const val STAT_WITH_PERCENT_ABS_MAX = STAT_ABS_MAX + (PRODUCT_ABS_MAX / 100) + 10
-
     // MASTERY_SCORE_ABS_MAX is shared with the re-scorer — see ScoreComputationMode.kt.
-    private const val MAX_POWER_TABLE_INDEX = 2_000
-    private const val MAX_PENALTY_MULTIPLIER = 1_000_000L
-    private const val MAX_SUBLIMATIONS = 10L // Wakfu: at most 10 sublimations on a build (incl. ≤1 epic, ≤1 relic).
-    private const val NORMAL_SUB_SOCKET_COST = 3L // a normal sublimation needs a 3-socket carrier for its ordered colour pattern.
 
     // Out-of-combat hardcaps (Wakfu): the equipped sheet can't exceed these. In-combat bonuses — including
     // start-of-combat sublimations — may go beyond, so the cap is on the PRE-sublimation value.
-    private const val MAX_OUT_OF_COMBAT_AP = 16L
-    private const val MAX_OUT_OF_COMBAT_MP = 8L
-    private const val MAX_OUT_OF_COMBAT_WP = 20L
-    private const val MIN_OUT_OF_COMBAT_CRIT = -9L // negative-crit gear is condition-limited to ≥ −9% total.
 
     // Bounds for the max-damage objective's nonlinear terms. Masteries / DI are clamped into these
     // (well above any real build) so the CP-SAT multiplication variables keep small, stable domains.
     // DAMAGE_DI_FLOOR / DAMAGE_DI_MAX are shared with the re-scorers — see ScoreComputationMode.kt.
-    private const val DAMAGE_MASTERY_MAX = 100_000L
-    private const val CLAMP_INTERMEDIATE_MAX = 8_000_000_000L
-    private const val DAMAGE_GRAW_MAX = 400L * DAMAGE_MASTERY_MAX + 100L * (DAMAGE_MASTERY_MAX * 6)
-    private const val DAMAGE_SCORE_ABS_MAX = (100L + DAMAGE_DI_MAX) * DAMAGE_GRAW_MAX
 
     // Spell-aware / boss-aware per-turn damage (max-damage mode only). The per-turn value is
     // `(throughput × perHit) × resFactor`, scaled to keep every CP-SAT variable domain modest (≤ ~6e13,
@@ -79,7 +152,36 @@ object WakfuBuildSolver {
     // core is first divided by [PERHIT_DOWNSCALE] (keeps ~5M levels — fine even for low-level builds),
     // then the `× resFactor` product is divided by [FINAL_DOWNSCALE] so the value — and then the
     // power-6 constraint penalty (× MAX_PENALTY_MULTIPLIER) — stays under Long.MAX/2.
-    private const val MAX_ROTATION_AP = 20L
+
+    /**
+     * Certifier semantics version — **bump on ANY change to the certifier** (fast pass, exact pass,
+     * orchestrator, scaling formula, world enumeration). Keys the P4.3 session cache alongside
+     * [me.chosante.common.WakfuData.VERSION], so a certifier change invalidates every cached per-cell bound
+     * instead of silently serving a stale (possibly now-unsound) certificate.
+     *
+     * History — 8: fast-pass DenseDp port; 9: (superseded) subCap 10→12 + item-flag normal filter; 10: n
+     * counts NORMAL-slot subs only — epic/relic subs ride their dedicated slots at the same n (budgets/topK
+     * back on the normal cap) + exact sub-MP debit (no ≥0 clamp) for MP-sourced ramps; 11: (superseded) first
+     * cut of cumulable stacking — the keptSubs pool-duplication was in place but the model's copy vars leaked
+     * into the passive DI/mastery constants at their untracked ±1e7 domain, exploding the bound; 12: cumulable
+     * stacking done right — [keptSubs] duplicates a cumulable sub's single-copy Raw [Sublimation.maxCopies]
+     * times, and the model's copy vars are DROPPED from the certifier term lists ([certifierDroppedVars]) so
+     * their value rides the base subVar term instead of leaking into the constants; 13: FORCED cumulable subs
+     * stack as well — their base copy stays in the constants (and pre-charges its slot via `subCap`) while their
+     * `maxCopies − 1` extra copies join the OPTIONAL pools, so the budget/crit-window machinery prices them like
+     * any other copy; 14: multiplicity encoding — the DP passes collapse a cumulable sub's duplicated entries
+     * into ONE stage taking j ∈ 0..maxCopies copies at once (`normalTransitionStages`). Same reachable set,
+     * identical certified values (a mult > 1 sub is unconditional and never a ramp, so its per-copy contribution
+     * is constant), but half the transition stages — v13 paid one full frontier sweep per COPY, which cost 3.4×
+     * on the lvl-110 badge proof and ≥7.8× on a lvl-245 back+berserk request. keptSubs stays duplicated for the
+     * slot-counting consumers (budgets / segment edges / minSubsToCover); 15: FAMILY BUDGETS — mono-axis
+     * unconditional transition subs (pure-DI, pure-mastery) leave the DP stages entirely and are priced at
+     * harvest as sorted-prefix budgets (`diPrefix` / `grawBudgetPrefix` + `budgetMax` split enumeration over the
+     * free slots), exactly like the pre-existing pure-crit / pure-AP budgets; all-zero Raws (off-element DI subs
+     * in a mono-element scenario) are dropped outright. Reachable value set identical (sorted-prefix selection
+     * is exact for a mono-axis family) ⇒ certified values unchanged; only the DP frontier shrinks.
+     */
+    const val CERTIFIER_VERSION: Int = 15
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
@@ -88,15 +190,16 @@ object WakfuBuildSolver {
     // solver without affecting the result: the FINAL build is recomputed unconditionally after solve() and
     // delivered via a guaranteed (suspending) send, so throttling intermediates can never drop or reorder it.
     private const val INTERMEDIATE_EMIT_THROTTLE_MS = 500L
-    private const val PER_TURN_THROUGHPUT_MAX = 60_000L
-    private const val RES_FACTOR_MIN = 10L // res capped at +90% → factor ≥ 10
-    private const val RES_FACTOR_MAX = 200L // weakness floored at −100% → factor ≤ 200
-    private const val PERHIT_DOWNSCALE = 100_000L
-    private const val PERHIT_SCALED_MAX = DAMAGE_SCORE_ABS_MAX / PERHIT_DOWNSCALE + 1 // ≈ 5.1e6
-    private const val ROTATION_RAW_MAX = PER_TURN_THROUGHPUT_MAX * PERHIT_SCALED_MAX // ≈ 3.06e11
-    private const val ROTATION_RAW_RES_MAX = ROTATION_RAW_MAX * RES_FACTOR_MAX // ≈ 6.12e13
-    private const val FINAL_DOWNSCALE = 20L
-    private const val DAMAGE_PERTURN_ABS_MAX = ROTATION_RAW_RES_MAX / FINAL_DOWNSCALE // ≈ 3.06e12
+
+    // E8 fallback (see [dpConstructProvenOptimum]): deterministic-time budget for the full-pool
+    // feasibility re-solve (`rawScore ≥ bound`, stop at first solution). It only runs when the restricted
+    // fast path misses the bound — before the fallback existed those shapes produced NO construction at
+    // all — so a generous budget trades bounded extra latency (async, badge-only path) for reliability.
+    private const val E8_FALLBACK_DETERMINISTIC_BUDGET = 300.0
+
+    // FAST tier-1 certifier (P2): crit-grid step for the per-segment 3-D passes. Each segment folds point
+    // graw at its top crit, so the fold looseness on the critM slice is bounded by ~step/c — smaller = tighter
+    // but more segments (linear cost). Tune against the 110/245 fast-vs-exact ratios.
 
     // Survivability soft-floor (Lot 5, opt-in). The effective-HP proxy EHP ≈ HP·(100+avgResist)/100 is
     // bucketed against the floor and feeds a GENTLE power-2 penalty (vs the power-6 used for hard AP/MP
@@ -104,9 +207,6 @@ object WakfuBuildSolver {
     // is averaged over the 4 elements and capped at EHP_AVG_RESIST_CAP (Wakfu's soft resist ceiling), so
     // one extreme element can't inflate the proxy. EHP_MAX bounds the proxy's CP-SAT domain (HP·1.8); it
     // is far above any real build.
-    private const val EHP_HP_MAX = 1_000_000L
-    private const val EHP_AVG_RESIST_CAP = 80L
-    private const val EHP_MAX = EHP_HP_MAX * (100L + EHP_AVG_RESIST_CAP) / 100L
     private const val SURVIVABILITY_PENALTY_POWER = 2
 
     // Max gentle-penalty multiplier; the EHP penalty rescales by this then divides back out, so meeting
@@ -129,7 +229,7 @@ object WakfuBuildSolver {
     // unchanged.
     private const val WEIGHT_SCALE = 1_000L
 
-    private val NON_ELEMENTARY_MASTERIES =
+    internal val NON_ELEMENTARY_MASTERIES =
         listOf(
             Characteristic.MASTERY_BACK,
             Characteristic.MASTERY_BERSERK,
@@ -139,7 +239,7 @@ object WakfuBuildSolver {
             Characteristic.MASTERY_MELEE
         )
 
-    private val NEGATIVE_MASTERY_PENALTY =
+    internal val NEGATIVE_MASTERY_PENALTY =
         listOf(
             Characteristic.MASTERY_BACK,
             Characteristic.MASTERY_CRITICAL,
@@ -199,9 +299,9 @@ object WakfuBuildSolver {
     }
 
     /** Fixed-point version of [TargetStats.weight] so sub-unit weights survive integer arithmetic. */
-    private fun TargetStats.scaledWeight(targetStat: TargetStat): Long = (weight(targetStat) * WEIGHT_SCALE).roundToLong()
+    internal fun TargetStats.scaledWeight(targetStat: TargetStat): Long = (weight(targetStat) * WEIGHT_SCALE).roundToLong()
 
-    private val ELEMENTARY_MASTERIES =
+    internal val ELEMENTARY_MASTERIES =
         listOf(
             Characteristic.MASTERY_ELEMENTARY_WATER,
             Characteristic.MASTERY_ELEMENTARY_FIRE,
@@ -209,7 +309,7 @@ object WakfuBuildSolver {
             Characteristic.MASTERY_ELEMENTARY_WIND
         )
 
-    private val ELEMENTARY_RESISTANCES =
+    internal val ELEMENTARY_RESISTANCES =
         listOf(
             Characteristic.RESISTANCE_ELEMENTARY_WATER,
             Characteristic.RESISTANCE_ELEMENTARY_FIRE,
@@ -220,9 +320,8 @@ object WakfuBuildSolver {
     // Upper bound for the "exceed the target once everything is met" tie-breaker. Far above any
     // realistic scaled overflow, so the clamp never triggers in practice while keeping the
     // lexicographic objective (hit targets first, then maximise overflow) inside Long range.
-    private const val PRECISION_OVERFLOW_BOUND = 1_000_000_000L
 
-    private val RANDOM_RESISTANCES =
+    internal val RANDOM_RESISTANCES =
         listOf(
             Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT,
             Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT,
@@ -231,14 +330,14 @@ object WakfuBuildSolver {
 
     // Per-element random lines paired with how many distinct elements each rolls onto. Used to fold
     // random masteries/resistances into specific elements exactly as the scorers do.
-    private val MASTERY_RANDOM_BY_COUNT =
+    internal val MASTERY_RANDOM_BY_COUNT =
         listOf(
             Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT to 1,
             Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT to 2,
             Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT to 3
         )
 
-    private val RESISTANCE_RANDOM_BY_COUNT =
+    internal val RESISTANCE_RANDOM_BY_COUNT =
         listOf(
             Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT to 1,
             Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT to 2,
@@ -256,7 +355,7 @@ object WakfuBuildSolver {
      * tractability gain, so we now solve those on the full pool. Multi-element / aggregate requests still
      * prefilter (the explosion is real for them); pool dominance-pruning to drop it there too is future work.
      */
-    private fun needsItemPrefilter(targetStats: TargetStats): Boolean = targetStats.masteryElementsWanted.size > 1 || targetStats.resistanceElementsWanted.size > 1
+    internal fun needsItemPrefilter(targetStats: TargetStats): Boolean = targetStats.masteryElementsWanted.size > 1 || targetStats.resistanceElementsWanted.size > 1
 
     /**
      * Restricts each slot to the items that can plausibly matter for the requested stats. The full
@@ -336,6 +435,30 @@ object WakfuBuildSolver {
         val numSearchWorkers: Int = 8,
         val randomSeed: Int = 1,
         val maxDeterministicTime: Double = 60.0,
+        val maxDamageExperiment: MaxDamageExperimentConfig = MaxDamageExperimentConfig(),
+        // D3: `interleaveSearch` makes a 1-worker solve fully machine-reproducible (the canonical
+        // deterministic protocol: 1 worker + interleave + fixed seed). Multi-worker results — even with a
+        // det-time budget and a fixed seed — are worker-RACE-dependent, so a proof-by-deadline assert on
+        // them flakes on oversubscribed CI. Default false keeps every existing tuning byte-identical.
+        val interleaveSearch: Boolean = false,
+        // C8(2) A/B seams: override the presolve-iteration cap / linearization level on the STANDARD solve
+        // path (production pins presolve=1 + linearization=1 for the non-max-damage modes; the A/B measures
+        // whether max-damage's 3/2 combination also wins for most-masteries). Null = today's behavior.
+        val maxPresolveIterationsOverride: Int? = null,
+        val linearizationLevelOverride: Int? = null,
+        // Profiling seam: override the "domination only when tuning == null" production coupling, so a
+        // deterministic (tuned) solve can measure the PRODUCTION pool (domination ON) — the C8(2)-era tuned
+        // runs silently measured the full pool. Null = today's behavior (tuned ⇒ full pool).
+        val applyDominationOverride: Boolean? = null,
+        // C8(3) A/B seam: enable the most-masteries greedy warm start (instant emission + CP-SAT hint,
+        // see [MostMasteriesWarmStart]) on the tuned path. Default false keeps every existing
+        // deterministic test byte-identical; production follows its own gate in [optimize].
+        val greedyWarmStart: Boolean = false,
+        // E8 fallback: stop the search at the FIRST solution instead of running the budget out. Only
+        // meaningful together with [optimize]'s `maxDamageRawFloor` — there ANY feasible solution already
+        // sits at the certificate bound (the floor is a sound per-cell upper bound), so proving optimality
+        // on top is pure waste; the final emission delivers the stopped-at solution.
+        val stopAtFirstSolution: Boolean = false,
     )
 
     fun optimize(
@@ -343,20 +466,20 @@ object WakfuBuildSolver {
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         runes: List<RuneType> = emptyList(),
         sublimations: List<Sublimation> = emptyList(),
-    ): Flow<GeneticAlgorithmResult<BuildCombination>> = optimize(params, equipmentsByItemType, runes, sublimations, tuning = null)
+    ): Flow<SolverResult<BuildCombination>> = optimize(params, equipmentsByItemType, runes, sublimations, tuning = null)
 
     internal fun optimize(
         params: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         tuning: SolverTuning?,
-    ): Flow<GeneticAlgorithmResult<BuildCombination>> = optimize(params, equipmentsByItemType, emptyList(), emptyList(), tuning)
+    ): Flow<SolverResult<BuildCombination>> = optimize(params, equipmentsByItemType, emptyList(), emptyList(), tuning)
 
     internal fun optimize(
         params: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         runes: List<RuneType>,
         tuning: SolverTuning?,
-    ): Flow<GeneticAlgorithmResult<BuildCombination>> = optimize(params, equipmentsByItemType, runes, emptyList(), tuning)
+    ): Flow<SolverResult<BuildCombination>> = optimize(params, equipmentsByItemType, runes, emptyList(), tuning)
 
     internal fun optimize(
         params: WakfuBestBuildParams,
@@ -364,31 +487,105 @@ object WakfuBuildSolver {
         runes: List<RuneType>,
         sublimations: List<Sublimation>,
         tuning: SolverTuning?,
-    ): Flow<GeneticAlgorithmResult<BuildCombination>> =
+        // Max-damage hard-constraints-first pass: enforce the required targets as HARD `actual ≥ target`
+        // constraints under a plain damage objective. INFEASIBLE (unreachable targets) ⇒ the flow emits nothing;
+        // the caller ([MaxDamageSearch.optimizeHardThenSoft]) then re-runs with this false (the soft penalty).
+        // Default false keeps every existing caller (all deterministic tests) byte-identical.
+        hardConstraints: Boolean = false,
+        // E8 fallback (max-damage only): a HARD `rawScore ≥ floor` constraint. With the floor set to a
+        // certificate cell bound (a sound UPPER bound at that pinned AP cell), the solve becomes a
+        // FEASIBILITY search: any solution it finds already reaches the bound — combine with
+        // [SolverTuning.stopAtFirstSolution]. An unreachable floor (a loose bound) yields INFEASIBLE ⇒
+        // the flow emits nothing, which the E8 caller maps to null (sound: no badge, never a wrong one).
+        maxDamageRawFloor: Long? = null,
+    ): Flow<SolverResult<BuildCombination>> =
         callbackFlow {
-            withContext(Dispatchers.IO) {
-                // Domination runs only on the production (wall-clock) path: tuning == null. The deterministic
-                // test path keeps the full pool so existing tests are untouched; the soundness lock toggles it.
-                val built = buildModel(params, equipmentsByItemType, runes, sublimations, applyDomination = tuning == null)
-                executeSolverAndEmitResults(
-                    built.model,
-                    params,
-                    built.allEquips,
-                    built.equipVars,
-                    built.skillVars,
-                    built.runeModel,
-                    built.subModel,
-                    this@callbackFlow,
-                    tuning
-                )
+            // The native solve blocks its worker thread and cannot be interrupted by coroutine cancellation, so
+            // hold the [CpSolver] here and stop it from [awaitClose] on flow teardown. The in-callback stop
+            // (onSolutionCallback → stopSearch) only fires for models that reach a solution; an INFEASIBLE solve
+            // never does, and without this would keep its native workers pinned until maxTimeInSeconds after the
+            // collector is gone (the max-damage hard leg's infeasible case). CpSolver.stopSearch() is synchronized
+            // (thread-safe), so calling it from the teardown thread is safe.
+            val solverHandle =
+                java.util.concurrent.atomic
+                    .AtomicReference<CpSolver?>()
+            val job =
+                launch(Dispatchers.IO) {
+                    // Domination runs only on the production (wall-clock) path: tuning == null. The deterministic
+                    // test path keeps the full pool so existing tests are untouched; the soundness lock toggles it.
+                    val built =
+                        buildModel(
+                            params,
+                            equipmentsByItemType,
+                            runes,
+                            sublimations,
+                            applyDomination = tuning?.applyDominationOverride ?: (tuning == null),
+                            maxDamageExperiment = tuning?.maxDamageExperiment ?: MaxDamageExperimentConfig.DEFAULT,
+                            hardConstraints = hardConstraints
+                        )
+                    // C2: a hard-constraints model with a required target above its reachable ceiling is PROVABLY
+                    // infeasible — skip the doomed CP-SAT solve entirely and emit nothing. The caller
+                    // ([MaxDamageSearch.optimizeHardThenSoft]) already treats an empty hard leg as its fallback
+                    // trigger, so the soft (penalized) leg runs exactly as it would after a CP-SAT INFEASIBLE — only
+                    // without paying the full-budget native solve first.
+                    if (built.maxDamageStaticallyInfeasible) {
+                        close()
+                        return@launch
+                    }
+                    // E8 fallback floor — see the parameter doc. rawScore is always populated in max-damage
+                    // mode; a null (another mode) simply ignores the floor, and E8 never calls those modes.
+                    if (maxDamageRawFloor != null) {
+                        built.maxDamageRawScore?.let { built.model.addGreaterOrEqual(it, maxDamageRawFloor) }
+                    }
+                    // C8(3) greedy warm start (most-masteries only): stream a decent build IMMEDIATELY
+                    // (CP-SAT's presolve + first feasible take ~26–32 s on the lvl-245 production shape,
+                    // during which the UI otherwise shows nothing) and hint the equipment layer so the
+                    // search starts from that incumbent instead of near zero. Optimality-neutral: the
+                    // emission is an extra streamed result; a hint can never change the optimum. Gated to
+                    // production (tuning == null) or the explicit A/B flag, so deterministic tests are
+                    // byte-identical. The greedy score also becomes the intermediate-emission floor —
+                    // consumers keep the LAST emission, so a later, WORSE snapshot would visibly regress
+                    // the displayed build.
+                    val greedyEnabled =
+                        params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+                            (tuning?.greedyWarmStart ?: true)
+                    val warmStart = if (greedyEnabled) MostMasteriesWarmStart.greedyBuild(params, built.allEquips) else null
+                    val warmScore =
+                        warmStart?.let { combination ->
+                            val score = scoreFor(params, combination)
+                            val picked = combination.equipments.toHashSet()
+                            for ((equip, v) in built.equipVars) built.model.addHint(v, if (equip in picked) 1L else 0L)
+                            trySend(SolverResult(combination, score, 0))
+                            score
+                        }
+                    executeSolverAndEmitResults(
+                        built.model,
+                        params,
+                        built.allEquips,
+                        built.equipVars,
+                        built.skillVars,
+                        built.runeModel,
+                        built.subModel,
+                        built.maxDamageRawScore,
+                        this@callbackFlow,
+                        tuning,
+                        onSolverReady = { solverHandle.set(it) },
+                        suppressBelowScore = warmScore
+                    )
+                    close()
+                }
+            awaitClose {
+                solverHandle.get()?.stopSearch()
+                job.cancel()
             }
-            close()
-            awaitClose { }
         }
 
     private class BuiltModel(
         val model: CpModel,
         val objective: IntVar,
+        // Max-damage only: the UNPENALIZED per-turn damage proxy var (see [MaxDamageObjectiveVars.rawScore]).
+        // Read on the solved assignment to stamp [SolverResult.maxDamageRawProxy]; null in the other modes.
+        val maxDamageRawScore: IntVar?,
         val allEquips: List<Equipment>,
         val equipVars: Map<Equipment, IntVar>,
         val skillVars: Map<SkillCharacteristic, IntVar>,
@@ -399,108 +596,79 @@ object WakfuBuildSolver {
         val maxDamageTracked: List<Triple<IntVar, String, LongRange>> = emptyList(),
         // Precision only: same, for [precisionVarBoundsForTest] (empty for the other modes).
         val precisionTracked: List<Triple<IntVar, String, LongRange>> = emptyList(),
+        // Max-damage only: the EXACT per-AP-cell certifier objective (single-element), captured when buildModel
+        // is called with certifyAllApForTest = true. Key = AP, value = certifier objective (or -1 where the
+        // certifier bails to CP-SAT). Empty otherwise. See [certifierCellObjectivesForTest].
+        val certifierObjectivesForTest: Map<Int, Long> = emptyMap(),
+        // Max-damage only: the FAST tier-1 per-AP-cell objective (sound upper bound, -1 where it bails),
+        // captured alongside the exact one when certifyAllApForTest = true and no audit cell filter is set.
+        // Empty otherwise. Compared against [certifierObjectivesForTest] by the `fast ≥ exact` lock.
+        val certifierFastObjectivesForTest: Map<Int, Long> = emptyMap(),
+        // Max-damage only (B7): the TIER-1.5 sharpened per-AP-cell objective (sound upper bound, -1 where it bails),
+        // captured alongside exact+fast when certifyAllApForTest = true. Empty otherwise. Sits between them in the
+        // `fast ≥ tier1.5 ≥ exact` lock.
+        val certifierTier15ObjectivesForTest: Map<Int, Long> = emptyMap(),
+        // Max-damage only: the two-tier [CertLedger] (P3.2), captured when certifyLedgerForTest = true. Null otherwise.
+        val certifierLedgerForTest: CertLedger? = null,
+        // Provenance lines for [certifyExplainCellForTest] (empty otherwise).
+        val certifierExplainForTest: List<String> = emptyList(),
+        // E8 item A: the STRUCTURED provenance — the winning composition's equipmentIds (empty otherwise).
+        val certifierExplainItemIds: List<Int> = emptyList(),
+        // C2: max-damage hard-constraints only — true when a required target exceeds its reachable ceiling, so the
+        // model is PROVABLY infeasible and [optimize] can skip the CP-SAT solve. Always false in the other modes.
+        val maxDamageStaticallyInfeasible: Boolean = false,
+        // C7: the crit·diff AM-GM bound actually added as a constraint (null = the cut did not fire). See
+        // [StatBuilder.critDiffJointCutBoundForTest] / [maxDamageCritDiffCutBoundForTest].
+        val critDiffJointCutBoundForTest: Long? = null,
     )
 
     /**
-     * The characteristics to PIN to equality in the domination relation for these params — or `null` to not
-     * apply the pre-filter at all. An empty set means full domination (no condition to respect).
-     *
-     * Applies to **all three modes** — each maximizes an objective that is **monotone non-decreasing in every
-     * characteristic** (more of any stat is never worse), so an item beaten on every stat is never needed:
-     *  - max-damage: `throughput × perHit`, both ≥ 0;
-     *  - precision: a sum of `min(actual, target)` terms — capped at the target, so overshoot is *neutral*, not
-     *    penalized (my earlier "penalizes overshoot" claim was wrong);
-     *  - most-masteries: `masteryScore × penaltyMultiplier`, the penalty CAPPED at the target (shortfall only)
-     *    with overshoot rewarded by a tie-breaker. The product is monotone *where it matters*: the optimum
-     *    always has `masteryScore ≥ 0` (the empty build already scores objective ≥ 0, so a negative-mastery
-     *    build is strictly worse), and for `masteryScore ≥ 0` the dominance swap `(m+Δm)(μ+Δμ) ≥ mμ` holds.
-     *
-     * A **conditional** sublimation makes some stats non-monotone: a build may keep a weaker (e.g. low-secondary)
-     * item *specifically* to satisfy a cap like `SECONDARY_MASTERIES_AT_MOST`, which domination would remove.
-     * Rather than gate off, we pin **every stat a dangerous (≤ / exact / parity) condition reads** to equality,
-     * so the swap can't move that stat's build sum and no sub can flip — while domination still fires across
-     * every stat no condition touches. A `≥`-type condition stays satisfied under a `≥` swap on a beneficial
-     * choosable sub, so it needs no pin. Returns `null` (gate off) for a forced item / rune-carrier, a forced
-     * conditional sub (unknown effect direction), or a condition that compares two build stats / is categorical
-     * and can't be reduced to a stat pin.
+     * Exact `floor((a · b) / divisor)` clamped to `[0, cap]`. Used where a HARD CP-SAT upper bound is derived
+     * from a product of two Longs: computing it as a `Double` (`a.toDouble() * b`) silently loses precision once
+     * the product exceeds 2^53, and rounding the bound DOWN below the true maximum would cut the optimum out of
+     * the model. BigInteger keeps the floor exact; the clamp both enforces the `[0, cap]` domain and keeps the
+     * final `.toLong()` in range (an over-cap product would otherwise wrap negative).
      */
-    private fun dominationPinnedStats(
-        params: WakfuBestBuildParams,
-        sublimations: List<Sublimation>,
-    ): Set<Characteristic>? {
-        if (params.forcedItems.isNotEmpty() || params.forcedRunesByItem.isNotEmpty()) return null
-        val forcedNames = params.forcedSublimations.map { it.lowercase() }.toSet()
-        val pinned = mutableSetOf<Characteristic>()
-        for (sub in sublimations) {
-            val choosable = sub.solverChoosable && params.useSublimations
-            val forced = sub.name.fr.lowercase() in forcedNames || sub.name.en.lowercase() in forcedNames
-            if (!choosable && !forced) continue
-            val condition = sub.condition ?: continue
-            if (forced) return null // forced conditional sub: unknown effect direction ⇒ can't pin soundly
-            when (condition.type) {
-                SublimationConditionType.AP_AT_MOST, SublimationConditionType.AP_EXACT, SublimationConditionType.AP_ODD ->
-                    pinned += Characteristic.ACTION_POINT
-                SublimationConditionType.CRIT_AT_MOST -> pinned += Characteristic.CRITICAL_HIT
-                SublimationConditionType.RANGE_AT_MOST, SublimationConditionType.RANGE_EXACT -> pinned += Characteristic.RANGE
-                SublimationConditionType.DODGE_LT_PCT_OF_LEVEL -> pinned += Characteristic.DODGE
-                SublimationConditionType.SECONDARY_MASTERIES_AT_MOST -> pinned += SECONDARY_MASTERY_CHARACTERISTICS
-                // ≥-type: a ≥ swap on a beneficial choosable sub keeps the condition satisfied ⇒ no pin needed.
-                SublimationConditionType.AP_AT_LEAST, SublimationConditionType.CRIT_AT_LEAST,
-                SublimationConditionType.BLOCK_AT_LEAST, SublimationConditionType.RANGE_AT_LEAST,
-                -> Unit
-                // Compares two build stats / categorical / unknown ⇒ can't reduce to a stat pin ⇒ gate off.
-                SublimationConditionType.HIGHEST_ELEM_MASTERY_GT_REAR, SublimationConditionType.HIGHEST_ELEM_MASTERY_GT_HEALING,
-                SublimationConditionType.WEAPON_TYPE_EQUIPPED, SublimationConditionType.OTHER,
-                -> return null
+    internal fun clampedProductQuotient(
+        a: Long,
+        b: Long,
+        divisor: Long,
+        cap: Long,
+    ): Long =
+        (BigInteger.valueOf(a) * BigInteger.valueOf(b) / BigInteger.valueOf(divisor))
+            .max(BigInteger.ZERO)
+            .min(BigInteger.valueOf(cap))
+            .toLong()
+
+    // C3: the number of distinct base-pool objects the domination memo retains before it clears (a single search
+    // touches ONE pool object; this bounds cross-search retention so the identity map can't grow unboundedly).
+    private const val DOMINATION_MEMO_MAX_POOLS = 8
+
+    // C3 memo: (basePool identity → (shape → filtered pool)). The per-slot domination filter is re-run on every
+    // [buildModel] call, and one max-damage search makes ~12–20 (element probes + AP probes + hard/soft legs). The
+    // filtered pool is a PURE function of (basePool, shape), so memoize it. Keyed by basePool IDENTITY —
+    // [MaxDamageSearch] threads the SAME pool object through every probe, and identity can never serve a wrong pool
+    // — AND the [DominationShape] VALUE, which encodes the scored element (its `compared`/`minimized` sets),
+    // targets, subs and floor: a different element yields a different shape ⇒ a SEPARATE entry, so the memo is
+    // automatically PER-ELEMENT (sharing one element's dominance relation across elements would prune the wrong
+    // per-element optimum). A prefiltered basePool is a fresh object each call ⇒ identity miss ⇒ recompute
+    // (correct, just no win) — fine, the prefilter case is rare. Concurrent same-key computes are idempotent.
+    private val dominationFilterMemo:
+        java.util.IdentityHashMap<Map<ItemType, List<Equipment>>, MutableMap<DominationShape, Map<ItemType, List<Equipment>>>> =
+        java.util.IdentityHashMap()
+
+    private fun filterDominatedPoolMemoized(
+        basePool: Map<ItemType, List<Equipment>>,
+        shape: DominationShape,
+    ): Map<ItemType, List<Equipment>> {
+        val perShape =
+            synchronized(dominationFilterMemo) {
+                if (dominationFilterMemo.size > DOMINATION_MEMO_MAX_POOLS) dominationFilterMemo.clear()
+                dominationFilterMemo.getOrPut(basePool) { java.util.concurrent.ConcurrentHashMap() }
             }
-        }
-        return pinned
-    }
-
-    /** Apply [dominatedWithin] per slot — RING keeps 2 (two are co-equippable, distinct); every other slot 1. */
-    private fun filterDominatedPool(
-        pool: Map<ItemType, List<Equipment>>,
-        pinned: Set<Characteristic>,
-    ): Map<ItemType, List<Equipment>> = pool.mapValues { (slot, items) -> dominatedWithin(items, if (slot == ItemType.RING) 2 else 1, pinned) }
-
-    /**
-     * Keep only items NOT dominated by ≥[k] others in the same slot (k = slot capacity). B is removable iff
-     * ≥k items A satisfy `A ≽ B`, with a deterministic tie-break (A strictly better, OR equal and lower id ⇒
-     * exactly one of a set of identical items is kept). RING needs k=2 because one dominator may already be
-     * worn in the other ring slot — see the proof in `docs/SOLVER_PERFORMANCE.md`.
-     *
-     * `A ≽ B` (A can replace B in any build of a monotone mode with no loss, no extra scarce-rarity budget,
-     * and no conditional-sublimation flip):
-     *  - `A.maxShardSlots ≥ B` — ≥ rune capacity AND sub-carrier eligibility (sockets are a colour-agnostic
-     *    count in this model), so any rune/sub on B fits A;
-     *  - **(A epic ⇒ B epic) ∧ (A relic ⇒ B relic)** — the swap never RAISES the build's ≤1-epic / ≤1-relic
-     *    count, so an EPIC never dominates a non-epic (keeping the non-epic may be what frees the epic budget
-     *    for a stronger epic elsewhere — the one case a naive stats-only filter gets wrong);
-     *  - `A.characteristics ≥ B` on EVERY characteristic, AND **`A == B` on every [pinned] stat** — so every
-     *    monotone objective term / ≥-type condition is still ≥, and every pinned ≤/exact/parity condition keeps
-     *    its exact truth value (its build sum is unchanged by the swap).
-     */
-    private fun dominatedWithin(
-        items: List<Equipment>,
-        k: Int,
-        pinned: Set<Characteristic>,
-    ): List<Equipment> =
-        items.filter { b ->
-            items.count { a -> a !== b && a.dominates(b, pinned) && (!b.dominates(a, pinned) || a.equipmentId < b.equipmentId) } < k
-        }
-
-    private fun Equipment.dominates(
-        other: Equipment,
-        pinned: Set<Characteristic>,
-    ): Boolean {
-        if (maxShardSlots < other.maxShardSlots) return false
-        if (rarity == Rarity.EPIC && other.rarity != Rarity.EPIC) return false
-        if (rarity == Rarity.RELIC && other.rarity != Rarity.RELIC) return false
-        return (characteristics.keys + other.characteristics.keys).all { c ->
-            val mine = characteristics.getOrDefault(c, 0)
-            val theirs = other.characteristics.getOrDefault(c, 0)
-            if (c in pinned) mine == theirs else mine >= theirs
-        }
+        // getOrPut on the concurrent inner map may double-compute under a race, but [filterDominatedPool] is a pure
+        // deterministic function, so both threads produce a structurally-identical pool — a benign, idempotent race.
+        return perShape.getOrPut(shape) { filterDominatedPool(basePool, shape.pinned, shape.compared, shape.minimized) }
     }
 
     /**
@@ -529,6 +697,39 @@ object WakfuBuildSolver {
         // preserving in all three (monotone) modes. Off by default so the deterministic test path sees the full
         // pool unchanged; the production [optimize] passes true and the soundness lock toggles it.
         applyDomination: Boolean = false,
+        maxDamageExperiment: MaxDamageExperimentConfig = MaxDamageExperimentConfig.DEFAULT,
+        maxDamageObjectiveCutoff: Long? = null,
+        // Hard-constraints-first max-damage solve: required targets become HARD `actual ≥ target` constraints
+        // under a plain damage objective (no shortfall penalty). Threaded to [buildMaxDamageObjective].
+        hardConstraints: Boolean = false,
+        // Test seam: when true, the max-damage build also runs [certifyMaxPerHitAtAp] for every AP cell and
+        // stores the resulting objectives in [BuiltModel.certifierObjectivesForTest] (single-element only).
+        certifyAllApForTest: Boolean = false,
+        // Test seam: PROVENANCE — explain the winning certificate state of this AP cell into
+        // [BuiltModel.certifierExplainForTest] (single-element only). See [StatBuilder.certifyExplainAtAp].
+        certifyExplainCellForTest: Int? = null,
+        // E8 item A (perf): a cached winning (world, crit-step) for [certifyExplainCellForTest] — when set, the
+        // explain replays only that one pass instead of the N-worlds scan (see [certifyExplainAtApFromProvenance]).
+        certifyExplainProvenanceForTest: CellProvenance? = null,
+        // Test seam: thread count for the FAST pass (P3.1 warm-once parallelism); 1 = serial (default).
+        certifyFastThreadsForTest: Int = 1,
+        // Dynamic per-tier thread count for the certificate (see [StatBuilder.certifierThreadsProvider]).
+        certifierThreadsProvider: ((CertTier) -> Int)? = null,
+        // Dynamic incumbent, resolved right before elimination (see [StatBuilder.certifierIncumbentProvider]).
+        certifierIncumbentProvider: (() -> Long?)? = null,
+        // Test seam: run ONLY the fast pass in the certify-for-test block (skip the exact per-cell ledger).
+        certifyFastOnlyForTest: Boolean = false,
+        // Test seam (P3.2 orchestrator): compute the two-tier [CertLedger] into [BuiltModel.certifierLedgerForTest].
+        certifyLedgerForTest: Boolean = false,
+        certifyLedgerIncumbentForTest: Long? = null,
+        certifyLedgerForceTier2AllForTest: Boolean = false,
+        // B6: reuse a prior compute's SCALED per-cell fast bounds (+ bail set) for this shape, skipping the tier-1
+        // fast DP in [certifyLedger] (a pure, byte-identical function of the shape). Null ⇒ compute the fast pass.
+        certifyLedgerPrecomputedFast: Map<Int, Long>? = null,
+        certifyLedgerPrecomputedBailed: Set<Int>? = null,
+        // B8: polled once per certifier DP stage; when it flips true the certifier bails (sound) so a cancelled
+        // proof stops promptly. Default never-cancel keeps the deterministic test/model builds byte-identical.
+        certifierCancelled: () -> Boolean = { false },
     ): BuiltModel {
         val model = CpModel()
 
@@ -542,13 +743,14 @@ object WakfuBuildSolver {
                 equipmentsByItemType
             }
         // Sound per-slot domination: drop items provably beaten in their own slot (all three modes are monotone;
-        // see [dominationPinnedStats]). Skipped for forced items / forced conditional subs and for forceFullPool
+        // see [dominationShape]). Skipped for forced items / forced conditional subs and for forceFullPool
         // (the full reference). Removes no optimal build, so the proven optimum is identical — only the model shrinks.
         // Stats a dangerous (≤/exact/parity) conditional sub reads — non-monotone, so domination pins them AND
         // most-masteries exact socket fill must avoid them (null = un-analyzable / forced ⇒ both stay conservative).
-        val subPinnedStats = dominationPinnedStats(params, sublimations)
-        val dominationPins = if (applyDomination && !forceFullPool) subPinnedStats else null
-        val pool = if (dominationPins != null) filterDominatedPool(basePool, dominationPins) else basePool
+        val dominationShape = dominationShape(params, sublimations)
+        val activeDomination = if (applyDomination && !forceFullPool) dominationShape else null
+        // C3: memoized so the ~12–20 buildModel calls of one search share the per-element filter result.
+        val pool = if (activeDomination != null) filterDominatedPoolMemoized(basePool, activeDomination) else basePool
         val allEquips = orderEquipments(pool)
         val equipVars = model.createEquipmentVariables(allEquips)
         val skillVars = model.createSkillVariables(params.character.characterSkills)
@@ -566,7 +768,7 @@ object WakfuBuildSolver {
                     (sub.condition?.value ?: 0) > 0
             }
         val allowRuneFold = !forceRuneCountModel && !secondaryCapMixSubInPlay
-        val runeModel = model.createRuneModel(params, allEquips, equipVars, runes, allowRuneFold, subPinnedStats, forceRuneLeq)
+        val runeModel = model.createRuneModel(params, allEquips, equipVars, runes, allowRuneFold, dominationShape?.pinned, forceRuneLeq)
         val subModel = model.createSublimationModel(params, allEquips, equipVars, sublimations)
         // A normal sublimation does NOT reserve rune sockets. Golden runes (colour-agnostic) form its ordered
         // colour pattern AND still carry their stat — doubling where the item favours that colour — so a carrier
@@ -578,7 +780,17 @@ object WakfuBuildSolver {
         model.addForcedItemsEquippedConstraints(params, allEquips, equipVars)
 
         var maxDamageTracked: List<Triple<IntVar, String, LongRange>> = emptyList()
+        var maxDamageRawScore: IntVar? = null
         var precisionTracked: List<Triple<IntVar, String, LongRange>> = emptyList()
+        var certifierObjectives: Map<Int, Long> = emptyMap()
+        var certifierFastObjectives: Map<Int, Long> = emptyMap()
+        var certifierTier15Objectives: Map<Int, Long> = emptyMap()
+        var certifierLedger: CertLedger? = null
+        var certifierExplain: List<String> = emptyList()
+        var certifierExplainItemIds: List<Int> = emptyList()
+        var critDiffJointCutBound: Long? = null
+        // C2: set by the max-damage hard-constraints branch when a required target exceeds its reachable ceiling.
+        var maxDamageStaticallyInfeasible = false
         val objective =
             when (params.scoreComputationMode) {
                 ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
@@ -589,22 +801,86 @@ object WakfuBuildSolver {
                     // the loose 10M guard: every reach is a sound superset of the attainable value (locked by
                     // [precisionVarBoundsForTest]), so the optimum is unchanged while presolve / the LP
                     // relaxation work on tight bounds. tightDomains=false reproduces the loose reference build.
-                    val statBuilder = StatBuilder(model, params, allEquips, equipVars, skillVars, runeModel, subModel, tight = tightDomains)
+                    val statBuilder =
+                        StatBuilder(
+                            model,
+                            params,
+                            allEquips,
+                            equipVars,
+                            skillVars,
+                            runeModel,
+                            subModel,
+                            tight = tightDomains,
+                            // Decouple from the max-damage experiment default (see [MaxDamageExperimentConfig.NON_MAX_DAMAGE]).
+                            maxDamageExperiment = MaxDamageExperimentConfig.NON_MAX_DAMAGE
+                        )
                     val obj = model.buildPrecisionObjective(params, statBuilder)
                     precisionTracked = statBuilder.tracker.tracked()
                     obj
                 }
 
                 ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> {
-                    val statBuilder = StatBuilder(model, params, allEquips, equipVars, skillVars, runeModel, subModel, tight = tightDomains)
-                    val obj = model.buildMaxDamageObjective(params, statBuilder)
+                    val statBuilder =
+                        StatBuilder(
+                            model,
+                            params,
+                            allEquips,
+                            equipVars,
+                            skillVars,
+                            runeModel,
+                            subModel,
+                            tight = tightDomains,
+                            maxDamageExperiment = maxDamageExperiment,
+                            certifyForTest = certifyAllApForTest,
+                            certifyExplainCell = certifyExplainCellForTest,
+                            certifyExplainProvenance = certifyExplainProvenanceForTest,
+                            certifyFastThreads = certifyFastThreadsForTest,
+                            certifierThreadsProvider = certifierThreadsProvider,
+                            certifierIncumbentProvider = certifierIncumbentProvider,
+                            certifyFastOnly = certifyFastOnlyForTest,
+                            certifyLedgerForTest = certifyLedgerForTest,
+                            certifyLedgerIncumbent = certifyLedgerIncumbentForTest,
+                            certifyLedgerForceTier2All = certifyLedgerForceTier2AllForTest,
+                            certifyLedgerPrecomputedFast = certifyLedgerPrecomputedFast,
+                            certifyLedgerPrecomputedBailed = certifyLedgerPrecomputedBailed,
+                            certifierCancelled = certifierCancelled
+                        )
+                    val built = model.buildMaxDamageObjective(params, statBuilder, maxDamageObjectiveCutoff, hardConstraints)
+                    maxDamageRawScore = built.rawScore
+                    maxDamageStaticallyInfeasible = built.staticallyInfeasible
                     maxDamageTracked = statBuilder.tracker.tracked()
-                    obj
+                    certifierObjectives = statBuilder.certifierObjectivesForTest
+                    certifierFastObjectives = statBuilder.certifierFastObjectivesForTest
+                    certifierTier15Objectives = statBuilder.certifierTier15ObjectivesForTest
+                    certifierLedger = statBuilder.certifierLedgerForTest
+                    certifierExplain = statBuilder.certifierExplainForTest
+                    certifierExplainItemIds = statBuilder.certifierExplainItemIds
+                    critDiffJointCutBound = statBuilder.critDiffJointCutBoundForTest
+                    built.objective
                 }
             }
         model.maximize(objective)
 
-        return BuiltModel(model, objective, allEquips, equipVars, skillVars, runeModel, subModel, maxDamageTracked, precisionTracked)
+        return BuiltModel(
+            model,
+            objective,
+            maxDamageRawScore,
+            allEquips,
+            equipVars,
+            skillVars,
+            runeModel,
+            subModel,
+            maxDamageTracked,
+            precisionTracked,
+            certifierObjectives,
+            certifierFastObjectives,
+            certifierTier15Objectives,
+            certifierLedger,
+            certifierExplain,
+            certifierExplainItemIds,
+            maxDamageStaticallyInfeasible,
+            critDiffJointCutBound
+        )
     }
 
     /** Configures a deterministic, machine-reproducible max-damage solver (full presolve + level-2 linearization). */
@@ -615,13 +891,14 @@ object WakfuBuildSolver {
         solver.parameters.numSearchWorkers = tuning.numSearchWorkers
         solver.parameters.randomSeed = tuning.randomSeed
         solver.parameters.maxDeterministicTime = tuning.maxDeterministicTime
+        if (tuning.interleaveSearch) solver.parameters.interleaveSearch = true
         return solver
     }
 
     /**
      * Test-only: assemble the model exactly like [optimize] (via [buildModel]) and return the **maximized
      * objective value**, requiring a deterministic [SolverTuning] and a proven `OPTIMAL` status. Needed because
-     * the streamed [GeneticAlgorithmResult.matchPercentage] is computed by the single-element scorer and so
+     * the streamed [SolverResult.matchPercentage] is computed by the single-element scorer and so
      * cannot read the bi-element objective for an interior split — see the Lot 2 tests in WakfuBuildSolverTest.
      */
     internal fun maxDamageObjectiveValueForTest(
@@ -629,7 +906,7 @@ object WakfuBuildSolver {
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         tuning: SolverTuning,
     ): Long {
-        val built = buildModel(params, equipmentsByItemType, emptyList(), emptyList())
+        val built = buildModel(params, equipmentsByItemType, emptyList(), emptyList(), maxDamageExperiment = tuning.maxDamageExperiment)
         val solver = deterministicMaxDamageSolver(tuning)
         val status = solver.solve(built.model)
         require(status == com.google.ortools.sat.CpSolverStatus.OPTIMAL) { "expected OPTIMAL, got $status" }
@@ -641,7 +918,566 @@ object WakfuBuildSolver {
         val objective: Long,
         val isOptimal: Boolean,
         val hasSolution: Boolean,
+        // The equipmentIds selected in the solved assignment (empty when there is no solution). Lets a test assert
+        // that a specific item survived the pool build and was actually picked — e.g. the A1 lock that a generic-
+        // resistance item required to meet a hard resistance target is NOT domination-pruned.
+        val selectedEquipmentIds: Set<Int> = emptySet(),
     )
+
+    internal data class MaxDamageTimedProfile(
+        val status: String,
+        val objective: Long,
+        val bestBound: Long,
+        val objectiveCutoff: Long?,
+        val wallTimeSec: Double,
+        val deterministicTime: Double,
+        val booleans: Long,
+        val branches: Long,
+        val conflicts: Long,
+        val restarts: Long,
+        val lpIterations: Long,
+        val variables: Int,
+        val constraints: Int,
+        val poolSize: Int,
+        val experiment: MaxDamageExperimentConfig,
+    ) {
+        val hasSolution: Boolean
+            get() = objective != Long.MIN_VALUE
+    }
+
+    internal fun timedMaxDamageProfileForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        workers: Int,
+        seconds: Double,
+        applyDomination: Boolean,
+        experiment: MaxDamageExperimentConfig = MaxDamageExperimentConfig.DEFAULT,
+        maxPresolveIterations: Int = 3,
+        linearizationLevel: Int = 2,
+        deterministicLimit: Double? = null,
+        // Pure CP-SAT solver-parameter knobs (no model change) — A/B research only. CP-SAT proves the SAME
+        // optimum regardless of these, so they are soundness-safe by construction; the only question they answer
+        // is whether the proof closes in less deterministic time. null/false = CP-SAT's default.
+        symmetryLevel: Int? = null,
+        probingLevel: Int? = null,
+        objectiveShaving: Boolean = false,
+        searchBranching: Int? = null,
+        objectiveCutoff: Long? = null,
+        // Portfolio-composition research knobs (parameter-only, soundness-safe like the above).
+        logSearch: Boolean = false,
+        sharedTreeWorkers: Int? = null,
+        ignoreSubsolvers: List<String> = emptyList(),
+        extraSubsolvers: List<String> = emptyList(),
+        interleave: Boolean = false,
+        numFullSubsolvers: Int? = null,
+        detectLinearizedProduct: Boolean = false,
+        // C4: screen the CONSTRAINED hard-leg shape (required targets as `actual ≥ target`, plain objective) — the
+        // shape whose bilinear dual gap C6 targets — instead of the soft-penalty relaxation. Default false = today.
+        hardConstraints: Boolean = false,
+    ): MaxDamageTimedProfile {
+        val built =
+            buildModel(
+                params,
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                applyDomination = applyDomination,
+                maxDamageExperiment = experiment,
+                maxDamageObjectiveCutoff = objectiveCutoff,
+                hardConstraints = hardConstraints
+            )
+        objectiveCutoff?.let { built.model.addGreaterOrEqual(built.objective, it) }
+        val solver = CpSolver()
+        solver.parameters.logSearchProgress = logSearch
+        solver.parameters.linearizationLevel = linearizationLevel
+        solver.parameters.maxPresolveIterations = maxPresolveIterations
+        solver.parameters.numSearchWorkers = workers
+        solver.parameters.randomSeed = 1
+        if (symmetryLevel != null) solver.parameters.symmetryLevel = symmetryLevel
+        if (probingLevel != null) solver.parameters.cpModelProbingLevel = probingLevel
+        if (objectiveShaving) solver.parameters.useObjectiveShavingSearch = true
+        if (searchBranching != null) {
+            solver.parameters.searchBranching =
+                com.google.ortools.sat.SatParameters.SearchBranching
+                    .forNumber(searchBranching)
+        }
+        if (sharedTreeWorkers != null) solver.parameters.sharedTreeNumWorkers = sharedTreeWorkers
+        ignoreSubsolvers.forEach { solver.parameters.addIgnoreSubsolvers(it) }
+        extraSubsolvers.forEach { solver.parameters.addExtraSubsolvers(it) }
+        if (interleave) solver.parameters.interleaveSearch = true
+        if (numFullSubsolvers != null) solver.parameters.numFullSubsolvers = numFullSubsolvers
+        if (detectLinearizedProduct) solver.parameters.detectLinearizedProduct = true
+        // Production proves with a DETERMINISTIC-time limit (reproducible, and a much faster solver mode for
+        // this problem than a wall-clock limit). When deterministicLimit is set, use it as the real budget and
+        // keep maxTimeInSeconds only as a safety cap so a stuck run can't hang.
+        if (deterministicLimit != null) {
+            solver.parameters.maxDeterministicTime = deterministicLimit
+        }
+        solver.parameters.maxTimeInSeconds = seconds
+        val status = solver.solve(built.model)
+        if (System.getenv("WAKFU_MAX_DAMAGE_CERT_DEBUG") == "1" &&
+            (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL || status == com.google.ortools.sat.CpSolverStatus.FEASIBLE)
+        ) {
+            val skills =
+                built.skillVars.entries
+                    .mapNotNull { (ch, v) -> solver.value(v).takeIf { it > 0 }?.let { "${ch.characteristic}=$it" } }
+            System.err.println("SOLVE_DEBUG ap=${params.maxDamageApTarget} obj=${solver.objectiveValue().toLong()} skills=$skills")
+            val subs =
+                built.subModel.subVars.entries
+                    .filter { solver.value(it.value) > 0 }
+                    .map { it.key.name.en }
+            System.err.println("SOLVE_DEBUG_SUBS $subs")
+        }
+        val hasSolution =
+            status == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                status == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+        val proto = built.model.model()
+        val stats = solver.responseStats()
+        return MaxDamageTimedProfile(
+            status = status.toString(),
+            objective = if (hasSolution) solver.objectiveValue().toLong() else Long.MIN_VALUE,
+            bestBound = solver.bestObjectiveBound().toLong(),
+            objectiveCutoff = objectiveCutoff,
+            wallTimeSec = solver.wallTime(),
+            deterministicTime = deterministicTimeFrom(stats),
+            booleans = longStatFrom(stats, "booleans"),
+            branches = solver.numBranches(),
+            conflicts = solver.numConflicts(),
+            restarts = longStatFrom(stats, "restarts"),
+            lpIterations = longStatFrom(stats, "lp_iterations"),
+            variables = proto.variablesCount,
+            constraints = proto.constraintsCount,
+            poolSize = built.allEquips.size,
+            experiment = experiment
+        )
+    }
+
+    /**
+     * Test-only: assemble the max-damage model like [optimize] and return the EXACT per-AP-cell certifier
+     * objective for every AP cell (single-element only). Key = AP, value = the certifier's objective for a
+     * build pinned to that AP, or -1 where [certifyMaxPerHitAtAp] bails (the production path falls back to
+     * CP-SAT there). One model build certifies every cell, so a soundness / exactness test can compare the
+     * certifier against the per-cell CP-SAT optimum (via [timedMaxDamageProfileForTest] with a pinned
+     * `maxDamageApTarget`) without rebuilding per AP.
+     */
+    internal fun certifierCellObjectivesForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        applyDomination: Boolean = false,
+    ): Map<Int, Long> =
+        buildModel(
+            params,
+            equipmentsByItemType,
+            runes,
+            sublimations,
+            applyDomination = applyDomination,
+            certifyAllApForTest = true
+        ).certifierObjectivesForTest
+
+    /**
+     * Test-only: like [certifierCellObjectivesForTest] but returns BOTH the exact and the FAST tier-1
+     * per-cell objectives from a single model build (`exact to fast`). The `fast ≥ exact` soundness lock
+     * asserts `fast[a] ≥ exact[a]` for every non-bailed cell — a single violation is a release-blocking
+     * under-count (the fast pass would certify a build below a real one).
+     */
+    internal fun certifierExactAndFastCellObjectivesForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        applyDomination: Boolean = false,
+    ): Pair<Map<Int, Long>, Map<Int, Long>> =
+        buildModel(
+            params,
+            equipmentsByItemType,
+            runes,
+            sublimations,
+            applyDomination = applyDomination,
+            certifyAllApForTest = true
+        ).let { it.certifierObjectivesForTest to it.certifierFastObjectivesForTest }
+
+    /**
+     * Test-only (B7): the exact, FAST tier-1, and sharpened TIER-1.5 per-cell objectives from a single model build
+     * (`Triple(exact, fast, tier15)`). The `fast ≥ tier1.5 ≥ exact` soundness lock asserts the ordering per
+     * non-bailed cell — an under-count anywhere (a bound below a real build) is a release-blocking wrong badge.
+     */
+    internal fun certifierExactFastTier15CellObjectivesForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        applyDomination: Boolean = false,
+    ): Triple<Map<Int, Long>, Map<Int, Long>, Map<Int, Long>> =
+        buildModel(
+            params,
+            equipmentsByItemType,
+            runes,
+            sublimations,
+            applyDomination = applyDomination,
+            certifyAllApForTest = true
+        ).let { Triple(it.certifierObjectivesForTest, it.certifierFastObjectivesForTest, it.certifierTier15ObjectivesForTest) }
+
+    /**
+     * Test-only: the FAST tier-1 per-cell objective ledger computed with [threads] worker threads (P3.1
+     * warm-once parallelism). At `threads = 1` this equals [certifierExactAndFastCellObjectivesForTest]'s
+     * fast map; the parallel-equality lock asserts it is identical for `threads > 1` on every iteration.
+     */
+    internal fun certifierFastLedgerForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        applyDomination: Boolean = false,
+        threads: Int = 1,
+    ): Map<Int, Long> =
+        buildModel(
+            params,
+            equipmentsByItemType,
+            runes,
+            sublimations,
+            applyDomination = applyDomination,
+            certifyAllApForTest = true,
+            certifyFastThreadsForTest = threads,
+            certifyFastOnlyForTest = true
+        ).certifierFastObjectivesForTest
+
+    /**
+     * Default worker-thread count for the certificate orchestrator (P3.2). Memory-aware (B2): the parallel path
+     * is correct (locked by the panel-scale parallel-equality + determinism tests) but each concurrent exact
+     * tier-2 DP holds ~1 GB of frontier state at level 245, so fanning the 6 worlds of a survivor cell across
+     * threads OOMs a stock ~4 GB heap. Rather than ship serial-by-default forever, [certifierThreadsForHeap]
+     * bounds the worker count by the runtime's free heap: a stock ~4 GiB heap still resolves to 1 (the previous
+     * safe default), while a large heap opens the parallel tier for a ~2–3× faster badge. No `CERTIFIER_VERSION`
+     * bump — the thread count changes no bound value (the merge is an order-independent max; determinism locked).
+     */
+    internal fun certifierDefaultThreads(): Int = certifierThreadsForHeap(Runtime.getRuntime().maxMemory(), Runtime.getRuntime().availableProcessors())
+
+    /**
+     * Pure, total heap→worker-count formula behind [certifierDefaultThreads] (extracted so it is unit-testable
+     * without a specific `-Xmx`). Reserve ~2 GiB for the model + warm fast-pass caches + base app, then allow one
+     * worker per ~1.25 GiB of the remainder (each concurrent world-DP is ~1 GB + headroom), capped at
+     * `min(6, cores − 1)` to leave the UI/OS a core. Floors at 1 (never zero, even on a tiny heap). A −Xmx4g heap
+     * resolves to 1 (2 GiB remainder / 1.25 GiB = 1) — the safe serial default; ≥ ~5.5 GiB opens a second worker.
+     */
+    internal fun certifierThreadsForHeap(
+        maxMemoryBytes: Long,
+        cores: Int,
+    ): Int {
+        val gib = 1024L * 1024 * 1024
+        val reserved = 2 * gib
+        val perWorker = gib + gib / 4 // 1.25 GiB per concurrent exact DP (with headroom)
+        val byHeap = ((maxMemoryBytes - reserved) / perWorker).toInt()
+        val upper = min(6, maxOf(1, cores - 1))
+        return byHeap.coerceIn(1, upper)
+    }
+
+    /**
+     * Worker count for the TIER-1.5 pass specifically. Its (cell × world) tasks are step-1 FAST DPs — dense
+     * boxes plus small Pareto frontiers — not the ~1 GiB exact tier-2 DPs the [certifierThreadsForHeap]
+     * formula is calibrated for. Measured on the real lvl-245 back+berserk shape: 6 concurrent tier-1.5
+     * workers held the WHOLE process at ~2.6 GiB RSS (~0.4 GiB per worker including shared caches), while the
+     * exact-tier formula resolves a stock heap to 1 worker and left production's dominant certificate stage
+     * serial. So tier-1.5 gets its own heap-aware sizing: reserve ~1.5 GiB (model + warm fast caches + app),
+     * one worker per ~0.4 GiB of remainder, same `min(6, cores − 1)` cap, floor 1. The packaged GUI's -Xmx3g
+     * resolves to 3 workers; a stock 4 GiB heap to 6; tiny heaps stay serial.
+     */
+    internal fun certifierTier15Threads(): Int = certifierTier15ThreadsForHeap(Runtime.getRuntime().maxMemory(), Runtime.getRuntime().availableProcessors())
+
+    internal fun certifierTier15ThreadsForHeap(
+        maxMemoryBytes: Long,
+        cores: Int,
+    ): Int {
+        val gib = 1024L * 1024 * 1024
+        val reserved = gib + gib / 2 // 1.5 GiB base (model + warm fast-pass caches + app)
+        val perWorker = 2 * gib / 5 // ~0.4 GiB per concurrent (cell × world) step-1 fast DP (measured)
+        val byHeap = ((maxMemoryBytes - reserved) / perWorker).toInt()
+        val upper = min(6, maxOf(1, cores - 1))
+        return byHeap.coerceIn(1, upper)
+    }
+
+    /**
+     * PRODUCTION certificate API (P4.1). Builds the max-damage model once for a **single-element** [params]
+     * scenario (the certifier needs `StatBuilder`'s terms — this initializes OR-Tools natives, which the
+     * production path has already warmed), then runs the two-tier orchestrator ([CertLedger]).
+     *
+     * Returns `null` when no certificate is available: a **multi-element / boss** scenario (the model's
+     * per-element certifier seam only fires for one candidate element — compose per element instead), a
+     * non-max-damage mode, or a forced-rune / forced-sublimation shape the certifier bails on. A non-null
+     * result is a sound upper-bound ledger in OBJECTIVE units (directly comparable to CP-SAT objectives).
+     *
+     * @param incumbentObjective a feasible objective (the best build found) — cells whose bound is `≤` it are
+     *   eliminated on the fast value; `null` confirms every non-bailed cell exactly.
+     * @param threads worker count for both tiers; defaults to [certifierDefaultThreads] (serial — see its doc).
+     * @param isCancelled (B8) polled once per certifier DP stage; a cancelled run bails (sound) and returns null,
+     *   so the caller declines the badge (Unavailable) and — crucially — never caches an incomplete ledger.
+     */
+    fun maxDamageCertificate(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        applyDomination: Boolean = true,
+        incumbentObjective: Long? = null,
+        threads: Int = certifierDefaultThreads(),
+        // Re-read at each tier's start when set (takes precedence over [threads]) — the warm-up passes a
+        // provider that returns 1 while the search runs and [certifierDefaultThreads] once it is done.
+        threadsProvider: ((CertTier) -> Int)? = null,
+        // Re-read once, right before elimination — the warm-up passes the search's LATEST feasible proxy so
+        // the certificate eliminates against the final incumbent instead of the weak first-streamed one.
+        incumbentProvider: (() -> Long?)? = null,
+        isCancelled: () -> Boolean = { false },
+        // B6: reuse a prior compute's SCALED fast bounds (+ bail set) for this shape ⇒ skip the tier-1 fast DP.
+        precomputedFast: Map<Int, Long>? = null,
+        precomputedBailed: Set<Int>? = null,
+    ): CertLedger? {
+        val ledger =
+            buildModel(
+                params,
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                applyDomination = applyDomination,
+                certifyFastThreadsForTest = threads,
+                // Default: [threads] for the fast/exact tiers, the tier-1.5-calibrated count for tier-1.5 —
+                // production proofs get parallel tier-1.5 workers even on a stock heap.
+                certifierThreadsProvider =
+                    threadsProvider
+                        ?: { tier -> if (tier == CertTier.TIER15) maxOf(threads, certifierTier15Threads()) else threads },
+                certifierIncumbentProvider = incumbentProvider,
+                certifyLedgerForTest = true,
+                certifyLedgerIncumbentForTest = incumbentObjective,
+                certifyLedgerForceTier2AllForTest = false,
+                certifyLedgerPrecomputedFast = precomputedFast,
+                certifyLedgerPrecomputedBailed = precomputedBailed,
+                certifierCancelled = isCancelled
+            ).certifierLedgerForTest
+        // A cancelled run may have bailed mid-way (a sound but incomplete ledger). Never surface or cache it.
+        return if (isCancelled()) null else ledger
+    }
+
+    /**
+     * Test-only: the two-tier [CertLedger] (P3.2 orchestrator) for these params. [incumbentObjective] drives
+     * elimination (null = confirm every non-bailed cell); [forceTier2All] confirms every non-bailed cell
+     * exactly regardless of the incumbent (the oracle-equality lock). [threads] worker count for both tiers.
+     */
+    internal fun certifyLedgerForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        applyDomination: Boolean = false,
+        incumbentObjective: Long? = null,
+        forceTier2All: Boolean = false,
+        threads: Int = 1,
+    ): CertLedger =
+        buildModel(
+            params,
+            equipmentsByItemType,
+            runes,
+            sublimations,
+            applyDomination = applyDomination,
+            certifyFastThreadsForTest = threads,
+            certifyLedgerForTest = true,
+            certifyLedgerIncumbentForTest = incumbentObjective,
+            certifyLedgerForceTier2AllForTest = forceTier2All
+        ).certifierLedgerForTest!!
+
+    /** Test-only PROVENANCE: the backtracked composition of [cell]'s winning certificate state. */
+    internal fun certifierExplainForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        applyDomination: Boolean = false,
+        cell: Int,
+    ): List<String> =
+        buildModel(
+            params,
+            equipmentsByItemType,
+            runes,
+            sublimations,
+            applyDomination = applyDomination,
+            certifyExplainCellForTest = cell
+        ).certifierExplainForTest
+
+    /**
+     * E8 item A: the STRUCTURED provenance of a cell's winning certificate state — the winning composition's
+     * equipmentIds, so the fast-path restricts the pool by id instead of regex-parsing the `slot:` [certifierExplainForTest]
+     * strings (which break on item names containing `" + "` / `"(di+"`). Empty when the certifier bails ⇒ the seam falls back.
+     */
+    internal fun certifierExplainItemIdsForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        applyDomination: Boolean = false,
+        cell: Int,
+    ): List<Int> =
+        buildModel(
+            params,
+            equipmentsByItemType,
+            runes,
+            sublimations,
+            applyDomination = applyDomination,
+            certifyExplainCellForTest = cell
+        ).certifierExplainItemIds
+
+    /**
+     * E8 item A (perf): the same STRUCTURED provenance as [certifierExplainItemIdsForTest] but from a CACHED winning
+     * (world, crit-step) [provenance] — replays only that one explain pass instead of the full N-worlds scan (which
+     * costs ~minutes at high level). Empty if the certifier bails or the pointer is out of range ⇒ the seam falls back.
+     */
+    internal fun certifierExplainItemIdsFromProvenanceForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        applyDomination: Boolean = false,
+        cell: Int,
+        provenance: CellProvenance,
+    ): List<Int> =
+        buildModel(
+            params,
+            equipmentsByItemType,
+            runes,
+            sublimations,
+            applyDomination = applyDomination,
+            certifyExplainCellForTest = cell,
+            certifyExplainProvenanceForTest = provenance
+        ).certifierExplainItemIds
+
+    /**
+     * E8 fast-path (plan §4 E8, measured GO — SOLVER_PERFORMANCE §7): CONSTRUCT the proven optimum from the
+     * certificate DP instead of a full CP-SAT solve. Two tiers:
+     *  1. FAST: backtrack the argmax cell's provenance ITEMS, restrict the pool to them, and re-solve that tiny
+     *     pool (CP-SAT re-derives runes/subs/skills freely). Measured: free lvl-110 (1,310,980) and lvl-245
+     *     (16,909,590) both construct in one tiny re-solve (ratio 1.0) — DP-seconds instead of CP-SAT-minutes.
+     *  2. FALLBACK: the provenance items need not REALIZE the bound — the frontier abstraction can credit a sub
+     *     whose value only a slightly different item set unlocks (the runes+subs lvl-110 optimum: 10 normal subs
+     *     where the provenance set only realizes 9) — so when the fast tier misses, re-solve the FULL pool at the
+     *     pinned argmax cell as a FEASIBILITY problem (`rawScore ≥ bound` + stop-at-first-solution): any solution
+     *     found sits at the bound, no optimality proof needed.
+     * SOUND by construction: the DP's argmax bound is a sound UPPER bound on the global optimum, so a result is
+     * returned ONLY when a re-solved raw proxy REACHES that bound (`proxy ≥ cellBound`) — which certifies the build
+     * IS the global optimum. Returns null when neither tier can (a loose bound, an invalid build) ⇒ the caller
+     * keeps the incumbent, so best-effort construction is safe (a miss only costs the badge, never correctness).
+     * Free single-element max-damage only (the DP-provable shape).
+     */
+    internal suspend fun dpConstructProvenOptimum(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        incumbentObjective: Long? = null,
+    ): SolverResult<BuildCombination>? {
+        if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return null
+        if (params.targetStats.any { it.target > 0 }) return null // free shapes only — the DP can't model targets
+        val ledger =
+            if (incumbentObjective != null) {
+                // Production path (an incumbent from the completed search): reuse the CACHED certificate —
+                // `proveOptimality` populated it under the same key, so construction adds no extra ledger DP. The
+                // argmax cell (objective > the incumbent it's rescuing) is confirmed at the exact tier, so its bound
+                // is tight enough for the re-solve to reach.
+                MaxDamageCertificateCache.certificate(
+                    params,
+                    equipmentsByItemType,
+                    runes,
+                    sublimations,
+                    applyDomination = true,
+                    incumbentObjective = incumbentObjective,
+                    threads = certifierDefaultThreads()
+                ) ?: return null
+            } else {
+                // Standalone (no incumbent, e.g. the manual proof test): force EVERY cell to the exact tier so any
+                // shape's argmax is exact — no cache, no incumbent pruning.
+                certifyLedgerForTest(
+                    params,
+                    equipmentsByItemType,
+                    runes,
+                    sublimations,
+                    applyDomination = true,
+                    incumbentObjective = null,
+                    forceTier2All = true
+                )
+            }
+        val argmax =
+            ledger.cellObjectives.entries
+                .filter { it.value >= 0 }
+                .maxByOrNull { it.value } ?: return null
+        val cell = argmax.key
+        val bound = argmax.value
+        // E8 item A: recover the argmax cell's winning items as typed equipmentIds (no fragile `slot:`-string parse).
+        // Phase 2 (perf): the badge's exact pass captured the argmax cell's winning (world, crit-step) into the
+        // cached ledger, so replay just that ONE explain pass. When it is absent (an old cache entry, or a
+        // tier-1.5-cleared argmax that never ran exactly), fall back to the full N-worlds scan — sound, just slower.
+        val provIds =
+            (
+                ledger.cellProvenance[cell]?.let { prov ->
+                    certifierExplainItemIdsFromProvenanceForTest(
+                        params,
+                        equipmentsByItemType,
+                        runes,
+                        sublimations,
+                        applyDomination = true,
+                        cell = cell,
+                        provenance = prov
+                    )
+                } ?: certifierExplainItemIdsForTest(params, equipmentsByItemType, runes, sublimations, applyDomination = true, cell = cell)
+            ).toSet()
+        val debug = System.getenv("WAKFU_E8_DEBUG") == "1"
+        // FAST path: re-solve the pool restricted to the provenance items — ~seconds, and reaches the bound on
+        // most shapes (measured: free lvl-110 / lvl-245 construct in one tiny re-solve).
+        val fast =
+            if (provIds.isNotEmpty()) {
+                val restricted =
+                    equipmentsByItemType
+                        .mapValues { (_, items) -> items.filter { it.equipmentId in provIds } }
+                        .filterValues { it.isNotEmpty() }
+                if (restricted.isEmpty()) {
+                    null
+                } else {
+                    optimize(params.copy(maxDamageApTarget = cell), restricted, runes, sublimations, SolverTuning(maxDeterministicTime = 120.0))
+                        .toList()
+                        .maxByOrNull { it.matchPercentage }
+                }
+            } else {
+                null
+            }
+        // For a FREE shape objective == raw proxy (no penalty); maxDamageObjective is always populated, the raw
+        // proxy only when its var survives — so fall back. Both are the ledger-comparable scaled units.
+        val fastProxy = fast?.let { it.maxDamageRawProxy ?: it.maxDamageObjective }
+        if (debug) System.err.println("E8_DBG fast cell=$cell bound=$bound proxy=$fastProxy valid=${fast?.individual?.isValid()}")
+        if (fast != null && fastProxy != null && fastProxy >= bound && fast.individual.isValid()) return fast.copy(isOptimal = true)
+        // FALLBACK: the provenance item-set need not REALIZE the bound — the certifier's frontier abstraction can
+        // credit a sublimation whose value only a slightly different item set unlocks (e.g. the 10th normal sub on
+        // a fuller sub loadout), so the restricted re-solve tops out below the bound. Re-solve the FULL pool at the
+        // pinned argmax cell with a HARD `rawScore ≥ bound` floor: a pure FEASIBILITY search (the bound is a sound
+        // upper bound at that cell, so any solution found sits exactly at it — no optimality proof, which is the
+        // part the timed search couldn't close), stopped at the first solution, under the canonical deterministic
+        // protocol (1 worker + interleave) so the construction is machine-reproducible. A loose (unreachable)
+        // bound comes back INFEASIBLE ⇒ empty flow ⇒ null — the caller keeps the incumbent, soundness untouched.
+        val fallback =
+            optimize(
+                params.copy(maxDamageApTarget = cell),
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                SolverTuning(
+                    numSearchWorkers = 1,
+                    interleaveSearch = true,
+                    maxDeterministicTime = E8_FALLBACK_DETERMINISTIC_BUDGET,
+                    stopAtFirstSolution = true
+                ),
+                maxDamageRawFloor = bound
+            ).toList().maxByOrNull { it.matchPercentage } ?: return null
+        val proxy = fallback.maxDamageRawProxy ?: fallback.maxDamageObjective ?: return null
+        if (debug) System.err.println("E8_DBG fallback cell=$cell bound=$bound proxy=$proxy valid=${fallback.individual.isValid()}")
+        return if (proxy >= bound && fallback.individual.isValid()) fallback.copy(isOptimal = true) else null
+    }
 
     /**
      * Test-only: solve a max-damage model with either reachable ([tightDomains] = true) or loose guard
@@ -659,6 +1495,9 @@ object WakfuBuildSolver {
         forceRuneCountModel: Boolean = false,
         applyDomination: Boolean = false,
         forceRuneLeq: Boolean = false,
+        // Enforce the required targets as HARD `actual ≥ target` constraints (INFEASIBLE ⇒ hasSolution false),
+        // matching the production hard-constraints-first pass. Default false keeps existing callers byte-identical.
+        hardConstraints: Boolean = false,
     ): MaxDamageSolveOutcome {
         val built =
             buildModel(
@@ -669,7 +1508,9 @@ object WakfuBuildSolver {
                 tightDomains,
                 forceRuneCountModel = forceRuneCountModel,
                 applyDomination = applyDomination,
-                forceRuneLeq = forceRuneLeq
+                forceRuneLeq = forceRuneLeq,
+                hardConstraints = hardConstraints,
+                maxDamageExperiment = tuning.maxDamageExperiment
             )
         val solver = deterministicMaxDamageSolver(tuning)
         val status = solver.solve(built.model)
@@ -679,7 +1520,17 @@ object WakfuBuildSolver {
         return MaxDamageSolveOutcome(
             objective = if (hasSolution) solver.objectiveValue().toLong() else Long.MIN_VALUE,
             isOptimal = status == com.google.ortools.sat.CpSolverStatus.OPTIMAL,
-            hasSolution = hasSolution
+            hasSolution = hasSolution,
+            selectedEquipmentIds =
+                if (hasSolution) {
+                    built.equipVars
+                        .filterValues { solver.value(it) > 0L }
+                        .keys
+                        .map { it.equipmentId }
+                        .toSet()
+                } else {
+                    emptySet()
+                }
         )
     }
 
@@ -699,6 +1550,36 @@ object WakfuBuildSolver {
         val withinBound: Boolean get() = value in lo..hi
     }
 
+    internal data class MaxDamageReachableRange(
+        val name: String,
+        val lo: Long,
+        val hi: Long,
+    ) {
+        val span: Long get() = hi - lo
+    }
+
+    internal fun maxDamageReachableRangesForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        tightDomains: Boolean = true,
+        applyDomination: Boolean = false,
+        experiment: MaxDamageExperimentConfig = MaxDamageExperimentConfig.DEFAULT,
+    ): List<MaxDamageReachableRange> {
+        val built =
+            buildModel(
+                params,
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                tightDomains = tightDomains,
+                applyDomination = applyDomination,
+                maxDamageExperiment = experiment
+            )
+        return built.maxDamageTracked.map { (_, name, range) -> MaxDamageReachableRange(name, range.first, range.last) }
+    }
+
     /**
      * Test-only **soundness probe**: build the max-damage model with **loose** guard domains (so the solver is
      * free to push every objective-chain var as high as a real build allows) while still *recording* each var's
@@ -713,8 +1594,25 @@ object WakfuBuildSolver {
         tuning: SolverTuning,
         runes: List<RuneType> = emptyList(),
         sublimations: List<Sublimation> = emptyList(),
+        // false (default) = the soundness-probe use: loose guard domains so the solver can push each var to its
+        // true max. true = the plan §2.2 bound-layer AUDIT use: PRODUCTION (tight) domains so the same
+        // reachable box is recorded but the solve is tractable at lvl-245 (loose product encodings blow up there).
+        tightDomains: Boolean = false,
+        // false (default, soundness probe keeps the full pool). true = the AUDIT use: run the production domination
+        // pre-filter so the lvl-245 full-epic pool doesn't blow the model up on build (sound — domination preserves
+        // the optimum, and the recorded boxes then match the production model).
+        applyDomination: Boolean = false,
     ): List<MaxDamageVarBound> {
-        val built = buildModel(params, equipmentsByItemType, runes, sublimations, tightDomains = false)
+        val built =
+            buildModel(
+                params,
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                tightDomains = tightDomains,
+                applyDomination = applyDomination,
+                maxDamageExperiment = tuning.maxDamageExperiment
+            )
         val solver = deterministicMaxDamageSolver(tuning)
         val status = solver.solve(built.model)
         require(status == com.google.ortools.sat.CpSolverStatus.OPTIMAL || status == com.google.ortools.sat.CpSolverStatus.FEASIBLE) {
@@ -724,6 +1622,44 @@ object WakfuBuildSolver {
             MaxDamageVarBound(name, solver.value(v), range.first, range.last)
         }
     }
+
+    /**
+     * C2 test seam: whether the HARD-constraints max-damage model is statically infeasible — i.e. some required
+     * target exceeds its reachable ceiling, so [optimize] skips the CP-SAT solve and falls straight to the soft
+     * leg. Builds the model only (no solve) and returns [BuiltModel.maxDamageStaticallyInfeasible].
+     */
+    internal fun maxDamageStaticallyInfeasibleForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+    ): Boolean = buildModel(params, equipmentsByItemType, runes, sublimations, hardConstraints = true).maxDamageStaticallyInfeasible
+
+    /**
+     * C7 test seam: the crit·diff AM-GM bound the model-build actually ADDED as a constraint, or null when
+     * the cut did not fire (flag off, %-skill bail, or self-disabled against term's declared reach). The
+     * firing fixture asserts non-null so the exhaustive-optimum comparison provably exercises the cut.
+     */
+    internal fun maxDamageCritDiffCutBoundForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        experiment: MaxDamageExperimentConfig = MaxDamageExperimentConfig.DEFAULT,
+    ): Long? =
+        buildModel(
+            params,
+            equipmentsByItemType,
+            runes,
+            sublimations,
+            maxDamageExperiment = experiment
+        ).critDiffJointCutBoundForTest
+
+    /** C3 test seam: the memoized per-slot domination filter (keyed on basePool identity + [DominationShape] value). */
+    internal fun filterDominatedPoolMemoizedForTest(
+        basePool: Map<ItemType, List<Equipment>>,
+        shape: DominationShape,
+    ): Map<ItemType, List<Equipment>> = filterDominatedPoolMemoized(basePool, shape)
 
     /**
      * Test-only soundness probe for the **precision** reachable domains — the precision analogue of
@@ -775,7 +1711,16 @@ object WakfuBuildSolver {
         tuning: SolverTuning,
         forceFullPool: Boolean,
     ): BenchOutcome {
-        val built = buildModel(params, equipmentsByItemType, emptyList(), emptyList(), tightDomains = true, forceFullPool = forceFullPool)
+        val built =
+            buildModel(
+                params,
+                equipmentsByItemType,
+                emptyList(),
+                emptyList(),
+                tightDomains = true,
+                forceFullPool = forceFullPool,
+                maxDamageExperiment = tuning.maxDamageExperiment
+            )
         val solver = CpSolver()
         solver.parameters.logSearchProgress = false
         solver.parameters.numSearchWorkers = tuning.numSearchWorkers
@@ -824,7 +1769,7 @@ object WakfuBuildSolver {
             val sumExpr = LinearExpr.newBuilder()
             for (skill in assignable.getCharacteristics()) {
                 val varName = "skill_${namePrefix}_${skill.name.toIdentifier()}"
-                val skillVar = newIntVar(0, skill.maxPointsAssignable.toLong(), varName)
+                val skillVar = newIntVar(0, skillVariableCap(skill, assignable), varName)
                 skillVars[skill] = skillVar
                 sumExpr.addTerm(skillVar, 1)
             }
@@ -840,365 +1785,50 @@ object WakfuBuildSolver {
         return skillVars
     }
 
+    private fun skillVariableCap(
+        skill: SkillCharacteristic,
+        assignable: Assignable<*>,
+    ): Long = min(skill.maxPointsAssignable, assignable.maxPointsToAssign).toLong()
+
+    internal fun skillVariableCaps(characterSkills: CharacterSkills): Map<SkillCharacteristic, Long> {
+        val caps = mutableMapOf<SkillCharacteristic, Long>()
+
+        fun add(assignable: Assignable<*>) {
+            assignable.getCharacteristics().forEach { skill ->
+                caps[skill] = skillVariableCap(skill, assignable)
+            }
+        }
+
+        add(characterSkills.intelligence)
+        add(characterSkills.strength)
+        add(characterSkills.agility)
+        add(characterSkills.luck)
+        add(characterSkills.major)
+
+        return caps
+    }
+
     private fun CpModel.createEquipmentVariables(allEquips: List<Equipment>): Map<Equipment, IntVar> =
         allEquips.associateWith { equip ->
             newBoolVar("equip_${equip.equipmentId}")
         }
 
     /**
-     * Models runes as extra per-item allocatable stats. For each socketable equipped item and each
-     * requested rune-coverable stat, an integer var counts how many runes of that stat sit in the
-     * item's sockets; the per-item sum is capped at the item's socket count and forced to 0 when the
-     * item is not equipped. The rune *value* per (stat, item slot, character level) is a constant
-     * (best-achievable: max rune level + WakForge doubling), so runes plug straight into the stat term
-     * loop in [StatBuilder.prePercentStat] and need no special-casing in the objective or scorer.
+     * Whether a scenario-gated effect can fire for this request — the solver's `params`-shaped adapter over the
+     * shared [scenarioGateMatchesCore] (the single source of truth for the gate decision; see SublimationSemantics).
+     * Kept here as `WakfuBuildSolver.scenarioGateMatches` because the CP-SAT model builders call it that way.
      */
-    private fun CpModel.createRuneModel(
-        params: WakfuBestBuildParams,
-        allEquips: List<Equipment>,
-        equipVars: Map<Equipment, IntVar>,
-        runes: List<RuneType>,
-        allowRuneFold: Boolean,
-        // Stats a dangerous (≤/exact/parity) conditional sub reads (null = un-analyzable / forced). A modeled
-        // rune feeding one of these makes most-masteries exact-fill unsound — see [fillSockets] below.
-        subPinnedStats: Set<Characteristic>?,
-        // Test seam: force the rune cap back to `≤` (no exact fill), for the exact-fill==≤ soundness lock.
-        forceRuneLeq: Boolean,
-    ): RuneModel {
-        if (runes.isEmpty()) return RuneModel.EMPTY
-        val runeById = runes.associateBy { it.id }
-        val runeByCharacteristic = runes.associateBy { it.characteristic }
-
-        // Global forced runes (CLI --forced-runes): "≥1 rune of this stat socketed somewhere".
-        val forcedNames = params.forcedRunes.map { it.lowercase() }.toSet()
-        val globalForcedRuneStats =
-            runes
-                .filter { it.name.fr.lowercase() in forcedNames || it.name.en.lowercase() in forcedNames }
-                .map { it.characteristic }
-                .toSet()
-
-        // Per-item forced runes (GUI): pin a multiset of rune ids onto a specific carrier item. Keyed by
-        // the item's French name (like forcedItems); resolve each id to its characteristic and count the
-        // required runes per characteristic.
-        val perItemForced: Map<String, Map<Characteristic, Int>> =
-            params.forcedRunesByItem
-                .mapKeys { (name, _) -> name.lowercase() }
-                .mapValues { (_, ids) ->
-                    ids
-                        .mapNotNull { runeById[it]?.characteristic }
-                        .groupingBy { it }
-                        .eachCount()
-                }.filterValues { it.isNotEmpty() }
-        val perItemForcedStats = perItemForced.values.flatMapTo(mutableSetOf()) { it.keys }
-
-        val forcedRuneStats = globalForcedRuneStats + perItemForcedStats
-        // Auto-fill runes only when enabled; forced runes are modeled regardless of that toggle.
-        if (!params.useRunes && forcedRuneStats.isEmpty()) return RuneModel.EMPTY
-
-        val runeStats =
-            (if (params.useRunes) relevantRuneStats(params, runeByCharacteristic.keys) else emptySet()) + forcedRuneStats
-        if (runeStats.isEmpty()) return RuneModel.EMPTY
-
-        // Exact socket fill — pin `Σ runeCount = slots·selected` (instead of `≤`) so the proven optimum never
-        // leaves a socket empty. It removes every never-optimal "underfill" assignment from the integer search
-        // (a pure search-space cut that helps the proof close) AND fixes the "fewer than max runes" builds.
-        //  - MAX-DAMAGE: the generic elemental-mastery rune is NOT a secondary mastery and only ever raises the
-        //    damage objective, so it backfills any socket without tripping a secondary/AP/crit/range "at most" sub
-        //    condition, and overshooting a required target is unpenalised (the score caps actual at target —
-        //    coerceAtMost in FindMaxDamageScoring). So filling is always free. (Unchanged.)
-        //  - MOST-MASTERIES: the objective is monotone non-decreasing in every modeled rune stat — masteries,
-        //    shortfall-only required targets, the DI fold, the min-over-elements — so underfill is never optimal.
-        //    The only risk is a dangerous (≤/exact/parity) conditional sub: forcing fill could push the stat it
-        //    reads over the cap and flip the sub off. But the per-stat distribution is free (mixing preserved),
-        //    so as long as ONE modeled rune stat is *not* read by a dangerous condition, every socket can be
-        //    filled with that "safe filler" rune (HP, elemental, …) — monotone-beneficial and breaks no sub — so
-        //    exact-fill keeps the optimum. It is unsound only when EVERY modeled rune stat is dangerous (a
-        //    self-contradictory request: the sole rune-relevant stat is itself the capped one). [subPinnedStats]
-        //    is the dangerous set (null ⇒ un-analyzable/forced ⇒ stay safe with `≤`). Locked sound by an
-        //    adversarial soundness review + the exact-fill==≤ optimum test. The single-type FOLD below stays
-        //    max-damage-only, so most-masteries keeps the integer-count model (intra-item rune MIXING preserved).
-        val maxDamageFreeFill =
-            params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE &&
-                Characteristic.MASTERY_ELEMENTARY in runeStats
-        val mostMasteriesExactFill =
-            params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
-                subPinnedStats != null &&
-                runeStats.any { it !in subPinnedStats }
-        val fillSockets = !forceRuneLeq && (maxDamageFreeFill || mostMasteriesExactFill)
-        // Single-type-per-item rune FOLD (max-damage, no forced runes, no secondary-cap>0 sub in play —
-        // [allowRuneFold]): because a rune's value is uniform across an item's sockets (doubling is per item
-        // SLOT, not per socket — see RuneType.valueOn), filling an item entirely with its single best-value
-        // type is ≥ any mix, so mixing types within ONE item is freedom the optimum never uses. Modelling each
-        // item's choice as ONE boolean pick per type (Σ pick = selected) instead of an integer count 0..slots
-        // collapses the rune search to binary decisions — far easier for CP-SAT to PROVE — with the SAME
-        // reachable stat contributions (a pick contributes slots·coeff; see baseTermsFor + the 0..1 leaf seed).
-        // The solver still chooses the type per item (build-dependent: mastery vs crit-mastery, elemental vs a
-        // secondary for the secondary=0 subs) and items still differ — only the never-optimal intra-item mix is
-        // dropped. Gated to where it is provably sound; forced runes / secondary-cap>0 subs keep the count model.
-        val singleTypePerItem = allowRuneFold && maxDamageFreeFill && forcedRuneStats.isEmpty()
-        val runeVars = mutableMapOf<Equipment, Map<Characteristic, IntVar>>()
-        for (equip in allEquips) {
-            val slots = equip.maxShardSlots
-            if (slots <= 0) continue
-            if (singleTypePerItem) {
-                // One boolean per type; exactly one type fills all the item's sockets when equipped, none otherwise.
-                val perStat = runeStats.associateWith { stat -> newBoolVar("runePick_${equip.equipmentId}_${stat.name}") }
-                val pickExpr = LinearExpr.newBuilder()
-                perStat.values.forEach { pickExpr.addTerm(it, 1L) }
-                pickExpr.addTerm(equipVars.getValue(equip), -1L)
-                addEquality(pickExpr.build(), 0L)
-                runeVars[equip] = perStat
-            } else {
-                val perStat = runeStats.associateWith { stat -> newIntVar(0, slots.toLong(), "rune_${equip.equipmentId}_${stat.name}") }
-                // Sockets only count when the item is equipped: Σ runeCount {= max-damage | ≤ other modes} slots·selected.
-                val capExpr = LinearExpr.newBuilder()
-                perStat.values.forEach { capExpr.addTerm(it, 1L) }
-                capExpr.addTerm(equipVars.getValue(equip), -slots.toLong())
-                if (fillSockets) addEquality(capExpr.build(), 0L) else addLessOrEqual(capExpr.build(), 0L)
-                runeVars[equip] = perStat
-            }
-        }
-        // Global forced runes must be socketed at least once across the build.
-        for (stat in globalForcedRuneStats) {
-            val countExpr = LinearExpr.newBuilder()
-            var any = false
-            for ((_, perStat) in runeVars) {
-                perStat[stat]?.let {
-                    countExpr.addTerm(it, 1L)
-                    any = true
-                }
-            }
-            if (any) addGreaterOrEqual(countExpr.build(), 1L)
-        }
-        // Per-item forced runes: for each named carrier, the rune-count var(s) for the equipped item
-        // matching that name must reach the required count. We sum over every same-named candidate (only
-        // one can be equipped, and a non-equipped item's rune vars are pinned to 0 by the socket cap), so
-        // this both pins the runes onto that item AND forces one such item to be equipped.
-        for ((name, byCharacteristic) in perItemForced) {
-            val matching = allEquips.filter { it.name.fr.lowercase() == name && it.maxShardSlots > 0 }
-            if (matching.isEmpty()) continue
-            for ((stat, count) in byCharacteristic) {
-                val countExpr = LinearExpr.newBuilder()
-                var any = false
-                for (equip in matching) {
-                    runeVars[equip]?.get(stat)?.let {
-                        countExpr.addTerm(it, 1L)
-                        any = true
-                    }
-                }
-                if (any) addGreaterOrEqual(countExpr.build(), count.toLong())
-            }
-        }
-        return RuneModel(runeByCharacteristic, runeVars, singleTypePerItem)
-    }
-
-    /**
-     * The rune-coverable stats worth modelling for this request: requested stats that have a rune.
-     * Elemental masteries (specific or generic) all route to the single generic elemental-mastery rune
-     * (there is no per-element mastery rune); the aggregate resistance request expands to the four
-     * per-element resistance runes. Mirrors the elemental folding the scorers/solver already do.
-     */
-    private fun relevantRuneStats(
-        params: WakfuBestBuildParams,
-        runeCharacteristics: Set<Characteristic>,
-    ): Set<Characteristic> {
-        val result = mutableSetOf<Characteristic>()
-        for (targetStat in params.targetStats) {
-            when (val characteristic = targetStat.characteristic) {
-                Characteristic.MASTERY_ELEMENTARY, in ELEMENTARY_MASTERIES -> result.add(Characteristic.MASTERY_ELEMENTARY)
-                Characteristic.RESISTANCE_ELEMENTARY -> result.addAll(ELEMENTARY_RESISTANCES)
-                else -> result.add(characteristic)
-            }
-        }
-        // Max-damage mode socket-fills the masteries that drive the scenario's damage, even when they
-        // are not in targetStats (which there only carry hard AP/MP/range/… constraints).
-        if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
-            val scenario = params.damageScenario
-            result.add(Characteristic.MASTERY_ELEMENTARY)
-            result.add(scenario.rangeBand.masteryCharacteristic)
-            result.add(Characteristic.MASTERY_CRITICAL)
-            if (scenario.orientation.grantsRearMastery) result.add(Characteristic.MASTERY_BACK)
-            if (scenario.berserk) result.add(Characteristic.MASTERY_BERSERK)
-            if (scenario.healing) result.add(Characteristic.MASTERY_HEALING)
-        }
-        return result.intersect(runeCharacteristics)
-    }
-
-    /** Static-conditional sublimation conditions the solver can reify against build stats (research §4a). */
-    private val SUPPORTED_SUB_CONDITIONS =
-        setOf(
-            SublimationConditionType.AP_AT_MOST,
-            SublimationConditionType.AP_AT_LEAST,
-            SublimationConditionType.AP_EXACT,
-            SublimationConditionType.CRIT_AT_MOST,
-            SublimationConditionType.CRIT_AT_LEAST,
-            SublimationConditionType.BLOCK_AT_LEAST,
-            SublimationConditionType.RANGE_AT_MOST,
-            SublimationConditionType.RANGE_AT_LEAST,
-            SublimationConditionType.RANGE_EXACT,
-            SublimationConditionType.DODGE_LT_PCT_OF_LEVEL,
-            SublimationConditionType.SECONDARY_MASTERIES_AT_MOST
-        )
-
-    /** A solver-choosable sub the engine can correctly model in this request's mode/scenario. */
-    private fun isModelableSublimation(
-        sub: Sublimation,
-        params: WakfuBestBuildParams,
-    ): Boolean {
-        if (!sub.solverChoosable) return false
-        // Conversions are handled by a dedicated path; static-conditionals need a supported condition.
-        when (sub.kind) {
-            SublimationKind.CONVERSION -> if (sub.conversion == null) return false
-            SublimationKind.STATIC_CONDITIONAL ->
-                if (sub.condition == null || sub.condition!!.type !in SUPPORTED_SUB_CONDITIONS) return false
-
-            SublimationKind.FLAT -> {}
-            SublimationKind.COMBAT_CONDITIONAL -> return false
-        }
-        // Backstop for the degenerate most-masteries/precision request with NO maximizable mastery to protect
-        // (only AP/MP/HP/range targets). There the DI fold `mastery × (1 + DI/100)` is structurally 0 — nothing
-        // for the DI factor to multiply — so a damage-reducing sub would otherwise be free for the overshoot
-        // tie-breaker to grab (the old Enutrof failure mode for required-only requests). When ANY maximizable
-        // mastery is requested the fold governs DI on merit, so this never fires. Max-damage models DI directly.
-        if (dropsDamageWithNoMasteryToProtect(sub, params)) return false
-        // It must be able to contribute *something* in this mode/scenario.
-        val hasUsableEffect = sub.effects.any { scenarioGateMatches(it.scenarioGate, params) }
-        return hasUsableEffect || sub.conversion != null
-    }
-
-    /**
-     * True when [sub] reduces % Damage Inflicted in a non-max-damage request that maximizes **no** mastery,
-     * so the DI fold can't weigh it and it must not be auto-chosen (it could only ever cut real damage). When a
-     * maximizable mastery IS requested, [StatBuilder.diAdjustedMasteryScore] already prices DI in, so a −DI sub
-     * is taken only when its mastery gain outweighs the loss — and this returns false.
-     */
-    private fun dropsDamageWithNoMasteryToProtect(
-        sub: Sublimation,
-        params: WakfuBestBuildParams,
-    ): Boolean {
-        if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return false
-        if (params.targetStats.any { it.characteristic.isMaximizableMastery() }) return false
-        val netDamageInflicted =
-            sub.effects.filter { it.characteristic == Characteristic.DAMAGE_INFLICTED }.sumOf { it.value }
-        return netDamageInflicted < 0
-    }
-
-    /**
-     * Whether a scenario-gated effect can fire for this request. Gates are damage-scenario specific, so
-     * a gated effect only counts in max-damage mode when the configured [DamageScenario] matches. Area is
-     * not modeled by [DamageScenario]; it is treated as satisfiable (best-achievable). Ungated effects
-     * always count.
-     */
-    private fun scenarioGateMatches(
+    internal fun scenarioGateMatches(
         gate: me.chosante.common.ScenarioGate?,
         params: WakfuBestBuildParams,
-    ): Boolean {
-        if (gate == null) return true
-        if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return false
-        val s = params.damageScenario
-        gate.rangeBand?.let { if (s.rangeBand.name != it) return false }
-        gate.orientation?.let { if (s.orientation.name != it) return false }
-        if (gate.berserk == true && !s.berserk) return false
-        if (gate.ranged == true && s.rangeBand.name != "DISTANCE") return false
-        gate.minCharacterLevel?.let { if (params.character.level < it) return false }
-        return true
-    }
-
-    /**
-     * Models the chosen/forced sublimations. Each modeled sub gets a [SublimationModel.subVars] boolean.
-     * Epic/relic subs are gated to an equipped epic/relic item — their dedicated slot comes from that carrier
-     * ([gateSublimationsOnCarrierItems]); a normal sub is assigned to one ≥3-socket carrier item (at most one
-     * normal sub per item), but does NOT consume rune sockets — golden runes (colour-agnostic) form its ordered
-     * colour pattern while still carrying their stat, so the carrier keeps a full set of runes. At most 10
-     * sublimations per build. Socket colours stay optimistic/re-rollable (no per-item colour data); the chosen
-     * carrier + pattern are surfaced in the GUI. Effect contributions fold into the stat term loop by
-     * [StatBuilder]; forced subs apply unconditionally (the user takes responsibility).
-     *
-     * A sub is only ever *chosen* when it improves the active objective. In max-damage mode that includes its
-     * DI and scenario-gated effects; in most-masteries / precision modes (which don't maximize damage) a sub is
-     * taken only when it raises a requested mastery or helps meet a required target — DI-only subs pay off
-     * solely in max-damage mode.
-     */
-    private fun CpModel.createSublimationModel(
-        params: WakfuBestBuildParams,
-        allEquips: List<Equipment>,
-        equipVars: Map<Equipment, IntVar>,
-        sublimations: List<Sublimation>,
-    ): SublimationModel {
-        if (sublimations.isEmpty()) return SublimationModel.EMPTY
-        val forcedNames = params.forcedSublimations.map { it.lowercase() }.toSet()
-        val forcedSubs =
-            sublimations.filter { it.name.fr.lowercase() in forcedNames || it.name.en.lowercase() in forcedNames }
-        val choosableSubs =
-            if (!params.useSublimations) {
-                emptyList()
-            } else {
-                sublimations.filter { it !in forcedSubs && isModelableSublimation(it, params) }
-            }
-        if (forcedSubs.isEmpty() && choosableSubs.isEmpty()) return SublimationModel.EMPTY
-
-        val subVars = LinkedHashMap<Sublimation, IntVar>()
-        for (sub in forcedSubs) {
-            val v = newBoolVar("subForced_${sub.stateId}")
-            addEquality(v, 1L)
-            subVars[sub] = v
-        }
-        for (sub in choosableSubs) {
-            subVars[sub] = newBoolVar("sub_${sub.stateId}")
-        }
-
-        // Epic / relic sublimations can ONLY be applied to an epic / relic ITEM — the dedicated sub slot
-        // comes FROM the carrier item (Wakfu: "epic Sublimations can only be applied to epic items, relic
-        // only to relic items"). So Σ epicSub ≤ Σ epicItems and Σ relicSub ≤ Σ relicItems, modeled as
-        // (Σ sub − Σ carrier ≤ 0). This also caps each sub at ≤1 since epic/relic items are themselves ≤1
-        // (addBuildValidityConstraints). Forcing such a sub therefore forces its carrier item to be
-        // equipped; with no carrier in the pool the request is correctly infeasible (it cannot be hosted).
-        gateSublimationsOnCarrierItems(subVars, allEquips, equipVars, SublimationRarity.EPIC, Rarity.EPIC)
-        gateSublimationsOnCarrierItems(subVars, allEquips, equipVars, SublimationRarity.RELIC, Rarity.RELIC)
-
-        // Total cap: at most 10 sublimations on a build.
-        addLessOrEqual(LinearExpr.sum(subVars.values.toTypedArray()), MAX_SUBLIMATIONS)
-
-        // Tie each NORMAL sub to exactly one carrier item with ≥3 sockets (y[sub,item]=1 ⇒ that item hosts it):
-        // it needs ≥3 sockets to lay down its ordered 3-colour pattern, but — golden runes being colour-agnostic —
-        // it does NOT take those sockets away from runes, so the carrier keeps a full rune set. Epic/relic subs
-        // need no socket carrier (gated on the rarity item above).
-        val normalSubs = subVars.keys.filter { it.rarity == SublimationRarity.NORMAL }
-        val carrierItems = allEquips.filter { it.maxShardSlots >= NORMAL_SUB_SOCKET_COST }
-        val carrierVars = LinkedHashMap<Sublimation, Map<Equipment, IntVar>>()
-        for (sub in normalSubs) {
-            val perItem = carrierItems.associateWith { item -> newBoolVar("subCarrier_${sub.stateId}_${item.equipmentId}") }
-            carrierVars[sub] = perItem
-            // Chosen ⇔ assigned to exactly one carrier; a carrier must itself be equipped.
-            val assigned = LinearExpr.newBuilder()
-            perItem.values.forEach { assigned.addTerm(it, 1L) }
-            addEquality(assigned.build(), subVars.getValue(sub))
-            for ((item, y) in perItem) addLessOrEqual(y, equipVars.getValue(item))
-        }
-        // A single ≥3-socket item physically hosts at most one 3-socket normal sublimation.
-        for (item in carrierItems) {
-            val hostsOnItem = normalSubs.mapNotNull { carrierVars[it]?.get(item) }
-            if (hostsOnItem.size > 1) addLessOrEqual(LinearExpr.sum(hostsOnItem.toTypedArray()), 1L)
-        }
-
-        return SublimationModel(subVars, forcedSubs.toSet(), params.character.level, carrierVars)
-    }
-
-    /** Σ(subs of [subRarity]) ≤ Σ(equipped items of [itemRarity]): an epic/relic sub's slot comes from its carrier item. */
-    private fun CpModel.gateSublimationsOnCarrierItems(
-        subVars: Map<Sublimation, IntVar>,
-        allEquips: List<Equipment>,
-        equipVars: Map<Equipment, IntVar>,
-        subRarity: SublimationRarity,
-        itemRarity: Rarity,
-    ) {
-        val subsOfRarity = subVars.filterKeys { it.rarity == subRarity }.values
-        if (subsOfRarity.isEmpty()) return
-        val gate = LinearExpr.newBuilder()
-        subsOfRarity.forEach { gate.addTerm(it, 1L) }
-        allEquips.filter { it.rarity == itemRarity }.forEach { gate.addTerm(equipVars.getValue(it), -1L) }
-        addLessOrEqual(gate.build(), 0L)
-    }
+    ): Boolean =
+        scenarioGateMatchesCore(
+            gate,
+            params.scoreComputationMode,
+            params.damageScenario,
+            params.character.level,
+            params.targetStats.masteryElementsWanted.keys
+        )
 
     private fun CpModel.addBuildValidityConstraints(
         allEquips: List<Equipment>,
@@ -1304,7 +1934,7 @@ object WakfuBuildSolver {
 
     /**
      * Objective for "most masteries" mode: maximize the *requested* masteries — scaled by the build's global
-     * **% Damage Inflicted** so the proxy is damage-faithful (see [StatBuilder.diAdjustedMasteryScore]) —
+     * **% Damage Inflicted** so the proxy is damage-faithful (see [StatBuilder.diAdjustedPerElementMasteryScore]) —
      * under the required-stat constraints. There is deliberately no tie-breaker that fills otherwise-empty
      * slots, so a slot whose items cannot improve any requested stat (nor the DI factor) is left empty in the
      * proven optimum. This is why, e.g., an item set asking only for distance mastery + AP/MP/HP comes
@@ -1321,17 +1951,31 @@ object WakfuBuildSolver {
         runeModel: RuneModel,
         subModel: SublimationModel,
     ): IntVar {
-        val statBuilder = StatBuilder(this, params, allEquips, equipVars, skillVars, runeModel, subModel)
+        val statBuilder =
+            StatBuilder(
+                this,
+                params,
+                allEquips,
+                equipVars,
+                skillVars,
+                runeModel,
+                subModel,
+                // Decouple from the max-damage experiment default (see [MaxDamageExperimentConfig.NON_MAX_DAMAGE]).
+                maxDamageExperiment = MaxDamageExperimentConfig.NON_MAX_DAMAGE
+            )
         statBuilder.applyOutOfCombatCaps()
         val targetStats = params.targetStats
         val targetCharacteristics = targetStats.map { it.characteristic }.toSet()
 
         // Damage-faithful proxy: maximized mastery sum × (1 + DI/100). Mirrored exactly by the re-scorer
         // (FindMostMasteriesFromInputScoring) so the solver optimum and the scored optimum stay in lockstep.
-        val masteryScore = statBuilder.diAdjustedMasteryScore(statBuilder.finalMasteryScore(targetStats, targetCharacteristics))
+        // C8: [diAdjustedPerElementMasteryScore] now also returns a sound reachable ceiling on that score, used as
+        // the product-box bound below (was the loose MASTERY_SCORE_ABS_MAX), tightening the objective's McCormick
+        // envelope on the required-target path.
+        val (masteryScore, masteryScoreReach) = statBuilder.diAdjustedPerElementMasteryScore(targetStats, targetCharacteristics)
 
         val requiredTargets = targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }
-        val penalized = applyConstraintPenalty(params, statBuilder, masteryScore, MASTERY_SCORE_ABS_MAX)
+        val penalized = applyConstraintPenalty(params, statBuilder, masteryScore, masteryScoreReach)
         if (requiredTargets.isEmpty()) {
             return penalized.objective
         }
@@ -1352,6 +1996,20 @@ object WakfuBuildSolver {
     }
 
     /**
+     * The two max-damage objective vars: [rawScore] is the **unpenalized** per-turn damage proxy (before the
+     * survivability floor and the required-target multiplier) — the value in [CertLedger] units, surfaced so the
+     * post-search certificate can compare against it even for required-target requests; [objective] is what
+     * CP-SAT actually maximizes.
+     */
+    private data class MaxDamageObjectiveVars(
+        val rawScore: IntVar,
+        val objective: IntVar,
+        // C2: true when a hard-constraints solve is PROVABLY infeasible (a required target exceeds its reachable
+        // ceiling). Lets [optimize] skip the doomed CP-SAT solve. Always false outside the hard-constraints path.
+        val staticallyInfeasible: Boolean = false,
+    )
+
+    /**
      * Objective for "max-damage" mode: maximize expected damage for the requested [DamageScenario]
      * (Wakfu's exact formula, see [FindMaxDamageScoring]). The build-dependent core is the product
      * `D · Graw` with `D = 100 + ΣDI`, `Graw = 400·M + crit·(M + 5·criticalMastery)` and
@@ -1359,17 +2017,25 @@ object WakfuBuildSolver {
      * orientation / resistance factors are dropped since they scale every build equally). Required
      * AP/MP/range/… targets are then enforced with the same shortfall penalty as most-masteries mode.
      * Unlike most-masteries this has no overshoot tie-breaker: the damage objective already strongly
-     * differentiates builds, so there is no large class of objective-ties left to refine.
+     * differentiates builds, so there is no large class of objective-ties left to refine. Returns both the
+     * penalized [MaxDamageObjectiveVars.objective] and the unpenalized [MaxDamageObjectiveVars.rawScore].
      */
     private fun CpModel.buildMaxDamageObjective(
         params: WakfuBestBuildParams,
         statBuilder: StatBuilder,
-    ): IntVar {
+        objectiveCutoff: Long? = null,
+        // Hard-constraints-first solve: enforce the required AP/MP/range/… targets as HARD constraints
+        // (`actual ≥ target`) under a PLAIN damage objective, instead of the soft shortfall penalty. The
+        // caller ([WakfuBuildSolver.optimize] with hardConstraints = true) tries this first; if the model is
+        // INFEASIBLE (unreachable targets) it re-solves with the penalty (this flag false). See
+        // [StatBuilder.addRequiredTargetHardConstraints].
+        hardConstraints: Boolean = false,
+    ): MaxDamageObjectiveVars {
         statBuilder.applyOutOfCombatCaps()
         // External-loop AP probe: pin the build to exactly N AP so each breakpoint can be evaluated (used by the
         // debuff AP-window probes in MaxDamageSearch).
         params.maxDamageApTarget?.let { addEquality(statBuilder.actionPointVar(), newConstant(it.toLong())) }
-        val damageScore = statBuilder.perTurnDamageScore(params.damageScenario, params.character.clazz)
+        val damageScore = statBuilder.perTurnDamageScore(params.damageScenario, params.character.clazz, objectiveCutoff)
         // Survivability soft-floor (opt-in): gently tax the damage score when the build's effective-HP
         // proxy is below the floor, BEFORE the hard-target penalty. Folding it into the core score (rather
         // than chaining a second multiply onto the already-near-Long.MAX/2 penalized objective) keeps the
@@ -1383,7 +2049,21 @@ object WakfuBuildSolver {
             } else {
                 damageScore
             }
-        return applyConstraintPenalty(params, statBuilder, survivableScore, DAMAGE_PERTURN_ABS_MAX).objective
+        // rawScore is the unpenalized damage proxy (`damageScore`), the value the certificate ledger bounds.
+        // The survivability floor and the required-target penalty both wrap it into `objective`; the certificate
+        // does not model either, so [proveOptimality] compares against rawScore (and bails on a survivability
+        // floor, whose per-build multiplier makes even rawScore non-comparable).
+        // HARD-constraints mode: required targets are `actual ≥ target` constraints (added below) and the
+        // objective is the PLAIN damage score — no penalty product, so the model is the shape CP-SAT proves.
+        // If no required target exists the hard pass is identical to the un-penalised solve.
+        if (hardConstraints) {
+            val staticallyInfeasible = statBuilder.addRequiredTargetHardConstraints()
+            return MaxDamageObjectiveVars(rawScore = damageScore, objective = survivableScore, staticallyInfeasible = staticallyInfeasible)
+        }
+        return MaxDamageObjectiveVars(
+            rawScore = damageScore,
+            objective = applyConstraintPenalty(params, statBuilder, survivableScore, DAMAGE_PERTURN_ABS_MAX).objective
+        )
     }
 
     /**
@@ -1476,7 +2156,7 @@ object WakfuBuildSolver {
         return PenalizedObjective(objective, objectiveBound)
     }
 
-    private data class PenalizedObjective(
+    internal data class PenalizedObjective(
         val objective: IntVar,
         val bound: Long,
     )
@@ -1589,10 +2269,21 @@ object WakfuBuildSolver {
         skillVars: Map<SkillCharacteristic, IntVar>,
         runeModel: RuneModel,
         subModel: SublimationModel,
-        scope: ProducerScope<GeneticAlgorithmResult<BuildCombination>>,
+        // Max-damage only: the unpenalized damage-proxy var, read on each emitted solution to stamp
+        // [SolverResult.maxDamageRawProxy] (the certificate-comparable value). Null in the other modes.
+        maxDamageRawScoreVar: IntVar?,
+        scope: ProducerScope<SolverResult<BuildCombination>>,
         tuning: SolverTuning?,
+        // Hands the freshly-created solver to the caller so it can stop the (otherwise uninterruptible) native
+        // solve from another thread on flow teardown — see the `awaitClose` in [optimize].
+        onSolverReady: (CpSolver) -> Unit = {},
+        // C8(3): floor for best-effort INTERMEDIATE emissions — the greedy warm start already streamed a
+        // build with this score, and consumers keep the LAST emission, so streaming a worse snapshot would
+        // visibly regress the displayed build. The final (guaranteed) send stays unconditional.
+        suppressBelowScore: BigDecimal? = null,
     ) {
         val solver = CpSolver()
+        onSolverReady(solver)
         solver.parameters.logSearchProgress = false
         // Max-damage declares its objective-chain vars with reachable domains, which finally makes the LP
         // relaxation worth building; engage the level-2 linearization so CP-SAT can certify the bound and
@@ -1629,6 +2320,9 @@ object WakfuBuildSolver {
             solver.parameters.numSearchWorkers = tuning.numSearchWorkers
             solver.parameters.randomSeed = tuning.randomSeed
             solver.parameters.maxDeterministicTime = tuning.maxDeterministicTime
+            if (tuning.interleaveSearch) solver.parameters.interleaveSearch = true
+            tuning.maxPresolveIterationsOverride?.let { solver.parameters.maxPresolveIterations = it }
+            tuning.linearizationLevelOverride?.let { solver.parameters.linearizationLevel = it }
         }
 
         val startTime = System.currentTimeMillis()
@@ -1647,6 +2341,14 @@ object WakfuBuildSolver {
                         return
                     }
 
+                    // E8 fallback: the first solution is already at the raw-score floor (= the certificate
+                    // bound), so stop immediately — the guaranteed final send below delivers it. No
+                    // intermediate emission needed.
+                    if (tuning?.stopAtFirstSolution == true) {
+                        stopSearch()
+                        return
+                    }
+
                     // Throttle the heavy rescore: building + scoring every improving solution on the solve
                     // thread starves the search. Snapshots are best-effort progress (trySend, consumers keep
                     // only the last), so skipping some is invisible — the proven final build is emitted
@@ -1657,9 +2359,18 @@ object WakfuBuildSolver {
 
                     val combination = solutionToBuild(params, allEquips, equipVars, skillVars, runeModel, subModel) { value(it) }
                     val actualScore = scoreFor(params, combination)
+                    if (suppressBelowScore != null && actualScore < suppressBelowScore) return
 
                     val progress = ((now - startTime).toDouble() / params.searchDuration.inWholeMilliseconds.toDouble() * 100).toInt()
-                    scope.trySend(GeneticAlgorithmResult(combination, actualScore, progress.coerceAtMost(100)))
+                    scope.trySend(
+                        SolverResult(
+                            combination,
+                            actualScore,
+                            progress.coerceAtMost(100),
+                            maxDamageObjective = if (maxDamage) objectiveValue().toLong() else null,
+                            maxDamageRawProxy = if (maxDamage) maxDamageRawScoreVar?.let { value(it) } else null
+                        )
+                    )
                 }
             }
 
@@ -1676,11 +2387,13 @@ object WakfuBuildSolver {
                 // final/optimal build must never be lost to a saturated callbackFlow buffer.
                 if (scope.isActive) {
                     scope.send(
-                        GeneticAlgorithmResult(
+                        SolverResult(
                             individual = finalComb,
                             matchPercentage = finalScore,
                             progressPercentage = 100,
-                            isOptimal = status == com.google.ortools.sat.CpSolverStatus.OPTIMAL
+                            isOptimal = status == com.google.ortools.sat.CpSolverStatus.OPTIMAL,
+                            maxDamageObjective = if (maxDamage) solver.objectiveValue().toLong() else null,
+                            maxDamageRawProxy = if (maxDamage) maxDamageRawScoreVar?.let { solver.value(it) } else null
                         )
                     )
                 }
@@ -1696,7 +2409,7 @@ object WakfuBuildSolver {
      * ([PassiveCatalog.slotsForLevel]). Unknown names are dropped. Shared by the stat-folding ([StatBuilder])
      * and the result ([solutionToBuild]) so what is scored equals what the build carries.
      */
-    private fun resolvedPassives(params: WakfuBestBuildParams): List<Passive> {
+    internal fun resolvedPassives(params: WakfuBestBuildParams): List<Passive> {
         if (params.forcedPassives.isEmpty()) return emptyList()
         val slots = PassiveCatalog.slotsForLevel(params.character.level)
         return params.forcedPassives
@@ -1741,8 +2454,14 @@ object WakfuBuildSolver {
                             } else {
                                 valueOf(runeVar).toInt()
                             }
-                        val rune = runeModel.runeByCharacteristic[stat]
-                        if (count > 0 && rune != null) List(count) { rune } else emptyList()
+                        val effectiveCount =
+                            if (runeModel.isSuppressed(equip, stat, valueOf)) {
+                                0
+                            } else {
+                                count
+                            }
+                        val rune = runeModel.runeTypeFor(runeVar, stat)
+                        if (effectiveCount > 0 && rune != null) List(effectiveCount) { rune } else emptyList()
                     }
                 }.filterValues { it.isNotEmpty() }
 
@@ -1750,1424 +2469,40 @@ object WakfuBuildSolver {
         // equipped epic/relic item (whose dedicated slot hosts it). This is what the GUI renders per item.
         val epicItem = equippedItems.firstOrNull { it.rarity == Rarity.EPIC }
         val relicItem = equippedItems.firstOrNull { it.rarity == Rarity.RELIC }
+        val normalCarrierItems = equippedItems.filter { it.maxShardSlots >= NORMAL_SUB_SOCKET_COST }
+        var nextNormalCarrierIndex = 0
         val sublimationsByItem = mutableMapOf<Equipment, MutableList<Sublimation>>()
         for ((sub, subVar) in subModel.subVars) {
-            if (valueOf(subVar) <= 0L) continue
-            val carrier =
+            // A cumulable NORMAL sub can be socketed multiple times: its copy count is the base var plus its copy
+            // vars, and each copy lands on its OWN distinct carrier. Greedy carrier pick: any equipped ≥3-socket
+            // item hosts a normal sub identically (stats come from the sub, not the item), and the model's aggregate
+            // normal-carrier capacity constraint guarantees enough distinct carriers — objective-neutral. Epic/relic
+            // are single-copy (never cumulable).
+            val copies =
                 when (sub.rarity) {
                     SublimationRarity.NORMAL ->
-                        subModel.carrierVars[sub]
-                            ?.entries
-                            ?.firstOrNull { valueOf(it.value) > 0L }
-                            ?.key
-
-                    SublimationRarity.EPIC -> epicItem
-                    SublimationRarity.RELIC -> relicItem
+                        (valueOf(subVar) + subModel.copyVars[sub].orEmpty().sumOf { valueOf(it) }).toInt()
+                    else -> if (valueOf(subVar) > 0L) 1 else 0
                 }
-            if (carrier != null) sublimationsByItem.getOrPut(carrier) { mutableListOf() }.add(sub)
+            repeat(copies) {
+                val carrier =
+                    when (sub.rarity) {
+                        SublimationRarity.NORMAL -> normalCarrierItems.getOrNull(nextNormalCarrierIndex++)
+                        SublimationRarity.EPIC -> epicItem
+                        SublimationRarity.RELIC -> relicItem
+                    }
+                if (carrier != null) sublimationsByItem.getOrPut(carrier) { mutableListOf() }.add(sub)
+            }
         }
 
         return BuildCombination(equippedItems, optimizedSkills, runes, sublimationsByItem, resolvedPassives(params))
     }
 
-    /**
-     * Tracks the **reachable** [LongRange] of each CP-SAT variable on the max-damage objective chain, so
-     * every intermediate var — and therefore every McCormick product envelope — is declared with a domain
-     * sized to what a real build can reach, NOT the "safe huge" `*_ABS_MAX` guards. Those guards made the
-     * LP relaxation worthless (`best_bound ≈ 90× objective`, never closing) and forced a pure-branching
-     * proof that timed out; reachable domains shrink every product box so CP-SAT certifies the incumbent
-     * and returns `OPTIMAL`. See `docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md`.
-     *
-     * Each builder over-estimates its output range from its inputs' ranges (sound interval arithmetic);
-     * an **under-estimate would silently cut the optimum**, so the arithmetic must never undershoot
-     * (locked by [maxDamageVarBoundsForTest]). The old `*_ABS_MAX` constants survive only as int64
-     * overflow guards via [decl]'s `coerceIn`.
-     *
-     * [tight] = false records the same reachable ranges but declares vars with the loose guard instead —
-     * the reference model the soundness test solves against (loose domains let a solved value exceed a
-     * buggy tight bound, which is exactly how an under-estimate is detected). It is also what every
-     * non-max-damage objective uses, so those modes keep byte-identical (guard-sized) domains.
-     */
-    private class DomainTracker(
-        val tight: Boolean,
-    ) {
-        private val ranges = LinkedHashMap<IntVar, LongRange>()
-        private val names = HashMap<IntVar, String>()
-
-        /** Seed a leaf var (equip/skill/rune/sub bool or a constant) with its exact domain. */
-        fun seed(
-            v: IntVar,
-            range: LongRange,
-            name: String,
-        ): IntVar {
-            ranges[v] = range
-            names[v] = name
-            return v
-        }
-
-        /** Record a derived var's reachable range (used by downstream [of] lookups and the soundness test). */
-        fun record(
-            v: IntVar,
-            range: LongRange,
-            name: String,
-        ): IntVar {
-            ranges[v] = range
-            names[v] = name
-            return v
-        }
-
-        /**
-         * Reachable range of [v]. Untracked vars fall back to the stat-level guard `±STAT_ABS_MAX`, which is
-         * a sound over-estimate for every var that can appear as a stat-sum term (item/rune/skill/sub values
-         * are all within it); product operands on the damage chain are always explicitly tracked, so the
-         * fallback never under-bounds a large intermediate.
-         */
-        fun of(v: IntVar): LongRange = ranges[v] ?: (-STAT_ABS_MAX..STAT_ABS_MAX)
-
-        /** The `[lo, hi]` to actually declare a var with: the reachable range (clamped into the guard) when [tight], else the guard. */
-        fun decl(
-            reach: LongRange,
-            guardLo: Long,
-            guardHi: Long,
-        ): Pair<Long, Long> =
-            if (tight) {
-                reach.first.coerceIn(guardLo, guardHi) to reach.last.coerceIn(guardLo, guardHi)
-            } else {
-                guardLo to guardHi
-            }
-
-        /** Every tracked var with its name and reachable range — read back by the soundness test. */
-        fun tracked(): List<Triple<IntVar, String, LongRange>> = ranges.entries.map { Triple(it.key, names[it.key] ?: "?", it.value) }
-    }
-
-    private class StatBuilder(
-        private val model: CpModel,
-        private val params: WakfuBestBuildParams,
-        private val allEquips: List<Equipment>,
-        private val equipVars: Map<Equipment, IntVar>,
-        skillVars: Map<SkillCharacteristic, IntVar>,
-        private val runeModel: RuneModel,
-        private val subModel: SublimationModel,
-        // Reachable-domain tracking for the max-damage objective chain. [tight] = true (max-damage only)
-        // declares each chain var sized to its reachable range; false reproduces the loose guard domains
-        // (every other mode, and the soundness-test reference). See [DomainTracker].
-        tight: Boolean = false,
-    ) {
-        val tracker = DomainTracker(tight)
-
-        private val baseValues = params.character.baseCharacteristicValues
-        private val skillTerms = buildSkillTerms(skillVars)
-
-        // Reverse lookup equipVar → its item, so a stat sum's reachable bound can be computed PER mutually-
-        // exclusive slot (one item per slot, two rings) instead of summing every candidate — the per-slot
-        // bound is what brings the mastery domain down to its real ~6k from the naive Σ-all-items.
-        private val equipByVar: Map<IntVar, Equipment> = equipVars.entries.associate { (e, v) -> v to e }
-
-        init {
-            // Seed every leaf variable's exact domain so the interval arithmetic can propagate from them.
-            equipVars.forEach { (equip, v) -> tracker.seed(v, 0L..1L, "equip_${equip.equipmentId}") }
-            skillVars.forEach { (skill, v) -> tracker.seed(v, 0L..skill.maxPointsAssignable.toLong(), "skill_${skill.name}") }
-            runeModel.runeVars.forEach { (equip, perStat) ->
-                // Fold ⇒ each var is a boolean PICK (0..1, contributes slots·coeff); count model ⇒ 0..slots.
-                val runeHi = if (runeModel.singleTypePerItem) 1L else equip.maxShardSlots.toLong()
-                perStat.forEach { (stat, v) -> tracker.seed(v, 0L..runeHi, "rune_${equip.equipmentId}_${stat.name}") }
-            }
-            subModel.subVars.forEach { (sub, v) -> tracker.seed(v, 0L..1L, "sub_${sub.stateId}") }
-        }
-
-        // ---- Domain-tracked variable builders (the max-damage objective chain) ----------------------
-        // Each mirrors a plain CpModel helper but declares the new var from its inputs' reachable ranges
-        // (via [DomainTracker]) and records its own range for downstream propagation. With tracker.tight =
-        // false they declare the exact same guard-sized domains as the untracked helpers, so non-max-damage
-        // objectives are unchanged.
-
-        /** A constant, seeded as the singleton range `v..v`. */
-        private fun tConst(v: Long): IntVar = tracker.seed(model.newConstant(v), v..v, "const_$v")
-
-        /** Reachable range of a stat sum `constant + Σ coeff·var`, **per mutually-exclusive slot** for item terms. */
-        private fun reachableSumDomain(
-            terms: List<Term>,
-            constant: Long,
-        ): LongRange {
-            var lo = constant
-            var hi = constant
-            // Item terms: one item per slot (two per RING). Bounding each itemType group by its single best
-            // (or worst) coefficient — rather than summing every candidate — is the dominant tightening, and a
-            // sound over-estimate (it even allows 2H+1H+off-hand together, which the validity rules forbid).
-            val coeffsByType = HashMap<ItemType, MutableList<Long>>()
-            for (term in terms) {
-                val equip = equipByVar[term.variable]
-                if (equip != null) {
-                    coeffsByType.getOrPut(equip.itemType) { mutableListOf() }.add(term.coefficient)
-                } else {
-                    val d = tracker.of(term.variable)
-                    val scaled = if (term.coefficient >= 0) d.first * term.coefficient..d.last * term.coefficient else d.last * term.coefficient..d.first * term.coefficient
-                    lo += scaled.first
-                    hi += scaled.last
-                }
-            }
-            for ((type, coeffs) in coeffsByType) {
-                val limit = if (type == ItemType.RING) 2L else 1L
-                hi += limit * maxOf(0L, coeffs.max())
-                lo += limit * minOf(0L, coeffs.min())
-            }
-            return lo..hi
-        }
-
-        /** Stat sum with a precomputed reachable [reach]; declares tight-or-guard and records [reach]. */
-        private fun tSum(
-            name: String,
-            terms: List<Term>,
-            constant: Long,
-            reach: LongRange,
-            guardLo: Long,
-            guardHi: Long,
-        ): IntVar {
-            if (terms.isEmpty()) return tConst(constant)
-            val (lo, hi) = tracker.decl(reach, guardLo, guardHi)
-            val v = model.newIntVar(lo, hi, name)
-            val builder = LinearExpr.newBuilder().add(constant)
-            terms.forEach { builder.addTerm(it.variable, it.coefficient) }
-            model.addEquality(v, builder.build())
-            return tracker.record(v, reach, name)
-        }
-
-        /** Stat sum whose reachable range is the naive interval sum of its (already-tracked) terms. */
-        private fun tSumNaive(
-            name: String,
-            terms: List<Term>,
-            constant: Long,
-            guardLo: Long,
-            guardHi: Long,
-        ): IntVar {
-            var reach = constant..constant
-            for (term in terms) {
-                val d = tracker.of(term.variable)
-                val scaled = if (term.coefficient >= 0) d.first * term.coefficient..d.last * term.coefficient else d.last * term.coefficient..d.first * term.coefficient
-                reach = reach.first + scaled.first..reach.last + scaled.last
-            }
-            return tSum(name, terms, constant, reach, guardLo, guardHi)
-        }
-
-        /** clamp(value, low, high): reachable range = the value's range clamped into `[low, high]`. */
-        private fun tClamp(
-            value: IntVar,
-            low: Long,
-            high: Long,
-            name: String,
-        ): IntVar {
-            val v = tracker.of(value)
-            val loweredReach = maxOf(low, v.first)..maxOf(low, v.last).coerceAtMost(CLAMP_INTERMEDIATE_MAX)
-            val (lLo, lHi) = tracker.decl(loweredReach, low, CLAMP_INTERMEDIATE_MAX)
-            val lowered = model.newIntVar(lLo, lHi, "${name}Lo")
-            model.addMaxEquality(lowered, arrayOf(value, model.newConstant(low)))
-            val clampedReach = v.first.coerceIn(low, high)..v.last.coerceIn(low, high)
-            val (cLo, cHi) = tracker.decl(clampedReach, low, high)
-            val clamped = model.newIntVar(cLo, cHi, name)
-            model.addMinEquality(clamped, arrayOf(lowered, model.newConstant(high)))
-            return tracker.record(clamped, clampedReach, name)
-        }
-
-        /** z = x·y, declared from the interval product of the operands' reachable ranges. */
-        private fun tMul(
-            name: String,
-            x: IntVar,
-            y: IntVar,
-            guardLo: Long,
-            guardHi: Long,
-        ): IntVar {
-            val reach = mulRange(tracker.of(x), tracker.of(y))
-            val (lo, hi) = tracker.decl(reach, guardLo, guardHi)
-            val z = model.newIntVar(lo, hi, name)
-            model.addMultiplicationEquality(z, arrayOf(x, y))
-            return tracker.record(z, reach, name)
-        }
-
-        /** q = num / divisor (truncated, divisor > 0), declared from num's range divided by [divisor]. */
-        private fun tDiv(
-            name: String,
-            num: IntVar,
-            divisor: Long,
-            guardLo: Long,
-            guardHi: Long,
-        ): IntVar {
-            val n = tracker.of(num)
-            val reach = n.first / divisor..n.last / divisor // truncation toward zero matches CP-SAT integer division
-            val (lo, hi) = tracker.decl(reach, guardLo, guardHi)
-            val q = model.newIntVar(lo, hi, name)
-            model.addDivisionEquality(q, num, model.newConstant(divisor))
-            return tracker.record(q, reach, name)
-        }
-
-        /** target = table[index]: reachable range = `[min(table), max(table)]`. */
-        private fun tElement(
-            name: String,
-            index: IntVar,
-            table: LongArray,
-        ): IntVar {
-            val reach = table.min()..table.max()
-            val (lo, hi) = tracker.decl(reach, 0L, table.max().coerceAtLeast(0L))
-            val target = model.newIntVar(lo, hi, name)
-            model.addElement(index, table, target)
-            return tracker.record(target, reach, name)
-        }
-
-        /** withPercent = value + round(value·percent / 100): mirrors [applyPercent], tightening every var. */
-        private fun tPercent(
-            value: IntVar,
-            percent: IntVar,
-            name: String,
-        ): IntVar {
-            val productReach = mulRange(tracker.of(value), tracker.of(percent))
-            val (pLo, pHi) = tracker.decl(productReach, -PRODUCT_ABS_MAX, PRODUCT_ABS_MAX)
-            val product = model.newIntVar(pLo, pHi, "${name}_prod")
-            model.addMultiplicationEquality(product, arrayOf(value, percent))
-
-            val quotientReach = productReach.first / 100..productReach.last / 100
-            val (qLo, qHi) = tracker.decl(quotientReach, -(PRODUCT_ABS_MAX / 100) - 1, (PRODUCT_ABS_MAX / 100) + 1)
-            val quotient = model.newIntVar(qLo, qHi, "${name}_quot")
-            model.addDivisionEquality(quotient, product, model.newConstant(100L))
-
-            val remainder = model.newIntVar(-99, 99, "${name}_rem")
-            model.addModuloEquality(remainder, product, 100L)
-
-            val inc = model.newBoolVar("${name}_inc")
-            model.addGreaterOrEqual(remainder, 50).onlyEnforceIf(inc)
-            model.addLessOrEqual(remainder, 49).onlyEnforceIf(inc.not())
-
-            val dec = model.newBoolVar("${name}_dec")
-            model.addLessOrEqual(remainder, -51).onlyEnforceIf(dec)
-            model.addGreaterOrEqual(remainder, -50).onlyEnforceIf(dec.not())
-
-            model.addLessOrEqual(
-                LinearExpr
-                    .newBuilder()
-                    .addTerm(inc, 1)
-                    .addTerm(dec, 1)
-                    .build(),
-                1
-            )
-
-            val roundedReach = quotientReach.first - 1..quotientReach.last + 1
-            val (rLo, rHi) = tracker.decl(roundedReach, -(PRODUCT_ABS_MAX / 100) - 2, (PRODUCT_ABS_MAX / 100) + 2)
-            val rounded = model.newIntVar(rLo, rHi, "${name}_rounded")
-            model.addEquality(
-                rounded,
-                LinearExpr
-                    .newBuilder()
-                    .addTerm(quotient, 1)
-                    .addTerm(inc, 1)
-                    .addTerm(dec, -1)
-                    .build()
-            )
-
-            val withReach = tracker.of(value).first + roundedReach.first..tracker.of(value).last + roundedReach.last
-            val (wLo, wHi) = tracker.decl(withReach, -STAT_WITH_PERCENT_ABS_MAX, STAT_WITH_PERCENT_ABS_MAX)
-            val withPercent = model.newIntVar(wLo, wHi, name)
-            model.addEquality(
-                withPercent,
-                LinearExpr
-                    .newBuilder()
-                    .addTerm(value, 1)
-                    .addTerm(rounded, 1)
-                    .build()
-            )
-            return tracker.record(withPercent, withReach, name)
-        }
-
-        private val prePercentCache = mutableMapOf<Characteristic, IntVar>()
-        private val preSubCache = mutableMapOf<Characteristic, IntVar>()
-        private val actualCache = mutableMapOf<Characteristic, IntVar>()
-        private val elementCache = mutableMapOf<Pair<Characteristic, List<Characteristic>>, Map<Characteristic, IntVar>>()
-        private val appliesVarCache = mutableMapOf<Sublimation, IntVar>()
-
-        // Sublimation stat contributions folded into the term loop, grouped by the (AP/MP/WP-folded)
-        // characteristic they feed. Built eagerly so prePercentStat sees them; conversions are excluded
-        // here and applied by [conversionContributions]. Conditions reify against [preSubStat] (the
-        // pre-sublimation stat value) to keep the constraint network acyclic.
-        private val subTermsByStat: Map<Characteristic, List<Term>> = buildSublimationTerms()
-
-        // The selected passives' flat stats ([Passive.flatStats] — the extractor's permanent + unconditional
-        // + flat + positive subset, safe to fold for ANY passive), added as constants (a passive is a fixed
-        // player choice, not a solver variable). The conditional/triggered part of a passive (combat state
-        // the static solver can't see) is not modeled; the full loadout still rides on the build for display.
-        // Grouped by the AP/MP/WP-folded stat, like [subTermsByStat].
-        private val passiveTermsByStat: Map<Characteristic, List<Term>> = buildPassiveTerms()
-
-        fun totalActualScore(
-            requiredTargets: List<TargetStat>,
-            totalExpectedScore: Long,
-            targetStats: TargetStats,
-        ): IntVar {
-            // Score each constraint as weight * clamp(actual, -target, target). Clamping *before*
-            // multiplying by the (fixed-point) weight keeps the weighted domain tight (~target*weight)
-            // instead of STAT_WITH_PERCENT_ABS_MAX*weight, which otherwise blows the integer domains up
-            // and makes the model intractable on the full item set. The low clamp at -target is
-            // faithful to the scorer: totalActualScore is floored at 1 before the penalty ratio, so a
-            // constraint dragged below -target already maxes out the penalty either way.
-            val contributions =
-                requiredTargets.map { targetStat ->
-                    val actual = requiredActualStat(targetStat.characteristic)
-                    val weight = targetStats.scaledWeight(targetStat)
-                    val target = targetStat.target.toLong()
-                    val name = targetStat.characteristic.name
-
-                    val cappedAtTarget = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, target.coerceAtLeast(0), "capAt_$name")
-                    model.addMinEquality(cappedAtTarget, arrayOf(actual, model.newConstant(target)))
-
-                    val clamped = model.newIntVar(-target.coerceAtLeast(0), target.coerceAtLeast(0), "clamp_$name")
-                    model.addMaxEquality(clamped, arrayOf(cappedAtTarget, model.newConstant(-target)))
-
-                    val expectedScore = target * weight
-                    val contribution = model.newIntVar(-expectedScore, expectedScore, "contrib_$name")
-                    model.addEquality(contribution, LinearExpr.term(clamped, weight))
-                    contribution
-                }
-
-            return model.sumVar("totalActualScore", contributions, -totalExpectedScore, totalExpectedScore)
-        }
-
-        /**
-         * Weighted amount by which a build *exceeds* its required targets — the raw input to the
-         * lexicographic overshoot tie-breaker (see [WakfuBuildSolver.withOvershootTieBreaker]). Mirrors
-         * [totalActualScore] (same `requiredActualStat` values, same per-constraint weights), but scores
-         * `weight * clamp(actual - target, 0, target)`: only the part above the target, and capped at
-         * one extra target's worth so the whole sum stays ≤ [totalExpectedScore] and no single stat can
-         * dominate. The shared weights mean leftover skill points flow to the highest-priority stat
-         * exactly like the constraints themselves decide, with no separate distribution policy to encode.
-         */
-        fun overshootScore(
-            requiredTargets: List<TargetStat>,
-            totalExpectedScore: Long,
-            targetStats: TargetStats,
-        ): IntVar {
-            val contributions =
-                requiredTargets.map { targetStat ->
-                    val actual = requiredActualStat(targetStat.characteristic)
-                    val weight = targetStats.scaledWeight(targetStat)
-                    val target = targetStat.target.toLong().coerceAtLeast(0)
-                    val name = targetStat.characteristic.name
-
-                    val excess = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, STAT_WITH_PERCENT_ABS_MAX, "excess_$name")
-                    model.addEquality(
-                        excess,
-                        LinearExpr
-                            .newBuilder()
-                            .addTerm(actual, 1)
-                            .add(-target)
-                            .build()
-                    )
-                    val cappedExcess = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, target, "excessCap_$name")
-                    model.addMinEquality(cappedExcess, arrayOf(excess, model.newConstant(target)))
-                    val positiveExcess = model.newIntVar(0, target, "excessPos_$name")
-                    model.addMaxEquality(positiveExcess, arrayOf(cappedExcess, model.newConstant(0L)))
-
-                    val contribution = model.newIntVar(0, target * weight, "overshoot_$name")
-                    model.addEquality(contribution, LinearExpr.term(positiveExcess, weight))
-                    contribution
-                }
-
-            return model.sumVar("overshootScore", contributions, 0, totalExpectedScore)
-        }
-
-        /**
-         * Models [FindClosestBuildFromInputScoring] as a CP-SAT objective: every requested stat
-         * scores min(weight * actual, weight * target); the aggregate elementary stats average the
-         * four elements. Two refinements mirror the scorer: a target-0 stat that ends up negative
-         * halves the score, and once every target is fully met the build that exceeds the targets
-         * the most ranks higher (lexicographic capped-then-overflow objective).
-         */
-        fun precisionScore(targetStats: TargetStats): IntVar {
-            val capped = mutableListOf<IntVar>()
-            val uncapped = mutableListOf<IntVar>()
-            var totalExpected = 0L
-
-            for (targetStat in targetStats) {
-                val weight = targetStats.scaledWeight(targetStat)
-                if (weight == 0L) continue
-                val expected = targetStat.target.toLong() * weight
-                val name = targetStat.characteristic.name
-                val (cappedVar, uncappedVar) =
-                    when (targetStat.characteristic) {
-                        Characteristic.MASTERY_ELEMENTARY ->
-                            averagedContribution(elementMasteryVars(ELEMENTARY_MASTERIES).values.toList(), weight, expected, name)
-
-                        Characteristic.RESISTANCE_ELEMENTARY ->
-                            averagedContribution(elementResistanceVars(ELEMENTARY_RESISTANCES).values.toList(), weight, expected, name)
-
-                        else -> cappedContribution(foldedElementalStat(targetStat.characteristic), weight, expected, name)
-                    }
-                capped.add(cappedVar)
-                uncapped.add(uncappedVar)
-                totalExpected += expected
-            }
-
-            val totalExpectedScore = totalExpected.coerceAtLeast(1L)
-            val maxWeight = (targetStats.maxOfOrNull { targetStats.scaledWeight(it) } ?: 1L).coerceAtLeast(1L)
-            val bound = STAT_WITH_PERCENT_ABS_MAX * maxWeight * targetStats.size.coerceAtLeast(1)
-
-            val cappedSum = model.sumVar("precisionCapped", capped, -bound, totalExpectedScore)
-            val uncappedSum = model.sumVar("precisionUncapped", uncapped, -bound, bound)
-            val penalizedCapped = negativeTargetPenalty(targetStats, cappedSum, -bound, totalExpectedScore)
-
-            // overflow = how far the build exceeds the targets; always >= 0 because each capped term
-            // is <= its uncapped term. It is only rewarded once every target is met (see fullyMet).
-            val rawOverflow = model.newIntVar(0, 2 * bound, "precisionRawOverflow")
-            model.addEquality(
-                rawOverflow,
-                LinearExpr
-                    .newBuilder()
-                    .addTerm(uncappedSum, 1)
-                    .addTerm(cappedSum, -1)
-                    .build()
-            )
-            val clampedOverflow = model.newIntVar(0, PRECISION_OVERFLOW_BOUND, "precisionOverflow")
-            model.addMinEquality(clampedOverflow, arrayOf(rawOverflow, model.newConstant(PRECISION_OVERFLOW_BOUND)))
-
-            val fullyMet = model.newBoolVar("precisionFullyMet")
-            model.addGreaterOrEqual(penalizedCapped, totalExpectedScore).onlyEnforceIf(fullyMet)
-            model.addLessOrEqual(penalizedCapped, totalExpectedScore - 1).onlyEnforceIf(fullyMet.not())
-
-            val bonus = model.newIntVar(0, PRECISION_OVERFLOW_BOUND, "precisionBonus")
-            model.addEquality(bonus, clampedOverflow).onlyEnforceIf(fullyMet)
-            model.addEquality(bonus, 0L).onlyEnforceIf(fullyMet.not())
-
-            val objective = model.newIntVar(-bound, totalExpectedScore + PRECISION_OVERFLOW_BOUND, "precisionObjective")
-            model.addEquality(
-                objective,
-                LinearExpr
-                    .newBuilder()
-                    .addTerm(penalizedCapped, 1)
-                    .addTerm(bonus, 1)
-                    .build()
-            )
-            return objective
-        }
-
-        private fun cappedContribution(
-            actual: IntVar,
-            weight: Long,
-            expected: Long,
-            name: String,
-        ): Pair<IntVar, IntVar> {
-            val span = STAT_WITH_PERCENT_ABS_MAX * weight
-            val weighted = model.newIntVar(-span, span, "precWeighted_$name")
-            model.addEquality(weighted, LinearExpr.term(actual, weight))
-            val cappedVar = model.newIntVar(-span, expected, "precCapped_$name")
-            model.addMinEquality(cappedVar, arrayOf(weighted, model.newConstant(expected)))
-            return cappedVar to weighted
-        }
-
-        private fun averagedContribution(
-            elementActuals: List<IntVar>,
-            weight: Long,
-            expected: Long,
-            name: String,
-        ): Pair<IntVar, IntVar> {
-            val cappedElements = mutableListOf<IntVar>()
-            val uncappedElements = mutableListOf<IntVar>()
-            elementActuals.forEachIndexed { index, element ->
-                val (cappedVar, uncappedVar) = cappedContribution(element, weight, expected, "${name}_$index")
-                cappedElements.add(cappedVar)
-                uncappedElements.add(uncappedVar)
-            }
-            val count = elementActuals.size.coerceAtLeast(1)
-            val span = STAT_WITH_PERCENT_ABS_MAX * weight * count
-            val cappedSum = model.sumVar("precElemCapped_$name", cappedElements, -span, expected * count)
-            val uncappedSum = model.sumVar("precElemUncapped_$name", uncappedElements, -span, span)
-            val cappedAvg = model.newIntVar(-span, expected, "precElemCappedAvg_$name")
-            model.addDivisionEquality(cappedAvg, cappedSum, model.newConstant(count.toLong()))
-            val uncappedAvg = model.newIntVar(-span, span, "precElemUncappedAvg_$name")
-            model.addDivisionEquality(uncappedAvg, uncappedSum, model.newConstant(count.toLong()))
-            return cappedAvg to uncappedAvg
-        }
-
-        private fun negativeTargetPenalty(
-            targetStats: TargetStats,
-            cappedSum: IntVar,
-            low: Long,
-            high: Long,
-        ): IntVar {
-            val zeroTargets =
-                targetStats.filter {
-                    it.target == 0 &&
-                        it.characteristic != Characteristic.MASTERY_ELEMENTARY &&
-                        it.characteristic != Characteristic.RESISTANCE_ELEMENTARY
-                }
-            if (zeroTargets.isEmpty()) return cappedSum
-
-            val flagsSum = LinearExpr.newBuilder()
-            for (targetStat in zeroTargets) {
-                val actual = actualStat(targetStat.characteristic)
-                val isNegative = model.newBoolVar("precNeg_${targetStat.characteristic.name}")
-                model.addLessOrEqual(actual, -1L).onlyEnforceIf(isNegative)
-                model.addGreaterOrEqual(actual, 0L).onlyEnforceIf(isNegative.not())
-                flagsSum.addTerm(isNegative, 1)
-            }
-            val anyNegative = model.newBoolVar("precAnyNegativeTarget0")
-            val flags = flagsSum.build()
-            model.addGreaterOrEqual(flags, 1L).onlyEnforceIf(anyNegative)
-            model.addLessOrEqual(flags, 0L).onlyEnforceIf(anyNegative.not())
-
-            val halved = model.newIntVar(low, high, "precHalvedCapped")
-            model.addDivisionEquality(halved, cappedSum, model.newConstant(2L))
-
-            val penalized = model.newIntVar(low, high, "precPenalizedCapped")
-            model.addEquality(penalized, cappedSum).onlyEnforceIf(anyNegative.not())
-            model.addEquality(penalized, halved).onlyEnforceIf(anyNegative)
-            return penalized
-        }
-
-        fun finalMasteryScore(
-            targetStats: TargetStats,
-            targetCharacteristics: Set<Characteristic>,
-        ): IntVar {
-            val nonElementaries =
-                targetStats
-                    .filter { it.characteristic in NON_ELEMENTARY_MASTERIES }
-                    .map { actualStat(it.characteristic) }
-            val nonElemSum = model.sumVar("nonElemMastery", nonElementaries, -MASTERY_SCORE_ABS_MAX, MASTERY_SCORE_ABS_MAX)
-
-            val negativePenaltyVars =
-                NEGATIVE_MASTERY_PENALTY
-                    .filter { it !in targetCharacteristics }
-                    .map { char ->
-                        val actual = actualStat(char)
-                        val negativePart = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, 0, "neg_${char.name}")
-                        model.addMinEquality(negativePart, arrayOf(actual, model.newConstant(0L)))
-                        negativePart
-                    }
-            val negativePenalty = model.sumVar("negMasteryPenalty", negativePenaltyVars, -MASTERY_SCORE_ABS_MAX, 0)
-
-            // Fold the generic "+all elements" stat into every wanted element (matching the scorer's
-            // computeCharacteristicsValues), but take the minimum over only the elements the user
-            // actually asked for: a co-requested MASTERY_ELEMENTARY no longer forces balancing the
-            // off-elements. minElements is always a subset of foldElements — see
-            // TargetStats.masteryElementsToMinimize.
-            val foldElements = targetStats.masteryElementsWanted.keys.toList()
-            val minElements = targetStats.masteryElementsToMinimize
-
-            val lowestElementMastery =
-                if (minElements.isEmpty()) {
-                    model.newConstant(0L)
-                } else {
-                    val elementVars = elementMasteryVars(foldElements)
-                    val minVar = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, STAT_WITH_PERCENT_ABS_MAX, "minElementMastery")
-                    model.addMinEquality(minVar, minElements.map { elementVars.getValue(it) }.toTypedArray())
-                    minVar
-                }
-
-            val total = model.newIntVar(-MASTERY_SCORE_ABS_MAX, MASTERY_SCORE_ABS_MAX, "masteryScore")
-            val sumExpr =
-                LinearExpr
-                    .newBuilder()
-                    .addTerm(nonElemSum, 1)
-                    .addTerm(negativePenalty, 1)
-                    .addTerm(lowestElementMastery, 1)
-                    .build()
-            model.addEquality(total, sumExpr)
-            return total
-        }
-
-        /**
-         * Folds the global **% Damage Inflicted** multiplier into [masteryScore] so most-masteries maximizes a
-         * DAMAGE-FAITHFUL proxy `masteryScore × (1 + DI/100)` (the same DI factor the max-damage objective and
-         * the real hit formula use) instead of the raw mastery sum. So a `+DI` choice now raises the objective
-         * in proportion to the mastery already invested, and a `−DI` choice (e.g. a −20% DI sublimation grabbed
-         * to over-satisfy an AP/MP target) is taken **only** when its mastery gain outweighs the damage it
-         * costs — the engine no longer trades real damage for a hollow mastery point. DI is clamped to
-         * `[−DAMAGE_DI_FLOOR, DAMAGE_DI_MAX]` exactly as the max-damage objective and the re-scorer do.
-         *
-         * [masteryScore] is first clamped to `≥ 0` (mirroring the max-damage objective's `m = tClamp(preM, 0, …)`):
-         * the factor `100 + DI` is always positive, so multiplying a *negative* mastery by it would INVERT the DI
-         * incentive (a higher DI making the product more negative) — clamping at 0 keeps "+DI is always better"
-         * monotone. The product is then divided by 100 and clamped back onto `[0, MASTERY_SCORE_ABS_MAX]` — a
-         * no-op for any real build (mastery sums are ≤ ~1e5, far below the bound) — so the result keeps the same
-         * domain as the raw [masteryScore] and **every downstream penalty / overshoot bound is unchanged**.
-         * When the build carries no DI the factor is exactly 100, so the whole fold is the identity (×1) and
-         * DI-free requests are byte-identical to the old objective.
-         */
-        fun diAdjustedMasteryScore(masteryScore: IntVar): IntVar {
-            val nonNegativeMastery = model.clampVar(masteryScore, 0L, MASTERY_SCORE_ABS_MAX, "mmMasteryNonNeg")
-            val di = model.clampVar(actualStat(Characteristic.DAMAGE_INFLICTED), -DAMAGE_DI_FLOOR, DAMAGE_DI_MAX, "mmDI")
-            // factor = 100 + DI ∈ [100 − FLOOR, 100 + MAX]; (1 + DI/100) scaled by 100 to stay integer.
-            val factor = model.sumVar("mmDiFactor", listOf(Term(di, 1L)), 100L, 100L - DAMAGE_DI_FLOOR, 100L + DAMAGE_DI_MAX)
-            val productBound = MASTERY_SCORE_ABS_MAX * (100L + DAMAGE_DI_MAX)
-            val product = model.newIntVar(0L, productBound, "mmDiProduct")
-            model.addMultiplicationEquality(product, arrayOf(nonNegativeMastery, factor))
-            val scaled = model.newIntVar(0L, productBound / 100L, "mmDiScaled")
-            model.addDivisionEquality(scaled, product, model.newConstant(100L))
-            return model.clampVar(scaled, 0L, MASTERY_SCORE_ABS_MAX, "mmDiAdjusted")
-        }
-
-        // The build's resolved Action Points variable (base + gear + skills), for the external-loop AP probe.
-        fun actionPointVar(): IntVar = actualStat(Characteristic.ACTION_POINT)
-
-        /**
-         * Monotonic **effective-HP proxy** for the survivability soft-floor (Lot 5):
-         * `EHP ≈ HP · (100 + avgResist) / 100`, with `avgResist` the average of the four elemental
-         * resistances clamped to `[0, EHP_AVG_RESIST_CAP]`. This is a *linear* CP-SAT expression — exact
-         * `1/(1 − res)` damage mitigation is non-linear and cannot be modeled here — so it ranks builds
-         * by survivability (more HP and more resist both raise it) without being a true effective-HP.
-         * Resistance is averaged (not summed) so a single high element can't masquerade as overall
-         * tankiness; the cap mirrors Wakfu's soft resistance ceiling and keeps the proxy honest against
-         * a few extreme resist rolls. Each element is read through [foldedElementalStat] so the generic
-         * "+all elements" resistance and random-resistance gear count exactly as they do elsewhere.
-         */
-        fun effectiveHpVar(): IntVar {
-            val hp = model.clampVar(actualStat(Characteristic.HP), 0L, EHP_HP_MAX, "ehpHp")
-            val resSum =
-                model.sumVar(
-                    "ehpResSum",
-                    ELEMENTARY_RESISTANCES.map { foldedElementalStat(it) },
-                    -STAT_WITH_PERCENT_ABS_MAX,
-                    STAT_WITH_PERCENT_ABS_MAX
-                )
-            val avgResist = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, STAT_WITH_PERCENT_ABS_MAX, "ehpAvgRes")
-            model.addDivisionEquality(avgResist, resSum, model.newConstant(ELEMENTARY_RESISTANCES.size.toLong()))
-            val avgResistClamped = model.clampVar(avgResist, 0L, EHP_AVG_RESIST_CAP, "ehpAvgResClamped")
-
-            // factor = 100 + avgResist ∈ [100, 100 + cap]; EHP = HP · factor / 100.
-            val factor = model.sumVar("ehpFactor", listOf(Term(avgResistClamped, 1L)), 100L, 100L, 100L + EHP_AVG_RESIST_CAP)
-            val product = model.newIntVar(0L, EHP_HP_MAX * (100L + EHP_AVG_RESIST_CAP), "ehpProduct")
-            model.addMultiplicationEquality(product, arrayOf(hp, factor))
-            val ehp = model.newIntVar(0L, EHP_MAX, "ehp")
-            model.addDivisionEquality(ehp, product, model.newConstant(100L))
-            return ehp
-        }
-
-        /**
-         * Out-of-combat hardcaps: the equipped sheet — gear + skills + runes, i.e. the PRE-sublimation value,
-         * since sublimations activate at start of combat — cannot exceed 16 AP / 8 MP / 20 WP. In-combat
-         * bonuses (those subs, active spells, …) may push past these; they aren't part of the equipped build.
-         */
-        fun applyOutOfCombatCaps() {
-            model.addLessOrEqual(preSubStat(Characteristic.ACTION_POINT), MAX_OUT_OF_COMBAT_AP)
-            model.addLessOrEqual(preSubStat(Characteristic.MOVEMENT_POINT), MAX_OUT_OF_COMBAT_MP)
-            model.addLessOrEqual(preSubStat(Characteristic.WAKFU_POINT), MAX_OUT_OF_COMBAT_WP)
-            // Negative-crit gear is condition-limited: the sheet can't drop below −9% Critical Hit.
-            model.addGreaterOrEqual(preSubStat(Characteristic.CRITICAL_HIT), MIN_OUT_OF_COMBAT_CRIT)
-        }
-
-        /**
-         * Spell-aware / boss-aware per-turn damage objective for [scenario] (max-damage mode only).
-         *
-         * For each candidate element (one fixed element, or all four when boss-aware — see
-         * [DamageScenario.candidateElements]) that [clazz] actually has spells in, the value is
-         * `throughput_e × perHit_e × resFactor_e`:
-         *  - `perHit_e` is the existing per-hit core `D · Graw` for that element ([perHitDamageScore]);
-         *  - `throughput_e` is the build-independent best base-damage castable with the build's AP — a
-         *    precomputed knapsack table ([SpellRotationOptimizer.baseThroughputTable]) looked up by the
-         *    AP variable. Element gating is intrinsic: a class with no spells in `e` has an all-zero
-         *    table and contributes nothing;
-         *  - `resFactor_e = (100 − res_e)` folds in the boss's per-element resistance (a weakness
-         *    `res_e < 0` amplifies it), so the `max` over elements picks the best **playable** element
-         *    given both the boss profile and the class kit — the joint equipment + element + rotation
-         *    optimum. The per-hit score is divided by [DMG_DOWNSCALE] to keep the product in Long range.
-         */
-        fun perTurnDamageScore(
-            scenario: DamageScenario,
-            clazz: me.chosante.common.CharacterClass,
-        ): IntVar {
-            val apVar = tClamp(actualStat(Characteristic.ACTION_POINT), 0L, MAX_ROTATION_AP, "rotationAp")
-            val perElementDamage =
-                scenario.candidateElements().mapNotNull { (element, resistance) ->
-                    val spells =
-                        SpellCatalog.damageSpells(clazz).filter {
-                            it.element ==
-                                me.chosante.common.SpellElement
-                                    .valueOf(element.name)
-                        }
-                    val table = SpellRotationOptimizer.baseThroughputTable(spells, MAX_ROTATION_AP.toInt())
-                    if (table.all { it == 0L }) return@mapNotNull null
-
-                    if (table.max() > PER_TURN_THROUGHPUT_MAX) {
-                        System.err.println(
-                            "WARN: per-turn throughput for ${element.name} (${table.max()}) exceeds the " +
-                                "CP-SAT cap PER_TURN_THROUGHPUT_MAX=$PER_TURN_THROUGHPUT_MAX; the cap is binding and " +
-                                "distorts the max-damage objective — raise it for this dataset."
-                        )
-                    }
-                    val clampedTable = LongArray(table.size) { table[it].coerceAtMost(PER_TURN_THROUGHPUT_MAX) }
-                    val throughput = tElement("throughput_${element.name}", apVar, clampedTable)
-
-                    // raw = throughput · (perHit ÷ PERHIT_DOWNSCALE) — the per-hit core scaled down to a
-                    // modest domain before the multiplication, so the product stays small for CP-SAT.
-                    val perHit = perHitDamageScore(scenarioElementMasteryVar(element.masteryCharacteristic), element.masteryCharacteristic.name, scenario)
-                    val perHitScaled = tDiv("perHitScaled_${element.name}", perHit, PERHIT_DOWNSCALE, 0L, PERHIT_SCALED_MAX)
-                    val raw = tMul("rotRaw_${element.name}", throughput, perHitScaled, 0L, ROTATION_RAW_MAX)
-
-                    // Fold in the boss's per-element resistance, then scale down once into the penalty's range.
-                    val resFactor = (100L - resistance).coerceIn(RES_FACTOR_MIN, RES_FACTOR_MAX)
-                    val rawWithRes = tSumNaive("rotRawRes_${element.name}", listOf(Term(raw, resFactor)), 0L, 0L, ROTATION_RAW_RES_MAX)
-                    tDiv("rotDamage_${element.name}", rawWithRes, FINAL_DOWNSCALE, 0L, DAMAGE_PERTURN_ABS_MAX)
-                }
-
-            // The turn plays the single best PLAYABLE element against the boss — `max over elements`, NOT a sum
-            // (an AP split across elements was measured UNPROVABLE at every arity — 2 terms still FEASIBLE at 240
-            // det-time, 3 terms 311s FEASIBLE — for only a ~1.4% unproven gain; multi-element value is captured by
-            // element SELECTION, this max). NOTE: a single candidate (size == 1) proves in seconds, but the
-            // in-model `max` over several candidates does NOT prove on the full pool (562s FEASIBLE) — so the
-            // production boss path (MaxDamageSearch) instead solves each candidate element SEPARATELY (single
-            // candidate ⇒ provable) and takes the max externally. This in-model `max` is the correct but
-            // slower-to-prove fallback for direct/small-pool callers. See docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md.
-            return when (perElementDamage.size) {
-                0 -> model.newConstant(0L)
-                1 -> perElementDamage.single()
-                else -> {
-                    val reach = 0L..perElementDamage.maxOf { tracker.of(it).last }
-                    val (lo, hi) = tracker.decl(reach, 0L, DAMAGE_PERTURN_ABS_MAX)
-                    val best = model.newIntVar(lo, hi, "rotBestElement")
-                    model.addMaxEquality(best, perElementDamage.toTypedArray())
-                    tracker.record(best, reach, "rotBestElement")
-                }
-            }
-        }
-
-        /**
-         * Build-dependent per-hit core `D · Graw` for an element whose folded elemental-mastery var is
-         * [elementMasteryVar] (see [perTurnDamageScore]). Taking the mastery var as a parameter — rather than
-         * computing it internally — lets the caller fold generic "+all elements" and random-element mastery onto
-         * the element once. All masteries / DI / crit are clamped into the damage bounds so the two CP-SAT
-         * multiplications stay on small, stable integer domains. Var names carry [suffix] so per-element cores
-         * never collide.
-         */
-        private fun perHitDamageScore(
-            elementMasteryVar: IntVar,
-            suffix: String,
-            scenario: DamageScenario,
-        ): IntVar {
-            val s = suffix
-            val masteryTerms = mutableListOf<Term>()
-            masteryTerms.add(Term(elementMasteryVar, 1L))
-            masteryTerms.add(Term(actualStat(scenario.rangeBand.masteryCharacteristic), 1L))
-            if (scenario.orientation.grantsRearMastery) masteryTerms.add(Term(actualStat(Characteristic.MASTERY_BACK), 1L))
-            if (scenario.berserk) masteryTerms.add(Term(actualStat(Characteristic.MASTERY_BERSERK), 1L))
-            if (scenario.healing) masteryTerms.add(Term(actualStat(Characteristic.MASTERY_HEALING), 1L))
-
-            // M = clamp(100 + ΣMastery, 0, MAX); criticalMastery and DI clamped likewise. The clamps inherit
-            // their inputs' reachable ranges, so M / criticalMastery / DI land on their true ~6k / ~1k domains
-            // (not the safe-huge caps), which is what shrinks the two multiplication envelopes below.
-            //
-            // The naive sum over the per-stat mastery vars DOUBLE-COUNTS runes across those stats: each stat's
-            // reach independently assumes its rune fills every socket, but a socket holds ONE rune, so the rune
-            // mastery feeding M is ≤ Σ_slot best(item.slots × best mastery-rune coeff) — a sound, socket-aware
-            // bound. Subtracting that provable over-count keeps M's declared range tight WITH runes on (the
-            // inflation is what stalled the proof once runes were modelled); the over-count is 0 when runes are
-            // off, so every non-rune path stays byte-identical. Items/skills/subs keep their per-slot auto bound.
-            val masteryRuneStats =
-                buildList {
-                    add(Characteristic.MASTERY_ELEMENTARY)
-                    add(scenario.rangeBand.masteryCharacteristic)
-                    if (scenario.orientation.grantsRearMastery) add(Characteristic.MASTERY_BACK)
-                    if (scenario.berserk) add(Characteristic.MASTERY_BERSERK)
-                    if (scenario.healing) add(Characteristic.MASTERY_HEALING)
-                }
-            var preMLo = 100L
-            var preMHi = 100L
-            for (t in masteryTerms) {
-                val d = tracker.of(t.variable)
-                preMLo += d.first * t.coefficient
-                preMHi += d.last * t.coefficient
-            }
-            val preM =
-                tSum(
-                    "dmgPreM_$s",
-                    masteryTerms,
-                    100L,
-                    preMLo..(preMHi - runeMasteryOverCount(masteryRuneStats)),
-                    -CLAMP_INTERMEDIATE_MAX,
-                    CLAMP_INTERMEDIATE_MAX
-                )
-            val m = tClamp(preM, 0L, DAMAGE_MASTERY_MAX, "dmgM_$s")
-            val criticalMastery = tClamp(actualStat(Characteristic.MASTERY_CRITICAL), 0L, DAMAGE_MASTERY_MAX, "dmgCriticalMastery_$s")
-            val critCap = scenario.critCapPercent.toLong().coerceIn(0L, 100L)
-            val crit = tClamp(actualStat(Characteristic.CRITICAL_HIT), 0L, critCap, "dmgCrit_$s")
-            val di = tClamp(actualStat(Characteristic.DAMAGE_INFLICTED), -DAMAGE_DI_FLOOR, DAMAGE_DI_MAX, "dmgDI_$s")
-            val d = tSumNaive("dmgD_$s", listOf(Term(di, 1L)), 100L, 100L - DAMAGE_DI_FLOOR, 100L + DAMAGE_DI_MAX)
-
-            // diff = M + 5·criticalMastery ; term = crit · diff ; Graw = 400·M + term.
-            val diff = tSumNaive("dmgDiff_$s", listOf(Term(m, 1L), Term(criticalMastery, 5L)), 0L, 0L, DAMAGE_MASTERY_MAX * 6)
-            val term = tMul("dmgCritTerm_$s", crit, diff, 0L, 100L * DAMAGE_MASTERY_MAX * 6)
-            val graw = tSumNaive("dmgGraw_$s", listOf(Term(m, 400L), Term(term, 1L)), 0L, 0L, DAMAGE_GRAW_MAX)
-
-            return tMul("dmgScore_$s", d, graw, 0L, DAMAGE_SCORE_ABS_MAX)
-        }
-
-        /**
-         * How much the naive [perHitDamageScore] mastery sum over-counts RUNE mastery across the scenario's
-         * mastery stats: each per-stat mastery var's reach independently assumes its rune fills every socket,
-         * but a socket holds ONE rune and only ONE item is equipped per slot, so the rune mastery feeding M is
-         * ≤ Σ_slot best(item.slots × best mastery-rune coeff). Returns `naiveRuneSum − socketAwareMax` (≥ 0)
-         * over [masteryRuneStats] — exactly the per-stat rune total the naive reach added minus that tight
-         * socket-aware bound — so subtracting it from the naive reach yields a SOUND, tighter upper bound on
-         * M's rune portion (never an under-estimate; the optimum's own M still fits). 0 when runes are off.
-         */
-        private fun runeMasteryOverCount(masteryRuneStats: List<Characteristic>): Long {
-            if (runeModel.runeVars.isEmpty()) return 0L
-
-            fun coeff(
-                equip: Equipment,
-                stat: Characteristic,
-            ): Long = runeModel.runeByCharacteristic[stat]?.valueOn(equip.itemType, equip.level)?.toLong() ?: 0L
-            val socketable = allEquips.filter { runeModel.runeVars.containsKey(it) }
-            if (socketable.isEmpty()) return 0L
-            val naive =
-                socketable.sumOf { equip ->
-                    val slots = equip.maxShardSlots.toLong()
-                    masteryRuneStats.sumOf { stat -> slots * coeff(equip, stat) }
-                }
-            val socketAware =
-                socketable.groupBy { it.itemType }.entries.sumOf { (type, items) ->
-                    val limit = if (type == ItemType.RING) 2L else 1L
-                    val best = items.maxOf { equip -> equip.maxShardSlots.toLong() * (masteryRuneStats.maxOfOrNull { coeff(equip, it) } ?: 0L) }
-                    limit * best.coerceAtLeast(0L)
-                }
-            return (naive - socketAware).coerceAtLeast(0L)
-        }
-
-        /**
-         * Elemental mastery for the scenario's spell element, with generic "+all elements" mastery and
-         * random-element lines folded in onto that single element — matching how [FindMaxDamageScoring]
-         * (via computeCharacteristicsValues with that one wanted element) resolves it.
-         */
-        private fun scenarioElementMasteryVar(element: Characteristic): IntVar =
-            elementVars(
-                wantedElements = listOf(element),
-                genericCharacteristic = Characteristic.MASTERY_ELEMENTARY,
-                targets = mapOf(element to 1),
-                randomByCount = MASTERY_RANDOM_BY_COUNT
-            ).getValue(element)
-
-        private fun elementMasteryVars(wantedElements: List<Characteristic>): Map<Characteristic, IntVar> =
-            elementVars(
-                wantedElements = wantedElements,
-                genericCharacteristic = Characteristic.MASTERY_ELEMENTARY,
-                targets = params.targetStats.masteryElementsWanted,
-                randomByCount = MASTERY_RANDOM_BY_COUNT
-            )
-
-        private fun elementResistanceVars(wantedElements: List<Characteristic>): Map<Characteristic, IntVar> =
-            elementVars(
-                wantedElements = wantedElements,
-                genericCharacteristic = Characteristic.RESISTANCE_ELEMENTARY,
-                targets = params.targetStats.resistanceElementsWanted,
-                randomByCount = RESISTANCE_RANDOM_BY_COUNT
-            )
-
-        /**
-         * Actual per-element value of an elemental mastery/resistance with the generic "+all elements"
-         * stat folded in — the way the scorers compute it (see `currentStatSpecificElements`). Falls
-         * back to the plain [actualStat] for any non-elemental characteristic. Routing single-element
-         * targets through here is what lets the solver see generic-mastery / generic-resistance gear
-         * and the Major aptitudes (which carry [Characteristic.MASTERY_ELEMENTARY] /
-         * [Characteristic.RESISTANCE_ELEMENTARY]); without it those contributions were invisible and
-         * the matching items/aptitudes were never selected.
-         */
-        private fun foldedElementalStat(characteristic: Characteristic): IntVar =
-            when (characteristic) {
-                in ELEMENTARY_MASTERIES -> elementMasteryVars(listOf(characteristic)).getValue(characteristic)
-                in ELEMENTARY_RESISTANCES -> elementResistanceVars(listOf(characteristic)).getValue(characteristic)
-                else -> actualStat(characteristic)
-            }
-
-        /**
-         * Actual value of a *required* (most-masteries) target. Same as [foldedElementalStat], except
-         * the aggregate [Characteristic.RESISTANCE_ELEMENTARY] resolves to the **minimum** of the four
-         * folded elemental resistances — the scorer stores that aggregate as the min of the elements
-         * (see `computeCharacteristicsValues`), so the constraint must use the min too.
-         */
-        private fun requiredActualStat(characteristic: Characteristic): IntVar =
-            if (characteristic == Characteristic.RESISTANCE_ELEMENTARY) {
-                val elementResistances = elementResistanceVars(ELEMENTARY_RESISTANCES)
-                val minVar = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, STAT_WITH_PERCENT_ABS_MAX, "minElementResistance")
-                model.addMinEquality(minVar, elementResistances.values.toTypedArray())
-                minVar
-            } else {
-                foldedElementalStat(characteristic)
-            }
-
-        /**
-         * Builds, for each requested element, an [IntVar] equal to that element's own stat plus the
-         * generic "+all elements" stat ([genericCharacteristic]), with random-element lines greedily
-         * assigned and percent skills applied — mirroring `computeCharacteristicsValues`. Works for
-         * both elemental masteries and elemental resistances.
-         */
-        private fun elementVars(
-            wantedElements: List<Characteristic>,
-            genericCharacteristic: Characteristic,
-            targets: Map<Characteristic, Int>,
-            randomByCount: List<Pair<Characteristic, Int>>,
-        ): Map<Characteristic, IntVar> {
-            val key = genericCharacteristic to wantedElements.toList()
-            return elementCache.getOrPut(key) {
-                val genericBase = prePercentStat(genericCharacteristic)
-                val baseElements =
-                    wantedElements.associateWith { element ->
-                        val baseElement = prePercentStat(element)
-                        // baseElement + genericBase: both are per-slot-tight, so their interval sum is too.
-                        tSumNaive(
-                            name = "pre_${element.name}",
-                            terms = listOf(Term(baseElement, 1L), Term(genericBase, 1L)),
-                            constant = 0L,
-                            guardLo = -STAT_WITH_PERCENT_ABS_MAX,
-                            guardHi = STAT_WITH_PERCENT_ABS_MAX
-                        )
-                    }
-
-                // For a monotone objective in the element vars the per-roll greedy ordering is an expensive,
-                // provably-suboptimal heuristic, so we let CP-SAT pick the random assignment FREELY (only the
-                // cardinality constraint) — the objective drives it to the true optimum — which also removes the
-                // O(elements²) ordering that exploded the multi-element pool. The scorer mirrors this exactly.
-                //  - most-masteries: the objective is a MIN (mastery always; aggregate resistance when
-                //    RESISTANCE_ELEMENTARY is requested) ⇒ exact max-min scorer ([assignMaxMinMasteryRandomValues]).
-                //  - precision: the objective is the capped sum (both mastery and resistance) ⇒ exact max-capped
-                //    scorer ([assignMaxCappedMasteryRandomValues]).
-                // max-damage stays greedy (the objective plays a single element ⇒ assignment is degenerate anyway).
-                val freeAssignment =
-                    when (params.scoreComputationMode) {
-                        ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
-                            genericCharacteristic == Characteristic.MASTERY_ELEMENTARY ||
-                                (
-                                    genericCharacteristic == Characteristic.RESISTANCE_ELEMENTARY &&
-                                        params.targetStats.any { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY }
-                                )
-
-                        ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT -> true
-                        ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> false
-                    }
-                val prePercentElements =
-                    applyGreedyRandom(wantedElements, baseElements, targets, buildRandomEntries(randomByCount), freeAssignment)
-
-                prePercentElements.mapValues { (element, preElement) ->
-                    val percentTerms = skillTerms.percent[element].orEmpty()
-                    if (percentTerms.isEmpty()) {
-                        preElement
-                    } else {
-                        val percent = tSumNaive("pct_${element.name}", percentTerms, 0L, -PERCENT_ABS_MAX, PERCENT_ABS_MAX)
-                        tPercent(preElement, percent, "stat_${element.name}")
-                    }
-                }
-            }
-        }
-
-        private fun applyGreedyRandom(
-            wantedElements: List<Characteristic>,
-            baseElements: Map<Characteristic, IntVar>,
-            targets: Map<Characteristic, Int>,
-            randomEntries: List<RandomEntry>,
-            // When true (most-masteries min objective): pick the per-roll element assignment FREELY — only the
-            // cardinality constraint (exactly `count` elements when equipped) — and let the maximized min drive
-            // CP-SAT to the optimal assignment. This drops the O(elements²) reified ordering that forces the
-            // suboptimal deficit-greedy and explodes the multi-element pool. When false: the original greedy.
-            freeAssignment: Boolean,
-        ): Map<Characteristic, IntVar> {
-            if (wantedElements.isEmpty()) return baseElements
-            if (targets.isEmpty()) return baseElements
-            if (randomEntries.isEmpty()) return baseElements
-
-            val priorityScale = 10L
-            val elementCount = wantedElements.size
-
-            var current = baseElements
-            randomEntries.forEachIndexed { index, entry ->
-                val effectiveCount = min(entry.count, elementCount)
-                if (effectiveCount == 0) return@forEachIndexed
-
-                if (effectiveCount == elementCount) {
-                    current =
-                        wantedElements.associateWith { element ->
-                            tSumNaive(
-                                "rand_${index}_${element.name}",
-                                listOf(Term(current.getValue(element), 1L), Term(entry.equipVar, entry.value.toLong())),
-                                0L,
-                                -STAT_WITH_PERCENT_ABS_MAX,
-                                STAT_WITH_PERCENT_ABS_MAX
-                            )
-                        }
-                    return@forEachIndexed
-                }
-
-                val assigns =
-                    wantedElements.associateWith { element ->
-                        val tag = "assign_${index}_${entry.nameSuffix}_${element.name}"
-                        model.newBoolVar(tag).also { tracker.seed(it, 0L..1L, tag) }
-                    }
-
-                // Cardinality: exactly `effectiveCount` of the wanted elements get this roll, and only when equipped.
-                model.addEquality(
-                    LinearExpr.sum(assigns.values.toTypedArray()),
-                    LinearExpr.term(entry.equipVar, effectiveCount.toLong())
-                )
-
-                if (!freeAssignment) {
-                    // Force the chosen elements to be the highest-deficit ones (replicates the scorer's greedy).
-                    val priorities = wantedElements.mapIndexed { i, element -> element to (wantedElements.size - i) }.toMap()
-                    val adjustedDeficits =
-                        wantedElements.associateWith { element ->
-                            val currentValue = current.getValue(element)
-                            val target = targets.getValue(element).toLong()
-                            val deficit =
-                                model.newIntVar(
-                                    -STAT_WITH_PERCENT_ABS_MAX - 10_000L,
-                                    STAT_WITH_PERCENT_ABS_MAX + 10_000L,
-                                    "def_${index}_${element.name}"
-                                )
-                            model.addEquality(
-                                deficit,
-                                LinearExpr
-                                    .newBuilder()
-                                    .add(target)
-                                    .addTerm(currentValue, -1)
-                                    .build()
-                            )
-
-                            val adjusted =
-                                model.newIntVar(
-                                    -STAT_WITH_PERCENT_ABS_MAX * priorityScale,
-                                    STAT_WITH_PERCENT_ABS_MAX * priorityScale + priorityScale,
-                                    "adj_${index}_${element.name}"
-                                )
-                            model.addEquality(
-                                adjusted,
-                                LinearExpr
-                                    .newBuilder()
-                                    .addTerm(deficit, priorityScale)
-                                    .add(priorities.getValue(element).toLong())
-                                    .build()
-                            )
-                            adjusted
-                        }
-
-                    for (i in wantedElements) {
-                        for (j in wantedElements) {
-                            if (i == j) continue
-                            model
-                                .addGreaterOrEqual(adjustedDeficits.getValue(i), adjustedDeficits.getValue(j))
-                                .onlyEnforceIf(arrayOf(assigns.getValue(i), assigns.getValue(j).not()))
-                        }
-                    }
-                }
-
-                current =
-                    wantedElements.associateWith { element ->
-                        tSumNaive(
-                            "rand_${index}_${element.name}",
-                            listOf(Term(current.getValue(element), 1L), Term(assigns.getValue(element), entry.value.toLong())),
-                            0L,
-                            -STAT_WITH_PERCENT_ABS_MAX,
-                            STAT_WITH_PERCENT_ABS_MAX
-                        )
-                    }
-            }
-
-            return current
-        }
-
-        private fun buildRandomEntries(randomByCount: List<Pair<Characteristic, Int>>): List<RandomEntry> {
-            // Grouped by element-count (1s, then 2s, then 3s) to preserve the original assignment order.
-            val entriesByCount = randomByCount.map { mutableListOf<RandomEntry>() }
-
-            for (equip in allEquips) {
-                val equipVar = equipVars.getValue(equip)
-                randomByCount.forEachIndexed { groupIndex, (randomCharacteristic, count) ->
-                    val value = equip.characteristics[randomCharacteristic] ?: 0
-                    if (value != 0) {
-                        entriesByCount[groupIndex].add(RandomEntry(equipVar, value, count, "${count}_${equip.equipmentId}"))
-                    }
-                }
-            }
-
-            return entriesByCount.flatten()
-        }
-
-        private fun actualStat(char: Characteristic): IntVar =
-            actualCache.getOrPut(char) {
-                val pre = prePercentStat(char)
-                val percentTerms = skillTerms.percent[char].orEmpty()
-                if (percentTerms.isEmpty()) {
-                    pre
-                } else {
-                    val percent = tSumNaive("pct_${char.name}", percentTerms, 0L, -PERCENT_ABS_MAX, PERCENT_ABS_MAX)
-                    tPercent(pre, percent, "stat_${char.name}")
-                }
-            }
-
-        /** Item + rune + fixed-skill terms (and base) for [char], excluding sublimations. */
-        private fun baseTermsFor(char: Characteristic): Pair<MutableList<Term>, Long> {
-            val terms = mutableListOf<Term>()
-
-            for (equip in allEquips) {
-                val value = equip.valueFor(char)
-                if (value != 0) {
-                    terms.add(Term(equipVars.getValue(equip), value.toLong()))
-                }
-            }
-
-            // Runes contribute exactly like item stats: a constant value per socketed rune of this
-            // stat (max rune level + WakForge doubling on favoured slots), times the per-item rune
-            // count var. The socket-cap / equipped-only constraints live on those vars (createRuneModel).
-            runeModel.runeByCharacteristic[char]?.let { rune ->
-                for ((equip, perStat) in runeModel.runeVars) {
-                    val runeVar = perStat[char] ?: continue
-                    // Rune level is capped by the carrier ITEM's level, not the character's (fix 36918746).
-                    val coefficient = rune.valueOn(equip.itemType, equip.level).toLong()
-                    // Fold model: runeVar is a boolean PICK — one pick fills all `slots` sockets, so it
-                    // contributes slots·coeff. Count model: runeVar is the count and contributes coeff each.
-                    val multiplier = if (runeModel.singleTypePerItem) equip.maxShardSlots.toLong() else 1L
-                    if (coefficient != 0L) {
-                        terms.add(Term(runeVar, coefficient * multiplier))
-                    }
-                }
-            }
-
-            terms.addAll(skillTerms.fixed[char].orEmpty())
-            val base = baseValues[char]?.toLong() ?: 0L
-            return terms to base
-        }
-
-        private fun prePercentStat(char: Characteristic): IntVar =
-            prePercentCache.getOrPut(char) {
-                val (terms, base) = baseTermsFor(char)
-                // Sublimation contributions fold in exactly like item/rune stats (FLAT always, STATIC
-                // under a reified condition, CONVERSION moving value between two stats).
-                terms.addAll(subTermsByStat[char].orEmpty())
-                // Selected passives' flat stats fold in the same way (always-on constants).
-                terms.addAll(passiveTermsByStat[char].orEmpty())
-                tSum("pre_${char.name}", terms, base, reachableSumDomain(terms, base), -STAT_ABS_MAX, STAT_ABS_MAX)
-            }
-
-        /** Pre-sublimation actual value of [char] (item + rune + skill + base), used to reify conditions. */
-        private fun preSubStat(char: Characteristic): IntVar =
-            preSubCache.getOrPut(char) {
-                val (terms, base) = baseTermsFor(char)
-                tSum("preSub_${char.name}", terms, base, reachableSumDomain(terms, base), -STAT_ABS_MAX, STAT_ABS_MAX)
-            }
-
-        /** AP/MP/WP folding: a `MAX_*` sublimation effect feeds the corresponding usable stat. */
-        private fun effectiveStat(char: Characteristic): Characteristic =
-            when (char) {
-                Characteristic.MAX_ACTION_POINT -> Characteristic.ACTION_POINT
-                Characteristic.MAX_MOVEMENT_POINT -> Characteristic.MOVEMENT_POINT
-                Characteristic.MAX_WAKFU_POINTS -> Characteristic.WAKFU_POINT
-                else -> char
-            }
-
-        /** Constant flat-stat contributions of the selected passives (see [resolvedPassives]). */
-        private fun buildPassiveTerms(): Map<Characteristic, List<Term>> {
-            val map = mutableMapOf<Characteristic, MutableList<Term>>()
-            for (passive in resolvedPassives(params)) {
-                for ((characteristic, value) in passive.flatStats) {
-                    map
-                        .getOrPut(effectiveStat(characteristic)) { mutableListOf() }
-                        .add(Term(tConst(value.toLong()), 1L))
-                }
-            }
-            return map
-        }
-
-        private fun buildSublimationTerms(): Map<Characteristic, List<Term>> {
-            val map = mutableMapOf<Characteristic, MutableList<Term>>()
-            for ((sub, _) in subModel.subVars) {
-                // Combat-conditional subs (only ever forced) reserve their slot/sockets but their
-                // situational effects are not auto-credited to the build (could be penalties / unmet).
-                if (sub.kind == SublimationKind.COMBAT_CONDITIONAL) continue
-                val applies = appliesVar(sub)
-                if (sub.kind == SublimationKind.CONVERSION) {
-                    val conv = sub.conversion ?: continue
-                    // moved = clamp(percent% of the pre-sub `from` stat, >=0), zeroed when not applied.
-                    val raw = percentOf(preSubStat(conv.from), conv.percent, "subConv_${sub.stateId}")
-                    val moved = model.newIntVar(0L, STAT_ABS_MAX, "subConvMoved_${sub.stateId}")
-                    model.addMultiplicationEquality(moved, arrayOf(raw, applies))
-                    map.getOrPut(effectiveStat(conv.to)) { mutableListOf() }.add(Term(moved, 1L))
-                    map.getOrPut(effectiveStat(conv.from)) { mutableListOf() }.add(Term(moved, -1L))
-                    continue
-                }
-                for (effect in sub.effects) {
-                    if (!scenarioGateMatches(effect.scenarioGate, params)) continue
-                    map
-                        .getOrPut(effectiveStat(effect.characteristic)) { mutableListOf() }
-                        .add(Term(applies, effect.value.toLong()))
-                }
-            }
-            return map
-        }
-
-        /**
-         * Boolean that gates a sub's contributions — always its `subVar`. For a solver-chosen
-         * STATIC_CONDITIONAL/CONVERSION sub with a supported condition we additionally constrain
-         * `subVar ≤ condHolds`, so the solver may only choose the sub when it arranges the build to
-         * satisfy the condition (this is what makes it trade stats to unlock lucrative conditions, and
-         * means a chosen sub's effect always applies). Forced subs apply unconditionally.
-         */
-        private fun appliesVar(sub: Sublimation): IntVar =
-            appliesVarCache.getOrPut(sub) {
-                val subVar = subModel.subVars.getValue(sub)
-                val cond = sub.condition
-                if (sub !in subModel.forced && cond != null && cond.type in SUPPORTED_SUB_CONDITIONS) {
-                    model.addLessOrEqual(subVar, reifyCondition(cond))
-                }
-                subVar
-            }
-
-        private fun reifyLe(
-            value: IntVar,
-            n: Long,
-            tag: String,
-        ): IntVar {
-            val b = model.newBoolVar(tag)
-            model.addLessOrEqual(value, n).onlyEnforceIf(b)
-            model.addGreaterOrEqual(value, n + 1).onlyEnforceIf(b.not())
-            return b
-        }
-
-        private fun reifyGe(
-            value: IntVar,
-            n: Long,
-            tag: String,
-        ): IntVar {
-            val b = model.newBoolVar(tag)
-            model.addGreaterOrEqual(value, n).onlyEnforceIf(b)
-            model.addLessOrEqual(value, n - 1).onlyEnforceIf(b.not())
-            return b
-        }
-
-        private fun and(
-            a: IntVar,
-            b: IntVar,
-            tag: String,
-        ): IntVar {
-            val out = model.newBoolVar(tag)
-            model.addMultiplicationEquality(out, arrayOf(a, b))
-            return out
-        }
-
-        /** A reified boolean for a supported [SublimationCondition] over the pre-sublimation build stats. */
-        private fun reifyCondition(cond: me.chosante.common.SublimationCondition): IntVar {
-            val n = (cond.value ?: 0).toLong()
-            val tag = "subCond_${cond.type}_${n}_${appliesVarCache.size}"
-            return when (cond.type) {
-                SublimationConditionType.AP_AT_MOST -> reifyLe(preSubStat(Characteristic.ACTION_POINT), n, tag)
-                SublimationConditionType.AP_AT_LEAST -> reifyGe(preSubStat(Characteristic.ACTION_POINT), n, tag)
-                SublimationConditionType.AP_EXACT ->
-                    and(
-                        reifyLe(preSubStat(Characteristic.ACTION_POINT), n, "${tag}_le"),
-                        reifyGe(preSubStat(Characteristic.ACTION_POINT), n, "${tag}_ge"),
-                        tag
-                    )
-
-                SublimationConditionType.CRIT_AT_MOST -> reifyLe(preSubStat(Characteristic.CRITICAL_HIT), n, tag)
-                SublimationConditionType.CRIT_AT_LEAST -> reifyGe(preSubStat(Characteristic.CRITICAL_HIT), n, tag)
-                SublimationConditionType.BLOCK_AT_LEAST -> reifyGe(preSubStat(Characteristic.BLOCK_PERCENTAGE), n, tag)
-                SublimationConditionType.RANGE_AT_MOST -> reifyLe(preSubStat(Characteristic.RANGE), n, tag)
-                SublimationConditionType.RANGE_AT_LEAST -> reifyGe(preSubStat(Characteristic.RANGE), n, tag)
-                SublimationConditionType.RANGE_EXACT ->
-                    and(
-                        reifyLe(preSubStat(Characteristic.RANGE), n, "${tag}_le"),
-                        reifyGe(preSubStat(Characteristic.RANGE), n, "${tag}_ge"),
-                        tag
-                    )
-
-                SublimationConditionType.DODGE_LT_PCT_OF_LEVEL -> {
-                    val threshold = (n * subModel.characterLevel) / 100L
-                    reifyLe(preSubStat(Characteristic.DODGE), threshold - 1, tag)
-                }
-
-                SublimationConditionType.SECONDARY_MASTERIES_AT_MOST -> {
-                    val sum =
-                        model.sumVar(
-                            "secMast_$tag",
-                            me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
-                                .map { preSubStat(it) },
-                            -STAT_ABS_MAX,
-                            STAT_ABS_MAX
-                        )
-                    reifyLe(sum, n, tag)
-                }
-
-                else -> model.newConstant(1L) // unsupported -> treated as always-on (best-achievable)
-            }
-        }
-
-        /** Non-negative `percent`% of [value] (integer-floored), as a fresh variable. */
-        private fun percentOf(
-            value: IntVar,
-            percent: Int,
-            name: String,
-        ): IntVar {
-            val scaled = model.newIntVar(-PRODUCT_ABS_MAX, PRODUCT_ABS_MAX, "${name}_scaled")
-            model.addEquality(scaled, LinearExpr.term(value, percent.toLong()))
-            val quotient = model.newIntVar(-(PRODUCT_ABS_MAX / 100) - 1, (PRODUCT_ABS_MAX / 100) + 1, "${name}_q")
-            model.addDivisionEquality(quotient, scaled, model.newConstant(100L))
-            val positive = model.newIntVar(0L, STAT_ABS_MAX, "${name}_pos")
-            model.addMaxEquality(positive, arrayOf(quotient, model.newConstant(0L)))
-            return positive
-        }
-    }
-
-    private data class Term(
-        val variable: IntVar,
-        val coefficient: Long,
-    )
-
-    private data class RandomEntry(
-        val equipVar: IntVar,
-        val value: Int,
-        val count: Int,
-        val nameSuffix: String,
-    )
-
-    /**
-     * Per-search rune modelling: the rune for each covered [Characteristic], the per-(item, stat) count
-     * variables (only for socketable items), and the character level the rune values were computed for.
-     * [EMPTY] means runes are disabled or no requested stat has a rune.
-     */
-    private class RuneModel(
-        val runeByCharacteristic: Map<Characteristic, RuneType>,
-        val runeVars: Map<Equipment, Map<Characteristic, IntVar>>,
-        /**
-         * True ⇒ [runeVars] are boolean single-type PICKS (one chosen type fills every socket of the item)
-         * rather than per-stat counts, so a pick contributes `slots·coeff` and its leaf domain is 0..1. See
-         * the rune fold in [createRuneModel].
-         */
-        val singleTypePerItem: Boolean = false,
-    ) {
-        companion object {
-            val EMPTY = RuneModel(emptyMap(), emptyMap())
-        }
-    }
-
-    /**
-     * Per-search sublimation modelling: the chosen/forced boolean for each modeled sub, the set of subs
-     * the user forced (applied unconditionally), and the character level. [EMPTY] means no sub is modeled.
-     */
-    private class SublimationModel(
-        val subVars: Map<Sublimation, IntVar>,
-        val forced: Set<Sublimation>,
-        val characterLevel: Int,
-        // Per NORMAL sublimation: a per-carrier-item bool (1 ⇒ that item hosts the sub). Empty for epic/relic.
-        val carrierVars: Map<Sublimation, Map<Equipment, IntVar>> = emptyMap(),
-    ) {
-        companion object {
-            val EMPTY = SublimationModel(emptyMap(), emptySet(), 0)
-        }
-    }
-
-    private data class SkillTerms(
-        val fixed: Map<Characteristic, List<Term>>,
-        val percent: Map<Characteristic, List<Term>>,
-    )
-
-    private data class PowerTable(
-        val values: LongArray,
-        val maxValue: Long,
-    )
-
     // Splits each skill's contribution into fixed / percent terms keyed by characteristic, mirroring
     // CharacteristicValues. The Major "% Inflicted Damage" aptitude lands in fixed[DAMAGE_INFLICTED];
     // only the max-damage objective reads that stat, so it stays inert in the most-masteries / precision
     // modes — exactly like the scorer. See the NOTE in computeCharacteristicsValues.
-    private fun buildSkillTerms(skillVars: Map<SkillCharacteristic, IntVar>): SkillTerms {
+    internal fun buildSkillTerms(skillVars: Map<SkillCharacteristic, IntVar>): SkillTerms {
         val fixed = mutableMapOf<Characteristic, MutableList<Term>>()
         val percent = mutableMapOf<Characteristic, MutableList<Term>>()
 
@@ -3199,7 +2534,7 @@ object WakfuBuildSolver {
         )
     }
 
-    private fun Equipment.valueFor(char: Characteristic): Int {
+    internal fun Equipment.valueFor(char: Characteristic): Int {
         val base = characteristics[char] ?: 0
         return when (char) {
             Characteristic.ACTION_POINT -> base + (characteristics[Characteristic.MAX_ACTION_POINT] ?: 0)
@@ -3214,7 +2549,7 @@ object WakfuBuildSolver {
             .replace(" ", "_")
             .replace("-", "_")
 
-    private fun CpModel.sumVar(
+    internal fun CpModel.sumVar(
         name: String,
         vars: List<IntVar>,
         min: Long,
@@ -3226,7 +2561,7 @@ object WakfuBuildSolver {
         return sumVar
     }
 
-    private fun CpModel.sumVar(
+    internal fun CpModel.sumVar(
         name: String,
         terms: List<Term>,
         constant: Long,
@@ -3307,7 +2642,7 @@ object WakfuBuildSolver {
     }
 
     /** clamp(value, low, high) as an IntVar with domain [low, high]. */
-    private fun CpModel.clampVar(
+    internal fun CpModel.clampVar(
         value: IntVar,
         low: Long,
         high: Long,
@@ -3396,7 +2731,7 @@ object WakfuBuildSolver {
     }
 
     /** Interval product of two reachable ranges (all four corner products; handles mixed signs). */
-    private fun mulRange(
+    internal fun mulRange(
         a: LongRange,
         b: LongRange,
     ): LongRange {
@@ -3410,9 +2745,58 @@ object WakfuBuildSolver {
         return corners.min()..corners.max()
     }
 
+    internal fun ceilDivPositive(
+        numerator: Long,
+        denominator: Long,
+    ): Long {
+        require(numerator >= 0L) { "ceilDivPositive numerator must be non-negative: $numerator" }
+        require(denominator > 0L) { "ceilDivPositive denominator must be positive: $denominator" }
+        return if (numerator == 0L) 0L else 1L + (numerator - 1L) / denominator
+    }
+
+    private fun deterministicTimeFrom(responseStats: String): Double =
+        Regex("""deterministic_time:\s*([0-9.Ee+-]+)""")
+            .find(responseStats)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toDoubleOrNull()
+            ?: Double.NaN
+
+    private fun longStatFrom(
+        responseStats: String,
+        key: String,
+    ): Long =
+        Regex("""(?m)^\s*$key:\s*([0-9]+)""")
+            .find(responseStats)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toLongOrNull()
+            ?: 0L
+
     private fun orderEquipments(equipmentsByItemType: Map<ItemType, List<Equipment>>): List<Equipment> =
         ItemType.entries
             .flatMap { type ->
                 equipmentsByItemType[type].orEmpty().sortedBy { it.equipmentId }
             }.distinctBy { it.equipmentId }
 }
+
+/**
+ * The conceptual "M-feeding" elemental-mastery stat set for a max-damage [scenario]: the generic
+ * +all-elements mastery, the spell element's own mastery, the range-band mastery, plus the conditional
+ * back / berserk / healing masteries. This is the OBJECTIVE / domination set — it INCLUDES the specific
+ * element mastery.
+ *
+ * The rune sites deliberately use DIFFERENT sets and must NOT route through this helper: runes have only a
+ * single GENERIC elemental-mastery rune (no per-element rune exists), so the rune-model mastery set omits
+ * the specific element mastery, and `relevantRuneStats` additionally adds `MASTERY_CRITICAL`. Folding the
+ * element mastery into those would inject a non-existent per-element rune and corrupt the rune model.
+ */
+internal fun scenarioMasteryStats(scenario: DamageScenario): List<Characteristic> =
+    buildList {
+        add(Characteristic.MASTERY_ELEMENTARY)
+        add(scenario.element.masteryCharacteristic)
+        add(scenario.rangeBand.masteryCharacteristic)
+        if (scenario.orientation.grantsRearMastery) add(Characteristic.MASTERY_BACK)
+        if (scenario.berserk) add(Characteristic.MASTERY_BERSERK)
+        if (scenario.healing) add(Characteristic.MASTERY_HEALING)
+    }
