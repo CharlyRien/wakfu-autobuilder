@@ -38,6 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
@@ -48,16 +50,21 @@ import me.chosante.autobuilder.domain.PassiveCatalog
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.ItemType
 import me.chosante.common.Monster
+import me.chosante.common.Rarity
 import me.chosante.common.RuneColor
 import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
+import me.chosante.common.SublimationRarity
 import me.chosante.common.history.HistoryEntry
 import me.chosante.ui.history.normalizeTags
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.label
+import me.chosante.ui.i18n.localizedCollator
+import me.chosante.ui.i18n.sortedByLocalized
 import me.chosante.ui.i18n.tr
 import me.chosante.ui.state.Modal
 import me.chosante.ui.state.PickerMode
@@ -66,6 +73,7 @@ import me.chosante.ui.state.statCatalog
 import me.chosante.ui.state.tagInputSuggestions
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WDimens
+import me.chosante.ui.theme.WRarityColor
 import me.chosante.ui.theme.WType
 import me.chosante.ui.theme.WTypography
 
@@ -74,6 +82,15 @@ fun ModalHost(
     modal: Modal?,
     excludedCharacteristics: Set<Characteristic>,
     equipmentCatalog: List<Equipment>?,
+    forcedItemNames: Set<String> = emptySet(),
+    excludedItemNames: Set<String> = emptySet(),
+    level: Int = 245,
+    minLevel: Int = 0,
+    maxRarity: Rarity = Rarity.EPIC,
+    excludedRarities: Set<Rarity> = emptySet(),
+    forcedSublimations: List<String> = emptyList(),
+    excludedSublimations: List<String> = emptyList(),
+    forcedPassives: List<String> = emptyList(),
     onSelectStat: (Characteristic) -> Unit,
     onPickItem: (Equipment) -> Unit,
     onPickSublimation: (Sublimation) -> Unit = {},
@@ -110,21 +127,33 @@ fun ModalHost(
             Modal.AddStat ->
                 AddStatModal(
                     excluded = excludedCharacteristics,
-                    onSelect = onSelectStat
+                    onSelect = onSelectStat,
+                    onDone = onDismiss
                 )
 
             is Modal.ItemPicker ->
                 ItemPickerModal(
                     mode = modal.mode,
                     equipmentCatalog = equipmentCatalog,
-                    onPick = onPickItem
+                    selectedNames = forcedItemNames + excludedItemNames,
+                    level = level,
+                    minLevel = minLevel,
+                    maxRarity = maxRarity,
+                    excludedRarities = excludedRarities,
+                    onPick = onPickItem,
+                    onDone = onDismiss
                 )
 
-            Modal.SublimationPicker ->
-                SublimationPickerModal(onPick = onPickSublimation)
+            is Modal.SublimationPicker ->
+                SublimationPickerModal(
+                    exclude = modal.exclude,
+                    selectedNames = forcedSublimations + excludedSublimations,
+                    onPick = onPickSublimation,
+                    onDone = onDismiss
+                )
 
             Modal.PassivePicker ->
-                PassivePickerModal(clazz = passiveClass, onPick = onPickPassive)
+                PassivePickerModal(clazz = passiveClass, selectedNames = forcedPassives, onPick = onPickPassive, onDone = onDismiss)
 
             Modal.BossPicker ->
                 BossPickerModal(onPick = onPickBoss)
@@ -283,6 +312,7 @@ internal fun Scrim(
 private fun AddStatModal(
     excluded: Set<Characteristic>,
     onSelect: (Characteristic) -> Unit,
+    onDone: () -> Unit,
 ) {
     val lang = LocalLang.current
     var query by remember { mutableStateOf("") }
@@ -298,7 +328,7 @@ private fun AddStatModal(
                 val sectionStats =
                     results
                         .filter { section.accepts(it.characteristic) }
-                        .sortedBy { it.label(lang) }
+                        .sortedByLocalized(lang) { it.label(lang) }
                 if (sectionStats.isEmpty()) {
                     null
                 } else {
@@ -348,6 +378,7 @@ private fun AddStatModal(
                 )
             }
         }
+        PickerDoneButton(onDone = onDone)
     }
 }
 
@@ -446,20 +477,32 @@ private fun CatalogTile(
 private fun ItemPickerModal(
     mode: PickerMode,
     equipmentCatalog: List<Equipment>?,
+    selectedNames: Set<String>,
+    level: Int,
+    minLevel: Int,
+    maxRarity: Rarity,
+    excludedRarities: Set<Rarity>,
     onPick: (Equipment) -> Unit,
+    onDone: () -> Unit,
 ) {
+    val lang = LocalLang.current
     var query by remember { mutableStateOf("") }
+    var equippableOnly by remember { mutableStateOf(true) }
     val results =
-        remember(query, equipmentCatalog) {
+        remember(query, equipmentCatalog, selectedNames, level, minLevel, maxRarity, excludedRarities, equippableOnly, lang) {
             val catalog = equipmentCatalog ?: return@remember emptyList()
             val q = query.trim()
-            if (q.isBlank()) {
-                catalog.take(60)
-            } else {
-                catalog
-                    .filter { it.name.fr.contains(q, ignoreCase = true) || it.name.en.contains(q, ignoreCase = true) }
-                    .take(120)
-            }
+            catalog
+                .asSequence()
+                .filterNot { it.name.fr in selectedNames }
+                .filter { !equippableOnly || it.isEquippableForPicker(level, minLevel, maxRarity, excludedRarities) }
+                .filter { equipment ->
+                    q.isBlank() ||
+                        equipment.name.fr.contains(q, ignoreCase = true) ||
+                        equipment.name.en.contains(q, ignoreCase = true)
+                }.toList()
+                .sortedByLocalized(lang) { it.localizedName(lang) }
+                .take(if (q.isBlank()) 60 else 120)
         }
     val title = if (mode == PickerMode.Forced) tr(Tr.REQUIRE_ITEM_TITLE) else tr(Tr.BAN_ITEM_TITLE)
     val accent = if (mode == PickerMode.Forced) WColor.success else WColor.danger
@@ -468,6 +511,12 @@ private fun ItemPickerModal(
             LoadingState(message = tr(Tr.LOADING_ITEMS))
             return@ModalCard
         }
+        PickerToggle(
+            checked = equippableOnly,
+            label = tr(Tr.EQUIPPABLE_ONLY),
+            onToggle = { equippableOnly = !equippableOnly }
+        )
+        Spacer(modifier = Modifier.height(WDimens.gap))
         SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_ITEMS))
         Spacer(modifier = Modifier.height(WDimens.gap))
         LazyColumn(
@@ -485,8 +534,22 @@ private fun ItemPickerModal(
                 modifier = Modifier.padding(vertical = 16.dp)
             )
         }
+        PickerDoneButton(onDone = onDone)
     }
 }
+
+private fun Equipment.isEquippableForPicker(
+    level: Int,
+    minLevel: Int,
+    maxRarity: Rarity,
+    excludedRarities: Set<Rarity>,
+): Boolean {
+    val levelOk = itemType == ItemType.PETS || itemType == ItemType.MOUNTS || this.level in minLevel..level
+    val rarityOk = rarity <= maxRarity && rarity !in excludedRarities
+    return levelOk && rarityOk
+}
+
+private fun Equipment.localizedName(lang: Lang): String = name.localized(lang)
 
 @Composable
 private fun LoadingState(message: String) {
@@ -554,28 +617,42 @@ private fun ItemResultRow(
 }
 
 @Composable
-private fun SublimationPickerModal(onPick: (Sublimation) -> Unit) {
+private fun SublimationPickerModal(
+    exclude: Boolean = false,
+    selectedNames: List<String>,
+    onPick: (Sublimation) -> Unit,
+    onDone: () -> Unit,
+) {
     val lang = LocalLang.current
     val results =
         remember(lang) {
             WakfuBestBuildFinderAlgorithm.sublimations.distinctBy { it.stateId }
         }
     var query by remember { mutableStateOf("") }
+    var rarityFilter by remember { mutableStateOf<SublimationRarity?>(null) }
     val filtered =
-        remember(query, results, lang) {
+        remember(query, results, selectedNames, rarityFilter, lang) {
             val q = query.trim()
-            if (q.isBlank()) {
-                results
-            } else {
-                results.filter { sub ->
-                    sub.name.fr.contains(q, ignoreCase = true) ||
+            results
+                .asSequence()
+                .filterNot { it.name.fr in selectedNames }
+                .filter { rarityFilter == null || it.rarity == rarityFilter }
+                .filter { sub ->
+                    q.isBlank() ||
+                        sub.name.fr.contains(q, ignoreCase = true) ||
                         sub.name.en.contains(q, ignoreCase = true) ||
                         sublimationEffectText(sub, lang).contains(q, ignoreCase = true)
-                }
-            }.sortedBy { (if (lang == Lang.FR) it.name.fr else it.name.en).lowercase() }
-                .take(120)
+                }.toList()
+                .sortedWith(
+                    compareBy<Sublimation> { it.rarity.sortOrder() }
+                        .thenComparator { left, right ->
+                            localizedCollator(lang).compare(left.name.localized(lang), right.name.localized(lang))
+                        }
+                ).take(120)
         }
-    ModalCard(title = tr(Tr.REQUIRE_SUBLIMATION_TITLE)) {
+    ModalCard(title = tr(if (exclude) Tr.EXCLUDE_SUBLIMATION_TITLE else Tr.REQUIRE_SUBLIMATION_TITLE)) {
+        SublimationRarityFilter(selected = rarityFilter, onSelect = { rarityFilter = it })
+        Spacer(modifier = Modifier.height(WDimens.gap))
         SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_SUBLIMATIONS))
         Spacer(modifier = Modifier.height(WDimens.gap))
         LazyColumn(
@@ -593,6 +670,7 @@ private fun SublimationPickerModal(onPick: (Sublimation) -> Unit) {
                 modifier = Modifier.padding(vertical = 16.dp)
             )
         }
+        PickerDoneButton(onDone = onDone)
     }
 }
 
@@ -626,6 +704,12 @@ private fun SublimationResultRow(
             )
             Text(
                 text = sub.rarity.name,
+                style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = sub.rarity.displayColor())
+            )
+            Text(
+                // The GENERATION tier (the name's I/II/III) — matches how the level cap filters, so a
+                // "Tier 3" sub visibly matches the "≤ 3" cap (the shard upgrade level maxTier is internal).
+                text = tr(Tr.SUBLIMATION_TIER_SHORT).format(sub.nameTier),
                 style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
             )
         }
@@ -641,29 +725,92 @@ private fun SublimationResultRow(
 }
 
 @Composable
+private fun SublimationRarityFilter(
+    selected: SublimationRarity?,
+    onSelect: (SublimationRarity?) -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        SublimationRarityChip(label = tr(Tr.RARITY_ALL), selected = selected == null, color = WColor.accent, onClick = { onSelect(null) })
+        listOf(SublimationRarity.NORMAL, SublimationRarity.EPIC, SublimationRarity.RELIC).forEach { rarity ->
+            SublimationRarityChip(
+                label = rarity.label(LocalLang.current),
+                selected = selected == rarity,
+                color = rarity.displayColor(),
+                onClick = { onSelect(rarity) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun SublimationRarityChip(
+    label: String,
+    selected: Boolean,
+    color: Color,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .height(28.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (selected) color.copy(alpha = 0.18f) else WColor.bg)
+                .border(1.dp, if (selected) color.copy(alpha = 0.55f) else WColor.border, RoundedCornerShape(8.dp))
+                .clickable(onClick = onClick)
+                .padding(horizontal = 9.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = WTypography.labelSmall.copy(color = if (selected) color else WColor.muted, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+        )
+    }
+}
+
+private fun SublimationRarity.sortOrder(): Int =
+    when (this) {
+        SublimationRarity.EPIC -> 0
+        SublimationRarity.RELIC -> 1
+        SublimationRarity.NORMAL -> 2
+    }
+
+private fun SublimationRarity.displayColor(): Color =
+    when (this) {
+        SublimationRarity.EPIC -> WRarityColor.epic
+        SublimationRarity.RELIC -> WRarityColor.relic
+        SublimationRarity.NORMAL -> WColor.success
+    }
+
+private fun SublimationRarity.label(lang: Lang): String =
+    when (this) {
+        SublimationRarity.EPIC -> if (lang == Lang.FR) "Épique" else "Epic"
+        SublimationRarity.RELIC -> if (lang == Lang.FR) "Relique" else "Relic"
+        SublimationRarity.NORMAL -> if (lang == Lang.FR) "Normal" else "Normal"
+    }
+
+@Composable
 private fun PassivePickerModal(
     clazz: me.chosante.common.CharacterClass,
+    selectedNames: List<String>,
     onPick: (me.chosante.common.Passive) -> Unit,
+    onDone: () -> Unit,
 ) {
     val lang = LocalLang.current
     val all = remember(clazz) { PassiveCatalog.forClass(clazz) }
     var query by remember { mutableStateOf("") }
     val filtered =
-        remember(query, all, lang) {
+        remember(query, all, selectedNames, lang) {
             val q = query.trim()
-            if (q.isBlank()) {
-                all
-            } else {
-                all.filter { passive ->
-                    passive.name?.localized(lang)?.contains(q, ignoreCase = true) == true ||
+            all
+                .asSequence()
+                .filterNot { passive -> passive.name?.fr?.let { it in selectedNames } == true }
+                .filter { passive ->
+                    q.isBlank() ||
+                        passive.name?.localized(lang)?.contains(q, ignoreCase = true) == true ||
                         passive.description?.localized(lang)?.contains(q, ignoreCase = true) == true
-                }
-            }.sortedBy {
-                it.name
-                    ?.localized(lang)
-                    ?.lowercase()
-                    .orEmpty()
-            }.take(120)
+                }.toList()
+                .sortedByLocalized(lang) { it.name?.localized(lang).orEmpty() }
+                .take(120)
         }
     ModalCard(title = tr(Tr.REQUIRE_PASSIVE_TITLE)) {
         SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_PASSIVES))
@@ -683,6 +830,7 @@ private fun PassivePickerModal(
                 modifier = Modifier.padding(vertical = 16.dp)
             )
         }
+        PickerDoneButton(onDone = onDone)
     }
 }
 
@@ -726,14 +874,15 @@ private fun PassiveResultRow(
 
 @Composable
 private fun BossPickerModal(onPick: (Monster) -> Unit) {
+    val lang = LocalLang.current
     val results =
-        remember {
+        remember(lang) {
             WakfuBestBuildFinderAlgorithm.monsters
                 // Boss mode targets bosses, not every creature in the bestiary — keep only boss-tier
                 // entries (rank ≥ 1: bosses, golems, ultimate/"Dominant" variants): ~226 of the ~2841 in
                 // the full bdata-sourced bestiary (regular monsters are intentionally hidden from the picker).
                 .filter { it.isBoss }
-                .sortedWith(compareByDescending<Monster> { it.rank }.thenByDescending { it.level })
+                .sortedByLocalized(lang) { it.name.localized(lang) }
         }
     var query by remember { mutableStateOf("") }
     val filtered =
@@ -833,13 +982,14 @@ private fun ItemRunePickerModal(
     var query by remember { mutableStateOf("") }
     val total = counts.values.sum()
     val filtered =
-        remember(query, runeOptions) {
+        remember(query, runeOptions, lang) {
             val q = query.trim()
-            if (q.isBlank()) {
-                runeOptions
-            } else {
-                runeOptions.filter { it.name.fr.contains(q, ignoreCase = true) || it.name.en.contains(q, ignoreCase = true) }
-            }
+            runeOptions
+                .filter { rune ->
+                    q.isBlank() ||
+                        rune.name.fr.contains(q, ignoreCase = true) ||
+                        rune.name.en.contains(q, ignoreCase = true)
+                }.sortedByLocalized(lang) { it.name.localized(lang) }
         }
     val carrierName = if (lang == Lang.FR) carrier.name.fr.ifBlank { carrier.name.en } else carrier.name.en.ifBlank { carrier.name.fr }
     ModalCard(title = "${tr(Tr.EDIT_RUNES_TITLE)} — $carrierName") {
@@ -858,6 +1008,7 @@ private fun ItemRunePickerModal(
                 RuneOptionRow(
                     rune = rune,
                     lang = lang,
+                    carrierItemType = carrier.itemType,
                     count = counts[rune.id] ?: 0,
                     canAdd = total < sockets,
                     onAdd = { counts[rune.id] = (counts[rune.id] ?: 0) + 1 },
@@ -893,6 +1044,7 @@ private fun ItemRunePickerModal(
 private fun RuneOptionRow(
     rune: RuneType,
     lang: Lang,
+    carrierItemType: ItemType,
     count: Int,
     canAdd: Boolean,
     onAdd: () -> Unit,
@@ -918,12 +1070,18 @@ private fun RuneOptionRow(
                     .background(rune.color.pickerColor())
         )
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = if (lang == Lang.FR) rune.name.fr.ifBlank { rune.name.en } else rune.name.en.ifBlank { rune.name.fr },
-                style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = rune.name.localized(lang),
+                    style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                if (rune.isDoubledOn(carrierItemType)) {
+                    RuneDoubleBadge()
+                }
+            }
             Text(
                 text = rune.characteristic.label(lang),
                 style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted),
@@ -939,6 +1097,22 @@ private fun RuneOptionRow(
             )
         }
         StepperButton(glyph = "＋", enabled = canAdd, onClick = onAdd)
+    }
+}
+
+@Composable
+private fun RuneDoubleBadge() {
+    Box(
+        modifier =
+            Modifier
+                .height(20.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(WColor.accent2.copy(alpha = 0.16f))
+                .border(1.dp, WColor.accent2.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                .padding(horizontal = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text = "×2", style = WTypography.labelSmall.copy(color = WColor.accent2, fontFamily = WType.mono, fontWeight = FontWeight.Bold))
     }
 }
 
@@ -961,6 +1135,45 @@ private fun StepperButton(
     ) {
         Text(text = glyph, style = WTypography.labelMedium.copy(color = WColor.text, lineHeight = 14.sp))
     }
+}
+
+@Composable
+private fun PickerToggle(
+    checked: Boolean,
+    label: String,
+    onToggle: () -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClick = onToggle)
+                .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(
+            modifier =
+                Modifier
+                    .size(16.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(if (checked) WColor.success else WColor.bg)
+                    .border(1.dp, if (checked) WColor.success else WColor.border, RoundedCornerShape(4.dp))
+        )
+        Text(text = label, style = WTypography.labelMedium.copy(color = WColor.text))
+    }
+}
+
+@Composable
+private fun PickerDoneButton(onDone: () -> Unit) {
+    Spacer(modifier = Modifier.height(WDimens.gap))
+    DialogButton(
+        text = tr(Tr.DONE),
+        filled = true,
+        color = WColor.accent,
+        onClick = onDone,
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 /** Socket / rune colour swatch, mirroring the paperdoll's shard colours (red / green / blue). */
@@ -1000,6 +1213,8 @@ private fun SearchField(
     onQueryChange: (String) -> Unit,
     placeholder: String,
 ) {
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
     Box(
         modifier =
             Modifier
@@ -1017,7 +1232,7 @@ private fun SearchField(
             singleLine = true,
             cursorBrush = SolidColor(WColor.accent),
             textStyle = WTypography.bodyMedium.copy(color = WColor.text),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().focusRequester(focusRequester)
         )
         if (query.isEmpty()) {
             Text(text = placeholder, style = WTypography.bodyMedium.copy(color = WColor.faint))

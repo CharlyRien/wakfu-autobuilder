@@ -157,6 +157,15 @@ fun AppShell(
                 modal = ui.modal,
                 excludedCharacteristics = addStatExcludedCharacteristics,
                 equipmentCatalog = model.equipmentCatalog,
+                forcedItemNames = ui.forcedItems.map { it.matchName }.toSet(),
+                excludedItemNames = ui.excludedItems.map { it.matchName }.toSet(),
+                level = ui.level,
+                minLevel = ui.minLevel,
+                maxRarity = ui.maxRarity,
+                excludedRarities = ui.excludedRarities,
+                forcedSublimations = ui.forcedSublimations,
+                excludedSublimations = ui.excludedSublimations,
+                forcedPassives = ui.forcedPassives,
                 onSelectStat = model::addTarget,
                 onPickItem = model::pickItem,
                 onPickSublimation = model::pickSublimation,
@@ -244,8 +253,11 @@ private fun BuilderBody(
                 onAddExcludedItem = { model.openModal(Modal.ItemPicker(PickerMode.Excluded)) },
                 onRemoveExcludedItem = model::removeExcludedItem,
                 onToggleSublimations = model::setUseSublimations,
-                onOpenSublimationPicker = { model.openModal(Modal.SublimationPicker) },
+                onMaxSublimationTierChange = model::setMaxSublimationTier,
+                onOpenSublimationPicker = { model.openModal(Modal.SublimationPicker()) },
                 onRemoveForcedSublimation = model::removeForcedSublimation,
+                onOpenExcludedSublimationPicker = { model.openModal(Modal.SublimationPicker(exclude = true)) },
+                onRemoveExcludedSublimation = model::removeExcludedSublimation,
                 onOpenPassivePicker = { model.openModal(Modal.PassivePicker) },
                 onRemoveForcedPassive = model::removeForcedPassive
             )
@@ -276,7 +288,8 @@ private fun BuilderBody(
                                 ui = ui,
                                 onForceItem = model::forceItem,
                                 onExcludeItem = model::excludeItem,
-                                onEditRunes = model::openItemRunePicker
+                                onEditRunes = model::openItemRunePicker,
+                                onLockRunes = model::lockCurrentRunes
                             )
                         }
                         ResizableSeparator(onDelta = onStatsWidthDelta)
@@ -286,7 +299,8 @@ private fun BuilderBody(
                                 onOpenZenith = model::openZenithBuild,
                                 onCopyZenith = model::copyZenithLink,
                                 onSaveBuild = model::requestSaveBuild,
-                                onExport = model::exportBuild
+                                onExport = model::exportBuild,
+                                onViewAsDamage = model::viewCurrentBuildAsMaxDamage
                             )
                         }
                     }

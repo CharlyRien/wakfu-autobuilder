@@ -63,7 +63,9 @@ import me.chosante.common.CharacterClass
 import me.chosante.ui.components.BreedIcon
 import me.chosante.ui.components.rememberClasspathBitmap
 import me.chosante.ui.i18n.Lang
+import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
+import me.chosante.ui.i18n.sortedByLocalized
 import me.chosante.ui.i18n.tr
 import me.chosante.ui.state.Phase
 import me.chosante.ui.state.Screen
@@ -514,6 +516,7 @@ private fun ClassDropdown(
     onSelect: (CharacterClass) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val lang = LocalLang.current
 
     Box {
         Row(
@@ -544,6 +547,7 @@ private fun ClassDropdown(
         ) {
             CharacterClass.entries
                 .filter { it != CharacterClass.UNKNOWN }
+                .sortedByLocalized(lang) { it.displayName() }
                 .forEach { item ->
                     DropdownMenuItem(
                         leadingIcon = { BreedIcon(clazz = item, size = 22.dp) },
