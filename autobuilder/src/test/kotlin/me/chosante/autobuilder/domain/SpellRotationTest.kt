@@ -2,9 +2,17 @@ package me.chosante.autobuilder.domain
 
 import me.chosante.common.Character
 import me.chosante.common.CharacterClass
+import me.chosante.common.Characteristic
+import me.chosante.common.Equipment
 import me.chosante.common.I18nText
+import me.chosante.common.ItemType
+import me.chosante.common.Rarity
 import me.chosante.common.Spell
 import me.chosante.common.SpellElement
+import me.chosante.common.Sublimation
+import me.chosante.common.SublimationEffect
+import me.chosante.common.SublimationKind
+import me.chosante.common.SublimationRarity
 import me.chosante.common.skills.CharacterSkills
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -268,7 +276,7 @@ class SpellRotationTest {
         // the per-target fix this returned 3× — bounded only by AP — and over-counted the damage.)
         val sablier = damageSpell(ap = 3, base = 100, maxCastPerTurn = 4, maxCastPerTarget = 1)
 
-        val table = SpellRotationOptimizer.baseThroughputTable(listOf(sablier), maxAp = 9)
+        val table = SpellRotationOptimizer.baseThroughputTable(listOf(sablier), maxAp = 9, casterLevel = 200)
         assertThat(table[9]).describedAs("9 AP would fit 3 casts, but per-target caps it at 1").isEqualTo(100L)
 
         val rotation =
@@ -285,7 +293,7 @@ class SpellRotationTest {
     fun `baseThroughputTable caps a spell at its per-turn limit instead of spamming it`() {
         // 2 AP / 100 base, castable at most twice per turn. With 10 AP the unbounded table would stack
         // 5 casts (500); the cap pins it at 2 casts (200), then the extra AP sits idle.
-        val table = SpellRotationOptimizer.baseThroughputTable(listOf(damageSpell(ap = 2, base = 100, maxCastPerTurn = 2)), maxAp = 10)
+        val table = SpellRotationOptimizer.baseThroughputTable(listOf(damageSpell(ap = 2, base = 100, maxCastPerTurn = 2)), maxAp = 10, casterLevel = 200)
         assertThat(table[10]).isEqualTo(200L)
         assertThat(table[4]).describedAs("2 casts already fit in 4 AP").isEqualTo(200L)
         assertThat(table[2]).describedAs("1 cast in 2 AP").isEqualTo(100L)
@@ -294,14 +302,14 @@ class SpellRotationTest {
     @Test
     fun `baseThroughputTable caps a cooldown spell at a single cast per turn`() {
         // cooldown > 0 ⇒ at most one cast this turn, even though maxCastPerTurn = 0 ("unlimited").
-        val table = SpellRotationOptimizer.baseThroughputTable(listOf(damageSpell(ap = 3, base = 100, maxCastPerTurn = 0, cooldown = 2)), maxAp = 12)
+        val table = SpellRotationOptimizer.baseThroughputTable(listOf(damageSpell(ap = 3, base = 100, maxCastPerTurn = 0, cooldown = 2)), maxAp = 12, casterLevel = 200)
         assertThat(table[12]).isEqualTo(100L)
     }
 
     @Test
     fun `baseThroughputTable leaves an uncapped spell unbounded`() {
         // maxCastPerTurn = 0 / cooldown absent ⇒ no per-turn limit: the budget fills with casts.
-        val table = SpellRotationOptimizer.baseThroughputTable(listOf(damageSpell(ap = 2, base = 100, maxCastPerTurn = 0)), maxAp = 10)
+        val table = SpellRotationOptimizer.baseThroughputTable(listOf(damageSpell(ap = 2, base = 100, maxCastPerTurn = 0)), maxAp = 10, casterLevel = 200)
         assertThat(table[10]).describedAs("5 casts, no per-turn limit").isEqualTo(500L)
     }
 
@@ -316,7 +324,8 @@ class SpellRotationTest {
                     damageSpell(id = 1, ap = 2, base = 100, maxCastPerTurn = 1),
                     damageSpell(id = 2, ap = 3, base = 120, maxCastPerTurn = 2)
                 ),
-                maxAp = 12
+                maxAp = 12,
+                casterLevel = 200
             )
         assertThat(table[12]).describedAs("A×1 + B×2, both caps binding").isEqualTo(340L)
         assertThat(table[6]).describedAs("B×2").isEqualTo(240L)
@@ -367,5 +376,52 @@ class SpellRotationTest {
                 apBudget = 12
             )
         assertThat(water.isEmpty).describedAs("Cra cannot play Water — rotation must be empty").isTrue()
+    }
+
+    @Test
+    fun `resolveStats credits best-element-concentration DI only under a max-damage scenario`() {
+        // Regression guard for the objective↔display/selection mismatch: the CP-SAT objective credits a build's
+        // best-element-concentration +20% Damage Inflicted (gated on the scenario element being strongest), but
+        // the display/selection stat resolution used to run scenario-blind and silently dropped it. Fire is the
+        // build's only ⇒ strongest element, so the bonus applies.
+        val character = Character(clazz = CharacterClass.CRA, level = 1, minLevel = 1)
+        val fireAmulet =
+            Equipment(
+                equipmentId = 1,
+                guiId = 1,
+                level = 1,
+                name = I18nText("Fire", "Fire", "Fire", "Fire"),
+                rarity = Rarity.COMMON,
+                itemType = ItemType.AMULET,
+                characteristics = mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300)
+            )
+        val elementalConcentration =
+            Sublimation(
+                stateId = 5449,
+                name = I18nText("EC", "EC", "EC", "EC"),
+                rarity = SublimationRarity.NORMAL,
+                kind = SublimationKind.FLAT,
+                solverChoosable = true,
+                effects = listOf(SublimationEffect.BestElementConcentration(damageInflictedBonus = 20, masteryPenaltyPercent = 30))
+            )
+        val build =
+            BuildCombination(
+                equipments = listOf(fireAmulet),
+                characterSkills = CharacterSkills(1),
+                sublimations = mapOf(fireAmulet to listOf(elementalConcentration))
+            )
+        val fireSpell =
+            Spell(id = 1, clazz = CharacterClass.CRA, name = I18nText("s", "s", "s", "s"), element = SpellElement.FIRE, apCost = 3, baseDamage = 100)
+        val scenario = DamageScenario(element = me.chosante.autobuilder.domain.SpellElement.FIRE, orientation = Orientation.FACE)
+
+        val underScenario = BuildSpellDamage.resolveStats(fireSpell, build, character, scenario)!!
+        val scenarioAgnostic = BuildSpellDamage.resolveStats(fireSpell, build, character, null)!!
+
+        assertThat(underScenario[Characteristic.DAMAGE_INFLICTED] ?: 0)
+            .describedAs("Elemental Concentration's +20% DI is credited once the (fire-strongest) scenario is known — matching the objective")
+            .isEqualTo(20)
+        assertThat(scenarioAgnostic[Characteristic.DAMAGE_INFLICTED] ?: 0)
+            .describedAs("scenario-agnostic resolution (the generic compare grid) keeps the pre-fix behaviour: the gated DI is not creditable")
+            .isEqualTo(0)
     }
 }

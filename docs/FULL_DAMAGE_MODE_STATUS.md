@@ -1,5 +1,13 @@
 # Full-damage mode — état des lieux (audit, 2026-06-20)
 
+> **Mise à jour (2026-07-09) :** la PR #167 (fondation data, noms fixes, sources 1ʳᵉ-partie) est
+> **fusionnée** — la §4 « merger #167 en premier » est donc obsolète. Depuis : badge « optimal prouvé »
+> (certificat AP-cell, `CERTIFICATE_PROD_PLAN.md`), sublimations élargies (Critical Secret, DI
+> par-élément Gel/Brûlure, familles HP), exclusion de sublimations, warm-start max-maîtrises. Le
+> **reste à faire** est toujours la liste §3 (modèle WP, Light/Stasis, k≥3, débuffs par-élément
+> bloqués par la donnée, ramp hors-scope) + les tickets data résiduels de
+> `non-official-sources-audit.md`.
+
 État de l'avancement du **« full damage mode »** (mode max-dégâts complet) : meilleur build *plus la rotation
 de sorts jouée*, contre un boss donné, en mono / bi / multi-élément. Document de **synthèse/audit** — aucune
 implémentation, aucun code modifié.

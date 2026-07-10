@@ -121,4 +121,40 @@ class RandomElementAssignmentTest {
                 .isEqualTo(optimalCapped)
         }
     }
+
+    @Test
+    fun `exact WEIGHTED max-min assignment attains the optimal weighted min (per-element DI fold)`() {
+        // The per-element-DI multi-element most-masteries fold makes the element factors UNEQUAL, so the random-
+        // element roll placement maximizes `min_e weight_e·max(0, offset + value_e)`, not the plain min. The solver
+        // frees this; the scorer must reach the same optimum. Brute-force property test (mirrors the unweighted one).
+        val random = Random(98765432)
+        repeat(4000) {
+            val m = 2 + random.nextInt(3) // 2..4 wanted elements
+            val wanted = elements.take(m)
+            val base = wanted.associateWith { random.nextInt(0, 25) }
+            val rolls = List(1 + random.nextInt(5)) { Roll(value = 1 + random.nextInt(10), count = 1 + random.nextInt(3)) }
+            val subset = wanted.filter { random.nextBoolean() }.ifEmpty { listOf(wanted.first()) }
+            // Factors 100..150 (a +X% <element> damage sub makes one element's factor higher); a non-negative offset.
+            val weights = subset.associateWith { (100 + random.nextInt(51)).toLong() }
+            val offset = random.nextInt(0, 30).toLong()
+
+            val assigned =
+                assignMaxMinMasteryRandomValues(
+                    rollsToRandomMap(rolls),
+                    base,
+                    wanted.associateWith { 9999 },
+                    subset,
+                    weights = weights,
+                    offset = offset
+                )
+
+            fun weightedMin(state: Map<Characteristic, Int>) = subset.minOf { (weights.getValue(it) * maxOf(0L, offset + state.getValue(it))).toInt() }
+            val assignedWeightedMin = weightedMin(assigned)
+            val optimalWeightedMin = exhaustiveBest(base, wanted, rolls) { weightedMin(it) }
+
+            assertThat(assignedWeightedMin)
+                .describedAs("exact weighted max-min must reach the optimal weighted min; base=%s rolls=%s subset=%s weights=%s offset=%s", base, rolls, subset, weights, offset)
+                .isEqualTo(optimalWeightedMin)
+        }
+    }
 }
