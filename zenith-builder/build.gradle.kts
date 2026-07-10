@@ -18,6 +18,10 @@ dependencies {
     implementation(libs.bundles.fuel)
     implementation(platform(libs.kotlinx.coroutine.bom))
     implementation(libs.kotlinx.coroutine.core)
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.assertj.core)
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 kotlin {
@@ -26,4 +30,8 @@ kotlin {
             .get()
             .toInt()
     )
+}
+
+tasks.test {
+    useJUnitPlatform()
 }

@@ -29,47 +29,78 @@ data class ZenithInputParameters(
     val sublimations: Map<Equipment, List<Sublimation>> = emptyMap(),
 )
 
+/** One planned `/shard/add` call: a rune (with a [level]) or a sublimation ([level] = null). */
+internal data class PlannedShard(
+    val shardId: Int,
+    val position: Int,
+    val side: Int,
+    val level: Int?,
+)
+
+/**
+ * The Zenith `side` of each equipped item, paired in list order. The two RINGs take the dedicated ring
+ * sides (23 / 24), weapons their fixed slot ids, everything else its [ItemType.id].
+ *
+ * Computed SEQUENTIALLY, up front — the ring-side iterator used to be advanced from inside the per-item
+ * `async` blocks, so the two rings raced on a non-thread-safe iterator and could both claim side 23 (or
+ * blow up on `next()`). Returns a list, not a map: two equipped items are distinct objects and must each
+ * keep their own side even if they ever shared an `equipmentId`.
+ */
+internal fun sideAssignments(equipments: List<Equipment>): List<Pair<Equipment, Int>> {
+    val ringSideIds = listOf(23, 24).iterator()
+    return equipments.map { equipment ->
+        val side =
+            when (equipment.itemType) {
+                ItemType.RING -> ringSideIds.next()
+                ItemType.TWO_HANDED_WEAPONS, ItemType.ONE_HANDED_WEAPONS -> 540
+                ItemType.OFF_HAND_WEAPONS -> 520
+                else -> equipment.itemType.id
+            }
+        equipment to side
+    }
+}
+
+/**
+ * The shards to socket on [equipment]: its [runes] first (positions `0..n-1`, each at the level its
+ * carrier's item level allows), then its [subs] (positions `n..`, `level = null` — sublimations socket
+ * like runes on Zenith but carry no level). Positions never collide because the subs start after the runes.
+ *
+ * A CUMULABLE sublimation stacked across several carriers appears once in EACH carrier's [subs] list, so it
+ * yields one call per carrier — same `id_shard`, different `side`. That is exactly how the game sockets it
+ * (one copy per ≥3-socket item), and nothing here dedupes by shard id.
+ *
+ * (Epic/relic subs have no socket colour pattern — their position is best-effort; verify on the live builder.)
+ */
+internal fun plannedShards(
+    equipment: Equipment,
+    side: Int,
+    runes: List<RuneType>,
+    subs: List<Sublimation>,
+): List<PlannedShard> =
+    runes.mapIndexed { index, rune -> PlannedShard(rune.id, index, side, rune.maxLevel(equipment.level)) } +
+        subs.mapIndexed { index, sub -> PlannedShard(sub.zenithId, runes.size + index, side, null) }
+
 suspend fun ZenithInputParameters.createZenithBuild() =
     supervisorScope {
         withTimeout(10.seconds) {
             with(this@createZenithBuild) {
                 val zenithBuild = createBuild(character)
-                val ringSideIds = listOf(23, 24).iterator()
                 val everyEquipmentCalls =
-                    equipments.map { equipment ->
+                    sideAssignments(equipments).map { (equipment, sideValue) ->
                         async {
-                            val sideValue =
-                                when (equipment.itemType) {
-                                    ItemType.RING -> ringSideIds.next()
-                                    ItemType.TWO_HANDED_WEAPONS, ItemType.ONE_HANDED_WEAPONS -> 540
-                                    ItemType.OFF_HAND_WEAPONS -> 520
-                                    else -> equipment.itemType.id
-                                }
                             addEquipment(equipment, zenithBuild.id, sideValue)
-                            // Socket this item's runes once it exists on the build; the shard's `side`
-                            // must match the item's, and `position` is the 0-based socket index.
-                            runes[equipment].orEmpty().forEachIndexed { index, rune ->
-                                addShard(
-                                    buildId = zenithBuild.id,
-                                    shardId = rune.id,
-                                    position = index,
-                                    side = sideValue,
-                                    level = rune.maxLevel(equipment.level)
-                                )
-                            }
-                            // Then this item's sublimations: socketed like runes but with level = null,
-                            // placed after the runes so socket positions don't collide. (Epic/relic subs
-                            // have no socket pattern — their position is best-effort; verify on the live builder.)
-                            val runeCount = runes[equipment].orEmpty().size
-                            sublimations[equipment].orEmpty().forEachIndexed { index, sub ->
-                                addShard(
-                                    buildId = zenithBuild.id,
-                                    shardId = sub.zenithId,
-                                    position = runeCount + index,
-                                    side = sideValue,
-                                    level = null
-                                )
-                            }
+                            // Socket this item's runes then its sublimations, once the item exists on the
+                            // build; the shard's `side` must match the item's.
+                            plannedShards(equipment, sideValue, runes[equipment].orEmpty(), sublimations[equipment].orEmpty())
+                                .forEach { shard ->
+                                    addShard(
+                                        buildId = zenithBuild.id,
+                                        shardId = shard.shardId,
+                                        position = shard.position,
+                                        side = shard.side,
+                                        level = shard.level
+                                    )
+                                }
                         }
                     }
 
