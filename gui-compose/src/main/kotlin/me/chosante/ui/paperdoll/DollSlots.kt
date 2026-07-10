@@ -1,7 +1,10 @@
 package me.chosante.ui.paperdoll
 
+import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
+import me.chosante.common.Sublimation
+import me.chosante.common.SublimationConditionType
 import me.chosante.ui.i18n.Tr
 
 // The 14 paperdoll slots and the (tricky) item → slot mapping. Shared by the paperdoll panel and
@@ -78,4 +81,46 @@ internal fun MutableMap<String, Equipment>.putFirst(
     type: ItemType,
 ) {
     equipments.firstOrNull { it.itemType == type }?.let { put(key, it) }
+}
+
+/**
+ * Why an EMPTY paperdoll slot is empty — the "explain the solver's choices" hints. An empty slot in a
+ * discovered build reads as a bug ("the second weapon is not displayed"), when it is usually a deliberate,
+ * score-driven decision:
+ *  - [EmptySlotHint.SubRequiresEmpty]: a chosen sublimation's `NO_OFFHAND_OR_TWO_HANDED` condition (Light
+ *    Weapons Expert…) FORBIDS a shield/dagger/two-handed weapon — the empty off-hand is load-bearing.
+ *    Factual whenever the sub is in the build, so it is always shown.
+ *  - [EmptySlotHint.NoUsefulItem]: the engine maximizes ONLY the requested stats, so when no item in a
+ *    slot can improve them (e.g. every mount carries only elemental mastery when none was requested) the
+ *    optimum leaves the slot empty — AGENTS.md §4 "why the solver can leave slots empty". Only meaningful
+ *    once the search is DONE (mid-search an empty slot may just be "not chosen yet"); the caller gates it.
+ */
+internal sealed class EmptySlotHint {
+    data class SubRequiresEmpty(
+        val sub: Sublimation,
+    ) : EmptySlotHint()
+
+    data object NoUsefulItem : EmptySlotHint()
+}
+
+/** Per-slot-id hint for every EMPTY slot of a discovered build (empty map when there is no build yet). */
+internal fun emptySlotHints(
+    assignments: Map<String, Equipment>,
+    build: BuildCombination?,
+): Map<String, EmptySlotHint> {
+    if (build == null) return emptyMap()
+    val noOffhandSub =
+        build.sublimations.values
+            .flatten()
+            .firstOrNull { it.condition?.type == SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED }
+    return buildMap {
+        for (slot in leftSlots + rightSlots + bottomSlots) {
+            if (assignments.containsKey(slot.id)) continue
+            if (slot.id == "weapon2" && noOffhandSub != null) {
+                put(slot.id, EmptySlotHint.SubRequiresEmpty(noOffhandSub))
+            } else {
+                put(slot.id, EmptySlotHint.NoUsefulItem)
+            }
+        }
+    }
 }

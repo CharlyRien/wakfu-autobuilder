@@ -88,9 +88,18 @@ fun PaperdollPanel(
     onForceItem: (Equipment) -> Unit,
     onExcludeItem: (Equipment) -> Unit,
     onEditRunes: (Equipment) -> Unit = {},
+    onLockRunes: (Equipment) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val slots = remember(ui.build) { slotAssignments(ui.build?.equipments.orEmpty()) }
+    // "Explain the solver's choices": why each empty slot is empty. The sub-condition hint is factual as
+    // soon as the sub is in the build; the generic "nothing improves the request here" one is only true of
+    // a FINISHED search (mid-search an empty slot may simply not have been chosen yet), so gate it on Idle.
+    val emptyHints =
+        remember(ui.build, ui.phase) {
+            emptySlotHints(slots, ui.build)
+                .filterValues { it !is EmptySlotHint.NoUsefulItem || ui.phase == Phase.Idle }
+        }
     Column(modifier = modifier.fillMaxSize()) {
         Box(
             modifier =
@@ -121,22 +130,26 @@ fun PaperdollPanel(
                         SlotColumn(
                             slots = leftSlots,
                             assignments = slots,
+                            emptyHints = emptyHints,
                             ui = ui,
                             rightAlign = false,
                             onForceItem = onForceItem,
                             onExcludeItem = onExcludeItem,
                             onEditRunes = onEditRunes,
+                            onLockRunes = onLockRunes,
                             cardHeight = cardHeight,
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         )
                         SlotColumn(
                             slots = rightSlots,
                             assignments = slots,
+                            emptyHints = emptyHints,
                             ui = ui,
                             rightAlign = true,
                             onForceItem = onForceItem,
                             onExcludeItem = onExcludeItem,
                             onEditRunes = onEditRunes,
+                            onLockRunes = onLockRunes,
                             cardHeight = cardHeight,
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         )
@@ -156,12 +169,14 @@ fun PaperdollPanel(
                                     equipment = weaponEquipment,
                                     runes = weaponEquipment?.let { ui.build?.runes?.get(it) }.orEmpty(),
                                     subs = weaponEquipment?.let { ui.build?.sublimations?.get(it) }.orEmpty(),
+                                    emptyHint = emptyHints[slot.id],
                                     idle = ui.phase == Phase.Idle,
                                     justLanded = weaponEquipment?.equipmentId == ui.lastLandedEquipmentId,
                                     rightAlign = false,
                                     onForceItem = onForceItem,
                                     onExcludeItem = onExcludeItem,
                                     onEditRunes = onEditRunes,
+                                    onLockRunes = onLockRunes,
                                     runesPinned = ui.hasPinnedRunes(weaponEquipment),
                                     forced = ui.isForcedEquipment(slots[slot.id]),
                                     excluded = ui.isExcludedEquipment(slots[slot.id]),
@@ -280,11 +295,13 @@ private val LEVEL_LINE_MIN_CARD = 112.dp
 private fun SlotColumn(
     slots: List<DollSlot>,
     assignments: Map<String, Equipment>,
+    emptyHints: Map<String, EmptySlotHint>,
     ui: UiState,
     rightAlign: Boolean,
     onForceItem: (Equipment) -> Unit,
     onExcludeItem: (Equipment) -> Unit,
     onEditRunes: (Equipment) -> Unit,
+    onLockRunes: (Equipment) -> Unit,
     cardHeight: Dp,
     modifier: Modifier = Modifier,
 ) {
@@ -301,12 +318,14 @@ private fun SlotColumn(
                 equipment = equipment,
                 runes = equipment?.let { ui.build?.runes?.get(it) }.orEmpty(),
                 subs = equipment?.let { ui.build?.sublimations?.get(it) }.orEmpty(),
+                emptyHint = emptyHints[slot.id],
                 idle = ui.phase == Phase.Idle,
                 justLanded = equipment?.equipmentId == ui.lastLandedEquipmentId,
                 rightAlign = rightAlign,
                 onForceItem = onForceItem,
                 onExcludeItem = onExcludeItem,
                 onEditRunes = onEditRunes,
+                onLockRunes = onLockRunes,
                 runesPinned = ui.hasPinnedRunes(equipment),
                 forced = ui.isForcedEquipment(assignments[slot.id]),
                 excluded = ui.isExcludedEquipment(assignments[slot.id]),
@@ -330,21 +349,54 @@ private fun EquipmentSlot(
     onForceItem: (Equipment) -> Unit,
     onExcludeItem: (Equipment) -> Unit,
     onEditRunes: (Equipment) -> Unit = {},
+    onLockRunes: (Equipment) -> Unit = {},
     runesPinned: Boolean = false,
     forced: Boolean = false,
     excluded: Boolean = false,
+    emptyHint: EmptySlotHint? = null,
     cardHeight: Dp = 84.dp,
     modifier: Modifier = Modifier,
 ) {
     if (equipment == null) {
-        SlotRowContent(slot, null, emptyList(), emptyList(), idle, justLanded, rightAlign, forced = false, excluded = false, cardHeight = cardHeight, modifier = modifier)
+        val content =
+            @Composable { m: Modifier ->
+                SlotRowContent(
+                    slot,
+                    null,
+                    emptyList(),
+                    emptyList(),
+                    idle,
+                    justLanded,
+                    rightAlign,
+                    forced = false,
+                    excluded = false,
+                    emptyHint = emptyHint,
+                    cardHeight = cardHeight,
+                    modifier = m
+                )
+            }
+        // The card caption truncates the "why is this slot empty" hint; a hover tooltip shows it in full.
+        if (emptyHint != null) {
+            TooltipArea(
+                modifier = modifier,
+                delayMillis = 350,
+                tooltipPlacement = SlotTooltipPlacement,
+                tooltip = { EmptySlotTooltip(emptyHint) }
+            ) {
+                content(Modifier.fillMaxWidth())
+            }
+        } else {
+            content(modifier)
+        }
         return
     }
     val forceLabel = tr(Tr.REQUIRE)
     val excludeLabel = tr(Tr.BAN)
     val editRunesLabel = tr(Tr.EDIT_RUNES)
+    val lockRunesLabel = tr(Tr.LOCK_CURRENT_RUNES)
     // Only items with shard sockets can carry runes; the action is hidden for socketless slots.
     val canEditRunes = equipment.maxShardSlots > 0
+    val canLockRunes = canEditRunes && runes.isNotEmpty()
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     ContextMenuArea(
@@ -353,6 +405,7 @@ private fun EquipmentSlot(
                 add(ContextMenuItem(forceLabel) { onForceItem(equipment) })
                 add(ContextMenuItem(excludeLabel) { onExcludeItem(equipment) })
                 if (canEditRunes) add(ContextMenuItem(editRunesLabel) { onEditRunes(equipment) })
+                if (canLockRunes) add(ContextMenuItem(lockRunesLabel) { onLockRunes(equipment) })
             }
         }
     ) {
@@ -363,7 +416,7 @@ private fun EquipmentSlot(
             tooltip = { ItemTooltip(slot = slot, equipment = equipment, runes = runes, subs = subs) }
         ) {
             Box(modifier = Modifier.fillMaxWidth().hoverable(interaction)) {
-                SlotRowContent(slot, equipment, runes, subs, idle, justLanded, rightAlign, forced, excluded, cardHeight, Modifier.fillMaxWidth())
+                SlotRowContent(slot, equipment, runes, subs, idle, justLanded, rightAlign, forced, excluded, cardHeight = cardHeight, modifier = Modifier.fillMaxWidth())
                 val cornerAlign = if (rightAlign) Alignment.TopStart else Alignment.TopEnd
                 if (hovered) {
                     SlotActions(
@@ -548,6 +601,7 @@ private fun SlotRowContent(
     rightAlign: Boolean,
     forced: Boolean,
     excluded: Boolean,
+    emptyHint: EmptySlotHint? = null,
     cardHeight: Dp = 84.dp,
     modifier: Modifier = Modifier,
 ) {
@@ -579,12 +633,63 @@ private fun SlotRowContent(
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         if (rightAlign) {
-            SlotMeta(slot = slot, equipment = equipment, runes = runes, subs = subs, cardHeight = cardHeight, modifier = Modifier.weight(1f), align = TextAlign.End)
+            SlotMeta(
+                slot = slot,
+                equipment = equipment,
+                runes = runes,
+                subs = subs,
+                emptyHint = emptyHint,
+                cardHeight = cardHeight,
+                modifier = Modifier.weight(1f),
+                align = TextAlign.End
+            )
             SlotIcon(slot = slot, equipment = equipment, color = color, cardHeight = cardHeight)
         } else {
             SlotIcon(slot = slot, equipment = equipment, color = color, cardHeight = cardHeight)
-            SlotMeta(slot = slot, equipment = equipment, runes = runes, subs = subs, cardHeight = cardHeight, modifier = Modifier.weight(1f), align = TextAlign.Start)
+            SlotMeta(
+                slot = slot,
+                equipment = equipment,
+                runes = runes,
+                subs = subs,
+                emptyHint = emptyHint,
+                cardHeight = cardHeight,
+                modifier = Modifier.weight(1f),
+                align = TextAlign.Start
+            )
         }
+    }
+}
+
+/** The full "why is this slot empty" sentence for [hint] (shared by the card caption and its hover tooltip). */
+@Composable
+private fun emptyHintText(hint: EmptySlotHint): String {
+    val lang = LocalLang.current
+    return when (hint) {
+        is EmptySlotHint.SubRequiresEmpty ->
+            tr(Tr.EMPTY_SLOT_SUB_HINT).format(if (lang == Lang.FR) hint.sub.name.fr else hint.sub.name.en)
+
+        EmptySlotHint.NoUsefulItem -> tr(Tr.EMPTY_SLOT_NO_GAIN_HINT)
+    }
+}
+
+/** Compact hover tooltip for an EMPTY slot — the full explanation, since the card caption truncates it. */
+@Composable
+private fun EmptySlotTooltip(hint: EmptySlotHint) {
+    val shape = RoundedCornerShape(10.dp)
+    Column(
+        modifier =
+            Modifier
+                .widthIn(min = 180.dp, max = 300.dp)
+                .shadow(elevation = 18.dp, shape = shape, clip = false)
+                .clip(shape)
+                .background(WColor.raised)
+                .border(1.dp, WColor.border, shape)
+                .padding(12.dp)
+    ) {
+        Text(
+            text = emptyHintText(hint),
+            style = WTypography.bodyMedium.copy(color = WColor.text, lineHeight = 18.sp)
+        )
     }
 }
 
@@ -980,6 +1085,7 @@ private fun SlotMeta(
     equipment: Equipment?,
     runes: List<RuneType> = emptyList(),
     subs: List<Sublimation> = emptyList(),
+    emptyHint: EmptySlotHint? = null,
     align: TextAlign,
     cardHeight: Dp = 84.dp,
     modifier: Modifier = Modifier,
@@ -1009,6 +1115,23 @@ private fun SlotMeta(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
+        // "Explain the solver's choices": an empty slot in a discovered build is usually deliberate —
+        // either a chosen sublimation FORBIDS the slot (Light Weapons Expert's no-off-hand condition), or
+        // no item here can improve the requested stats (the engine maximizes only what was asked).
+        if (equipment == null && emptyHint != null) {
+            Text(
+                text = emptyHintText(emptyHint),
+                style =
+                    WTypography.labelSmall.copy(
+                        color = WColor.muted,
+                        textAlign = align,
+                        lineHeight = 13.sp
+                    ),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+        }
         if (equipment != null) {
             // Level·rarity is secondary (the rarity also shows on the icon badge; full details on hover), so a
             // short card drops it to keep the shards large; a tall/full-screen card has room to show it.

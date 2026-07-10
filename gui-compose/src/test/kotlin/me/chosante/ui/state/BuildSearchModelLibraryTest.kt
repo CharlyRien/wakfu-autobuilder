@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import me.chosante.autobuilder.domain.BuildCombination
-import me.chosante.autobuilder.genetic.GeneticAlgorithmResult
+import me.chosante.autobuilder.genetic.SolverResult
 import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
@@ -477,7 +477,7 @@ class BuildSearchModelLibraryTest {
                 scope = scope,
                 buildFinder = {
                     flowOf(
-                        GeneticAlgorithmResult(
+                        SolverResult(
                             individual = fakeBuild(),
                             matchPercentage = BigDecimal("100"),
                             progressPercentage = 100,
@@ -550,7 +550,7 @@ class BuildSearchModelLibraryTest {
             scope = scope,
             buildFinder = {
                 flowOf(
-                    GeneticAlgorithmResult(
+                    SolverResult(
                         individual = fakeBuild(),
                         matchPercentage = BigDecimal("100"),
                         progressPercentage = 100,
