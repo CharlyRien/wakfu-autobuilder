@@ -74,6 +74,10 @@ fun UiState.toHistoryEntry(
                 targets = targets.map { TargetSnapshot(it.characteristic, it.value, it.weight) },
                 forcedItems = forcedItems.map { ItemRef(it.name, it.rarity, it.matchName) },
                 excludedItems = excludedItems.map { ItemRef(it.name, it.rarity, it.matchName) },
+                useSublimations = useSublimations,
+                maxSublimationTier = maxSublimationTier,
+                forcedSublimations = forcedSublimations,
+                excludedSublimations = excludedSublimations,
                 scenario = scenario.toSnapshot()
             ),
         result =

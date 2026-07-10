@@ -62,14 +62,17 @@ data class BuildCombination(
     }
 
     /**
-     * Sublimation legality, mirroring the solver constraints: at most 10 sublimations, at most 1 epic and
-     * 1 relic, and each one on a valid carrier item — epic on an epic item, relic on a relic item, a normal
-     * sub on a ≥3-socket item with at most one normal sub per item, and `runes + 3·normalSubs ≤ sockets` so
-     * a sub's three sockets aren't double-booked with runes.
+     * Sublimation legality, mirroring the solver constraints: at most 10 NORMAL sublimations + 1 epic + 1 relic,
+     * and each one on a valid carrier item — epic on an epic item, relic on a relic item, a normal
+     * sub on a ≥3-socket item with at most one normal sub per item. A normal sub does NOT consume rune
+     * sockets: golden runes form its colour pattern while still carrying their stat, so the carrier keeps a
+     * full rune set alongside the sub (the solver model since 54761dc6 — see the "does not steal rune
+     * sockets" test; the retired "reserve 3 sockets" model capped runes at `sockets − 3`). Only the rune
+     * count itself is bounded by the socket count.
      */
     private fun hasLegalSublimations(): Boolean {
         val allSubs = sublimations.values.flatten()
-        if (allSubs.size > 10) return false
+        if (allSubs.count { it.rarity == SublimationRarity.NORMAL } > 10) return false
         if (allSubs.count { it.rarity == SublimationRarity.EPIC } > 1) return false
         if (allSubs.count { it.rarity == SublimationRarity.RELIC } > 1) return false
         for ((carrier, hosted) in sublimations) {
@@ -78,7 +81,7 @@ data class BuildCombination(
             if (normalSubCount > 0 && carrier.maxShardSlots < 3) return false
             if (hosted.any { it.rarity == SublimationRarity.EPIC } && carrier.rarity != Rarity.EPIC) return false
             if (hosted.any { it.rarity == SublimationRarity.RELIC } && carrier.rarity != Rarity.RELIC) return false
-            if ((runes[carrier]?.size ?: 0) + 3 * normalSubCount > carrier.maxShardSlots) return false
+            if ((runes[carrier]?.size ?: 0) > carrier.maxShardSlots) return false
         }
         return true
     }

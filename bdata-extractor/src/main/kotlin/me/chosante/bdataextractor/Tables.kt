@@ -164,7 +164,7 @@ object Tables {
 
     /**
      * State table (TYPE_ID 67). A sublimation IS a state (keyed by [stateId] = `id`); [max_level] is the
-     * stacking/level cap (what the curated `Sublimation.maxLevel` mirrors) and [is_cumulable] is the
+     * stacking/level cap (what the curated `Sublimation.maxStackLevel` mirrors) and [is_cumulable] is the
      * in-game flag for whether re-applying it accumulates. Field order is Ankama's `StateBinaryData`
      * (verbatim from the `jac3km4/wakfu-bdata` `State` decoder, the same reference the Spell schema came
      * from); `_n` fields are unnamed/unused, still decoded for seed alignment.

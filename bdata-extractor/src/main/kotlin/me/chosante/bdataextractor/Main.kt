@@ -113,7 +113,10 @@ fun main(args: Array<String>) {
     val itemsJson = ItemsCatalog.fetchItemsJson(version)
     val subMeta = ItemsCatalog.parse(itemsJson)
     println("  ${subMeta.size} sublimations (itemTypeId ${ItemsCatalog.SUBLIMATION_ITEM_TYPE})")
-    val sublimations = buildSublimations(states, effects, actions, subMeta)
+    // First-party characteristic-id map (read from the client's obfuscated characteristic enum) — lets the
+    // sublimation decoder resolve an action-913 ramp's source stat (e.g. Featherweight's MP) without a hand table.
+    val characIds = CharacIdCatalog.load(install)
+    val sublimations = buildSublimations(states, effects, actions, subMeta, characIds)
     println("  ${sublimations.count { it.solverChoosable }} solver-choosable (rest forced-input-only)")
     val sublimationsJson = json.encodeToString(ListSerializer(Sublimation.serializer()), sublimations)
     verifyAndWrite(File(resources, "sublimations.json"), sublimationsJson, "sublimations", sublimations.size, force)
