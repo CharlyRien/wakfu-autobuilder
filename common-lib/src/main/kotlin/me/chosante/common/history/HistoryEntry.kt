@@ -7,6 +7,7 @@ import me.chosante.common.Passive
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
+import me.chosante.common.SublimationLegacyFieldsSerializer
 
 /**
  * The persisted, on-disk shape of a saved build. **Deliberately decoupled from the live engine
@@ -71,6 +72,14 @@ data class RequestSnapshot(
     val targets: List<TargetSnapshot>,
     val forcedItems: List<ItemRef>,
     val excludedItems: List<ItemRef>,
+    /**
+     * Sublimation availability of the request: the solver-picks toggle and the forced / excluded lists
+     * (French names, the engine's match key). Defaulted so saves written before these fields load cleanly.
+     */
+    val useSublimations: Boolean = true,
+    val maxSublimationTier: Int? = null,
+    val forcedSublimations: List<String> = emptyList(),
+    val excludedSublimations: List<String> = emptyList(),
     /**
      * Attack scenario for the max-damage mode. Defaulted so saves written before this field load with
      * a neutral scenario (and ignored on load for non max-damage builds). Stored as primitives because
@@ -149,8 +158,17 @@ data class ResultSnapshot(
     /**
      * Chosen/forced sublimations per carrier item, keyed by `equipmentId` (mirrors [runes]). [Sublimation]
      * is `@Serializable`, so the full effect set round-trips for display. Empty for sub-less / pre-feature saves.
+     * A pre-B4 save stored the structured conversion / ramp / best-element bonuses as three top-level fields;
+     * [SublimationLegacyFieldsSerializer] folds any such legacy field into [Sublimation.effects] on load so those
+     * effects are not silently dropped under `ignoreUnknownKeys`.
      */
-    val sublimations: Map<Int, List<Sublimation>> = emptyMap(),
+    val sublimations: Map<
+        Int,
+        List<
+            @Serializable(with = SublimationLegacyFieldsSerializer::class)
+            Sublimation
+        >
+    > = emptyMap(),
     /** The selected passive loadout ([Passive] is `@Serializable`). Empty for pre-feature saves. */
     val passives: List<Passive> = emptyList(),
 )

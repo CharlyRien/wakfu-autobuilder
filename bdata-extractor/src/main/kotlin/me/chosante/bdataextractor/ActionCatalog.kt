@@ -52,7 +52,13 @@ class ActionCatalog(
     fun kind(actionId: Int): ActionKind? = byId[actionId]
 
     companion object {
-        private val CHARAC_CODE: Map<String, Characteristic> =
+        /**
+         * Script code (`[#charac CODE]` in action descriptions, also the characteristic-enum script names) →
+         * project [Characteristic]. The SINGLE source of truth for that correspondence in this module:
+         * [CharacIdCatalog] derives its (deliberately smaller) `scriptName → Characteristic` subset from this
+         * table rather than re-typing the shared entries (C3 of docs/code-review-followups.md).
+         */
+        internal val CHARAC_CODE: Map<String, Characteristic> =
             mapOf(
                 "HP" to Characteristic.HP,
                 "AP" to Characteristic.ACTION_POINT,

@@ -245,6 +245,85 @@ class HistoryMappingTest {
         assertThat(rebuilt.passives.single().flatStats).containsEntry(Characteristic.RANGE, 1)
     }
 
+    /**
+     * Stacking round-trip: a CUMULABLE sub socketed on two carriers must come back as two copies. The saved
+     * shape keys sublimations by `equipmentId`, so the copies survive precisely because they sit on DISTINCT
+     * carrier items — a shape that collapsed them to a set/`distinctBy` would silently drop half a build's
+     * damage. Also pins that `cumulable` + `maxStackLevel` survive the codec (the latter is serialized under
+     * its legacy `maxLevel` key), so [Sublimation.maxCopies] still reads 2 after a clipboard round-trip.
+     */
+    @Test
+    fun `a stacked cumulable sublimation survives the round-trip on both carriers`() {
+        fun carrier(
+            id: Int,
+            type: ItemType,
+            label: String,
+        ) = Equipment(
+            equipmentId = id,
+            guiId = id,
+            level = 50,
+            name = I18nText(fr = label, en = label, es = "", pt = ""),
+            rarity = Rarity.LEGENDARY,
+            itemType = type,
+            characteristics = emptyMap(),
+            maxShardSlots = 3
+        )
+        val first = carrier(11, ItemType.AMULET, "Carrier1")
+        val second = carrier(12, ItemType.CAPE, "Carrier2")
+        // maxStackLevel 6 / maxTier 3 ⇒ maxCopies 2: one copy socketed on each carrier.
+        val stacked =
+            Sublimation(
+                stateId = 99,
+                name = I18nText("Carnage II", "Carnage II", "", ""),
+                rarity = SublimationRarity.NORMAL,
+                maxStackLevel = 6,
+                maxTier = 3,
+                cumulable = true,
+                kind = SublimationKind.FLAT
+            )
+        val build =
+            BuildCombination(
+                equipments = listOf(first, second),
+                characterSkills = CharacterSkills(110),
+                sublimations = mapOf(first to listOf(stacked), second to listOf(stacked))
+            )
+        val ui =
+            UiState(
+                clazz = CharacterClass.FECA,
+                level = 110,
+                minLevel = 110,
+                mode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                maxRarity = Rarity.EPIC,
+                duration = "30",
+                stopAtMatch = false,
+                build = build,
+                achieved = emptyMap(),
+                match = BigDecimal("100"),
+                optimal = true
+            )
+
+        val entry = ui.toHistoryEntry(id = "id-stack", name = "Stacked", note = null, createdAt = 1L, dataVersion = "v")!!
+        val restored = historyJson.decodeFromString(HistoryEntry.serializer(), historyJson.encodeToString(HistoryEntry.serializer(), entry))
+        val rebuilt = restored.toBuildCombination()
+
+        assertThat(
+            rebuilt.sublimations.values
+                .flatten()
+                .count { it.stateId == 99 }
+        ).describedAs("both socketed copies of the cumulable sub survive the round-trip")
+            .isEqualTo(2)
+        assertThat(rebuilt.sublimations.filterValues { subs -> subs.any { it.stateId == 99 } })
+            .describedAs("the two copies stay keyed to two DISTINCT carrier items")
+            .hasSize(2)
+        assertThat(
+            rebuilt.sublimations.values
+                .flatten()
+                .first { it.stateId == 99 }
+                .maxCopies
+        ).describedAs("cumulable + maxStackLevel survive the codec, so maxCopies still reads 2")
+            .isEqualTo(2)
+    }
+
     @Test
     fun `toHistoryEntry returns null without a build`() {
         assertThat(UiState().toHistoryEntry("id", "name", null, 0L, "v")).isNull()

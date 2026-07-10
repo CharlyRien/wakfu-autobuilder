@@ -17,10 +17,12 @@
     },
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 15
       },
       {
+        "type": "flat",
         "characteristic": "WILLPOWER",
         "value": 10,
         "scenarioGate": {
@@ -48,10 +50,12 @@
     },
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 20
       },
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_CRITICAL",
         "value": 50
       }
@@ -76,10 +80,12 @@
     },
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 10
       },
       {
+        "type": "flat",
         "characteristic": "CRITICAL_HIT",
         "value": 10
       }
@@ -113,12 +119,21 @@
       "pt": "Desenlace"
     },
     "rarity": "EPIC",
-    "kind": "STATIC_CONDITIONAL",
+    "kind": "CONVERSION",
+    "solverChoosable": false,
     "condition": {
       "type": "CRIT_AT_LEAST",
       "value": 40
     },
-    "rawText": "If Critical Hit ≥ 40%"
+    "effects": [
+      {
+        "type": "conversion",
+        "from": "MASTERY_CRITICAL",
+        "to": "MASTERY_ELEMENTARY",
+        "percent": 100
+      }
+    ],
+    "rawText": "If Critical Hit ≥ 40% | Convert 100% of mastery critical into mastery elementary"
   },
   {
     "stateId": 5078,
@@ -142,22 +157,7 @@
       "pt": "Alternância"
     },
     "rarity": "RELIC",
-    "kind": "COMBAT_CONDITIONAL",
-    "effects": [
-      {
-        "characteristic": "MASTERY_ELEMENTARY_WATER",
-        "value": 20
-      },
-      {
-        "characteristic": "MASTERY_ELEMENTARY_WIND",
-        "value": 20
-      },
-      {
-        "characteristic": "DAMAGE_INFLICTED",
-        "value": 80
-      }
-    ],
-    "rawText": "+20 mastery elementary water | +20 mastery elementary wind | +80% Damage Inflicted"
+    "kind": "COMBAT_CONDITIONAL"
   },
   {
     "stateId": 5080,
@@ -172,11 +172,12 @@
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
-        "value": 60
+        "value": 30
       }
     ],
-    "rawText": "+60% Block"
+    "rawText": "+30% Block"
   },
   {
     "stateId": 5081,
@@ -191,18 +192,12 @@
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 20,
-        "scenarioGate": {
-          "ranged": true
-        }
-      },
-      {
-        "characteristic": "DAMAGE_INFLICTED",
-        "value": 60
+        "value": 10
       }
     ],
-    "rawText": "+20% Damage Inflicted (ranged) | +60% Damage Inflicted"
+    "rawText": "+10% Damage Inflicted"
   },
   {
     "stateId": 5082,
@@ -214,17 +209,7 @@
       "pt": "Robusto"
     },
     "rarity": "RELIC",
-    "kind": "FLAT",
-    "effects": [
-      {
-        "characteristic": "LOCK",
-        "value": 100,
-        "scenarioGate": {
-          "ranged": true
-        }
-      }
-    ],
-    "rawText": "+100 Lock (ranged)"
+    "kind": "COMBAT_CONDITIONAL"
   },
   {
     "stateId": 5158,
@@ -243,10 +228,12 @@
     },
     "effects": [
       {
+        "type": "flat",
         "characteristic": "ACTION_POINT",
         "value": 2
       },
       {
+        "type": "flat",
         "characteristic": "MAX_MOVEMENT_POINT",
         "value": -2
       }
@@ -263,30 +250,7 @@
       "pt": "Runa Relíquia de Alternância II"
     },
     "rarity": "RELIC",
-    "kind": "COMBAT_CONDITIONAL",
-    "effects": [
-      {
-        "characteristic": "MASTERY_ELEMENTARY_WATER",
-        "value": 15
-      },
-      {
-        "characteristic": "MASTERY_ELEMENTARY_WIND",
-        "value": 15
-      },
-      {
-        "characteristic": "MASTERY_ELEMENTARY_FIRE",
-        "value": 15
-      },
-      {
-        "characteristic": "MASTERY_ELEMENTARY_EARTH",
-        "value": 15
-      },
-      {
-        "characteristic": "DAMAGE_INFLICTED",
-        "value": 60
-      }
-    ],
-    "rawText": "+15 mastery elementary water | +15 mastery elementary wind | +15 mastery elementary fire | +15 mastery elementary earth | +60% Damage Inflicted"
+    "kind": "COMBAT_CONDITIONAL"
   },
   {
     "stateId": 5175,
@@ -298,7 +262,15 @@
       "pt": "Brisa"
     },
     "rarity": "RELIC",
-    "kind": "COMBAT_CONDITIONAL"
+    "kind": "FLAT",
+    "effects": [
+      {
+        "type": "flat",
+        "characteristic": "DAMAGE_INFLICTED",
+        "value": -25
+      }
+    ],
+    "rawText": "-25% Damage Inflicted"
   },
   {
     "stateId": 5216,
@@ -313,6 +285,7 @@
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 15
       }
@@ -332,11 +305,17 @@
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
+        "characteristic": "RANGE",
+        "value": -1
+      },
+      {
+        "type": "flat",
         "characteristic": "MOVEMENT_POINT",
         "value": 1
       }
     ],
-    "rawText": "+1 MP"
+    "rawText": "-1 Range | +1 MP"
   },
   {
     "stateId": 5249,
@@ -351,11 +330,20 @@
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 10
+        "value": -30,
+        "scenarioGate": {
+          "orientation": "BACK"
+        }
+      },
+      {
+        "type": "flat",
+        "characteristic": "DAMAGE_INFLICTED",
+        "value": 40
       }
     ],
-    "rawText": "+10% Damage Inflicted"
+    "rawText": "-30% Damage Inflicted (rear) | +40% Damage Inflicted"
   },
   {
     "stateId": 5250,
@@ -370,6 +358,7 @@
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": -10
       }
@@ -389,6 +378,7 @@
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 25
       }
@@ -420,10 +410,12 @@
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "WILLPOWER",
         "value": 10
       },
       {
+        "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
         "value": 15
       }
@@ -443,6 +435,7 @@
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 30
       }
@@ -463,10 +456,12 @@
     "solverChoosable": true,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_BACK",
         "value": -200
       },
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
         "value": 50
       }
@@ -484,21 +479,23 @@
     },
     "rarity": "EPIC",
     "kind": "FLAT",
+    "solverChoosable": false,
     "effects": [
       {
-        "characteristic": "MASTERY_ELEMENTARY",
-        "value": -50
-      },
-      {
-        "characteristic": "MASTERY_ELEMENTARY_FIRE",
-        "value": -50
-      },
-      {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 20
+        "value": -20
+      },
+      {
+        "type": "flat",
+        "characteristic": "DAMAGE_INFLICTED",
+        "value": 40,
+        "scenarioGate": {
+          "orientation": "BACK"
+        }
       }
     ],
-    "rawText": "-50 mastery elementary | -50 mastery elementary fire | +20% Damage Inflicted"
+    "rawText": "-20% Damage Inflicted | +40% Damage Inflicted (rear)"
   },
   {
     "stateId": 5446,
@@ -517,6 +514,7 @@
     },
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 20
       }
@@ -540,11 +538,17 @@
     },
     "effects": [
       {
+        "type": "percentOfLevel",
+        "characteristic": "DODGE",
+        "percentOfLevel": 250
+      },
+      {
+        "type": "percentOfLevel",
         "characteristic": "LOCK",
-        "value": 250
+        "percentOfLevel": 250
       }
     ],
-    "rawText": "If odd AP | +250 Lock"
+    "rawText": "If odd AP | +250% of level as Dodge | +250% of level as Lock"
   },
   {
     "stateId": 5449,
@@ -557,29 +561,15 @@
     },
     "rarity": "EPIC",
     "kind": "FLAT",
+    "solverChoosable": false,
     "effects": [
       {
-        "characteristic": "MASTERY_ELEMENTARY_WATER",
-        "value": 20
-      },
-      {
-        "characteristic": "MASTERY_ELEMENTARY_WIND",
-        "value": 20
-      },
-      {
-        "characteristic": "MASTERY_ELEMENTARY_FIRE",
-        "value": -160
-      },
-      {
-        "characteristic": "MASTERY_ELEMENTARY_EARTH",
-        "value": 20
-      },
-      {
-        "characteristic": "DAMAGE_INFLICTED",
-        "value": -20
+        "type": "bestElementConcentration",
+        "damageInflictedBonus": 20,
+        "masteryPenaltyPercent": 30
       }
     ],
-    "rawText": "+20 mastery elementary water | +20 mastery elementary wind | -160 mastery elementary fire | +20 mastery elementary earth | -20% Damage Inflicted"
+    "rawText": "+20% Damage Inflicted | -30% Mastery of the 3 weakest elements"
   },
   {
     "stateId": 5450,
@@ -594,6 +584,7 @@
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 2
       }
@@ -610,14 +601,7 @@
       "pt": "Runa Relíquia de Aura de Chamas"
     },
     "rarity": "RELIC",
-    "kind": "COMBAT_CONDITIONAL",
-    "effects": [
-      {
-        "characteristic": "LOCK",
-        "value": 100
-      }
-    ],
-    "rawText": "+100 Lock"
+    "kind": "COMBAT_CONDITIONAL"
   },
   {
     "stateId": 5453,
@@ -644,6 +628,7 @@
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": -20
       }
@@ -666,6 +651,7 @@
       1
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -684,19 +670,24 @@
       3
     ],
     "maxLevel": 3,
+    "maxTier": 3,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "WAKFU_POINT",
-        "value": 1
+        "value": 1,
+        "appliesBeforeCombat": true
       },
       {
+        "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": -20
+        "value": -10,
+        "appliesBeforeCombat": true
       }
     ],
-    "rawText": "+1 WP | -20 Force of Will"
+    "rawText": "+1 WP | -10 Force of Will"
   },
   {
     "stateId": 5982,
@@ -714,54 +705,62 @@
       2
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "FLAT",
+    "solverChoosable": false,
     "effects": [
       {
+        "type": "percentOfLevel",
         "characteristic": "MASTERY_ELEMENTARY",
-        "value": 3
+        "percentOfLevel": 15
       },
       {
+        "type": "percentOfLevel",
         "characteristic": "MASTERY_DISTANCE",
-        "value": 3
+        "percentOfLevel": 15
       },
       {
+        "type": "percentOfLevel",
         "characteristic": "MASTERY_CRITICAL",
-        "value": 3
+        "percentOfLevel": 15
       },
       {
+        "type": "percentOfLevel",
         "characteristic": "MASTERY_BACK",
-        "value": 3
+        "percentOfLevel": 15
       },
       {
+        "type": "percentOfLevel",
         "characteristic": "MASTERY_MELEE",
-        "value": 3
+        "percentOfLevel": 15
       },
       {
+        "type": "percentOfLevel",
         "characteristic": "MASTERY_BERSERK",
-        "value": 3
+        "percentOfLevel": 15
       },
       {
+        "type": "percentOfLevel",
         "characteristic": "MASTERY_HEALING",
-        "value": 3
+        "percentOfLevel": 15
       },
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_CRITICAL",
         "value": 9
       },
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_BACK",
         "value": 9
       },
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
         "value": 9
-      },
-      {
-        "characteristic": "LOCK",
-        "value": 5
       }
     ],
-    "rawText": "+3 mastery elementary | +3 mastery distance | +3 mastery critical | +3 mastery back | +3 mastery melee | +3 mastery berserk | +3 mastery healing | +9 Critical Resistance | +9 Rear Resistance | +9 Elemental Resistance | +5 Lock"
+    "rawText": "+15% of level as mastery elementary | +15% of level as mastery distance | +15% of level as mastery critical | +15% of level as mastery back | +15% of level as mastery melee | +15% of level as mastery berserk | +15% of level as mastery healing | +9 Critical Resistance | +9 Rear Resistance | +9 Elemental Resistance"
   },
   {
     "stateId": 5983,
@@ -779,18 +778,17 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
+    "solverChoosable": false,
     "effects": [
       {
+        "type": "percentOfLevel",
         "characteristic": "MASTERY_ELEMENTARY",
-        "value": 5
-      },
-      {
-        "characteristic": "LOCK",
-        "value": 15
+        "percentOfLevel": 45
       }
     ],
-    "rawText": "+5 mastery elementary | +15 Lock"
+    "rawText": "+45% of level as mastery elementary"
   },
   {
     "stateId": 5984,
@@ -808,6 +806,7 @@
       3
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -826,14 +825,16 @@
       1
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 10
+        "value": 6
       }
     ],
-    "rawText": "+10% Damage Inflicted"
+    "rawText": "+6% Damage Inflicted"
   },
   {
     "stateId": 5986,
@@ -851,14 +852,16 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
-        "value": 25
+        "value": 15
       }
     ],
-    "rawText": "+25% Block"
+    "rawText": "+15% Block"
   },
   {
     "stateId": 5987,
@@ -876,14 +879,16 @@
       1
     ],
     "maxLevel": 4,
+    "maxTier": 2,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": -23
+        "value": -15
       }
     ],
-    "rawText": "-23% Damage Inflicted"
+    "rawText": "-15% Damage Inflicted"
   },
   {
     "stateId": 5988,
@@ -901,6 +906,7 @@
       3
     ],
     "maxLevel": 4,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL",
     "condition": {
       "type": "AP_AT_LEAST",
@@ -908,11 +914,12 @@
     },
     "effects": [
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
-        "value": 37
+        "value": 25
       }
     ],
-    "rawText": "If AP ≥ 2 | +37 Elemental Resistance"
+    "rawText": "If AP ≥ 2 | +25 Elemental Resistance"
   },
   {
     "stateId": 5989,
@@ -930,14 +937,8 @@
       1
     ],
     "maxLevel": 2,
-    "kind": "COMBAT_CONDITIONAL",
-    "effects": [
-      {
-        "characteristic": "LOCK",
-        "value": 200
-      }
-    ],
-    "rawText": "+200 Lock"
+    "maxTier": 2,
+    "kind": "COMBAT_CONDITIONAL"
   },
   {
     "stateId": 5990,
@@ -955,14 +956,16 @@
       1
     ],
     "maxLevel": 3,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": 20
+        "value": 30
       }
     ],
-    "rawText": "+20 Force of Will"
+    "rawText": "+30 Force of Will"
   },
   {
     "stateId": 5991,
@@ -980,14 +983,16 @@
       3
     ],
     "maxLevel": 3,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": 20
+        "value": 30
       }
     ],
-    "rawText": "+20 Force of Will"
+    "rawText": "+30 Force of Will"
   },
   {
     "stateId": 5992,
@@ -1005,14 +1010,16 @@
       3
     ],
     "maxLevel": 3,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DODGE",
-        "value": -6
+        "value": -3
       }
     ],
-    "rawText": "-6 Dodge"
+    "rawText": "-3 Dodge"
   },
   {
     "stateId": 5993,
@@ -1030,9 +1037,11 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 2,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "WILLPOWER",
         "value": -20
       }
@@ -1055,14 +1064,8 @@
       3
     ],
     "maxLevel": 2,
-    "kind": "COMBAT_CONDITIONAL",
-    "effects": [
-      {
-        "characteristic": "DAMAGE_INFLICTED",
-        "value": -10
-      }
-    ],
-    "rawText": "-10% Damage Inflicted"
+    "maxTier": 2,
+    "kind": "COMBAT_CONDITIONAL"
   },
   {
     "stateId": 5999,
@@ -1080,9 +1083,11 @@
       2
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "WAKFU_POINT",
         "value": 1
       }
@@ -1105,18 +1110,22 @@
       1
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": -100
+        "value": -50
       },
       {
+        "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 50
+        "value": 100,
+        "appliesBeforeCombat": true
       }
     ],
-    "rawText": "-100% Damage Inflicted | +50% Critical Hit"
+    "rawText": "-50% Damage Inflicted | +100% Critical Hit"
   },
   {
     "stateId": 6001,
@@ -1134,6 +1143,7 @@
       2
     ],
     "maxLevel": 4,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1152,6 +1162,7 @@
       3
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1170,6 +1181,7 @@
       1
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1188,19 +1200,24 @@
       1
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": -20
+        "value": -10,
+        "appliesBeforeCombat": true
       },
       {
+        "type": "flat",
         "characteristic": "MOVEMENT_POINT",
-        "value": 1
+        "value": 1,
+        "appliesBeforeCombat": true
       }
     ],
-    "rawText": "-20% Damage Inflicted | +1 MP"
+    "rawText": "-10% Damage Inflicted | +1 MP"
   },
   {
     "stateId": 6006,
@@ -1218,14 +1235,16 @@
       1
     ],
     "maxLevel": 6,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "ACTION_POINT",
-        "value": 10
+        "value": 6
       }
     ],
-    "rawText": "+10 AP"
+    "rawText": "+6 AP"
   },
   {
     "stateId": 6007,
@@ -1260,19 +1279,24 @@
       3
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
-        "value": -150
+        "value": -75,
+        "appliesBeforeCombat": true
       },
       {
+        "type": "flat",
         "characteristic": "ACTION_POINT",
-        "value": 1
+        "value": 1,
+        "appliesBeforeCombat": true
       }
     ],
-    "rawText": "-150 Elemental Resistance | +1 AP"
+    "rawText": "-75 Elemental Resistance | +1 AP"
   },
   {
     "stateId": 6009,
@@ -1290,14 +1314,20 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
+    "solverChoosable": false,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 25
+        "value": 15,
+        "scenarioGate": {
+          "berserk": true
+        }
       }
     ],
-    "rawText": "+25% Critical Hit"
+    "rawText": "+15% Critical Hit (berserk)"
   },
   {
     "stateId": 6010,
@@ -1315,23 +1345,30 @@
       2
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "RANGE",
-        "value": 1
+        "value": 1,
+        "appliesBeforeCombat": true
       },
       {
+        "type": "flat",
         "characteristic": "DODGE",
-        "value": -300
+        "value": -150,
+        "appliesBeforeCombat": true
       },
       {
+        "type": "flat",
         "characteristic": "LOCK",
-        "value": -300
+        "value": -150,
+        "appliesBeforeCombat": true
       }
     ],
-    "rawText": "+1 Range | -300 Dodge | -300 Lock"
+    "rawText": "+1 Range | -150 Dodge | -150 Lock"
   },
   {
     "stateId": 6011,
@@ -1349,6 +1386,7 @@
       1
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1367,14 +1405,20 @@
       3
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
+    "solverChoosable": false,
     "effects": [
       {
+        "type": "percentOfLevel",
         "characteristic": "LOCK",
-        "value": 55
+        "percentOfLevel": 150,
+        "scenarioGate": {
+          "berserk": true
+        }
       }
     ],
-    "rawText": "+55 Lock"
+    "rawText": "+150% of level as Lock (berserk)"
   },
   {
     "stateId": 6013,
@@ -1392,23 +1436,27 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 2,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 7
+        "value": 3
       },
       {
+        "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": 7
+        "value": 3
       },
       {
+        "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
-        "value": 7
+        "value": 3
       }
     ],
-    "rawText": "+7% Critical Hit | +7 Force of Will | +7% Block"
+    "rawText": "+3% Critical Hit | +3 Force of Will | +3% Block"
   },
   {
     "stateId": 6014,
@@ -1426,6 +1474,7 @@
       2
     ],
     "maxLevel": 4,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1444,14 +1493,16 @@
       3
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 20
+        "value": 12
       }
     ],
-    "rawText": "+20% Damage Inflicted"
+    "rawText": "+12% Damage Inflicted"
   },
   {
     "stateId": 6017,
@@ -1469,6 +1520,7 @@
       1
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1487,18 +1539,20 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
+    "solverChoosable": false,
     "effects": [
       {
+        "type": "percentOfLevel",
         "characteristic": "DODGE",
-        "value": 5
-      },
-      {
-        "characteristic": "LOCK",
-        "value": 50
+        "percentOfLevel": 150,
+        "scenarioGate": {
+          "berserk": true
+        }
       }
     ],
-    "rawText": "+5 Dodge | +50 Lock"
+    "rawText": "+150% of level as Dodge (berserk)"
   },
   {
     "stateId": 6019,
@@ -1516,17 +1570,8 @@
       1
     ],
     "maxLevel": 4,
-    "kind": "COMBAT_CONDITIONAL",
-    "effects": [
-      {
-        "characteristic": "LOCK",
-        "value": 100,
-        "scenarioGate": {
-          "ranged": true
-        }
-      }
-    ],
-    "rawText": "+100 Lock (ranged)"
+    "maxTier": 3,
+    "kind": "COMBAT_CONDITIONAL"
   },
   {
     "stateId": 6020,
@@ -1544,14 +1589,8 @@
       3
     ],
     "maxLevel": 4,
-    "kind": "COMBAT_CONDITIONAL",
-    "effects": [
-      {
-        "characteristic": "LOCK",
-        "value": 100
-      }
-    ],
-    "rawText": "+100 Lock"
+    "maxTier": 3,
+    "kind": "COMBAT_CONDITIONAL"
   },
   {
     "stateId": 6021,
@@ -1569,6 +1608,7 @@
       1
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL",
     "condition": {
       "type": "AP_AT_LEAST",
@@ -1576,11 +1616,12 @@
     },
     "effects": [
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
-        "value": 30
+        "value": 60
       }
     ],
-    "rawText": "If AP ≥ 6 | +30 Elemental Resistance"
+    "rawText": "If AP ≥ 6 | +60 Elemental Resistance"
   },
   {
     "stateId": 6022,
@@ -1598,14 +1639,16 @@
       1
     ],
     "maxLevel": 2,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": 5
+        "value": 15
       }
     ],
-    "rawText": "+5 Force of Will"
+    "rawText": "+15 Force of Will"
   },
   {
     "stateId": 6023,
@@ -1623,14 +1666,16 @@
       3
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": 5
+        "value": 10
       }
     ],
-    "rawText": "+5 Force of Will"
+    "rawText": "+10 Force of Will"
   },
   {
     "stateId": 6024,
@@ -1648,14 +1693,20 @@
       3
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
+    "solverChoosable": false,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
-        "value": 25
+        "value": 15,
+        "scenarioGate": {
+          "berserk": true
+        }
       }
     ],
-    "rawText": "+25% Block"
+    "rawText": "+15% Block (berserk)"
   },
   {
     "stateId": 6025,
@@ -1673,6 +1724,7 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1691,15 +1743,18 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 15
+        "value": 9,
+        "appliesBeforeCombat": true
       }
     ],
-    "rawText": "+15% Critical Hit"
+    "rawText": "+9% Critical Hit"
   },
   {
     "stateId": 6027,
@@ -1717,14 +1772,16 @@
       3
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": -10
+        "value": -5
       }
     ],
-    "rawText": "-10% Damage Inflicted"
+    "rawText": "-5% Damage Inflicted"
   },
   {
     "stateId": 6029,
@@ -1742,14 +1799,8 @@
       2
     ],
     "maxLevel": 4,
-    "kind": "COMBAT_CONDITIONAL",
-    "effects": [
-      {
-        "characteristic": "LOCK",
-        "value": 150
-      }
-    ],
-    "rawText": "+150 Lock"
+    "maxTier": 3,
+    "kind": "COMBAT_CONDITIONAL"
   },
   {
     "stateId": 6030,
@@ -1767,6 +1818,7 @@
       1
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1785,6 +1837,7 @@
       2
     ],
     "maxLevel": 4,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1803,6 +1856,7 @@
       3
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1821,9 +1875,11 @@
       1
     ],
     "maxLevel": 6,
+    "maxTier": 2,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "WILLPOWER",
         "value": -20
       }
@@ -1846,9 +1902,11 @@
       1
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 10
       }
@@ -1871,14 +1929,16 @@
       1
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 10
+        "value": 6
       }
     ],
-    "rawText": "+10% Damage Inflicted"
+    "rawText": "+6% Damage Inflicted"
   },
   {
     "stateId": 6037,
@@ -1896,11 +1956,14 @@
       3
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
-        "value": -50
+        "value": -50,
+        "appliesBeforeCombat": true
       }
     ],
     "rawText": "-50 Elemental Resistance"
@@ -1921,6 +1984,7 @@
       3
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1939,6 +2003,7 @@
       2
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1957,6 +2022,7 @@
       2
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -1975,22 +2041,21 @@
       2
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "percentOfLevel",
         "characteristic": "MASTERY_CRITICAL",
-        "value": 3
+        "percentOfLevel": 15
       },
       {
+        "type": "flat",
         "characteristic": "CRITICAL_HIT",
         "value": 15
-      },
-      {
-        "characteristic": "LOCK",
-        "value": 5
       }
     ],
-    "rawText": "+3 mastery critical | +15% Critical Hit | +5 Lock"
+    "rawText": "+15% of level as mastery critical | +15% Critical Hit"
   },
   {
     "stateId": 6090,
@@ -2025,6 +2090,7 @@
       1
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2043,9 +2109,11 @@
       2
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 6
       }
@@ -2068,6 +2136,7 @@
       3
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2086,14 +2155,16 @@
       3
     ],
     "maxLevel": 2,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "MOVEMENT_POINT",
-        "value": 4
+        "value": 3
       }
     ],
-    "rawText": "+4 MP"
+    "rawText": "+3 MP"
   },
   {
     "stateId": 6705,
@@ -2113,6 +2184,7 @@
     },
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 15,
         "scenarioGate": {
@@ -2120,11 +2192,12 @@
         }
       },
       {
+        "type": "percentOfLevel",
         "characteristic": "LOCK",
-        "value": 100
+        "percentOfLevel": 100
       }
     ],
-    "rawText": "If Dodge < 100% of level | +15% Damage Inflicted (berserk) | +100 Lock"
+    "rawText": "If Dodge < 100% of level | +15% Damage Inflicted (berserk) | +100% of level as Lock"
   },
   {
     "stateId": 6706,
@@ -2144,6 +2217,7 @@
     },
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 15,
         "scenarioGate": {
@@ -2152,6 +2226,7 @@
         }
       },
       {
+        "type": "flat",
         "characteristic": "RANGE",
         "value": 1
       }
@@ -2192,6 +2267,7 @@
     },
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 15
       }
@@ -2235,6 +2311,7 @@
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
         "value": -50
       }
@@ -2269,14 +2346,16 @@
       3
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": -5
+        "value": -10
       }
     ],
-    "rawText": "-5% Damage Inflicted"
+    "rawText": "-10% Damage Inflicted"
   },
   {
     "stateId": 6812,
@@ -2294,9 +2373,11 @@
       2
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "WAKFU_POINT",
         "value": -3
       }
@@ -2319,14 +2400,8 @@
       2
     ],
     "maxLevel": 2,
-    "kind": "COMBAT_CONDITIONAL",
-    "effects": [
-      {
-        "characteristic": "LOCK",
-        "value": 50
-      }
-    ],
-    "rawText": "+50 Lock"
+    "maxTier": 2,
+    "kind": "COMBAT_CONDITIONAL"
   },
   {
     "stateId": 6814,
@@ -2344,14 +2419,16 @@
       3
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 10
+        "value": 20
       }
     ],
-    "rawText": "+10% Critical Hit"
+    "rawText": "+20% Critical Hit"
   },
   {
     "stateId": 6815,
@@ -2369,18 +2446,16 @@
       1
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 9
-      },
-      {
-        "characteristic": "LOCK",
-        "value": 100
       }
     ],
-    "rawText": "+9% Damage Inflicted | +100 Lock"
+    "rawText": "+9% Damage Inflicted"
   },
   {
     "stateId": 6816,
@@ -2398,9 +2473,11 @@
       2
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": -10
       }
@@ -2423,18 +2500,16 @@
       1
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": -10
-      },
-      {
-        "characteristic": "LOCK",
-        "value": 15
       }
     ],
-    "rawText": "-10% Damage Inflicted | +15 Lock"
+    "rawText": "-10% Damage Inflicted"
   },
   {
     "stateId": 6818,
@@ -2452,18 +2527,16 @@
       3
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": -10
-      },
-      {
-        "characteristic": "LOCK",
-        "value": 15
       }
     ],
-    "rawText": "-10% Damage Inflicted | +15 Lock"
+    "rawText": "-10% Damage Inflicted"
   },
   {
     "stateId": 6819,
@@ -2481,14 +2554,8 @@
       1
     ],
     "maxLevel": 6,
-    "kind": "FLAT",
-    "effects": [
-      {
-        "characteristic": "LOCK",
-        "value": 10
-      }
-    ],
-    "rawText": "+10 Lock"
+    "maxTier": 3,
+    "kind": "COMBAT_CONDITIONAL"
   },
   {
     "stateId": 6821,
@@ -2506,22 +2573,20 @@
       1
     ],
     "maxLevel": 6,
-    "kind": "FLAT",
+    "maxTier": 3,
+    "kind": "STATIC_CONDITIONAL",
+    "solverChoosable": false,
+    "condition": {
+      "type": "NO_OFFHAND_OR_TWO_HANDED"
+    },
     "effects": [
       {
+        "type": "percentOfLevel",
         "characteristic": "MASTERY_ELEMENTARY",
-        "value": 5
-      },
-      {
-        "characteristic": "DAMAGE_INFLICTED",
-        "value": 10
-      },
-      {
-        "characteristic": "LOCK",
-        "value": 25
+        "percentOfLevel": 75
       }
     ],
-    "rawText": "+5 mastery elementary | +10% Damage Inflicted | +25 Lock"
+    "rawText": "If no shield, dagger or two-handed weapon equipped | +75% of level as mastery elementary"
   },
   {
     "stateId": 6822,
@@ -2539,14 +2604,8 @@
       3
     ],
     "maxLevel": 6,
-    "kind": "COMBAT_CONDITIONAL",
-    "effects": [
-      {
-        "characteristic": "LOCK",
-        "value": 50
-      }
-    ],
-    "rawText": "+50 Lock"
+    "maxTier": 3,
+    "kind": "COMBAT_CONDITIONAL"
   },
   {
     "stateId": 6823,
@@ -2564,14 +2623,19 @@
       3
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 10
+        "value": 6,
+        "scenarioGate": {
+          "orientation": "BACK"
+        }
       }
     ],
-    "rawText": "+10% Damage Inflicted"
+    "rawText": "+6% Damage Inflicted (rear)"
   },
   {
     "stateId": 6824,
@@ -2589,6 +2653,7 @@
       2
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2607,14 +2672,28 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
+    "solverChoosable": false,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 5
+        "value": -6,
+        "scenarioGate": {
+          "orientation": "FRONT"
+        }
+      },
+      {
+        "type": "flat",
+        "characteristic": "DAMAGE_INFLICTED",
+        "value": 9,
+        "scenarioGate": {
+          "orientation": "BACK"
+        }
       }
     ],
-    "rawText": "+5% Damage Inflicted"
+    "rawText": "-6% Damage Inflicted (front) | +9% Damage Inflicted (rear)"
   },
   {
     "stateId": 6826,
@@ -2632,9 +2711,11 @@
       3
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 6
       }
@@ -2657,6 +2738,7 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2675,14 +2757,16 @@
       1
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 10
+        "value": 6
       }
     ],
-    "rawText": "+10% Damage Inflicted"
+    "rawText": "+6% Damage Inflicted"
   },
   {
     "stateId": 6829,
@@ -2700,14 +2784,8 @@
       2
     ],
     "maxLevel": 4,
-    "kind": "COMBAT_CONDITIONAL",
-    "effects": [
-      {
-        "characteristic": "LOCK",
-        "value": 50
-      }
-    ],
-    "rawText": "+50 Lock"
+    "maxTier": 3,
+    "kind": "COMBAT_CONDITIONAL"
   },
   {
     "stateId": 6830,
@@ -2725,14 +2803,16 @@
       3
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 10
+        "value": 6
       }
     ],
-    "rawText": "+10% Damage Inflicted"
+    "rawText": "+6% Damage Inflicted"
   },
   {
     "stateId": 6831,
@@ -2750,18 +2830,16 @@
       1
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 15
-      },
-      {
-        "characteristic": "LOCK",
-        "value": 50
+        "value": 9
       }
     ],
-    "rawText": "+15% Damage Inflicted | +50 Lock"
+    "rawText": "+9% Damage Inflicted"
   },
   {
     "stateId": 6832,
@@ -2779,6 +2857,7 @@
       1
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2797,6 +2876,7 @@
       1
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2815,6 +2895,7 @@
       2
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2833,6 +2914,7 @@
       3
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2851,6 +2933,7 @@
       1
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2869,6 +2952,7 @@
       1
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -2887,14 +2971,16 @@
       3
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 3
+        "value": 12
       }
     ],
-    "rawText": "+3% Damage Inflicted"
+    "rawText": "+12% Damage Inflicted"
   },
   {
     "stateId": 6929,
@@ -2912,18 +2998,21 @@
       2
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 2
+        "value": 4
       },
       {
+        "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
         "value": -10
       }
     ],
-    "rawText": "+2% Damage Inflicted | -10% Block"
+    "rawText": "+4% Damage Inflicted | -10% Block"
   },
   {
     "stateId": 6930,
@@ -2941,7 +3030,24 @@
       2
     ],
     "maxLevel": 4,
-    "kind": "COMBAT_CONDITIONAL"
+    "maxTier": 3,
+    "kind": "FLAT",
+    "effects": [
+      {
+        "type": "flat",
+        "characteristic": "DAMAGE_INFLICTED",
+        "value": -9,
+        "scenarioGate": {
+          "berserk": true
+        }
+      },
+      {
+        "type": "flat",
+        "characteristic": "DAMAGE_INFLICTED",
+        "value": 9
+      }
+    ],
+    "rawText": "-9% Damage Inflicted (berserk) | +9% Damage Inflicted"
   },
   {
     "stateId": 6931,
@@ -2959,6 +3065,7 @@
       1
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "STATIC_CONDITIONAL",
     "solverChoosable": true,
     "condition": {
@@ -2967,6 +3074,7 @@
     },
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 24
       }
@@ -2989,6 +3097,7 @@
       3
     ],
     "maxLevel": 6,
+    "maxTier": 2,
     "kind": "STATIC_CONDITIONAL",
     "condition": {
       "type": "SECONDARY_MASTERIES_AT_MOST",
@@ -2996,15 +3105,17 @@
     },
     "effects": [
       {
+        "type": "flat",
         "characteristic": "WAKFU_POINT",
-        "value": 2
+        "value": 1
       },
       {
+        "type": "flat",
         "characteristic": "RANGE",
-        "value": 2
+        "value": 1
       }
     ],
-    "rawText": "If secondary masteries ≤ 0 | +2 WP | +2 Range"
+    "rawText": "If secondary masteries ≤ 0 | +1 WP | +1 Range"
   },
   {
     "stateId": 6933,
@@ -3022,6 +3133,7 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "STATIC_CONDITIONAL",
     "solverChoosable": true,
     "condition": {
@@ -3030,11 +3142,12 @@
     },
     "effects": [
       {
+        "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
-        "value": 25
+        "value": 15
       }
     ],
-    "rawText": "If secondary masteries ≤ 0 | +25% Block"
+    "rawText": "If secondary masteries ≤ 0 | +15% Block"
   },
   {
     "stateId": 7075,
@@ -3052,23 +3165,30 @@
       3
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "RANGE",
-        "value": -1
+        "value": -1,
+        "appliesBeforeCombat": true
       },
       {
+        "type": "percentOfLevel",
         "characteristic": "DODGE",
-        "value": 1
+        "percentOfLevel": 100,
+        "appliesBeforeCombat": true
       },
       {
+        "type": "percentOfLevel",
         "characteristic": "LOCK",
-        "value": 51
+        "percentOfLevel": 100,
+        "appliesBeforeCombat": true
       }
     ],
-    "rawText": "-1 Range | +1 Dodge | +51 Lock"
+    "rawText": "-1 Range | +100% of level as Dodge | +100% of level as Lock"
   },
   {
     "stateId": 7076,
@@ -3086,19 +3206,24 @@
       3
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
-        "value": 75
+        "value": 75,
+        "appliesBeforeCombat": true
       },
       {
+        "type": "flat",
         "characteristic": "MAX_ACTION_POINT",
-        "value": -2
+        "value": -1,
+        "appliesBeforeCombat": true
       }
     ],
-    "rawText": "+75 Elemental Resistance | -2 max AP"
+    "rawText": "+75 Elemental Resistance | -1 max AP"
   },
   {
     "stateId": 7077,
@@ -3116,19 +3241,24 @@
       3
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 5
+        "value": 10,
+        "appliesBeforeCombat": true
       },
       {
+        "type": "flat",
         "characteristic": "MAX_MOVEMENT_POINT",
-        "value": -1
+        "value": -1,
+        "appliesBeforeCombat": true
       }
     ],
-    "rawText": "+5% Damage Inflicted | -1 max MP"
+    "rawText": "+10% Damage Inflicted | -1 max MP"
   },
   {
     "stateId": 7078,
@@ -3146,9 +3276,11 @@
       3
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 12
       }
@@ -3171,6 +3303,7 @@
       2
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -3189,14 +3322,16 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 20
+        "value": 12
       }
     ],
-    "rawText": "+20% Damage Inflicted"
+    "rawText": "+12% Damage Inflicted"
   },
   {
     "stateId": 7088,
@@ -3214,14 +3349,20 @@
       1
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "FLAT",
+    "solverChoosable": false,
     "effects": [
       {
-        "characteristic": "DAMAGE_INFLICTED",
-        "value": 27
+        "type": "perStatStep",
+        "source": "MOVEMENT_POINT",
+        "threshold": 4,
+        "perStep": 6,
+        "cap": 24,
+        "target": "DAMAGE_INFLICTED"
       }
     ],
-    "rawText": "+27% Damage Inflicted"
+    "rawText": "+6% Damage Inflicted per MP above 4 (max 24)"
   },
   {
     "stateId": 7115,
@@ -3239,6 +3380,7 @@
       1
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "STATIC_CONDITIONAL",
     "solverChoosable": true,
     "condition": {
@@ -3247,11 +3389,12 @@
     },
     "effects": [
       {
+        "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 25
+        "value": 15
       }
     ],
-    "rawText": "If secondary masteries ≤ 0 | +25% Critical Hit"
+    "rawText": "If secondary masteries ≤ 0 | +15% Critical Hit"
   },
   {
     "stateId": 7252,
@@ -3266,6 +3409,7 @@
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": -10
       }
@@ -3312,37 +3456,19 @@
     },
     "rarity": "EPIC",
     "kind": "STATIC_CONDITIONAL",
+    "solverChoosable": false,
     "condition": {
       "type": "SECONDARY_MASTERIES_AT_MOST",
       "value": 0
     },
     "effects": [
       {
-        "characteristic": "MASTERY_ELEMENTARY",
-        "value": 15
-      },
-      {
-        "characteristic": "MASTERY_ELEMENTARY_WATER",
-        "value": 15
-      },
-      {
-        "characteristic": "MASTERY_ELEMENTARY_WIND",
-        "value": 15
-      },
-      {
-        "characteristic": "MASTERY_ELEMENTARY_FIRE",
-        "value": 15
-      },
-      {
-        "characteristic": "MASTERY_ELEMENTARY_EARTH",
-        "value": 15
-      },
-      {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 20
       }
     ],
-    "rawText": "If secondary masteries ≤ 0 | +15 mastery elementary | +15 mastery elementary water | +15 mastery elementary wind | +15 mastery elementary fire | +15 mastery elementary earth | +20% Damage Inflicted"
+    "rawText": "If secondary masteries ≤ 0 | +20% Damage Inflicted"
   },
   {
     "stateId": 7257,
@@ -3357,10 +3483,12 @@
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 15
       },
       {
+        "type": "flat",
         "characteristic": "RANGE",
         "value": 3
       }
@@ -3380,22 +3508,27 @@
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
         "value": -50
       },
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY_EARTH",
         "value": 100
       },
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY_FIRE",
         "value": 100
       },
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY_WATER",
         "value": 100
       },
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY_WIND",
         "value": 100
       }
@@ -3418,9 +3551,11 @@
       3
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": -9
       }
@@ -3443,9 +3578,11 @@
       1
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 18
       }
@@ -3468,9 +3605,11 @@
       3
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 18
       }
@@ -3493,6 +3632,7 @@
       2
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -3511,6 +3651,7 @@
       1
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -3529,6 +3670,7 @@
       3
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -3547,6 +3689,7 @@
       3
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -3565,6 +3708,7 @@
       3
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -3583,6 +3727,7 @@
       1
     ],
     "maxLevel": 4,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -3601,6 +3746,7 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -3619,14 +3765,16 @@
       1
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 15
+        "value": 9
       }
     ],
-    "rawText": "+15% Damage Inflicted"
+    "rawText": "+9% Damage Inflicted"
   },
   {
     "stateId": 7860,
@@ -3644,9 +3792,11 @@
       1
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "MOVEMENT_POINT",
         "value": 1
       }
@@ -3669,9 +3819,11 @@
       3
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "ACTION_POINT",
         "value": 1
       }
@@ -3694,14 +3846,17 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
+    "solverChoosable": false,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 20
+        "value": 12
       }
     ],
-    "rawText": "+20% Critical Hit"
+    "rawText": "+12% Critical Hit"
   },
   {
     "stateId": 7863,
@@ -3719,14 +3874,8 @@
       3
     ],
     "maxLevel": 4,
-    "kind": "COMBAT_CONDITIONAL",
-    "effects": [
-      {
-        "characteristic": "CRITICAL_HIT",
-        "value": 15
-      }
-    ],
-    "rawText": "+15% Critical Hit"
+    "maxTier": 3,
+    "kind": "COMBAT_CONDITIONAL"
   },
   {
     "stateId": 7864,
@@ -3744,19 +3893,17 @@
       1
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
+        "type": "percentOfLevel",
         "characteristic": "DODGE",
-        "value": 5
-      },
-      {
-        "characteristic": "LOCK",
-        "value": 50
+        "percentOfLevel": 150
       }
     ],
-    "rawText": "+5 Dodge | +50 Lock"
+    "rawText": "+150% of level as Dodge"
   },
   {
     "stateId": 7865,
@@ -3774,15 +3921,17 @@
       1
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
+        "type": "percentOfLevel",
         "characteristic": "LOCK",
-        "value": 55
+        "percentOfLevel": 150
       }
     ],
-    "rawText": "+55 Lock"
+    "rawText": "+150% of level as Lock"
   },
   {
     "stateId": 7867,
@@ -3800,9 +3949,11 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "MOVEMENT_POINT",
         "value": 1
       }
@@ -3825,14 +3976,8 @@
       2
     ],
     "maxLevel": 6,
-    "kind": "FLAT",
-    "effects": [
-      {
-        "characteristic": "LOCK",
-        "value": 50
-      }
-    ],
-    "rawText": "+50 Lock"
+    "maxTier": 3,
+    "kind": "COMBAT_CONDITIONAL"
   },
   {
     "stateId": 7870,
@@ -3847,6 +3992,7 @@
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 10
       }
@@ -3890,6 +4036,7 @@
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 15
       }
@@ -3938,6 +4085,7 @@
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 20
       }
@@ -3957,11 +4105,13 @@
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 20
       }
     ],
-    "rawText": "+20% Damage Inflicted"
+    "zeroesElementalMastery": true,
+    "rawText": "+20% Damage Inflicted | Elemental masteries set to 0"
   },
   {
     "stateId": 7879,
@@ -3974,21 +4124,15 @@
     },
     "rarity": "EPIC",
     "kind": "FLAT",
+    "solverChoosable": false,
     "effects": [
       {
-        "characteristic": "MASTERY_ELEMENTARY",
-        "value": -50
-      },
-      {
-        "characteristic": "MASTERY_ELEMENTARY_FIRE",
-        "value": -50
-      },
-      {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": -15
       }
     ],
-    "rawText": "-50 mastery elementary | -50 mastery elementary fire | -15% Damage Inflicted"
+    "rawText": "-15% Damage Inflicted"
   },
   {
     "stateId": 7880,
@@ -4025,6 +4169,7 @@
     },
     "effects": [
       {
+        "type": "flat",
         "characteristic": "WILLPOWER",
         "value": 20
       }
@@ -4041,7 +4186,20 @@
       "pt": "Desmesura"
     },
     "rarity": "EPIC",
-    "kind": "COMBAT_CONDITIONAL"
+    "kind": "FLAT",
+    "effects": [
+      {
+        "type": "flat",
+        "characteristic": "CRITICAL_HIT",
+        "value": 1
+      },
+      {
+        "type": "flat",
+        "characteristic": "BLOCK_PERCENTAGE",
+        "value": -1
+      }
+    ],
+    "rawText": "+1% Critical Hit | -1% Block"
   },
   {
     "stateId": 8131,
@@ -4059,6 +4217,7 @@
       2
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4077,14 +4236,16 @@
       1
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 5
+        "value": 3
       }
     ],
-    "rawText": "+5% Damage Inflicted"
+    "rawText": "+3% Damage Inflicted"
   },
   {
     "stateId": 8366,
@@ -4099,11 +4260,12 @@
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 60
+        "value": 35
       }
     ],
-    "rawText": "+60% Damage Inflicted"
+    "rawText": "+35% Damage Inflicted"
   },
   {
     "stateId": 8367,
@@ -4118,6 +4280,7 @@
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
         "value": -100
       }
@@ -4173,11 +4336,12 @@
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 45
+        "value": 15
       }
     ],
-    "rawText": "+45% Damage Inflicted"
+    "rawText": "+15% Damage Inflicted"
   },
   {
     "stateId": 8375,
@@ -4225,7 +4389,15 @@
       "pt": "Aprumo Natural"
     },
     "rarity": "RELIC",
-    "kind": "COMBAT_CONDITIONAL"
+    "kind": "COMBAT_CONDITIONAL",
+    "effects": [
+      {
+        "type": "flat",
+        "characteristic": "RESISTANCE_ELEMENTARY",
+        "value": -50
+      }
+    ],
+    "rawText": "-50 Elemental Resistance"
   },
   {
     "stateId": 8381,
@@ -4298,10 +4470,12 @@
     },
     "effects": [
       {
+        "type": "flat",
         "characteristic": "WILLPOWER",
         "value": 10
       },
       {
+        "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
         "value": 20
       }
@@ -4324,14 +4498,16 @@
       3
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": -25
+        "value": -3
       }
     ],
-    "rawText": "-25 Force of Will"
+    "rawText": "-3 Force of Will"
   },
   {
     "stateId": 8387,
@@ -4349,14 +4525,16 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "WILLPOWER",
-        "value": 10
+        "value": -3
       }
     ],
-    "rawText": "+10 Force of Will"
+    "rawText": "-3 Force of Will"
   },
   {
     "stateId": 8388,
@@ -4374,14 +4552,16 @@
       1
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 10
+        "value": 6
       }
     ],
-    "rawText": "+10% Damage Inflicted"
+    "rawText": "+6% Damage Inflicted"
   },
   {
     "stateId": 8389,
@@ -4399,14 +4579,16 @@
       3
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 15
+        "value": 9
       }
     ],
-    "rawText": "+15% Damage Inflicted"
+    "rawText": "+9% Damage Inflicted"
   },
   {
     "stateId": 8390,
@@ -4424,15 +4606,18 @@
       1
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
-        "value": 15
+        "value": 9,
+        "appliesBeforeCombat": true
       }
     ],
-    "rawText": "+15% Block"
+    "rawText": "+9% Block"
   },
   {
     "stateId": 8391,
@@ -4450,15 +4635,18 @@
       1
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_CRITICAL",
-        "value": 25
+        "value": 15,
+        "appliesBeforeCombat": true
       }
     ],
-    "rawText": "+25 Critical Resistance"
+    "rawText": "+15 Critical Resistance"
   },
   {
     "stateId": 8392,
@@ -4476,6 +4664,7 @@
       3
     ],
     "maxLevel": 2,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4494,15 +4683,18 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "FLAT",
     "solverChoosable": true,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_BACK",
-        "value": 25
+        "value": 15,
+        "appliesBeforeCombat": true
       }
     ],
-    "rawText": "+25 Rear Resistance"
+    "rawText": "+15 Rear Resistance"
   },
   {
     "stateId": 8394,
@@ -4520,14 +4712,8 @@
       2
     ],
     "maxLevel": 4,
-    "kind": "COMBAT_CONDITIONAL",
-    "effects": [
-      {
-        "characteristic": "LOCK",
-        "value": 10
-      }
-    ],
-    "rawText": "+10 Lock"
+    "maxTier": 3,
+    "kind": "COMBAT_CONDITIONAL"
   },
   {
     "stateId": 8395,
@@ -4545,6 +4731,7 @@
       2
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4563,6 +4750,7 @@
       1
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4581,9 +4769,11 @@
       2
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "FLAT",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 18
       }
@@ -4606,6 +4796,7 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4624,14 +4815,8 @@
       1
     ],
     "maxLevel": 4,
-    "kind": "COMBAT_CONDITIONAL",
-    "effects": [
-      {
-        "characteristic": "LOCK",
-        "value": 10
-      }
-    ],
-    "rawText": "+10 Lock"
+    "maxTier": 2,
+    "kind": "COMBAT_CONDITIONAL"
   },
   {
     "stateId": 8403,
@@ -4649,6 +4834,7 @@
       3
     ],
     "maxLevel": 4,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4693,6 +4879,7 @@
     },
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
         "value": 20
       }
@@ -4715,14 +4902,16 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 10
+        "value": 6
       }
     ],
-    "rawText": "+10% Critical Hit"
+    "rawText": "+6% Critical Hit"
   },
   {
     "stateId": 8494,
@@ -4740,6 +4929,7 @@
       3
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4758,6 +4948,7 @@
       1
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4776,6 +4967,7 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4794,14 +4986,16 @@
       3
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "RESISTANCE_ELEMENTARY",
-        "value": 100
+        "value": 60
       }
     ],
-    "rawText": "+100 Elemental Resistance"
+    "rawText": "+60 Elemental Resistance"
   },
   {
     "stateId": 8499,
@@ -4819,6 +5013,7 @@
       2
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4837,6 +5032,7 @@
       3
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4855,6 +5051,7 @@
       1
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4873,6 +5070,7 @@
       2
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -4891,14 +5089,20 @@
       3
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "FLAT",
+    "solverChoosable": false,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 36
+        "value": 12,
+        "scenarioGate": {
+          "element": "FIRE"
+        }
       }
     ],
-    "rawText": "+36% Damage Inflicted"
+    "rawText": "+12% Damage Inflicted (fire)"
   },
   {
     "stateId": 8519,
@@ -4916,14 +5120,20 @@
       2
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "FLAT",
+    "solverChoosable": false,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 36
+        "value": 12,
+        "scenarioGate": {
+          "element": "WATER"
+        }
       }
     ],
-    "rawText": "+36% Damage Inflicted"
+    "rawText": "+12% Damage Inflicted (water)"
   },
   {
     "stateId": 8520,
@@ -4941,14 +5151,20 @@
       1
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "FLAT",
+    "solverChoosable": false,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 36
+        "value": 12,
+        "scenarioGate": {
+          "element": "EARTH"
+        }
       }
     ],
-    "rawText": "+36% Damage Inflicted"
+    "rawText": "+12% Damage Inflicted (earth)"
   },
   {
     "stateId": 8521,
@@ -4966,14 +5182,20 @@
       2
     ],
     "maxLevel": 4,
+    "maxTier": 3,
     "kind": "FLAT",
+    "solverChoosable": false,
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 36
+        "value": 12,
+        "scenarioGate": {
+          "element": "AIR"
+        }
       }
     ],
-    "rawText": "+36% Damage Inflicted"
+    "rawText": "+12% Damage Inflicted (air)"
   },
   {
     "stateId": 9060,
@@ -4991,14 +5213,16 @@
       3
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 10
+        "value": 6
       }
     ],
-    "rawText": "+10% Damage Inflicted"
+    "rawText": "+6% Damage Inflicted"
   },
   {
     "stateId": 9062,
@@ -5016,6 +5240,7 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
@@ -5034,14 +5259,16 @@
       3
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 15
+        "value": 9
       }
     ],
-    "rawText": "+15% Damage Inflicted"
+    "rawText": "+9% Damage Inflicted"
   },
   {
     "stateId": 9066,
@@ -5059,14 +5286,16 @@
       2
     ],
     "maxLevel": 6,
+    "maxTier": 3,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "DAMAGE_INFLICTED",
-        "value": 10
+        "value": 6
       }
     ],
-    "rawText": "+10% Damage Inflicted"
+    "rawText": "+6% Damage Inflicted"
   },
   {
     "stateId": 9067,
@@ -5084,14 +5313,16 @@
       3
     ],
     "maxLevel": 6,
+    "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "CRITICAL_HIT",
-        "value": 100
+        "value": 60
       }
     ],
-    "rawText": "+100% Critical Hit"
+    "rawText": "+60% Critical Hit"
   },
   {
     "stateId": 9070,
@@ -5118,6 +5349,7 @@
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "BLOCK_PERCENTAGE",
         "value": -100
       }
@@ -5137,10 +5369,12 @@
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "ACTION_POINT",
         "value": 1
       },
       {
+        "type": "flat",
         "characteristic": "MOVEMENT_POINT",
         "value": 1
       }
@@ -5160,10 +5394,12 @@
     "kind": "COMBAT_CONDITIONAL",
     "effects": [
       {
+        "type": "flat",
         "characteristic": "ACTION_POINT",
         "value": 1
       },
       {
+        "type": "flat",
         "characteristic": "MOVEMENT_POINT",
         "value": 1
       }
@@ -5180,13 +5416,19 @@
       "pt": "Segredo Crítico"
     },
     "rarity": "EPIC",
-    "kind": "FLAT",
+    "kind": "STATIC_CONDITIONAL",
+    "solverChoosable": false,
+    "condition": {
+      "type": "CRITICAL_MASTERY_AT_MOST",
+      "value": 0
+    },
     "effects": [
       {
+        "type": "flat",
         "characteristic": "CRITICAL_HIT",
         "value": 30
       }
     ],
-    "rawText": "+30% Critical Hit"
+    "rawText": "If Critical Mastery ≤ 0 | +30% Critical Hit"
   }
 ]
