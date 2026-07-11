@@ -90,6 +90,9 @@ class HistoryMappingTest {
                 stopAtMatch = true,
                 targets = listOfNotNull(statDefFor(Characteristic.MASTERY_DISTANCE)?.toRow("1")),
                 forcedItems = listOf(ItemChip(name = "Cape", rarity = Rarity.LEGENDARY, matchName = "Cape")),
+                excludedRarities = setOf(Rarity.MYTHIC, Rarity.SOUVENIR),
+                forcedPassives = listOf("Carnage"),
+                forcedRunesByItem = mapOf("Cape" to listOf(27100, 27100, 27094)),
                 build = build,
                 achieved = mapOf(Characteristic.MASTERY_DISTANCE to 1280),
                 match = BigDecimal("97"),
@@ -112,6 +115,12 @@ class HistoryMappingTest {
                 .single()
                 .matchName
         ).isEqualTo("Cape")
+        // The full engine-affecting request state round-trips through the JSON codec — a save missing any
+        // of these cannot reproduce the search (two identical-looking requests can differ in proven optimum).
+        val rehydrated = historyJson.decodeFromString<HistoryEntry>(historyJson.encodeToString(HistoryEntry.serializer(), entry))
+        assertThat(rehydrated.request.excludedRarities).containsExactlyInAnyOrder(Rarity.MYTHIC, Rarity.SOUVENIR)
+        assertThat(rehydrated.request.forcedPassives).containsExactly("Carnage")
+        assertThat(rehydrated.request.forcedRunesByItem).isEqualTo(mapOf("Cape" to listOf(27100, 27100, 27094)))
         assertThat(entry.result.match).isEqualTo(97.0)
         assertThat(entry.result.optimal).isTrue()
         assertThat(entry.zenithUrl).isEqualTo("https://zenithwakfu.com/builder/xyz")
@@ -367,6 +376,44 @@ class HistoryMappingTest {
         val ui = UiState(build = BuildCombination(equipments = emptyList(), characterSkills = CharacterSkills(110)))
         val entry = ui.toHistoryEntry(id = "id-old", name = "Old", note = null, createdAt = 1L, dataVersion = "v")!!
         assertThat(entry.restoredScenario()).isEqualTo(DamageScenario())
+    }
+
+    @Test
+    fun `a pre-feature save without the request-state keys loads with neutral defaults`() {
+        // A save exported before excludedRarities/forcedPassives/forcedRunesByItem existed (e.g. GUI 1.8.0)
+        // must still load — with the neutral defaults, not an error.
+        val legacyJson =
+            """
+            {
+                "id": "id-old",
+                "name": "Old",
+                "createdAt": 1,
+                "dataVersion": "1.92.1.58",
+                "request": {
+                    "clazz": "XELOR",
+                    "level": 170,
+                    "minLevel": 155,
+                    "mode": "FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT",
+                    "maxRarity": "EPIC",
+                    "duration": "120",
+                    "stopAtMatch": false,
+                    "targets": [],
+                    "forcedItems": [],
+                    "excludedItems": []
+                },
+                "result": {
+                    "equipments": [],
+                    "skills": {},
+                    "achieved": {},
+                    "match": 1516.0,
+                    "optimal": true
+                }
+            }
+            """.trimIndent()
+        val loaded = historyJson.decodeFromString<HistoryEntry>(legacyJson)
+        assertThat(loaded.request.excludedRarities).isEmpty()
+        assertThat(loaded.request.forcedPassives).isEmpty()
+        assertThat(loaded.request.forcedRunesByItem).isEmpty()
     }
 
     @Test

@@ -81,6 +81,17 @@ data class RequestSnapshot(
     val forcedSublimations: List<String> = emptyList(),
     val excludedSublimations: List<String> = emptyList(),
     /**
+     * The remaining engine-affecting request state, persisted so a save reproduces the search EXACTLY
+     * (a beta report missing any of these is impossible to replay — two saves with identical visible
+     * requests can then legitimately reach different "proven optimal" scores). All defaulted so saves
+     * written before these fields load cleanly.
+     */
+    val excludedRarities: Set<Rarity> = emptySet(),
+    /** The selected passive loadout (French names — the engine's match key). */
+    val forcedPassives: List<String> = emptyList(),
+    /** Runes pinned onto a specific carrier item: item French name → rune-id multiset (forces the item). */
+    val forcedRunesByItem: Map<String, List<Int>> = emptyMap(),
+    /**
      * Attack scenario for the max-damage mode. Defaulted so saves written before this field load with
      * a neutral scenario (and ignored on load for non max-damage builds). Stored as primitives because
      * the live `DamageScenario` (and its `SpellElement`/`RangeBand`/`Orientation` enums) live in the
