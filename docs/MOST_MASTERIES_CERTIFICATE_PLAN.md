@@ -17,6 +17,14 @@ The greedy warm start masks the *first-build* wait (~0.15 s) but not the *proof*
 Goal: an independent, sound upper bound on the most-masteries objective, plugged into the SAME
 early-stop / warm-up / cache plumbing max-damage uses — so `--duration` becomes a cap here too.
 
+> **P0 OUTCOME (2026-07-11): NO-GO for the early stop.** Measured at 245 (F5, production p1/l1 +
+> domination, det 600 s, 2 runs/arm): warm-start OFF — incumbent equals the optimum at 147.1–149.3 s
+> vs OPTIMAL at 147.1–149.3 s; warm-start ON — 138.5–138.9 s vs 138.5–138.9 s. **M1 = M2 to within
+> milliseconds in all four runs** — the optimum arrives *with* the proof, so there is nothing to
+> stop early. This is exactly the "badge, not time" branch below. The bound/DP machinery of this
+> plan survives as phase P3 (optimum *construction*) of `MOST_MASTERIES_PERF_PLAN.md`, which now
+> carries the most-masteries performance campaign.
+
 ## 1. Step 0 — measurement gates (GO/NO-GO before any code)
 
 The campaign only pays if CP-SAT finds the *optimum build* long before it *proves* it. Measure at 245
