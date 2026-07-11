@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.9.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.8.0...wakfu-autobuilder-1.9.0) (2026-07-11)
+
+
+### Features
+
+* 20 more sublimations the solver can pick on its own (27 → 47) ([36cfd55](https://github.com/CharlyRien/wakfu-autobuilder/commit/36cfd557c598d0977955371b057b4a102572674c))
+* fill every rune socket in most-masteries, proving runes-on builds in ~1s ([540673f](https://github.com/CharlyRien/wakfu-autobuilder/commit/540673fb6cb62bffdefd0866c93f1bd742da7ba7))
+* GUI quality-of-life — smarter pickers, sublimation filters, empty-slot explanations, live proof progress ([50ac8a4](https://github.com/CharlyRien/wakfu-autobuilder/commit/50ac8a42bdc9f52bee7a7481b256ded3f2d098ea))
+* max-damage shows its first build instantly (greedy warm start) ([6f14cc8](https://github.com/CharlyRien/wakfu-autobuilder/commit/6f14cc860f76ebdfbea1a1b085a18971f1a21d71))
+* most-masteries shows its first build instantly (greedy warm start) ([677cee0](https://github.com/CharlyRien/wakfu-autobuilder/commit/677cee0a647961ba56fd6c450aef2a3d3b43a6cf))
+* sublimations now stack — multiple copies of a cumulable sublimation, up to the true in-game caps (10 normal + 1 epic + 1 relic) ([38fe9c0](https://github.com/CharlyRien/wakfu-autobuilder/commit/38fe9c0c4f2b00b23c1fa4afc14254430200672a))
+* surface the "all gold" rune assumption next to the Zenith actions ([09fd22d](https://github.com/CharlyRien/wakfu-autobuilder/commit/09fd22d174470fd5b8307084fdf19e48e71428db))
+* validate the search request up front and show all errors in a pop-up ([7d4c7b8](https://github.com/CharlyRien/wakfu-autobuilder/commit/7d4c7b879a4cf29ce5f26e7084ab3852b9d32a63))
+
+
+### Bug Fixes
+
+* a blank search duration now means 10 minutes, not 20 seconds ([b720dfe](https://github.com/CharlyRien/wakfu-autobuilder/commit/b720dfe1ac6f6c3f05376827a41340ffc7a992eb))
+* saved builds now capture the full search request ([6f7ea73](https://github.com/CharlyRien/wakfu-autobuilder/commit/6f7ea73a87b0f84089a0e2e2e0004226de957b79))
+* throttle solver progress emissions and lock precision reachable domains ([6ecd125](https://github.com/CharlyRien/wakfu-autobuilder/commit/6ecd1258db88c03f44849670743c1cb4a9e51487))
+* Zenith export could put both rings on the same side ([179b02b](https://github.com/CharlyRien/wakfu-autobuilder/commit/179b02b9e8b86dadebee5a4ecfb0c9c47e711d16))
+
+
+### Performance Improvements
+
+* skip provably-dominated items per slot in the solver search ([1aa2fca](https://github.com/CharlyRien/wakfu-autobuilder/commit/1aa2fcae054ece469bb1e19fff018fe90052adc7))
+* the max-damage 'proven optimal' badge now lands with the result ([6ee555d](https://github.com/CharlyRien/wakfu-autobuilder/commit/6ee555dd88def33428e75afa27c324372529bfa8))
+* the search stops the moment its result is proven optimal ([c7928db](https://github.com/CharlyRien/wakfu-autobuilder/commit/c7928dba263fb18dbcd19dfabae3a211cec1f312))
+
 ## [1.8.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.7.0...wakfu-autobuilder-1.8.0) (2026-06-24)
 
 
