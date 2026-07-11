@@ -125,6 +125,13 @@ internal class StatBuilder(
     // any feasible incumbent (a stronger one only prunes more); the cached raw bounds are
     // incumbent-independent, so this changes no certified value and needs no CERTIFIER_VERSION bump.
     internal val certifierIncumbentProvider: (() -> Long?)? = null,
+    // CASCADE tier-1.5 (the short-search rescue): when true, the incumbent path confirms survivors ONE
+    // cell at a time (descending fast bound) — tier-1.5, then exact if not cleared — and STOPS at the
+    // first cell whose EXACT value exceeds the incumbent (the B1 break, moved up a tier). Unprocessed
+    // cells keep their (sound, looser) FAST bounds — the ledger's documented mixed-tier semantics — so
+    // the caller can E8-CONSTRUCT the confirmed argmax build and either finish proven or fall back to a
+    // full (cascade-off) ledger. Never set on the oracle/forceTier2All paths.
+    internal val certifyLedgerCascadeTier15: Boolean = false,
     // Test seam: when true, the [certifyForTest] block runs ONLY the fast pass (skips the expensive exact
     // per-cell ledger) — used by the P3.1 parallel-equality lock, which reads only the fast map.
     internal val certifyFastOnly: Boolean = false,
@@ -138,6 +145,13 @@ internal class StatBuilder(
     // [certifyLedger] skips the tier-1 fast DP and reuses them (a pure, byte-identical function of the shape).
     internal val certifyLedgerPrecomputedFast: Map<Int, Long>? = null,
     internal val certifyLedgerPrecomputedBailed: Set<Int>? = null,
+    // B4/B7 reuse on the COMPUTE path (not just reconstruct): per-cell tier-1.5 / exact OBJECTIVE values
+    // (+ provenance) confirmed by a PRIOR compute of this shape. A cell decided by a cached value skips
+    // its DP entirely — without this, every certificate call after a cascaded (partial) entry re-paid the
+    // cascade's tier-1.5 work (measured: 3 × ~44 s on one short-search CLI run).
+    internal val certifyLedgerPrecomputedTier15: Map<Int, Long>? = null,
+    internal val certifyLedgerPrecomputedExact: Map<Int, Long>? = null,
+    internal val certifyLedgerPrecomputedProv: Map<Int, CellProvenance>? = null,
     // B8 cooperative cancellation: the certifier's exact/fast DP polls this once per DP stage; when it flips
     // true the stage bails ([certifyMaxPerHitAtApPass] returns Long.MAX_VALUE — always a sound over-count), so a
     // cancelled proof (the user restarted / closed the search) stops within a stage instead of running the whole

@@ -384,6 +384,10 @@ internal fun StatBuilder.certifyAllCellsFast(
     // per-(cell, crit-step) step-8 harvest ([fastPerCellCOutHolder]) — the tier-1.5 segment-skip bounds.
     // Indices align with `certifierWorlds`; a slot stays null on a bail (the ledger bails anyway).
     perCellCByWorldOut: Array<Array<LongArray>?>? = null,
+    // Re-read BEFORE EACH WORLD when set (overrides [threads]): the warm-up runs this pass at 1 thread
+    // while the search owns the cores, but a short search ends mid-pass — without re-reading, the
+    // remaining worlds stayed serial and the proof trailed the search by the whole single-threaded pass.
+    threadsProvider: (() -> Int)? = null,
 ): LongArray {
     if (cellCount <= 0) return LongArray(0)
     val bailed = LongArray(cellCount) { Long.MAX_VALUE }
@@ -420,28 +424,37 @@ internal fun StatBuilder.certifyAllCellsFast(
         return out
     }
 
-    val worldOuts: List<LongArray?> =
-        if (threads <= 1 || worlds.size <= 1) {
+    fun currentThreads(): Int = threadsProvider?.invoke() ?: threads
+
+    // Warm-once (P3.1): world[0] ALWAYS runs serially so every lazy cache key the other worlds READ is
+    // populated single-threaded (CpModel var creation is not thread-safe). All worlds touch the same,
+    // apTarget-independent cache keys, so the rest are then pure reads and can run in parallel. The
+    // thread count is re-read before each remaining world: the moment it rises above 1 (the search
+    // ended), ALL remaining worlds fan out at that count — values are an order-independent max, so the
+    // switch changes nothing but wall clock.
+    val worldOuts = ArrayList<LongArray?>(worlds.size)
+    worldOuts += (runWorld(0, worlds[0]) ?: return bailed)
+    var nextWorld = 1
+    while (nextWorld < worlds.size) {
+        val t = currentThreads()
+        if (t <= 1) {
             // Serial: short-circuit the moment any world bails (the whole ledger bails anyway).
-            val outs = ArrayList<LongArray>(worlds.size)
-            for ((wi, w) in worlds.withIndex()) outs += (runWorld(wi, w) ?: return bailed)
-            outs
+            worldOuts += (runWorld(nextWorld, worlds[nextWorld]) ?: return bailed)
+            nextWorld++
         } else {
-            // Warm-once (P3.1): run world[0] serially so every lazy cache key the other worlds READ is
-            // populated single-threaded (CpModel var creation is not thread-safe). All worlds touch the
-            // same, apTarget-independent cache keys, so the rest are then pure reads and run in parallel.
-            val warm = runWorld(0, worlds[0]) ?: return bailed
-            val pool = Executors.newFixedThreadPool(min(threads, worlds.size - 1))
+            val remaining = (nextWorld until worlds.size).toList()
+            val pool = Executors.newFixedThreadPool(min(t, remaining.size))
             try {
-                val rest =
+                worldOuts +=
                     pool
-                        .invokeAll(worlds.drop(1).mapIndexed { i, w -> Callable { runWorld(i + 1, w) } })
+                        .invokeAll(remaining.map { wi -> Callable { runWorld(wi, worlds[wi]) } })
                         .map { it.get() }
-                listOf(warm) + rest
             } finally {
                 pool.shutdown()
             }
+            nextWorld = worlds.size
         }
+    }
     if (worldOuts.any { it == null }) return bailed
     val result = LongArray(cellCount) { 0L }
     for (out in worldOuts) {
@@ -728,7 +741,14 @@ internal fun StatBuilder.certifyLedger(
         if (bailed.isNotEmpty()) return CertLedger(emptyMap(), bailed, emptySet(), null)
         fastObj = LongArray(cellCount) { precomputedFast.getValue(it) }
     } else {
-        val fast = certifyAllCellsFast(scenario, cellCount, tierThreads(CertTier.FAST), perCellCByWorldOut = tier15SkipUbByWorld)
+        val fast =
+            certifyAllCellsFast(
+                scenario,
+                cellCount,
+                tierThreads(CertTier.FAST),
+                perCellCByWorldOut = tier15SkipUbByWorld,
+                threadsProvider = { tierThreads(CertTier.FAST) }
+            )
         bailed = (0 until cellCount).filter { fast[it] == Long.MAX_VALUE }.toSet()
         if (bailed.isNotEmpty()) return CertLedger(emptyMap(), bailed, emptySet(), null)
         fastObj = LongArray(cellCount) { scale(it, fast[it]) }
@@ -793,18 +813,93 @@ internal fun StatBuilder.certifyLedger(
             } else {
                 null
             }
-        val tier15 = certifyCellsTier15(scenario, survivorsSorted, tierThreads(CertTier.TIER15), skipUbByWorld = tier15SkipUbByWorld, skipBelowRawByCell = skipBelowRawByCell)
-        if (timingEnabled) timeTier15DoneMs = System.currentTimeMillis() - timeStart
-        val tier15Raw = tier15.values
+        // CASCADE (short-search rescue, [StatBuilder.certifyLedgerCascadeTier15]): with a WEAK incumbent
+        // (a very short search) elimination leaves many survivors and the tier-1.5 batch pays a step-1
+        // pass for EVERY one of them. Confirm one cell at a time instead, descending fast bound, exact
+        // immediately when tier-1.5 cannot clear — and stop at the first exact > incumbent (the B1 break,
+        // one tier earlier). Unprocessed cells keep their sound FAST bounds; the caller then constructs
+        // the confirmed argmax (E8) or falls back to a full ledger. Values per processed cell are
+        // byte-identical to the batch path (same passes, same inputs — only the SET of processed cells
+        // changes), so the fuzz/oracle locks (cascade off) are unaffected.
+        val tier15: Tier15Result
         val stillSurviving = ArrayList<Int>()
-        for (a in survivorsSorted) {
-            val raw = tier15Raw[a] ?: Long.MAX_VALUE
-            if (raw != Long.MAX_VALUE) {
-                val obj = scale(a, raw)
-                tier15Obj[a] = obj
-                if (obj <= incumbentObjective) continue // cleared by tier-1.5 ⇒ no exact needed
+
+        // B4/B7 compute-path reuse: a cell already confirmed by a PRIOR compute of this shape (its
+        // tier-1.5 / exact objective is incumbent-independent) is decided from the cache — no DP.
+        fun cachedExactOf(a: Int): Long? = certifyLedgerPrecomputedExact?.get(a)
+
+        fun cachedTier15Of(a: Int): Long? = certifyLedgerPrecomputedTier15?.get(a)
+        if (certifyLedgerCascadeTier15) {
+            val perCAccum = LinkedHashMap<Int, Array<LongArray?>>()
+            for (a in survivorsSorted) {
+                val cachedExact = cachedExactOf(a)
+                if (cachedExact != null) {
+                    exactObj[a] = cachedExact
+                    certifyLedgerPrecomputedProv?.get(a)?.let { provByCell[a] = it }
+                    if (cachedExact > incumbentObjective) break else continue
+                }
+                val cachedT15 = cachedTier15Of(a)
+                if (cachedT15 != null && cachedT15 <= incumbentObjective) {
+                    tier15Obj[a] = cachedT15
+                    continue
+                }
+                if (cachedT15 == null) {
+                    val one = certifyCellsTier15(scenario, listOf(a), tierThreads(CertTier.TIER15), skipUbByWorld = tier15SkipUbByWorld, skipBelowRawByCell = skipBelowRawByCell)
+                    one.perCByCell[a]?.let { perCAccum[a] = it }
+                    val raw = one.values[a] ?: Long.MAX_VALUE
+                    if (raw != Long.MAX_VALUE) {
+                        val obj = scale(a, raw)
+                        tier15Obj[a] = obj
+                        if (obj <= incumbentObjective) continue
+                    }
+                } else {
+                    tier15Obj[a] = cachedT15 // over-incumbent cached tier-1.5 ⇒ straight to exact
+                }
+                // Not cleared: confirm exactly NOW; a confirmed over-incumbent cell ends the cascade.
+                val mph = exactForCells(scenario, listOf(a), tierThreads(CertTier.EXACT), provOut = provByCell, ubByWorldCell = perCAccum).getValue(a)
+                if (mph == Long.MAX_VALUE) {
+                    exactBailed += a
+                    continue
+                }
+                val obj = scale(a, mph)
+                exactObj[a] = obj
+                if (obj > incumbentObjective) break // remaining survivors keep their sound fast bounds
             }
-            stillSurviving += a // tier-1.5 could not clear it (or bailed) ⇒ confirm exactly
+            // [values] deliberately empty: the cascade already folded cleared cells into [tier15Obj] and
+            // confirmed the rest exactly — the only later consumer of this result is [Tier15Result.perCByCell].
+            tier15 = Tier15Result(emptyMap(), perCAccum)
+            if (timingEnabled) timeTier15DoneMs = System.currentTimeMillis() - timeStart
+        } else {
+            // Cells decided by cached confirms never enter the batch.
+            val undecided = ArrayList<Int>()
+            for (a in survivorsSorted) {
+                val cachedExact = cachedExactOf(a)
+                if (cachedExact != null) {
+                    exactObj[a] = cachedExact
+                    certifyLedgerPrecomputedProv?.get(a)?.let { provByCell[a] = it }
+                    continue
+                }
+                val cachedT15 = cachedTier15Of(a)
+                if (cachedT15 != null) {
+                    tier15Obj[a] = cachedT15
+                    if (cachedT15 <= incumbentObjective) continue
+                    stillSurviving += a
+                    continue
+                }
+                undecided += a
+            }
+            tier15 = certifyCellsTier15(scenario, undecided, tierThreads(CertTier.TIER15), skipUbByWorld = tier15SkipUbByWorld, skipBelowRawByCell = skipBelowRawByCell)
+            if (timingEnabled) timeTier15DoneMs = System.currentTimeMillis() - timeStart
+            val tier15Raw = tier15.values
+            for (a in undecided) {
+                val raw = tier15Raw[a] ?: Long.MAX_VALUE
+                if (raw != Long.MAX_VALUE) {
+                    val obj = scale(a, raw)
+                    tier15Obj[a] = obj
+                    if (obj <= incumbentObjective) continue // cleared by tier-1.5 ⇒ no exact needed
+                }
+                stillSurviving += a // tier-1.5 could not clear it (or bailed) ⇒ confirm exactly
+            }
         }
 
         // B1 flood control: for a required-target incumbent whose proxy sits far below the unconstrained
@@ -2083,7 +2178,9 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                         combined.add(Raw(a.di + b.di, a.m + b.m, a.critM + b.critM, a.ap + b.ap, a.crit + b.crit, a.epic + b.epic, a.relic + b.relic, a.mp + b.mp))
                     }
                 }
-                combined + twoH
+                // Identical Raw vectors are indistinguishable to the DP — dedupe ONCE per pass instead of
+                // re-adding (and re-rejecting) them in perCostF at every segment; rune variants collide often.
+                (combined + twoH).distinct()
             } else {
                 emptyList()
             }
@@ -2116,7 +2213,29 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             }
         }
 
+        // Identical single/pair ring Raw vectors — same dedupe rationale as the weapons above.
+        val ringRawsDeduped = ringRawsF.distinct()
+
         val orderedNormalF = stagedTransitions.sortedBy { (sub, _, _) -> if (sub.perStatStep?.source == Characteristic.MOVEMENT_POINT) 1 else 0 }
+        // Per-STAGE candidate-volume instrumentation (WAKFU_MAX_DAMAGE_CERT_STATS=1, valid at threads=1 —
+        // the deltas read process-global Frontier counters): Frontier.add calls + points scanned per stage
+        // label, summed over every segment of this pass; one CERT_STAGE_STATS line per world at the tail.
+        val stageStatsEnabled = System.getenv("WAKFU_MAX_DAMAGE_CERT_STATS") == "1"
+        val stageAdds = LinkedHashMap<String, Long>()
+        val stageScans = LinkedHashMap<String, Long>()
+
+        fun <T> stageStat(
+            label: String,
+            block: () -> T,
+        ): T {
+            if (!stageStatsEnabled) return block()
+            val a0 = Frontier.statsAddCalls
+            val s0 = Frontier.statsPointsScanned
+            val r = block()
+            stageAdds.merge(label, Frontier.statsAddCalls - a0, Long::plus)
+            stageScans.merge(label, Frontier.statsPointsScanned - s0, Long::plus)
+            return r
+        }
         // Fast pass credits forced conditional DI UNCONDITIONALLY (sound over-count — never below a real
         // build, which applies it only when its condition holds — so `fast ≥ exact` holds; the exact pass
         // gates it per state). Forced FLAT DI is already in [diConst].
@@ -2222,10 +2341,10 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             // Item slots (non-weapon), the grouped weapon slot, then the ring singles+pairs slot.
             for ((type, entries) in itemsByType) {
                 if (type in weaponTypes) continue
-                applyCellsF(perCostF(entries))
+                stageStat("slot:${type.name}") { applyCellsF(perCostF(entries)) }
             }
-            if (weaponRawsF.isNotEmpty()) applyCellsF(perCostF(weaponRawsF))
-            if (ringRawsF.isNotEmpty()) applyCellsF(perCostF(ringRawsF))
+            if (weaponRawsF.isNotEmpty()) stageStat("weapons") { applyCellsF(perCostF(weaponRawsF)) }
+            if (ringRawsDeduped.isNotEmpty()) stageStat("rings") { applyCellsF(perCostF(ringRawsDeduped)) }
 
             // Skills: per branch, enumerate the crit/ap/di/mp point split; the remaining points fill
             // graw greedily by rate at the segment's fold crit — the exact pass's own shape (exact at
@@ -2292,44 +2411,46 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 return cells
             }
             for ((pool, infos) in skillBranches) {
-                applyCellsF(branchCellsF(infos, pool))
+                stageStat("skills") { applyCellsF(branchCellsF(infos, pool)) }
             }
 
             // Normal transition subs (j ∈ 0..mult each, n ≤ subCap; ap==crit==0). Ramps LAST, valued per
             // point from its mp axis. ∃-gate over the state's item crit/ap within this segment's c range.
             for ((sub, r, mult) in orderedNormalF) {
                 if (r.ap > apCeilF) continue
-                val g = grawOfF(r)
-                val pssMp =
-                    if (mpRampEnabled) {
-                        sub.perStatStep?.takeIf { it.source == Characteristic.MOVEMENT_POINT && it.target == Characteristic.DAMAGE_INFLICTED }
-                    } else {
-                        null
-                    }
-                // A ramp's per-copy DI reads the state's accumulated MP — never stacked (maxCopies > 1
-                // demands perStatStep == null); defensive clamp so a future data drift stays sound.
-                val stageMult = if (pssMp == null) mult else 1
-                beginStageF()
-                for (i in 0 until dpF.liveCount) {
-                    val k = dpF.liveKeys[i]
-                    val fr = dpF.slots[k] ?: continue
-                    val n0 = k % (subCap + 1)
-                    if (n0 >= subCap) continue
-                    var rest = k / (subCap + 1)
-                    rest /= 2
-                    rest /= 2
-                    val crit0 = rest % critDimF
-                    val ap0 = rest / critDimF
-                    if (!subAllowedExists(sub, crit0 - critOff, ap0 - apOff, cLow, cHigh)) continue
-                    for (j in 1..minOf(stageMult, subCap - n0)) {
-                        val tgt = ndF.getOrPut(k + j) // n0 → n0+j, other coords unchanged (ap==crit==0)
-                        fr.forEachPoint { pd, pg, pm ->
-                            val di1 = if (pssMp == null) r.di else minOf(r.di, pssMp.contribution((mpFreeMax + pm).coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()).toLong())
-                            tgt.add(pd + j * di1, pg + j * g, pm + j * r.mp)
+                stageStat("subs") {
+                    val g = grawOfF(r)
+                    val pssMp =
+                        if (mpRampEnabled) {
+                            sub.perStatStep?.takeIf { it.source == Characteristic.MOVEMENT_POINT && it.target == Characteristic.DAMAGE_INFLICTED }
+                        } else {
+                            null
+                        }
+                    // A ramp's per-copy DI reads the state's accumulated MP — never stacked (maxCopies > 1
+                    // demands perStatStep == null); defensive clamp so a future data drift stays sound.
+                    val stageMult = if (pssMp == null) mult else 1
+                    beginStageF()
+                    for (i in 0 until dpF.liveCount) {
+                        val k = dpF.liveKeys[i]
+                        val fr = dpF.slots[k] ?: continue
+                        val n0 = k % (subCap + 1)
+                        if (n0 >= subCap) continue
+                        var rest = k / (subCap + 1)
+                        rest /= 2
+                        rest /= 2
+                        val crit0 = rest % critDimF
+                        val ap0 = rest / critDimF
+                        if (!subAllowedExists(sub, crit0 - critOff, ap0 - apOff, cLow, cHigh)) continue
+                        for (j in 1..minOf(stageMult, subCap - n0)) {
+                            val tgt = ndF.getOrPut(k + j) // n0 → n0+j, other coords unchanged (ap==crit==0)
+                            fr.forEachPoint { pd, pg, pm ->
+                                val di1 = if (pssMp == null) r.di else minOf(r.di, pssMp.contribution((mpFreeMax + pm).coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()).toLong())
+                                tgt.add(pd + j * di1, pg + j * g, pm + j * r.mp)
+                            }
                         }
                     }
+                    endStageF()
                 }
-                endStageF()
             }
 
             // Epic/relic sub slot: at most one, on an equipped epic/relic item (state rarity ≥ 1). It rides
@@ -2453,6 +2574,13 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 "CERT_FAST_TIMING conv=${convTaken?.name?.en ?: "-"} critSecret=${critSecret?.name?.en ?: "-"} wr=$weaponsRestricted " +
                     "step=$fastCSegmentStep cells=$fastCellCount dpMs=${fastDpNanos / 1_000_000} harvestMs=${fastHarvestNanos / 1_000_000} " +
                     "segmentsRun=$fastSegmentsRun segmentsSkipped=$fastSegmentsSkipped"
+            )
+        }
+        if (stageStatsEnabled && stageAdds.isNotEmpty()) {
+            val byScans = stageScans.entries.sortedByDescending { it.value }
+            System.err.println(
+                "CERT_STAGE_STATS conv=${convTaken?.name?.en ?: "-"} cs=${critSecret?.name?.en ?: "-"} wr=$weaponsRestricted " +
+                    byScans.joinToString(" ") { (label, scans) -> "$label=${stageAdds[label] ?: 0}/$scans" }
             )
         }
         return 0L

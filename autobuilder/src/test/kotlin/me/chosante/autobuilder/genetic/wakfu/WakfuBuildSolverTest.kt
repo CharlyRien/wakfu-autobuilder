@@ -3834,6 +3834,94 @@ class WakfuBuildSolverTest {
             }
         }
 
+    /**
+     * The SHORT-SEARCH rescue (cascade + E8 construct): a deliberately tiny budget leaves a WEAK
+     * incumbent, so the certificate ceiling sits far above it and the flow legitimately ends UNPROVEN
+     * at its duration. The async proof path (what the CLI/GUI run next) must then confirm the argmax
+     * through the CASCADED certificate — one cell at a time, not a tier-1.5 pass per survivor — and
+     * CONSTRUCT the proven-optimal build. Production path (tuning = null); generous wall asserts.
+     */
+    @Test
+    @Tag("slow")
+    fun `a short max-damage search still ends proven via the cascaded construct`(): Unit =
+        runBlocking {
+            val params =
+                fireMaxDamageParams(110).copy(
+                    useRunes = true,
+                    useSublimations = true,
+                    searchDuration = 3.seconds
+                )
+            val pool = fullEpicPool(110)
+            MaxDamageCertificateCache.clear()
+            val startMs = System.currentTimeMillis()
+            val results =
+                MaxDamageSearch
+                    .run(params, pool, WakfuBestBuildFinderAlgorithm.runes, WakfuBestBuildFinderAlgorithm.sublimations)
+                    .toList()
+            val best = results.last()
+            // The async proof path, exactly as the CLI/GUI run it after the flow closes.
+            val proof = MaxDamageSearch.proveOptimality(params, pool, WakfuBestBuildFinderAlgorithm.runes, WakfuBestBuildFinderAlgorithm.sublimations, best)
+            val proven =
+                when (proof) {
+                    is MaxDamageSearch.MaxDamageProof.ProvenOptimal -> true
+                    is MaxDamageSearch.MaxDamageProof.ProvenWithin -> {
+                        val incumbent = best.maxDamageRawProxy ?: best.maxDamageObjective
+                        val constructed =
+                            WakfuBuildSolver.dpConstructProvenOptimum(
+                                params,
+                                pool,
+                                WakfuBestBuildFinderAlgorithm.runes,
+                                WakfuBestBuildFinderAlgorithm.sublimations,
+                                incumbentObjective = incumbent
+                            )
+                        constructed != null
+                    }
+                    else -> false
+                }
+            val elapsedMs = System.currentTimeMillis() - startMs
+            assertThat(proven)
+                .describedAs("a 3 s search must still end PROVEN via the async cascaded construct (proof=%s)", proof)
+                .isTrue
+            assertThat(elapsedMs)
+                .describedAs("the rescue must not degenerate into the full batch (took %d ms)", elapsedMs)
+                .isLessThan(150_000L)
+        }
+
+    /**
+     * The certificate EARLY STOP (the restored "stops when proven" behavior): on the full subs-on pool
+     * CP-SAT's dual bound stays open, so without the certificate the search burns its whole wall budget.
+     * The warm-up certificate lands mid-search, the incumbent crosses the certified ceiling, and phase 1
+     * is cancelled — the run must finish WELL under its 180 s budget and still emit a PROVEN result.
+     * Production path on purpose (tuning = null — the warm-up only runs there), so timings are machine
+     * dependent: the 150 s assert leaves ~2× headroom over the ~60 s expected on the dev machine.
+     */
+    @Test
+    @Tag("slow")
+    fun `max-damage search stops early once the certificate proves the incumbent`(): Unit =
+        runBlocking {
+            val params =
+                fireMaxDamageParams(110).copy(
+                    useRunes = true,
+                    useSublimations = true,
+                    searchDuration = 180.seconds
+                )
+            val pool = fullEpicPool(110)
+            MaxDamageCertificateCache.clear()
+            val startMs = System.currentTimeMillis()
+            val results =
+                MaxDamageSearch
+                    .run(params, pool, WakfuBestBuildFinderAlgorithm.runes, WakfuBestBuildFinderAlgorithm.sublimations)
+                    .toList()
+            val elapsedMs = System.currentTimeMillis() - startMs
+            val last = results.last()
+            assertThat(last.isOptimal)
+                .describedAs("the final emit must carry the certificate proof")
+                .isTrue
+            assertThat(elapsedMs)
+                .describedAs("the search must stop well before its 180 s budget (took %d ms)", elapsedMs)
+                .isLessThan(150_000L)
+        }
+
     @Test
     @Tag("slow")
     fun `max-damage proves the runes+subs level-110 optimum via search plus certificate`() {
@@ -7488,6 +7576,17 @@ class WakfuBuildSolverTest {
         assertThat(WakfuBuildSolver.certifierTier15ThreadsForHeap(64 * gib, cores = 1)).describedAs("single core ⇒ 1").isEqualTo(1)
     }
 
+    /** Fast-world sizing: heavier than a tier-1.5 task (~0.6 GiB), at most 5 worlds remain after warm-once. */
+    @Test
+    fun `certifierFastWorldThreadsForHeap opens parallel worlds on a stock heap`() {
+        val gib = 1024L * 1024 * 1024
+        assertThat(WakfuBuildSolver.certifierFastWorldThreadsForHeap(4 * gib, cores = 16)).describedAs("-Xmx4g ⇒ (4-1.5)/0.6 = 4").isEqualTo(4)
+        assertThat(WakfuBuildSolver.certifierFastWorldThreadsForHeap(3 * gib, cores = 16)).describedAs("-Xmx3g ⇒ 2").isEqualTo(2)
+        assertThat(WakfuBuildSolver.certifierFastWorldThreadsForHeap(1 * gib, cores = 16)).describedAs("tiny heap floors at 1").isEqualTo(1)
+        assertThat(WakfuBuildSolver.certifierFastWorldThreadsForHeap(64 * gib, cores = 16)).describedAs("huge heap capped at 5 (worlds)").isEqualTo(5)
+        assertThat(WakfuBuildSolver.certifierFastWorldThreadsForHeap(64 * gib, cores = 2)).describedAs("cores−1 cap = 1").isEqualTo(1)
+    }
+
     /**
      * B8 lock #1 (contract): a cancelled certificate bails (a sound over-count), returns null, and — crucially —
      * is NEVER cached, so a cancelled proof leaves no partial ledger behind. The same shape certifies and caches
@@ -7574,7 +7673,8 @@ class WakfuBuildSolverTest {
         // incumbent-scoped raw parts the null cold run did not compute. The FIRST proof at this incumbent may
         // therefore recompute (merging tier-1.5 + the surviving exacts into the SAME incumbent-free entry — no new
         // key); a REPEAT of the same shape+incumbent is then a full cache hit.
-        MaxDamageCertificateCache.certificate(params, pool, emptyList(), subs, applyDomination = false, incumbentObjective = incumbent, threads = 1)
+        val primed =
+            MaxDamageCertificateCache.certificate(params, pool, emptyList(), subs, applyDomination = false, incumbentObjective = incumbent, threads = 1)!!
         assertThat(MaxDamageCertificateCache.size).describedAs("a different incumbent reuses the SAME (incumbent-free) key — no new entry").isEqualTo(1)
 
         var polls = 0
@@ -7595,6 +7695,11 @@ class WakfuBuildSolverTest {
         assertThat(MaxDamageCertificateCache.size).isEqualTo(1)
         assertThat(polls).describedAs("a repeat proof is a full cache hit — reconstructed without invoking the certifier DP").isZero()
 
+        // The identity contract: reconstruct == the compute path AT EQUAL CACHE STATE. (Since the cold
+        // run cached every exact value, both the priming compute and the reconstruction decide survivors
+        // from those cached exacts — TIGHTER than a cache-less fresh compute's tier-1.5 bounds, so the
+        // old fresh-compute comparison no longer applies; soundness vs fresh is asserted per cell below.)
+        assertThat(reconstructed).describedAs("the reconstructed ledger is byte-identical to the primed compute").isEqualTo(primed)
         val fresh =
             WakfuBuildSolver.certifyLedgerForTest(
                 params,
@@ -7605,7 +7710,11 @@ class WakfuBuildSolverTest {
                 forceTier2All = false,
                 threads = 1
             )
-        assertThat(reconstructed).describedAs("the reconstructed ledger is byte-identical to a fresh compute").isEqualTo(fresh)
+        for ((cell, bound) in reconstructed.cellObjectives) {
+            assertThat(bound)
+                .describedAs("cell %d: the cache-informed bound must be at most the fresh (looser) bound", cell)
+                .isLessThanOrEqualTo(fresh.cellObjectives.getValue(cell))
+        }
         MaxDamageCertificateCache.clear()
     }
 
@@ -7628,8 +7737,10 @@ class WakfuBuildSolverTest {
             val cold =
                 MaxDamageCertificateCache.certificate(params, pool, emptyList(), subs, applyDomination = false, incumbentObjective = null, threads = 1)!!
             val incumbent = cold.maxCellObjective!! / 2 // a non-trivial elimination ⇒ real survivors
-            // Prime the entry at this incumbent (computes tier-1.5 + surviving exacts, and PERSISTS the merged entry).
-            MaxDamageCertificateCache.certificate(params, pool, emptyList(), subs, applyDomination = false, incumbentObjective = incumbent, threads = 1)!!
+            // Prime the entry at this incumbent (decides survivors from the cold run's cached exacts, and
+            // PERSISTS the merged entry).
+            val primed =
+                MaxDamageCertificateCache.certificate(params, pool, emptyList(), subs, applyDomination = false, incumbentObjective = incumbent, threads = 1)!!
 
             // Simulate an app restart: wipe the in-memory cache but keep the on-disk files.
             MaxDamageCertificateCache.clear()
@@ -7653,6 +7764,9 @@ class WakfuBuildSolverTest {
             assertThat(polls).describedAs("a disk hit reconstructs without invoking the certifier DP").isZero()
             assertThat(MaxDamageCertificateCache.size).describedAs("the disk record was loaded into the in-memory cache").isEqualTo(1)
 
+            // Same contract as the in-memory lock: identity vs the compute at equal cache state, and
+            // per-cell soundness (≤) vs a cache-less fresh compute.
+            assertThat(reconstructed).describedAs("the disk-reconstructed ledger is byte-identical to the primed compute").isEqualTo(primed)
             val fresh =
                 WakfuBuildSolver.certifyLedgerForTest(
                     params,
@@ -7663,7 +7777,11 @@ class WakfuBuildSolverTest {
                     forceTier2All = false,
                     threads = 1
                 )
-            assertThat(reconstructed).describedAs("the disk-reconstructed ledger is byte-identical to a fresh compute").isEqualTo(fresh)
+            for ((cell, bound) in reconstructed.cellObjectives) {
+                assertThat(bound)
+                    .describedAs("cell %d: the cache-informed bound must be at most the fresh (looser) bound", cell)
+                    .isLessThanOrEqualTo(fresh.cellObjectives.getValue(cell))
+            }
         } finally {
             MaxDamageCertificateDiskCache.directory = previousDir
             MaxDamageCertificateCache.clear()

@@ -194,47 +194,49 @@ object MaxDamageSearch {
             var searchCompletedNormally = false
             activeWarmupCancelled.getAndSet(warmupCancelled)?.set(true) // supersede a previous search's warm-up
 
-            fun maybeStartCertificateWarmup(result: SolverResult<BuildCombination>) {
-                if (tuning != null || !certificateWarmupEligible(baseParams)) return
-                val proxy = result.maxDamageRawProxy ?: result.maxDamageObjective ?: return
-                latestProxy.getAndUpdate { maxOf(it, proxy) }
-                if (!warmupLaunched.compareAndSet(false, true)) return
-                warmupJobForTest.set(
-                    warmupScope.launch {
-                        runCatching {
-                            MaxDamageCertificateCache.certificate(
-                                baseParams,
-                                equipmentsByItemType,
-                                runes,
-                                sublimations,
-                                applyDomination = true,
-                                incumbentObjective = proxy,
-                                threads = 1,
-                                // 1 thread while the search's CP-SAT workers own the cores; the certificate's
-                                // dominant stage (tier-1.5) starts long after the ~1-min search ends, so the
-                                // provider lets the SAME in-flight compute (which the post-search proof joins
-                                // via the single-flight) scale to the full worker count the moment it is done.
-                                threadsProvider = { tier ->
-                                    when {
-                                        !searchDone.get() -> 1 // never compete with the search's CP-SAT workers
-                                        tier == CertTier.TIER15 -> WakfuBuildSolver.certifierTier15Threads()
-                                        else -> WakfuBuildSolver.certifierDefaultThreads()
-                                    }
-                                },
-                                incumbentProvider = { latestProxy.get().takeIf { it != Long.MIN_VALUE } },
-                                isCancelled = { warmupCancelled.get() }
-                            )
-                        }.onFailure { logger.warn(it) { "Certificate warm-up failed (non-fatal; the proof will compute cold)." } }
-                    }
-                )
+            // ---- Early stop on proof -----------------------------------------------------------------
+            // Restores the "stops when proven" behavior CP-SAT used to provide by itself (the expanded
+            // sublimation catalog leaves its dual bound open, so in-model OPTIMAL no longer closes on the
+            // full pool). Once the warm-up certificate lands, the incumbent is checked against the
+            // certified global ceiling — again on every later improvement — and the moment
+            // `proxy ≥ maxCell` (with proveOptimality's own result gates: targets met, no heuristic
+            // phase, under-count self-check) the remaining search budget is provably useless: phase 1 is
+            // cancelled and the final emit carries the proof. Debuff classes (Sram/Sadida) keep their
+            // full budget — their phase 2 re-ranks by a debuff-aware score the certificate does not
+            // bound. The deterministic test path (tuning != null) never launches the warm-up, so pinned
+            // tests are untouched.
+            val warmupLedger = AtomicReference<CertLedger?>(null)
+            val certProvenEarly = AtomicBoolean(false)
+            val phase1JobRef = AtomicReference<Job?>(null)
+
+            fun maybeStopSearchProven() {
+                if (hasResistanceDebuff || certProvenEarly.get()) return
+                val ledger = warmupLedger.get() ?: return
+                val maxCell = ledger.maxCellObjective ?: return
+                val current = synchronized(considerLock) { best } ?: return
+                if (current.maxDamageHeuristicPhases) return
+                val proxy = current.maxDamageRawProxy ?: current.maxDamageObjective ?: return
+                if (!current.maxDamageHardConstraintsMet && !fullyMeetsRequiredTargets(baseParams, current.individual)) return
+                // proveOptimality's mandatory self-check, applied identically: the incumbent's own AP
+                // cell must upper-bound its proxy, or the certifier under-counted — never stop on that.
+                val ownCell = ledger.cellObjectives[actualActionPoints(baseParams, current.individual)]
+                if (ownCell != null && ownCell < proxy) return
+                if (proxy >= maxCell && certProvenEarly.compareAndSet(false, true)) {
+                    phase1JobRef.get()?.cancel()
+                }
             }
+
+            // Late-bound: [consider] must fire the warm-up, the warm-up's completion calls back into
+            // [consider] (the constructed proven build) — a declaration cycle Kotlin local functions
+            // cannot express directly. Assigned right after [maybeStartCertificateWarmup] is declared.
+            var startWarmup: (SolverResult<BuildCombination>) -> Unit = {}
 
             fun consider(
                 result: SolverResult<BuildCombination>,
                 solvedScenario: DamageScenario,
                 progress: Int,
             ) {
-                maybeStartCertificateWarmup(result)
+                startWarmup(result)
                 // Re-score against the FULL boss scenario (max over the build's playable elements), so the best
                 // per-element-optimal build wins regardless of which element it was solved for. This deliberately
                 // overrides the solver's own (proxy, debuff-blind) score: [sequencedScore] is the debuff-aware
@@ -257,7 +259,103 @@ object MaxDamageSearch {
                     // Streamed best-so-far is never "proven" — optimality is decided once at the final emit.
                     best?.let { trySend(it.copy(progressPercentage = lastProgressSent, isOptimal = false)) }
                 }
+                // A better incumbent may cross the already-landed certificate ceiling — re-check.
+                maybeStopSearchProven()
             }
+
+            // Short-search rescue, phase 2: the incumbent fell short of the certified ceiling. When the
+            // ledger's ARGMAX cell is exactly confirmed (it carries provenance — the cascade's break cell,
+            // or any exact confirm), E8-construct that cell's build: a SUCCESSFUL construct's proxy reaches
+            // a sound global upper bound, so the constructed build IS the proven optimum — feed it to
+            // [consider] and end the search. If the argmax is an UNCONFIRMED fast bound (the cascade
+            // skipped it) or the construct misses, fall back to the FULL (cascade-off) certificate — same
+            // cache entry, so the cascade's confirms are reused and the post-search proof stays cheap.
+            suspend fun maybeConstructProvenOptimum(ledger: CertLedger) {
+                if (certProvenEarly.get() || hasResistanceDebuff || elementParams.size != 1) return
+                if (warmupCancelled.get()) return
+                // Only while the flow is still live: after the search ends the channel is closed — the
+                // async post-search proof (proveOptimality + dpConstruct, cascade-aware) owns the rescue.
+                if (searchDone.get()) return
+                val argmaxCell =
+                    ledger.cellObjectives.entries
+                        .filter { it.value >= 0 }
+                        .maxByOrNull { it.value }
+                        ?.key ?: return
+                val constructed =
+                    if (argmaxCell in ledger.cellProvenance) {
+                        runCatching {
+                            WakfuBuildSolver.dpConstructProvenOptimum(
+                                baseParams,
+                                equipmentsByItemType,
+                                runes,
+                                sublimations,
+                                incumbentObjective = latestProxy.get().takeIf { it != Long.MIN_VALUE },
+                                precomputedLedger = ledger
+                            )
+                        }.getOrElse {
+                            logger.warn(it) { "E8 construct failed during warm-up (non-fatal)." }
+                            null
+                        }
+                    } else {
+                        null
+                    }
+                if (constructed != null) {
+                    consider(constructed, elementParams.single().damageScenario, 99)
+                    // Deliberately NOT setting certProvenEarly directly: [consider] ranks by the
+                    // debuff-aware sequencedScore, which can diverge (~0.6 %) from the raw proxy — if the
+                    // constructed build did NOT become [best], flagging would badge the old, UNPROVEN
+                    // incumbent. Re-derive instead: proven only if the CURRENT best crosses the ceiling.
+                    maybeStopSearchProven()
+                }
+            }
+
+            fun maybeStartCertificateWarmup(result: SolverResult<BuildCombination>) {
+                if (tuning != null || !certificateWarmupEligible(baseParams)) return
+                val proxy = result.maxDamageRawProxy ?: result.maxDamageObjective ?: return
+                latestProxy.getAndUpdate { maxOf(it, proxy) }
+                if (!warmupLaunched.compareAndSet(false, true)) return
+                warmupJobForTest.set(
+                    warmupScope.launch {
+                        runCatching {
+                            val ledger =
+                                MaxDamageCertificateCache.certificate(
+                                    baseParams,
+                                    equipmentsByItemType,
+                                    runes,
+                                    sublimations,
+                                    applyDomination = true,
+                                    incumbentObjective = proxy,
+                                    threads = 1,
+                                    // 1 thread while the search's CP-SAT workers own the cores; the certificate's
+                                    // dominant stage (tier-1.5) starts long after the ~1-min search ends, so the
+                                    // provider lets the SAME in-flight compute (which the post-search proof joins
+                                    // via the single-flight) scale to the full worker count the moment it is done.
+                                    threadsProvider = { tier ->
+                                        when {
+                                            !searchDone.get() -> 1 // never compete with the search's CP-SAT workers
+                                            tier == CertTier.TIER15 -> WakfuBuildSolver.certifierTier15Threads()
+                                            tier == CertTier.FAST -> WakfuBuildSolver.certifierFastWorldThreads()
+                                            else -> WakfuBuildSolver.certifierDefaultThreads()
+                                        }
+                                    },
+                                    incumbentProvider = { latestProxy.get().takeIf { it != Long.MIN_VALUE } },
+                                    // Cascade (short-search rescue): confirm survivors one cell at a time so a
+                                    // WEAK incumbent does not pay a tier-1.5 pass for every survivor; the
+                                    // construct below finishes the job (or the full fallback does).
+                                    cascadeTier15 = true,
+                                    isCancelled = { warmupCancelled.get() }
+                                )
+                            if (ledger != null) {
+                                warmupLedger.set(ledger)
+                                maybeStopSearchProven()
+                                maybeConstructProvenOptimum(ledger)
+                            }
+                        }.onFailure { logger.warn(it) { "Certificate warm-up failed (non-fatal; the proof will compute cold)." } }
+                    }
+                )
+            }
+
+            startWarmup = ::maybeStartCertificateWarmup
 
             val producer =
                 launch {
@@ -265,12 +363,21 @@ object MaxDamageSearch {
                     val phase1Ceiling = if (activePhases == 1) 100 else 70
                     if (elementParams.size == 1) {
                         // Single-element request: stream the one (provable) solve live — the common, fast path.
+                        // Runs as a CHILD job so the certificate early stop can cancel the remaining budget
+                        // without killing the producer (the final proven emit below must still run).
                         val solo = elementParams.single()
-                        optimizeHardThenSoft(solo.copy(searchDuration = phaseBudget), equipmentsByItemType, runes, sublimations, tuning)
-                            .collect {
-                                phase1Optimal = it.isOptimal
-                                consider(it, solo.damageScenario, (it.progressPercentage * phase1Ceiling / 100).coerceIn(0, phase1Ceiling))
+                        val phase1Job =
+                            launch {
+                                optimizeHardThenSoft(solo.copy(searchDuration = phaseBudget), equipmentsByItemType, runes, sublimations, tuning)
+                                    .collect {
+                                        phase1Optimal = it.isOptimal
+                                        consider(it, solo.damageScenario, (it.progressPercentage * phase1Ceiling / 100).coerceIn(0, phase1Ceiling))
+                                    }
                             }
+                        phase1JobRef.set(phase1Job)
+                        // The certificate may have landed before the job ref was published — re-check once.
+                        maybeStopSearchProven()
+                        phase1Job.join()
                     } else {
                         // Boss / multi-candidate: prove each element independently (in parallel) and take the max.
                         // The boss optimum is proven iff EVERY element solve proved. Each probe is a full solve
@@ -330,7 +437,9 @@ object MaxDamageSearch {
                     val finalBest = best
                     val improvedByDebuff =
                         hasResistanceDebuff && finalBest != null && phase1BestScore != null && finalBest.matchPercentage > phase1BestScore
-                    val proven = phase1Optimal && finalBest?.isOptimal == true && hasPlayableElement && !improvedByDebuff
+                    val proven =
+                        (phase1Optimal && finalBest?.isOptimal == true && hasPlayableElement && !improvedByDebuff) ||
+                            certProvenEarly.get()
                     // Guaranteed delivery (suspending `send`, not `trySend`): the streamed best-so-far above is
                     // best-effort progress and may be dropped under back-pressure, but the FINAL/best build — what
                     // the CLI/GUI show and tests assert on — must never be lost to a saturated buffer. This mirrors
@@ -459,6 +568,11 @@ object MaxDamageSearch {
                 applyDomination = true,
                 incumbentObjective = incumbentProxy,
                 threads = threads,
+                // Cascade: with a weak incumbent, confirm survivors one cell at a time instead of paying
+                // a tier-1.5 pass for every one. Verdict-safe: unprocessed cells keep sound (looser) fast
+                // bounds, which can only make this MORE conservative (never a wrong ProvenOptimal); the
+                // construct path (dpConstruct) falls back to a full ledger when the argmax is unconfirmed.
+                cascadeTier15 = true,
                 isCancelled = isCancelled
             ) ?: return MaxDamageProof.Unavailable
         val maxCell = ledger.maxCellObjective ?: return MaxDamageProof.Unavailable // a cell bailed ⇒ no sound global bound
@@ -811,6 +925,10 @@ object MaxDamageCertificateCache {
         threadsProvider: ((CertTier) -> Int)? = null,
         // Dynamic incumbent (resolved before elimination) — see [WakfuBuildSolver.maxDamageCertificate].
         incumbentProvider: (() -> Long?)? = null,
+        // Cascade tier-1.5 (short-search rescue) — see [StatBuilder.certifyLedgerCascadeTier15]. A cascaded
+        // (possibly partial) ledger MERGES into the same cache entry: per-cell confirms are incumbent-
+        // independent values, so a later full compute simply fills the cells the cascade skipped.
+        cascadeTier15: Boolean = false,
         isCancelled: () -> Boolean = { false },
     ): CertLedger? {
         val key = keyFor(params, equipmentsByItemType, runes, sublimations, applyDomination)
@@ -864,9 +982,13 @@ object MaxDamageCertificateCache {
                         threads,
                         threadsProvider,
                         incumbentProvider,
+                        cascadeTier15,
                         isCancelled,
                         precomputedFast = existing?.fastObjectives,
-                        precomputedBailed = existing?.bailed
+                        precomputedBailed = existing?.bailed,
+                        precomputedTier15 = existing?.tier15ByCell?.toMap(),
+                        precomputedExact = existing?.exactByCell?.toMap(),
+                        precomputedProv = existing?.provByCell?.toMap()
                     ) ?: return null
                 val merged = cache.compute(key) { _, e -> (e ?: RawEntry(ledger)).also { it.merge(ledger) } }!!
                 // Persist the accumulated raw bounds (never a bailed shape — it carries no sound global bound).
@@ -1068,6 +1190,14 @@ object MaxDamageCertificateCache {
         val stillSurviving = ArrayList<Int>()
         if (incumbent != null) {
             for (a in survivors) {
+                // Mirror the compute path's cache reuse: a cached EXACT decides a survivor outright —
+                // the cascaded compute never produces a tier-1.5 value for such cells, so requiring one
+                // here made every repeat proof of a cascade-touched shape recompute needlessly.
+                val exact = entry.exactByCell[a]
+                if (exact != null) {
+                    usedExact[a] = exact
+                    continue
+                }
                 val t15 = entry.tier15ByCell[a] ?: return null // uncached tier-1.5 survivor ⇒ recompute
                 usedTier15[a] = t15
                 if (t15 <= incumbent) continue // cleared by tier-1.5

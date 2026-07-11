@@ -717,6 +717,8 @@ object WakfuBuildSolver {
         certifierThreadsProvider: ((CertTier) -> Int)? = null,
         // Dynamic incumbent, resolved right before elimination (see [StatBuilder.certifierIncumbentProvider]).
         certifierIncumbentProvider: (() -> Long?)? = null,
+        // Cascade tier-1.5 (see [StatBuilder.certifyLedgerCascadeTier15]).
+        certifyLedgerCascadeTier15: Boolean = false,
         // Test seam: run ONLY the fast pass in the certify-for-test block (skip the exact per-cell ledger).
         certifyFastOnlyForTest: Boolean = false,
         // Test seam (P3.2 orchestrator): compute the two-tier [CertLedger] into [BuiltModel.certifierLedgerForTest].
@@ -727,6 +729,9 @@ object WakfuBuildSolver {
         // fast DP in [certifyLedger] (a pure, byte-identical function of the shape). Null ⇒ compute the fast pass.
         certifyLedgerPrecomputedFast: Map<Int, Long>? = null,
         certifyLedgerPrecomputedBailed: Set<Int>? = null,
+        certifyLedgerPrecomputedTier15: Map<Int, Long>? = null,
+        certifyLedgerPrecomputedExact: Map<Int, Long>? = null,
+        certifyLedgerPrecomputedProv: Map<Int, CellProvenance>? = null,
         // B8: polled once per certifier DP stage; when it flips true the certifier bails (sound) so a cancelled
         // proof stops promptly. Default never-cancel keeps the deterministic test/model builds byte-identical.
         certifierCancelled: () -> Boolean = { false },
@@ -837,12 +842,16 @@ object WakfuBuildSolver {
                             certifyFastThreads = certifyFastThreadsForTest,
                             certifierThreadsProvider = certifierThreadsProvider,
                             certifierIncumbentProvider = certifierIncumbentProvider,
+                            certifyLedgerCascadeTier15 = certifyLedgerCascadeTier15,
                             certifyFastOnly = certifyFastOnlyForTest,
                             certifyLedgerForTest = certifyLedgerForTest,
                             certifyLedgerIncumbent = certifyLedgerIncumbentForTest,
                             certifyLedgerForceTier2All = certifyLedgerForceTier2AllForTest,
                             certifyLedgerPrecomputedFast = certifyLedgerPrecomputedFast,
                             certifyLedgerPrecomputedBailed = certifyLedgerPrecomputedBailed,
+                            certifyLedgerPrecomputedTier15 = certifyLedgerPrecomputedTier15,
+                            certifyLedgerPrecomputedExact = certifyLedgerPrecomputedExact,
+                            certifyLedgerPrecomputedProv = certifyLedgerPrecomputedProv,
                             certifierCancelled = certifierCancelled
                         )
                     val built = model.buildMaxDamageObjective(params, statBuilder, maxDamageObjectiveCutoff, hardConstraints)
@@ -1187,6 +1196,27 @@ object WakfuBuildSolver {
      */
     internal fun certifierTier15Threads(): Int = certifierTier15ThreadsForHeap(Runtime.getRuntime().maxMemory(), Runtime.getRuntime().availableProcessors())
 
+    /**
+     * Worker count for the FAST tier's per-world passes. A fast world DP is heavier than a tier-1.5
+     * single-cell one (its dense box spans EVERY AP cell) but far lighter than an exact tier-2 DP, so it
+     * gets its own sizing: reserve ~1.5 GiB, one worker per ~0.6 GiB of remainder, capped at
+     * `min(5, cores − 1)` — at most 5 worlds ever remain after the serial warm-once world. A stock 4 GiB
+     * heap resolves to 4, the packaged GUI's -Xmx3g to 2, tiny heaps stay serial.
+     */
+    internal fun certifierFastWorldThreads(): Int = certifierFastWorldThreadsForHeap(Runtime.getRuntime().maxMemory(), Runtime.getRuntime().availableProcessors())
+
+    internal fun certifierFastWorldThreadsForHeap(
+        maxMemoryBytes: Long,
+        cores: Int,
+    ): Int {
+        val gib = 1024L * 1024 * 1024
+        val reserved = gib + gib / 2
+        val perWorker = 3 * gib / 5 // ~0.6 GiB per concurrent all-cells fast world DP
+        val byHeap = ((maxMemoryBytes - reserved) / perWorker).toInt()
+        val upper = min(5, maxOf(1, cores - 1))
+        return byHeap.coerceIn(1, upper)
+    }
+
     internal fun certifierTier15ThreadsForHeap(
         maxMemoryBytes: Long,
         cores: Int,
@@ -1229,10 +1259,16 @@ object WakfuBuildSolver {
         // Re-read once, right before elimination — the warm-up passes the search's LATEST feasible proxy so
         // the certificate eliminates against the final incumbent instead of the weak first-streamed one.
         incumbentProvider: (() -> Long?)? = null,
+        // Cascade tier-1.5 (short-search rescue) — see [StatBuilder.certifyLedgerCascadeTier15].
+        cascadeTier15: Boolean = false,
         isCancelled: () -> Boolean = { false },
         // B6: reuse a prior compute's SCALED fast bounds (+ bail set) for this shape ⇒ skip the tier-1 fast DP.
         precomputedFast: Map<Int, Long>? = null,
         precomputedBailed: Set<Int>? = null,
+        // B4/B7 compute-path reuse: per-cell tier-1.5 / exact confirms (+ provenance) from a prior compute.
+        precomputedTier15: Map<Int, Long>? = null,
+        precomputedExact: Map<Int, Long>? = null,
+        precomputedProv: Map<Int, CellProvenance>? = null,
     ): CertLedger? {
         val ledger =
             buildModel(
@@ -1242,17 +1278,27 @@ object WakfuBuildSolver {
                 sublimations,
                 applyDomination = applyDomination,
                 certifyFastThreadsForTest = threads,
-                // Default: [threads] for the fast/exact tiers, the tier-1.5-calibrated count for tier-1.5 —
-                // production proofs get parallel tier-1.5 workers even on a stock heap.
+                // Default: per-tier calibrated counts — production proofs get parallel tier-1.5 and
+                // fast-world workers even on a stock heap; the exact tier keeps the caller's [threads].
                 certifierThreadsProvider =
                     threadsProvider
-                        ?: { tier -> if (tier == CertTier.TIER15) maxOf(threads, certifierTier15Threads()) else threads },
+                        ?: { tier ->
+                            when (tier) {
+                                CertTier.TIER15 -> maxOf(threads, certifierTier15Threads())
+                                CertTier.FAST -> maxOf(threads, certifierFastWorldThreads())
+                                else -> threads
+                            }
+                        },
                 certifierIncumbentProvider = incumbentProvider,
+                certifyLedgerCascadeTier15 = cascadeTier15,
                 certifyLedgerForTest = true,
                 certifyLedgerIncumbentForTest = incumbentObjective,
                 certifyLedgerForceTier2AllForTest = false,
                 certifyLedgerPrecomputedFast = precomputedFast,
                 certifyLedgerPrecomputedBailed = precomputedBailed,
+                certifyLedgerPrecomputedTier15 = precomputedTier15,
+                certifyLedgerPrecomputedExact = precomputedExact,
+                certifyLedgerPrecomputedProv = precomputedProv,
                 certifierCancelled = isCancelled
             ).certifierLedgerForTest
         // A cancelled run may have bailed mid-way (a sound but incomplete ledger). Never surface or cache it.
@@ -1373,11 +1419,17 @@ object WakfuBuildSolver {
         runes: List<RuneType> = emptyList(),
         sublimations: List<Sublimation> = emptyList(),
         incumbentObjective: Long? = null,
+        // The caller ALREADY holds the ledger to construct from (the warm-up's cascade path): skip the
+        // cache round-trip — a cascaded PARTIAL entry cannot always be reconstructed for this incumbent,
+        // and recomputing it here would pay the full tier-1.5 batch the cascade exists to avoid.
+        precomputedLedger: CertLedger? = null,
     ): SolverResult<BuildCombination>? {
         if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return null
         if (params.targetStats.any { it.target > 0 }) return null // free shapes only — the DP can't model targets
         val ledger =
-            if (incumbentObjective != null) {
+            if (precomputedLedger != null) {
+                precomputedLedger
+            } else if (incumbentObjective != null) {
                 // Production path (an incumbent from the completed search): reuse the CACHED certificate —
                 // `proveOptimality` populated it under the same key, so construction adds no extra ledger DP. The
                 // argmax cell (objective > the incumbent it's rescuing) is confirmed at the exact tier, so its bound
@@ -1389,7 +1441,8 @@ object WakfuBuildSolver {
                     sublimations,
                     applyDomination = true,
                     incumbentObjective = incumbentObjective,
-                    threads = certifierDefaultThreads()
+                    threads = certifierDefaultThreads(),
+                    cascadeTier15 = true
                 ) ?: return null
             } else {
                 // Standalone (no incumbent, e.g. the manual proof test): force EVERY cell to the exact tier so any
@@ -1404,10 +1457,31 @@ object WakfuBuildSolver {
                     forceTier2All = true
                 )
             }
-        val argmax =
+        var argmax =
             ledger.cellObjectives.entries
                 .filter { it.value >= 0 }
                 .maxByOrNull { it.value } ?: return null
+        var constructLedger = ledger
+        if (precomputedLedger == null && incumbentObjective != null && argmax.key !in ledger.cellProvenance) {
+            // The cascaded ledger's argmax is an UNCONFIRMED fast bound (the cascade's bet missed) — the
+            // re-solve below could never reach it. Recompute the FULL ledger (cascade off; the cache
+            // reuses every fast bound and confirmed cell, so only the skipped survivors pay) and
+            // construct from its exactly-confirmed argmax — verdict parity with the pre-cascade path.
+            constructLedger =
+                MaxDamageCertificateCache.certificate(
+                    params,
+                    equipmentsByItemType,
+                    runes,
+                    sublimations,
+                    applyDomination = true,
+                    incumbentObjective = incumbentObjective,
+                    threads = certifierDefaultThreads()
+                ) ?: return null
+            argmax =
+                constructLedger.cellObjectives.entries
+                    .filter { it.value >= 0 }
+                    .maxByOrNull { it.value } ?: return null
+        }
         val cell = argmax.key
         val bound = argmax.value
         // E8 item A: recover the argmax cell's winning items as typed equipmentIds (no fragile `slot:`-string parse).
@@ -1416,7 +1490,7 @@ object WakfuBuildSolver {
         // tier-1.5-cleared argmax that never ran exactly), fall back to the full N-worlds scan — sound, just slower.
         val provIds =
             (
-                ledger.cellProvenance[cell]?.let { prov ->
+                constructLedger.cellProvenance[cell]?.let { prov ->
                     certifierExplainItemIdsFromProvenanceForTest(
                         params,
                         equipmentsByItemType,
