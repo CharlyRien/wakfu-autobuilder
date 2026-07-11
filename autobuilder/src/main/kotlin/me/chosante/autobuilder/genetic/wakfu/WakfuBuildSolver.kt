@@ -498,6 +498,10 @@ object WakfuBuildSolver {
         // [SolverTuning.stopAtFirstSolution]. An unreachable floor (a loose bound) yields INFEASIBLE ⇒
         // the flow emits nothing, which the E8 caller maps to null (sound: no badge, never a wrong one).
         maxDamageRawFloor: Long? = null,
+        // C8(3), max-damage: enable the greedy warm start (instant first emission + CP-SAT hint). Set ONLY
+        // by [MaxDamageSearch]'s SINGLE-ELEMENT path — on the boss/multi-element probes the composed proof
+        // still rides CP-SAT's in-model OPTIMAL, where the historical measurement showed a hint can slow it.
+        maxDamageGreedyWarmStart: Boolean = false,
     ): Flow<SolverResult<BuildCombination>> =
         callbackFlow {
             // The native solve blocks its worker thread and cannot be interrupted by coroutine cancellation, so
@@ -511,6 +515,29 @@ object WakfuBuildSolver {
                     .AtomicReference<CpSolver?>()
             val job =
                 launch(Dispatchers.IO) {
+                    // C8(3) greedy warm start — computed BEFORE buildModel (which is ~seconds on the lvl-245
+                    // max-damage shape and used to gate the first emission at ~6.4 s): the greedy needs only
+                    // the raw pre-filtered pool, so the first build streams in ~0.3 s. The CP-SAT hint is
+                    // applied after the model exists; a pick domination later removed simply is not hinted
+                    // (hints are advisory). Optimality-neutral both ways. Gated to production (tuning == null)
+                    // or the explicit A/B flag; max-damage additionally requires the caller's single-element
+                    // opt-in (see [maxDamageGreedyWarmStart]).
+                    val greedyEnabled = tuning?.greedyWarmStart ?: true
+                    val warmStart =
+                        when {
+                            !greedyEnabled -> null
+                            params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
+                                MostMasteriesWarmStart.greedyBuild(params, equipmentsByItemType.values.flatten())
+                            params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE && maxDamageGreedyWarmStart ->
+                                MostMasteriesWarmStart.greedyMaxDamageBuild(params, equipmentsByItemType.values.flatten())
+                            else -> null
+                        }
+                    val warmScore =
+                        warmStart?.let { combination ->
+                            val score = scoreFor(params, combination)
+                            trySend(SolverResult(combination, score, 0))
+                            score
+                        }
                     // Domination runs only on the production (wall-clock) path: tuning == null. The deterministic
                     // test path keeps the full pool so existing tests are untouched; the soundness lock toggles it.
                     val built =
@@ -537,27 +564,14 @@ object WakfuBuildSolver {
                     if (maxDamageRawFloor != null) {
                         built.maxDamageRawScore?.let { built.model.addGreaterOrEqual(it, maxDamageRawFloor) }
                     }
-                    // C8(3) greedy warm start (most-masteries only): stream a decent build IMMEDIATELY
-                    // (CP-SAT's presolve + first feasible take ~26–32 s on the lvl-245 production shape,
-                    // during which the UI otherwise shows nothing) and hint the equipment layer so the
-                    // search starts from that incumbent instead of near zero. Optimality-neutral: the
-                    // emission is an extra streamed result; a hint can never change the optimum. Gated to
-                    // production (tuning == null) or the explicit A/B flag, so deterministic tests are
-                    // byte-identical. The greedy score also becomes the intermediate-emission floor —
-                    // consumers keep the LAST emission, so a later, WORSE snapshot would visibly regress
-                    // the displayed build.
-                    val greedyEnabled =
-                        params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
-                            (tuning?.greedyWarmStart ?: true)
-                    val warmStart = if (greedyEnabled) MostMasteriesWarmStart.greedyBuild(params, built.allEquips) else null
-                    val warmScore =
-                        warmStart?.let { combination ->
-                            val score = scoreFor(params, combination)
-                            val picked = combination.equipments.toHashSet()
-                            for ((equip, v) in built.equipVars) built.model.addHint(v, if (equip in picked) 1L else 0L)
-                            trySend(SolverResult(combination, score, 0))
-                            score
-                        }
+                    // C8(3): the warm start streamed above; hint the equipment layer now the model exists,
+                    // so the search starts from that incumbent instead of near zero. The greedy score also
+                    // becomes the intermediate-emission floor — consumers keep the LAST emission, so a later,
+                    // WORSE snapshot would visibly regress the displayed build.
+                    warmStart?.let { combination ->
+                        val picked = combination.equipments.toHashSet()
+                        for ((equip, v) in built.equipVars) built.model.addHint(v, if (equip in picked) 1L else 0L)
+                    }
                     executeSolverAndEmitResults(
                         built.model,
                         params,
@@ -736,6 +750,23 @@ object WakfuBuildSolver {
         // proof stops promptly. Default never-cancel keeps the deterministic test/model builds byte-identical.
         certifierCancelled: () -> Boolean = { false },
     ): BuiltModel {
+        // Phase timing (WAKFU_BUILD_MODEL_TIMING=1): where the ~seconds of model construction go on the
+        // big shapes — one stderr line per buildModel call. No behavior change.
+        val bmTimingEnabled = System.getenv("WAKFU_BUILD_MODEL_TIMING") == "1"
+        val bmStart = if (bmTimingEnabled) System.nanoTime() else 0L
+        var bmLast = bmStart
+        val bmPhases = StringBuilder()
+
+        fun bmMark(label: String) {
+            if (!bmTimingEnabled) return
+            val now = System.nanoTime()
+            bmPhases
+                .append(label)
+                .append('=')
+                .append((now - bmLast) / 1_000_000)
+                .append("ms ")
+            bmLast = now
+        }
         val model = CpModel()
 
         // Full pool gives the provable *global* optimum and stays tractable for most queries.
@@ -756,8 +787,10 @@ object WakfuBuildSolver {
         val activeDomination = if (applyDomination && !forceFullPool) dominationShape else null
         // C3: memoized so the ~12–20 buildModel calls of one search share the per-element filter result.
         val pool = if (activeDomination != null) filterDominatedPoolMemoized(basePool, activeDomination) else basePool
+        bmMark("domination")
         val allEquips = orderEquipments(pool)
         val equipVars = model.createEquipmentVariables(allEquips)
+        bmMark("equipVars")
         val skillVars = model.createSkillVariables(params.character.characterSkills)
         // The single-type rune fold (createRuneModel) is sound unless a sublimation IN PLAY requires a
         // POSITIVE secondary-mastery cap (`secondary ≤ N`, N>0): there an intra-item secondary/elemental
@@ -774,7 +807,9 @@ object WakfuBuildSolver {
             }
         val allowRuneFold = !forceRuneCountModel && !secondaryCapMixSubInPlay
         val runeModel = model.createRuneModel(params, allEquips, equipVars, runes, allowRuneFold, dominationShape?.pinned, forceRuneLeq)
+        bmMark("runeModel")
         val subModel = model.createSublimationModel(params, allEquips, equipVars, sublimations)
+        bmMark("subModel")
         // A normal sublimation does NOT reserve rune sockets. Golden runes (colour-agnostic) form its ordered
         // colour pattern AND still carry their stat — doubling where the item favours that colour — so a carrier
         // keeps a full set of runes alongside the sub. Carrier eligibility (≥3-socket item) and the
@@ -783,6 +818,7 @@ object WakfuBuildSolver {
 
         model.addBuildValidityConstraints(allEquips, equipVars)
         model.addForcedItemsEquippedConstraints(params, allEquips, equipVars)
+        bmMark("validity")
 
         var maxDamageTracked: List<Triple<IntVar, String, LongRange>> = emptyList()
         var maxDamageRawScore: IntVar? = null
@@ -870,6 +906,12 @@ object WakfuBuildSolver {
             }
         model.maximize(objective)
 
+        bmMark("objective")
+        if (bmTimingEnabled) {
+            System.err.println(
+                "BUILD_MODEL_TIMING mode=${params.scoreComputationMode} totalMs=${(System.nanoTime() - bmStart) / 1_000_000} $bmPhases"
+            )
+        }
         return BuiltModel(
             model,
             objective,
