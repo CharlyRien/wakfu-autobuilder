@@ -319,8 +319,10 @@ WAKFU_COMPOSE_SCREENSHOT=/tmp/out.png ./gradlew :gui-compose:run
 - Builds are **unsigned** (no paid signing certificate; macOS gets an ad-hoc signature) — users must
   bypass OS security on first launch; keep that constraint in mind for any packaging change.
 - CI: `.github/workflows/build.yml` runs `./gradlew test` on every push.
-  `.github/workflows/deploy.yml` (manual `workflow_dispatch`) builds jars + runs Conveyor against
-  `gui-compose/conveyor.conf` (`make copied-site`).
+  `.github/workflows/deploy.yml` builds jars + runs Conveyor against `gui-compose/conveyor.conf`
+  (`make copied-site`). It is chained **automatically** by `release-please.yml` (via `workflow_call`)
+  when merging the release PR publishes a release — releasing = merge the release-please PR, nothing
+  else. It can also be run manually (`workflow_dispatch`) to re-deploy without a release.
 - Dependencies are kept current by Dependabot (grouped Gradle + GitHub Actions PRs).
 
 ---
