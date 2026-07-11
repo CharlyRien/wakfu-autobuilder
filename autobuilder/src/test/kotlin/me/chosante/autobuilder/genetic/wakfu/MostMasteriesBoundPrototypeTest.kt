@@ -377,6 +377,51 @@ class MostMasteriesBoundPrototypeTest {
         }
 
     /**
+     * MAX-DAMAGE hard-leg fallback lock (1.9.0 regression guard): with the greedy warm start ON and
+     * an unreachable required target, the greedy's instant pre-solve emission must NOT count as
+     * hard-leg feasibility (the soft fallback must still run and deliver a final `progress == 100`
+     * build) and must NOT carry the solver-verified [SolverResult.maxDamageHardConstraintsMet]
+     * provenance the certificate badge trusts.
+     */
+    @Test
+    fun `max-damage greedy emission neither fakes hard feasibility nor hard-met provenance`(): Unit =
+        runBlocking {
+            val level = 200
+            val p =
+                WakfuBestBuildParams(
+                    character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+                    targetStats = TargetStats(listOf(TargetStat(Characteristic.ACTION_POINT, 99))),
+                    searchDuration = 15.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                    useRunes = false,
+                    useSublimations = false,
+                    damageScenario =
+                        me.chosante.autobuilder.domain.DamageScenario(
+                            element = me.chosante.autobuilder.domain.SpellElement.FIRE,
+                            rangeBand = me.chosante.autobuilder.domain.RangeBand.DISTANCE,
+                            orientation = me.chosante.autobuilder.domain.Orientation.FACE
+                        )
+                )
+            val results =
+                MaxDamageSearch
+                    .optimizeHardThenSoft(p, smallPool(), emptyList(), emptyList(), tuning = null, greedyWarmStart = true)
+                    .toList()
+            val greedy = results.filter { it.greedyWarmStartEmission }
+            assertThat(greedy).describedAs("the greedy warm start must stream its instant build").isNotEmpty()
+            assertThat(greedy.none { it.maxDamageHardConstraintsMet })
+                .describedAs("a pre-solve greedy build must never carry solver-verified hard-met provenance")
+                .isTrue()
+            val last = results.last()
+            assertThat(last.progressPercentage)
+                .describedAs("the soft fallback must still run and deliver its guaranteed final send")
+                .isEqualTo(100)
+        }
+
+    /**
      * P2a fallback lock: with an unreachable required target (AP 99), the hard leg is INFEASIBLE and
      * the production orchestration must fall back to the soft (penalized) model and still deliver a
      * final build — never an empty flow. Runs the REAL production path (wall-clock), so the pool is
