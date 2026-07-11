@@ -179,6 +179,23 @@ lever.
 
 ### P3 — MM E8-analogue construct (highest ceiling, widest variance, run LAST)
 
+> **M3 OUTCOME (2026-07-11): NO-GO for the UNPENALIZED one-cell bound as proof authority — the
+> certificate must be target-constrained.** Prototype (`MostMasteriesBoundPrototype`, test-side):
+> exact (0.00 %) on all three small-pool fixtures (equipment / +runes / +runes+subs) once the
+> solver's real gates were mirrored (scenarioGate fold, EC excluded in MM, SECONDARY_MASTERIES_AT_MOST
+> two-worlds, ramps at reachable-source, exact per-branch skills); bound cost ~60-230 ms (M2 ✅).
+> At F5@245: bound 11 909 vs **unpenalized** proven optimum **10 985** (+8.4 % prototype slack,
+> mostly condition-bearing DI subs) vs **targeted** optimum **10 705**. The killer is the middle
+> number: even a PERFECT unpenalized bound (10 985) sits **+2.6 % above the targeted incumbent** —
+> a crit/AP-dumped build genuinely reaches 10 985 unpenalized, so a targets-met incumbent can never
+> reach U and the badge never fires. The plan's §2 algebra (penalty ≥ 1 ⇒ unpenalized bound
+> suffices) is refuted on this shape. **v2 design: bound the TARGETS-CONSTRAINED problem** — the
+> required stats enter the DP as dimensions/gates (the max-damage certifier's cell architecture,
+> which is exactly how max-damage solved the same problem via `maxDamageRawProxy` target gating) —
+> and pair it with the P2a hard leg so the certified object is the hard-leg optimum. The soundness
+> canary (`bound ≥ optimum`) caught two real under-counts during prototyping (perStatStep ramps,
+> conversions) — keep it in every future lock.
+
 One-cell frontier DP over (weighted-mastery, DI) → sound upper bound U (~1 s expected; reuse v15
 family harvest budgets + the single-type rune fold verbatim) → feasibility solve with
 `hardConstraints = true` + hard `objective ≥ U` + stopAtFirstSolution racing the normal search
