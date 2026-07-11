@@ -368,7 +368,7 @@ object MaxDamageSearch {
                         val solo = elementParams.single()
                         val phase1Job =
                             launch {
-                                optimizeHardThenSoft(solo.copy(searchDuration = phaseBudget), equipmentsByItemType, runes, sublimations, tuning)
+                                optimizeHardThenSoft(solo.copy(searchDuration = phaseBudget), equipmentsByItemType, runes, sublimations, tuning, greedyWarmStart = true)
                                     .collect {
                                         phase1Optimal = it.isOptimal
                                         consider(it, solo.damageScenario, (it.progressPercentage * phase1Ceiling / 100).coerceIn(0, phase1Ceiling))
@@ -764,19 +764,21 @@ object MaxDamageSearch {
         runes: List<RuneType>,
         sublimations: List<Sublimation>,
         tuning: WakfuBuildSolver.SolverTuning?,
+        // C8(3): greedy warm start, single-element path only — see [WakfuBuildSolver.optimize].
+        greedyWarmStart: Boolean = false,
     ): Flow<SolverResult<BuildCombination>> {
         // Match [StatBuilder.addRequiredTargetHardConstraints]'s own `target > 0` filter: a request whose only
         // required-target stats are non-positive adds ZERO hard constraints, so the "hard" leg would be a plain
         // unpenalized solve that (being satisfiable) never falls through to the soft penalty. Skipping straight to
         // the identical plain solve here keeps the two predicates aligned and the behaviour honest.
         if (params.targetStats.none { it.characteristic.isRequiredMostMasteriesTarget() && it.target > 0 }) {
-            return WakfuBuildSolver.optimize(params, equipmentsByItemType, runes, sublimations, tuning)
+            return WakfuBuildSolver.optimize(params, equipmentsByItemType, runes, sublimations, tuning, maxDamageGreedyWarmStart = greedyWarmStart)
         }
         return flow {
             val start = TimeSource.Monotonic.markNow()
             var hardYieldedBuild = false
             WakfuBuildSolver
-                .optimize(params, equipmentsByItemType, runes, sublimations, tuning, hardConstraints = true)
+                .optimize(params, equipmentsByItemType, runes, sublimations, tuning, hardConstraints = true, maxDamageGreedyWarmStart = greedyWarmStart)
                 .collect {
                     hardYieldedBuild = true
                     // Mark the hard-leg provenance so the certificate badge can trust the solver's own
@@ -795,8 +797,15 @@ object MaxDamageSearch {
                         "falling back to the soft shortfall penalty."
                 }
                 WakfuBuildSolver
-                    .optimize(params.copy(searchDuration = remaining), equipmentsByItemType, runes, sublimations, tuning, hardConstraints = false)
-                    .collect { emit(it) }
+                    .optimize(
+                        params.copy(searchDuration = remaining),
+                        equipmentsByItemType,
+                        runes,
+                        sublimations,
+                        tuning,
+                        hardConstraints = false,
+                        maxDamageGreedyWarmStart = greedyWarmStart
+                    ).collect { emit(it) }
             }
         }
     }

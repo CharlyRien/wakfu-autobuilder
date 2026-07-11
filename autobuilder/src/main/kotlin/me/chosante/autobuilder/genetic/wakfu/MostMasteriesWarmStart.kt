@@ -113,13 +113,52 @@ internal object MostMasteriesWarmStart {
         return v
     }
 
+    /**
+     * Max-damage weights, derived from the SCENARIO instead of the requested stats: the objective is
+     * roughly `(Σ applicable masteries + 400) × (1 + DI/100) × rotation(AP) × critFactor`, so the
+     * applicable masteries get unit weight and the multiplicative axes get flat mastery-scale credits
+     * (≈3000 total scenario mastery at end game: 1 DI% ≈ 30 points, 1 AP ≈ +7 % throughput ≈ 250 points,
+     * 1 crit% ≈ +0.25 % of mastery + crit-mastery ≈ 25 points). Precision is irrelevant here — the
+     * greedy only needs to land in the right neighborhood; CP-SAT and the certificate do the rest.
+     */
+    private fun maxDamageWeights(params: WakfuBestBuildParams): Map<Characteristic, Double> {
+        val w = mutableMapOf<Characteristic, Double>()
+
+        fun add(
+            c: Characteristic,
+            weight: Double,
+        ) {
+            w[c] = (w[c] ?: 0.0) + weight
+        }
+        for (c in scenarioMasteryStats(params.damageScenario)) add(c, 1.0)
+        MASTERY_RANDOM_BY_COUNT.forEach { (rc, _) -> add(rc, 0.5) } // random-element lines feed the element
+        add(Characteristic.DAMAGE_INFLICTED, 30.0)
+        add(Characteristic.CRITICAL_HIT, 25.0)
+        add(Characteristic.MASTERY_CRITICAL, 0.35)
+        add(Characteristic.ACTION_POINT, 250.0)
+        add(Characteristic.MOVEMENT_POINT, 15.0)
+        return w
+    }
+
+    /**
+     * Max-damage twin of [greedyBuild] (C8(3), un-blocked by the certificate-era proof: the search's
+     * optimality no longer rides CP-SAT's in-model proof on the certificate-eligible shapes, so the old
+     * "a hint slows the proof" objection is moot there). Same greedy, scenario-derived weights; the
+     * required-target shortfall machinery still reads [WakfuBestBuildParams.targetStats] (AP/MP pins).
+     */
+    fun greedyMaxDamageBuild(
+        params: WakfuBestBuildParams,
+        pool: List<Equipment>,
+    ): BuildCombination? = greedyBuild(params, pool, maxDamageWeights(params))
+
     /** Greedy build: best-valued item per slot (top-2 distinct-name rings, best weapon combo), then a ≤1-epic / ≤1-relic repair. */
     fun greedyBuild(
         params: WakfuBestBuildParams,
         pool: List<Equipment>,
+        weightsOverride: Map<Characteristic, Double>? = null,
     ): BuildCombination? {
         if (params.forcedItems.isNotEmpty()) return null
-        val weights = weights(params.targetStats)
+        val weights = weightsOverride ?: weights(params.targetStats)
         if (weights.isEmpty()) return null
         // Remaining shortfall per REQUIRED (non-maximizable) target after the character's base stats —
         // consumed slot by slot as picks land, so later slots stop over-paying for an already-met target.
@@ -192,7 +231,11 @@ internal object MostMasteriesWarmStart {
         }
 
         // Rarity-budget repair: while a scarce rarity is over budget, downgrade the pick whose best
-        // same-slot non-scarce alternative loses the least greedy value (dropping the slot if none).
+        // same-slot alternative loses the least greedy value (dropping the slot if none). Alternatives
+        // exclude BOTH scarce rarities: replacing an over-budget epic with a relic (or vice versa) made
+        // the two repairs PING-PONG on pools where epic/relic items dominate every slot — repair(EPIC)
+        // inflated the relic count to 10, repair(RELIC) pushed epics back to 5, and the warm start
+        // silently self-cancelled on every end-game max-damage request.
         fun repair(rarity: Rarity) {
             while (picks.count { it.rarity == rarity } > 1) {
                 val candidates =
@@ -201,7 +244,8 @@ internal object MostMasteriesWarmStart {
                             byType
                                 .getValue(pick.itemType)
                                 .filter { alt ->
-                                    alt.rarity != rarity &&
+                                    alt.rarity != Rarity.EPIC &&
+                                        alt.rarity != Rarity.RELIC &&
                                         alt !in picks &&
                                         (pick.itemType != ItemType.RING || picks.none { it.itemType == ItemType.RING && it !== pick && it.name == alt.name })
                                 }.maxByOrNull { itemValue(it) }
