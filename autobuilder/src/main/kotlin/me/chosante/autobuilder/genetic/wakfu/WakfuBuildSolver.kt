@@ -514,6 +514,15 @@ object WakfuBuildSolver {
         // by [MaxDamageSearch]'s SINGLE-ELEMENT path — on the boss/multi-element probes the composed proof
         // still rides CP-SAT's in-model OPTIMAL, where the historical measurement showed a hint can slow it.
         maxDamageGreedyWarmStart: Boolean = false,
+        // P2b (most-masteries hard leg only): two-stage lexicographic — stage 1 proves the PRIMARY alone
+        // (no ×10 000 overshoot fold on the objective), stage 2 re-solves with the primary pinned and the
+        // overshoot as the objective (short, near-forced) and delivers the final build. Exactly the same
+        // lexicographic optimum as the folded objective; A/B seam before it becomes the default.
+        mmTwoStageOvershoot: Boolean = false,
+        // P2a fallback semantics: the REAL termination status of the (stage-1) solve, so the caller can
+        // distinguish proven-INFEASIBLE (targets unreachable) from an UNKNOWN timeout without a solution —
+        // the flow alone cannot (both emit nothing). Called once, before the flow closes; null = solver crash.
+        onTermination: ((SolveOutcome?) -> Unit)? = null,
     ): Flow<SolverResult<BuildCombination>> =
         callbackFlow {
             // The native solve blocks its worker thread and cannot be interrupted by coroutine cancellation, so
@@ -552,6 +561,11 @@ object WakfuBuildSolver {
                         }
                     // Domination runs only on the production (wall-clock) path: tuning == null. The deterministic
                     // test path keeps the full pool so existing tests are untouched; the soundness lock toggles it.
+                    val mmTwoStage =
+                        mmTwoStageOvershoot &&
+                            hardConstraints &&
+                            params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+                            params.targetStats.any { it.characteristic.isRequiredMostMasteriesTarget() }
                     val built =
                         buildModel(
                             params,
@@ -560,7 +574,8 @@ object WakfuBuildSolver {
                             sublimations,
                             applyDomination = tuning?.applyDominationOverride ?: (tuning == null),
                             maxDamageExperiment = tuning?.maxDamageExperiment ?: MaxDamageExperimentConfig.DEFAULT,
-                            hardConstraints = hardConstraints
+                            hardConstraints = hardConstraints,
+                            mmPlainPrimaryObjective = mmTwoStage
                         )
                     // C2: a hard-constraints model with a required target above its reachable ceiling is PROVABLY
                     // infeasible — skip the doomed CP-SAT solve entirely and emit nothing. The caller
@@ -589,20 +604,61 @@ object WakfuBuildSolver {
                     tuning?.assignmentHint?.let { hint ->
                         for (v in diagnosticVars(built)) hint[v.name]?.let { built.model.addHint(v, it) }
                     }
-                    executeSolverAndEmitResults(
-                        built.model,
-                        params,
-                        built.allEquips,
-                        built.equipVars,
-                        built.skillVars,
-                        built.runeModel,
-                        built.subModel,
-                        built.maxDamageRawScore,
-                        this@callbackFlow,
-                        tuning,
-                        onSolverReady = { solverHandle.set(it) },
-                        suppressBelowScore = warmScore
-                    )
+                    val outcome =
+                        executeSolverAndEmitResults(
+                            built.model,
+                            params,
+                            built.allEquips,
+                            built.equipVars,
+                            built.skillVars,
+                            built.runeModel,
+                            built.subModel,
+                            built.maxDamageRawScore,
+                            this@callbackFlow,
+                            tuning,
+                            onSolverReady = { solverHandle.set(it) },
+                            suppressBelowScore = warmScore
+                        )
+                    // P2b stage 2: the primary is proven — pin it and maximize the overshoot in a short
+                    // near-forced solve; its guaranteed final send (same primary ⇒ same score) replaces
+                    // stage 1's overshoot-less build. A stage-2 miss (timeout/crash) keeps stage 1's
+                    // final emission — a correct-primary build with unspent overshoot, never nothing.
+                    if (mmTwoStage &&
+                        outcome?.objectiveValue != null &&
+                        (
+                            outcome.status == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                                outcome.status == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+                        )
+                    ) {
+                        val built2 =
+                            buildModel(
+                                params,
+                                equipmentsByItemType,
+                                runes,
+                                sublimations,
+                                applyDomination = tuning?.applyDominationOverride ?: (tuning == null),
+                                maxDamageExperiment = tuning?.maxDamageExperiment ?: MaxDamageExperimentConfig.DEFAULT,
+                                hardConstraints = hardConstraints,
+                                mmOvershootPinnedPrimary = outcome.objectiveValue
+                            )
+                        executeSolverAndEmitResults(
+                            built2.model,
+                            params,
+                            built2.allEquips,
+                            built2.equipVars,
+                            built2.skillVars,
+                            built2.runeModel,
+                            built2.subModel,
+                            built2.maxDamageRawScore,
+                            this@callbackFlow,
+                            tuning,
+                            onSolverReady = { solverHandle.set(it) },
+                            suppressBelowScore = warmScore,
+                            finalIsOptimalOverride = outcome.status == com.google.ortools.sat.CpSolverStatus.OPTIMAL,
+                            maxWallSecondsOverride = 30.0
+                        )
+                    }
+                    onTermination?.invoke(outcome)
                     // P0.5 capture seam: read the final solution's full assignment off the finished solver
                     // (CpSolver retains the last response). Best-effort — an emission-less solve (INFEASIBLE)
                     // simply skips the capture.
@@ -756,6 +812,9 @@ object WakfuBuildSolver {
         // Hard-constraints-first max-damage solve: required targets become HARD `actual ≥ target` constraints
         // under a plain damage objective (no shortfall penalty). Threaded to [buildMaxDamageObjective].
         hardConstraints: Boolean = false,
+        // P2b two-stage lexicographic (most-masteries hard leg) — see [buildMostMasteriesObjective].
+        mmPlainPrimaryObjective: Boolean = false,
+        mmOvershootPinnedPrimary: Long? = null,
         // Test seam: when true, the max-damage build also runs [certifyMaxPerHitAtAp] for every AP cell and
         // stores the resulting objectives in [BuiltModel.certifierObjectivesForTest] (single-element only).
         certifyAllApForTest: Boolean = false,
@@ -875,7 +934,18 @@ object WakfuBuildSolver {
         val objective =
             when (params.scoreComputationMode) {
                 ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT -> {
-                    val mm = model.buildMostMasteriesObjective(params, allEquips, equipVars, skillVars, runeModel, subModel, hardConstraints)
+                    val mm =
+                        model.buildMostMasteriesObjective(
+                            params,
+                            allEquips,
+                            equipVars,
+                            skillVars,
+                            runeModel,
+                            subModel,
+                            hardConstraints,
+                            mmPlainPrimaryObjective,
+                            mmOvershootPinnedPrimary
+                        )
                     maxDamageStaticallyInfeasible = mm.staticallyInfeasible
                     mm.objective
                 }
@@ -2122,6 +2192,13 @@ object WakfuBuildSolver {
         // exhaustion (§1bis P0.5 measurement), vanishes from the searched model. INFEASIBLE (unreachable
         // targets) ⇒ the flow emits nothing and the caller falls back to the soft (penalized) model.
         hardConstraints: Boolean = false,
+        // P2b two-stage lexicographic (hard leg only). Stage 1: the PRIMARY alone is the objective —
+        // no ×10 000 overshoot fold, no division, ~1e4 smaller objective domain, no overshoot-only
+        // incumbent churn during the expensive proof. Stage 2 ([mmOvershootPinnedPrimary] = stage 1's
+        // proven objective value): the primary is PINNED to that value and the overshoot score becomes
+        // the objective — a short, near-forced solve that restores the exact lexicographic build.
+        mmPlainPrimaryObjective: Boolean = false,
+        mmOvershootPinnedPrimary: Long? = null,
     ): MostMasteriesObjectiveVars {
         val statBuilder =
             StatBuilder(
@@ -2149,10 +2226,15 @@ object WakfuBuildSolver {
         val requiredTargets = targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }
 
         // HARD leg: targets as constraints, plain objective (no penalty product). The overshoot
-        // tie-breaker keeps its exact secondary semantics — hard-leg ties still prefer overshoot.
+        // tie-breaker keeps its exact secondary semantics — hard-leg ties still prefer overshoot,
+        // either folded (single-stage) or via the P2b two-stage split.
         if (hardConstraints) {
             val staticallyInfeasible = statBuilder.addRequiredTargetHardConstraints()
             if (requiredTargets.isEmpty()) {
+                return MostMasteriesObjectiveVars(masteryScore, staticallyInfeasible)
+            }
+            // P2b stage 1: prove the primary alone.
+            if (mmPlainPrimaryObjective) {
                 return MostMasteriesObjectiveVars(masteryScore, staticallyInfeasible)
             }
             val totalExpectedScore =
@@ -2160,6 +2242,12 @@ object WakfuBuildSolver {
                     .sumOf { it.target.toLong() * targetStats.scaledWeight(it) }
                     .coerceAtLeast(1L)
             val overshoot = statBuilder.overshootScore(requiredTargets, totalExpectedScore, targetStats)
+            // P2b stage 2: pin the primary at stage 1's proven value, maximize overshoot alone —
+            // provably the same lexicographic optimum as the folded objective, without its domain.
+            if (mmOvershootPinnedPrimary != null) {
+                addEquality(masteryScore, newConstant(mmOvershootPinnedPrimary))
+                return MostMasteriesObjectiveVars(overshoot, staticallyInfeasible)
+            }
             return MostMasteriesObjectiveVars(
                 withOvershootTieBreaker(masteryScore, masteryScoreReach, overshoot, totalExpectedScore),
                 staticallyInfeasible
@@ -2472,7 +2560,14 @@ object WakfuBuildSolver {
         // build with this score, and consumers keep the LAST emission, so streaming a worse snapshot would
         // visibly regress the displayed build. The final (guaranteed) send stays unconditional.
         suppressBelowScore: BigDecimal? = null,
-    ) {
+        // P2b stage 2 (overshoot-only solve with the primary pinned): the final emission's `isOptimal`
+        // must report STAGE 1's proof of the primary (the value users care about), not this short
+        // secondary solve's own status. Null = report this solve's status (every other caller).
+        finalIsOptimalOverride: Boolean? = null,
+        // P2b stage 2: cap this solve's PRODUCTION wall budget (the pinned-primary overshoot solve is
+        // near-forced and must never eat the user's remaining duration). Null = the params duration.
+        maxWallSecondsOverride: Double? = null,
+    ): SolveOutcome? {
         val solver = CpSolver()
         onSolverReady(solver)
         solver.parameters.logSearchProgress = false
@@ -2499,7 +2594,8 @@ object WakfuBuildSolver {
             // its phase budget into sub-second per-probe limits, and a floored 0.0 means "no time limit" to
             // OR-Tools — which is exactly how a fan-out of probes could run unbounded. Floored to 50ms so a
             // valid budget is never rounded down to the unlimited sentinel.
-            solver.parameters.maxTimeInSeconds = (params.searchDuration.inWholeMilliseconds.toDouble() / 1000.0).coerceAtLeast(0.05)
+            solver.parameters.maxTimeInSeconds =
+                (maxWallSecondsOverride ?: (params.searchDuration.inWholeMilliseconds.toDouble() / 1000.0)).coerceAtLeast(0.05)
             solver.parameters.numSearchWorkers =
                 params.solverWorkers ?: (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)
         } else {
@@ -2573,7 +2669,7 @@ object WakfuBuildSolver {
                 }
             }
 
-        try {
+        return try {
             val status = solver.solve(model, cb)
             logger.debug { "Solver status returned: $status" }
             logger.debug { "Solver response stats:\n${solver.responseStats()}" }
@@ -2590,17 +2686,31 @@ object WakfuBuildSolver {
                             individual = finalComb,
                             matchPercentage = finalScore,
                             progressPercentage = 100,
-                            isOptimal = status == com.google.ortools.sat.CpSolverStatus.OPTIMAL,
+                            isOptimal = finalIsOptimalOverride ?: (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL),
                             maxDamageObjective = if (maxDamage) solver.objectiveValue().toLong() else null,
                             maxDamageRawProxy = if (maxDamage) maxDamageRawScoreVar?.let { solver.value(it) } else null
                         )
                     )
                 }
+                SolveOutcome(status, solver.objectiveValue().toLong())
+            } else {
+                SolveOutcome(status, null)
             }
         } catch (e: Exception) {
             logger.error(e) { "Solver failed while searching for the best build." }
+            null
         }
     }
+
+    /**
+     * The termination of one CP-SAT solve: the REAL solver status (so callers can distinguish a
+     * proven-INFEASIBLE model from an UNKNOWN timeout without a solution — the flow alone cannot,
+     * both emit nothing) and the objective value when a solution exists (P2b stage-1 → stage-2 pin).
+     */
+    internal class SolveOutcome(
+        val status: com.google.ortools.sat.CpSolverStatus,
+        val objectiveValue: Long?,
+    )
 
     /**
      * The player's selected passive loadout: each [WakfuBestBuildParams.forcedPassives] name resolved to a

@@ -172,13 +172,25 @@ Max-damage escaped the same pathology with a hard leg, and the machinery is alre
 (`addRequiredTargetHardConstraints`, StatBuilder.kt:1719-1729; `hardConstraints` plumbing in
 `optimize`, :493-497).
 
-Design: hard leg = `actual ≥ target` + plain diAdjusted mastery objective (+ overshoot semantics
-preserved); on INFEASIBLE fall back to today's soft model. **The soft leg stays the authority** —
-the hard result feeds it as hint + sound objective lower bound (hard-feasible builds achieve the
-max penalty multiplier, so the bound is exact and optimum-neutral). Lock with optimum-equality
-fixtures vs the soft path, including target-miss shapes.
+Design as SHIPPED (supersedes the earlier soft-leg-authority sketch): hard leg = `actual ≥ target`
++ plain diAdjusted mastery objective (+ overshoot semantics preserved); **the hard result IS the
+answer whenever the leg produces a build** — the soft model runs only as the fallback when the hard
+leg yields none (proven INFEASIBLE, or an UNKNOWN timeout without a solution — the real solver
+status separates the two, exposed via `optimize(onTermination)`). Locked with hard == soft
+optimum-equality fixtures on reachable-targets pools + the unreachable-fallback lock.
 
 ### P2b — two-stage lexicographic overshoot split
+
+> **E2 OUTCOME (2026-07-11): MEASURED-NO — do not enable.** A/B on the shipped hard leg at F5@245
+> (same JVM, sequential, det 600, fixed seed): folded objective **49.2 s** vs two-stage split
+> **157.0 s** (3.2× SLOWER), identical 10705 optimum both arms. The ×10 000 overshoot fold is not
+> the enemy — it plausibly HELPS the proof (it breaks primary-score ties the plain objective must
+> enumerate as plateaus, and feeds pseudo-cost learning). The implementation stays as a dormant A/B
+> seam (`optimize(mmTwoStageOvershoot)`, default false, exact-equivalence lock green) plus the
+> `WAKFU_MM_P2B=1` harness for future re-screens on other shapes; the `onTermination`/`SolveOutcome`
+> plumbing it introduced is kept — it also fixes the INFEASIBLE-vs-UNKNOWN fallback conflation.
+> Note the folded hard-leg baseline measured 49.2 s in this JVM vs 78.4 s in E1's separate run —
+> wall-clock varies across sessions at equal det; in-JVM pairs are the comparable evidence.
 
 `withOvershootTieBreaker` folds `primary × 10 000 + bonus` (:2293-2315): objective domain ~1e18,
 one division + ~4 reified clamps per target on the objective path, and the primal keeps "improving"

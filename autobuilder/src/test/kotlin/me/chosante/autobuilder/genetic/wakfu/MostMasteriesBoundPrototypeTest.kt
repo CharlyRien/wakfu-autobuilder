@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.autobuilder.genetic.SolverResult
 import me.chosante.common.Character
 import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
@@ -174,6 +175,121 @@ class MostMasteriesBoundPrototypeTest {
             assertThat(softOptimal).isTrue()
             assertThat(hardOptimal).isTrue()
             assertThat(hardScore).isEqualTo(softScore)
+        }
+
+    /**
+     * P2b correctness lock: the two-stage lexicographic split (stage 1 = plain primary, stage 2 =
+     * overshoot with the primary pinned) must reproduce the folded single-stage optimum EXACTLY —
+     * same primary score AND the same overshoot behavior (the final build still dumps spare skill
+     * points, visible as strictly more HP than the primary alone forces).
+     */
+    @Test
+    fun `P2b two-stage split reproduces the folded lexicographic optimum`(): Unit =
+        runBlocking {
+            val p = params(200, useRunes = true, useSublimations = true)
+            val pool = smallPool()
+            val tuning =
+                WakfuBuildSolver.SolverTuning(
+                    numSearchWorkers = 1,
+                    interleaveSearch = true,
+                    maxDeterministicTime = 120.0
+                )
+
+            suspend fun solve(twoStage: Boolean): SolverResult<me.chosante.autobuilder.domain.BuildCombination> =
+                WakfuBuildSolver
+                    .optimize(
+                        p,
+                        pool,
+                        WakfuBestBuildFinderAlgorithm.runes,
+                        WakfuBestBuildFinderAlgorithm.sublimations,
+                        tuning,
+                        hardConstraints = true,
+                        mmTwoStageOvershoot = twoStage
+                    ).toList()
+                    .last()
+
+            fun achievedHp(r: SolverResult<me.chosante.autobuilder.domain.BuildCombination>): Int =
+                computeCharacteristicsValues(
+                    buildCombination = r.individual,
+                    characterBaseCharacteristics = p.character.baseCharacteristicValues,
+                    masteryElementsWanted = p.targetStats.masteryElementsWanted,
+                    resistanceElementsWanted = p.targetStats.resistanceElementsWanted
+                )[Characteristic.HP] ?: 0
+
+            val folded = solve(twoStage = false)
+            val split = solve(twoStage = true)
+            assertThat(folded.isOptimal).isTrue()
+            assertThat(split.isOptimal).isTrue()
+            assertThat(split.matchPercentage).describedAs("same primary optimum").isEqualByComparingTo(folded.matchPercentage)
+            assertThat(achievedHp(split)).describedAs("stage 2 must still dump spare points (overshoot behavior)").isEqualTo(achievedHp(folded))
+        }
+
+    /**
+     * P2b E2 timing A/B: two-stage vs folded hard leg on the production F5@245 shape (baseline E1:
+     * folded hard leg 78.4 s). `WAKFU_MM_P2B=1`; det via `WAKFU_MM_P2B_DET` (600).
+     */
+    @Test
+    fun `manual P2b two-stage timing at 245`(): Unit =
+        runBlocking {
+            assumeTrue(System.getenv("WAKFU_MM_P2B") == "1")
+            val det = System.getenv("WAKFU_MM_P2B_DET")?.toDoubleOrNull() ?: 600.0
+            val level = 245
+            val p =
+                WakfuBestBuildParams(
+                    character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+                    targetStats =
+                        TargetStats(
+                            listOf(
+                                TargetStat(Characteristic.MASTERY_DISTANCE, 9999),
+                                TargetStat(Characteristic.ACTION_POINT, 12),
+                                TargetStat(Characteristic.MOVEMENT_POINT, 6),
+                                TargetStat(Characteristic.HP, 2000),
+                                TargetStat(Characteristic.CRITICAL_HIT, 30)
+                            )
+                        ),
+                    searchDuration = 600.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                    useRunes = true,
+                    useSublimations = true
+                )
+            val pool =
+                WakfuBestBuildFinderAlgorithm.equipments
+                    .filter { it.rarity <= Rarity.EPIC }
+                    .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                    .groupBy { it.itemType }
+            val tuning =
+                WakfuBuildSolver.SolverTuning(
+                    numSearchWorkers = 1,
+                    interleaveSearch = true,
+                    maxDeterministicTime = det,
+                    applyDominationOverride = true,
+                    maxPresolveIterationsOverride = 1,
+                    linearizationLevelOverride = 1
+                )
+            for (twoStage in listOf(false, true)) {
+                val t0 = System.nanoTime()
+                var last: SolverResult<me.chosante.autobuilder.domain.BuildCombination>? = null
+                WakfuBuildSolver
+                    .optimize(
+                        p,
+                        pool,
+                        WakfuBestBuildFinderAlgorithm.runes,
+                        WakfuBestBuildFinderAlgorithm.sublimations,
+                        tuning,
+                        hardConstraints = true,
+                        mmTwoStageOvershoot = twoStage
+                    ).collect { r ->
+                        val ms = (System.nanoTime() - t0) / 1_000_000
+                        println("MM_P2B twoStage=$twoStage emit t=${ms}ms objective=${r.matchPercentage} optimal=${r.isOptimal}")
+                        last = r
+                    }
+                val wallMs = (System.nanoTime() - t0) / 1_000_000
+                println("MM_P2B lvl$level det=$det twoStage=$twoStage SUMMARY wallMs=$wallMs optimal=${last?.isOptimal} objective=${last?.matchPercentage}")
+            }
         }
 
     /**
