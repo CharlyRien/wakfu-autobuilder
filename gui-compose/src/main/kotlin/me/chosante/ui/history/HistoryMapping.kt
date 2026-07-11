@@ -78,6 +78,9 @@ fun UiState.toHistoryEntry(
                 maxSublimationTier = maxSublimationTier,
                 forcedSublimations = forcedSublimations,
                 excludedSublimations = excludedSublimations,
+                excludedRarities = excludedRarities,
+                forcedPassives = forcedPassives,
+                forcedRunesByItem = forcedRunesByItem,
                 scenario = scenario.toSnapshot()
             ),
         result =
