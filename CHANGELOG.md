@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.9.1](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.9.0...wakfu-autobuilder-1.9.1) (2026-07-11)
+
+
+### Bug Fixes
+
+* unreachable-target max-damage searches fall back to the soft model again (greedy emission mislabeling) ([168b4b7](https://github.com/CharlyRien/wakfu-autobuilder/commit/168b4b72bfc502ab11130df616cd8e02e40fd213))
+
+
+### Performance Improvements
+
+* most-masteries meets your targets AND proves twice as fast (hard-constraints leg) ([c41e025](https://github.com/CharlyRien/wakfu-autobuilder/commit/c41e025d259ddab8a12085d3fa78356e275c296f))
+
 ## [1.9.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.8.0...wakfu-autobuilder-1.9.0) (2026-07-11)
 
 
