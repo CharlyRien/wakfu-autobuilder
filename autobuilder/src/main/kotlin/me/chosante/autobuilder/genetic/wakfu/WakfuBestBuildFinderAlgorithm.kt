@@ -120,11 +120,15 @@ object WakfuBestBuildFinderAlgorithm {
 
         return try {
             // Max-damage routes through the external loop (AP-breakpoint probes + debuff-aware
-            // sequencing valuation). Every other mode is a single CP-SAT solve, unchanged.
-            if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
-                MaxDamageSearch.run(params, equipmentsByItemType, runes, activeSublimations(params))
-            } else {
-                WakfuBuildSolver.optimize(params, equipmentsByItemType, runes, activeSublimations(params))
+            // sequencing valuation). Most-masteries runs the targets-HARD leg first with a soft
+            // fallback (P2a — see [mostMasteriesHardThenSoft]). Precision stays a single soft solve.
+            when (params.scoreComputationMode) {
+                ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE ->
+                    MaxDamageSearch.run(params, equipmentsByItemType, runes, activeSublimations(params))
+                ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
+                    mostMasteriesHardThenSoft(params, equipmentsByItemType, runes, activeSublimations(params))
+                else ->
+                    WakfuBuildSolver.optimize(params, equipmentsByItemType, runes, activeSublimations(params))
             }
         } catch (exception: Exception) {
             // Surface the failure to the caller instead of killing the JVM: the CLI's runBlocking
@@ -134,6 +138,61 @@ object WakfuBestBuildFinderAlgorithm {
             throw exception
         }
     }
+
+    /**
+     * P2a (docs/MOST_MASTERIES_PERF_PLAN.md): the production most-masteries orchestration — the
+     * required targets are enforced as HARD `actual ≥ target` constraints under the PLAIN
+     * (unpenalized) mastery×DI objective first; only when that model is INFEASIBLE (targets truly
+     * unreachable — the flow emits nothing, including the statically-detected case) does the search
+     * fall back to today's soft power-6-penalty model, which then trades shortfall for mastery
+     * exactly as before.
+     *
+     * Two effects, both deliberate:
+     *  - **Perf:** the penalty product — whose LP relaxation CP-SAT can only prove against by tree
+     *    exhaustion (P0.5) — vanishes from the searched model on the common reachable-targets path:
+     *    F5@245 proves the same 10705 optimum in ~78 s instead of ~147 s (E1).
+     *  - **Semantics:** when the requested stats are achievable, the returned build now ALWAYS meets
+     *    them (beta feedback: "conditions pas vraiment respectées"). The soft model could return a
+     *    higher-mastery build missing a target by a hair; that trade now only happens when the
+     *    targets are genuinely unreachable. `isOptimal` on the hard path means "proven optimal among
+     *    builds meeting every required target".
+     *
+     * Correctness lock: `P2a hard leg equals the soft optimum on a reachable-targets pool`
+     * (MostMasteriesBoundPrototypeTest) — when the soft optimum meets the targets the two legs
+     * coincide (penalty == 1 there, so the objectives are identical on that set).
+     */
+    internal fun mostMasteriesHardThenSoft(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+    ): Flow<SolverResult<BuildCombination>> =
+        kotlinx.coroutines.flow.flow {
+            // The greedy warm start streams an instant first build BEFORE the solve, so "the flow
+            // emitted something" cannot mean "the hard model was feasible". The solver's guaranteed
+            // FINAL send (progressPercentage == 100) fires iff the solve ended OPTIMAL/FEASIBLE —
+            // that is the fallback criterion.
+            var hardSolved = false
+            val startedAt = System.currentTimeMillis()
+            WakfuBuildSolver
+                .optimize(params, equipmentsByItemType, runes, sublimations, tuning = null, hardConstraints = true)
+                .collect { result ->
+                    if (result.progressPercentage == 100) hardSolved = true
+                    emit(result)
+                }
+            if (!hardSolved) {
+                // The fallback runs on the REMAINING user budget (floored so a hard leg that burned the
+                // whole duration proving infeasibility still yields a usable soft answer, not nothing).
+                val elapsed = System.currentTimeMillis() - startedAt
+                val remaining =
+                    with(kotlin.time.Duration) {
+                        (params.searchDuration.inWholeMilliseconds - elapsed).coerceAtLeast(5_000L).milliseconds
+                    }
+                WakfuBuildSolver
+                    .optimize(params.copy(searchDuration = remaining), equipmentsByItemType, runes, sublimations)
+                    .collect { emit(it) }
+            }
+        }
 
     /**
      * Post-search optimality proof (P4) for a finished max-damage [result] of [params]. Rebuilds the SAME
