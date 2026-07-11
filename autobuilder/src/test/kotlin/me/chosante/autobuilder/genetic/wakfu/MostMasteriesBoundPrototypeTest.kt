@@ -293,6 +293,90 @@ class MostMasteriesBoundPrototypeTest {
         }
 
     /**
+     * P2a E3: the REAL cost of the hard→soft fallback on deliberately unreachable requests, on the
+     * PRODUCTION path (wall-clock, cores−1 — what a user experiences), GUI-default 120 s budget.
+     * Three profiles at 245:
+     *  - `static`: a target above its individual reachable ceiling (AP 99) — statically detected,
+     *    the hard leg must skip instantly and the soft model gets the whole budget;
+     *  - `joint`: targets individually reachable but (probably) jointly not — the hard leg must
+     *    PROVE infeasibility or burn budget on UNKNOWN; measures how much the soft leg has left;
+     *  - `reachable` control: the F5 shape — no fallback, baseline total.
+     * `WAKFU_MM_E3=1`; budget via `WAKFU_MM_E3_SECONDS` (120).
+     */
+    @Test
+    fun `manual P2a E3 unreachable-fallback cost at 245`(): Unit =
+        runBlocking {
+            assumeTrue(System.getenv("WAKFU_MM_E3") == "1")
+            val budget = (System.getenv("WAKFU_MM_E3_SECONDS")?.toIntOrNull() ?: 120).seconds
+            val level = 245
+
+            fun p(targets: List<TargetStat>) =
+                WakfuBestBuildParams(
+                    character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+                    targetStats = TargetStats(targets),
+                    searchDuration = budget,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                    useRunes = true,
+                    useSublimations = true
+                )
+            val distance = TargetStat(Characteristic.MASTERY_DISTANCE, 9999)
+            val shapes =
+                mapOf(
+                    "reachable" to
+                        p(
+                            listOf(
+                                distance,
+                                TargetStat(Characteristic.ACTION_POINT, 12),
+                                TargetStat(Characteristic.MOVEMENT_POINT, 6),
+                                TargetStat(Characteristic.HP, 2000),
+                                TargetStat(Characteristic.CRITICAL_HIT, 30)
+                            )
+                        ),
+                    "static" to p(listOf(distance, TargetStat(Characteristic.ACTION_POINT, 99))),
+                    // AP+MP near their joint frontier plus a steep crit+HP ask: each is individually
+                    // reachable at 245, the conjunction (hopefully) is not — the summary prints the
+                    // hard leg's real termination so a mis-crafted shape is visible, not misleading.
+                    "joint" to
+                        p(
+                            listOf(
+                                distance,
+                                TargetStat(Characteristic.ACTION_POINT, 16),
+                                TargetStat(Characteristic.MOVEMENT_POINT, 8),
+                                TargetStat(Characteristic.CRITICAL_HIT, 100),
+                                TargetStat(Characteristic.HP, 12000)
+                            )
+                        )
+                )
+            val pool =
+                WakfuBestBuildFinderAlgorithm.equipments
+                    .filter { it.rarity <= Rarity.EPIC }
+                    .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                    .groupBy { it.itemType }
+            for ((label, params) in shapes) {
+                val t0 = System.nanoTime()
+                var last: SolverResult<me.chosante.autobuilder.domain.BuildCombination>? = null
+                var finalSends = 0
+                WakfuBestBuildFinderAlgorithm
+                    .mostMasteriesHardThenSoft(params, pool, WakfuBestBuildFinderAlgorithm.runes, WakfuBestBuildFinderAlgorithm.sublimations)
+                    .collect { r ->
+                        if (r.progressPercentage == 100) {
+                            finalSends++
+                            println("MM_E3 $label finalSend#$finalSends t=${(System.nanoTime() - t0) / 1_000_000}ms objective=${r.matchPercentage} optimal=${r.isOptimal}")
+                        }
+                        last = r
+                    }
+                println(
+                    "MM_E3 $label SUMMARY wallMs=${(System.nanoTime() - t0) / 1_000_000} budgetMs=${budget.inWholeMilliseconds} " +
+                        "finalObjective=${last?.matchPercentage} optimal=${last?.isOptimal} finalSends=$finalSends"
+                )
+            }
+        }
+
+    /**
      * P2a fallback lock: with an unreachable required target (AP 99), the hard leg is INFEASIBLE and
      * the production orchestration must fall back to the soft (penalized) model and still deliver a
      * final build — never an empty flow. Runs the REAL production path (wall-clock), so the pool is

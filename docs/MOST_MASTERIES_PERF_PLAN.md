@@ -179,6 +179,21 @@ leg yields none (proven INFEASIBLE, or an UNKNOWN timeout without a solution —
 status separates the two, exposed via `optimize(onTermination)`). Locked with hard == soft
 optimum-equality fixtures on reachable-targets pools + the unreachable-fallback lock.
 
+### P2a-E3 — unreachable-fallback cost (measured 2026-07-11, PRODUCTION path, 120 s budget)
+
+> - **reachable F5@245: 13.7 s to PROVEN optimal in production** (cores−1 workers) — the 147 s P0
+>   number was the 1-worker deterministic protocol, not what users experience. The user-facing
+>   most-masteries problem is essentially solved by the hard leg.
+> - static-unreachable (AP 99): statically skipped, soft gets the whole budget — fallback is free.
+> - jointly-unreachable: **could not be constructed** — even PA 15/PM 8/CC 100/HP 10k (16.3 s) and
+>   the absolute caps PA 16/PM 8/CC 100/HP 12k (112.4 s!) are FEASIBLE at 245 and prove
+>   targets-met. Two consequences: (a) the INFEASIBLE-proof path is practically unreachable by
+>   realistic requests (per-target static ceilings catch the rest; the UNKNOWN-timeout warning log
+>   covers the residual), so no hard-leg budget cap is needed; (b) **near-frontier feasible shapes
+>   are the new slow tail** (~112 s of a 120 s budget) — if a future campaign reopens perf work,
+>   profile THOSE, not the F5 default.
+> - Harness: `WAKFU_MM_E3=1` (three profiles, prints finalSends so a mis-crafted shape is visible).
+
 ### P2b — two-stage lexicographic overshoot split
 
 > **E2 OUTCOME (2026-07-11): MEASURED-NO — do not enable.** A/B on the shipped hard leg at F5@245
