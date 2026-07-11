@@ -758,7 +758,7 @@ object MaxDamageSearch {
      * Unlike the damage certificate, this generalises to EVERY constraint — resistance, HP, lock, … — because it
      * is the solver, not a damage-only bound, that enforces them.
      */
-    private fun optimizeHardThenSoft(
+    internal fun optimizeHardThenSoft(
         params: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
         runes: List<RuneType>,
@@ -777,24 +777,48 @@ object MaxDamageSearch {
         return flow {
             val start = TimeSource.Monotonic.markNow()
             var hardYieldedBuild = false
+            var termination: WakfuBuildSolver.SolveOutcome? = null
             WakfuBuildSolver
-                .optimize(params, equipmentsByItemType, runes, sublimations, tuning, hardConstraints = true, maxDamageGreedyWarmStart = greedyWarmStart)
-                .collect {
-                    hardYieldedBuild = true
-                    // Mark the hard-leg provenance so the certificate badge can trust the solver's own
-                    // "targets met" verdict rather than re-deriving it through the scorer's divergent
-                    // percent-rounding (see [SolverResult.maxDamageHardConstraintsMet]).
-                    emit(it.copy(maxDamageHardConstraintsMet = true))
+                .optimize(
+                    params,
+                    equipmentsByItemType,
+                    runes,
+                    sublimations,
+                    tuning,
+                    hardConstraints = true,
+                    maxDamageGreedyWarmStart = greedyWarmStart,
+                    onTermination = { termination = it }
+                ).collect {
+                    // The greedy warm-start emission precedes the solve: it is NOT a solution of the
+                    // hard model, so it must neither count as hard-leg feasibility (or an INFEASIBLE
+                    // leg would silently skip the soft fallback and strand the user on the greedy
+                    // build) nor carry the solver-verified [maxDamageHardConstraintsMet] provenance
+                    // the certificate badge trusts.
+                    if (it.greedyWarmStartEmission) {
+                        emit(it)
+                    } else {
+                        hardYieldedBuild = true
+                        // Mark the hard-leg provenance so the certificate badge can trust the solver's own
+                        // "targets met" verdict rather than re-deriving it through the scorer's divergent
+                        // percent-rounding (see [SolverResult.maxDamageHardConstraintsMet]).
+                        emit(it.copy(maxDamageHardConstraintsMet = true))
+                    }
                 }
             if (!hardYieldedBuild) {
-                // No build from the hard leg — infeasible (unreachable targets) OR no incumbent found in a tiny
-                // probe budget. Give the soft leg only the time the hard leg didn't spend, so the two legs
-                // together stay within the caller's budget instead of each taking the full duration (~2×). Floored
-                // to the solver's own 50 ms minimum so the remainder never rounds to the "unlimited" sentinel.
+                // No build from the hard leg — the REAL solver status separates proven INFEASIBLE
+                // (unreachable targets) from an UNKNOWN timeout without a solution. Give the soft leg only
+                // the time the hard leg didn't spend, so the two legs together stay within the caller's
+                // budget instead of each taking the full duration (~2×). Floored to the solver's own 50 ms
+                // minimum so the remainder never rounds to the "unlimited" sentinel.
                 val remaining = (params.searchDuration - start.elapsedNow()).coerceAtLeast(50.milliseconds)
-                logger.info {
-                    "Hard-constraint max-damage model yielded no build (infeasible or budget too small); " +
-                        "falling back to the soft shortfall penalty."
+                when (termination?.status) {
+                    com.google.ortools.sat.CpSolverStatus.INFEASIBLE ->
+                        logger.info { "Hard-constraint max-damage model INFEASIBLE (targets unreachable) — soft fallback." }
+                    else ->
+                        logger.warn {
+                            "Hard-constraint max-damage leg ended ${termination?.status} without a build " +
+                                "(targets may still be reachable) — soft fallback on the remaining budget."
+                        }
                 }
                 WakfuBuildSolver
                     .optimize(

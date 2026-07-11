@@ -399,10 +399,16 @@ internal fun StatBuilder.certifyAllCellsFast(
 
     // One task = one world's fast pass over ALL cells. PURE: reads the shared (warm) StatBuilder caches
     // and allocates its own DP, so once the caches are warm the tasks parallelize safely (P3.1).
+    // Per-world timing (WAKFU_MAX_DAMAGE_CERT_TIMING=1): the world-prefix-factoring question — do
+    // multiple worlds delay the badge beyond the search? — needs the per-world cost distribution,
+    // which the aggregate CERT_TIMING fastMs line cannot show. One stderr line per world.
+    val worldTimingEnabled = System.getenv("WAKFU_MAX_DAMAGE_CERT_TIMING") == "1"
+
     fun runWorld(
         wi: Int,
         w: CertWorld,
     ): LongArray? {
+        val tw = if (worldTimingEnabled) System.nanoTime() else 0L
         val out = LongArray(cellCount) { 0L }
         val perCellCHolder = if (perCellCByWorldOut != null) arrayOfNulls<Array<LongArray>>(1) else null
         val r =
@@ -417,6 +423,12 @@ internal fun StatBuilder.certifyAllCellsFast(
                 fastCellCount = cellCount,
                 fastPerCellCOutHolder = perCellCHolder
             )
+        if (worldTimingEnabled) {
+            System.err.println(
+                "CERT_WORLD_TIMING world=$wi/${worlds.size} conv=${w.conv?.name?.fr} cs=${w.cs?.name?.fr} " +
+                    "wr=${w.wr} bailed=${r == Long.MAX_VALUE} ms=${(System.nanoTime() - tw) / 1_000_000}"
+            )
+        }
         if (r == Long.MAX_VALUE) return null // shape-level bail
         if (perCellCByWorldOut != null && perCellCHolder != null && wi < perCellCByWorldOut.size) {
             perCellCByWorldOut[wi] = perCellCHolder[0]

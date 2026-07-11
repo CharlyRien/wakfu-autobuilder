@@ -556,7 +556,9 @@ object WakfuBuildSolver {
                     val warmScore =
                         warmStart?.let { combination ->
                             val score = scoreFor(params, combination)
-                            trySend(SolverResult(combination, score, 0))
+                            // Marked as the greedy emission: it precedes the solve, so orchestrators must
+                            // not read it as model feasibility or solver-verified provenance.
+                            trySend(SolverResult(combination, score, 0, greedyWarmStartEmission = true))
                             score
                         }
                     // Domination runs only on the production (wall-clock) path: tuning == null. The deterministic

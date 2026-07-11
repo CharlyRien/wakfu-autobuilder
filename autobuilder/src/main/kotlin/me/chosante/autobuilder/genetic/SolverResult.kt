@@ -59,4 +59,11 @@ data class SolverResult<T>(
      * solve. `false` for soft-shortfall-penalty results and in the other modes.
      */
     val maxDamageHardConstraintsMet: Boolean = false,
+    /**
+     * True when this emission is the GREEDY WARM START's instant first build — streamed BEFORE the
+     * CP-SAT solve even starts, so it is NOT a solution of the model. Orchestrators must never treat
+     * it as evidence the model is feasible (the hard-then-soft fallback decision) nor stamp it with
+     * solver-verified provenance like [maxDamageHardConstraintsMet].
+     */
+    val greedyWarmStartEmission: Boolean = false,
 )
