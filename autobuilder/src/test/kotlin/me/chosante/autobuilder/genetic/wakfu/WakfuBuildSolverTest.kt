@@ -3834,6 +3834,27 @@ class WakfuBuildSolverTest {
             }
         }
 
+    /** Manual probe: time-to-first-emission of a production max-damage search (C8(3) applicability). */
+    @Test
+    fun `manual max-damage first-emission latency`(): Unit =
+        runBlocking {
+            assumeTrue(System.getenv("WAKFU_MAXDMG_FIRST_EMIT") == "1")
+            val level = System.getenv("WAKFU_MAX_DAMAGE_EXPERIMENT_LEVEL")?.toIntOrNull() ?: 245
+            val params = fireMaxDamageParams(level).copy(useRunes = true, useSublimations = true, searchDuration = 15.seconds)
+            val pool = fullEpicPool(level)
+            MaxDamageCertificateCache.clear()
+            val startMs = System.currentTimeMillis()
+            var firstMs = -1L
+            var count = 0
+            MaxDamageSearch
+                .run(params, pool, WakfuBestBuildFinderAlgorithm.runes, WakfuBestBuildFinderAlgorithm.sublimations)
+                .collect {
+                    count++
+                    if (firstMs < 0) firstMs = System.currentTimeMillis() - startMs
+                }
+            println("FIRST_EMIT_MS=$firstMs emissions=$count totalMs=${System.currentTimeMillis() - startMs}")
+        }
+
     /**
      * The SHORT-SEARCH rescue (cascade + E8 construct): a deliberately tiny budget leaves a WEAK
      * incumbent, so the certificate ceiling sits far above it and the flow legitimately ends UNPROVEN
