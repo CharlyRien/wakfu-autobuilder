@@ -41,6 +41,37 @@ search as designed.
 
 ---
 
+## 1bis. P0.5 OUTCOME (2026-07-11) — the wall is DUAL; re-ranking below supersedes §2's table
+
+Measured on F5@245, production path, deterministic (both legs reproduced to the second across runs):
+
+- **Oracle leg**: with the *known optimum's full assignment* hinted (equip + skills + runes + subs,
+  19 793 vars), the incumbent sits at the optimum from **12.5 s** — and the proof still takes
+  **146.5 s**. A perfect primal heuristic saves essentially nothing on time-to-proven.
+- **Bound trajectory** (search log, `#Bound` lines): the dual is still **+14 %** above the optimum at
+  t ≈ 115-140 s, **+5.4 %** at t ≈ 192 s, then collapses to close in the final ~2 s — CP-SAT proves
+  by *tree exhaustion* (pseudo_costs), not by bound descent. The LP relaxation of the power-6
+  penalty-product objective is too weak to certify anything early (the "foggy LP relaxation" the
+  code doc predicted). Incumbent improvements mid-run come from `graph_var/arc_lns` workers.
+
+Consequences — the §2 table re-ranks as follows:
+
+1. **P3 (certificate as PROOF AUTHORITY) is promoted to the main track**, jointly with **P2a**.
+   Not the P0-rejected *early stop of CP-SAT's own proof* — a replacement for the dual: tight DP
+   bound U + incumbent ≥ U ⇒ proven, without waiting for CP-SAT. The oracle shows the incumbent
+   side is solvable (~12 s with a good seed); the M3 tightness measurement of
+   `MOST_MASTERIES_CERTIFICATE_PLAN.md` becomes the campaign's next gate.
+2. **P2a (hard-constraints-first leg) stays the top model-side item** — it attacks the weak
+   relaxation directly, and it is also the enabler of P3 on targets-met shapes (penalty == 1).
+3. **P1b (ε-stop via relativeGapLimit) is MEASURED-DEAD on this shape**: the gap stays > 5 % until
+   the terminal cliff, so any honest ε fires ~2 s before OPTIMAL. Do not build.
+4. **P1a (objective floor) is downgraded to a cheap experiment**: it cannot tighten the upper
+   bound, but the proof is by exhaustion, so pruning the tree from below *may* still shorten it —
+   one deterministic A/B decides.
+5. **P1c (restricted-pool race) is UX-only** (better early incumbents); it no longer claims proof
+   time. P2b (overshoot split) keeps its slot: shrinking the ~1e14-scale objective fold is one of
+   the few levers that can strengthen the relaxation CP-SAT exhausts against.
+
 ## 2. The plan at a glance
 
 | phase | item | effort | expected | gate |

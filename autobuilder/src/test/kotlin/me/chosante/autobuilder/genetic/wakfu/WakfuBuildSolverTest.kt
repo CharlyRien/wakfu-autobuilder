@@ -3834,6 +3834,159 @@ class WakfuBuildSolverTest {
             }
         }
 
+    /** The F5 production shape (distance mastery + AP/MP/HP/crit, runes + subs on) used by every
+     *  most-masteries perf harness — see docs/MOST_MASTERIES_PERF_PLAN.md. */
+    private fun mmF5Params(level: Int): WakfuBestBuildParams =
+        WakfuBestBuildParams(
+            character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+            targetStats =
+                TargetStats(
+                    listOf(
+                        TargetStat(Characteristic.MASTERY_DISTANCE, 9999),
+                        TargetStat(Characteristic.ACTION_POINT, 12),
+                        TargetStat(Characteristic.MOVEMENT_POINT, 6),
+                        TargetStat(Characteristic.HP, 2000),
+                        TargetStat(Characteristic.CRITICAL_HIT, 30)
+                    )
+                ),
+            searchDuration = 600.seconds,
+            stopWhenBuildMatch = false,
+            maxRarity = Rarity.EPIC,
+            forcedItems = emptyList(),
+            excludedItems = emptyList(),
+            scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+            useRunes = true,
+            useSublimations = true
+        )
+
+    /** The production-path tuning every most-masteries perf harness runs under (canonical protocol:
+     *  1 worker + interleave + fixed seed, presolve=1/linearization=1 + domination like the GUI/CLI). */
+    private fun mmProductionTuning(
+        det: Double,
+        greedy: Boolean,
+    ): WakfuBuildSolver.SolverTuning =
+        WakfuBuildSolver.SolverTuning(
+            numSearchWorkers = 1,
+            interleaveSearch = true,
+            maxDeterministicTime = det,
+            applyDominationOverride = true,
+            greedyWarmStart = greedy,
+            maxPresolveIterationsOverride = 1,
+            linearizationLevelOverride = 1
+        )
+
+    /**
+     * P0 measurement harness of the most-masteries perf campaign (docs/MOST_MASTERIES_PERF_PLAN.md §1):
+     * M1 = time-to-incumbent-equals-final-optimum vs M2 = time-to-OPTIMAL on the F5 shape, both
+     * warm-start arms. Measured 2026-07-11 at 245: M1 = M2 to within milliseconds in all runs
+     * (147-149 s off / 138.5-138.9 s on) — the certificate early stop's NO-GO evidence.
+     * `WAKFU_MM_P0=1`; level via `WAKFU_MM_P0_LEVEL` (245); det via `WAKFU_MM_P0_DET` (600);
+     * repeats per config via `WAKFU_MM_P0_RUNS` (2).
+     */
+    @Test
+    fun `manual most-masteries P0 gate`(): Unit =
+        runBlocking {
+            assumeTrue(System.getenv("WAKFU_MM_P0") == "1")
+            val level = System.getenv("WAKFU_MM_P0_LEVEL")?.toIntOrNull() ?: 245
+            val det = System.getenv("WAKFU_MM_P0_DET")?.toDoubleOrNull() ?: 600.0
+            val runsPerConfig = System.getenv("WAKFU_MM_P0_RUNS")?.toIntOrNull() ?: 2
+            val params = mmF5Params(level)
+            val pool = fullEpicPool(level)
+            val runes = WakfuBestBuildFinderAlgorithm.runes
+            val subs = WakfuBestBuildFinderAlgorithm.sublimations
+            for (greedy in listOf(false, true)) {
+                repeat(runsPerConfig) { run ->
+                    val t0 = System.nanoTime()
+
+                    data class Emission(
+                        val ms: Long,
+                        val objective: java.math.BigDecimal,
+                        val optimal: Boolean,
+                    )
+                    val emissions = mutableListOf<Emission>()
+                    WakfuBuildSolver.optimize(params, pool, runes, subs, mmProductionTuning(det, greedy)).collect { r ->
+                        val ms = (System.nanoTime() - t0) / 1_000_000
+                        emissions += Emission(ms, r.matchPercentage, r.isOptimal)
+                        println("MM_P0 greedy=$greedy run=$run emit t=${ms}ms objective=${r.matchPercentage} optimal=${r.isOptimal}")
+                    }
+                    val totalMs = (System.nanoTime() - t0) / 1_000_000
+                    val last = emissions.lastOrNull()
+                    val m1Ms = last?.let { fin -> emissions.firstOrNull { it.objective.compareTo(fin.objective) == 0 }?.ms }
+                    println(
+                        "MM_P0 lvl$level det=$det greedy=$greedy run=$run SUMMARY firstEmitMs=${emissions.firstOrNull()?.ms} " +
+                            "incumbentEqualsOptimumMs=$m1Ms timeToOptimalMs=$totalMs " +
+                            "finalOptimal=${last?.optimal} finalObjective=${last?.objective} emissions=${emissions.size}"
+                    )
+                }
+            }
+        }
+
+    /**
+     * P0.5 diagnostic bundle (docs/MOST_MASTERIES_PERF_PLAN.md §3): decides primal-wall vs dual-wall
+     * for the terminal ~22-24 s plateau the P0 gate exposed. Two serialized solves on the F5 shape:
+     *  1. TRAJECTORY — production-representative run (greedy hint on) with CP-SAT's own search log
+     *     streamed (`SolverTuning.logSearchProgress`): the `#Bound` lines give the dual-bound
+     *     trajectory + per-subsolver attribution the solution callback cannot see; the final full
+     *     assignment is captured by var name.
+     *  2. ORACLE — a fresh solve hinted with the captured optimum's FULL assignment (equip + skills +
+     *     runes + subs, `SolverTuning.assignmentHint`, greedy off so no var is hinted twice): its
+     *     time-to-OPTIMAL is the hard ceiling of every primal-heuristic investment.
+     * `WAKFU_MM_P05=1`; level via `WAKFU_MM_P05_LEVEL` (245); det via `WAKFU_MM_P05_DET` (600).
+     */
+    @Test
+    fun `manual most-masteries P05 diagnostic`(): Unit =
+        runBlocking {
+            assumeTrue(System.getenv("WAKFU_MM_P05") == "1")
+            val level = System.getenv("WAKFU_MM_P05_LEVEL")?.toIntOrNull() ?: 245
+            val det = System.getenv("WAKFU_MM_P05_DET")?.toDoubleOrNull() ?: 600.0
+            val params = mmF5Params(level)
+            val pool = fullEpicPool(level)
+            val runes = WakfuBestBuildFinderAlgorithm.runes
+            val subs = WakfuBestBuildFinderAlgorithm.sublimations
+
+            // Leg 1 — trajectory + capture. The CP-SAT log goes to a scratch file (it is large and its
+            // native-stdout path bypasses JUnit capture anyway); the path is printed for the analysis.
+            val logFile = java.io.File.createTempFile("mm-p05-cpsat", ".log")
+            val logWriter = java.io.PrintWriter(java.io.BufferedWriter(java.io.FileWriter(logFile)))
+            println("MM_P05 cpsatLog=${logFile.absolutePath}")
+            var captured: Map<String, Long>? = null
+            val trajectoryTuning =
+                mmProductionTuning(det, greedy = true).copy(
+                    searchLogSink = { line -> synchronized(logWriter) { logWriter.println(line) } },
+                    captureAssignment = { captured = it }
+                )
+            var t0 = System.nanoTime()
+            var last: SolverResult<me.chosante.autobuilder.domain.BuildCombination>? = null
+            WakfuBuildSolver.optimize(params, pool, runes, subs, trajectoryTuning).collect { r ->
+                println("MM_P05 leg=trajectory emit t=${(System.nanoTime() - t0) / 1_000_000}ms objective=${r.matchPercentage} optimal=${r.isOptimal}")
+                last = r
+            }
+            logWriter.flush()
+            println(
+                "MM_P05 lvl$level det=$det leg=trajectory SUMMARY wallMs=${(System.nanoTime() - t0) / 1_000_000} " +
+                    "optimal=${last?.isOptimal} objective=${last?.matchPercentage} capturedVars=${captured?.size ?: 0} " +
+                    "cpsatLogLines=${logFile.readLines().size}"
+            )
+            val hint = captured
+            assumeTrue(hint != null && last?.isOptimal == true)
+
+            // Leg 2 — oracle: full-assignment hint of the KNOWN optimum, greedy off (no double hint).
+            val oracleTuning = mmProductionTuning(det, greedy = false).copy(assignmentHint = hint)
+            t0 = System.nanoTime()
+            var oracleLast: SolverResult<me.chosante.autobuilder.domain.BuildCombination>? = null
+            var oracleM1: Long? = null
+            WakfuBuildSolver.optimize(params, pool, runes, subs, oracleTuning).collect { r ->
+                val ms = (System.nanoTime() - t0) / 1_000_000
+                if (oracleM1 == null && r.matchPercentage.compareTo(last!!.matchPercentage) == 0) oracleM1 = ms
+                println("MM_P05 leg=oracle emit t=${ms}ms objective=${r.matchPercentage} optimal=${r.isOptimal}")
+                oracleLast = r
+            }
+            println(
+                "MM_P05 lvl$level det=$det leg=oracle SUMMARY wallMs=${(System.nanoTime() - t0) / 1_000_000} " +
+                    "incumbentEqualsOptimumMs=$oracleM1 optimal=${oracleLast?.isOptimal} objective=${oracleLast?.matchPercentage}"
+            )
+        }
+
     /** Manual probe: time-to-first-emission of a production max-damage search (C8(3) applicability). */
     @Test
     fun `manual max-damage first-emission latency`(): Unit =

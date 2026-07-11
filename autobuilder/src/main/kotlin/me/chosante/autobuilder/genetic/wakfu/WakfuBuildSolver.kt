@@ -459,6 +459,18 @@ object WakfuBuildSolver {
         // sits at the certificate bound (the floor is a sound per-cell upper bound), so proving optimality
         // on top is pure waste; the final emission delivers the stopped-at solution.
         val stopAtFirstSolution: Boolean = false,
+        // P0.5 diagnostics (manual harnesses only — never production, see docs/MOST_MASTERIES_PERF_PLAN.md):
+        // receive CP-SAT's own search log lines (dual-bound trajectory + per-subsolver attribution) —
+        // the standard solve path otherwise hardcodes the log off. A Java-side callback, NOT stdout:
+        // the native logger writes to the process's real fd 1, which bypasses the test JVM's capture.
+        val searchLogSink: ((String) -> Unit)? = null,
+        // Capture the final solution's full decision assignment (equipment/skill/rune/sublimation vars),
+        // keyed by var name, after the solve completes. Same params + tuning ⇒ the same model ⇒ the same
+        // names, so a captured map can be hinted back onto a fresh solve.
+        val captureAssignment: ((Map<String, Long>) -> Unit)? = null,
+        // The oracle hint: a previously captured assignment, applied by var name onto the fresh model.
+        // Use with greedyWarmStart = false — a var must not be hinted twice.
+        val assignmentHint: Map<String, Long>? = null,
     )
 
     fun optimize(
@@ -572,6 +584,11 @@ object WakfuBuildSolver {
                         val picked = combination.equipments.toHashSet()
                         for ((equip, v) in built.equipVars) built.model.addHint(v, if (equip in picked) 1L else 0L)
                     }
+                    // P0.5 oracle seam: hint a previously captured full assignment by var name (advisory,
+                    // optimality-neutral; requires greedyWarmStart = false so no var is hinted twice).
+                    tuning?.assignmentHint?.let { hint ->
+                        for (v in diagnosticVars(built)) hint[v.name]?.let { built.model.addHint(v, it) }
+                    }
                     executeSolverAndEmitResults(
                         built.model,
                         params,
@@ -586,6 +603,15 @@ object WakfuBuildSolver {
                         onSolverReady = { solverHandle.set(it) },
                         suppressBelowScore = warmScore
                     )
+                    // P0.5 capture seam: read the final solution's full assignment off the finished solver
+                    // (CpSolver retains the last response). Best-effort — an emission-less solve (INFEASIBLE)
+                    // simply skips the capture.
+                    tuning?.captureAssignment?.let { capture ->
+                        solverHandle.get()?.let { solver ->
+                            runCatching { diagnosticVars(built).associate { it.name to solver.value(it) } }
+                                .onSuccess(capture)
+                        }
+                    }
                     close()
                 }
             awaitClose {
@@ -593,6 +619,20 @@ object WakfuBuildSolver {
                 job.cancel()
             }
         }
+
+    /**
+     * P0.5 diagnostics: every DECISION var of the model (equipment picks, skill points, rune fills,
+     * sublimation picks + stacking copies) — the layers a full capture/hint round-trip needs. Var names
+     * are deterministic for a given (params, tuning), so a captured name→value map re-applies cleanly.
+     */
+    private fun diagnosticVars(built: BuiltModel): List<IntVar> =
+        built.equipVars.values +
+            built.skillVars.values +
+            built.runeModel.runeVars.values
+                .flatMap { it.values } +
+            built.subModel.subVars.values +
+            built.subModel.copyVars.values
+                .flatten()
 
     private class BuiltModel(
         val model: CpModel,
@@ -2439,6 +2479,14 @@ object WakfuBuildSolver {
             if (tuning.interleaveSearch) solver.parameters.interleaveSearch = true
             tuning.maxPresolveIterationsOverride?.let { solver.parameters.maxPresolveIterations = it }
             tuning.linearizationLevelOverride?.let { solver.parameters.linearizationLevel = it }
+            // P0.5 diagnostics: re-enable the search log this function hardcodes off above and route it
+            // through the Java-side callback (the native stdout path bypasses the test JVM's capture).
+            // Tuned path only — production/GUI can never turn it on.
+            tuning.searchLogSink?.let { sink ->
+                solver.parameters.logSearchProgress = true
+                solver.parameters.logToStdout = false
+                solver.setLogCallback { line -> sink(line) }
+            }
         }
 
         val startTime = System.currentTimeMillis()
