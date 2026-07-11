@@ -142,10 +142,12 @@ object WakfuBestBuildFinderAlgorithm {
     /**
      * P2a (docs/MOST_MASTERIES_PERF_PLAN.md): the production most-masteries orchestration — the
      * required targets are enforced as HARD `actual ≥ target` constraints under the PLAIN
-     * (unpenalized) mastery×DI objective first; only when that model is INFEASIBLE (targets truly
-     * unreachable — the flow emits nothing, including the statically-detected case) does the search
-     * fall back to today's soft power-6-penalty model, which then trades shortfall for mastery
-     * exactly as before.
+     * (unpenalized) mastery×DI objective first; when that leg yields NO build the search falls back
+     * to today's soft power-6-penalty model, which then trades shortfall for mastery exactly as
+     * before. Two distinct no-build cases (the real solver status separates them — the flow alone
+     * cannot): proven INFEASIBLE (targets genuinely unreachable, incl. the statically-detected
+     * skip) and an UNKNOWN timeout without a solution (reachable targets, hard model) — both fall
+     * back, but the second is logged as a warning so slow-hard-leg shapes stay visible.
      *
      * Two effects, both deliberate:
      *  - **Perf:** the penalty product — whose LP relaxation CP-SAT can only prove against by tree
@@ -173,14 +175,36 @@ object WakfuBestBuildFinderAlgorithm {
             // FINAL send (progressPercentage == 100) fires iff the solve ended OPTIMAL/FEASIBLE —
             // that is the fallback criterion.
             var hardSolved = false
+            var termination: WakfuBuildSolver.SolveOutcome? = null
             val startedAt = System.currentTimeMillis()
             WakfuBuildSolver
-                .optimize(params, equipmentsByItemType, runes, sublimations, tuning = null, hardConstraints = true)
-                .collect { result ->
+                .optimize(
+                    params,
+                    equipmentsByItemType,
+                    runes,
+                    sublimations,
+                    tuning = null,
+                    hardConstraints = true,
+                    onTermination = { termination = it }
+                ).collect { result ->
                     if (result.progressPercentage == 100) hardSolved = true
                     emit(result)
                 }
             if (!hardSolved) {
+                // The REAL solver status distinguishes the two no-build cases: proven INFEASIBLE = the
+                // targets are genuinely unreachable (the semantics the fallback is FOR), while UNKNOWN =
+                // the hard model timed out before finding any build (reachable targets, hard model) —
+                // the soft fallback still runs (deliver something), but the distinction is logged so a
+                // slow-hard-leg shape is visible instead of masquerading as "unreachable targets".
+                when (termination?.status) {
+                    com.google.ortools.sat.CpSolverStatus.INFEASIBLE ->
+                        logger.info { "Most-masteries hard leg INFEASIBLE (targets unreachable) — soft fallback." }
+                    else ->
+                        logger.warn {
+                            "Most-masteries hard leg ended ${termination?.status} without a build " +
+                                "(targets may still be reachable) — soft fallback on the remaining budget."
+                        }
+                }
                 // The fallback runs on the REMAINING user budget (floored so a hard leg that burned the
                 // whole duration proving infeasibility still yields a usable soft answer, not nothing).
                 val elapsed = System.currentTimeMillis() - startedAt
