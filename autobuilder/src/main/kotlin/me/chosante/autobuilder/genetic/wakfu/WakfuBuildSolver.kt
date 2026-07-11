@@ -874,8 +874,11 @@ object WakfuBuildSolver {
         var maxDamageStaticallyInfeasible = false
         val objective =
             when (params.scoreComputationMode) {
-                ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
-                    model.buildMostMasteriesObjective(params, allEquips, equipVars, skillVars, runeModel, subModel)
+                ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT -> {
+                    val mm = model.buildMostMasteriesObjective(params, allEquips, equipVars, skillVars, runeModel, subModel, hardConstraints)
+                    maxDamageStaticallyInfeasible = mm.staticallyInfeasible
+                    mm.objective
+                }
 
                 ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT -> {
                     // Declare the precision stat chain on its reachable domains (like max-damage), instead of
@@ -2099,6 +2102,13 @@ object WakfuBuildSolver {
      * proven optimum leaves the slot empty. (Decision: keep as-is; see the engine discussion in
      * AGENTS.md §4.)
      */
+
+    /** The most-masteries objective plus the hard-leg static-infeasibility flag (mirrors [MaxDamageObjectiveVars]). */
+    private class MostMasteriesObjectiveVars(
+        val objective: IntVar,
+        val staticallyInfeasible: Boolean = false,
+    )
+
     private fun CpModel.buildMostMasteriesObjective(
         params: WakfuBestBuildParams,
         allEquips: List<Equipment>,
@@ -2106,7 +2116,13 @@ object WakfuBuildSolver {
         skillVars: Map<SkillCharacteristic, IntVar>,
         runeModel: RuneModel,
         subModel: SublimationModel,
-    ): IntVar {
+        // P2a hard-constraints leg (docs/MOST_MASTERIES_PERF_PLAN.md): required targets become HARD
+        // `actual ≥ target` constraints and the objective is the PLAIN (unpenalized) mastery×DI score —
+        // the power-6 penalty product, whose LP relaxation CP-SAT can only prove against by tree
+        // exhaustion (§1bis P0.5 measurement), vanishes from the searched model. INFEASIBLE (unreachable
+        // targets) ⇒ the flow emits nothing and the caller falls back to the soft (penalized) model.
+        hardConstraints: Boolean = false,
+    ): MostMasteriesObjectiveVars {
         val statBuilder =
             StatBuilder(
                 this,
@@ -2131,9 +2147,28 @@ object WakfuBuildSolver {
         val (masteryScore, masteryScoreReach) = statBuilder.diAdjustedPerElementMasteryScore(targetStats, targetCharacteristics)
 
         val requiredTargets = targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }
+
+        // HARD leg: targets as constraints, plain objective (no penalty product). The overshoot
+        // tie-breaker keeps its exact secondary semantics — hard-leg ties still prefer overshoot.
+        if (hardConstraints) {
+            val staticallyInfeasible = statBuilder.addRequiredTargetHardConstraints()
+            if (requiredTargets.isEmpty()) {
+                return MostMasteriesObjectiveVars(masteryScore, staticallyInfeasible)
+            }
+            val totalExpectedScore =
+                requiredTargets
+                    .sumOf { it.target.toLong() * targetStats.scaledWeight(it) }
+                    .coerceAtLeast(1L)
+            val overshoot = statBuilder.overshootScore(requiredTargets, totalExpectedScore, targetStats)
+            return MostMasteriesObjectiveVars(
+                withOvershootTieBreaker(masteryScore, masteryScoreReach, overshoot, totalExpectedScore),
+                staticallyInfeasible
+            )
+        }
+
         val penalized = applyConstraintPenalty(params, statBuilder, masteryScore, masteryScoreReach)
         if (requiredTargets.isEmpty()) {
-            return penalized.objective
+            return MostMasteriesObjectiveVars(penalized.objective)
         }
 
         val totalExpectedScore =
@@ -2148,7 +2183,7 @@ object WakfuBuildSolver {
         // value the player would always take. It can never trade a maximized-mastery point for
         // overshoot; see [withOvershootTieBreaker].
         val overshoot = statBuilder.overshootScore(requiredTargets, totalExpectedScore, targetStats)
-        return withOvershootTieBreaker(penalized.objective, penalized.bound, overshoot, totalExpectedScore)
+        return MostMasteriesObjectiveVars(withOvershootTieBreaker(penalized.objective, penalized.bound, overshoot, totalExpectedScore))
     }
 
     /**

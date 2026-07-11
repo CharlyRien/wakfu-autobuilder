@@ -139,6 +139,134 @@ class MostMasteriesBoundPrototypeTest {
     fun `M3 small pools - runes and sublimations`() = measure("runesAndSubs", params(200, useRunes = true, useSublimations = true), smallPool(), det = 120.0)
 
     /**
+     * P2a correctness lock: on a pool where the targets are reachable, the HARD-constraints leg
+     * (targets as `actual ≥ target`, plain unpenalized objective) must reach exactly the soft
+     * (penalized) optimum — a targets-met soft optimum is hard-feasible, and among targets-met builds
+     * the two objectives coincide (penalty == 1).
+     */
+    @Test
+    fun `P2a hard leg equals the soft optimum on a reachable-targets pool`(): Unit =
+        runBlocking {
+            val p = params(200, useRunes = true, useSublimations = true)
+            val pool = smallPool()
+            val tuning =
+                WakfuBuildSolver.SolverTuning(
+                    numSearchWorkers = 1,
+                    interleaveSearch = true,
+                    maxDeterministicTime = 120.0
+                )
+
+            suspend fun solve(hard: Boolean): Pair<Long, Boolean> {
+                val results =
+                    WakfuBuildSolver
+                        .optimize(
+                            p,
+                            pool,
+                            WakfuBestBuildFinderAlgorithm.runes,
+                            WakfuBestBuildFinderAlgorithm.sublimations,
+                            tuning,
+                            hardConstraints = hard
+                        ).toList()
+                return results.last().matchPercentage.toLong() to results.last().isOptimal
+            }
+            val (softScore, softOptimal) = solve(hard = false)
+            val (hardScore, hardOptimal) = solve(hard = true)
+            assertThat(softOptimal).isTrue()
+            assertThat(hardOptimal).isTrue()
+            assertThat(hardScore).isEqualTo(softScore)
+        }
+
+    /**
+     * P2a fallback lock: with an unreachable required target (AP 99), the hard leg is INFEASIBLE and
+     * the production orchestration must fall back to the soft (penalized) model and still deliver a
+     * final build — never an empty flow. Runs the REAL production path (wall-clock), so the pool is
+     * tiny and the duration short.
+     */
+    @Test
+    fun `P2a falls back to the soft model when targets are unreachable`(): Unit =
+        runBlocking {
+            val p =
+                params(200, useRunes = false, useSublimations = false).copy(
+                    targetStats =
+                        TargetStats(
+                            listOf(
+                                TargetStat(Characteristic.MASTERY_DISTANCE, 9999),
+                                TargetStat(Characteristic.ACTION_POINT, 99)
+                            )
+                        ),
+                    searchDuration = 10.seconds
+                )
+            val results =
+                WakfuBestBuildFinderAlgorithm
+                    .mostMasteriesHardThenSoft(p, smallPool(), WakfuBestBuildFinderAlgorithm.runes, WakfuBestBuildFinderAlgorithm.sublimations)
+                    .toList()
+            val last = results.last()
+            assertThat(last.progressPercentage).describedAs("the soft fallback must deliver its guaranteed final send").isEqualTo(100)
+            assertThat(last.individual.equipments).isNotEmpty()
+        }
+
+    /**
+     * P2a E1 timing: the hard leg's time-to-OPTIMAL on the production F5@245 shape — the 2-5×
+     * hypothesis test vs the ~147 s soft baseline (docs/MOST_MASTERIES_PERF_PLAN.md P2a). The
+     * hard-leg optimum score must equal the banked soft optimum (10705: the soft optimum meets its
+     * targets, so the two coincide). `WAKFU_MM_P2A=1`; det via `WAKFU_MM_P2A_DET` (600).
+     */
+    @Test
+    fun `manual P2a hard leg timing at 245`(): Unit =
+        runBlocking {
+            assumeTrue(System.getenv("WAKFU_MM_P2A") == "1")
+            val det = System.getenv("WAKFU_MM_P2A_DET")?.toDoubleOrNull() ?: 600.0
+            val level = 245
+            val p =
+                WakfuBestBuildParams(
+                    character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+                    targetStats =
+                        TargetStats(
+                            listOf(
+                                TargetStat(Characteristic.MASTERY_DISTANCE, 9999),
+                                TargetStat(Characteristic.ACTION_POINT, 12),
+                                TargetStat(Characteristic.MOVEMENT_POINT, 6),
+                                TargetStat(Characteristic.HP, 2000),
+                                TargetStat(Characteristic.CRITICAL_HIT, 30)
+                            )
+                        ),
+                    searchDuration = 600.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                    useRunes = true,
+                    useSublimations = true
+                )
+            val pool =
+                WakfuBestBuildFinderAlgorithm.equipments
+                    .filter { it.rarity <= Rarity.EPIC }
+                    .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                    .groupBy { it.itemType }
+            val tuning =
+                WakfuBuildSolver.SolverTuning(
+                    numSearchWorkers = 1,
+                    interleaveSearch = true,
+                    maxDeterministicTime = det,
+                    applyDominationOverride = true,
+                    maxPresolveIterationsOverride = 1,
+                    linearizationLevelOverride = 1
+                )
+            val t0 = System.nanoTime()
+            var last: me.chosante.autobuilder.genetic.SolverResult<me.chosante.autobuilder.domain.BuildCombination>? = null
+            WakfuBuildSolver
+                .optimize(p, pool, WakfuBestBuildFinderAlgorithm.runes, WakfuBestBuildFinderAlgorithm.sublimations, tuning, hardConstraints = true)
+                .collect { r ->
+                    val ms = (System.nanoTime() - t0) / 1_000_000
+                    println("MM_P2A emit t=${ms}ms objective=${r.matchPercentage} optimal=${r.isOptimal}")
+                    last = r
+                }
+            val wallMs = (System.nanoTime() - t0) / 1_000_000
+            println("MM_P2A lvl$level det=$det SUMMARY wallMs=$wallMs optimal=${last?.isOptimal} objective=${last?.matchPercentage} (soft baseline ~147000ms / 10705)")
+        }
+
+    /**
      * The DECISIVE M3 sub-measurement: the max UNPENALIZED objective at 245 (distance mastery as the
      * only target — no required stats, so penalty == 1 for every build and CP-SAT's optimum IS the
      * quantity the bound must dominate). Distinguishes "the bound is loose" (optimum ≪ bound) from

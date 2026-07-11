@@ -153,6 +153,18 @@ windows). Budget-cap it; keep it off the deterministic test path.
 ### P2a — hard-constraints-first leg (the strongest structural candidate — two analysts converged
 on the identical design independently)
 
+> **E1 OUTCOME (2026-07-11): SHIPPED as the production most-masteries path.** Hard leg at F5@245:
+> the SAME 10705 optimum proven OPTIMAL in **78.4 s vs ~147 s soft (1.88×)**. Wired: `hardConstraints`
+> in `buildMostMasteriesObjective` (targets hard + unpenalized objective + overshoot tie-breaker kept,
+> static-infeasibility skip propagated) and `WakfuBestBuildFinderAlgorithm.mostMasteriesHardThenSoft`
+> (hard first; fallback to the soft model on INFEASIBLE, detected via the guaranteed final
+> `progress == 100` send — the greedy warm-start emission makes "flow emitted" unusable — with the
+> REMAINING user budget). **Deliberate semantics change:** reachable targets are now always met
+> (the beta "conditions pas respectées" complaint class); the soft trade-off only survives on
+> genuinely unreachable targets; `isOptimal` on the hard path = optimal among targets-met builds.
+> Locks: hard == soft optimum on reachable-targets pools; soft-fallback on unreachable targets;
+> E1 harness `WAKFU_MM_P2A=1`. Both suites green (autobuilder + gui-compose E2E).
+
 Today's objective is `coreScore × penaltyMultiplier` through a 2001-entry power-6 table +
 bucketed division (WakfuBuildSolver.kt:2237-2273, StatBuilder.kt:914-946) — the code's own doc
 calls this "the penalty product, whose foggy LP relaxation traps the search" (StatBuilder.kt:1704).
