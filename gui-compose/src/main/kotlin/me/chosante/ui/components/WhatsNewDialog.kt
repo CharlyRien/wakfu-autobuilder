@@ -25,17 +25,20 @@ import me.chosante.ui.theme.WTypography
 
 /**
  * Once-per-version release-notes pop-in, shown over the shell on the first launch after an update
- * (see [me.chosante.ui.state.WhatsNew] for the gating). Bullets come from the release-please
- * CHANGELOG, so they are English-only; section titles are the few known release-please headings
- * and get translated.
+ * (see [me.chosante.ui.state.WhatsNew] for the gating). When the user skipped releases (e.g. a
+ * 1.7 → 1.10 jump), every unseen release is stacked newest-first with its own version header.
+ * Bullets come from the release-please CHANGELOG, so they are English-only; section titles are the
+ * few known release-please headings and get translated.
  */
 @Composable
 fun WhatsNewDialog(
-    notes: ReleaseNotes,
+    releases: List<ReleaseNotes>,
     onDismiss: () -> Unit,
 ) {
+    val title =
+        if (releases.size == 1) "${tr(Tr.WHATS_NEW_TITLE)} ${releases.single().version}" else tr(Tr.WHATS_NEW_TITLE)
     Scrim(onDismiss = onDismiss) {
-        ModalCard(title = "${tr(Tr.WHATS_NEW_TITLE)} ${notes.version}") {
+        ModalCard(title = title) {
             Column(
                 modifier =
                     Modifier
@@ -43,25 +46,36 @@ fun WhatsNewDialog(
                         .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(7.dp)
             ) {
-                notes.sections.forEachIndexed { sectionIndex, section ->
-                    if (sectionIndex > 0) {
-                        Spacer(modifier = Modifier.height(4.dp))
+                releases.forEachIndexed { releaseIndex, notes ->
+                    if (releases.size > 1) {
+                        if (releaseIndex > 0) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                        }
+                        Text(
+                            text = notes.version,
+                            style = WTypography.titleMedium.copy(color = WColor.accent, fontWeight = FontWeight.Bold)
+                        )
                     }
-                    Text(
-                        text = sectionTitle(section.title),
-                        style = WTypography.labelMedium.copy(color = WColor.muted, fontWeight = FontWeight.SemiBold)
-                    )
-                    section.items.forEach { item ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                            Text(
-                                text = "•",
-                                style = WTypography.bodyMedium.copy(color = WColor.accent)
-                            )
-                            Text(
-                                text = item,
-                                style = WTypography.bodyMedium.copy(color = WColor.text, lineHeight = 19.sp),
-                                modifier = Modifier.padding(top = 1.dp)
-                            )
+                    notes.sections.forEachIndexed { sectionIndex, section ->
+                        if (sectionIndex > 0) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
+                        Text(
+                            text = sectionTitle(section.title),
+                            style = WTypography.labelMedium.copy(color = WColor.muted, fontWeight = FontWeight.SemiBold)
+                        )
+                        section.items.forEach { item ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                Text(
+                                    text = "•",
+                                    style = WTypography.bodyMedium.copy(color = WColor.accent)
+                                )
+                                Text(
+                                    text = item,
+                                    style = WTypography.bodyMedium.copy(color = WColor.text, lineHeight = 19.sp),
+                                    modifier = Modifier.padding(top = 1.dp)
+                                )
+                            }
                         }
                     }
                 }

@@ -24,6 +24,13 @@ data class ReleaseNotesSection(
 object WhatsNew {
     private const val KEY = "lastSeenChangelogVersion"
 
+    /**
+     * Ceiling on the number of releases stacked into one dialog. Also the safety net when the
+     * last-seen version has no heading in the embedded changelog (corrupted pref, truncated file):
+     * rather than greeting the user with the full history, the dialog shows at most this many.
+     */
+    internal const val MAX_VERSIONS_SHOWN = 10
+
     private val prefs: Preferences? = runCatching { Preferences.userRoot().node("me/chosante/wakfu-autobuilder") }.getOrNull()
 
     /** App version baked in by the build, or null when the resource is missing (unit tests, IDE). */
@@ -38,9 +45,22 @@ object WhatsNew {
     }
 
     /**
-     * True when the running version has unseen release notes. A machine with no recorded version
-     * is a fresh install, not an update — it records the baseline silently instead of greeting a
-     * new user with a changelog.
+     * Every release the user hasn't seen yet, newest first — so a 1.7 → 1.10 jumper reads the 1.8
+     * and 1.9 notes too, not just the running version's. Empty when up to date, on a fresh install,
+     * or when the changelog is missing.
+     */
+    fun unseenReleaseNotes(): List<ReleaseNotes> {
+        val version = appVersion ?: return emptyList()
+        val lastSeen = runCatching { prefs?.get(KEY, null) }.getOrNull() ?: return emptyList()
+        if (lastSeen == version) return emptyList()
+        val changelog = runCatching { resourceText("/CHANGELOG.md") }.getOrNull() ?: return emptyList()
+        return parseReleaseNotesSince(changelog, currentVersion = version, lastSeenVersion = lastSeen, maxVersions = MAX_VERSIONS_SHOWN)
+    }
+
+    /**
+     * True when there are unseen release notes. A machine with no recorded version is a fresh
+     * install, not an update — it records the baseline silently instead of greeting a new user
+     * with a changelog.
      */
     fun shouldShow(): Boolean {
         val version = appVersion ?: return false
@@ -49,7 +69,7 @@ object WhatsNew {
             markSeen()
             return false
         }
-        return lastSeen != version && releaseNotes != null
+        return lastSeen != version && unseenReleaseNotes().isNotEmpty()
     }
 
     fun markSeen() {
@@ -81,7 +101,49 @@ internal fun parseReleaseNotes(
     val start = lines.indexOfFirst { releaseHeading.find(it)?.groupValues?.get(1) == version }
     if (start == -1) return null
     val body = lines.drop(start + 1).takeWhile { !it.startsWith("## ") }
+    val sections = parseSections(body)
+    return if (sections.isEmpty()) null else ReleaseNotes(version, sections)
+}
 
+/**
+ * Every release section from [currentVersion] down to — and excluding — [lastSeenVersion], newest
+ * first, capped at [maxVersions]. Releases without bullets are skipped. When [currentVersion] has
+ * no heading (a dev build newer than the embedded changelog), the walk starts at the newest release
+ * instead; when [lastSeenVersion] has no heading, [maxVersions] is the only stop.
+ */
+internal fun parseReleaseNotesSince(
+    changelog: String,
+    currentVersion: String,
+    lastSeenVersion: String,
+    maxVersions: Int = WhatsNew.MAX_VERSIONS_SHOWN,
+): List<ReleaseNotes> {
+    val lines = changelog.lines()
+    val headings =
+        lines
+            .withIndex()
+            .mapNotNull { (index, line) ->
+                releaseHeading
+                    .find(line)
+                    ?.groupValues
+                    ?.get(1)
+                    ?.let { index to it }
+            }
+    if (headings.isEmpty()) return emptyList()
+
+    val startAt = headings.indexOfFirst { (_, version) -> version == currentVersion }.coerceAtLeast(0)
+    val notes = mutableListOf<ReleaseNotes>()
+    for (headingIndex in startAt until headings.size) {
+        val (lineIndex, version) = headings[headingIndex]
+        if (version == lastSeenVersion || notes.size >= maxVersions) break
+        val bodyEnd = headings.getOrNull(headingIndex + 1)?.first ?: lines.size
+        val sections = parseSections(lines.subList(lineIndex + 1, bodyEnd))
+        if (sections.isNotEmpty()) notes += ReleaseNotes(version, sections)
+    }
+    return notes
+}
+
+/** The `### title` / `* bullet` groups of one release's body lines (see [parseReleaseNotes]). */
+private fun parseSections(body: List<String>): List<ReleaseNotesSection> {
     val sections = mutableListOf<ReleaseNotesSection>()
     var title = ""
     var items = mutableListOf<String>()
@@ -107,7 +169,7 @@ internal fun parseReleaseNotes(
         }
     }
     flush()
-    return if (sections.isEmpty()) null else ReleaseNotes(version, sections)
+    return sections
 }
 
 /** `**gui:** stuff ([#140](url)) ([abc1234](url))` → `gui: stuff (#140)`. */

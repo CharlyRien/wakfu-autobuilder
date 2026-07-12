@@ -204,10 +204,13 @@ fun App(model: BuildSearchModel) {
                             System.getenv("WAKFU_COMPOSE_SCREENSHOT_WHATSNEW") != null
                     }
                 var showWhatsNew by remember { mutableStateOf(forceWhatsNew || (!screenshotMode && WhatsNew.shouldShow())) }
-                val notes = remember { WhatsNew.releaseNotes }
-                if (showWhatsNew && model.isReady && notes != null) {
+                // Every unseen release (a version jump shows them all); the forced screenshot knob
+                // falls back to the running version's notes since nothing is "unseen" there.
+                val releases =
+                    remember { WhatsNew.unseenReleaseNotes().ifEmpty { listOfNotNull(WhatsNew.releaseNotes) } }
+                if (showWhatsNew && model.isReady && releases.isNotEmpty()) {
                     WhatsNewDialog(
-                        notes = notes,
+                        releases = releases,
                         onDismiss = {
                             WhatsNew.markSeen()
                             showWhatsNew = false
