@@ -60,6 +60,93 @@ class WhatsNewParserTest {
     }
 
     @Test
+    fun `a version jump collects every release down to the last seen one, exclusive`() {
+        val jump =
+            """
+            # Changelog
+
+            ## [1.10.0](https://example.com) (2026-07-12)
+
+            ### Bug Fixes
+
+            * newest fix
+
+            ## [1.9.1](https://example.com) (2026-07-11)
+
+            ### Features
+
+            * middle feature
+
+            ## [1.9.0](https://example.com) (2026-07-10)
+
+            ### Features
+
+            * older feature
+
+            ## [1.7.0](https://example.com) (2026-06-01)
+
+            ### Features
+
+            * already seen
+            """.trimIndent()
+
+        val notes = parseReleaseNotesSince(jump, currentVersion = "1.10.0", lastSeenVersion = "1.7.0")
+
+        assertThat(notes.map { it.version })
+            .describedAs("newest first, stops BEFORE the last seen version")
+            .containsExactly("1.10.0", "1.9.1", "1.9.0")
+        assertThat(
+            notes
+                .first()
+                .sections
+                .single()
+                .items
+        ).containsExactly("newest fix")
+    }
+
+    @Test
+    fun `an up-to-date user gets nothing and a bullet-less release is skipped`() {
+        val withEmptyRelease =
+            """
+            ## [1.3.0](https://example.com) (2026-08-01)
+
+            ### Features
+
+            * new stuff
+
+            ## [1.2.5](https://example.com) (2026-07-20)
+
+            ## [1.2.0](https://example.com) (2026-07-01)
+
+            ### Features
+
+            * old stuff
+            """.trimIndent()
+
+        assertThat(parseReleaseNotesSince(withEmptyRelease, "1.3.0", lastSeenVersion = "1.3.0")).isEmpty()
+        assertThat(parseReleaseNotesSince(withEmptyRelease, "1.3.0", lastSeenVersion = "1.2.0").map { it.version })
+            .describedAs("the bullet-less 1.2.5 is skipped, 1.2.0 (seen) excluded")
+            .containsExactly("1.3.0")
+    }
+
+    @Test
+    fun `an unknown last-seen version is capped instead of dumping the full history`() {
+        val many =
+            (20 downTo 1).joinToString("\n\n") { minor ->
+                "## [1.$minor.0](https://example.com) (2026-01-01)\n\n### Features\n\n* entry $minor"
+            }
+
+        val notes = parseReleaseNotesSince(many, currentVersion = "1.20.0", lastSeenVersion = "0.0.1", maxVersions = 3)
+        assertThat(notes.map { it.version }).containsExactly("1.20.0", "1.19.0", "1.18.0")
+    }
+
+    @Test
+    fun `a dev build newer than the changelog starts at the newest release`() {
+        val notes = parseReleaseNotesSince(changelog, currentVersion = "1.3.0-dev", lastSeenVersion = "1.1.0")
+        assertThat(notes.map { it.version }).containsExactly("1.2.0")
+    }
+
+    @Test
     fun `returns null when the section has no bullets`() {
         val empty =
             """
