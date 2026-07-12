@@ -314,8 +314,8 @@ object WakfuBestBuildFinderAlgorithm {
                 .filter { equipment ->
                     equipment.rarity <= maxRarity && equipment.rarity !in excludedRarities
                 }.filter { equipment ->
-                    (equipment.level <= character.level && equipment.level >= character.minLevel) ||
-                        (equipment.itemType == ItemType.PETS || equipment.itemType == ItemType.MOUNTS)
+                    equipment.isLevelExemptCompanion ||
+                        (equipment.level <= character.level && equipment.level >= character.minLevel)
                 }.filter { equipment -> equipment.name.fr.lowercase() !in itemsExcluded }
                 .toList()
         val forcedWeaponTypes =
@@ -454,12 +454,20 @@ object WakfuBestBuildFinderAlgorithm {
     private fun Equipment.isEquippableFor(params: WakfuBestBuildParams): Boolean {
         val rarityOk = rarity <= params.maxRarity && rarity !in params.excludedRarities
         val levelOk =
-            itemType == ItemType.PETS ||
-                itemType == ItemType.MOUNTS ||
+            isLevelExemptCompanion ||
                 (level >= params.character.minLevel && level <= params.character.level)
         return rarityOk && levelOk
     }
 }
+
+/**
+ * A companion-slot item with no character-level requirement: equippable at any character level, ignoring the
+ * requested `[minLevel, level]` band. True for familiers and mounts (level-less in game, force-leveled only for
+ * display). FALSE for Lucky Charms — they share the PETS slot but carry a real level requirement
+ * ([Equipment.levelRestricted]), so they are level-filtered like ordinary gear.
+ */
+private val Equipment.isLevelExemptCompanion: Boolean
+    get() = (itemType == ItemType.PETS || itemType == ItemType.MOUNTS) && !levelRestricted
 
 /**
  * A single problem with a search request, found by [WakfuBestBuildFinderAlgorithm.validateRequest]. Structured

@@ -6,8 +6,9 @@
 #       (default install: /Applications/Ankama/Wakfu)
 #
 # What it does, in order:
-#   1. Equipments (Ankama CDN) — also AUTO-DETECTS the latest data version.
-#   2. Bumps the single source of truth: common-lib WakfuData.VERSION.
+#   1. AUTO-DETECTS the latest CDN data version and bumps the single source of truth (common-lib
+#      WakfuData.VERSION) FIRST — every extractor then reads that one constant, so nothing can drift.
+#   2. Equipments (Ankama CDN) — fetched for the pinned WakfuData.VERSION, like every other extractor.
 #   3. Spells (Ankama encyclopedia).
 #   4. bdata artifacts (local game binaries): cast-limits, passives, sublimations (effects from bdata +
 #      metadata from the CDN items.json), sublimation-stacking, and monsters (local Monster table — no more
@@ -24,15 +25,15 @@ cd "$(dirname "$0")/.."
 WAKFU_INSTALL="${1:-/Applications/Ankama/Wakfu}"
 VERSION_FILE="common-lib/src/main/kotlin/me/chosante/common/WakfuData.kt"
 
-echo "==> [1/5] Equipments (Ankama CDN — detects the latest data version)…"
-equip_out="$(./gradlew -q --console=plain :equipments-extractor:run 2>&1)" || { echo "$equip_out"; exit 1; }
-echo "$equip_out"
-new_version="$(printf '%s\n' "$equip_out" | sed -n 's/.*Latest Wakfu data version (Ankama CDN): \([0-9.]\{1,\}\).*/\1/p' | head -1)"
-[ -n "$new_version" ] || { echo "ERROR: could not parse the version from equipments-extractor output."; exit 1; }
-echo "    Detected latest version: $new_version"
-
-echo "==> [2/5] Bumping WakfuData.VERSION -> $new_version (the single source of truth)…"
+echo "==> [1/5] Detecting the latest Wakfu data version (Ankama CDN) + bumping the single source of truth…"
+new_version="$(curl -fsSL https://wakfu.cdn.ankama.com/gamedata/config.json | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([0-9.]\{1,\}\)".*/\1/p' | head -1)"
+[ -n "$new_version" ] || { echo "ERROR: could not detect the latest version from the Ankama CDN config.json."; exit 1; }
+echo "    Latest version: $new_version"
+echo "    Bumping WakfuData.VERSION -> $new_version in $VERSION_FILE (every extractor reads this)…"
 perl -i -pe "s/(const val VERSION: String = \")[0-9.]+(\")/\${1}${new_version}\${2}/" "$VERSION_FILE"
+
+echo "==> [2/5] Equipments (Ankama CDN, for the pinned WakfuData.VERSION = $new_version)…"
+./gradlew --console=plain :equipments-extractor:run
 
 echo "==> [3/5] Spells (encyclopedia)…"
 ./gradlew --console=plain :spells-extractor:run
