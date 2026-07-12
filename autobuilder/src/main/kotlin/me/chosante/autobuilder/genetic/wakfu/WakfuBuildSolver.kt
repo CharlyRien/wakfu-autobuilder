@@ -471,6 +471,10 @@ object WakfuBuildSolver {
         // The oracle hint: a previously captured assignment, applied by var name onto the fresh model.
         // Use with greedyWarmStart = false — a var must not be hinted twice.
         val assignmentHint: Map<String, Long>? = null,
+        // Manual most-masteries performance campaign. CURRENT keeps the production encoding byte-identical;
+        // alternatives are exercised only by the dedicated same-JVM A/B harness.
+        val mmOvershootEncoding: MmOvershootEncoding = MmOvershootEncoding.CURRENT,
+        val mmProductEncoding: MmProductEncoding = MmProductEncoding.CURRENT,
     )
 
     fun optimize(
@@ -577,7 +581,9 @@ object WakfuBuildSolver {
                             applyDomination = tuning?.applyDominationOverride ?: (tuning == null),
                             maxDamageExperiment = tuning?.maxDamageExperiment ?: MaxDamageExperimentConfig.DEFAULT,
                             hardConstraints = hardConstraints,
-                            mmPlainPrimaryObjective = mmTwoStage
+                            mmPlainPrimaryObjective = mmTwoStage,
+                            mmOvershootEncoding = tuning?.mmOvershootEncoding ?: MmOvershootEncoding.CURRENT,
+                            mmProductEncoding = tuning?.mmProductEncoding ?: MmProductEncoding.CURRENT
                         )
                     // C2: a hard-constraints model with a required target above its reachable ceiling is PROVABLY
                     // infeasible — skip the doomed CP-SAT solve entirely and emit nothing. The caller
@@ -641,7 +647,9 @@ object WakfuBuildSolver {
                                 applyDomination = tuning?.applyDominationOverride ?: (tuning == null),
                                 maxDamageExperiment = tuning?.maxDamageExperiment ?: MaxDamageExperimentConfig.DEFAULT,
                                 hardConstraints = hardConstraints,
-                                mmOvershootPinnedPrimary = outcome.objectiveValue
+                                mmOvershootPinnedPrimary = outcome.objectiveValue,
+                                mmOvershootEncoding = tuning?.mmOvershootEncoding ?: MmOvershootEncoding.CURRENT,
+                                mmProductEncoding = tuning?.mmProductEncoding ?: MmProductEncoding.CURRENT
                             )
                         executeSolverAndEmitResults(
                             built2.model,
@@ -817,6 +825,9 @@ object WakfuBuildSolver {
         // P2b two-stage lexicographic (most-masteries hard leg) — see [buildMostMasteriesObjective].
         mmPlainPrimaryObjective: Boolean = false,
         mmOvershootPinnedPrimary: Long? = null,
+        // Manual most-masteries A/B encodings. Production always passes CURRENT through [optimize].
+        mmOvershootEncoding: MmOvershootEncoding = MmOvershootEncoding.CURRENT,
+        mmProductEncoding: MmProductEncoding = MmProductEncoding.CURRENT,
         // Test seam: when true, the max-damage build also runs [certifyMaxPerHitAtAp] for every AP cell and
         // stores the resulting objectives in [BuiltModel.certifierObjectivesForTest] (single-element only).
         certifyAllApForTest: Boolean = false,
@@ -946,7 +957,9 @@ object WakfuBuildSolver {
                             subModel,
                             hardConstraints,
                             mmPlainPrimaryObjective,
-                            mmOvershootPinnedPrimary
+                            mmOvershootPinnedPrimary,
+                            mmOvershootEncoding,
+                            mmProductEncoding
                         )
                     maxDamageStaticallyInfeasible = mm.staticallyInfeasible
                     mm.objective
@@ -2163,6 +2176,12 @@ object WakfuBuildSolver {
         }
     }
 
+    /** The most-masteries objective plus the hard-leg static-infeasibility flag (mirrors [MaxDamageObjectiveVars]). */
+    private class MostMasteriesObjectiveVars(
+        val objective: IntVar,
+        val staticallyInfeasible: Boolean = false,
+    )
+
     /**
      * Objective for "most masteries" mode: maximize the *requested* masteries — scaled by the build's global
      * **% Damage Inflicted** so the proxy is damage-faithful (see [StatBuilder.diAdjustedPerElementMasteryScore]) —
@@ -2174,13 +2193,6 @@ object WakfuBuildSolver {
      * proven optimum leaves the slot empty. (Decision: keep as-is; see the engine discussion in
      * AGENTS.md §4.)
      */
-
-    /** The most-masteries objective plus the hard-leg static-infeasibility flag (mirrors [MaxDamageObjectiveVars]). */
-    private class MostMasteriesObjectiveVars(
-        val objective: IntVar,
-        val staticallyInfeasible: Boolean = false,
-    )
-
     private fun CpModel.buildMostMasteriesObjective(
         params: WakfuBestBuildParams,
         allEquips: List<Equipment>,
@@ -2201,6 +2213,8 @@ object WakfuBuildSolver {
         // the objective — a short, near-forced solve that restores the exact lexicographic build.
         mmPlainPrimaryObjective: Boolean = false,
         mmOvershootPinnedPrimary: Long? = null,
+        mmOvershootEncoding: MmOvershootEncoding = MmOvershootEncoding.CURRENT,
+        mmProductEncoding: MmProductEncoding = MmProductEncoding.CURRENT,
     ): MostMasteriesObjectiveVars {
         val statBuilder =
             StatBuilder(
@@ -2211,6 +2225,9 @@ object WakfuBuildSolver {
                 skillVars,
                 runeModel,
                 subModel,
+                // The TRACKED/BINARY arms deliberately tighten the whole MM stat chain so the product's
+                // big-Ms and declared domains consume the same reachable ranges. CURRENT is byte-identical.
+                tight = mmProductEncoding != MmProductEncoding.CURRENT,
                 // Decouple from the max-damage experiment default (see [MaxDamageExperimentConfig.NON_MAX_DAMAGE]).
                 maxDamageExperiment = MaxDamageExperimentConfig.NON_MAX_DAMAGE
             )
@@ -2223,7 +2240,8 @@ object WakfuBuildSolver {
         // C8: [diAdjustedPerElementMasteryScore] now also returns a sound reachable ceiling on that score, used as
         // the product-box bound below (was the loose MASTERY_SCORE_ABS_MAX), tightening the objective's McCormick
         // envelope on the required-target path.
-        val (masteryScore, masteryScoreReach) = statBuilder.diAdjustedPerElementMasteryScore(targetStats, targetCharacteristics)
+        val (masteryScore, masteryScoreReach) =
+            statBuilder.diAdjustedPerElementMasteryScore(targetStats, targetCharacteristics, mmProductEncoding)
 
         val requiredTargets = targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }
 
@@ -2243,7 +2261,7 @@ object WakfuBuildSolver {
                 requiredTargets
                     .sumOf { it.target.toLong() * targetStats.scaledWeight(it) }
                     .coerceAtLeast(1L)
-            val overshoot = statBuilder.overshootScore(requiredTargets, totalExpectedScore, targetStats)
+            val overshoot = statBuilder.overshootScore(requiredTargets, totalExpectedScore, targetStats, mmOvershootEncoding)
             // P2b stage 2: pin the primary at stage 1's proven value, maximize overshoot alone —
             // provably the same lexicographic optimum as the folded objective, without its domain.
             if (mmOvershootPinnedPrimary != null) {
@@ -2272,7 +2290,9 @@ object WakfuBuildSolver {
         // (and, among ties, pick gear that overshoots) instead of leaving them unused — free in-game
         // value the player would always take. It can never trade a maximized-mastery point for
         // overshoot; see [withOvershootTieBreaker].
-        val overshoot = statBuilder.overshootScore(requiredTargets, totalExpectedScore, targetStats)
+        // The alternative overshoot encodings rely on the hard `actual >= target` constraints above.
+        // The soft fallback therefore always keeps the shipped exact chain.
+        val overshoot = statBuilder.overshootScore(requiredTargets, totalExpectedScore, targetStats, MmOvershootEncoding.CURRENT)
         return MostMasteriesObjectiveVars(withOvershootTieBreaker(penalized.objective, penalized.bound, overshoot, totalExpectedScore))
     }
 
@@ -2694,9 +2714,23 @@ object WakfuBuildSolver {
                         )
                     )
                 }
-                SolveOutcome(status, solver.objectiveValue().toLong())
+                SolveOutcome(
+                    status = status,
+                    objectiveValue = solver.objectiveValue().toLong(),
+                    bestObjectiveBound = solver.bestObjectiveBound().toLong(),
+                    deterministicTime = deterministicTimeFrom(solver.responseStats()),
+                    branches = solver.numBranches(),
+                    conflicts = solver.numConflicts()
+                )
             } else {
-                SolveOutcome(status, null)
+                SolveOutcome(
+                    status = status,
+                    objectiveValue = null,
+                    bestObjectiveBound = solver.bestObjectiveBound().toLong(),
+                    deterministicTime = deterministicTimeFrom(solver.responseStats()),
+                    branches = solver.numBranches(),
+                    conflicts = solver.numConflicts()
+                )
             }
         } catch (e: Exception) {
             logger.error(e) { "Solver failed while searching for the best build." }
@@ -2712,6 +2746,10 @@ object WakfuBuildSolver {
     internal class SolveOutcome(
         val status: com.google.ortools.sat.CpSolverStatus,
         val objectiveValue: Long?,
+        val bestObjectiveBound: Long,
+        val deterministicTime: Double,
+        val branches: Long,
+        val conflicts: Long,
     )
 
     /**
