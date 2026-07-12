@@ -108,6 +108,68 @@ class ZenithShardPlanTest {
         assertThat(shards.last().level).describedAs("the sublimation has no level").isNull()
     }
 
+    /** Every exported rune is whitened (wildcard socket) so any sublimation colour pattern activates. */
+    @Test
+    fun `runes are flagged for whitening and sublimations are not`() {
+        val belt = equipment(9, ItemType.BELT, "Belt")
+        val shards =
+            plannedShards(
+                belt,
+                side = ItemType.BELT.id,
+                runes = listOf(rune(10), rune(11)),
+                subs = listOf(sublimation(1, 7001, "SubA"))
+            )
+
+        assertThat(shards.map { it.whiten })
+            .describedAs("each rune gets a follow-up /shard/transform; the sublimation never does")
+            .containsExactly(true, true, false)
+    }
+
+    /**
+     * The sub's socketed id is the TIER-RESOLVED family member: Zenith ignores `/shard/add`'s level for
+     * sublimations — the shard id's intrinsic level (I=1, II=2, III=3) is what the build accumulates —
+     * so a maxTier-3 family must socket the tier-III child id, not the family root (level 1).
+     */
+    @Test
+    fun `sublimations socket the tier-resolved shard id with a root fallback`() {
+        val belt = equipment(10, ItemType.BELT, "Belt")
+        val ambition = sublimation(stateId = 7115, zenithId = 29591, label = "Ambition I")
+        val catalog = mapOf(29591 to mapOf(1 to 29591, 2 to 29592, 3 to 29593))
+
+        val resolved =
+            plannedShards(belt, ItemType.BELT.id, runes = emptyList(), subs = listOf(ambition)) { sub ->
+                catalog[sub.zenithId]?.get(sub.maxTier) ?: sub.zenithId
+            }
+        assertThat(resolved.single().shardId)
+            .describedAs("maxTier 3 sockets the tier-III family member")
+            .isEqualTo(29593)
+
+        val fallback = plannedShards(belt, ItemType.BELT.id, runes = emptyList(), subs = listOf(ambition))
+        assertThat(fallback.single().shardId)
+            .describedAs("without a catalog the export keeps the family root")
+            .isEqualTo(29591)
+    }
+
+    /** Epic/relic subs live in the build's dedicated slots: the UI posts them at side 0, position 0. */
+    @Test
+    fun `epic and relic sublimations target the dedicated build slots`() {
+        val belt = equipment(11, ItemType.BELT, "Belt")
+        val epic = sublimation(2, 8001, "EpicSub").copy(rarity = SublimationRarity.EPIC, maxTier = 1)
+        val relic = sublimation(3, 8002, "RelicSub").copy(rarity = SublimationRarity.RELIC, maxTier = 1)
+
+        val shards =
+            plannedShards(
+                belt,
+                side = ItemType.BELT.id,
+                runes = listOf(rune(10)),
+                subs = listOf(epic, relic)
+            )
+        val specials = shards.filter { it.shardId in listOf(8001, 8002) }
+        assertThat(specials.map { it.side to it.position })
+            .describedAs("epic/relic subs are posted at side 0, position 0, never on the carrier")
+            .containsExactly(0 to 0, 0 to 0)
+    }
+
     /**
      * The two rings must claim the two dedicated ring sides. The ring-side iterator used to be advanced from
      * inside the per-item `async`, so the rings raced for it; [sideAssignments] now resolves every side up
