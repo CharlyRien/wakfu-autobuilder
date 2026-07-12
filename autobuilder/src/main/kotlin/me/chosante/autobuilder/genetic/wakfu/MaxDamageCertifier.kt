@@ -166,6 +166,115 @@ internal object CertifierTuning {
     val tier15SegmentsSkippedForTest =
         java.util.concurrent.atomic
             .AtomicLong()
+
+    /**
+     * A/B seam for the FAST-pass harvest coordinate index. Off by default, so production keeps the
+     * reference `all cells × all crit steps` scan until the experiment is measured and accepted.
+     * The environment switch is intentionally experimental; flipping the production default would be
+     * a certifier change and therefore requires a [WakfuBuildSolver.CERTIFIER_VERSION] bump.
+     */
+    @Volatile
+    var indexedFastHarvestEnabled = System.getenv("WAKFU_MAX_DAMAGE_CERT_INDEXED_HARVEST") == "1"
+
+    /** Number of indexed `(state, AP-cell, crit-step)` coordinates actually handed to the harvest. */
+    val indexedFastHarvestCoordinatesForTest =
+        java.util.concurrent.atomic
+            .AtomicLong()
+}
+
+/**
+ * Direct AP-cell index for one FAST-pass DP state's pre-sub AP coordinate.
+ *
+ * Returned pairs are packed as `[cell0, minimumGapSubs0, cell1, minimumGapSubs1, ...]`, in the same
+ * ascending-cell order as the reference scan. Cells outside the exact arithmetic band, or whose AP
+ * gap cannot be covered by the available pure-AP budget, are omitted. This helper is internal so a
+ * focused exhaustive test can lock the indexed enumeration byte-for-byte against the reference loop.
+ */
+internal fun indexedFastHarvestApCoordinates(
+    stateAp: Int,
+    cellCount: Int,
+    apConst: Long,
+    minSubAp: Int,
+    maxSubAp: Int,
+    apPlusSorted: List<Long>,
+    apMinusSorted: List<Long>,
+): IntArray {
+    if (cellCount <= 0) return IntArray(0)
+    val first = maxOf(0L, apConst + stateAp + minSubAp).coerceAtMost(cellCount.toLong())
+    val last = minOf(cellCount.toLong() - 1L, apConst + stateAp + maxSubAp)
+    if (first > last) return IntArray(0)
+
+    val packed = IntArray(((last - first + 1L) * 2L).toInt())
+    var size = 0
+    for (cellLong in first..last) {
+        val gap = cellLong - apConst - stateAp
+        val cover =
+            if (gap >= 0L) {
+                minimumBudgetUnitsToCover(gap, apPlusSorted)
+            } else {
+                minimumBudgetUnitsToCover(-gap, apMinusSorted)
+            }
+        if (cover == Int.MAX_VALUE) continue
+        packed[size++] = cellLong.toInt()
+        packed[size++] = cover
+    }
+    return if (size == packed.size) packed else packed.copyOf(size)
+}
+
+/**
+ * Direct crit-step index for one FAST-pass DP state's pre-sub crit coordinate within one c segment.
+ * The packed output is `[c0, minimumGapSubs0, ...]` in the reference loop's ascending-c order.
+ * `c == 0` deliberately keeps its special clamp band and zero gap charge.
+ */
+internal fun indexedFastHarvestCritCoordinates(
+    stateCrit: Int,
+    cLow: Int,
+    cHigh: Int,
+    critConst: Long,
+    critOff: Int,
+    maxSubCrit: Long,
+    csWorldCrit: Long,
+    forcedStartCritTotal: Long,
+    critBudgetSortedForCharge: List<Long>,
+): IntArray {
+    if (cLow > cHigh) return IntArray(0)
+    val zeroIncluded =
+        cLow <= 0 &&
+            cHigh >= 0 &&
+            stateCrit >= -critOff &&
+            stateCrit <= -critConst
+    val firstPositive = maxOf(cLow.toLong(), 1L, stateCrit + critConst)
+    val lastPositive = minOf(cHigh.toLong(), stateCrit + critConst + maxSubCrit)
+    val positiveCount = if (firstPositive <= lastPositive) (lastPositive - firstPositive + 1L).toInt() else 0
+    val packed = IntArray(2 * (positiveCount + if (zeroIncluded) 1 else 0))
+    var size = 0
+    if (zeroIncluded) {
+        packed[size++] = 0
+        packed[size++] = 0
+    }
+    if (positiveCount > 0) {
+        for (cLong in firstPositive..lastPositive) {
+            val gap = cLong - critConst - stateCrit - csWorldCrit - forcedStartCritTotal
+            val cover = minimumBudgetUnitsToCover(gap, critBudgetSortedForCharge)
+            if (cover == Int.MAX_VALUE) continue
+            packed[size++] = cLong.toInt()
+            packed[size++] = cover
+        }
+    }
+    return if (size == packed.size) packed else packed.copyOf(size)
+}
+
+private fun minimumBudgetUnitsToCover(
+    gap: Long,
+    sortedDesc: List<Long>,
+): Int {
+    if (gap <= 0L) return 0
+    var covered = 0L
+    for ((index, value) in sortedDesc.withIndex()) {
+        covered += value
+        if (covered >= gap) return index + 1
+    }
+    return Int.MAX_VALUE
 }
 
 /**
@@ -2097,6 +2206,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         val fastTimingEnabled = System.getenv("WAKFU_MAX_DAMAGE_CERT_TIMING") == "1"
         var fastDpNanos = 0L
         var fastHarvestNanos = 0L
+        var fastHarvestCoordinates = 0L
         var fastSegmentsRun = 0
         var fastSegmentsSkipped = 0
         // Two-tier speed: allocate the per-crit-step harvest for the top cell (see [fastPerCOutHolder]).
@@ -2265,6 +2375,26 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         val bufBF = DenseDp(denseBoxF)
         var dpF = bufAF
         var ndF = bufBF
+        // A/B seam (off by default): AP feasibility depends only on the state's AP coordinate, so build
+        // its exact ascending `(cell, gap-charge)` list once per pass instead of rechecking every cell
+        // for every live state in every c segment.
+        val indexedHarvestEnabled = CertifierTuning.indexedFastHarvestEnabled
+        val indexedApCoordinates =
+            if (indexedHarvestEnabled) {
+                Array(apDimF) { storedAp ->
+                    indexedFastHarvestApCoordinates(
+                        stateAp = storedAp - apOff,
+                        cellCount = fastCellCount,
+                        apConst = apConst,
+                        minSubAp = minSubAp,
+                        maxSubAp = maxSubAp,
+                        apPlusSorted = apPlusSorted,
+                        apMinusSorted = apMinusSorted
+                    )
+                }
+            } else {
+                null
+            }
         for ((si, cLow) in segmentEdges.withIndex()) {
             val cHigh = if (si + 1 < segmentEdges.size) segmentEdges[si + 1] - 1 else cEnumMax
             // Floor speed (tier-1.5 single-cell runs): if tier-1's step-8 bounds cap every crit step of
@@ -2513,6 +2643,80 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             // Family-budget graw prefixes per crit step of this segment (the budget is priced with the
             // EXACT per-c fold at harvest — tighter than the segment-top point fold, still ≥ any build).
             val gpByC = Array(cHigh - cLow + 1) { grawBudgetPrefix(minOf((cLow + it), critCap).toLong()) }
+            // Crit feasibility is likewise a function only of the state's crit coordinate and this
+            // segment. Preserve the reference order exactly: the special clamped c=0 coordinate first,
+            // then the positive direct interval in ascending order, each carrying its precomputed charge.
+            val indexedCritCoordinates =
+                if (indexedHarvestEnabled) {
+                    Array(critDimF) { storedCrit ->
+                        indexedFastHarvestCritCoordinates(
+                            stateCrit = storedCrit - critOff,
+                            cLow = cLow,
+                            cHigh = cHigh,
+                            critConst = critConst,
+                            critOff = critOff,
+                            maxSubCrit = maxSubCrit,
+                            csWorldCrit = csWorldCrit,
+                            forcedStartCritTotal = forcedStartCritTotal,
+                            critBudgetSortedForCharge = critBudgetSortedForCharge
+                        )
+                    }
+                } else {
+                    null
+                }
+
+            fun harvestCoordinate(
+                fr: Frontier,
+                n0: Int,
+                relic: Int,
+                epic: Int,
+                crit: Int,
+                ap: Int,
+                a: Int,
+                apGapSubsA: Int,
+                c: Int,
+                critGapSubsC: Int,
+            ) {
+                if (n0 + critGapSubsC + apGapSubsA > subCap) return
+                if (convTaken != null) {
+                    if (convTaken.rarity == SublimationRarity.EPIC && epic == 0) return
+                    if (convTaken.rarity == SublimationRarity.RELIC && relic == 0) return
+                    val cond = convTaken.condition
+                    if (cond != null) {
+                        val n = (cond.value ?: 0).toLong()
+                        val preCombatCritMin = maxOf(critConst + crit, c - maxStartCrit)
+                        val preCombatCritMax = minOf(c.toLong(), critConst + crit + maxPermCrit)
+                        val preCombatApMin = maxOf(apConst + ap, a - maxStartAp)
+                        val preCombatApMax = minOf(a.toLong(), apConst + ap + maxPermAp)
+                        val ok =
+                            when (cond.type) {
+                                SublimationConditionType.AP_AT_MOST -> preCombatApMin <= n
+                                SublimationConditionType.AP_AT_LEAST -> preCombatApMax >= n
+                                SublimationConditionType.AP_EXACT -> preCombatApMin <= n && n <= preCombatApMax
+                                SublimationConditionType.CRIT_AT_MOST -> preCombatCritMin <= n
+                                SublimationConditionType.CRIT_AT_LEAST -> preCombatCritMax >= n
+                                else -> true
+                            }
+                        if (!ok) return
+                    }
+                }
+                if (critSecret != null && epic == 0) return
+                val cEff = minOf(c, critCap)
+                // Conditional forced credits are unconditional in the FAST pass (sound
+                // over-count, clamped ≥ 0 — keeps `fast ≥ exact` vs the gated exact harvest).
+                val grawConstC = (400L + cEff) * (mConst + forcedCondMTotal) + 5L * cEff * (critMConst + forcedCondCmTotal)
+                val freeSlots = subCap - n0 - critGapSubsC - apGapSubsA
+                val gpC = gpByC[c - cLow]
+                fr.forEachPoint { pd, pg, _ ->
+                    val perHit = budgetMax(dConst + pd, grawConstC + pg, freeSlots, gpC)
+                    if (perHit > fastAllCellsOut[a]) fastAllCellsOut[a] = perHit
+                    // Per-crit-step harvest for the top cell (exact-pass c-loop pruning bounds).
+                    if (fastPerCOut != null && a == maxCell && c < fastPerCOut.size && perHit > fastPerCOut[c]) fastPerCOut[c] = perHit
+                    // ALL-cells per-(cell, crit-step) harvest (tier-1.5 segment-skip bounds).
+                    if (fastPerCellC != null && c < fastPerCellC[a].size && perHit > fastPerCellC[a][c]) fastPerCellC[a][c] = perHit
+                }
+            }
+
             for (ki in 0 until dpF.liveCount) {
                 val k = dpF.liveKeys[ki]
                 val fr = dpF.slots[k] ?: continue
@@ -2524,57 +2728,49 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 rest /= 2
                 val crit = rest % critDimF - critOff
                 val ap = rest / critDimF - apOff
-                for (a in 0..maxCell) {
-                    val apHighA = a - apConst
-                    if (ap < apHighA - maxSubAp || ap > apHighA - minSubAp) continue
-                    val apGapA = apHighA - ap
-                    val apGapSubsA = if (apGapA >= 0) minSubsToCover(apGapA, apPlusSorted) else minSubsToCover(-apGapA, apMinusSorted)
-                    if (apGapSubsA == Int.MAX_VALUE) continue
-                    for (c in cLow..cHigh) {
-                        val critItemHighC = (c - critConst).toInt()
-                        val critLowBandC = if (c == 0) -critOff else critItemHighC - maxSubCrit.toInt()
-                        if (crit < critLowBandC || crit > critItemHighC) continue
-                        // Forced start-of-combat crit is credited before counting gap subs (mirrors
-                        // the exact harvest): always present, slot already charged.
-                        val critGapSubsC = if (c == 0) 0 else minSubsToCover(c.toLong() - critConst - crit - csWorldCrit - forcedStartCritTotal, critBudgetSortedForCharge)
-                        if (critGapSubsC == Int.MAX_VALUE) continue
-                        if (n0 + critGapSubsC + apGapSubsA > subCap) continue
-                        if (convTaken != null) {
-                            if (convTaken.rarity == SublimationRarity.EPIC && epic == 0) continue
-                            if (convTaken.rarity == SublimationRarity.RELIC && relic == 0) continue
-                            val cond = convTaken.condition
-                            if (cond != null) {
-                                val n = (cond.value ?: 0).toLong()
-                                val preCombatCritMin = maxOf(critConst + crit, c - maxStartCrit)
-                                val preCombatCritMax = minOf(c.toLong(), critConst + crit + maxPermCrit)
-                                val preCombatApMin = maxOf(apConst + ap, a - maxStartAp)
-                                val preCombatApMax = minOf(a.toLong(), apConst + ap + maxPermAp)
-                                val ok =
-                                    when (cond.type) {
-                                        SublimationConditionType.AP_AT_MOST -> preCombatApMin <= n
-                                        SublimationConditionType.AP_AT_LEAST -> preCombatApMax >= n
-                                        SublimationConditionType.AP_EXACT -> preCombatApMin <= n && n <= preCombatApMax
-                                        SublimationConditionType.CRIT_AT_MOST -> preCombatCritMin <= n
-                                        SublimationConditionType.CRIT_AT_LEAST -> preCombatCritMax >= n
-                                        else -> true
-                                    }
-                                if (!ok) continue
-                            }
+                if (indexedHarvestEnabled) {
+                    val apCoordinates = indexedApCoordinates!![ap + apOff]
+                    val critCoordinates = indexedCritCoordinates!![crit + critOff]
+                    var ai = 0
+                    while (ai < apCoordinates.size) {
+                        val a = apCoordinates[ai]
+                        val apGapSubsA = apCoordinates[ai + 1]
+                        var ci = 0
+                        while (ci < critCoordinates.size) {
+                            val c = critCoordinates[ci]
+                            val critGapSubsC = critCoordinates[ci + 1]
+                            fastHarvestCoordinates++
+                            CertifierTuning.indexedFastHarvestCoordinatesForTest.incrementAndGet()
+                            harvestCoordinate(fr, n0, relic, epic, crit, ap, a, apGapSubsA, c, critGapSubsC)
+                            ci += 2
                         }
-                        if (critSecret != null && epic == 0) continue
-                        val cEff = minOf(c, critCap)
-                        // Conditional forced credits are unconditional in the FAST pass (sound
-                        // over-count, clamped ≥ 0 — keeps `fast ≥ exact` vs the gated exact harvest).
-                        val grawConstC = (400L + cEff) * (mConst + forcedCondMTotal) + 5L * cEff * (critMConst + forcedCondCmTotal)
-                        val freeSlots = subCap - n0 - critGapSubsC - apGapSubsA
-                        val gpC = gpByC[c - cLow]
-                        fr.forEachPoint { pd, pg, _ ->
-                            val perHit = budgetMax(dConst + pd, grawConstC + pg, freeSlots, gpC)
-                            if (perHit > fastAllCellsOut[a]) fastAllCellsOut[a] = perHit
-                            // Per-crit-step harvest for the top cell (exact-pass c-loop pruning bounds).
-                            if (fastPerCOut != null && a == maxCell && c < fastPerCOut.size && perHit > fastPerCOut[c]) fastPerCOut[c] = perHit
-                            // ALL-cells per-(cell, crit-step) harvest (tier-1.5 segment-skip bounds).
-                            if (fastPerCellC != null && c < fastPerCellC[a].size && perHit > fastPerCellC[a][c]) fastPerCellC[a][c] = perHit
+                        ai += 2
+                    }
+                } else {
+                    for (a in 0..maxCell) {
+                        val apHighA = a - apConst
+                        if (ap < apHighA - maxSubAp || ap > apHighA - minSubAp) continue
+                        val apGapA = apHighA - ap
+                        val apGapSubsA = if (apGapA >= 0) minSubsToCover(apGapA, apPlusSorted) else minSubsToCover(-apGapA, apMinusSorted)
+                        if (apGapSubsA == Int.MAX_VALUE) continue
+                        for (c in cLow..cHigh) {
+                            val critItemHighC = (c - critConst).toInt()
+                            val critLowBandC = if (c == 0) -critOff else critItemHighC - maxSubCrit.toInt()
+                            if (crit < critLowBandC || crit > critItemHighC) continue
+                            // Forced start-of-combat crit is credited before counting gap subs (mirrors
+                            // the exact harvest): always present, slot already charged.
+                            val critGapSubsC =
+                                if (c == 0) {
+                                    0
+                                } else {
+                                    minSubsToCover(
+                                        c.toLong() - critConst - crit - csWorldCrit - forcedStartCritTotal,
+                                        critBudgetSortedForCharge
+                                    )
+                                }
+                            if (critGapSubsC == Int.MAX_VALUE) continue
+                            fastHarvestCoordinates++
+                            harvestCoordinate(fr, n0, relic, epic, crit, ap, a, apGapSubsA, c, critGapSubsC)
                         }
                     }
                 }
@@ -2585,6 +2781,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             System.err.println(
                 "CERT_FAST_TIMING conv=${convTaken?.name?.en ?: "-"} critSecret=${critSecret?.name?.en ?: "-"} wr=$weaponsRestricted " +
                     "step=$fastCSegmentStep cells=$fastCellCount dpMs=${fastDpNanos / 1_000_000} harvestMs=${fastHarvestNanos / 1_000_000} " +
+                    "harvestIndexed=$indexedHarvestEnabled coordinates=$fastHarvestCoordinates " +
                     "segmentsRun=$fastSegmentsRun segmentsSkipped=$fastSegmentsSkipped"
             )
         }

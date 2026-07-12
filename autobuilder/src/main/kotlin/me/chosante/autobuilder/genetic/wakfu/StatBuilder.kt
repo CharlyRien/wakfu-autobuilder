@@ -957,6 +957,7 @@ internal class StatBuilder(
         requiredTargets: List<TargetStat>,
         totalExpectedScore: Long,
         targetStats: TargetStats,
+        encoding: MmOvershootEncoding = MmOvershootEncoding.CURRENT,
     ): IntVar {
         val contributions =
             requiredTargets.map { targetStat ->
@@ -965,19 +966,62 @@ internal class StatBuilder(
                 val target = targetStat.target.toLong().coerceAtLeast(0)
                 val name = targetStat.characteristic.name
 
-                val excess = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, STAT_WITH_PERCENT_ABS_MAX, "excess_$name")
-                model.addEquality(
-                    excess,
-                    LinearExpr
-                        .newBuilder()
-                        .addTerm(actual, 1)
-                        .add(-target)
-                        .build()
-                )
-                val cappedExcess = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, target, "excessCap_$name")
-                model.addMinEquality(cappedExcess, arrayOf(excess, model.newConstant(target)))
-                val positiveExcess = model.newIntVar(0, target, "excessPos_$name")
-                model.addMaxEquality(positiveExcess, arrayOf(cappedExcess, model.newConstant(0L)))
+                // Zero-target/weight and negative custom-weight requests do not satisfy the objective-induced
+                // assumptions below. Keep the shipped exact encoding for those uncommon shapes.
+                val effectiveEncoding =
+                    if (target > 0L && weight > 0L) encoding else MmOvershootEncoding.CURRENT
+                val positiveExcess =
+                    when (effectiveEncoding) {
+                        MmOvershootEncoding.CURRENT -> {
+                            val excess = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, STAT_WITH_PERCENT_ABS_MAX, "excess_$name")
+                            model.addEquality(
+                                excess,
+                                LinearExpr
+                                    .newBuilder()
+                                    .addTerm(actual, 1)
+                                    .add(-target)
+                                    .build()
+                            )
+                            val cappedExcess = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, target, "excessCap_$name")
+                            model.addMinEquality(cappedExcess, arrayOf(excess, model.newConstant(target)))
+                            val positive = model.newIntVar(0, target, "excessPos_$name")
+                            model.addMaxEquality(positive, arrayOf(cappedExcess, model.newConstant(0L)))
+                            positive
+                        }
+
+                        MmOvershootEncoding.HARD_EXACT_SIMPLIFIED -> {
+                            // The hard leg already adds actual >= target. Expose that fact in this auxiliary's
+                            // declared lower bound, eliminating the now-redundant max(excess, 0) propagator.
+                            val excess = model.newIntVar(0L, STAT_WITH_PERCENT_ABS_MAX, "excess_$name")
+                            model.addEquality(
+                                excess,
+                                LinearExpr
+                                    .newBuilder()
+                                    .addTerm(actual, 1)
+                                    .add(-target)
+                                    .build()
+                            )
+                            val positive = model.newIntVar(0L, target, "excessPos_$name")
+                            model.addMinEquality(positive, arrayOf(excess, model.newConstant(target)))
+                            positive
+                        }
+
+                        MmOvershootEncoding.HARD_HYPOGRAPH -> {
+                            // Exact at every optimum: this var has a positive objective coefficient and is bounded
+                            // above by both target and actual-target, so maximization drives it to their minimum.
+                            val positive = model.newIntVar(0L, target, "excessPos_$name")
+                            model.addLessOrEqual(
+                                LinearExpr
+                                    .newBuilder()
+                                    .addTerm(positive, 1L)
+                                    .addTerm(actual, -1L)
+                                    .add(target)
+                                    .build(),
+                                0L
+                            )
+                            positive
+                        }
+                    }
 
                 val contribution = model.newIntVar(0, target * weight, "overshoot_$name")
                 model.addEquality(contribution, LinearExpr.term(positiveExcess, weight))
@@ -1162,6 +1206,7 @@ internal class StatBuilder(
     fun diAdjustedPerElementMasteryScore(
         targetStats: TargetStats,
         targetCharacteristics: Set<Characteristic>,
+        productEncoding: MmProductEncoding = MmProductEncoding.CURRENT,
     ): Pair<IntVar, Long> {
         val nonElementaries =
             targetStats
@@ -1200,29 +1245,83 @@ internal class StatBuilder(
                 MASTERY_SCORE_ABS_MAX
             )
 
-        val globalDi = model.clampVar(actualStat(Characteristic.DAMAGE_INFLICTED), -DAMAGE_DI_FLOOR, DAMAGE_DI_MAX, "mmDI")
+        val globalDiSource = actualStat(Characteristic.DAMAGE_INFLICTED)
+        val globalDi =
+            if (productEncoding == MmProductEncoding.CURRENT) {
+                model.clampVar(globalDiSource, -DAMAGE_DI_FLOOR, DAMAGE_DI_MAX, "mmDI")
+            } else {
+                tClamp(globalDiSource, -DAMAGE_DI_FLOOR, DAMAGE_DI_MAX, "mmDI")
+            }
         val productBound = MASTERY_SCORE_ABS_MAX * (100L + DAMAGE_DI_MAX)
 
         // The shared `clamp(mastery,≥0) × factor / 100 → clamp` kernel (one bilinear product).
         fun diProduct(
             masteryTier: IntVar,
             diFactor: IntVar,
+            masteryReachHi: Long,
             tag: String,
         ): IntVar {
-            val nonNeg = model.clampVar(masteryTier, 0L, MASTERY_SCORE_ABS_MAX, "mmNN_$tag")
-            val product = model.newIntVar(0L, productBound, "mmProd_$tag")
-            model.addMultiplicationEquality(product, arrayOf(nonNeg, diFactor))
-            val scaled = model.newIntVar(0L, productBound / 100L, "mmScaled_$tag")
-            model.addDivisionEquality(scaled, product, model.newConstant(100L))
-            return model.clampVar(scaled, 0L, MASTERY_SCORE_ABS_MAX, "mmAdj_$tag")
+            if (productEncoding == MmProductEncoding.CURRENT) {
+                val nonNeg = model.clampVar(masteryTier, 0L, MASTERY_SCORE_ABS_MAX, "mmNN_$tag")
+                val product = model.newIntVar(0L, productBound, "mmProd_$tag")
+                model.addMultiplicationEquality(product, arrayOf(nonNeg, diFactor))
+                val scaled = model.newIntVar(0L, productBound / 100L, "mmScaled_$tag")
+                model.addDivisionEquality(scaled, product, model.newConstant(100L))
+                return model.clampVar(scaled, 0L, MASTERY_SCORE_ABS_MAX, "mmAdj_$tag")
+            }
+
+            // The manual reach deliberately ignores negative mastery penalties and slot competition, so it
+            // over-estimates the attainable tier. Recording it upstream lets every following big-M/domain consume
+            // the bound instead of discovering only the final downstream coreHi clamp.
+            val tierHi = masteryReachHi.coerceIn(0L, MASTERY_SCORE_ABS_MAX)
+            tracker.record(masteryTier, -MASTERY_SCORE_ABS_MAX..tierHi, "mmTierReach_$tag")
+            val nonNeg = tClamp(masteryTier, 0L, MASTERY_SCORE_ABS_MAX, "mmNN_$tag")
+            val factorReach = tracker.of(diFactor)
+            val reachableProductHi = (tierHi * maxOf(0L, factorReach.last)).coerceAtMost(productBound)
+            val product =
+                when (productEncoding) {
+                    MmProductEncoding.TRACKED ->
+                        tMul("mmProd_$tag", nonNeg, diFactor, 0L, productBound)
+
+                    MmProductEncoding.BINARY -> {
+                        val span = factorReach.last - factorReach.first
+                        val offset =
+                            tSum(
+                                "mmDiOffset_$tag",
+                                listOf(Term(diFactor, 1L)),
+                                -factorReach.first,
+                                0L..span,
+                                0L,
+                                100L + DAMAGE_DI_MAX
+                            )
+                        tBinaryOffsetProduct(
+                            "mmProd_$tag",
+                            offset,
+                            factorReach,
+                            nonNeg,
+                            0L..tierHi,
+                            0L..productBound
+                        )
+                    }
+
+                    MmProductEncoding.CURRENT -> error("handled above")
+                }
+            val scaled = tDiv("mmScaled_$tag", product, 100L, 0L, productBound / 100L)
+            val reachableScaledHi = (reachableProductHi / 100L).coerceAtMost(MASTERY_SCORE_ABS_MAX)
+            return tClamp(scaled, 0L, reachableScaledHi, "mmAdj_$tag")
         }
 
         val minElements = targetStats.masteryElementsToMinimize
         if (minElements.isEmpty()) {
             // BRANCH A: no element requested ⇒ one product on (nonElemNeg × globalFactor).
-            val factor = model.sumVar("mmDiFactor", listOf(Term(globalDi, 1L)), 100L, 100L - DAMAGE_DI_FLOOR, 100L + DAMAGE_DI_MAX)
+            val factor =
+                if (productEncoding == MmProductEncoding.CURRENT) {
+                    model.sumVar("mmDiFactor", listOf(Term(globalDi, 1L)), 100L, 100L - DAMAGE_DI_FLOOR, 100L + DAMAGE_DI_MAX)
+                } else {
+                    tSumNaive("mmDiFactor", listOf(Term(globalDi, 1L)), 100L, 100L - DAMAGE_DI_FLOOR, 100L + DAMAGE_DI_MAX)
+                }
             val coreHi = WakfuBuildSolver.clampedProductQuotient(nonElemReachMax, diFactorMax, 100L, MASTERY_SCORE_ABS_MAX).coerceAtLeast(1L)
-            return model.clampVar(diProduct(nonElemNeg, factor, "global"), 0L, coreHi, "mmCoreHi") to coreHi
+            return model.clampVar(diProduct(nonElemNeg, factor, nonElemReachMax, "global"), 0L, coreHi, "mmCoreHi") to coreHi
         }
 
         // BRANCH B: per-element products (each with its own element DI inside its factor), then weakest-min.
@@ -1239,22 +1338,44 @@ internal class StatBuilder(
                         MASTERY_SCORE_ABS_MAX
                     )
                 // combinedDi = clamp(globalDI + elementDI_e, [-FLOOR, MAX]) — ONE clamp of the sum (mirrors mono).
-                val combinedDi =
-                    model.clampVar(
+                val diSum =
+                    if (productEncoding == MmProductEncoding.CURRENT) {
                         model.sumVar(
                             "mmDiSum_${e.name}",
                             listOf(Term(globalDi, 1L), Term(elementDiVar(e), 1L)),
                             0L,
                             -DAMAGE_DI_FLOOR,
                             DAMAGE_DI_MAX + DAMAGE_DI_MAX
-                        ),
-                        -DAMAGE_DI_FLOOR,
-                        DAMAGE_DI_MAX,
-                        "mmDiClamp_${e.name}"
-                    )
+                        )
+                    } else {
+                        tSumNaive(
+                            "mmDiSum_${e.name}",
+                            listOf(Term(globalDi, 1L), Term(elementDiVar(e), 1L)),
+                            0L,
+                            -DAMAGE_DI_FLOOR,
+                            DAMAGE_DI_MAX + DAMAGE_DI_MAX
+                        )
+                    }
+                val combinedDi =
+                    if (productEncoding == MmProductEncoding.CURRENT) {
+                        model.clampVar(diSum, -DAMAGE_DI_FLOOR, DAMAGE_DI_MAX, "mmDiClamp_${e.name}")
+                    } else {
+                        tClamp(diSum, -DAMAGE_DI_FLOOR, DAMAGE_DI_MAX, "mmDiClamp_${e.name}")
+                    }
                 val factor =
-                    model.sumVar("mmDiFactor_${e.name}", listOf(Term(combinedDi, 1L)), 100L, 100L - DAMAGE_DI_FLOOR, 100L + DAMAGE_DI_MAX)
-                diProduct(tier, factor, e.name)
+                    if (productEncoding == MmProductEncoding.CURRENT) {
+                        model.sumVar("mmDiFactor_${e.name}", listOf(Term(combinedDi, 1L)), 100L, 100L - DAMAGE_DI_FLOOR, 100L + DAMAGE_DI_MAX)
+                    } else {
+                        tSumNaive(
+                            "mmDiFactor_${e.name}",
+                            listOf(Term(combinedDi, 1L)),
+                            100L,
+                            100L - DAMAGE_DI_FLOOR,
+                            100L + DAMAGE_DI_MAX
+                        )
+                    }
+                val tierReachMax = nonElemReachMax + maxOf(0L, tracker.of(elementVars.getValue(e)).last)
+                diProduct(tier, factor, tierReachMax, e.name)
             }
         // The score is the MIN over requested elements, so it is bounded by the smallest element's (nonElem +
         // element) reach × the max DI factor — a sound over-estimate (each `tier` clamps ≥ 0 and adds the negative
