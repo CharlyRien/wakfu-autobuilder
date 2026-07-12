@@ -39,6 +39,8 @@ class MostMasteriesPerfExperimentTest {
         val label: String,
         val overshootEncoding: MmOvershootEncoding = MmOvershootEncoding.CURRENT,
         val productEncoding: MmProductEncoding = MmProductEncoding.CURRENT,
+        val hardLeg: Boolean = true,
+        val masteryScoreUpperBound: Long? = null,
     )
 
     private data class Shape(
@@ -115,6 +117,64 @@ class MostMasteriesPerfExperimentTest {
             }
         }
 
+    /**
+     * Piste 4: the M3 prototype bound injected as a redundant `masteryScore ≤ U` dual cut on the SOFT
+     * (penalized) model — the remaining slow workload after the frontier INFEASIBLE reclassification
+     * (plan §7.4). The cut is redundant for any sound U, so both arms must prove the same optimum;
+     * the measured question is proof time against the P0.5 by-exhaustion dual wall.
+     *
+     * ```shell
+     * WAKFU_MM_SOFT_CUT_AB=1 [WAKFU_MM_PERF_AB_DET=600] [WAKFU_MM_SOFT_CUT_U=<override>] \
+     *   ./gradlew :autobuilder:test --tests '*MostMasteriesPerfExperimentTest*'
+     * ```
+     */
+    @Test
+    fun `manual soft-leg M3-cut A-B`(): Unit =
+        runBlocking {
+            assumeTrue(System.getenv("WAKFU_MM_SOFT_CUT_AB") == "1")
+            val det = System.getenv("WAKFU_MM_PERF_AB_DET")?.toDoubleOrNull() ?: 600.0
+            val level = 245
+            val pool =
+                WakfuBestBuildFinderAlgorithm.equipments
+                    .filter { it.rarity <= Rarity.EPIC }
+                    .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                    .groupBy { it.itemType }
+            val runes = WakfuBestBuildFinderAlgorithm.runes
+            val sublimations = WakfuBestBuildFinderAlgorithm.sublimations
+            val shape = selectedShapes(level).first { it.label == "f5" }
+
+            val bound =
+                System.getenv("WAKFU_MM_SOFT_CUT_U")?.toLongOrNull()
+                    ?: requireNotNull(MostMasteriesBoundPrototype.bound(shape.params, pool, runes, sublimations)) {
+                        "M3 prototype bailed on the f5 shape; pass WAKFU_MM_SOFT_CUT_U explicitly"
+                    }
+            WakfuBuildSolver.warmUp()
+            println("MM_SOFT_CUT START det=$det bound=$bound pool=${pool.values.sumOf { it.size }}")
+
+            val arms =
+                listOf(
+                    ExperimentConfig("softBaseline", hardLeg = false),
+                    ExperimentConfig("softM3Cut", hardLeg = false, masteryScoreUpperBound = bound)
+                )
+            val summaries = arms.map { config -> solve(shape, config, det, pool, runes, sublimations) }
+            val (baseline, cut) = summaries
+            if (baseline.isOptimal && cut.isOptimal) {
+                assertThat(cut.rawObjective)
+                    .describedAs("softM3Cut: the redundant cut must not change the raw optimum")
+                    .isEqualTo(baseline.rawObjective)
+                assertThat(cut.scoredObjective)
+                    .describedAs("softM3Cut: the redundant cut must not change the scored optimum")
+                    .isEqualByComparingTo(baseline.scoredObjective)
+            }
+            val ratio = baseline.wallMs.toDouble() / cut.wallMs.coerceAtLeast(1)
+            println(
+                "MM_SOFT_CUT COMPARE bound=$bound baselineMs=${baseline.wallMs} cutMs=${cut.wallMs} " +
+                    "baselineOverCut=${"%.3f".format(java.util.Locale.ROOT, ratio)} " +
+                    "baselineDet=${baseline.deterministicTime} cutDet=${cut.deterministicTime} " +
+                    "baselineStatus=${baseline.status ?: "NA"} cutStatus=${cut.status ?: "NA"}"
+            )
+        }
+
     private suspend fun solve(
         shape: Shape,
         config: ExperimentConfig,
@@ -134,7 +194,8 @@ class MostMasteriesPerfExperimentTest {
                 linearizationLevelOverride = 1,
                 applyDominationOverride = true,
                 mmOvershootEncoding = config.overshootEncoding,
-                mmProductEncoding = config.productEncoding
+                mmProductEncoding = config.productEncoding,
+                mmMasteryScoreUpperBound = config.masteryScoreUpperBound
             )
         val t0 = System.nanoTime()
         var last: SolverResult<BuildCombination>? = null
@@ -148,7 +209,7 @@ class MostMasteriesPerfExperimentTest {
                 runes,
                 sublimations,
                 tuning,
-                hardConstraints = true,
+                hardConstraints = config.hardLeg,
                 onTermination = { termination.set(it) }
             ).collect { result ->
                 val elapsedMs = elapsedMs(t0)

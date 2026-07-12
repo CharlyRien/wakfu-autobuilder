@@ -315,6 +315,43 @@ near-frontier conjunction **AP16/MP8/CC100/HP12000** (~112 s production). Six pr
 outcomes recorded here as they land. Harness: `MostMasteriesPerfExperimentTest`
 (`WAKFU_MM_PERF_AB=1`, hard leg, p1/l1, 1w+interleave, same-JVM sequential arms).
 
+### 7.1–7.3 Overshoot + product encodings — ALL MEASURED-DEAD (2026-07-12)
+
+Canonical A/B (`WAKFU_MM_PERF_AB=1`, det 600, hard leg, p1/l1, 1w+interleave, seed 1, same JVM,
+sequential arms). All f5 arms prove the same optimum (raw 107 054 998 / scored 10 705).
+
+| arm | f5 det (base 35.24) | f5 branches (base 13 912) | frontier det (base 25.73) | verdict |
+|---|---|---|---|---|
+| `overshootExact` (HARD_EXACT_SIMPLIFIED) | **35.2378 — identical** | **13 912 — identical** | **25.7273 — identical** | **NULL**: literal no-op — presolve already derives the redundant `max(·,0)` elimination under the hard `actual ≥ target`. Keep CURRENT (less code). |
+| `overshootHypograph` | 42.22 (+20 %) | 16 257, 46 conflicts | 34.62 (+35 %) | **MEASURED-NO** — the objective-induced encoding *removes* propagation the exact chain gives the solver. |
+| `productTracked` | 44.54 (+26 %) | 13 662 | 36.07 (+40 %) | **MEASURED-NO** — matches the precision-mode lesson (6ecd1258), here actively harmful. |
+| `productBinary` | 46.44 (+32 %) | 13 718 | 46.01 (**+79 %**) | **MEASURED-NO** — the max-damage binary-expansion win does NOT transfer to the MM product. |
+
+The P2b pattern repeats: the shipped "naive" encodings out-propagate every hand-tightened
+alternative. The seams stay in the codebase (CURRENT default, byte-identical) as the standing
+A/B harness; do not retry these three arms.
+
+### 7.4 Frontier shape is provably INFEASIBLE — reclassifies the slow tail (2026-07-12)
+
+Every arm *proves* AP16/MP8/CC100/HP12000 **INFEASIBLE in ~23-26 det** (~23 s wall at 1w). The
+earlier E3 conclusion "joint shape feasible (112.4 s)" misread the orchestrator output: E3's
+SUMMARY line printed finalSends/objective but **not the hard leg's termination status**, and a soft-
+fallback finalSend is indistinguishable from a hard-leg success in that line.
+
+E3 re-run (2026-07-12, production path, 120 s budget) confirms:
+
+- `reachable` (F5): finalSend 14.5 s, objective 10 705, **optimal=true** — hard leg, unchanged.
+- `static` (AP 99): 11.9 s, optimal=true — static-skip fallback, unchanged.
+- `joint`: single finalSend at **t=121.8 s, objective 6 533, optimal=false** — i.e. the hard leg
+  proves INFEASIBLE quickly, then the **soft fallback burns the full remaining budget by design**
+  (it is the pre-P2a penalized problem, whose dual wall P0.5 documented) and returns best-effort.
+
+**Reclassification of the slow tail:** there is no "feasible near-frontier 112 s hard solve".
+The remaining slow workload is the **soft leg** — both as fallback for unreachable conjunctions
+and for any user who runs without required targets. That re-aims the remaining pistes: the M3
+bound as a redundant dual cut (§7.7) attacks exactly that model; the per-item filter (§7.5)
+only helps the already-fast hard leg and gets deprioritized accordingly.
+
 ### 7.5 Per-item conditional-ceiling filter — dry-run says GO (measured 2026-07-12)
 
 `MostMasteriesConditionalCeilingAnalysisTest` (`WAKFU_MM_ITEM_CEILING=1`), frontier shape, production
