@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.1](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.10.0...wakfu-autobuilder-1.10.1) (2026-07-12)
+
+
+### Bug Fixes
+
+* what's new now shows every release since the last one seen ([c1c4259](https://github.com/CharlyRien/wakfu-autobuilder/commit/c1c4259c828ac5f4c59267a167565142bce6d8e1))
+
 ## [1.10.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.9.1...wakfu-autobuilder-1.10.0) (2026-07-12)
 
 
