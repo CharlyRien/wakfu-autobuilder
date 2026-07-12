@@ -386,3 +386,27 @@ byte-identity (`MaxDamageCertifierHarvestIndexTest`) + real-shape 245 ledger equ
   index removes only the rejected-cell *scanning*, which is ~16 % of the tier. Real, exact, cheap
   to keep behind the seam; flipping the production default is a certifier change (bump
   `CERTIFIER_VERSION` even though values are byte-identical, per the standing rule).
+
+### 7.7 M3 bound as a redundant dual cut on the SOFT model — MEASURED-NO, 2.1× WORSE (2026-07-12)
+
+Seam `SolverTuning.mmMasteryScoreUpperBound` (redundant `masteryScore ≤ U`); harness
+`WAKFU_MM_SOFT_CUT_AB=1` (F5@245, soft leg, U = 11 909 from the M3 prototype, det 600, 1w+interleave,
+same JVM):
+
+- softBaseline: OPTIMAL, det **51.49**, 14 257 branches, wall 132.8 s.
+- softM3Cut: OPTIMAL, det **107.42 (+109 %)**, 17 035 branches, 115 conflicts, wall 232.6 s —
+  same raw/scored optimum (equality lock passed).
+
+The externally-derived tight ceiling actively *hurts* the by-exhaustion proof — the extra
+constraint feeds the LP/propagation stack without pruning the exhaustion tree. Together with §4's
+"redundant upper bound is vacuous for primal pruning", the redundant-bound idea is now dead in BOTH
+directions. **Do not retry**; the seam stays as the standing harness.
+
+### 7.8 Campaign close (2026-07-12)
+
+All six pistes measured. 1-4 dead, 5 dry-run-GO-but-deprioritized (the hard leg is already fast),
+6 real-but-modest behind its seam. The soft leg remains the only slow workload (fallback +
+no-required-target requests) and every cheap structural lever against its dual wall is now
+exhausted — the remaining ideas (Lagrangian target-aware certificate, M3-v2 multi-dimensional DP)
+are heavy, soundness-critical builds whose prize is a best-effort path where proof matters least.
+Recommendation: stop here; revisit only if user-facing soft-leg latency becomes a real complaint.
