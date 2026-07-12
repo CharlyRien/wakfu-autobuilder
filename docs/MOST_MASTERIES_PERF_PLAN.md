@@ -307,3 +307,45 @@ P1a + P1b alone plausibly take F5@245 from ~138 s to **~90-110 s to a proven-wit
 the penalty-product diagnosis. P3 is the order-of-magnitude ceiling but is gated, soundness-heavy,
 and may legitimately conclude "fires never" — sequence it last, after the cheap levers have moved
 the baseline.
+
+## 7. Encoding campaign (2026-07-12) — post-P2a follow-up
+
+Workload re-anchor: F5@245 is production-solved (~14 s); the driving shape is now the hard
+near-frontier conjunction **AP16/MP8/CC100/HP12000** (~112 s production). Six proposals; measured
+outcomes recorded here as they land. Harness: `MostMasteriesPerfExperimentTest`
+(`WAKFU_MM_PERF_AB=1`, hard leg, p1/l1, 1w+interleave, same-JVM sequential arms).
+
+### 7.5 Per-item conditional-ceiling filter — dry-run says GO (measured 2026-07-12)
+
+`MostMasteriesConditionalCeilingAnalysisTest` (`WAKFU_MM_ITEM_CEILING=1`), frontier shape, production
+domination pool (6 886 items after domination, 7 884 base):
+
+- **rejected 2 277 / 6 886 = 33.07 %** of the pool — every rejection via the **AP 16** target
+  (an item occupying its slot without enough AP leaves AP16 unreachable even with best-case
+  everything else). By slot: BOOTS 694, CHEST_PLATE 488, TWO_HANDED 458, ONE_HANDED 434, CAPE 88,
+  AMULET 79, rest <10 each.
+- MP8 / CC100 / HP12000 reject **zero** items each (relaxed ceiling too loose or genuinely
+  reachable with any single item fixed).
+- The screen's relaxations only ADD reach (rune competition, sub colours/conditions, joint skill
+  budgets, condition gating all ignored; conversions into a probed stat bail) — a rejection is a
+  sound "cannot be in any hard-feasible build".
+
+Next step (not yet coded): apply as a hard-leg-only pre-solve pool filter (or fixed-to-zero
+booleans), keyed on the same `U(stat | item) < target` certificate; add an optimum-equality lock
+vs the unfiltered model and re-run the frontier timing.
+
+### 7.6 Certifier FAST-harvest coordinate index — measured, byte-identical, modest (2026-07-12)
+
+`indexedFastHarvestApCoordinates`/`indexedFastHarvestCritCoordinates` +
+`WAKFU_MAX_DAMAGE_CERT_INDEXED_HARVEST=1` seam; locks: 5 000-case coordinate fuzz + full-ledger
+byte-identity (`MaxDamageCertifierHarvestIndexTest`) + real-shape 245 ledger equality (below).
+
+245 fire ledger, threads=1, incumbent=16 909 590, same JVM protocol as the C-series:
+
+- Ledger **byte-identical** (max 17 674 020, every cell equal; identical valid-coordinate counts —
+  the index visits exactly the reference's accepted triplets).
+- FAST tier Σ per-world: **12.9 s → 10.9 s (−16 %)**; ledger total **25.1 s → 22.8 s (−9 %)**.
+- Reading: consistent with the C8 frontier verdict — the fast tier is add-call-volume-bound; the
+  index removes only the rejected-cell *scanning*, which is ~16 % of the tier. Real, exact, cheap
+  to keep behind the seam; flipping the production default is a certifier change (bump
+  `CERTIFIER_VERSION` even though values are byte-identical, per the standing rule).
