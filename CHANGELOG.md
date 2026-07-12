@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.10.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.9.1...wakfu-autobuilder-1.10.0) (2026-07-12)
+
+
+### Features
+
+* consider Lucky Charm items (Porte-bonheur) in the pet slot ([#188](https://github.com/CharlyRien/wakfu-autobuilder/issues/188)) ([8ba6b46](https://github.com/CharlyRien/wakfu-autobuilder/commit/8ba6b464e077fdf110269e5aee466372d53d5310))
+
+
+### Bug Fixes
+
+* Zenith export — whiten runes, tier-correct sublimation levels, epic/relic slots ([741d2f1](https://github.com/CharlyRien/wakfu-autobuilder/commit/741d2f1d971a87df03cc1aadae6c2d0c7ad9dba8))
+
+
+### Performance Improvements
+
+* encoding sweep verdicts + M3 dual-cut seam (MM campaign 7.1-7.7) ([2c5857f](https://github.com/CharlyRien/wakfu-autobuilder/commit/2c5857fdacb6835ab74380f10fbf12a932add505))
+* MM encoding A/B seams + certifier harvest index (campaign skeleton) ([d6cfee5](https://github.com/CharlyRien/wakfu-autobuilder/commit/d6cfee5412984657f33163ab7b588441c4f8e526))
+
 ## [1.9.1](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.9.0...wakfu-autobuilder-1.9.1) (2026-07-11)
 
 
