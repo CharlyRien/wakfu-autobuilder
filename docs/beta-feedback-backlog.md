@@ -718,6 +718,16 @@ Limitation connue et documentée (le bi-élément « marche mais très long »).
 ### CLAR-6 — Seulement les passifs de classe  💬
 Normal pour l'instant (confirmé par le dev).
 
+### QOL-3 — Difficulté boss : picker « stasis » au lieu du multiplicateur ×PV brut  🔲 TODO (P3, bloqué data)
+Demande beta 2026-07-12 (« S10 : je mets 10 ou 14 ? »). Le champ actuel est un multiplicateur de PV
+brut (affichage « tours pour tuer » uniquement, ne touche pas l'optimiseur). L'idéal : choisir « S1…S10 »
+et dériver le ×PV automatiquement. **Bloqué par les données** : le multiplicateur affiché en jeu dépend
+du niveau de stasis ET du nombre de salles du donjon (ex. donjon 2 salles S10 = ×14), et on n'a aucune
+table donjons/stasis first-party (CDN `dungeons.json` non publié — voir `wakfu-cdn-403-expected`).
+À rouvrir si on trouve la table de scaling stasis dans les bdata du client. En attendant : tooltip posé
+côté UI ? (« multiplicateur de PV du donjon, pas le niveau de stasis »). Ne PAS coupler au plancher de
+survie : les dégâts par tour du boss ne sont dans aucune donnée extraite (discussion 2026-07-12).
+
 ---
 
 ## Annexe — provenance
