@@ -1,6 +1,7 @@
 package me.chosante.autobuilder
 
 import me.chosante.common.Equipment
+import me.chosante.common.ItemType
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
@@ -25,5 +26,28 @@ class EmbeddedEquipmentsDataTest {
         assertThat(socketable)
             .`as`("equipments.json must carry maxShardSlots so the solver can socket runes")
             .isGreaterThan(equipments.size / 2)
+    }
+
+    /**
+     * Lucky Charms (the "Porte-bonheur" PETS items, Ankama item type 849) share the pet slot with familiers but,
+     * unlike them, carry a real character-level requirement. They must be flagged [Equipment.levelRestricted] so
+     * the searcher level-filters them like ordinary gear; otherwise they inherit the familier level-exemption and
+     * become equippable below their level (a level-35 charm on a level-10 build). Conversely, no level-less
+     * companion may be flagged, or it would stop appearing at low character levels.
+     *
+     * (Note the pet-slot Lucky Charms are matched by type AND name: the data also has a level-230 *amulet*,
+     * "Porte-bonheur sufokien", which is ordinary level-gated gear and correctly NOT flagged.)
+     */
+    @Test
+    fun `Lucky Charms are flagged level-restricted, level-less companions are not`() {
+        val luckyCharms = equipments.filter { it.itemType == ItemType.PETS && it.name.fr.startsWith("Porte-bonheur") }
+        assertThat(luckyCharms)
+            .`as`("embedded equipments.json must contain the Porte-bonheur (Lucky Charm) pet-slot items")
+            .isNotEmpty
+        assertThat(luckyCharms).allMatch { it.levelRestricted }
+
+        // Only the pet-slot Lucky Charms are level-restricted; a flagged familier/mount/amulet would be a regression.
+        assertThat(equipments.filter { it.levelRestricted })
+            .allMatch { it.itemType == ItemType.PETS && it.name.fr.startsWith("Porte-bonheur") }
     }
 }

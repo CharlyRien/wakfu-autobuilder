@@ -46,6 +46,12 @@ data class Equipment(
     // Number of enchantment sockets ("châsses") on this item, 0..4. Defaults to 0 so equipments
     // resources generated before runes were modeled still deserialize (they simply carry no sockets).
     val maxShardSlots: Int = 0,
+    // Only consulted for the companion slots (PETS/MOUNTS): when true, this slot item carries a real
+    // character-level requirement and must be level-filtered like ordinary gear. Lucky Charms ("Porte-bonheur")
+    // sit in the PETS slot yet — unlike level-less familiers and mounts — have a real level, so they set this.
+    // Ordinary equipment is level-filtered regardless, so the flag is irrelevant (and stays false) for it.
+    // Defaults false so equipments resources generated before this flag existed still deserialize.
+    val levelRestricted: Boolean = false,
 )
 
 @Serializable
