@@ -475,6 +475,11 @@ object WakfuBuildSolver {
         // alternatives are exercised only by the dedicated same-JVM A/B harness.
         val mmOvershootEncoding: MmOvershootEncoding = MmOvershootEncoding.CURRENT,
         val mmProductEncoding: MmProductEncoding = MmProductEncoding.CURRENT,
+        // Measurement-only redundant DUAL cut: a sound upper bound on the most-masteries core
+        // (`masteryScore`, scorer units), added as `masteryScore ≤ U`. The caller is responsible for
+        // soundness — an under-estimating U silently truncates the optimum, so the A/B harness locks
+        // optimum equality against the un-cut baseline. Production always passes null.
+        val mmMasteryScoreUpperBound: Long? = null,
     )
 
     fun optimize(
@@ -583,7 +588,8 @@ object WakfuBuildSolver {
                             hardConstraints = hardConstraints,
                             mmPlainPrimaryObjective = mmTwoStage,
                             mmOvershootEncoding = tuning?.mmOvershootEncoding ?: MmOvershootEncoding.CURRENT,
-                            mmProductEncoding = tuning?.mmProductEncoding ?: MmProductEncoding.CURRENT
+                            mmProductEncoding = tuning?.mmProductEncoding ?: MmProductEncoding.CURRENT,
+                            mmMasteryScoreUpperBound = tuning?.mmMasteryScoreUpperBound
                         )
                     // C2: a hard-constraints model with a required target above its reachable ceiling is PROVABLY
                     // infeasible — skip the doomed CP-SAT solve entirely and emit nothing. The caller
@@ -649,7 +655,8 @@ object WakfuBuildSolver {
                                 hardConstraints = hardConstraints,
                                 mmOvershootPinnedPrimary = outcome.objectiveValue,
                                 mmOvershootEncoding = tuning?.mmOvershootEncoding ?: MmOvershootEncoding.CURRENT,
-                                mmProductEncoding = tuning?.mmProductEncoding ?: MmProductEncoding.CURRENT
+                                mmProductEncoding = tuning?.mmProductEncoding ?: MmProductEncoding.CURRENT,
+                                mmMasteryScoreUpperBound = tuning?.mmMasteryScoreUpperBound
                             )
                         executeSolverAndEmitResults(
                             built2.model,
@@ -828,6 +835,8 @@ object WakfuBuildSolver {
         // Manual most-masteries A/B encodings. Production always passes CURRENT through [optimize].
         mmOvershootEncoding: MmOvershootEncoding = MmOvershootEncoding.CURRENT,
         mmProductEncoding: MmProductEncoding = MmProductEncoding.CURRENT,
+        // Measurement-only redundant dual cut on the MM core; see [SolverTuning.mmMasteryScoreUpperBound].
+        mmMasteryScoreUpperBound: Long? = null,
         // Test seam: when true, the max-damage build also runs [certifyMaxPerHitAtAp] for every AP cell and
         // stores the resulting objectives in [BuiltModel.certifierObjectivesForTest] (single-element only).
         certifyAllApForTest: Boolean = false,
@@ -959,7 +968,8 @@ object WakfuBuildSolver {
                             mmPlainPrimaryObjective,
                             mmOvershootPinnedPrimary,
                             mmOvershootEncoding,
-                            mmProductEncoding
+                            mmProductEncoding,
+                            mmMasteryScoreUpperBound
                         )
                     maxDamageStaticallyInfeasible = mm.staticallyInfeasible
                     mm.objective
@@ -2215,6 +2225,7 @@ object WakfuBuildSolver {
         mmOvershootPinnedPrimary: Long? = null,
         mmOvershootEncoding: MmOvershootEncoding = MmOvershootEncoding.CURRENT,
         mmProductEncoding: MmProductEncoding = MmProductEncoding.CURRENT,
+        mmMasteryScoreUpperBound: Long? = null,
     ): MostMasteriesObjectiveVars {
         val statBuilder =
             StatBuilder(
@@ -2242,6 +2253,13 @@ object WakfuBuildSolver {
         // envelope on the required-target path.
         val (masteryScore, masteryScoreReach) =
             statBuilder.diAdjustedPerElementMasteryScore(targetStats, targetCharacteristics, mmProductEncoding)
+
+        // Piste-4 A/B: a redundant `core ≤ U` dual cut from an EXTERNAL sound bound (the M3 DP prototype).
+        // Redundant for any correct U, so the optimum is unchanged; the measurement question is whether
+        // handing CP-SAT the tight external ceiling shortens the by-exhaustion dual proof (P0.5 wall).
+        if (mmMasteryScoreUpperBound != null) {
+            addLessOrEqual(masteryScore, mmMasteryScoreUpperBound)
+        }
 
         val requiredTargets = targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }
 
