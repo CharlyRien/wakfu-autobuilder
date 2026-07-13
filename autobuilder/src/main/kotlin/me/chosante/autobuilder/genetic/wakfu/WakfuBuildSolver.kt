@@ -179,9 +179,14 @@ object WakfuBuildSolver {
      * harvest as sorted-prefix budgets (`diPrefix` / `grawBudgetPrefix` + `budgetMax` split enumeration over the
      * free slots), exactly like the pre-existing pure-crit / pure-AP budgets; all-zero Raws (off-element DI subs
      * in a mono-element scenario) are dropped outright. Reachable value set identical (sorted-prefix selection
-     * is exact for a mono-axis family) ⇒ certified values unchanged; only the DP frontier shrinks.
+     * is exact for a mono-axis family) ⇒ certified values unchanged; only the DP frontier shrinks;
+     * 16: INDEXED FAST HARVEST default ON (campaign-2 C-0, plan §8.6) — the fast pass hands the harvest a
+     * packed `(state, AP-cell, crit-step)` coordinate list built during the DP sweep instead of re-scanning
+     * `all cells × all crit steps`. Same visiting order and predicates ⇒ ledger byte-identical (locked by
+     * [MaxDamageCertifierHarvestIndexTest]); fast tier −16%, total −9% serial. OFF seam:
+     * `WAKFU_MAX_DAMAGE_CERT_INDEXED_HARVEST=0`.
      */
-    const val CERTIFIER_VERSION: Int = 15
+    const val CERTIFIER_VERSION: Int = 16
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
@@ -218,7 +223,8 @@ object WakfuBuildSolver {
     // adding a bonus in [0, OVERSHOOT_SCALE) keeps the combined objective (~1e18) well under
     // Long.MAX/2 (~4.6e18) while guaranteeing one unit of primary always beats any overshoot bonus.
     // See [withOvershootTieBreaker].
-    private const val OVERSHOOT_SCALE = 10_000L
+    // Internal (not private) so the §8.2 S-A outer driver can fold interval bounds in the same units.
+    internal const val OVERSHOOT_SCALE = 10_000L
 
     // The GA scorers weight each target by a Double = (100 / target) * userDefinedWeight, which is
     // almost always < 1 for high targets (e.g. HP target 2000 -> 0.05). Truncating that to Long with
@@ -480,6 +486,35 @@ object WakfuBuildSolver {
         // soundness — an under-estimating U silently truncates the optimum, so the A/B harness locks
         // optimum equality against the un-cut baseline. Production always passes null.
         val mmMasteryScoreUpperBound: Long? = null,
+        // §8.2 S-A seam (test-only, most-masteries SOFT model): constrain the penalty bucket to this
+        // interval and REMOVE the penalty product from the searched model. Non-singleton (or
+        // [mmPenaltyBucketFoldedObjective] false): the objective is the bare core (mastery×DI) — the
+        // outer branch-and-bound driver combines its proven bound with the power table into a sound
+        // interval bound. Singleton + folded: the multiplier is a constant, so the exact penalized
+        // objective (incl. the overshoot tie-break) is linear — no product equality remains.
+        val mmPenaltyBucketInterval: IntRange? = null,
+        val mmPenaltyBucketFoldedObjective: Boolean = false,
+        // §8.2: reports the penalty geometry the driver needs for its bound math, at model build:
+        // (maxIndex, power-table values, totalExpectedScore).
+        val mmPenaltyGeometryProbe: ((Int, LongArray, Long) -> Unit)? = null,
+        // §8.2: after a bucket-interval sub-solve with a solution, reports the solution's (core, bucket)
+        // so the driver folds an exact incumbent (`core × power6(bucket) × OVERSHOOT_SCALE`, bonus ≥ 0
+        // dropped — still a valid achievable lower bound) without duplicating scorer arithmetic.
+        // Shared by §8.4 S-C, where the reported pair is (non-negative tier M, DI factor) instead.
+        val mmPenaltyBucketSolutionCapture: ((Long, Long) -> Unit)? = null,
+        // §8.4 S-C seam (test-only, mono-element most-masteries): constrain the DI FACTOR (100+DI,
+        // clamped) to this interval and remove the mastery×DI product from the searched model — see
+        // [StatBuilder.diAdjustedPerElementMasteryScore]. Same outer-driver contract as the bucket
+        // interval; the two axes are never set together (a composed tree is a later, gated step).
+        val mmDiFactorInterval: IntRange? = null,
+        val mmDiFactorFoldedObjective: Boolean = false,
+        // §8.5 S-D seams (test-only). Hard leg: required targets behind ASSUMPTION literals — weaker
+        // propagation than the plain constraints, but a proven INFEASIBLE yields a sufficient core,
+        // reported via the capture. Soft leg: the recycled no-good cut built from such a core
+        // (`sum(met_i for i in core) ≤ |core|−1`, logically implied — the optimum is unchanged).
+        val mmHardTargetsAsAssumptions: Boolean = false,
+        val mmInfeasibilityCoreCapture: ((Set<Characteristic>) -> Unit)? = null,
+        val mmSoftNoGoodCore: Set<Characteristic>? = null,
     )
 
     fun optimize(
@@ -589,7 +624,14 @@ object WakfuBuildSolver {
                             mmPlainPrimaryObjective = mmTwoStage,
                             mmOvershootEncoding = tuning?.mmOvershootEncoding ?: MmOvershootEncoding.CURRENT,
                             mmProductEncoding = tuning?.mmProductEncoding ?: MmProductEncoding.CURRENT,
-                            mmMasteryScoreUpperBound = tuning?.mmMasteryScoreUpperBound
+                            mmMasteryScoreUpperBound = tuning?.mmMasteryScoreUpperBound,
+                            mmPenaltyBucketInterval = tuning?.mmPenaltyBucketInterval,
+                            mmPenaltyBucketFoldedObjective = tuning?.mmPenaltyBucketFoldedObjective ?: false,
+                            mmPenaltyGeometryProbe = tuning?.mmPenaltyGeometryProbe,
+                            mmDiFactorInterval = tuning?.mmDiFactorInterval,
+                            mmDiFactorFoldedObjective = tuning?.mmDiFactorFoldedObjective ?: false,
+                            mmHardTargetsAsAssumptions = tuning?.mmHardTargetsAsAssumptions ?: false,
+                            mmSoftNoGoodCore = tuning?.mmSoftNoGoodCore
                         )
                     // C2: a hard-constraints model with a required target above its reachable ceiling is PROVABLY
                     // infeasible — skip the doomed CP-SAT solve entirely and emit nothing. The caller
@@ -618,6 +660,15 @@ object WakfuBuildSolver {
                     tuning?.assignmentHint?.let { hint ->
                         for (v in diagnosticVars(built)) hint[v.name]?.let { built.model.addHint(v, it) }
                     }
+                    // Backup certificate (§8.9bis): the emitted objective is certificate-comparable on
+                    // the MM SOFT leg, or on any MM request without required targets (identical models).
+                    val mmObjectiveComparable =
+                        params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+                            // (the model's exact fold predicate — a 0-valued required target still folds the objective)
+                            (!hardConstraints || params.targetStats.none { it.characteristic.isRequiredMostMasteriesTarget() }) &&
+                            // The measurement seams replace the searched objective — never comparable.
+                            tuning?.mmPenaltyBucketInterval == null &&
+                            tuning?.mmDiFactorInterval == null
                     val outcome =
                         executeSolverAndEmitResults(
                             built.model,
@@ -631,7 +682,8 @@ object WakfuBuildSolver {
                             this@callbackFlow,
                             tuning,
                             onSolverReady = { solverHandle.set(it) },
-                            suppressBelowScore = warmScore
+                            suppressBelowScore = warmScore,
+                            mmObjectiveComparable = mmObjectiveComparable
                         )
                     // P2b stage 2: the primary is proven — pin it and maximize the overshoot in a short
                     // near-forced solve; its guaranteed final send (same primary ⇒ same score) replaces
@@ -683,6 +735,36 @@ object WakfuBuildSolver {
                         solverHandle.get()?.let { solver ->
                             runCatching { diagnosticVars(built).associate { it.name to solver.value(it) } }
                                 .onSuccess(capture)
+                        }
+                    }
+                    // §8.5 S-D: on a proven-INFEASIBLE assumption-gated hard leg, extract the sufficient
+                    // assumption core and report the target characteristics it names.
+                    tuning?.mmInfeasibilityCoreCapture?.let { capture ->
+                        val literals = built.mmAssumptionLiterals
+                        val solver = solverHandle.get()
+                        if (literals != null &&
+                            solver != null &&
+                            outcome?.status == com.google.ortools.sat.CpSolverStatus.INFEASIBLE
+                        ) {
+                            runCatching {
+                                val coreIndices = solver.sufficientAssumptionsForInfeasibility().toSet()
+                                capture(literals.filterValues { it.index in coreIndices }.keys)
+                            }
+                        }
+                    }
+                    // §8.2 S-A: read the sub-solve solution's (core, bucket) off the finished solver.
+                    // Best-effort and solution-gated: an INFEASIBLE/emission-less solve skips the capture.
+                    tuning?.mmPenaltyBucketSolutionCapture?.let { capture ->
+                        val probeVars = built.mmPenaltyBucketProbeVars
+                        val solver = solverHandle.get()
+                        if (probeVars != null &&
+                            solver != null &&
+                            (
+                                outcome?.status == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                                    outcome?.status == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+                            )
+                        ) {
+                            runCatching { capture(solver.value(probeVars.first), solver.value(probeVars.second)) }
                         }
                     }
                     close()
@@ -747,6 +829,10 @@ object WakfuBuildSolver {
         // C7: the crit·diff AM-GM bound actually added as a constraint (null = the cut did not fire). See
         // [StatBuilder.critDiffJointCutBoundForTest] / [maxDamageCritDiffCutBoundForTest].
         val critDiffJointCutBoundForTest: Long? = null,
+        // §8.2 S-A only: (core, bucket) probe vars of a bucket-interval sub-model; null otherwise.
+        val mmPenaltyBucketProbeVars: Pair<IntVar, IntVar>? = null,
+        // §8.5 S-D only: the hard leg's assumption literals (target → literal); null otherwise.
+        val mmAssumptionLiterals: Map<Characteristic, com.google.ortools.sat.BoolVar>? = null,
     )
 
     /**
@@ -837,6 +923,16 @@ object WakfuBuildSolver {
         mmProductEncoding: MmProductEncoding = MmProductEncoding.CURRENT,
         // Measurement-only redundant dual cut on the MM core; see [SolverTuning.mmMasteryScoreUpperBound].
         mmMasteryScoreUpperBound: Long? = null,
+        // §8.2 S-A outer bucket B&B seam — see [SolverTuning.mmPenaltyBucketInterval].
+        mmPenaltyBucketInterval: IntRange? = null,
+        mmPenaltyBucketFoldedObjective: Boolean = false,
+        mmPenaltyGeometryProbe: ((Int, LongArray, Long) -> Unit)? = null,
+        // §8.4 S-C outer DI-factor seam — see [SolverTuning.mmDiFactorInterval].
+        mmDiFactorInterval: IntRange? = null,
+        mmDiFactorFoldedObjective: Boolean = false,
+        // §8.5 S-D seams — see [SolverTuning.mmHardTargetsAsAssumptions] / [SolverTuning.mmSoftNoGoodCore].
+        mmHardTargetsAsAssumptions: Boolean = false,
+        mmSoftNoGoodCore: Set<Characteristic>? = null,
         // Test seam: when true, the max-damage build also runs [certifyMaxPerHitAtAp] for every AP cell and
         // stores the resulting objectives in [BuiltModel.certifierObjectivesForTest] (single-element only).
         certifyAllApForTest: Boolean = false,
@@ -953,6 +1049,10 @@ object WakfuBuildSolver {
         var critDiffJointCutBound: Long? = null
         // C2: set by the max-damage hard-constraints branch when a required target exceeds its reachable ceiling.
         var maxDamageStaticallyInfeasible = false
+        // §8.2 S-A: (core, bucket) probe vars of a bucket-interval sub-model.
+        var mmPenaltyProbeVars: Pair<IntVar, IntVar>? = null
+        // §8.5 S-D: the hard leg's assumption literals (target → literal).
+        var mmAssumptionLits: Map<Characteristic, com.google.ortools.sat.BoolVar>? = null
         val objective =
             when (params.scoreComputationMode) {
                 ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT -> {
@@ -969,9 +1069,18 @@ object WakfuBuildSolver {
                             mmOvershootPinnedPrimary,
                             mmOvershootEncoding,
                             mmProductEncoding,
-                            mmMasteryScoreUpperBound
+                            mmMasteryScoreUpperBound,
+                            mmPenaltyBucketInterval,
+                            mmPenaltyBucketFoldedObjective,
+                            mmPenaltyGeometryProbe,
+                            mmDiFactorInterval,
+                            mmDiFactorFoldedObjective,
+                            mmHardTargetsAsAssumptions,
+                            mmSoftNoGoodCore
                         )
                     maxDamageStaticallyInfeasible = mm.staticallyInfeasible
+                    mmPenaltyProbeVars = mm.penaltyBucketProbeVars
+                    mmAssumptionLits = mm.assumptionLiterals
                     mm.objective
                 }
 
@@ -1028,9 +1137,19 @@ object WakfuBuildSolver {
                             certifyLedgerPrecomputedProv = certifyLedgerPrecomputedProv,
                             certifierCancelled = certifierCancelled
                         )
-                    val built = model.buildMaxDamageObjective(params, statBuilder, maxDamageObjectiveCutoff, hardConstraints)
+                    val built =
+                        model.buildMaxDamageObjective(
+                            params,
+                            statBuilder,
+                            maxDamageObjectiveCutoff,
+                            hardConstraints,
+                            mmPenaltyBucketInterval,
+                            mmPenaltyBucketFoldedObjective,
+                            mmPenaltyGeometryProbe
+                        )
                     maxDamageRawScore = built.rawScore
                     maxDamageStaticallyInfeasible = built.staticallyInfeasible
+                    mmPenaltyProbeVars = built.penaltyBucketProbeVars
                     maxDamageTracked = statBuilder.tracker.tracked()
                     certifierObjectives = statBuilder.certifierObjectivesForTest
                     certifierFastObjectives = statBuilder.certifierFastObjectivesForTest
@@ -1068,7 +1187,9 @@ object WakfuBuildSolver {
             certifierExplain,
             certifierExplainItemIds,
             maxDamageStaticallyInfeasible,
-            critDiffJointCutBound
+            critDiffJointCutBound,
+            mmPenaltyProbeVars,
+            mmAssumptionLits
         )
     }
 
@@ -2190,6 +2311,12 @@ object WakfuBuildSolver {
     private class MostMasteriesObjectiveVars(
         val objective: IntVar,
         val staticallyInfeasible: Boolean = false,
+        // §8.2 S-A only: the (core, bucket) vars of a bucket-interval sub-model, read on the solved
+        // assignment so the outer driver folds an exact incumbent without duplicating scorer arithmetic.
+        val penaltyBucketProbeVars: Pair<IntVar, IntVar>? = null,
+        // §8.5 S-D only: the hard leg's assumption literals (target → literal), read on a proven
+        // INFEASIBLE to extract the sufficient core.
+        val assumptionLiterals: Map<Characteristic, com.google.ortools.sat.BoolVar>? = null,
     )
 
     /**
@@ -2226,6 +2353,16 @@ object WakfuBuildSolver {
         mmOvershootEncoding: MmOvershootEncoding = MmOvershootEncoding.CURRENT,
         mmProductEncoding: MmProductEncoding = MmProductEncoding.CURRENT,
         mmMasteryScoreUpperBound: Long? = null,
+        // §8.2 S-A outer bucket B&B seam — see [SolverTuning.mmPenaltyBucketInterval].
+        mmPenaltyBucketInterval: IntRange? = null,
+        mmPenaltyBucketFoldedObjective: Boolean = false,
+        mmPenaltyGeometryProbe: ((Int, LongArray, Long) -> Unit)? = null,
+        // §8.4 S-C outer DI-factor seam — see [SolverTuning.mmDiFactorInterval].
+        mmDiFactorInterval: IntRange? = null,
+        mmDiFactorFoldedObjective: Boolean = false,
+        // §8.5 S-D seams — see [SolverTuning.mmHardTargetsAsAssumptions] / [SolverTuning.mmSoftNoGoodCore].
+        mmHardTargetsAsAssumptions: Boolean = false,
+        mmSoftNoGoodCore: Set<Characteristic>? = null,
     ): MostMasteriesObjectiveVars {
         val statBuilder =
             StatBuilder(
@@ -2252,7 +2389,13 @@ object WakfuBuildSolver {
         // the product-box bound below (was the loose MASTERY_SCORE_ABS_MAX), tightening the objective's McCormick
         // envelope on the required-target path.
         val (masteryScore, masteryScoreReach) =
-            statBuilder.diAdjustedPerElementMasteryScore(targetStats, targetCharacteristics, mmProductEncoding)
+            statBuilder.diAdjustedPerElementMasteryScore(
+                targetStats,
+                targetCharacteristics,
+                mmProductEncoding,
+                mmDiFactorInterval,
+                mmDiFactorFoldedObjective
+            )
 
         // Piste-4 A/B: a redundant `core ≤ U` dual cut from an EXTERNAL sound bound (the M3 DP prototype).
         // Redundant for any correct U, so the optimum is unchanged; the measurement question is whether
@@ -2267,13 +2410,23 @@ object WakfuBuildSolver {
         // tie-breaker keeps its exact secondary semantics — hard-leg ties still prefer overshoot,
         // either folded (single-stage) or via the P2b two-stage split.
         if (hardConstraints) {
-            val staticallyInfeasible = statBuilder.addRequiredTargetHardConstraints()
+            // §8.5 S-D: assumption-gated targets (measurement seam) vs the plain production constraints.
+            val assumptionLiterals: Map<Characteristic, com.google.ortools.sat.BoolVar>?
+            val staticallyInfeasible: Boolean
+            if (mmHardTargetsAsAssumptions) {
+                val (literals, static) = statBuilder.addRequiredTargetAssumptions()
+                assumptionLiterals = literals
+                staticallyInfeasible = static
+            } else {
+                assumptionLiterals = null
+                staticallyInfeasible = statBuilder.addRequiredTargetHardConstraints()
+            }
             if (requiredTargets.isEmpty()) {
-                return MostMasteriesObjectiveVars(masteryScore, staticallyInfeasible)
+                return MostMasteriesObjectiveVars(masteryScore, staticallyInfeasible, statBuilder.mmDiFactorProbeVars)
             }
             // P2b stage 1: prove the primary alone.
             if (mmPlainPrimaryObjective) {
-                return MostMasteriesObjectiveVars(masteryScore, staticallyInfeasible)
+                return MostMasteriesObjectiveVars(masteryScore, staticallyInfeasible, assumptionLiterals = assumptionLiterals)
             }
             val totalExpectedScore =
                 requiredTargets
@@ -2284,17 +2437,51 @@ object WakfuBuildSolver {
             // provably the same lexicographic optimum as the folded objective, without its domain.
             if (mmOvershootPinnedPrimary != null) {
                 addEquality(masteryScore, newConstant(mmOvershootPinnedPrimary))
-                return MostMasteriesObjectiveVars(overshoot, staticallyInfeasible)
+                return MostMasteriesObjectiveVars(overshoot, staticallyInfeasible, assumptionLiterals = assumptionLiterals)
             }
             return MostMasteriesObjectiveVars(
                 withOvershootTieBreaker(masteryScore, masteryScoreReach, overshoot, totalExpectedScore),
-                staticallyInfeasible
+                staticallyInfeasible,
+                assumptionLiterals = assumptionLiterals
             )
+        }
+
+        // §8.5 S-D: the recycled hard-leg infeasibility core as a logically-implied soft no-good.
+        if (mmSoftNoGoodCore != null) {
+            statBuilder.addInfeasibilityCoreNoGood(mmSoftNoGoodCore)
+        }
+
+        // §8.2 S-A: the outer driver owns the penalty axis — bucket-constrained sub-model, no
+        // product equality. Soft model with required targets only (the hard leg returned above).
+        if (mmPenaltyBucketInterval != null) {
+            val bucketCore =
+                constrainPenaltyBucketInterval(
+                    statBuilder,
+                    targetStats,
+                    masteryScore,
+                    masteryScoreReach,
+                    mmPenaltyBucketInterval,
+                    mmPenaltyBucketFoldedObjective,
+                    mmPenaltyGeometryProbe
+                )
+            if (bucketCore != null) {
+                if (!bucketCore.singletonFolded) {
+                    return MostMasteriesObjectiveVars(bucketCore.objective, penaltyBucketProbeVars = bucketCore.probeVars)
+                }
+                val overshoot =
+                    statBuilder.overshootScore(requiredTargets, bucketCore.totalExpectedScore, targetStats, MmOvershootEncoding.CURRENT)
+                return MostMasteriesObjectiveVars(
+                    withOvershootTieBreaker(bucketCore.objective, bucketCore.objectiveBound, overshoot, bucketCore.totalExpectedScore),
+                    penaltyBucketProbeVars = bucketCore.probeVars
+                )
+            }
         }
 
         val penalized = applyConstraintPenalty(params, statBuilder, masteryScore, masteryScoreReach)
         if (requiredTargets.isEmpty()) {
-            return MostMasteriesObjectiveVars(penalized.objective)
+            // §8.4 S-C: with no required target the penalty is a passthrough, so the S-C probe vars
+            // (tier, DI factor) ride the shared capture channel.
+            return MostMasteriesObjectiveVars(penalized.objective, penaltyBucketProbeVars = statBuilder.mmDiFactorProbeVars)
         }
 
         val totalExpectedScore =
@@ -2326,6 +2513,8 @@ object WakfuBuildSolver {
         // C2: true when a hard-constraints solve is PROVABLY infeasible (a required target exceeds its reachable
         // ceiling). Lets [optimize] skip the doomed CP-SAT solve. Always false outside the hard-constraints path.
         val staticallyInfeasible: Boolean = false,
+        // §8.2bis S-E only: the (core, bucket) vars of a bucket-interval sub-model (soft leg); null otherwise.
+        val penaltyBucketProbeVars: Pair<IntVar, IntVar>? = null,
     )
 
     /**
@@ -2349,6 +2538,10 @@ object WakfuBuildSolver {
         // INFEASIBLE (unreachable targets) it re-solves with the penalty (this flag false). See
         // [StatBuilder.addRequiredTargetHardConstraints].
         hardConstraints: Boolean = false,
+        // §8.2bis S-E: outer bucket B&B on the SOFT leg's penalty axis — see [SolverTuning.mmPenaltyBucketInterval].
+        penaltyBucketInterval: IntRange? = null,
+        penaltyBucketFoldedObjective: Boolean = false,
+        penaltyGeometryProbe: ((Int, LongArray, Long) -> Unit)? = null,
     ): MaxDamageObjectiveVars {
         statBuilder.applyOutOfCombatCaps()
         // External-loop AP probe: pin the build to exactly N AP so each breakpoint can be evaluated (used by the
@@ -2378,6 +2571,29 @@ object WakfuBuildSolver {
         if (hardConstraints) {
             val staticallyInfeasible = statBuilder.addRequiredTargetHardConstraints()
             return MaxDamageObjectiveVars(rawScore = damageScore, objective = survivableScore, staticallyInfeasible = staticallyInfeasible)
+        }
+        // §8.2bis S-E: the outer driver owns the penalty axis — same decomposition as most-masteries
+        // S-A, minus the overshoot fold (max-damage has none). The core here is the survivable score,
+        // so an opted-in survivability floor stays INSIDE the sub-model (S-E removes only the
+        // required-target product).
+        if (penaltyBucketInterval != null) {
+            val bucketCore =
+                constrainPenaltyBucketInterval(
+                    statBuilder,
+                    params.targetStats,
+                    survivableScore,
+                    DAMAGE_PERTURN_ABS_MAX,
+                    penaltyBucketInterval,
+                    penaltyBucketFoldedObjective,
+                    penaltyGeometryProbe
+                )
+            if (bucketCore != null) {
+                return MaxDamageObjectiveVars(
+                    rawScore = damageScore,
+                    objective = bucketCore.objective,
+                    penaltyBucketProbeVars = bucketCore.probeVars
+                )
+            }
         }
         return MaxDamageObjectiveVars(
             rawScore = damageScore,
@@ -2479,6 +2695,72 @@ object WakfuBuildSolver {
         val objective: IntVar,
         val bound: Long,
     )
+
+    /** Result of [constrainPenaltyBucketInterval] — see its doc. */
+    private class BucketIntervalCore(
+        // The bare core (interval node) or the linear `core × power6(b)` (singleton folded node).
+        val objective: IntVar,
+        val objectiveBound: Long,
+        val singletonFolded: Boolean,
+        val totalExpectedScore: Long,
+        // (core, bucket) — read on the solved assignment by the outer driver's incumbent capture.
+        val probeVars: Pair<IntVar, IntVar>,
+    )
+
+    /**
+     * §8.2 S-A sub-model: the penalty bucket is CONSTRAINED to [interval] and the
+     * `core × multiplier` product is absent from the searched model. Mode-agnostic: the same
+     * required-target penalty axis wraps the most-masteries core AND the max-damage soft leg's
+     * survivable score (§8.2bis S-E), so both objective builders share this.
+     *
+     * - Interval node (or [foldedObjective] false): the objective is the bare core. The outer driver
+     *   turns its proven bound C into a sound interval bound: `C × power6(hi)` when `C ≥ 0`, else
+     *   `C × power6(lo)` (the power table is monotone non-decreasing, so a negative core is hurt
+     *   LEAST by the smallest multiplier).
+     * - Singleton node with [foldedObjective]: the multiplier is the constant `power6(b)`, so the
+     *   exact penalized objective is linear in the core — no product equality remains. The
+     *   most-masteries caller folds its overshoot tie-break on top; max-damage has none.
+     *
+     * The bucket chain (totalActualScore → maxVar → bucketedIndex) is byte-identical to
+     * [applyConstraintPenalty]'s, so bucket semantics cannot drift between the two models.
+     * Returns null when no required target exists (no penalty axis to decompose).
+     */
+    private fun CpModel.constrainPenaltyBucketInterval(
+        statBuilder: StatBuilder,
+        targetStats: TargetStats,
+        core: IntVar,
+        coreAbsMax: Long,
+        interval: IntRange,
+        foldedObjective: Boolean,
+        geometryProbe: ((Int, LongArray, Long) -> Unit)?,
+    ): BucketIntervalCore? {
+        val requiredTargets = targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }
+        if (requiredTargets.isEmpty()) return null
+        val totalExpectedScore =
+            requiredTargets
+                .sumOf { it.target.toLong() * targetStats.scaledWeight(it) }
+                .coerceAtLeast(1L)
+        val totalActualScore = statBuilder.totalActualScore(requiredTargets, totalExpectedScore, targetStats)
+        val totalActualScoreForPenalty = maxVar(totalActualScore, 1L, totalExpectedScore, "totalActualScoreForPenalty")
+        val (indexVar, maxIndex) = bucketedIndex(totalActualScoreForPenalty, totalExpectedScore)
+        val powerTable = buildPowerTable(maxIndex.toLong(), coreAbsMax)
+        geometryProbe?.invoke(maxIndex, powerTable.values, totalExpectedScore)
+
+        val lo = interval.first.coerceIn(0, maxIndex).toLong()
+        val hi = interval.last.coerceIn(0, maxIndex).toLong()
+        addGreaterOrEqual(indexVar, lo)
+        addLessOrEqual(indexVar, hi)
+
+        if (!foldedObjective || lo != hi) {
+            return BucketIntervalCore(core, coreAbsMax, false, totalExpectedScore, core to indexVar)
+        }
+
+        val constMultiplier = powerTable.values[lo.toInt()]
+        val foldedBound = safeMultiply(coreAbsMax, constMultiplier).coerceAtLeast(1L)
+        val folded = newIntVar(-foldedBound, foldedBound, "bucketFoldedScore")
+        addEquality(folded, LinearExpr.term(core, constMultiplier))
+        return BucketIntervalCore(folded, foldedBound, true, totalExpectedScore, core to indexVar)
+    }
 
     /**
      * Folds a lexicographic overshoot tie-breaker under [primaryObjective], returning
@@ -2607,6 +2889,10 @@ object WakfuBuildSolver {
         // P2b stage 2: cap this solve's PRODUCTION wall budget (the pinned-primary overshoot solve is
         // near-forced and must never eat the user's remaining duration). Null = the params duration.
         maxWallSecondsOverride: Double? = null,
+        // Backup certificate (§8.9bis): stamp [SolverResult.mostMasteriesObjective] on every emission —
+        // set by [optimize] iff the searched objective is certificate-comparable (MM soft leg, or MM
+        // with no required target where the two models coincide).
+        mmObjectiveComparable: Boolean = false,
     ): SolveOutcome? {
         val solver = CpSolver()
         onSolverReady(solver)
@@ -2703,7 +2989,8 @@ object WakfuBuildSolver {
                             actualScore,
                             progress.coerceAtMost(100),
                             maxDamageObjective = if (maxDamage) objectiveValue().toLong() else null,
-                            maxDamageRawProxy = if (maxDamage) maxDamageRawScoreVar?.let { value(it) } else null
+                            maxDamageRawProxy = if (maxDamage) maxDamageRawScoreVar?.let { value(it) } else null,
+                            mostMasteriesObjective = if (mmObjectiveComparable) objectiveValue().toLong() else null
                         )
                     )
                 }
@@ -2728,7 +3015,8 @@ object WakfuBuildSolver {
                             progressPercentage = 100,
                             isOptimal = finalIsOptimalOverride ?: (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL),
                             maxDamageObjective = if (maxDamage) solver.objectiveValue().toLong() else null,
-                            maxDamageRawProxy = if (maxDamage) maxDamageRawScoreVar?.let { solver.value(it) } else null
+                            maxDamageRawProxy = if (maxDamage) maxDamageRawScoreVar?.let { solver.value(it) } else null,
+                            mostMasteriesObjective = if (mmObjectiveComparable) solver.objectiveValue().toLong() else null
                         )
                     )
                 }

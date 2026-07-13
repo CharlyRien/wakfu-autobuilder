@@ -189,6 +189,10 @@ internal class StatBuilder(
     // Test seam (see [certifyLedgerForTest]): the two-tier certificate ledger (P3.2 orchestrator).
     var certifierLedgerForTest: CertLedger? = null
 
+    // §8.4 S-C seam: the (non-negative mastery tier, DI factor) vars of a factor-interval sub-model
+    // (see [diAdjustedPerElementMasteryScore]); read on the solved assignment by the outer driver.
+    var mmDiFactorProbeVars: Pair<IntVar, IntVar>? = null
+
     // Test seam (see [certifyExplainCell]): the backtracked composition of the winning certificate state.
     val certifierExplainForTest = mutableListOf<String>()
 
@@ -1207,6 +1211,13 @@ internal class StatBuilder(
         targetStats: TargetStats,
         targetCharacteristics: Set<Characteristic>,
         productEncoding: MmProductEncoding = MmProductEncoding.CURRENT,
+        // §8.4 S-C seam (test-only, mono-element BRANCH A only): constrain the DI factor to this
+        // interval and REMOVE the mastery×DI product from the searched model. Interval node (or
+        // folded false): the score is the bare non-negative tier M — the driver folds `⌊C × dHi/100⌋`
+        // as the sound node bound. Singleton + folded: `⌊M × d/100⌋` with d constant — a fixed-divisor
+        // division, no variable product. Multi-element requests ignore the seam (plan §8.4).
+        diFactorInterval: IntRange? = null,
+        diFactorFoldedObjective: Boolean = false,
     ): Pair<IntVar, Long> {
         val nonElementaries =
             targetStats
@@ -1320,6 +1331,23 @@ internal class StatBuilder(
                 } else {
                     tSumNaive("mmDiFactor", listOf(Term(globalDi, 1L)), 100L, 100L - DAMAGE_DI_FLOOR, 100L + DAMAGE_DI_MAX)
                 }
+            // §8.4 S-C: the outer driver owns the DI axis — factor-constrained sub-model, no product.
+            if (diFactorInterval != null) {
+                val lo = diFactorInterval.first.toLong().coerceAtLeast(100L - DAMAGE_DI_FLOOR)
+                val hi = diFactorInterval.last.toLong().coerceAtMost(100L + DAMAGE_DI_MAX)
+                model.addGreaterOrEqual(factor, lo)
+                model.addLessOrEqual(factor, hi)
+                val nonNeg = model.clampVar(nonElemNeg, 0L, MASTERY_SCORE_ABS_MAX, "mmNN_scNode")
+                mmDiFactorProbeVars = nonNeg to factor
+                if (diFactorFoldedObjective && lo == hi) {
+                    val singletonHi = WakfuBuildSolver.clampedProductQuotient(nonElemReachMax, hi, 100L, MASTERY_SCORE_ABS_MAX).coerceAtLeast(1L)
+                    val scaled = model.newIntVar(0L, singletonHi, "mmScSingleton")
+                    model.addDivisionEquality(scaled, LinearExpr.term(nonNeg, hi), model.newConstant(100L))
+                    return scaled to singletonHi
+                }
+                return nonNeg to nonElemReachMax.coerceIn(1L, MASTERY_SCORE_ABS_MAX)
+            }
+
             val coreHi = WakfuBuildSolver.clampedProductQuotient(nonElemReachMax, diFactorMax, 100L, MASTERY_SCORE_ABS_MAX).coerceAtLeast(1L)
             return model.clampVar(diProduct(nonElemNeg, factor, nonElemReachMax, "global"), 0L, coreHi, "mmCoreHi") to coreHi
         }
@@ -1846,6 +1874,52 @@ internal class StatBuilder(
             model.addGreaterOrEqual(actual, targetStat.target.toLong())
         }
         return staticallyInfeasible
+    }
+
+    /**
+     * §8.5 S-D variant of [addRequiredTargetHardConstraints]: each target's `actual ≥ target` is
+     * gated behind an ASSUMPTION literal, so a proven-INFEASIBLE hard leg can return a sufficient
+     * assumption core — the subset of targets that already cannot be met together. Reification is
+     * weaker propagation than the plain constraints, so this is a measurement seam, never the
+     * production hard leg. Returns (target characteristic → literal, staticallyInfeasible).
+     */
+    internal fun addRequiredTargetAssumptions(): Pair<Map<Characteristic, com.google.ortools.sat.BoolVar>, Boolean> {
+        val requiredTargets = params.targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() && it.target > 0 }
+        val literals = LinkedHashMap<Characteristic, com.google.ortools.sat.BoolVar>()
+        var staticallyInfeasible = false
+        for (targetStat in requiredTargets) {
+            val actual = requiredActualStat(targetStat.characteristic)
+            if (targetStat.target > tracker.of(actual).last) staticallyInfeasible = true
+            val literal = model.newBoolVar("assume_${targetStat.characteristic.name}")
+            model.addGreaterOrEqual(actual, targetStat.target.toLong()).onlyEnforceIf(literal)
+            model.addAssumption(literal)
+            literals[targetStat.characteristic] = literal
+        }
+        return literals to staticallyInfeasible
+    }
+
+    /**
+     * §8.5 S-D: the recycled no-good on the SOFT model. [core] is a hard-leg sufficient
+     * infeasibility core, so "every target in the core is met" is impossible for any real build —
+     * `sum(meetsTarget_i for i in core) ≤ |core| − 1` is logically implied and cuts only the proven
+     * impossible corner. `meetsTarget_i` is EXACT (reified both ways), so the cut never excludes a
+     * feasible assignment.
+     */
+    internal fun addInfeasibilityCoreNoGood(core: Set<Characteristic>) {
+        val coreTargets =
+            params.targetStats.filter {
+                it.characteristic.isRequiredMostMasteriesTarget() && it.target > 0 && it.characteristic in core
+            }
+        if (coreTargets.isEmpty()) return
+        val meets =
+            coreTargets.map { targetStat ->
+                val actual = requiredActualStat(targetStat.characteristic)
+                val met = model.newBoolVar("met_${targetStat.characteristic.name}")
+                model.addGreaterOrEqual(actual, targetStat.target.toLong()).onlyEnforceIf(met)
+                model.addLessOrEqual(actual, targetStat.target.toLong() - 1L).onlyEnforceIf(met.not())
+                met
+            }
+        model.addLessOrEqual(LinearExpr.sum(meets.toTypedArray()), (meets.size - 1).toLong())
     }
 
     /**
