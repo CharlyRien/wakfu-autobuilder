@@ -34,6 +34,55 @@ class MostMasteriesCertificateTest {
     private val s3Optimum = 10_985L
 
     /**
+     * Design gate for the exact negative-mastery penalty (the measured 91% of the S3 residual):
+     * the distribution of NEGATIVE penalized-mastery lines across the lvl-245 domination pool.
+     * If one char dominates, a single signed state dim captures most of the penalty; a flat
+     * multi-char spread would need the full per-char treatment.
+     *
+     * ```shell
+     * WAKFU_MM_M3V2_NEGSTATS=1 ./gradlew :autobuilder:test --tests '*MostMasteriesCertificateTest*'
+     * ```
+     */
+    @Test
+    fun `manual negative-mastery pool statistics at 245`() {
+        assumeTrue(System.getenv("WAKFU_MM_M3V2_NEGSTATS") == "1")
+        val level = 245
+        val p =
+            WakfuBestBuildParams(
+                character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+                targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999))),
+                searchDuration = 600.seconds,
+                stopWhenBuildMatch = false,
+                maxRarity = Rarity.EPIC,
+                forcedItems = emptyList(),
+                excludedItems = emptyList(),
+                scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                useRunes = true,
+                useSublimations = true
+            )
+        val basePool =
+            WakfuBestBuildFinderAlgorithm.equipments
+                .filter { it.rarity <= p.maxRarity && it.rarity !in p.excludedRarities }
+                .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                .groupBy { it.itemType }
+        val shape = requireNotNull(dominationShape(p, WakfuBestBuildFinderAlgorithm.sublimations))
+        val pool = WakfuBuildSolver.filterDominatedPoolMemoizedForTest(basePool, shape).values.flatten()
+        val requested = setOf(Characteristic.MASTERY_DISTANCE)
+        val penalized = me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS - requested
+
+        for (char in penalized) {
+            val negatives = pool.mapNotNull { e -> e.characteristics[char]?.takeIf { it < 0 } }
+            val positives = pool.mapNotNull { e -> e.characteristics[char]?.takeIf { it > 0 } }
+            println(
+                "MM_NEGSTATS $char negItems=${negatives.size} negSum=${negatives.sum()} negMax=${negatives.minOrNull() ?: 0} " +
+                    "posItems=${positives.size} posSum=${positives.sum()} posMax=${positives.maxOrNull() ?: 0}"
+            )
+        }
+        val itemsWithAnyNeg = pool.count { e -> penalized.any { (e.characteristics[it] ?: 0) < 0 } }
+        println("MM_NEGSTATS pool=${pool.size} itemsWithAnyNegative=$itemsWithAnyNeg")
+    }
+
+    /**
      * CI SOUNDNESS LOCK: on small deterministic pools (hand-built + seeded random), the certificate
      * bound must upper-bound the pinned CP-SAT SOFT optimum — an under-count here would let
      * [WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality] award a WRONG "proven within X%"
