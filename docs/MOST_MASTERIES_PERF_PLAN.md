@@ -948,3 +948,49 @@ Step 5 is the sweet spot: the gate's tightness lives in the per-OPTION ceil (sma
 lines must not round to a threshold's worth — step 10 measured the whole gain away). The binding
 path now PAYS for its block sources (M 6 239 → 6 164 with Dérobade continue/Ravage secondaire in
 the path) — the coupling works as designed. CI soundness lock green throughout.
+
+### 8.14 ROADMAP — Lagrangian-DD POC (maintainer GO 2026-07-14)
+
+**Context for resumption.** Shipped state on `perf/mm-campaign-2` (6 commits: `0ee72378` perf C-0,
+`583feff7` feat quality badge, `0b002aba` docs neg-penalty NEUTRAL, `ef57cbd2` perf block gate,
+`b06f3df8` feat two-tier badge, + this roadmap): the most-masteries backup certificate
+(`MostMasteriesCertificate`, a relaxed decision diagram in the literature's terms) awards
+"proven within X%" automatically on non-proven soft results. Operating points: QUICK tier
+(no block gate) +11.2% / ~15 s / ~33 MB; FULL tier +9.87% / ~83 s (states 4.6M). CI soundness lock
+(3 seeds) green; provenance instrument (`WAKFU_MM_M3V2_PATH=1`) reconstructs the binding path.
+PENDING measurement: the fine-grid (1/2/100) point post-block-gate — tells how much of the +9.87%
+is merge/bucket loss (its own >20-min wall already confirms finer grids are not the way).
+
+**Why Lagrangian-DD.** Literature check (2026-07-13/14, links in the conversation/§ above):
+our certificate = a relaxed DD; the field's standard tightening at CONSTANT state size is
+Lagrangian arc-cost augmentation (Bergman/Cire/van Hoeve, *Lagrangian bounds from decision
+diagrams*): dualize valid inequalities the state does not enforce, re-sweep the SAME DP per
+multiplier, minimize over λ by subgradient. Sound for ANY λ ≥ 0 by weak duality (given VALID
+inequalities). k sweeps × 15 s = wall-bounded by construction — exactly the docs corollary
+("move the 1-worker curve; don't chase solver knobs" — SOLVER_PERFORMANCE.md final verdict,
+which also buries objShaving/probing3 for good).
+
+**POC design sketch (the λ-design is the actual work):**
+1. Candidate valid inequalities to dualize, by suspected residual share:
+   (a) the TRUE 10-normal-sub cap across knapsack + flagged extra stages (today over-counted by
+   ≤2 free rides); (b) saturation-loss coupling: arcs know their PRE-saturation contributions, so
+   overflow beyond a dim's cap can be λ-priced instead of silently absorbed (design care: the
+   inequality must stay valid — overflow ≥ 0 always true; the useful form is a correlation cut,
+   to be derived from binding-path data); (c) any inequality suggested by fresh provenance runs.
+2. Subgradient loop OUTSIDE bound(): λ₀ = 0 (today's bound), k ≤ 8 iterations, step from the
+   observed violation; keep the MIN bound across iterations (each is independently sound).
+3. Acceptance gates: soundness canary green at every λ (CI lock + S2/S3 ≥ optimum); tightness
+   S2 ≤ +8.9% (≥1pt) to continue past the POC; wall ≤ ~2 min full tier (the two-tier GUI hides
+   it anyway); one seam + one verdict per commit, plan §8.14 updated with numbers.
+4. NO-GO exits: multipliers never bind (violations ~0 on binding paths — then the residual is
+   real cross-slot correlation and the next step is Peel-and-Bound, below) or wall blows.
+
+**Follow-up (bigger, only if POC shows binding multipliers or dies cleanly): Peel-and-Bound.**
+DD branch-and-bound (Rudich et al. 2022/JAIR 2023; ddo framework; CODD ECAI 2024): our relaxed DD
++ a restricted DD (drop states instead of merging — trivial variant of the same code) + exact-
+cutset branching = an EXACT solver for the soft leg, replacing CP-SAT's 15-20-min 1-worker proof.
+Campaign-scale; assets already in place (DP, harnesses, oracle locks, provenance).
+
+**Standing discipline reminders:** soft-leg det comparisons same-JVM only (±35% run variance);
+no concurrent gradle during timings; manual-harness println lands in JUnit XML; env-gated runs
+need `rtk proxy env`; measurement scripts must not run in two copies (file races).
