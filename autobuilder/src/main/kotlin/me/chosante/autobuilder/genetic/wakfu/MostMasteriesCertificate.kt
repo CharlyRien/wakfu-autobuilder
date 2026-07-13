@@ -326,6 +326,10 @@ internal object MostMasteriesCertificate {
         // PATH backward — names the option chosen at every stage of the argmax state. Costs memory
         // (all stage maps retained) and a backward sweep; never used in production.
         provenance: Boolean = false,
+        // Two-tier certificate: `false` skips the block dim (increment 8) — the QUICK tier (~15 s,
+        // bound ~1.3pt looser). The GUI shows the quick badge first, then refines with the full
+        // pass in the background. Both tiers are independently sound.
+        blockGate: Boolean = true,
     ): Result? {
         val t0 = System.nanoTime()
         if (params.targetStats.masteryElementsToMinimize.isNotEmpty()) return null
@@ -382,7 +386,7 @@ internal object MostMasteriesCertificate {
         // Increment 8 pre-scan: BLOCK_AT_LEAST conditions among the choosable subs — when present,
         // the block dim is tracked up to the LARGEST threshold (values above it are equivalent).
         val blockAtLeastMax =
-            if (params.useSublimations && "noSubs" !in diag && "noCondSubs" !in diag) {
+            if (blockGate && params.useSublimations && "noSubs" !in diag && "noCondSubs" !in diag) {
                 sublimations
                     .filter { it.solverChoosable && it.condition?.type == SublimationConditionType.BLOCK_AT_LEAST }
                     .maxOfOrNull { it.condition?.value ?: 0 } ?: 0
