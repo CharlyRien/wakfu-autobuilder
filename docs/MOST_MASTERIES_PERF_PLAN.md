@@ -410,3 +410,498 @@ no-required-target requests) and every cheap structural lever against its dual w
 exhausted — the remaining ideas (Lagrangian target-aware certificate, M3-v2 multi-dimensional DP)
 are heavy, soundness-critical builds whose prize is a best-effort path where proof matters least.
 Recommendation: stop here; revisit only if user-facing soft-leg latency becomes a real complaint.
+
+## 8. Campaign 2 — exact multiplier-axis decomposition + certifier reuse (2026-07-12)
+
+The maintainer explicitly reopened the performance work after §7.8. This campaign does **not**
+retry any of §7's six encodings/cuts. Its central observation is different: a redundant bound around
+the same nonlinear CP-SAT model was harmful, so remove the troublesome product from the searched
+model and keep its proof logic in a small, exact outer algorithm instead.
+
+Two workloads must remain separate:
+
+- **S-soft:** the most-masteries soft model, either after a jointly-unreachable hard request or a
+  request with no hard target. Its two possible nonlinear axes are the target-penalty bucket and
+  `mastery × (100 + DI)`.
+- **C-fast:** the max-damage certificate's incumbent-independent fast tier. Its values are already
+  useful and sound; the remaining work is repeated DP volume, not bound tightness.
+
+### 8.1 Measurement matrix and stop rules
+
+Extend `MostMasteriesPerfExperimentTest`; do not create another one-off runner. Every solver arm is
+1 worker + interleave + seed 1, same-JVM sequential, and records objective, bound, status, branches
+and deterministic time. Use three 245 fixtures:
+
+| id | shape | purpose |
+|---|---|---|
+| S1 | F5 reachable hard leg | regression canary; already fast |
+| S2 | AP16 / MP8 / CC100 / HP12000, soft leg directly | real fallback workload, without spending the hard-leg prelude |
+| S3 | distance-mastery request with no required stat | isolates the inner mastery×DI product |
+
+Add one 110 small-pool and one multi-element fixture only to the soundness/generalization screen;
+they are not allowed to decide a 245 performance winner.
+
+For the certificate, reuse `manual max-damage certifyLedger end-to-end` at 110 and 245 with three
+incumbents: huge (pure fast tier), the known optimum (badge-winning production shape), and a weaker
+incumbent (flood-control regression canary). Record fast / tier-1.5 / exact / total separately.
+
+Standing acceptance rules:
+
+- a solver change ships only with the identical folded objective and `OPTIMAL` status on every
+  equality fixture, and a reproducible ≥15% deterministic-time win on S2 or S3 with no material S1
+  regression;
+- an outer algorithm may return early only after all remaining nodes have a sound upper bound at or
+  below the incumbent; UNKNOWN sub-solves fall back to the current monolithic model;
+- a certifier change keeps `bound >= exact/CP-SAT` on fuzz, preserves the badge verdict, bumps
+  `CERTIFIER_VERSION`, and re-runs the lvl-245 oracle;
+- one seam and one verdict per commit. A dry-run pruning rate below 10%, or an outer decomposition
+  needing more than 12 proven sub-solves on S2/S3, is an immediate NO-GO.
+
+#### 8.1.1 Baseline (MEASURED 2026-07-12, canonical protocol, det 600, lvl 245, pool 7 890)
+
+| id | model | status | det used | wall | branches | folded optimum (scored) |
+|---|---|---|---|---|---|---|
+| S1 f5 hard leg | hard | **OPTIMAL** | 43.57 | 54.6 s | 16 099 | 107 054 998 (10 705) |
+| S2 frontier soft-direct | soft | **OPTIMAL** | **343.47** | 727.5 s | 22 063 | 67 295 807 882 856 (6 739) |
+| S3 DI isolate (no required stat) | soft=hard | **OPTIMAL** | 97.98 | 316.1 s | 135 085 | 10 985 |
+
+Key structural fact: the soft leg on the frontier shape **does prove OPTIMAL** under the canonical
+1-worker protocol — det 343.47, ~12 min wall. The earlier "burns the budget, non-proven at 120 s"
+reading was a budget artifact, not a hardness wall. S-A's GO bar on S2 is therefore total
+deterministic time `< 343.47` with the identical folded optimum `67 295 807 882 856`. S3 shows the
+bare mastery×DI core alone already costs det ~98 (135 k branches) — the inner-product wall S-C
+would have to move.
+
+Review notes folded into execution (2026-07-12): (1) the S-A node bound must use `power6(lo)` when
+the interval's proven core bound is negative (the penalized objective's domain is signed); (2) S-D's
+assumption literals reify constraints the hard leg currently posts plainly — the A/B must measure
+the hard leg S1 with/without assumptions too; (3) S2 soft-direct starts cold whereas the production
+fallback inherits the failed hard leg's incumbents — encoding-vs-encoding comparisons are fair, but
+a measured win does not transpose 1:1 to user wall-clock.
+
+### 8.2 S-A — exact outer branch-and-bound on the penalty bucket (priority 1)
+
+**New mechanism.** `applyConstraintPenalty` currently searches
+`core × power6(bucket)` inside one model. Instead, run a best-first interval branch-and-bound over
+the integer penalty bucket `b` (`0..maxIndex`, at most 2,000):
+
+1. For an interval `[lo, hi]`, constrain only `b in [lo, hi]` and maximize `core` — the penalty
+   multiplication is absent from this sub-model.
+2. If the sub-solve proves `core <= C`, then
+   `C × power6(hi) × OVERSHOOT_SCALE + (OVERSHOOT_SCALE - 1)` is a sound upper bound for the whole
+   interval because both factors are non-negative and the power table is monotone.
+3. Score the returned feasible assignment with its actual bucket, update the incumbent, then split
+   only intervals whose upper bound is strictly above it.
+4. A singleton bucket has a constant multiplier, so its exact folded objective is linear:
+   `core × constant × OVERSHOOT_SCALE + overshootBonus`. No product equality remains.
+
+When the queue empties, the incumbent is the exact current soft optimum, including the overshoot
+tie-break. If any interval times out without a trustworthy bound, abandon the outer run and execute
+the current model on the remaining user budget.
+
+Why this is not §7.7: M3 injected a globally redundant constraint into the same weak model. S-A uses
+an upper bound **outside** CP-SAT to discard whole multiplier intervals and gives every CP-SAT
+sub-solve a simpler objective. It is the same proof pattern as element/AP enumeration, applied to
+the actual loose axis.
+
+POC order:
+
+1. expose `penaltyBucket`, `core` and `overshootBonus` on `MostMasteriesObjectiveVars` under a test
+   seam;
+2. implement the interval driver test-side only and print sub-solve count + queue trajectory;
+3. run S2. GO only if it proves with <=12 sub-solves and less total deterministic time than the
+   monolith;
+4. only then productionize cancellation, budget accounting and streamed-incumbent merging.
+
+#### 8.2.1 S-A POC verdict (MEASURED 2026-07-12): NO-GO as-is — the inner mastery×DI product is the wall
+
+Driver: best-first interval B&B, node det 60, incumbents from every interval solution via the
+(core, bucket) capture, sign-guarded bounds, exact singleton re-solve. Run on S2, cap 24 solves.
+
+- **ABANDONED at 25 sub-solves, total det 1 415.5** — 4.1× the morning monolith proof (343.47).
+- **No node proves.** Even the root (buckets 0..2000) is FEASIBLE at det 60 with dual bound 1.14×
+  its own incumbent (10 949 vs 12 529); narrow top nodes return bounds up to 59× loose
+  (obj 6 352 / bound 374 187). Without tight per-node bounds the pruning never bites.
+- The mechanism itself behaved: best-first descended to the top buckets (~1 876-1 985), INFEASIBLE
+  intervals pruned (1 978..1 985), incumbent reached 93.7% of the optimum (63.07T / 67.30T).
+- **Root cause is the INNER core, not the penalty axis**: S3 already showed the bare mastery×DI
+  product costs det ~98 to prove alone (135 k branches). Every bucket-constrained node inherits
+  that price, and 12 nodes × ~100 det can never beat a 343-det monolith. Removing the penalty
+  product leaves a sub-model that is still nonlinear where it hurts.
+- This is exactly §8.4's anticipated branch: **S-C is now unlocked** ("run S-C if S-A exposes the
+  DI product as the new inner wall"). Singleton bucket (S-A) + fixed DI factor (S-C) makes the
+  sub-model fully linear — measure S-C on S3 first per §8.9 step 4 before any composed tree.
+
+⚠️ **Reproducibility anomaly — RESOLVED as run-to-run search variance (2026-07-12)**: three runs
+of the identical nominal S2 softBaseline gave det 343.47 (OPTIMAL, 22 063 branches), det 982.5
+(FEASIBLE at 600-budget overshoot, same-JVM after 26 prior solves) and det 465.35 (OPTIMAL,
+38 233 branches, fresh JVM). The **optimum is stable** (67 295 807 882 856 in all proofs) but the
+1w+interleave search path is NOT machine-reproducible on this soft workload — det varies ±35%+
+across JVMs. Consequence: soft-leg det comparisons are valid ONLY between same-JVM sequential
+arms (the A/B harness's existing shape); never compare det across runs. The S-A verdict stands
+same-JVM: outer 1 415.5 vs monolith 982.5 = 1.44× worse.
+
+#### 8.2bis.1 S4 baseline (MEASURED 2026-07-12, fresh JVM, det 600)
+
+S4 max-damage soft-direct does **NOT prove**: FEASIBLE at det 600.0, objective 14 509 755 840 720,
+bound 60 613 048 133 730 (**4.18× loose**), 25 434 branches, wall 25.7 min, 94 emissions. The MD
+soft leg is much harder than the MM one (S2 proves at det ~343-465) — consistent with the
+certificate being the proof authority in max-damage. S-E's prize is real (today this leg never
+proves), but its inner core (the D·Graw bilinear chain) is heavier than mastery×DI, so S-E needs
+the S-C-style inner treatment even more than S-A did. Gated on the S-C verdict.
+
+### 8.2bis S-E — transfer the outer bucket B&B to the MAX-DAMAGE soft leg (added 2026-07-12)
+
+The max-damage soft fallback wraps its survivable damage score in the **same**
+`applyConstraintPenalty` power-6 product (`WakfuBuildSolver.buildMaxDamageObjective`, non-hard
+path). S-A's decomposition therefore transfers, and is even simpler there: max-damage has **no
+overshoot tie-breaker**, so the driver drops the ×10 000 fold entirely — interval bounds are
+`C × power6(hi)` (sign guard as in S-A) and an interval solution's captured
+`core × power6(bucket)` is already the EXACT folded value (nothing dropped).
+
+Wiring (shared, landed with the S-A seam): `constrainPenaltyBucketInterval` is mode-agnostic and
+consumed by both objective builders; `SolverTuning.mmPenaltyBucketInterval` reaches
+`buildMaxDamageObjective` too. An opted-in survivability floor stays INSIDE the sub-model — S-E
+removes only the required-target axis; a floored core is a second product the sub-solve still
+carries (acceptable: the floor is opt-in and OFF in the S4 fixture).
+
+Scope note: on the soft leg the certificate is not the proof authority (it bails on penalized /
+floored objectives), so a CP-SAT OPTIMAL here directly improves the user story — today the fallback
+burns the remaining budget without a proof.
+
+Fixture: **S4 = max-damage, frontier targets (AP16/MP8/CC100/HP12000), soft-direct, lvl 245, CRA**
+(`WAKFU_MM_C2_BASELINE=1 WAKFU_MM_C2_BASELINE_FIXTURES=S4`). Order: measure the S4 baseline, then
+run the S-E driver **only if S-A GOs on S2** (same mechanism — an S2 NO-GO kills S-E too).
+
+### 8.3 S-B — incumbent-conditioned soft item ceiling (priority 2, dry-run first)
+
+Generalize §7.5's per-item hard-feasibility ceiling into a **soft-objective** ceiling. For every item
+`x`, compute a deliberately relaxed upper bound for builds containing `x`:
+
+`U(x) = Ucore(x) × power6(UtargetBucket(x))`, then add the maximum possible overshoot bonus.
+
+`Ucore` independently over-credits mastery and DI; `UtargetBucket` independently over-credits every
+required target using the existing slot/rarity/skill/rune/sub ceiling machinery. Ignoring slot
+competition, sub conditions and shared budgets only raises the value and is therefore sound. Bail
+instead of guessing on an unsupported conversion or negative interaction.
+
+Given the already-available greedy feasible score `L`, drop `x` only when the **full folded**
+`U(x) < L`. Equality is kept because `x` may win the tie-break. This is not the hard-leg AP16 filter:
+an item is allowed to miss every target if enough mastery can compensate; it is removed only when
+even its best relaxed soft build cannot beat the incumbent. It is also not the harmful M3 global cut:
+the successful outcome removes item variables before model construction.
+
+Gates:
+
+- dry-run S2 + S3: report rejected count by slot and which factor bound it;
+- <10% rejected => DROP; 10-20% => keep as research seam only; >=20% => build the filter;
+- exhaustive small-pool equality, seeded random equality, then full-pool S1/S2/S3 A/B;
+- derive the floor from the production scorer/fixed assignment, never duplicate score arithmetic.
+
+**VERDICT (MEASURED 2026-07-12): DROP — 0.00% rejected on BOTH shapes** (pool 6 892; floors from
+30-det production incumbents: S2 34 325 550 902 856, S3 10 712 — both ≥ 51%/97.5% of the optimum,
+so the floors were not the problem). Each U-factor independently credits a near-BiS build around
+the probed item, so the folded product upper bound exceeds any real incumbent for essentially
+every item. The hard screen (§7.5, 33.07%) bites because a per-stat ceiling meets a HARD target;
+a folded soft product has no such cliff. Do not retry with tighter floors — the looseness is
+multiplicative in the bound construction itself. (Machinery kept: [CeilingAnalyzer] now shared
+with §7.5; the DI probe credits BestElementConcentration.)
+
+### 8.4 S-C — exact outer DI-factor decomposition (priority 3, gate on S3)
+
+The binary DI expansion in §7.1-7.3 stayed **inside** one coupled model and regressed. A different
+attack is to move the DI factor outside CP-SAT on the one-factor branch of
+`diAdjustedPerElementMasteryScore` (no requested elemental minimum):
+
+1. interval-node `[dLo, dHi]`: constrain the clamped DI factor to the interval and maximize the
+   non-negative mastery tier `M`;
+2. sound node bound: `floor(Mmax × dHi / 100)`;
+3. singleton `d`: maximize `floor(M × d / 100)` with `d` constant — a scaled linear expression plus
+   integer division, no variable×variable product;
+4. best-first split until every remaining bound is <= the incumbent.
+
+Run this directly on S3. If S-A wins but its fixed-bucket sub-solves are still dominated by the inner
+DI product, S-C can later become the inner oracle, but do **not** start with a two-dimensional
+penalty×DI tree. Multi-element requests stay on the current model until the mono branch proves the
+mechanism. Stop if the reachable DI interval needs >12 proven nodes or the fixed-DI solve does not
+move the 1-worker dual curve.
+
+#### 8.4.1 S-C POC verdict (MEASURED 2026-07-12): NO-GO — and it closes the whole decomposition track
+
+Driver on S3 (DI-factor axis [50..5100], node det 60, exact incumbents from interval captures):
+
+- **Completed exactly**: outer optimum 10 985 at factor 158 == the monolith optimum (equality lock
+  passed), no abandon, INFEASIBLE pruning worked. Correctness of the mechanism is fully validated.
+- **Performance: 21 solves, total det 465.3 vs monolith 97.98 — 4.7× WORSE.** Even fully LINEAR
+  sub-models cost ~22 det each, because every node re-pays the full item-space search. The
+  monolith solves the entire product-coupled problem in 98 det; a node is only ~4× cheaper than
+  the monolith, and any interval tree needs ≥ 10-20 nodes. The arithmetic can never close.
+- Generalized verdict: **exact outer decomposition on ANY single axis (penalty bucket, DI factor,
+  or their composition) is dead for the soft legs.** The per-node floor is the item-space search
+  itself, not the removed product. S-A (§8.2.1), S-C (here) and by direct implication S-E
+  (§8.2bis — its inner core is even heavier) are all closed. Do not retry interval trees with
+  CP-SAT as the inner oracle; only an inner oracle that does NOT re-search the item space per node
+  (a DP/certificate-style bound) could revive this, which is the M3-v2 shape §8.9 explicitly
+  deferred.
+
+Track status after S-A + S-C: the solver-decomposition arm of campaign 2 is CLOSED. Remaining:
+S-B dry-run (§8.3), S-D cheap A/B (§8.5, unaffected — it is a cut, not a tree), C-0/C-A/C-B
+(certifier). The S-A/S-C/S-E seams stay in the codebase as measurement instruments (production
+always passes null).
+
+### 8.5 S-D — recycle the hard-leg infeasibility core as a valid soft no-good (cheap side bet)
+
+Gate each hard target with an assumption literal. A proven-INFEASIBLE hard leg can then return a
+sufficient assumption core `C`. In the fallback model define exact `meetsTarget_i` literals and add:
+
+`sum(meetsTarget_i for i in C) <= |C| - 1`.
+
+This cut is logically implied by the already-proven hard model: no real build can meet every target
+in the core. It reuses information currently discarded between the two solves and contains no
+heuristic coefficient. Its ceiling is probably modest — one core only removes the impossible
+all-met corner — so build it after S-A/S-B as a small A/B. DROP if the returned core contains every
+target and the deterministic trajectory is unchanged; do not build iterative core enumeration
+unless the first cut measurably fires.
+
+The local OR-Tools 9.15 Java API already exposes `CpModel.addAssumption(s)` and
+`CpSolver.sufficientAssumptionsForInfeasibility()`, so this POC needs no dependency change.
+
+**VERDICT (MEASURED 2026-07-13): DROP — both §8.5 DROP conditions met.** Mechanics fully work:
+the assumption-gated frontier hard leg proves INFEASIBLE at the same price (det 26.8 vs 25.3
+plain) and returns the sufficient core; the reachable S1 hard leg shows no reification tax
+(assume 44.6 vs plain 55.1 det, within the ±35% run variance; same optimum, lock passed). But the
+core names ALL FOUR targets (the cut only removes the "every target met" corner, which the
+penalty already prices), and the soft no-good arm is WORSE: baseline OPTIMAL det 335.3 vs no-good
+FEASIBLE-only det 983.4 — the same lesson as §7.7's M3 cut, any added constraint on the weak soft
+model slows it down. Do not build iterative core enumeration. (Seams kept: assumption gating +
+core capture may serve M3-v2 as a diagnostic of which target axes bind.)
+
+### 8.6 C-0 — bank the already-measured indexed harvest win
+
+This is not a new experiment, but reopening performance work makes leaving a byte-identical measured
+win disabled hard to justify. Flip `indexedFastHarvestEnabled` to the production default, retain an
+OFF reference seam, bump `CERTIFIER_VERSION` 15 -> 16, and run the coordinate fuzz + full ledger
+byte-equality + lvl-245 oracle. The recorded result is fast tier -16%, ledger -9% serial (§7.6).
+
+Land this separately before changing the crit grid so every later A/B uses the faster baseline.
+
+**LANDED 2026-07-12**: default flipped (`WAKFU_MAX_DAMAGE_CERT_INDEXED_HARVEST=0` is the OFF
+reference seam), CERTIFIER_VERSION 15 → 16 with a history entry. Acceptance: harvest-index
+coordinate fuzz + full-ledger byte-identity (2/2), the full WakfuBuildSolverTest lock suite
+(215 tests, 0 failures), and the lvl-245 fast-ledger oracle reproduced **bit-for-bit with no
+re-bank** in 12.6 s (the v15 family budgets + the index have made the pure fast tier that fast).
+
+### 8.7 C-A — coarser tier-1 crit grid, tier-1.5 as the adaptive refinement (priority 1 certifier)
+
+`FAST_C_SEGMENT_STEP = 8` was chosen before the incumbent-aware tier-1.5 segment skip existed. The
+new orchestration changes the optimum: tier 1 no longer needs to be uniformly tight; it needs to be
+cheap and eliminate most cells, while step-1 tier-1.5 refines the few survivors.
+
+Add a test-only step seam and screen `{8, 12, 16, 24, 32}` end-to-end. A coarser segment folds at a
+higher crit endpoint and therefore stays a sound upper bound; it may merely leave more survivors.
+The decisive metric is **total ledger**, not fast-tier time.
+
+A fresh warmed 245 run on current `main` gives useful structural evidence (not a stable benchmark):
+six worlds, 15-16 step-8 segments/world, fast `13.329 s` of total `13.332 s` when a huge incumbent
+eliminates every cell. Thus halving segment count has a real ceiling, but the optimum/weak-incumbent
+arms must show that extra tier-1.5/exact work does not consume it.
+
+Ship the coarsest step that keeps the same badge decision on all three incumbent regimes and wins
+>=10% total at both 110 and 245. Bound arrays need not be byte-identical, so all soundness/oracle
+locks and the version bump apply.
+
+#### 8.7.1 C-A verdict (MEASURED 2026-07-13): NO-SHIP — the win lives in the wrong regime
+
+Screen at 245, threads=1, steps {8, 12, 16, 24, 32} × incumbents {huge, optimum 16 909 590,
+weak 15 218 631} (seam `WAKFU_MAX_DAMAGE_CERT_CSTEP`, kept):
+
+| step | huge (pure fast) | optimum (badge regime) | weak |
+|---|---|---|---|
+| 8 (prod) | 11 632 ms | 22 921 ms | 52 410 ms |
+| 12 | 9 406 | 22 849 | 52 789 |
+| 16 | 8 204 | **20 885 (−8.9%)** | 52 319 |
+| 24 | 7 725 | 20 958 | 51 296 |
+| 32 | **6 829 (−41%)** | 22 066 | 51 557 |
+
+Badge decision invariant everywhere (tier2 survivors [16] and max 17 674 020 identical at every
+step) — soundness confirmed. But the ≥10% total-ledger bar is met ONLY in the huge-incumbent
+regime (pure fast tier, i.e. the CI oracle — not a user path). In the badge regimes the coarser
+tier-1.5 segment-skip rows hand the refinement tiers back most of what the fast tier saves:
+optimum-regime best is −8.9% (step 16), weak-regime is noise. Shipping would also re-bank the
+245/110 oracles (cell values change with the step, unlike C-0). Below the bar → keep step 8.
+
+Corollary — **C-B (§8.8) is closed by its own gate**: "attempt only if C-A leaves the fast tier as
+a user-visible floor." The screen shows the badge-regime total is dominated by tier-1.5/exact
+survivor refinement, not the fast tier (huge-regime fast ~11.6 s vs optimum-regime total 22.9 s,
+and a −41% fast-tier cut moved the optimum-regime total by <9%). A fast-tier-only prefix
+factoring has even less reachable headroom than C-A's step change. Do not build.
+
+### 8.8 C-B — factor the weapon-world common prefix (priority 2 certifier, gated)
+
+The same fresh run shows six worlds arranged as three `(conversion, critical-secret)` pairs, each
+with `weaponsRestricted = false/true`. Stage instrumentation shows the non-weapon item stages have
+exactly identical transition counts within every pair; today they are recomputed twice.
+
+The substantial version is two increments:
+
+1. A/B a byte-identical fast-tier stage order with the weapon stage after ordinary slots, rings and
+   skills (but before weapon-conditioned sub transitions). Stage transitions are additive, yet the
+   equality lock is mandatory because intermediate AP/crit pruning is subtle. Revert immediately if
+   the order alone inflates the frontier.
+2. Only if increment 1 is neutral/winning, compute that common prefix once per
+   `(conversion, critical-secret)` regime, snapshot it, then fork into unrestricted/restricted weapon
+   suffixes. Process the pair serially to cap peak memory; parallelism remains between independent
+   regimes.
+
+The theoretical ceiling is meaningful only after the stage move: rings + skills + ordinary slots
+account for roughly half of the observed per-world scan volume, whereas the prefix before today's
+early weapon stage is small. Acceptance: byte-identical cell values, provenance either identical or
+replaying to the same bound, >=15% fast-tier win, peak heap <=1.2x. Otherwise keep the simpler six
+independent passes.
+
+### 8.9 Execution order
+
+1. Add the S1/S2/S3 matrix and close the baseline (no production behavior change).
+2. Build **S-A test-side**. It has the highest upside because it deletes the exact product identified
+   as the soft dual wall. Stop the solver track if its node count explodes.
+3. In parallel with S-A measurements, run **S-B dry-run**. It is cheap and can reject itself without
+   production code.
+4. Run **S-C** only for S3 or if S-A exposes the DI product as the new inner wall.
+5. Run **S-D** last as a cheap cut; it must not delay the structural work.
+6. Certifier: land **C-0**, then screen **C-A**. Attempt **C-B** only if C-A leaves the fast tier as a
+   user-visible floor.
+
+Do not start M3-v2 or a target-aware Lagrangian certificate in this campaign. S-A/S-C first test the
+same decomposition thesis with CP-SAT as the exact inner oracle, far less new soundness code and a
+clear early node-count kill switch.
+
+**AMENDED 2026-07-12 (maintainer GO): M3-v2 is approved as the follow-up once the §8 queue closes**
+(S-B verdict, S-D, C-A). The S-A/S-C measurements sharpened its brief: the decomposition mechanism
+is correct but dies on an inner oracle that re-searches the item space per node; M3-v2 is exactly
+the missing oracle — a target-aware multi-dimensional DP (extending the M3-v1 (mastery, DI) cell,
+bound 11 909 vs optimum 10 985 on S3) that sweeps the item space ONCE and yields sound per-bucket
+bounds on the full folded soft objective. Two consumers to evaluate, in order: (1) a soft-leg
+certificate — prove the CP-SAT incumbent optimal externally and STOP EARLY (the max-damage badge
+pattern, directly user-visible on today's never-proving fallbacks, incl. S4); (2) the inner oracle
+of the S-A interval tree. Certifier discipline applies wholesale: never under-count, bail when
+unsure, fuzz lock `bound ≥ pinned CP-SAT`, measured verdict before any production wiring.
+
+### 8.9bis M3-v2 measurement log (2026-07-13, test-side prototype `MostMasteriesTargetBoundPrototype`)
+
+Target-aware DP: state `(DI, AP, MP, CC, HP, epic, relic) → best M`, achievement dims saturated at
+their target and bucketed UP; stages = exact ring/weapon pairs (dominance-pruned per-item option
+sets, pair stages first while the state space is tiny) → single slots → subs knapsack (10/1/1,
+carrier binding, world B) → skills (per-branch enumeration, %HP multiplicative on the dim, AFTER
+subs for soundness). Soundness canary (`bound ≥ banked optimum`) assertive and green throughout.
+
+| increment | S2 (frontier, folded) | S3 (core) | states | wall |
+|---|---|---|---|---|
+| 1: coarse grids, two-stage rings/weapons | +38.26% | +15.28% | 1.24M | 28 s |
+| 2: exact pairs + multiplicative %HP | +31.28% | +12.38% | 1.23M | 32 s |
+| 3: fine grids (DI exact, CC 2, HP 100) | **+25.35%** | **+8.41% = v1 parity (11 909)** | 12.15M | 207 s |
+
+Reading (superseded by increments 4-6 below): the v1 core floor carries over intact; the
+target-axis cost is the ratio between the two columns.
+
+**Increments 4-6 (2026-07-13, maintainer GO "on va au bout"):**
+
+| increment | S2 | S3 | note |
+|---|---|---|---|
+| 4: exact AT_MOST conditions (cap-flag states: Inflexibilité AP≤10, Constance CC≤10, Mesure III CC≤50 — all EPIC ⇒ 2 bits, no world explosion; Armure lourde MAX_MP−1 rider) | **+11.20%** | +8.41% | the target-specific cost collapses 15.6% → 2.6% |
+| 5: constraint semantics (REJECT paths over the threshold, ceil-lenient budgets; condition read w/o the sub's own contribution) + cap stats tracked even untargeted | +11.20% | +8.41% | no move — the conditions are genuinely satisfiable at ~no mastery cost in the model |
+| 6: STATE-DEPENDENT ramp (Poids Plume MP→DI priced at the path's own MP dim at collapse; MP tracked even untargeted) | +11.20% | **+6.77%** | attribution named the ramp as the largest single over-credit (Δ1 743); S2's binding state is elsewhere |
+
+Attribution harness (diag toggles, UNSOUND — deltas only): no layer is pure over-credit (removing
+any of subs/skills/runes drops the bound BELOW the optimum — the optimum uses them all); the
+looseness is interaction-level. Current state: **S2 +11.2%, S3 +6.8%, DP wall ~200-235 s serial at
+fine grids (12-14M states, 6g heap)**. Next tightening candidates (diminishing): S2's binding-state
+provenance (needs DP backtracking), oracle-build layer pricing (captureAssignment vs DP credits),
+Secret critique's CRITICAL_MASTERY_AT_MOST (needs a crit-mastery dim). The RACE harness (§ below)
+measures the user-facing value at the current tightness before any further spend.
+
+**RACE VERDICT (MEASURED 2026-07-13): NO-WIRE — production CP-SAT beats the certificate on its own
+turf.** S2, production path (multi-worker wall-clock, domination, 600 s budget), sequential legs:
+
+- Solver: first build at 0.05 s, best incumbent (= the optimum) at 191 s, **proven OPTIMAL at
+  199 s wall** (det 1040 — multi-worker parallelism turns the 1w det-465/19-min profile into
+  3.3 min). The campaign premise "the soft leg never proves in-budget" was a 1-WORKER artifact:
+  production proves S2 fine at a 600 s budget.
+- DP bound: 227 s wall — ARRIVES AFTER THE FULL PROOF, and would only say "proven within 11.2%"
+  where the solver already says OPTIMAL, exactly.
+- On budgets where the solver genuinely cannot prove (60-120 s user budgets), the 227 s serial DP
+  cannot either. The one remaining never-proves workload is the MAX-DAMAGE soft leg (S4, bound
+  4.18×) — outside this DP's objective; a D·Graw-core certificate would be a separate build.
+
+M3-v2 CLOSED as measured NO-WIRE **for fast machines**. Deliverables kept as reusable instruments
+(all test-side, all soundness-canaried): the target-aware DP with exact AT_MOST-condition state
+modeling, the constraint-vs-cap semantics distinction, the state-dependent ramp, the attribution
+harness (diag toggles), the sub-condition inventory, and the race harness itself.
+
+**REOPENED as the LOW-CORE BACKUP (maintainer scenario 2026-07-13)** — on a 2-4-core machine the
+proof profile is the 1-worker one (~15-20 min), where a single-thread DP genuinely wins. The
+presumed blocker (low-core ⇒ low-RAM vs the fine grid's ~6 GB) fell to the grid screen
+(`WAKFU_MM_M3V2_GRIDS`, steps now mutable + per-grid JVMs):
+
+| grid (DI/CC/HP) | S2 bound | states | est. heap | wall |
+|---|---|---|---|---|
+| 1/2/100 (fine) | +11.20% | 14.2M | ~6 GB | 227-235 s |
+| 1/10/500 (coarse) | **+11.20% — IDENTICAL** | 580k | **~33 MB** | **15.2 s** |
+| 2/10/500 | +11.20% — identical | 580k | ~33 MB | 14.0 s |
+
+The binding state saturates its targets, so achievement rounding never touches it — ALL of the
+bound's precision comes from the condition modeling (increments 4-6), none from grid fineness.
+Operating point for the backup: coarse grid, **≤15 s wall on this machine (≈30-60 s on a weak
+core), trivial memory, "proven within ≤11.2%"** — against a 15-20 min 1-worker proof. Wiring
+proposal: trigger ONLY when the soft fallback terminates non-OPTIMAL (and the shape is supported —
+bails hide the badge, never fake it); opt-in "check quality (~1 min)" or automatic when
+`cores ≤ threshold`.
+
+### 8.10 Campaign 2 close (2026-07-13)
+
+Every §8 item measured, one ship:
+
+| item | verdict |
+|---|---|
+| S1/S2/S3/S4 baselines | banked (§8.1.1, §8.2bis.1); S2 soft PROVES (det ~343-465); S4 MD-soft does NOT (bound 4.18×) |
+| S-A outer bucket B&B | NO-GO — mechanism correct, inner mastery×DI wall (§8.2.1) |
+| S-C outer DI-factor B&B | NO-GO — closes the whole decomposition track: per-node floor = the item-space search (§8.4.1) |
+| S-E max-damage transfer | closed with S-A/S-C (seam landed & kept) |
+| S-B soft item ceiling | DROP — 0.00% rejected, multiplicative looseness (§8.3) |
+| S-D infeasibility-core no-good | DROP — full core + soft slowdown; no reification tax though (§8.5) |
+| **C-0 indexed fast harvest** | **SHIPPED — production default, CERTIFIER_VERSION 16, oracle bit-for-bit (§8.6)** |
+| C-A crit-grid step | NO-SHIP — ≥10% only in the huge-incumbent regime (§8.7.1) |
+| C-B world-prefix factoring | closed by its own gate (§8.7.1 corollary) |
+
+Protocol fact banked along the way: the 1w+interleave soft-leg search path is NOT
+machine-reproducible run-to-run (det ±35%+ at a stable optimum) — soft det comparisons are valid
+only between same-JVM sequential arms.
+
+Next (maintainer GO, §8.9 amendment): **M3-v2** — the target-aware multi-dimensional DP bound,
+consumer (1) = soft-leg certificate / early stop first. All §8 seams stay as measurement
+instruments (production passes null everywhere; the only default that changed is C-0's).
+
+### 8.11 Backup certificate SHIPPED (2026-07-13)
+
+Wired end-to-end (maintainer UX choice: AUTOMATIC + phase display):
+
+- **`MostMasteriesCertificate`** (main sources — the promoted M3-v2 DP, coarse grid default
+  DI 1/CC 10/HP 500; steps stay mutable for the measurement harnesses in
+  `MostMasteriesCertificateTest`: tightness, attribution incl. `netNegatives`/`noSecretCritique`
+  sizing toggles, grid profile, race).
+- **`SolverResult.mostMasteriesObjective`**: the certificate-comparable raw objective, stamped only
+  when the searched model matches the certificate's units (MM soft leg, or MM without required
+  targets; measurement seams excluded).
+- **`WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality`** → `MostMasteriesProof`
+  (ProvenOptimal / ProvenWithin(percent) / Unavailable), mirroring `proveMaxDamageOptimality`;
+  bails hide the badge, never fake one.
+- **GUI**: automatic trigger after a most-masteries search whose CP-SAT leg ended non-OPTIMAL,
+  through the EXISTING ProofState pipeline — the user sees "Vérification de l'optimalité… (Xs)"
+  then "Optimal prouvé à X% près" (or the proven-optimal headline if the incumbent reaches the
+  bound). No new UI surface needed.
+- **Locks**: CI soundness fuzz (3 seeded pools, bound ≥ pinned CP-SAT soft optimum — also locks the
+  stamping end-to-end); full autobuilder suite + gui-compose suite green.
+
+Known bound-quality roadmap (measured, §8.9bis attribution): exact negative-mastery penalty
+(~91% of the S3 residual, ~29% of S2's) needs per-penalized-mastery state dims — a vNext; the
+S2-specific remainder is cross-slot interaction looseness. Current guarantee: within ~11.2% on the
+frontier shape, delivered in ~15 s (fast core) / ~30-60 s (weak core).

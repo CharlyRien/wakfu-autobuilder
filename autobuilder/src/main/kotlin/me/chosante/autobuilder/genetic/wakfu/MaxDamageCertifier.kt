@@ -168,13 +168,24 @@ internal object CertifierTuning {
             .AtomicLong()
 
     /**
-     * A/B seam for the FAST-pass harvest coordinate index. Off by default, so production keeps the
-     * reference `all cells × all crit steps` scan until the experiment is measured and accepted.
-     * The environment switch is intentionally experimental; flipping the production default would be
-     * a certifier change and therefore requires a [WakfuBuildSolver.CERTIFIER_VERSION] bump.
+     * The FAST-pass harvest coordinate index — the PRODUCTION default since campaign 2 C-0
+     * (plan §8.6): measured byte-identical to the reference `all cells × all crit steps` scan on the
+     * real lvl-245 ledger (§7.6), fast tier −16%, total ledger −9% serial. The reference scan stays
+     * reachable as an OFF seam (`WAKFU_MAX_DAMAGE_CERT_INDEXED_HARVEST=0`) for A/Bs and the
+     * byte-identity lock. Flipping this default was a certifier change → CERTIFIER_VERSION 15 → 16.
      */
     @Volatile
-    var indexedFastHarvestEnabled = System.getenv("WAKFU_MAX_DAMAGE_CERT_INDEXED_HARVEST") == "1"
+    var indexedFastHarvestEnabled = System.getenv("WAKFU_MAX_DAMAGE_CERT_INDEXED_HARVEST") != "0"
+
+    /**
+     * §8.7 C-A screen seam: override the TIER-1 fast pass's c-grid segment step (production default
+     * [FAST_C_SEGMENT_STEP] = 8). A coarser segment folds graw at a higher crit endpoint — still a
+     * sound upper bound per crit step, so every downstream consumer (tier-1.5 segment-skip rows,
+     * incumbent elimination) stays sound; it may merely leave more survivors. The screen decides on
+     * TOTAL ledger time across incumbent regimes; flipping the default would bump CERTIFIER_VERSION.
+     */
+    @Volatile
+    var fastCSegmentStepOverride: Int? = System.getenv("WAKFU_MAX_DAMAGE_CERT_CSTEP")?.toIntOrNull()
 
     /** Number of indexed `(state, AP-cell, crit-step)` coordinates actually handed to the harvest. */
     val indexedFastHarvestCoordinatesForTest =
@@ -530,6 +541,7 @@ internal fun StatBuilder.certifyAllCellsFast(
                 weaponsRestricted = w.wr,
                 fastAllCellsOut = out,
                 fastCellCount = cellCount,
+                fastCSegmentStep = CertifierTuning.fastCSegmentStepOverride ?: FAST_C_SEGMENT_STEP,
                 fastPerCellCOutHolder = perCellCHolder
             )
         if (worldTimingEnabled) {

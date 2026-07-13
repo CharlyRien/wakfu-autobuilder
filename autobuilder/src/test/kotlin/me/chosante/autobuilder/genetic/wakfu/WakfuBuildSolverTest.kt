@@ -4415,7 +4415,8 @@ class WakfuBuildSolverTest {
             Frontier.statsEnabled = false
         }
         println(
-            "CERT_LEDGER lvl$level threads=$threads incumbent=$incumbent forceTier2All=$forceTier2All totalMs=$ms " +
+            "CERT_LEDGER lvl$level threads=$threads incumbent=$incumbent forceTier2All=$forceTier2All " +
+                "cstep=${CertifierTuning.fastCSegmentStepOverride ?: FAST_C_SEGMENT_STEP} totalMs=$ms " +
                 "tier2=${ledger.tier2Cells.toSortedSet()} bailed=${ledger.bailedCells.toSortedSet()} " +
                 "max=${ledger.maxCellObjective} cells=${ledger.cellObjectives.toSortedMap()}"
         )
