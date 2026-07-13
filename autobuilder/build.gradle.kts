@@ -54,6 +54,9 @@ tasks.test {
     // (nightly + on-demand — see .github/workflows/build.yml).
     useJUnitPlatform { excludeTags("slow") }
     jvmArgs(orToolsTestJvmArgs)
+    // Manual measurement harnesses only (e.g. the M3-v2 DP at fine grids): lets a local run raise
+    // the test-worker heap without touching CI (unset ⇒ Gradle's default).
+    System.getenv("WAKFU_TEST_MAX_HEAP")?.let { maxHeapSize = it }
 }
 
 tasks.register<Test>("slowTest") {

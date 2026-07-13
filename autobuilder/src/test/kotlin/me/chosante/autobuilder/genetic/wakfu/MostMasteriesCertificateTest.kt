@@ -1,0 +1,530 @@
+package me.chosante.autobuilder.genetic.wakfu
+
+import com.google.ortools.sat.CpSolverStatus
+import me.chosante.autobuilder.domain.TargetStat
+import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.common.Character
+import me.chosante.common.CharacterClass
+import me.chosante.common.Characteristic
+import me.chosante.common.ItemType
+import me.chosante.common.Rarity
+import me.chosante.common.skills.CharacterSkills
+import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Assumptions.assumeTrue
+import org.junit.jupiter.api.Test
+import java.util.Locale
+import kotlin.time.Duration.Companion.seconds
+
+/**
+ * M3-v2 tightness harness (plan §8.9 amendment). Computes the target-aware folded bound on the
+ * campaign fixtures and compares against the banked same-protocol optima:
+ *  - S2 frontier soft: folded optimum 67 295 807 882 856 (§8.1.1);
+ *  - S3 DI isolate: core optimum 10 985 (v1's bound was 11 909, +8.4%).
+ *
+ * The bound must be ≥ the optimum (soundness canary — an under-count here is a bug, not a win);
+ * the measured question is the OVERSHOOT ratio and the DP wall time.
+ *
+ * ```shell
+ * WAKFU_MM_M3V2=1 [WAKFU_MM_M3V2_DEBUG=1] \
+ *   ./gradlew :autobuilder:test --tests '*MostMasteriesCertificateTest*'
+ * ```
+ */
+class MostMasteriesCertificateTest {
+    private val s2Optimum = 67_295_807_882_856L
+    private val s3Optimum = 10_985L
+
+    /**
+     * CI SOUNDNESS LOCK: on small deterministic pools (hand-built + seeded random), the certificate
+     * bound must upper-bound the pinned CP-SAT SOFT optimum — an under-count here would let
+     * [WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality] award a WRONG "proven within X%"
+     * badge. Also locks the [SolverResult.mostMasteriesObjective] stamping end-to-end (the exact
+     * value the production proof entry compares).
+     */
+    @Test
+    fun `certificate bound upper-bounds the pinned CP-SAT soft optimum`(): Unit =
+        kotlinx.coroutines.runBlocking {
+            fun item(
+                id: Int,
+                type: ItemType,
+                rarity: Rarity = Rarity.LEGENDARY,
+                stats: Map<Characteristic, Int>,
+            ) = me.chosante.common.Equipment(
+                equipmentId = id,
+                guiId = id,
+                level = 200,
+                name = me.chosante.common.I18nText("item$id", "item$id", "", ""),
+                rarity = rarity,
+                itemType = type,
+                characteristics = stats,
+                maxShardSlots = 3
+            )
+
+            val slotTypes =
+                listOf(
+                    ItemType.HELMET,
+                    ItemType.CAPE,
+                    ItemType.BELT,
+                    ItemType.BOOTS,
+                    ItemType.AMULET,
+                    ItemType.RING,
+                    ItemType.RING,
+                    ItemType.CHEST_PLATE,
+                    ItemType.TWO_HANDED_WEAPONS
+                )
+            val statPalette =
+                listOf(
+                    Characteristic.MASTERY_DISTANCE,
+                    Characteristic.ACTION_POINT,
+                    Characteristic.MOVEMENT_POINT,
+                    Characteristic.CRITICAL_HIT,
+                    Characteristic.HP,
+                    Characteristic.DAMAGE_INFLICTED,
+                    Characteristic.MASTERY_BERSERK
+                )
+            val fixtures =
+                (1L..3L).map { seed ->
+                    val rng = java.util.Random(seed)
+                    "seed$seed" to
+                        slotTypes
+                            .mapIndexed { i, type ->
+                                val stats =
+                                    (0 until 2 + rng.nextInt(3)).associate {
+                                        val stat = statPalette[rng.nextInt(statPalette.size)]
+                                        val magnitude =
+                                            when (stat) {
+                                                Characteristic.ACTION_POINT, Characteristic.MOVEMENT_POINT -> 1
+                                                Characteristic.CRITICAL_HIT -> 2 + rng.nextInt(8)
+                                                Characteristic.HP -> 50 + rng.nextInt(300)
+                                                Characteristic.DAMAGE_INFLICTED -> 1 + rng.nextInt(10)
+                                                else -> 20 + rng.nextInt(120) * (if (rng.nextInt(5) == 0) -1 else 1)
+                                            }
+                                        stat to magnitude
+                                    }
+                                item(seed.toInt() * 100 + i, type, if (i == 3) Rarity.EPIC else Rarity.LEGENDARY, stats)
+                            }.groupBy { it.itemType }
+                }
+
+            val p =
+                WakfuBestBuildParams(
+                    character = Character(CharacterClass.CRA, 200, 0, CharacterSkills(200)),
+                    targetStats =
+                        TargetStats(
+                            listOf(
+                                TargetStat(Characteristic.MASTERY_DISTANCE, 9999),
+                                TargetStat(Characteristic.ACTION_POINT, 8),
+                                TargetStat(Characteristic.HP, 3000)
+                            )
+                        ),
+                    searchDuration = 60.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                    useRunes = true,
+                    useSublimations = true
+                )
+            val tuning =
+                WakfuBuildSolver.SolverTuning(
+                    numSearchWorkers = 1,
+                    randomSeed = 1,
+                    interleaveSearch = true,
+                    maxDeterministicTime = 60.0
+                )
+
+            for ((label, pool) in fixtures) {
+                var last: me.chosante.autobuilder.genetic.SolverResult<me.chosante.autobuilder.domain.BuildCombination>? = null
+                WakfuBuildSolver
+                    .optimize(p, pool, WakfuBestBuildFinderAlgorithm.runes, WakfuBestBuildFinderAlgorithm.sublimations, tuning, hardConstraints = false)
+                    .collect { last = it }
+                val final = requireNotNull(last) { "$label: the soft solve emitted nothing" }
+                val incumbent = requireNotNull(final.mostMasteriesObjective) { "$label: the soft leg must stamp the comparable objective" }
+                val bound =
+                    requireNotNull(
+                        MostMasteriesCertificate.bound(p, pool, WakfuBestBuildFinderAlgorithm.runes, WakfuBestBuildFinderAlgorithm.sublimations)
+                    ) { "$label: the certificate bailed on a supported shape" }
+                println("MM_CERT_LOCK $label incumbent=$incumbent bound=${bound.foldedBound} optimal=${final.isOptimal}")
+                assertThat(bound.foldedBound)
+                    .describedAs("$label: SOUNDNESS — the certificate must never under-count the CP-SAT soft objective")
+                    .isGreaterThanOrEqualTo(incumbent)
+            }
+        }
+
+    /**
+     * Inventory of the solver-choosable sublimations' CONDITIONS + per-axis credits at 245 — sizes
+     * the M3-v2 exact-condition world split (AT_MOST/EXACT conditions need worlds; AT_LEAST gates
+     * soundly on the over-counted dims).
+     *
+     * ```shell
+     * WAKFU_MM_M3V2_INVENTORY=1 ./gradlew :autobuilder:test --tests '*MostMasteriesCertificateTest*'
+     * ```
+     */
+    @Test
+    fun `manual choosable sub condition inventory`() {
+        assumeTrue(System.getenv("WAKFU_MM_M3V2_INVENTORY") == "1")
+        val level = 245
+        for (sub in WakfuBestBuildFinderAlgorithm.sublimations) {
+            if (!sub.solverChoosable) continue
+            val effects =
+                sub.effects.joinToString(" | ") { eff ->
+                    when (eff) {
+                        is me.chosante.common.SublimationEffect.StatEffect ->
+                            "${eff.characteristic}=${eff.magnitudeAtLevel(level)}${if (eff.scenarioGate != null) " [gated]" else ""}"
+                        is me.chosante.common.SublimationEffect.PerStatStep -> "ramp ${eff.source}->${eff.target} cap=${eff.cap}"
+                        is me.chosante.common.SublimationEffect.Conversion -> "conv ${eff.from}->${eff.to}"
+                        is me.chosante.common.SublimationEffect.BestElementConcentration -> "bestElemDI=${eff.damageInflictedBonus}"
+                    }
+                }
+            println(
+                "MM_M3V2_INV ${sub.name.fr} rarity=${sub.rarity} copies=${sub.maxCopies} " +
+                    "cond=${sub.condition?.type ?: "-"} v=${sub.condition?.value ?: "-"} :: $effects"
+            )
+        }
+    }
+
+    /**
+     * Attribution of the S3 core-floor overshoot (+8.41%): re-computes the bound with each credit
+     * layer DIAGNOSTICALLY removed (unsound — never a bound; only the DELTA vs the full bound is
+     * read). The biggest delta names the next relaxation worth modeling exactly.
+     *
+     * ```shell
+     * WAKFU_MM_M3V2_ATTRIB=1 ./gradlew :autobuilder:test --tests '*MostMasteriesCertificateTest*'
+     * ```
+     */
+    @Test
+    fun `manual M3-v2 core-floor attribution on S3`() {
+        assumeTrue(System.getenv("WAKFU_MM_M3V2_ATTRIB") == "1")
+        val level = 245
+
+        fun params(required: List<TargetStat>) =
+            WakfuBestBuildParams(
+                character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+                targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999)) + required),
+                searchDuration = 600.seconds,
+                stopWhenBuildMatch = false,
+                maxRarity = Rarity.EPIC,
+                forcedItems = emptyList(),
+                excludedItems = emptyList(),
+                scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                useRunes = true,
+                useSublimations = true
+            )
+
+        val frontier =
+            listOf(
+                TargetStat(Characteristic.ACTION_POINT, 16),
+                TargetStat(Characteristic.MOVEMENT_POINT, 8),
+                TargetStat(Characteristic.CRITICAL_HIT, 100),
+                TargetStat(Characteristic.HP, 12000)
+            )
+        val flags =
+            listOf(
+                "noCondSubs",
+                "noSubs",
+                "noSkills",
+                "noRunes",
+                "noEpicSubs",
+                "noNormalSubs",
+                "noRelicSubs",
+                "noRamps",
+                "noSecretCritique",
+                "netNegatives"
+            )
+
+        // S2 at the COARSE grid (15 s/run — the grid screen proved it bound-identical to fine).
+        MostMasteriesCertificate.ccStep = 10
+        MostMasteriesCertificate.hpStep = 500
+        try {
+            for ((label, required, optimum) in listOf(Triple("S3", emptyList<TargetStat>(), s3Optimum), Triple("S2", frontier, s2Optimum))) {
+                val p = params(required)
+                val basePool =
+                    WakfuBestBuildFinderAlgorithm.equipments
+                        .filter { it.rarity <= p.maxRarity && it.rarity !in p.excludedRarities }
+                        .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                        .groupBy { it.itemType }
+                val shape = requireNotNull(dominationShape(p, WakfuBestBuildFinderAlgorithm.sublimations))
+                val pool = WakfuBuildSolver.filterDominatedPoolMemoizedForTest(basePool, shape)
+
+                fun run(diag: Set<String>): MostMasteriesCertificate.Result =
+                    requireNotNull(
+                        MostMasteriesCertificate.bound(
+                            p,
+                            pool,
+                            WakfuBestBuildFinderAlgorithm.runes,
+                            WakfuBestBuildFinderAlgorithm.sublimations,
+                            diag = diag
+                        )
+                    )
+
+                val full = run(emptySet())
+                val value = { r: MostMasteriesCertificate.Result -> if (required.isEmpty()) r.coreBound else r.foldedBound }
+                println("MM_M3V2_ATTRIB shape=$label full=${value(full)} optimum=$optimum overshoot=${value(full) - optimum}")
+                println("MM_M3V2_ATTRIB shape=$label binding: ${full.bindingState}")
+                for (flag in flags) {
+                    val without = run(setOf(flag))
+                    println("MM_M3V2_ATTRIB shape=$label $flag bound=${value(without)} delta=${value(full) - value(without)}")
+                }
+            }
+        } finally {
+            MostMasteriesCertificate.ccStep = 10
+            MostMasteriesCertificate.hpStep = 500
+        }
+    }
+
+    /**
+     * Grid → tightness/states/heap profile on S2 (maintainer scenario 2026-07-13: the certificate
+     * as a BACKUP on low-core machines, where the 1-worker proof takes 15-20 min — but those
+     * machines are also low-RAM, so the fine grid's ~6 GB heap is the blocker). Screens coarser
+     * grids (always sound — rounding is UP) for the ≤1-2 GB point and its tightness price.
+     *
+     * ```shell
+     * WAKFU_MM_M3V2_GRIDS=1 ./gradlew :autobuilder:test --tests '*MostMasteriesCertificateTest*'
+     * ```
+     */
+    @Test
+    fun `manual M3-v2 grid profile on S2`() {
+        assumeTrue(System.getenv("WAKFU_MM_M3V2_GRIDS") == "1")
+        val level = 245
+        val p =
+            WakfuBestBuildParams(
+                character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+                targetStats =
+                    TargetStats(
+                        listOf(
+                            TargetStat(Characteristic.MASTERY_DISTANCE, 9999),
+                            TargetStat(Characteristic.ACTION_POINT, 16),
+                            TargetStat(Characteristic.MOVEMENT_POINT, 8),
+                            TargetStat(Characteristic.CRITICAL_HIT, 100),
+                            TargetStat(Characteristic.HP, 12000)
+                        )
+                    ),
+                searchDuration = 600.seconds,
+                stopWhenBuildMatch = false,
+                maxRarity = Rarity.EPIC,
+                forcedItems = emptyList(),
+                excludedItems = emptyList(),
+                scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                useRunes = true,
+                useSublimations = true
+            )
+        val basePool =
+            WakfuBestBuildFinderAlgorithm.equipments
+                .filter { it.rarity <= p.maxRarity && it.rarity !in p.excludedRarities }
+                .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                .groupBy { it.itemType }
+        val shape = requireNotNull(dominationShape(p, WakfuBestBuildFinderAlgorithm.sublimations))
+        val pool = WakfuBuildSolver.filterDominatedPoolMemoizedForTest(basePool, shape)
+
+        // (di, cc, hp) steps, coarse → fine so the cheap points land first. One grid per JVM via
+        // WAKFU_MM_M3V2_GRIDS_ONLY="di,cc,hp" (a big-heap grid dying must not eat the others).
+        val grids =
+            System.getenv("WAKFU_MM_M3V2_GRIDS_ONLY")?.split(',')?.map { it.trim().toInt() }?.let {
+                listOf(Triple(it[0], it[1], it[2]))
+            } ?: listOf(Triple(2, 10, 500), Triple(1, 10, 500), Triple(1, 5, 250), Triple(1, 2, 100))
+        try {
+            for ((di, cc, hp) in grids) {
+                MostMasteriesCertificate.diStep = di
+                MostMasteriesCertificate.ccStep = cc
+                MostMasteriesCertificate.hpStep = hp
+                val r =
+                    requireNotNull(
+                        MostMasteriesCertificate.bound(
+                            p,
+                            pool,
+                            WakfuBestBuildFinderAlgorithm.runes,
+                            WakfuBestBuildFinderAlgorithm.sublimations
+                        )
+                    )
+                val ratio = r.foldedBound.toDouble() / s2Optimum
+                println(
+                    "MM_M3V2_GRID di=$di cc=$cc hp=$hp bound=${r.foldedBound} " +
+                        "overshoot=+${"%.2f".format(Locale.ROOT, (ratio - 1) * 100)}% states=${r.states} " +
+                        "estHeapMb=${r.states * 60L / 1_048_576} wallMs=${r.wallMs}"
+                )
+            }
+        } finally {
+            MostMasteriesCertificate.diStep = 1
+            MostMasteriesCertificate.ccStep = 10
+            MostMasteriesCertificate.hpStep = 500
+        }
+    }
+
+    /**
+     * The "ultra-precise certifier" RACE (maintainer ask 2026-07-13): on the S2 fallback shape —
+     * where CP-SAT never proves within a user budget — measure, wall-to-wall on the same machine:
+     *  1. the PRODUCTION solver leg (multi-worker, domination, 600 s budget): first emission,
+     *     time-to-best-incumbent, final status;
+     *  2. the M3-v2 DP bound: wall + the "proven within X%" it would award against the final
+     *     incumbent.
+     * The decision readout: a badge "proven within X%" becomes available at
+     * `max(DP wall, time-to-incumbent)` vs the solver's own never-arriving OPTIMAL — i.e. how many
+     * minutes the certificate saves and at what X. Runs SEQUENTIALLY (each leg gets the whole
+     * machine); production would pay a small concurrency tax instead.
+     *
+     * ```shell
+     * WAKFU_MM_M3V2_RACE=1 [WAKFU_MM_M3V2_RACE_SECONDS=600] \
+     *   ./gradlew :autobuilder:test --tests '*MostMasteriesCertificateTest*'
+     * ```
+     */
+    @Test
+    fun `manual M3-v2 certificate race on S2`(): Unit =
+        kotlinx.coroutines.runBlocking {
+            assumeTrue(System.getenv("WAKFU_MM_M3V2_RACE") == "1")
+            val seconds = System.getenv("WAKFU_MM_M3V2_RACE_SECONDS")?.toLongOrNull() ?: 600L
+            val level = 245
+            val p =
+                WakfuBestBuildParams(
+                    character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+                    targetStats =
+                        TargetStats(
+                            listOf(
+                                TargetStat(Characteristic.MASTERY_DISTANCE, 9999),
+                                TargetStat(Characteristic.ACTION_POINT, 16),
+                                TargetStat(Characteristic.MOVEMENT_POINT, 8),
+                                TargetStat(Characteristic.CRITICAL_HIT, 100),
+                                TargetStat(Characteristic.HP, 12000)
+                            )
+                        ),
+                    searchDuration = seconds.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                    useRunes = true,
+                    useSublimations = true
+                )
+            val basePool =
+                WakfuBestBuildFinderAlgorithm.equipments
+                    .filter { it.rarity <= p.maxRarity && it.rarity !in p.excludedRarities }
+                    .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                    .groupBy { it.itemType }
+            WakfuBuildSolver.warmUp()
+
+            // Leg 1 — the PRODUCTION soft solve (tuning = null ⇒ wall-clock budget, domination,
+            // default workers). Emission trajectory in scored units + final raw folded incumbent.
+            val termination =
+                java.util.concurrent.atomic
+                    .AtomicReference<WakfuBuildSolver.SolveOutcome?>(null)
+            val t0 = System.nanoTime()
+            var firstEmissionMs = -1L
+            var bestScore = java.math.BigDecimal.ZERO
+            var bestScoreAtMs = -1L
+            WakfuBuildSolver
+                .optimize(
+                    p,
+                    basePool,
+                    WakfuBestBuildFinderAlgorithm.runes,
+                    WakfuBestBuildFinderAlgorithm.sublimations,
+                    tuning = null,
+                    hardConstraints = false,
+                    onTermination = { termination.set(it) }
+                ).collect { result ->
+                    val tMs = (System.nanoTime() - t0) / 1_000_000
+                    if (firstEmissionMs < 0) firstEmissionMs = tMs
+                    if (result.matchPercentage > bestScore) {
+                        bestScore = result.matchPercentage
+                        bestScoreAtMs = tMs
+                    }
+                    println("MM_M3V2_RACE EMIT tMs=$tMs score=${result.matchPercentage} optimal=${result.isOptimal}")
+                }
+            val solverWallMs = (System.nanoTime() - t0) / 1_000_000
+            val outcome = termination.get()
+            val incumbent = outcome?.objectiveValue
+            println(
+                "MM_M3V2_RACE SOLVER wallMs=$solverWallMs status=${outcome?.status ?: "NA"} incumbentRaw=${incumbent ?: "NA"} " +
+                    "firstEmitMs=$firstEmissionMs bestScore=$bestScore bestScoreAtMs=$bestScoreAtMs detUsed=${outcome?.deterministicTime ?: "NA"}"
+            )
+
+            // Leg 2 — the DP bound, alone on the machine.
+            val shape = requireNotNull(dominationShape(p, WakfuBestBuildFinderAlgorithm.sublimations))
+            val pool = WakfuBuildSolver.filterDominatedPoolMemoizedForTest(basePool, shape)
+            val bound =
+                requireNotNull(
+                    MostMasteriesCertificate.bound(
+                        p,
+                        pool,
+                        WakfuBestBuildFinderAlgorithm.runes,
+                        WakfuBestBuildFinderAlgorithm.sublimations
+                    )
+                )
+            val withinPct =
+                if (incumbent != null && incumbent > 0) {
+                    "%.2f".format(java.util.Locale.ROOT, (bound.foldedBound.toDouble() / incumbent - 1) * 100)
+                } else {
+                    "NA"
+                }
+            println(
+                "MM_M3V2_RACE VERDICT dpWallMs=${bound.wallMs} bound=${bound.foldedBound} incumbentRaw=${incumbent ?: "NA"} " +
+                    "provenWithinPct=$withinPct badgeAvailableAtMs=${maxOf(bound.wallMs, bestScoreAtMs)} " +
+                    "solverProvedOptimal=${outcome?.status == CpSolverStatus.OPTIMAL} solverWallMs=$solverWallMs"
+            )
+        }
+
+    @Test
+    fun `manual M3-v2 tightness on S2 and S3`() {
+        assumeTrue(System.getenv("WAKFU_MM_M3V2") == "1")
+        val debug = System.getenv("WAKFU_MM_M3V2_DEBUG") == "1"
+        val level = 245
+
+        fun params(requiredTargets: List<TargetStat>) =
+            WakfuBestBuildParams(
+                character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+                targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999)) + requiredTargets),
+                searchDuration = 600.seconds,
+                stopWhenBuildMatch = false,
+                maxRarity = Rarity.EPIC,
+                forcedItems = emptyList(),
+                excludedItems = emptyList(),
+                scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                useRunes = true,
+                useSublimations = true
+            )
+
+        val frontier =
+            listOf(
+                TargetStat(Characteristic.ACTION_POINT, 16),
+                TargetStat(Characteristic.MOVEMENT_POINT, 8),
+                TargetStat(Characteristic.CRITICAL_HIT, 100),
+                TargetStat(Characteristic.HP, 12000)
+            )
+
+        for (
+        (label, required, optimum) in
+        listOf(
+            Triple("S2", frontier, s2Optimum),
+            Triple("S3", emptyList(), s3Optimum)
+        )
+        ) {
+            val p = params(required)
+            val basePool =
+                WakfuBestBuildFinderAlgorithm.equipments
+                    .filter { it.rarity <= p.maxRarity && it.rarity !in p.excludedRarities }
+                    .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                    .groupBy { it.itemType }
+            val shape = requireNotNull(dominationShape(p, WakfuBestBuildFinderAlgorithm.sublimations))
+            val pool = WakfuBuildSolver.filterDominatedPoolMemoizedForTest(basePool, shape)
+
+            val result =
+                MostMasteriesCertificate.bound(
+                    p,
+                    pool,
+                    WakfuBestBuildFinderAlgorithm.runes,
+                    WakfuBestBuildFinderAlgorithm.sublimations,
+                    debug = debug
+                )
+            checkNotNull(result) { "$label: the prototype bailed on a supported shape" }
+
+            val value = if (required.isEmpty()) result.coreBound else result.foldedBound
+            assertThat(value)
+                .describedAs("$label: SOUNDNESS — the bound must never under-count the banked optimum")
+                .isGreaterThanOrEqualTo(optimum)
+            val ratio = value.toDouble() / optimum
+            println(
+                "MM_M3V2 RESULT shape=$label bound=$value optimum=$optimum " +
+                    "overshoot=${"%.4f".format(Locale.ROOT, ratio)} (+${"%.2f".format(Locale.ROOT, (ratio - 1) * 100)}%) " +
+                    "coreBound=${result.coreBound} states=${result.states} wallMs=${result.wallMs}"
+            )
+        }
+    }
+}
