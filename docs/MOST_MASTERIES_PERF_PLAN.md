@@ -905,3 +905,22 @@ Known bound-quality roadmap (measured, §8.9bis attribution): exact negative-mas
 (~91% of the S3 residual, ~29% of S2's) needs per-penalized-mastery state dims — a vNext; the
 S2-specific remainder is cross-slot interaction looseness. Current guarantee: within ~11.2% on the
 frontier shape, delivered in ~15 s (fast core) / ~30-60 s (weak core).
+
+### 8.12 Tightening increment 7 — negative-mastery penalty: MEASURED-NEUTRAL, track closed (2026-07-13)
+
+Design executed: signed saturated deficit dim for the dominant penalized char (pool stats: 60/6 892
+negative items, BACK/BERSERK only), exact item deltas, offset-rune composition axis, sound sub/skill
+positive constants, low-end bucket reconstruction (under-counts the penalty — sound), CI lock green.
+
+**Result: the S2/S3 bounds did not move by a single unit (74 834 204 489 999 / 11 729) while states
+rose 580k → 5.8M and wall 15 s → 259 s.** Reading: modeled FAITHFULLY (cross-item positive offsets,
+as the model's `min(total, 0)` arithmetic allows), the penalty is ~zero on the binding paths — 616
+items carry +BACK lines, deficits melt legitimately. The attribution's "91% of the S3 residual"
+was a DIAGNOSTIC ARTIFACT: the `netNegatives` toggle nets per item, forbidding cross-item offsets,
+so it over-penalizes relative to the model. Increment REVERTED (the shipped operating point stays
++11.2% / 15 s / 33 MB); the `negstats` design-gate harness is kept.
+
+Do-not-retry: per-char deficit tracking in this DP. The remaining overshoot is CROSS-SLOT
+INTERACTION looseness (per-slot BiS-on-all-axes options combining beyond any real build) — the
+only known lever is per-slot option-set coupling (certifier-exact-tier scale); revisit only if a
+user-facing need for a tighter X% materializes.
