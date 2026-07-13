@@ -117,6 +117,11 @@ class BuildSearchModel(
     // Post-search certificate optimality proof (P4.4). Injectable so tests drive proofState deterministically
     // without a real (minutes-long) exact solve.
     private val optimalityProver: OptimalityProver = { params, result, isCancelled -> WakfuBestBuildFinderAlgorithm.proveMaxDamageOptimality(params, result, isCancelled) },
+    // Most-masteries backup certificate (plan §8.9bis): the post-search "proven within X%" quality
+    // bound for searches CP-SAT left un-proven. Injectable for the same reason as [optimalityProver]
+    // (the real DP takes ~15-60 s on the full pool).
+    private val mmQualityProver: (WakfuBestBuildParams, SolverResult<BuildCombination>) -> WakfuBestBuildFinderAlgorithm.MostMasteriesProof =
+        { params, result -> WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality(params, result) },
     private val zenithBuilder: ZenithBuilder = { it.createZenithBuild() },
     private val openBrowser: (String) -> Unit = { link -> Desktop.getDesktop().browse(URI(link)) },
     private val copyToClipboard: (String) -> Unit = { link -> Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(link), null) },
@@ -969,6 +974,16 @@ class BuildSearchModel(
                             // CP-SAT left un-closed (badge flips to proven even when `optimal` was false).
                             if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE && completedResult != null) {
                                 launchOptimalityProof(params, completedResult, character, damageScenario)
+                            } else if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+                                completedResult != null &&
+                                !completedResult.isOptimal &&
+                                completedResult.mostMasteriesObjective != null
+                            ) {
+                                // Backup quality certificate (§8.9bis): CP-SAT ended without a proof (short
+                                // budget / low-core machine) — bound the gap instead. Automatic and cheap
+                                // (~15-60 s single-thread); the same ProofState pipeline renders the phase
+                                // ("Verifying optimality…") and the "proven within X%" badge.
+                                launchMostMasteriesQualityProof(params, completedResult)
                             }
                         } else if (ui.phase == Phase.Searching) {
                             ui =
@@ -995,6 +1010,55 @@ class BuildSearchModel(
                     }
                 } finally {
                     progressTicker.cancel()
+                }
+            }
+    }
+
+    /**
+     * Most-masteries backup quality certificate (plan §8.9bis): bounds how far the shown un-proven
+     * build can be from the optimum ("proven within X%"). Runs automatically after a most-masteries
+     * search whose CP-SAT leg ended non-OPTIMAL — the case of short budgets and low-core machines,
+     * where the 1-worker proof would take 15-20 min while this single-thread DP answers in ~15-60 s.
+     * Streams through the same [UiState.proofState] pipeline as the max-damage proof (spinner phase,
+     * then the badge); failures and unsupported shapes degrade to [ProofState.Unavailable] — never a
+     * wrong badge. No cancellation hook: the DP is short; a superseding search simply wins the
+     * [ui.build] identity check below.
+     */
+    private fun launchMostMasteriesQualityProof(
+        params: WakfuBestBuildParams,
+        result: SolverResult<BuildCombination>,
+    ) {
+        val provenBuild = result.individual
+        val proofStartMs = clock()
+        proofJob =
+            scope.launch(Dispatchers.Default) {
+                withContext(mainDispatcher) {
+                    if (ui.phase == Phase.Done && ui.build == provenBuild && ui.proofState == ProofState.Idle) {
+                        ui = ui.copy(proofState = ProofState.Proving(ProofProgress(phase = ProofPhase.CERTIFYING, startedAtMs = proofStartMs)))
+                    }
+                }
+                val proof =
+                    try {
+                        mmQualityProver(params, result)
+                    } catch (cancellation: CancellationException) {
+                        throw cancellation
+                    } catch (throwable: Throwable) {
+                        throwable.printStackTrace()
+                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable
+                    }
+                val state =
+                    when (proof) {
+                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenOptimal -> ProofState.ProvenOptimal
+                        is WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin -> ProofState.ProvenWithin(proof.percent)
+                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable -> ProofState.Unavailable
+                    }
+                withContext(mainDispatcher) {
+                    if (ui.phase == Phase.Done &&
+                        ui.build == provenBuild &&
+                        (ui.proofState is ProofState.Proving || ui.proofState == ProofState.Idle)
+                    ) {
+                        ui = ui.copy(proofState = state)
+                    }
                 }
             }
     }
