@@ -1241,6 +1241,9 @@ private fun SublimationsResult(ui: UiState) {
                         Text(text = sub.name.let { if (ui.lang == me.chosante.ui.i18n.Lang.FR) it.fr else it.en }, style = WTypography.labelMedium.copy(color = WColor.text))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(text = sub.rarity.name, style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        me.chosante.ui.components
+                            .SublimationStackBadge(sub)
                     }
                     sublimationEffectText(sub, ui.lang).takeIf { it.isNotBlank() }?.let {
                         Text(text = it, style = WTypography.labelSmall.copy(color = WColor.muted))

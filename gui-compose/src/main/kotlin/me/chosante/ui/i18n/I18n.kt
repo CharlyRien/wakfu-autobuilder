@@ -186,10 +186,10 @@ enum class Tr(
     SUBLIMATION_LEVEL_UP_TO("≤ %d", "≤ %d"),
     SUBLIMATION_TIER_SHORT("T%d", "P%d"),
 
-    // Cumulable stacking at a glance: how many full copies fit and the stack's level cap —
-    // e.g. Carnage III = "×2 · lvl 6" (2 tier-3 copies, capped at stack level 6). Lets a user
-    // spot autobuilder-vs-Zenith stacking discrepancies immediately.
-    SUBLIMATION_STACK_SHORT("×%d · lvl %d", "×%d · niv %d"),
+    // Stacking at a glance: granted levels / stack cap — e.g. Carnage III = "3/6" (one shard
+    // grants 3 levels, the stack caps at 6). Lets a user spot autobuilder-vs-Zenith stacking
+    // discrepancies immediately.
+    SUBLIMATION_STACK_SHORT("%d/%d", "%d/%d"),
     SUBLIMATION_LEVEL_CAP_HINT(
         "The tier is the sublimation's I/II/III generation. Caps only solver-picked sublimations; forced ones can exceed it.",
         "Le palier est la génération I/II/III de la sublimation. Limite seulement les sublimations choisies par le solveur ; les imposées peuvent dépasser."
