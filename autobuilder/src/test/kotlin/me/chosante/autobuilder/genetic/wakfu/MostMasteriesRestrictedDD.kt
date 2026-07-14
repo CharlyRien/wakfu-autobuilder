@@ -86,6 +86,10 @@ internal object MostMasteriesRestrictedDD {
         val ramp: Boolean = false,
         // EXACT 10-normal-sub cap: how many normal-sub copies this option consumes.
         val subCount: Int = 0,
+        // Review fix (A#3): the solver requires one DISTINCT >=3-socket carrier item per NORMAL sub
+        // copy — items grant carrier budget, sub copies consume it (items all precede subs in the
+        // stage order, so a single running budget in the state is EXACT).
+        val carriers: Int = 0,
         // Weapons split (two stages instead of one 1H×off pair blow-up): a 2H sets the state bit;
         // an off-hand is rejected when it is set. Exact same 2H | 1H(+off) | off-alone semantics.
         val twoHanded: Boolean = false,
@@ -109,13 +113,16 @@ internal object MostMasteriesRestrictedDD {
                 block >= o.block &&
                 requiresBlockAtLeast == o.requiresBlockAtLeast &&
                 subCount <= o.subCount &&
+                carriers >= o.carriers &&
                 twoHanded == o.twoHanded &&
                 offHand == o.offHand
     }
 
     private fun prune(options: List<Opt>): List<Opt> {
         val distinct = options.distinct()
-        return distinct.filter { o -> distinct.none { other -> other !== o && other.dominates(o) && other != o } }
+        // STRICT domination (mutual domination = stat-equality): a non-strict test annihilates
+        // both copies of a stat-identical pair — see the certificate's prune() for the full story.
+        return distinct.filter { o -> distinct.none { other -> other !== o && other.dominates(o) && !o.dominates(other) } }
     }
 
     // Packed key (exact raw values): block(7b @54) cnt(4b @50) ramp(1b @49) mpMinus(1b @48)
@@ -188,8 +195,10 @@ internal object MostMasteriesRestrictedDD {
         if (o.requiresEpicItem && e == 0) return null
         if (o.requiresRelicItem && r == 0) return null
         if (o.offHand && twoH(k) == 1) return null
-        val newCnt = cnt(k) + o.subCount
-        if (newCnt > 10) return null
+        // cnt = REMAINING carrier budget: items with >=3 sockets add (capped at the 10-normal-sub
+        // ceiling), each normal sub copy consumes one — a sub without a free carrier is rejected.
+        val newCnt = (cnt(k) + o.carriers).coerceAtMost(10) - o.subCount
+        if (newCnt < 0) return null
         val newCapKind = if (o.capKind != 0) o.capKind else capKind(k)
         val newMpMinus = (mpMinus(k) + o.mpCapMinus).coerceAtMost(1)
         val newAp = ap(k) + o.ap
@@ -364,7 +373,9 @@ internal object MostMasteriesRestrictedDD {
                     hp = statOf(e, Characteristic.HP),
                     epic = e.rarity == me.chosante.common.Rarity.EPIC,
                     relic = e.rarity == me.chosante.common.Rarity.RELIC,
-                    block = if (blockAtLeastMax > 0) statOf(e, Characteristic.BLOCK_PERCENTAGE) else 0
+                    block = if (blockAtLeastMax > 0) statOf(e, Characteristic.BLOCK_PERCENTAGE) else 0,
+                    // A#3: >=3-socket items are the NORMAL subs' carriers (one distinct item each).
+                    carriers = if (e.maxShardSlots >= 3) 1 else 0
                 )
             val slots = if (params.useRunes) e.maxShardSlots else 0
             if (slots == 0) return listOf(base)
@@ -498,7 +509,8 @@ internal object MostMasteriesRestrictedDD {
                 relic = a.relic || b.relic,
                 block = a.block + b.block,
                 requiresBlockAtLeast = maxOf(a.requiresBlockAtLeast, b.requiresBlockAtLeast),
-                subCount = a.subCount + b.subCount
+                subCount = a.subCount + b.subCount,
+                carriers = a.carriers + b.carriers
             )
 
         // Stage order mirrors the certificate: big exact-pair stages first.
