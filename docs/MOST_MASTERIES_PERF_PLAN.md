@@ -1257,3 +1257,27 @@ NEXT: port the binding-path PROVENANCE (the instrument that cracked MM's +38%→
 the path drive targeted fixes; candidate seams in looseness order = per-carrier worlds for
 objective-capping subs, socket/copy realism in the normal-sub knapsack, ramp inside the 10-cap,
 crit-band worlds (no-CC-target shapes).
+
+### 9.4 S4-2b — provenance verdict + conversion net-weight fix (MEASURED 2026-07-15): 3.26× → 2.19×
+
+The binding path (coarse-grid provenance) named the culprit: **Dénouement** (epic CONVERSION sub,
+100% critM → elemental, CRIT_AT_LEAST 40) claimed w=3 832 000 — **45% of the whole W** — through
+the additive `percent·reachableMax(from)` credit. In W terms the conversion is NEUTRAL at
+critCap=100 (w_from = wK = 500 = wM = w_to): the real carrier's Graw does not change. Fix:
+conversion credit = `max(0, w_to − w_from) × movedMax` (into-DI/CC conversions stay additive —
+they cannot debit W).
+
+| read | pre-fix | post-fix |
+|---|---|---|
+| S4 frontier bound (quick tier) | 40.16T (3.26×) | **26.95T (2.19×)** |
+| binding state | W=8.58M d=40+ramp24 | W=4.75M **d=80**+ramp24 (epic slot → Elemental Concentration +20 DI), worldB Neutralité still riding, all targets saturated |
+| attribution | condSubs −41% | condSubs +13.7%, noSkills 19.1T (−29%), noRunes 21.5T (−20%) |
+
+Path facts banked: items/skills stages are EXACT per-slot/per-branch (real lines, Strength
+21+40=61 budget checks out); the 9-normal-sub d=40 is plausibly real (cumulable per-element DI
+stacks); the remaining suspects = worldB's +DI on full-W states, target saturation (max
+multiplier on unreachable targets), rune-axis ceilings.
+
+⚠️ The 2.19× is measured against the NON-PROVEN det-600 incumbent — the true ratio is better by
+whatever gap remains above 12.33T. Next: an overnight multi-worker S4 solve to push (or prove)
+the reference incumbent, then per-carrier worlds for the objective-capping subs.
