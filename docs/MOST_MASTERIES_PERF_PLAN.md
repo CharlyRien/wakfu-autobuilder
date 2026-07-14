@@ -994,3 +994,39 @@ Campaign-scale; assets already in place (DP, harnesses, oracle locks, provenance
 **Standing discipline reminders:** soft-leg det comparisons same-JVM only (±35% run variance);
 no concurrent gradle during timings; manual-harness println lands in JUnit XML; env-gated runs
 need `rtk proxy env`; measurement scripts must not run in two copies (file races).
+
+#### 8.14.1 POC execution log (2026-07-14)
+
+**Candidate (a) — the TRUE 10-normal-sub cap: ANALYTIC NO-GO, no sweep needed.** The λ seam was
+implemented (`bound(subCapLambda)`: −λ per normal-sub arc across knapsack + flagged stages, +10λ
+add-back at collapse — sound for any λ ≥ 0 by weak duality) plus a `WAKFU_MM_LAGRANGE=1` sweep
+harness. Before sweeping, the S2 binding-path provenance run (full tier, wall 362 s with
+provenance retention) settled it a priori: the binding path takes **NORMAL x9 in the knapsack +
+Poids Plume I flagged = exactly 10 normal subs**. A count-10 path is *invariant* under the
+dualization (−10λ arcs + 10λ add-back cancel), so `bound(λ) ≥ bound(0)` for every λ — the
+multiplier can never bind. This is precisely the roadmap's NO-GO signature, hit analytically.
+
+**What provenance actually indicts: per-option CEIL, not cross-slot correlation.** The S2 binding
+state claims cc=100 and hp=12000 (both targets saturated), but summing the path's REAL
+contributions: CC = 3 base + 6+7+3 items + 70 subs + 10 Mesure = **99 < 100**, and HP = 2500 base
++ 5765 items = **8265 ≪ 12000** — the missing ~3.7k HP is manufactured by `ceil(hp/500)` per item
+across 11 item options (up to 499 phantom HP each). Neither λ candidate has anything to price on
+this path (no dim overflows its cap either — candidate (b) doesn't bind here). The residual is
+GRID (merge/bucket) loss — OR real merge looseness. The fine-grid arms arbitrated.
+
+**Grid arbitration: the bound is GRID-INVARIANT — the residual is real merge looseness, not
+bucket loss.** hp-only fine grid (1, 10, 100): bound **73 934 594 729 999 = +9.87%, bit-for-bit
+identical** to the shipped coarse grid, at 23.3M states / ~1.3 GB / 469 s. (The ceil-exploiting
+coarse binding path is real, but at fine grid ANOTHER merged path reaches the exact same value —
+the DD merge glues one path's best-M onto another's target saturation.) The full fine grid
+(1, 2, 100) never finished: killed after >80 min wall at ~3 GB+ heap — the wall alone rules it
+out even as a measurement, and the hp-arm invariance predicts it would change nothing but the
+≤1-crit phantom.
+
+**POC VERDICT: NO-GO — clean death, exactly the roadmap's exit.** No valid inequality among
+candidates (a)/(b)/(c) is violated on binding paths; the +9.87% residual is relaxed-DD MERGE
+looseness (states fuse incomparable paths' best coordinates), which duals cannot price and only
+branching can cut. The λ seam was reverted (provably inert code has no place in a
+soundness-critical file); this log + the git history of the branch are the POC record.
+**Next per the roadmap: the Peel-and-Bound campaign** (relaxed DD + restricted DD + exact-cutset
+branching = an exact soft-leg solver) — campaign-scale, needs its own maintainer GO.
