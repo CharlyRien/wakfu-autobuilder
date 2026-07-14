@@ -1102,3 +1102,37 @@ REJECTED.** Per the phase gate, P&B-2 runs oracle-mode: incumbent = the banked S
 (production would seed it from the CP-SAT search result — always available since the proof, not
 the search, is the slow leg). Full restricted sweeps at useful widths cost 25 s (W=10k) to 353 s
 (W=200k) on S2 — B&B nodes must sweep SUFFIXES at narrow widths, not the full DD.
+
+#### 8.15.2 P&B-2 verdict (2026-07-14): NO-GO — BOTH §8.15 exits hit; CAMPAIGN CLOSED
+
+Probe: `optionVeto` seam on the certificate (vetoing options only restricts the relaxation —
+sound upper bound of the vetoed subspace; harness-only, forces src population) + the fix/exclude
+chain on the S2 binding RINGS choice, quick tier, oracle incumbent (`WAKFU_MM_PNB2=1`).
+
+- **FIX-CHILD bound == ROOT bound, bit-for-bit** (74 834 204 489 999, +11.20%): fixing the
+  binding rings pair tightens NOTHING — the looseness is entirely SUFFIX-intrinsic. Since the
+  B&B proof state is max(children) ≥ the fix child = the root, branching on that choice can
+  NEVER lower the proof. The "child bounds barely drop" exit, hit at its theoretical worst.
+- **Exclude chain decays glacially**: +11.20 → +8.69% over 6 nodes (~0.4pt/node, ~16 s each),
+  a near-equivalent substitute ring binding every time ("X+Souvenir ancestral" for 7 different
+  X). Closing ~11 points at that rate ⇒ hundreds of nodes on ONE slot, before multiplying by
+  the other 13. The "fanout explodes" exit too (P&B-0 piggyback data: exact-prefix pre-trim
+  layer widths already hit 10⁵-2×10⁶ on the early item stages).
+
+**The synthesis (with §8.14.1's grid invariance): the residual is an ENSEMBLE property.** The
++9.87% is not carried by one phantom path but by a large ensemble of near-equivalent relaxed
+paths, each slightly phantom for a different reason (a ceil here, an as-if condition there, a
+knapsack free-ride elsewhere). Any DD whose merge fuses dims component-wise (the certificate's
+bucketed key IS such a merge operator; an exact-arithmetic ddo-style merged DD would fuse the
+same way) intrinsically glues one path's best-M onto another's target saturation — and
+branching plays whack-a-mole against the ensemble. Duals can't price it (§8.14.1), grids can't
+resolve it (§8.14.1), branching can't cut it (this section). **The DD family is bound-limited
+at ~+10% on S2-class folded shapes; only the item-space search itself (CP-SAT) closes the last
+mile — which is the §8 decomposition verdict re-derived from the dual side.**
+
+**Operating point stands as shipped**: two-tier badge (+11.2% quick / +9.87% full) as the
+low-core backup; prod multi-worker CP-SAT proves S2 in 199 s. Campaign artifacts kept:
+`MostMasteriesRestrictedDD`(+Test) — a validated sound-primal beam (useful if a node-incumbent
+consumer ever appears) — and the certificate's `optionVeto` seam (harness-only). The only
+remaining never-proves workload stays S4 (max-damage soft, 4.18× — needs a D·Graw certificate,
+a different construct, priced separately).

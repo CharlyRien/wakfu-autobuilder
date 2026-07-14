@@ -330,8 +330,15 @@ internal object MostMasteriesCertificate {
         // bound ~1.3pt looser). The GUI shows the quick badge first, then refines with the full
         // pass in the background. Both tiers are independently sound.
         blockGate: Boolean = true,
+        // §8.15 P&B-2 seam (harness only): veto options of a stage by provenance src — the DD-B&B
+        // branching primitive. A veto only ever RESTRICTS the relaxation, so the result stays a
+        // sound upper bound OF THE VETOED SUBSPACE (fix a choice = veto its alternatives; exclude
+        // it = veto it). Non-null veto forces src population (slightly larger option sets, same
+        // soundness).
+        optionVeto: ((stage: String, src: String) -> Boolean)? = null,
     ): Result? {
         val t0 = System.nanoTime()
+        val wantSrc = provenance || optionVeto != null
         if (params.targetStats.masteryElementsToMinimize.isNotEmpty()) return null
         // Forced RUNES (both forms) and forced SUBS can ADD modelable capability the bound does not
         // price — under-count risk ⇒ bail. (Forced ITEMS only restrict, but stay bailed for parity
@@ -478,7 +485,7 @@ internal object MostMasteriesCertificate {
                     epic = e.rarity == me.chosante.common.Rarity.EPIC,
                     relic = e.rarity == me.chosante.common.Rarity.RELIC,
                     block = if (blockAtLeastMax > 0) statOf(e, Characteristic.BLOCK_PERCENTAGE) else 0,
-                    src = if (provenance) e.name.fr else ""
+                    src = if (wantSrc) e.name.fr else ""
                 )
             val slots = if (params.useRunes) e.maxShardSlots else 0
             if (slots == 0) return listOf(base)
@@ -527,8 +534,9 @@ internal object MostMasteriesCertificate {
             label: String,
             options: List<Opt>,
         ) {
-            stageLog?.add(Triple(label, HashMap(states), options))
-            states = geo.apply(states, options)
+            val effective = if (optionVeto == null) options else options.filter { !optionVeto(label, it.src) }
+            stageLog?.add(Triple(label, HashMap(states), effective))
+            states = geo.apply(states, effective)
         }
 
         // Pair-wise exact merge of two options (both non-null axes add; budgets/flags OR).
@@ -680,7 +688,7 @@ internal object MostMasteriesCertificate {
                     }
                 val blockRequirement =
                     if (blockAtLeastMax > 0 && cond?.type == SublimationConditionType.BLOCK_AT_LEAST) (cond.value ?: 0) else 0
-                var opt = Opt(0L, 0, capKind = capKind, requiresBlockAtLeast = blockRequirement, src = if (provenance) sub.name.fr else "")
+                var opt = Opt(0L, 0, capKind = capKind, requiresBlockAtLeast = blockRequirement, src = if (wantSrc) sub.name.fr else "")
                 var bail = false
                 for (eff in sub.effects) {
                     when (eff) {
@@ -801,7 +809,7 @@ internal object MostMasteriesCertificate {
                         block = geo.block(stat) * BLOCK_STEP,
                         requiresEpicItem = rarity == SublimationRarity.EPIC && cnt > 0,
                         requiresRelicItem = rarity == SublimationRarity.RELIC && cnt > 0,
-                        src = if (provenance) "$rarity x$cnt" else ""
+                        src = if (wantSrc) "$rarity x$cnt" else ""
                     )
                 }
             }
