@@ -1226,3 +1226,34 @@ block gating, the ramp bit, mpCapMinus — plus the chunked parallel apply. The 
 additionally motivates the anticipated crit-band worlds (weights at the band's hi, collapse
 filter `cc_dim ≥ lo` — sound because the dim over-counts) for NO-CC-target shapes; on the S4
 shape the binding states saturate cc=critCap so the W fold is already exact there.
+
+### 9.3 S4-2 — exact-condition layers verdict (MEASURED 2026-07-14): 3.26×, condition machinery ≠ the lever
+
+Transposed the full MM machinery (assume worlds for AP/CRIT cap subs with LOW dims, per-state
+world B with the exact secondary budget knapsack, block dim, ramp bit, mpCapMinus, chunked
+parallel apply). Locks stay GREEN (soundness holds through the world split). Reads:
+
+| read | v1 (credit-as-held) | v2 (exact conditions, quick tier) |
+|---|---|---|
+| S4 frontier bound | 41.47T (3.36×) | **40.16T (3.26×)** — barely moved |
+| binding state | d=98, all targets saturated | worldB fold, W=8.58M vs cap 15.9M (**cap does not bind**), d=40+ramp24, all targets saturated |
+| wall / states | 570 s / 3.47M (sequential) | 761 s / 17.3M (parallel; ramp+mpMinus bits ×4 the space) |
+| seeded locks | 1.88–2.10× | 1.72–3.77× (assume-world CONSTANTS looser than v1's in-state crediting on small pools — sound, noted) |
+
+Structural findings:
+- the worldB W-cap `wM·(100+elemReach+secBudgetCap)` sits ABOVE any coherent state's W (global
+  per-slot-max stacks ≈ 2× a real path) ⇒ the Neutralité-family +DI still rides a full-mastery
+  state. A real fix = one WORLD per objective-capping sub with secondary-positive parts excluded
+  from W (the MM assume-world pattern, not a fold-time cap).
+- the SUB LAYER carries 30.2T of the 40.2T bound (noSubs = 9.94T < the 12.33T incumbent) — the
+  dominant looseness is the normal-sub knapsack + flagged stages riding above the 10-cap (Poids
+  Plume's ramp24 = +14.6% core rides FREE above the 10) — not the conditional machinery.
+- the binding state saturates every unreachable target (multiplier = max) — achievement
+  over-claim compounds the core looseness.
+- BLOCK dim on this shape ×9 states → OOMs 8g and 1h20 wall: S4's full tier is NOT viable with
+  the MM grid; quick tier (blockGate=false) is the operating point for now.
+
+NEXT: port the binding-path PROVENANCE (the instrument that cracked MM's +38%→+11.2%) and let
+the path drive targeted fixes; candidate seams in looseness order = per-carrier worlds for
+objective-capping subs, socket/copy realism in the normal-sub knapsack, ramp inside the 10-cap,
+crit-band worlds (no-CC-target shapes).
