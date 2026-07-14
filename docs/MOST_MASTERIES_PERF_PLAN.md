@@ -1185,3 +1185,18 @@ factor from the cc dim), folded by the SAME power6 target arithmetic. Key facts 
 **Standing discipline:** same-JVM det pairs; no concurrent gradle in timings; `./gradlew --stop`
 before env-gated harness runs (the daemon FREEZES its env snapshot — silent skips otherwise);
 BDATA_FORCE_WRITE only for intended oracle diffs; soft det ±35% run variance.
+
+### 9.1 S4-0 — oracle banked (MEASURED 2026-07-14, canonical protocol, det 600, lvl 245)
+
+Fresh re-bank on this branch (the condition-timing + sub-identity fixes moved the incumbent):
+
+| id | status | det used | wall | branches | objective (incumbent) | CP-SAT dual bound |
+|---|---|---|---|---|---|---|
+| S4 mdFrontier soft-direct | FEASIBLE | 600.0 | 22.3 min | 27 718 | **12 326 932 936 900** | 70 516 354 052 645 (**5.72×**) |
+
+Down from the 2026-07-12 incumbent 14 509 755 840 720 — consistent with the model TIGHTENING
+(Ravage×Neutralité first-turn exclusion removed a +DI pairing) — while the dual gap widened
+(4.18× → 5.72×). Still never proves. ⚠️ The incumbent is NOT a proven optimum: canary
+comparisons (`bound ≥ incumbent`) are necessary-only, and a tightness ratio vs it UPPER-bounds
+the true ratio. Comparable objective on the soft leg = `SolverResult.maxDamageObjective`
+(= `solver.objectiveValue()`, the penalized `damage × power6` — already stamped, nothing to add).
