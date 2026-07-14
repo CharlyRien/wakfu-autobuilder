@@ -135,19 +135,53 @@ object ItemsCatalog {
             maxTierByState[stateId] = maxOf(maxTierByState[stateId] ?: 1, tier)
         }
 
+        // Pass 2: pick the IDENTITY row per stateId — the tier the record is VALUED at. The record's
+        // effects are computed at [maxTier], so its name and shard item id must come from the row whose
+        // apply-state grant equals that tier ("Carnage III", the tier-III shard), NOT from whichever tier
+        // happens to come first in CDN order — first-row-wins shipped 127/232 records displaying (and
+        // Zenith-exporting) a LOWER tier than the credited one (the 2026-07-14 Xelor-20 report).
+        val identityRow = HashMap<Int, ItemDto>()
+        for (it in items) {
+            if (it.definition.item.baseParameters.itemTypeId != SUBLIMATION_ITEM_TYPE) continue
+            if (it.definition.item.sublimationParameters == null) continue
+            val def = it.applyStateEffect() ?: continue
+            val stateId = def.params.firstOrNull()?.toInt() ?: continue
+            val tier = def.params.getOrNull(2)?.toInt() ?: 1
+            val cur = identityRow[stateId]
+            // Keep the first row whose tier matches the family max; otherwise the first row (stable fallback).
+            if (cur == null ||
+                (
+                    tier == maxTierByState[stateId] &&
+                        (
+                            cur
+                                .applyStateEffect()
+                                ?.params
+                                ?.getOrNull(2)
+                                ?.toInt() ?: 1
+                        ) != maxTierByState[stateId]
+                )
+            ) {
+                identityRow[stateId] = it
+            }
+        }
+
         val seen = HashSet<Int>()
         val out = ArrayList<SublimationMeta>()
-        for (it in items) {
-            val core = it.definition.item
-            if (core.baseParameters.itemTypeId != SUBLIMATION_ITEM_TYPE) continue
-            val sp = core.sublimationParameters ?: continue
-            val stateId =
-                it
-                    .applyStateEffect()
+        for (candidate in items) {
+            val candidateState =
+                candidate
+                    .takeIf {
+                        it.definition.item.baseParameters.itemTypeId == SUBLIMATION_ITEM_TYPE &&
+                            it.definition.item.sublimationParameters != null
+                    }?.applyStateEffect()
                     ?.params
                     ?.firstOrNull()
                     ?.toInt() ?: continue
-            if (!seen.add(stateId)) continue // first CDN-order row wins for identity (patterns are unique per stateId)
+            if (!seen.add(candidateState)) continue // one record per stateId, in first-appearance CDN order
+            val it = identityRow[candidateState] ?: candidate
+            val core = it.definition.item
+            val sp = core.sublimationParameters ?: continue
+            val stateId = candidateState
             val title = it.title ?: continue
             out.add(
                 SublimationMeta(
