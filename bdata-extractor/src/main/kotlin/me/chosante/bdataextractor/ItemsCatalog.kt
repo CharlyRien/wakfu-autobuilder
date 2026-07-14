@@ -140,29 +140,20 @@ object ItemsCatalog {
         // apply-state grant equals that tier ("Carnage III", the tier-III shard), NOT from whichever tier
         // happens to come first in CDN order — first-row-wins shipped 127/232 records displaying (and
         // Zenith-exporting) a LOWER tier than the credited one (the 2026-07-14 Xelor-20 report).
-        val identityRow = HashMap<Int, ItemDto>()
+        // Candidates need sublimationParameters AND a title (an untitled/parameterless max-tier row —
+        // e.g. localization pending on a fresh CDN drop — must not silently drop the whole record or
+        // regress its identity to an arbitrary tier: we keep the HIGHEST usable tier and WARN below
+        // when it differs from the valued maxTier). Ties keep the first CDN row (stable).
+        val identityRow = HashMap<Int, Pair<ItemDto, Int>>()
         for (it in items) {
             if (it.definition.item.baseParameters.itemTypeId != SUBLIMATION_ITEM_TYPE) continue
             if (it.definition.item.sublimationParameters == null) continue
+            if (it.title == null) continue
             val def = it.applyStateEffect() ?: continue
             val stateId = def.params.firstOrNull()?.toInt() ?: continue
             val tier = def.params.getOrNull(2)?.toInt() ?: 1
             val cur = identityRow[stateId]
-            // Keep the first row whose tier matches the family max; otherwise the first row (stable fallback).
-            if (cur == null ||
-                (
-                    tier == maxTierByState[stateId] &&
-                        (
-                            cur
-                                .applyStateEffect()
-                                ?.params
-                                ?.getOrNull(2)
-                                ?.toInt() ?: 1
-                        ) != maxTierByState[stateId]
-                )
-            ) {
-                identityRow[stateId] = it
-            }
+            if (cur == null || tier > cur.second) identityRow[stateId] = it to tier
         }
 
         val seen = HashSet<Int>()
@@ -170,18 +161,29 @@ object ItemsCatalog {
         for (candidate in items) {
             val candidateState =
                 candidate
-                    .takeIf {
-                        it.definition.item.baseParameters.itemTypeId == SUBLIMATION_ITEM_TYPE &&
-                            it.definition.item.sublimationParameters != null
-                    }?.applyStateEffect()
+                    .takeIf { it.definition.item.baseParameters.itemTypeId == SUBLIMATION_ITEM_TYPE }
+                    ?.applyStateEffect()
                     ?.params
                     ?.firstOrNull()
                     ?.toInt() ?: continue
             if (!seen.add(candidateState)) continue // one record per stateId, in first-appearance CDN order
-            val it = identityRow[candidateState] ?: candidate
+            val stateId = candidateState
+            val entry = identityRow[stateId]
+            if (entry == null) {
+                println("  WARN: sublimation stateId=$stateId has no titled row with sublimationParameters — record dropped.")
+                continue
+            }
+            val (it, identityTier) = entry
+            // Guard (review B#1/B#2): the identity row's tier must match the tier the record is
+            // VALUED at — a mismatch reintroduces the wrong-tier display/export bug silently.
+            if (identityTier != maxTierByState[stateId]) {
+                println(
+                    "  WARN: sublimation stateId=$stateId identity is tier $identityTier ('${it.title?.fr}') " +
+                        "but is VALUED at maxTier ${maxTierByState[stateId]} — name/zenithId will under-state the credited tier."
+                )
+            }
             val core = it.definition.item
             val sp = core.sublimationParameters ?: continue
-            val stateId = candidateState
             val title = it.title ?: continue
             out.add(
                 SublimationMeta(
