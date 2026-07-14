@@ -113,11 +113,19 @@ internal enum class ConditionComparison {
  * they evaluate a spec (scalar ints vs a reified `IntVar`), never in WHAT a condition means. See [subConditionSpec].
  */
 internal sealed interface SubConditionSpec {
-    /** `sum(`[stats]`)` [comparison] [threshold], read on the build's PRE-COMBAT (character-sheet) stats. */
+    /**
+     * `sum(`[stats]`)` [comparison] [threshold]. Read on the build's PRE-COMBAT (character-sheet)
+     * stats by default; [firstTurn] conditions are instead checked by the game ON THE FIRST TURN,
+     * so they also see the START-OF-COMBAT contributions of unconditional FLAT subs (in-game
+     * verified 2026-07-14: Ravage's start-of-combat secondary masteries BREAK Neutralité's
+     * `secondary masteries ≤ 0`, while a start-of-combat +crit does NOT feed a CRIT_AT_MOST —
+     * condition timing is per-type, not global).
+     */
     data class StatBound(
         val stats: List<Characteristic>,
         val comparison: ConditionComparison,
         val threshold: Int,
+        val firstTurn: Boolean = false,
     ) : SubConditionSpec
 
     /** Holds iff the build equips no off-hand and no two-handed weapon — a slot-occupancy test, not a stat read. */
@@ -156,7 +164,7 @@ internal fun subConditionSpec(
         SublimationConditionType.DODGE_LT_PCT_OF_LEVEL ->
             SubConditionSpec.StatBound(listOf(Characteristic.DODGE), ConditionComparison.AT_MOST, (n * level) / 100 - 1)
         SublimationConditionType.SECONDARY_MASTERIES_AT_MOST ->
-            SubConditionSpec.StatBound(SECONDARY_MASTERY_CHARACTERISTICS.toList(), ConditionComparison.AT_MOST, n)
+            SubConditionSpec.StatBound(SECONDARY_MASTERY_CHARACTERISTICS.toList(), ConditionComparison.AT_MOST, n, firstTurn = true)
         SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED -> SubConditionSpec.NoOffhandOrTwoHanded
         else -> SubConditionSpec.AlwaysApplies // AP_ODD / WEAPON_TYPE_EQUIPPED / HIGHEST_* / OTHER — not solver-modeled
     }

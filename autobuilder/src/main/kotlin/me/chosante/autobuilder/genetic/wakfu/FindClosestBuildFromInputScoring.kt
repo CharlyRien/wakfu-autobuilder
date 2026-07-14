@@ -730,14 +730,18 @@ internal fun getResistanceRandoms(eachCharacteristicValueLineByEquipment: Map<Ch
 
 private fun subConditionHolds(
     cond: SublimationCondition,
-    preSub: Map<Characteristic, Int>,
+    preCombat: Map<Characteristic, Int>,
+    firstTurn: Map<Characteristic, Int>,
     level: Int,
     usesOffhandOrTwoHanded: Boolean,
 ): Boolean =
     // The condition's MEANING comes from the shared [subConditionSpec]; here we just evaluate it with scalar int
     // math (the CP-SAT solver reifies the SAME spec into an IntVar in reifyCondition — so the two can't disagree).
     when (val spec = subConditionSpec(cond, level)) {
-        is SubConditionSpec.StatBound -> spec.comparison.holds(spec.stats.sumOf { preSub[it] ?: 0 }, spec.threshold)
+        is SubConditionSpec.StatBound -> {
+            val sheet = if (spec.firstTurn) firstTurn else preCombat
+            spec.comparison.holds(spec.stats.sumOf { sheet[it] ?: 0 }, spec.threshold)
+        }
         SubConditionSpec.NoOffhandOrTwoHanded -> !usesOffhandOrTwoHanded
         SubConditionSpec.AlwaysApplies -> true
     }
@@ -781,6 +785,7 @@ fun sublimationFixedContributions(
     // +crit (Secondary Devastation II, Ambition) does not — same split as the solver's preCombatStat. A
     // CONVERSION's `from` base still reads `preSub` (no subs), exactly as the solver's preSubStat.
     val preCombat = preCombatSubStats(sublimations, preSub, mode, scenario, level, wantedElements)
+    val firstTurn = firstTurnSubStats(sublimations, preCombat, mode, scenario, level, wantedElements)
     val out = mutableMapOf<Characteristic, Int>()
     for (sub in sublimations) {
         if (sub.kind == SublimationKind.COMBAT_CONDITIONAL) continue
@@ -788,7 +793,7 @@ fun sublimationFixedContributions(
         val applies =
             cond == null ||
                 cond.type !in SUPPORTED_SUB_CONDITIONS ||
-                subConditionHolds(cond, preCombat, level, usesOffhandOrTwoHanded)
+                subConditionHolds(cond, preCombat, firstTurn, level, usesOffhandOrTwoHanded)
         if (!applies) continue
         if (sub.kind == SublimationKind.CONVERSION) {
             val conv = sub.conversion ?: continue
@@ -877,6 +882,33 @@ private fun preCombatSubStats(
         if (sub.kind == SublimationKind.COMBAT_CONDITIONAL || sub.kind == SublimationKind.CONVERSION) continue
         for (effect in sub.effects.filterIsInstance<SublimationEffect.StatEffect>()) {
             if (!effect.appliesBeforeCombat) continue
+            if (!scenarioGateMatchesCore(effect.scenarioGate, mode, scenario, level, wantedElements)) continue
+            out.merge(effect.characteristic.foldedToUsableStat(), effect.magnitudeAtLevel(level), Int::plus)
+        }
+    }
+    return out
+}
+
+/**
+ * The FIRST-TURN sheet: [preCombat] plus the START-OF-COMBAT contributions of unconditional FLAT
+ * subs — what a [SubConditionSpec.StatBound.firstTurn] condition reads (Neutralité is checked by
+ * the game on the first turn, after Ravage-class start-of-combat effects landed). Mirrors the
+ * solver's `firstTurnStat`/`buildStartOfCombatFlatSubTerms`: conditional subs' own start-of-combat
+ * effects stay excluded (a sub never feeds its own condition; cross-conditional feeding unmodeled).
+ */
+private fun firstTurnSubStats(
+    sublimations: List<Sublimation>,
+    preCombat: Map<Characteristic, Int>,
+    mode: ScoreComputationMode?,
+    scenario: DamageScenario?,
+    level: Int,
+    wantedElements: Set<Characteristic>,
+): Map<Characteristic, Int> {
+    val out = preCombat.toMutableMap()
+    for (sub in sublimations) {
+        if (sub.kind != SublimationKind.FLAT) continue
+        for (effect in sub.effects.filterIsInstance<SublimationEffect.StatEffect>()) {
+            if (effect.appliesBeforeCombat) continue
             if (!scenarioGateMatchesCore(effect.scenarioGate, mode, scenario, level, wantedElements)) continue
             out.merge(effect.characteristic.foldedToUsableStat(), effect.magnitudeAtLevel(level), Int::plus)
         }
