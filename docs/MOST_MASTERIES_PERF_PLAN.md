@@ -1030,3 +1030,75 @@ branching can cut. The λ seam was reverted (provably inert code has no place in
 soundness-critical file); this log + the git history of the branch are the POC record.
 **Next per the roadmap: the Peel-and-Bound campaign** (relaxed DD + restricted DD + exact-cutset
 branching = an exact soft-leg solver) — campaign-scale, needs its own maintainer GO.
+
+### 8.15 CAMPAIGN — Peel-and-Bound (maintainer GO 2026-07-14)
+
+**Prize.** An EXACT soft-leg answer (true optimum + proof) from the DD machinery: replaces the
+15-20-min 1-worker CP-SAT proof on low-core machines, and upgrades the badge from
+"proven within 9.87%" to "proven optimal" (or a small residual %) everywhere the shape is
+supported. Reference points: prod multi-worker CP-SAT proves S2 in 199 s; the relaxed DD gives
++9.87% in 83 s (full tier) / +11.2% in 15 s (quick).
+
+**Architecture (Rudich et al. Peel-and-Bound / ddo / CODD, adapted to our stage-DP):**
+- *Relaxed DD* = the shipped `MostMasteriesCertificate` (upper bound — merge via bucketed keys +
+  per-option ceil + saturation).
+- *Restricted DD* = the SAME stage machinery with EXACT-PRIMAL semantics + beam width W (drop
+  lowest states instead of merging): every surviving final state is ≤ some REAL build's folded
+  value, so its max is a true LOWER bound / incumbent. Exactness deltas vs the certificate: raw
+  accumulation (no per-option ceil; re-laid key, hp exact 14 bits), netNegatives-style negative
+  penalized-mastery pricing (per-item netting UNDER-counts the model's cross-item min(total,0) —
+  sound on the primal side, the mirror of why it was unsound as a bound), drop non-HP PERCENT
+  skills (reachableMax pricing over-counts), on-path ramps only. Saturation at target stays EXACT
+  for the fold (totalActual clamps per-stat at target).
+- *Branch* = exact-cutset states (the DP prefix run exactly until width explodes), children
+  bounded by the relaxed suffix sweep started from the child state (the "peel" seam:
+  `bound(initialStates=…)`), pruned against the restricted incumbent.
+
+**Phases + gates (one seam + one verdict per commit):**
+- **P&B-1 — restricted DD (primal).** Test-side prototype forked from the certificate. Gate:
+  the SOUNDNESS CANARY is `beamValue ≤ banked optimum` at every width (a violation = an exactness
+  bug); SUCCESS = beam hits the S2/S3 optima (67 295 807 882 856 / 10 985) at some W in ≤ ~60 s.
+  A near-miss (≥ 99%) still GOes phase 2 (the incumbent only prunes; CP-SAT's own incumbent can
+  seed it in production).
+- **P&B-0 — exact-prefix width scoping (cheap, piggybacks P&B-1's exact arithmetic).** Layer
+  width per stage at W=∞ exact states: where does the width blow past ~10⁷? That layer = the
+  exact cutset; its state count = the B&B root fanout.
+- **P&B-2 — branching POC.** Peel seam on the relaxed `bound()` (start from an arbitrary states
+  map + stage suffix), branch the cutset, prune vs incumbent. Gate: proves the S2 optimum
+  (bound == incumbent after search) in ≤ ~5 min single-thread; node-count trajectory reported.
+  NO-GO exits: fanout ≥ ~10⁵ with per-node suffix sweeps ≥ ~1 s (wall explodes), or child bounds
+  barely drop below the root bound (the looseness lives in the suffix, branching can't reach it).
+- **P&B-3 — productionize** (only on P&B-2 GO): peel instead of recompile, incumbent from the
+  production search, wiring behind the existing proof pipeline (quick badge → refine → exact).
+
+**Discipline:** the restricted DD is a PRIMAL object — its failure mode is over-counting (a fake
+incumbent would wrongly prune real optima in P&B-2), so every relaxation choice must round DOWN;
+the canary is the reverse of the certificate's. Same measurement rules as ever (same-JVM det
+pairs, no concurrent gradle, XML-captured println).
+
+#### 8.15.1 P&B-1 verdict (2026-07-14): canary GREEN; S3 99.24%; S2 ~72% plateau — the beam is
+NOT the S2 primal; phase 2 proceeds with a seeded incumbent (as the gate anticipated)
+
+`MostMasteriesRestrictedDD`(+Test, `WAKFU_MM_PNB1=1`), exact-primal semantics per the campaign
+design. **The PRIMAL CANARY held at every width on both shapes** — the exactness rules
+(signed raw accumulation with reject-below-0, in-state 10-sub cap, per-item negative netting,
+dropped unmodelable credits) are validated machinery for P&B-2 node incumbents.
+
+- **S3: 99.24% of the optimum at W=10k / 5.8 s** — and the SAME 10 902 at W=50k/200k: the
+  residual 0.76% is the SEMANTIC ceiling (dropped credit layers), not beam loss.
+- **S2: ~72% plateau, rank-sensitive and non-monotone in W.** Retrospective partial-fold rank:
+  69.2/72.7/71.6% (W=10k/50k/200k). Optimistic suffix-maxima rank: WORSE on S2 (49/54/68%) while
+  much better on S3 — the static suffix over-promises target fill to mastery-rich states that can
+  no longer collect it (their cores are high, 8 364 vs 5 871, but they miss cc/ap). Neither pure
+  rank works: S2's fold couples target saturation × mastery too tightly for a beam heuristic.
+- **Perf lessons banked:** (1) the 1H×off single-stage pair product = 4.2e9 transitions on S2
+  (93% of the run) — split via a `twoH` state bit into main-hand/off-hand stages (exact, ×23
+  wall); (2) mid-stage compaction is mandatory (exact keys barely collide — |states|×|options|
+  materializes whole and OOM-killed the first run); (3) beam trim rank must be computed once per
+  entry, never in a sort comparator (the comparator thrash was a 10× wall).
+
+**Verdict: P&B-1 machinery VALIDATED (sound primal, S3 near-miss), S2 incumbent-by-beam
+REJECTED.** Per the phase gate, P&B-2 runs oracle-mode: incumbent = the banked S2 optimum
+(production would seed it from the CP-SAT search result — always available since the proof, not
+the search, is the slow leg). Full restricted sweeps at useful widths cost 25 s (W=10k) to 353 s
+(W=200k) on S2 — B&B nodes must sweep SUFFIXES at narrow widths, not the full DD.
