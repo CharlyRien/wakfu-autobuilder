@@ -1136,3 +1136,52 @@ low-core backup; prod multi-worker CP-SAT proves S2 in 199 s. Campaign artifacts
 consumer ever appears) — and the certificate's `optionVeto` seam (harness-only). The only
 remaining never-proves workload stays S4 (max-damage soft, 4.18× — needs a D·Graw certificate,
 a different construct, priced separately).
+
+## 9. CAMPAIGN — the S4 D·Graw certificate (max-damage soft leg; maintainer GO 2026-07-14)
+
+**Context for resumption.** After the review-fix wave (`902fa393..f97cef60`) the MM certificate is
+fully sound, S2 +9.87% bit-for-bit, full tier **55 s** (chunked parallel stages + power6 table +
+shared proof pool; world split for cap subs, per-state knapsack world B). The ONLY workload that
+never proves anywhere is **S4 — the max-damage SOFT leg** (targets-unreachable fallback): its
+naive bound sits at 4.18× (§8.1.1), so no badge fires. GPU offload was assessed and deferred
+(10-50× plausible on the DP but cross-platform JVM↔GPU stack + a second soundness-critical
+implementation; in-JVM parallel worlds measured SLOWER — GC-bound; INTRA-stage chunking was the
+win instead).
+
+**The construct.** Clone the MM certificate ARCHITECTURE (stage DP over the dominated pool,
+bucketed key, worlds for AT_MOST cap subs, per-state world B, two tiers, shouldContinue) with the
+CORE swapped: instead of `M × (100+DI)/100`, mirror the max-damage soft objective's damage proxy
+(`maxDamageRawProxy` lineage — Graw from the scenario masteries × (100+DI) × the crit-band
+factor from the cc dim), folded by the SAME power6 target arithmetic. Key facts to honor:
+- The scenario masteries play the m-role (additive per item, runes on the mastery axis).
+- cc feeds BOTH the crit factor in the core AND the CRITICAL_HIT target fold — monotone in the
+  dim, so the DP stays sound; mirror the solver's exact crit-band arithmetic (see
+  buildMaxDamageObjective / the certifier's per-cell scaling formula — and the banked
+  "objective-proxy vs sequencedScore ~0.6% divergence" fact: certify the PROXY, which is the
+  solver's own objective, exactly like maxDamageRawProxy does for the hard leg).
+- BAIL (no badge) on: multi-element/boss scenarios (per-element enumeration territory), forced
+  runes/subs/items, conversions — same conservative gates as both existing certifiers.
+- Consumer: `proveMaxDamageQuality` alongside proveMostMasteriesQuality; GUI trigger = max-damage
+  search completing non-OPTIMAL through the soft fallback (SolverResult already carries
+  maxDamageObjective / maxDamageRawProxy — check which is the comparable objective for the SOFT
+  leg and stamp it if missing).
+
+**Phases + gates (one seam + one verdict per commit):**
+1. **S4-0 — bank the oracle.** 1-worker seeded CP-SAT on a canonical S4 fixture (the §8.1.1
+   protocol: unreachable-targets max-damage shape at 245); bank the soft objective value.
+2. **S4-1 — core-mirror prototype** (test-side first, MostMasteriesBoundPrototype pattern):
+   items+runes only, no subs/skills; canary `bound ≥ oracle` + tightness read.
+3. **S4-2 — full layers** (subs incl. worlds/world B, skills, ramps) + the A1/A2-style
+   conditional-sub locks transposed; CI fuzz lock (seeded pools, fresh CP-SAT compare like
+   MM_CERT_LOCK).
+4. **S4-3 — production wiring**: prove function + GUI badge through the existing ProofState
+   pipeline (zero new UI), two tiers, shouldContinue.
+   Gates: canary green everywhere; tightness ≤ ~+25% to ship (S4's naive 4.18× means even +50%
+   is a user-visible win — the gate is a quality floor, not a kill); wall ≤ MM's (55 s full).
+   NO-GO exits: the crit-band coupling breaks per-state monotonicity (would need a world per
+   crit band — cost gate ≤ 3× wall), or the soft-leg objective proves non-mirrorable outside
+   CP-SAT (then bank why, close).
+
+**Standing discipline:** same-JVM det pairs; no concurrent gradle in timings; `./gradlew --stop`
+before env-gated harness runs (the daemon FREEZES its env snapshot — silent skips otherwise);
+BDATA_FORCE_WRITE only for intended oracle diffs; soft det ±35% run variance.
