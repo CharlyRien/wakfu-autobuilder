@@ -120,8 +120,8 @@ class BuildSearchModel(
     // Most-masteries backup certificate (plan §8.9bis): the post-search "proven within X%" quality
     // bound for searches CP-SAT left un-proven. Injectable for the same reason as [optimalityProver]
     // (the real DP takes ~15-60 s on the full pool).
-    private val mmQualityProver: (WakfuBestBuildParams, SolverResult<BuildCombination>, Boolean) -> WakfuBestBuildFinderAlgorithm.MostMasteriesProof =
-        { params, result, quick -> WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality(params, result, quick) },
+    private val mmQualityProver: (WakfuBestBuildParams, SolverResult<BuildCombination>, Boolean, () -> Boolean) -> WakfuBestBuildFinderAlgorithm.MostMasteriesProof =
+        { params, result, quick, shouldContinue -> WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality(params, result, quick, shouldContinue) },
     private val zenithBuilder: ZenithBuilder = { it.createZenithBuild() },
     private val openBrowser: (String) -> Unit = { link -> Desktop.getDesktop().browse(URI(link)) },
     private val copyToClipboard: (String) -> Unit = { link -> Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(link), null) },
@@ -1030,6 +1030,9 @@ class BuildSearchModel(
     ) {
         val provenBuild = result.individual
         val proofStartMs = clock()
+        // B8 wiring (review finding): the certificate DP polls this per stage — a new search flips
+        // it and the superseded proof aborts within a stage instead of pinning a core for ~80 s.
+        proofCancelled.set(false)
         proofJob =
             scope.launch(Dispatchers.Default) {
                 withContext(mainDispatcher) {
@@ -1063,29 +1066,23 @@ class BuildSearchModel(
                     }
                 }
 
-                // Two-tier: the QUICK bound (~15 s) puts a badge up fast; the FULL bound (~80 s)
-                // then silently tightens it (or flips to proven-optimal). Both tiers are sound, so
-                // showing the quick one first never over-promises.
-                val quickProof =
+                fun prove(quick: Boolean): WakfuBestBuildFinderAlgorithm.MostMasteriesProof =
                     try {
-                        mmQualityProver(params, result, true)
+                        mmQualityProver(params, result, quick) { !proofCancelled.get() }
                     } catch (cancellation: CancellationException) {
                         throw cancellation
                     } catch (throwable: Throwable) {
                         throwable.printStackTrace()
                         WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable
                     }
+
+                // Two-tier: the QUICK bound (~15 s) puts a badge up fast; the FULL bound (~80 s)
+                // then silently tightens it (or flips to proven-optimal). Both tiers are sound, so
+                // showing the quick one first never over-promises.
+                val quickProof = prove(quick = true)
                 publish(toState(quickProof), allowUpgradeFrom = false)
                 if (quickProof is WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin) {
-                    val fullProof =
-                        try {
-                            mmQualityProver(params, result, false)
-                        } catch (cancellation: CancellationException) {
-                            throw cancellation
-                        } catch (throwable: Throwable) {
-                            throwable.printStackTrace()
-                            WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable
-                        }
+                    val fullProof = prove(quick = false)
                     // Only ever UPGRADE: a full-tier failure/Unavailable never erases the quick badge.
                     val better =
                         when (fullProof) {

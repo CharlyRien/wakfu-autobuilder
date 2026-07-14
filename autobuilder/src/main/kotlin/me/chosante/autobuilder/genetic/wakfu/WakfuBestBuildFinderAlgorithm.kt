@@ -240,6 +240,9 @@ object WakfuBestBuildFinderAlgorithm {
         // Two-tier: the QUICK tier (~15 s, ~1.3pt looser) for an instant badge; the full tier
         // (~80 s) refines it in the background. Both sound.
         quick: Boolean = false,
+        // Cooperative cancellation: checked once per DP stage — a superseded proof (new search
+        // started) aborts within a stage instead of pinning a core for up to ~80 s.
+        shouldContinue: () -> Boolean = { true },
     ): MostMasteriesProof {
         if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) return MostMasteriesProof.Unavailable
         if (result.isOptimal) return MostMasteriesProof.ProvenOptimal // CP-SAT already certified it exactly.
@@ -258,7 +261,7 @@ object WakfuBestBuildFinderAlgorithm {
         val shape = dominationShape(params, activeSublimations(params)) ?: return MostMasteriesProof.Unavailable
         val pool = WakfuBuildSolver.filterDominatedPoolMemoizedForTest(equipmentsByItemType, shape)
         val bound =
-            MostMasteriesCertificate.bound(params, pool, runes, activeSublimations(params), blockGate = !quick)
+            MostMasteriesCertificate.bound(params, pool, runes, activeSublimations(params), blockGate = !quick, shouldContinue = shouldContinue)
                 ?: return MostMasteriesProof.Unavailable
         // The model's exact fold predicate (no `target > 0` filter — a 0-valued required target still folds).
         val hasRequiredTargets = params.targetStats.any { it.characteristic.isRequiredMostMasteriesTarget() }

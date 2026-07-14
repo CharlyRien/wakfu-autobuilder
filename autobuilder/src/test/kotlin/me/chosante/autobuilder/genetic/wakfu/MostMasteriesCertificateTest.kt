@@ -34,6 +34,145 @@ class MostMasteriesCertificateTest {
     private val s3Optimum = 10_985L
 
     /**
+     * CI SOUNDNESS LOCK for the 2026-07-14 review findings A#1/A#2 — the two shapes where the
+     * certificate UNDER-counted (a false badge):
+     *  - A#1: the AT_MOST condition rejection accumulated per-option CEILs, denying a real build
+     *    at crit 3+5=8 ≤ 10 its Constance-class sub (fixed by the LOW under-approximating dims);
+     *  - A#2: world B capped the WHOLE objective at the CRITICAL_MASTERY_AT_MOST threshold while
+     *    M sums every requested mastery, and priced the sub's +CC side credit nowhere.
+     * Each fixture pins CP-SAT (1-worker, seeded) and asserts bound ≥ its optimum.
+     */
+    @Test
+    fun `certificate bound covers conditional-sub optima (A1 ceil rejection, A2 world B)`(): Unit =
+        kotlinx.coroutines.runBlocking {
+            fun item(
+                id: Int,
+                type: ItemType,
+                rarity: Rarity = Rarity.LEGENDARY,
+                stats: Map<Characteristic, Int>,
+            ) = me.chosante.common.Equipment(
+                equipmentId = id,
+                guiId = id,
+                level = 200,
+                name = me.chosante.common.I18nText("item$id", "item$id", "", ""),
+                rarity = rarity,
+                itemType = type,
+                characteristics = stats,
+                maxShardSlots = 3
+            )
+
+            fun epicConditionalSub(
+                stateId: Int,
+                condType: me.chosante.common.SublimationConditionType,
+                threshold: Int,
+                effects: List<me.chosante.common.SublimationEffect>,
+            ) = me.chosante.common.Sublimation(
+                stateId = stateId,
+                name = me.chosante.common.I18nText("sub$stateId", "sub$stateId", "", ""),
+                rarity = me.chosante.common.SublimationRarity.EPIC,
+                maxStackLevel = 1,
+                kind = me.chosante.common.SublimationKind.STATIC_CONDITIONAL,
+                solverChoosable = true,
+                condition = me.chosante.common.SublimationCondition(condType, value = threshold),
+                effects = effects
+            )
+
+            data class Fixture(
+                val label: String,
+                val pool: Map<ItemType, List<me.chosante.common.Equipment>>,
+                val targets: List<TargetStat>,
+                val subs: List<me.chosante.common.Sublimation>,
+            )
+
+            val fixtures =
+                listOf(
+                    // A#1: base crit 3 + cape's +5 = 8 ≤ 10 — the optimum carries the CRIT_AT_MOST-10
+                    // sub; the old ceil-accumulated rejection (1+1 buckets > 1) denied it.
+                    Fixture(
+                        "A1-ceil-rejection",
+                        listOf(
+                            item(11, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_DISTANCE to 300)),
+                            item(12, ItemType.CAPE, Rarity.EPIC, mapOf(Characteristic.MASTERY_DISTANCE to 250, Characteristic.CRITICAL_HIT to 5))
+                        ).groupBy { it.itemType },
+                        listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999)),
+                        listOf(
+                            epicConditionalSub(
+                                9001,
+                                me.chosante.common.SublimationConditionType.CRIT_AT_MOST,
+                                10,
+                                listOf(
+                                    me.chosante.common.SublimationEffect
+                                        .Flat(Characteristic.DAMAGE_INFLICTED, 20)
+                                )
+                            )
+                        )
+                    ),
+                    // A#2: two requested masteries + a CC target; the optimum carries the
+                    // CRITICAL_MASTERY_AT_MOST-0 sub for its +30 CC while stacking melee mastery —
+                    // the old world B capped the whole M at 0 and world A never credited the +30 CC.
+                    Fixture(
+                        "A2-worldB",
+                        listOf(
+                            item(21, ItemType.HELMET, Rarity.EPIC, mapOf(Characteristic.MASTERY_MELEE to 400)),
+                            item(22, ItemType.CAPE, stats = mapOf(Characteristic.MASTERY_MELEE to 200, Characteristic.HP to 100))
+                        ).groupBy { it.itemType },
+                        listOf(
+                            TargetStat(Characteristic.MASTERY_MELEE, 9999),
+                            TargetStat(Characteristic.MASTERY_CRITICAL, 9999),
+                            TargetStat(Characteristic.CRITICAL_HIT, 30)
+                        ),
+                        listOf(
+                            epicConditionalSub(
+                                9002,
+                                me.chosante.common.SublimationConditionType.CRITICAL_MASTERY_AT_MOST,
+                                0,
+                                listOf(
+                                    me.chosante.common.SublimationEffect
+                                        .Flat(Characteristic.CRITICAL_HIT, 30)
+                                )
+                            )
+                        )
+                    )
+                )
+            val tuning =
+                WakfuBuildSolver.SolverTuning(
+                    numSearchWorkers = 1,
+                    randomSeed = 1,
+                    interleaveSearch = true,
+                    maxDeterministicTime = 60.0
+                )
+            for (f in fixtures) {
+                val p =
+                    WakfuBestBuildParams(
+                        character = Character(CharacterClass.CRA, 200, 0, CharacterSkills(200)),
+                        targetStats = TargetStats(f.targets),
+                        searchDuration = 60.seconds,
+                        stopWhenBuildMatch = false,
+                        maxRarity = Rarity.EPIC,
+                        forcedItems = emptyList(),
+                        excludedItems = emptyList(),
+                        scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                        useRunes = false,
+                        useSublimations = true
+                    )
+                var last: me.chosante.autobuilder.genetic.SolverResult<me.chosante.autobuilder.domain.BuildCombination>? = null
+                WakfuBuildSolver
+                    .optimize(p, f.pool, emptyList(), f.subs, tuning, hardConstraints = false)
+                    .collect { last = it }
+                val final = requireNotNull(last) { "${f.label}: the soft solve emitted nothing" }
+                val incumbent = requireNotNull(final.mostMasteriesObjective) { "${f.label}: no comparable objective stamped" }
+                val bound =
+                    requireNotNull(
+                        MostMasteriesCertificate.bound(p, f.pool, emptyList(), f.subs)
+                    ) { "${f.label}: the certificate bailed on a supported shape" }
+                println("MM_CERT_COND_LOCK ${f.label} incumbent=$incumbent bound=${bound.foldedBound} optimal=${final.isOptimal}")
+                assertThat(bound.foldedBound)
+                    .describedAs("${f.label}: SOUNDNESS — the certificate must never under-count the CP-SAT soft objective")
+                    .isGreaterThanOrEqualTo(incumbent)
+            }
+        }
+
+    /**
      * Design gate for the exact negative-mastery penalty (the measured 91% of the S3 residual):
      * the distribution of NEGATIVE penalized-mastery lines across the lvl-245 domination pool.
      * If one char dominates, a single signed state dim captures most of the penalty; a flat
