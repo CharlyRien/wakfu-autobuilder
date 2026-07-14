@@ -173,7 +173,10 @@ class MaxDamageSoftBoundPrototypeTest {
                     pool,
                     WakfuBestBuildFinderAlgorithm.runes,
                     WakfuBestBuildFinderAlgorithm.sublimations,
-                    debug = true
+                    debug = true,
+                    // QUICK tier: the block dim multiplies the main world ~9× (OOMs 8g); MM
+                    // measured its refinement worth ~1.3pt — not needed for the tightness verdict.
+                    blockGate = false
                 )
             ) { "the prototype bailed on the canonical S4 shape" }
         val oracle = System.getenv("WAKFU_S4_ORACLE")?.toLongOrNull()
@@ -195,7 +198,8 @@ class MaxDamageSoftBoundPrototypeTest {
                     pool,
                     WakfuBestBuildFinderAlgorithm.runes,
                     WakfuBestBuildFinderAlgorithm.sublimations,
-                    diag = setOf(arm)
+                    diag = setOf(arm),
+                    blockGate = false
                 )
             println("S4_PROTO_ATTRIB arm=$arm bound=${armBound?.foldedBound ?: "bail"}")
         }
