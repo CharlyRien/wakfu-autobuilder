@@ -890,8 +890,13 @@ internal object MaxDamageSoftBoundPrototype {
                             if (!WakfuBuildSolver.scenarioGateMatches(eff.scenarioGate, params)) continue
                             opt = opt.copy(d = opt.d + maxOf(eff.damageInflictedBonus, 0))
                         }
-                        // Conversion: credit `percent · reachableMax(from)` on the TO axis without
-                        // debiting the source — over-count, sound.
+                        // Conversion: the real effect MOVES the stat, so in W terms a carrier nets
+                        // `moved × (w_to − w_from)`. Credit `max(0, Δweight) × reachableMax(from)`
+                        // (dropping a negative net = over-count, sound; the additive no-debit
+                        // shortcut credited Dénouement's critM→elemental at +45% of W — the S4-2
+                        // binding-path culprit, W-NEUTRAL in reality at critCap=100 where both
+                        // weights are 500). A conversion INTO the DI/CC axes cannot debit W —
+                        // keep those additive (over-count, sound).
                         is SublimationEffect.Conversion -> {
                             if (!WakfuBuildSolver.scenarioGateMatches(eff.scenarioGate, params)) continue
                             val moved = (reachableMax(eff.from).coerceAtLeast(0).toLong() * eff.percent / 100L).toInt()
@@ -900,7 +905,10 @@ internal object MaxDamageSoftBoundPrototype {
                                 when (eff.to) {
                                     Characteristic.DAMAGE_INFLICTED -> opt.copy(d = opt.d + moved)
                                     Characteristic.CRITICAL_HIT -> opt.copy(cc = opt.cc + moved)
-                                    else -> opt.copy(w = opt.w + wOf(eff.to, moved))
+                                    else -> {
+                                        val netPerUnit = (wOf(eff.to, 1) - wOf(eff.from, 1)).coerceAtLeast(0L)
+                                        opt.copy(w = opt.w + netPerUnit * moved)
+                                    }
                                 }
                         }
                         else -> {}
