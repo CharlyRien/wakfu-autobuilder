@@ -234,6 +234,12 @@ object WakfuBestBuildFinderAlgorithm {
      * missing comparable objective) returns [MostMasteriesProof.Unavailable] — a bail hides the
      * badge, it never fakes one.
      */
+    // Quick/full proof tiers share one prepared pool per params instance (identity-keyed: the GUI
+    // passes the same object twice; a new search builds new params and naturally invalidates it).
+    private val mmProofPoolMemo =
+        java.util.concurrent.atomic
+            .AtomicReference<Pair<WakfuBestBuildParams, Map<ItemType, List<Equipment>>>?>(null)
+
     fun proveMostMasteriesQuality(
         params: WakfuBestBuildParams,
         result: SolverResult<BuildCombination>,
@@ -248,20 +254,29 @@ object WakfuBestBuildFinderAlgorithm {
         if (result.isOptimal) return MostMasteriesProof.ProvenOptimal // CP-SAT already certified it exactly.
         val incumbent = result.mostMasteriesObjective ?: return MostMasteriesProof.Unavailable
         if (incumbent <= 0) return MostMasteriesProof.Unavailable
-        val equipmentsByItemType =
-            groupAndFilterEquipments(
-                excludedItems = params.excludedItems,
-                forcedItems = params.forcedItems,
-                maxRarity = params.maxRarity,
-                excludedRarities = params.excludedRarities,
-                character = params.character
-            )
-        // The same domination pool the production solve searched: the bound then upper-bounds the
-        // exact optimum OF THAT SEARCH (domination itself is proven optimum-preserving).
-        val shape = dominationShape(params, activeSublimations(params)) ?: return MostMasteriesProof.Unavailable
-        val pool = WakfuBuildSolver.filterDominatedPoolMemoizedForTest(equipmentsByItemType, shape)
+        // The GUI runs the two tiers back-to-back on the SAME params: memoize the (expensive)
+        // filtered + dominated pool so the full tier doesn't rebuild what the quick tier just
+        // computed (the identity-keyed domination memo always missed on a fresh map).
+        val subs = activeSublimations(params)
+        val pool =
+            mmProofPoolMemo.get()?.takeIf { it.first === params }?.second ?: run {
+                val equipmentsByItemType =
+                    groupAndFilterEquipments(
+                        excludedItems = params.excludedItems,
+                        forcedItems = params.forcedItems,
+                        maxRarity = params.maxRarity,
+                        excludedRarities = params.excludedRarities,
+                        character = params.character
+                    )
+                // The same domination pool the production solve searched: the bound then
+                // upper-bounds the exact optimum OF THAT SEARCH (domination is optimum-preserving).
+                val shape = dominationShape(params, subs) ?: return MostMasteriesProof.Unavailable
+                WakfuBuildSolver
+                    .filterDominatedPoolMemoizedForTest(equipmentsByItemType, shape)
+                    .also { mmProofPoolMemo.set(params to it) }
+            }
         val bound =
-            MostMasteriesCertificate.bound(params, pool, runes, activeSublimations(params), blockGate = !quick, shouldContinue = shouldContinue)
+            MostMasteriesCertificate.bound(params, pool, runes, subs, blockGate = !quick, shouldContinue = shouldContinue)
                 ?: return MostMasteriesProof.Unavailable
         // The model's exact fold predicate (no `target > 0` filter — a 0-valued required target still folds).
         val hasRequiredTargets = params.targetStats.any { it.characteristic.isRequiredMostMasteriesTarget() }

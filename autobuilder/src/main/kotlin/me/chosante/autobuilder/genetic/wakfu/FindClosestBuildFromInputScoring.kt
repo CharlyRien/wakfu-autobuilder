@@ -731,7 +731,8 @@ internal fun getResistanceRandoms(eachCharacteristicValueLineByEquipment: Map<Ch
 private fun subConditionHolds(
     cond: SublimationCondition,
     preCombat: Map<Characteristic, Int>,
-    firstTurn: Map<Characteristic, Int>,
+    // Lazy: only firstTurn-conditioned specs (Neutralité class) force the sheet.
+    firstTurn: Lazy<Map<Characteristic, Int>>,
     level: Int,
     usesOffhandOrTwoHanded: Boolean,
 ): Boolean =
@@ -739,7 +740,7 @@ private fun subConditionHolds(
     // math (the CP-SAT solver reifies the SAME spec into an IntVar in reifyCondition — so the two can't disagree).
     when (val spec = subConditionSpec(cond, level)) {
         is SubConditionSpec.StatBound -> {
-            val sheet = if (spec.firstTurn) firstTurn else preCombat
+            val sheet = if (spec.firstTurn) firstTurn.value else preCombat
             spec.comparison.holds(spec.stats.sumOf { sheet[it] ?: 0 }, spec.threshold)
         }
         SubConditionSpec.NoOffhandOrTwoHanded -> !usesOffhandOrTwoHanded
@@ -785,7 +786,9 @@ fun sublimationFixedContributions(
     // +crit (Secondary Devastation II, Ambition) does not — same split as the solver's preCombatStat. A
     // CONVERSION's `from` base still reads `preSub` (no subs), exactly as the solver's preSubStat.
     val preCombat = preCombatSubStats(sublimations, preSub, mode, scenario, level, wantedElements)
-    val firstTurn = firstTurnSubStats(sublimations, preCombat, mode, scenario, level, wantedElements)
+    // Built lazily: only firstTurn-conditioned subs (Neutralité class) read this sheet, and the
+    // overwhelmingly common build carries none — the eager map copy taxed every re-score.
+    val firstTurn = lazy { firstTurnSubStats(sublimations, preCombat, mode, scenario, level, wantedElements) }
     val out = mutableMapOf<Characteristic, Int>()
     for (sub in sublimations) {
         if (sub.kind == SublimationKind.COMBAT_CONDITIONAL) continue

@@ -327,12 +327,16 @@ internal object MostMasteriesCertificate {
         )
     }
 
-    private fun Geometry.apply(
-        states: HashMap<Long, Long>,
+    /** Transitions below this stay single-threaded (thread + merge overhead beats the gain). */
+    private const val PARALLEL_APPLY_MIN_TRANSITIONS = 4_000_000L
+
+    private fun Geometry.applySequential(
+        entries: List<Map.Entry<Long, Long>>,
         options: List<Opt>,
+        expectedSize: Int,
     ): HashMap<Long, Long> {
-        val next = HashMap<Long, Long>(states.size * 2)
-        for ((k, mv) in states) {
+        val next = HashMap<Long, Long>(expectedSize)
+        for ((k, mv) in entries) {
             for (o in options) {
                 val nk = applyOne(k, o) ?: continue
                 val nm = mv + o.m
@@ -341,6 +345,53 @@ internal object MostMasteriesCertificate {
             }
         }
         return next
+    }
+
+    /**
+     * One stage advance. Big stages run CHUNKED across CPU cores: each worker sweeps its slice of
+     * the state map into a LOCAL map, then the locals max-merge — the same DP (max is
+     * order-independent, so the result is bit-identical to the sequential sweep), roughly
+     * cores× faster on the hot stages. Unlike the world-level parallelism that was measured
+     * SLOWER (4 full concurrent DPs = 4× the live state maps, GC-bound), the chunk locals only
+     * duplicate the overlap of one stage's output — the peak stays near the sequential footprint.
+     */
+    private fun Geometry.apply(
+        states: HashMap<Long, Long>,
+        options: List<Opt>,
+    ): HashMap<Long, Long> {
+        val transitions = states.size.toLong() * options.size
+        val workers = Runtime.getRuntime().availableProcessors() - 1
+        if (transitions < PARALLEL_APPLY_MIN_TRANSITIONS || workers < 2) {
+            return applySequential(states.entries.toList(), options, states.size * 2)
+        }
+        val entries = states.entries.toList()
+        val chunkCount = minOf(workers, 8)
+        val chunkSize = (entries.size + chunkCount - 1) / chunkCount
+        val locals =
+            (0 until chunkCount)
+                .toList()
+                .parallelStream()
+                .map { c ->
+                    val from = c * chunkSize
+                    val to = minOf(entries.size, from + chunkSize)
+                    if (from >= to) {
+                        HashMap()
+                    } else {
+                        applySequential(entries.subList(from, to), options, (to - from) * 2)
+                    }
+                }.collect(
+                    java.util.stream.Collectors
+                        .toList()
+                )
+        val merged = locals.maxByOrNull { it.size } ?: HashMap()
+        for (local in locals) {
+            if (local === merged) continue
+            for ((k, mv) in local) {
+                val cur = merged[k]
+                if (cur == null || mv > cur) merged[k] = mv
+            }
+        }
+        return merged
     }
 
     fun bound(
@@ -1202,12 +1253,18 @@ internal object MostMasteriesCertificate {
         val powScale =
             if (maxPow > BigInteger.valueOf(MAX_PENALTY_MULTIPLIER)) maxPow.divide(BigInteger.valueOf(MAX_PENALTY_MULTIPLIER)) else BigInteger.ONE
 
-        fun power6(index: Int): Long =
-            BigInteger
-                .valueOf(index.toLong())
-                .pow(6)
-                .divide(powScale)
-                .toLong()
+        // Precomputed like the solver's buildPowerTable: the collapse calls this once per state
+        // (millions on the full tier) and per-call BigInteger pow/divide was measurable GC churn.
+        val powTable =
+            LongArray(maxIndex + 1) { i ->
+                BigInteger
+                    .valueOf(i.toLong())
+                    .pow(6)
+                    .divide(powScale)
+                    .toLong()
+            }
+
+        fun power6(index: Int): Long = powTable[index]
 
         fun weight(char: Characteristic): Long = targetByChar[char]?.let { params.targetStats.scaledWeight(it) } ?: 0L
 
