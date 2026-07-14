@@ -712,6 +712,13 @@ private fun SublimationResultRow(
                 text = tr(Tr.SUBLIMATION_TIER_SHORT).format(sub.nameTier),
                 style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
             )
+            if (sub.cumulable) {
+                Text(
+                    // Stacking at a glance: full copies × the stack's level cap (×2 · niv 6 for Carnage III).
+                    text = tr(Tr.SUBLIMATION_STACK_SHORT).format(sub.maxCopies, sub.maxStackLevel),
+                    style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
+                )
+            }
         }
         sublimationEffectText(sub, lang).takeIf { it.isNotBlank() }?.let { effect ->
             Text(
