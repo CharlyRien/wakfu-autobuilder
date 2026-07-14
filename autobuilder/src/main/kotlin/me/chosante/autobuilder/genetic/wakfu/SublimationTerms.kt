@@ -157,6 +157,32 @@ internal fun StatBuilder.buildPermanentSubTerms(): Map<Characteristic, List<Term
 }
 
 /**
+ * The START-OF-COMBAT contributions of unconditional FLAT subs (effects NOT flagged
+ * [SublimationEffect.appliesBeforeCombat]), grouped like [buildPermanentSubTerms]. Together with
+ * [StatBuilder.preCombatStat] they form the FIRST-TURN sheet that `firstTurn` conditions read
+ * (Neutralité's `secondary masteries ≤ 0` — see [SubConditionSpec.StatBound.firstTurn]).
+ * Restricted to `kind == FLAT` (condition-less) subs so the gate is the raw `subVar` and
+ * [reifyCondition] stays acyclic — a STATIC_CONDITIONAL sub's own start-of-combat effects are NOT
+ * summed (its applies-var would recurse; in-game a conditional sub never feeds its own condition,
+ * and cross-conditional feeding is not modeled — best-achievable, like the rest of the family).
+ */
+internal fun StatBuilder.buildStartOfCombatFlatSubTerms(): Map<Characteristic, List<Term>> {
+    val map = mutableMapOf<Characteristic, MutableList<Term>>()
+    for ((sub, subVar) in subModel.subVars) {
+        if (sub.kind != SublimationKind.FLAT) continue
+        for (effect in sub.effects.filterIsInstance<SublimationEffect.StatEffect>()) {
+            if (effect.appliesBeforeCombat) continue
+            if (!scenarioGateMatches(effect.scenarioGate, params)) continue
+            val magnitude = effect.magnitudeAtLevel(subModel.characterLevel).toLong()
+            val bucket = map.getOrPut(effect.characteristic.foldedToUsableStat()) { mutableListOf() }
+            bucket.add(Term(subVar, magnitude))
+            for (copyVar in subModel.copyVars[sub].orEmpty()) bucket.add(Term(copyVar, magnitude))
+        }
+    }
+    return map
+}
+
+/**
  * Boolean that gates a sub's contributions. For a solver-chosen STATIC_CONDITIONAL/CONVERSION sub
  * with a supported condition we constrain `subVar ≤ condHolds`, so the solver may only choose the
  * sub when it arranges the build to satisfy the condition (this is what makes it trade stats to
@@ -246,11 +272,13 @@ private fun StatBuilder.reifyStatBound(
     spec: SubConditionSpec.StatBound,
     tag: String,
 ): IntVar {
+    // firstTurn conditions read the FIRST-TURN sheet (pre-combat + start-of-combat FLAT subs).
+    val read: (Characteristic) -> IntVar = if (spec.firstTurn) ::firstTurnStat else ::preCombatStat
     val value =
         if (spec.stats.size == 1) {
-            preCombatStat(spec.stats.single())
+            read(spec.stats.single())
         } else {
-            model.sumVar("secMast_$tag", spec.stats.map { preCombatStat(it) }, -STAT_ABS_MAX, STAT_ABS_MAX)
+            model.sumVar("secMast_$tag", spec.stats.map { read(it) }, -STAT_ABS_MAX, STAT_ABS_MAX)
         }
     val n = spec.threshold.toLong()
     return when (spec.comparison) {

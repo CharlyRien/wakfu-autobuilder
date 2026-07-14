@@ -846,6 +846,7 @@ internal class StatBuilder(
     private val prePercentCache = mutableMapOf<Characteristic, IntVar>()
     private val preSubCache = mutableMapOf<Characteristic, IntVar>()
     private val preCombatCache = mutableMapOf<Characteristic, IntVar>()
+    private val firstTurnCache = mutableMapOf<Characteristic, IntVar>()
 
     // Per-solve memo for the (scenario-pure) max-damage pre-mastery term list. damagePreMasteryTerms is
     // called ~3× per perHitDamageScore (once via damagePreMastery, twice via damageMasteryCriticalReach)
@@ -865,6 +866,13 @@ internal class StatBuilder(
     // condition), so referencing it from [reifyCondition] never recurses through [appliesVar]. Built BEFORE
     // [subTermsByStat] because that map's init reifies conditions, which read [preCombatStat] → this map.
     internal val permanentSubTermsByStat: Map<Characteristic, List<Term>> = buildPermanentSubTerms()
+
+    // The START-OF-COMBAT contributions of unconditional FLAT subs — the extra layer a FIRST-TURN
+    // condition sees on top of [preCombatStat] (Neutralité's `secondary masteries ≤ 0` is checked by
+    // the game on the first turn, AFTER start-of-combat effects like Ravage's masteries landed —
+    // in-game verified 2026-07-14). Same subVar gating as [permanentSubTermsByStat] (FLAT ⇒ no
+    // condition), so [firstTurnStat] stays acyclic from [reifyCondition].
+    internal val startOfCombatFlatSubTermsByStat: Map<Characteristic, List<Term>> = buildStartOfCombatFlatSubTerms()
 
     // Per-element DI sub contributions (Brûlure/Gel/Tellurisme/Ventilation) routed by their OWN element's
     // mastery, in most-masteries mode only — kept OUT of the global DAMAGE_INFLICTED so a "+12% fire damage"
@@ -2228,6 +2236,22 @@ internal class StatBuilder(
             val (terms, base) = baseTermsFor(char)
             terms.addAll(permanentSubTermsByStat[char].orEmpty())
             tSum("preCombat_${char.name}", terms, base, reachableSumDomain(terms, base), -STAT_ABS_MAX, STAT_ABS_MAX)
+        }
+
+    /**
+     * FIRST-TURN value of [char]: [preCombatStat] + the start-of-combat contributions of
+     * unconditional FLAT subs ([startOfCombatFlatSubTermsByStat]). This is what a
+     * [SubConditionSpec.StatBound.firstTurn] condition reads — the game checks those on the first
+     * turn, after start-of-combat sub effects landed (Ravage × Neutralité). Conditional subs' own
+     * start-of-combat effects stay excluded (acyclicity; a sub never feeds its own condition).
+     */
+    internal fun firstTurnStat(char: Characteristic): IntVar =
+        firstTurnCache.getOrPut(char) {
+            val socTerms = startOfCombatFlatSubTermsByStat[char].orEmpty()
+            if (socTerms.isEmpty()) return@getOrPut preCombatStat(char)
+            val terms = mutableListOf(Term(preCombatStat(char), 1L))
+            terms.addAll(socTerms)
+            tSum("firstTurn_${char.name}", terms, 0L, reachableSumDomain(terms, 0L), -STAT_ABS_MAX, STAT_ABS_MAX)
         }
 
     /** Constant flat-stat contributions of the selected passives (see [resolvedPassives]). */
