@@ -42418,6 +42418,91 @@
     "source": "bdata"
   },
   {
+    "id": 5896,
+    "name": {
+      "fr": "Boufton Noir Nuageux",
+      "en": "Fluffy Black Gobbly",
+      "es": "Jalatín negro nuboso",
+      "pt": "Paparneiro Negro Fofinho"
+    },
+    "level": 64,
+    "hp": 900,
+    "gfx": 100201835,
+    "fireResistance": 180,
+    "waterResistance": 140,
+    "earthResistance": 140,
+    "airResistance": 230,
+    "source": "bdata"
+  },
+  {
+    "id": 5894,
+    "name": {
+      "fr": "Bouftou Nuageux",
+      "en": "Fluffy Gobball",
+      "es": "Jalató nuboso",
+      "pt": "Papatudo nebuloso"
+    },
+    "level": 64,
+    "hp": 950,
+    "gfx": 100201833,
+    "fireResistance": 150,
+    "waterResistance": 150,
+    "earthResistance": 150,
+    "airResistance": 150,
+    "source": "bdata"
+  },
+  {
+    "id": 5893,
+    "name": {
+      "fr": "Boufette Nuageuse",
+      "en": "Fluffy Gobbette",
+      "es": "Jalalínea nubosa",
+      "pt": "Papatudette Fofa"
+    },
+    "level": 64,
+    "hp": 900,
+    "gfx": 100201832,
+    "fireResistance": 200,
+    "waterResistance": 200,
+    "earthResistance": 200,
+    "airResistance": 200,
+    "source": "bdata"
+  },
+  {
+    "id": 5892,
+    "name": {
+      "fr": "Chef de Guerre Nuageux",
+      "en": "Fluffy War Chief",
+      "es": "Jefe de guerra nuboso",
+      "pt": "Chefe de guerra nebuloso"
+    },
+    "level": 64,
+    "hp": 1200,
+    "gfx": 100201831,
+    "fireResistance": 200,
+    "waterResistance": 200,
+    "earthResistance": 200,
+    "airResistance": 200,
+    "source": "bdata"
+  },
+  {
+    "id": 5895,
+    "name": {
+      "fr": "Boufton Blanc Nuageux",
+      "en": "Fluffy White Gobbly",
+      "es": "Jalatín blanco nuboso",
+      "pt": "Paparneiro Branco Fofinho"
+    },
+    "level": 64,
+    "hp": 800,
+    "gfx": 100201834,
+    "fireResistance": 100,
+    "waterResistance": 100,
+    "earthResistance": 100,
+    "airResistance": 100,
+    "source": "bdata"
+  },
+  {
     "id": 2809,
     "name": {
       "fr": "Excarné en colère",
