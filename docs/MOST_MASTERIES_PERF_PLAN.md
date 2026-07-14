@@ -924,3 +924,27 @@ Do-not-retry: per-char deficit tracking in this DP. The remaining overshoot is C
 INTERACTION looseness (per-slot BiS-on-all-axes options combining beyond any real build) — the
 only known lever is per-slot option-set coupling (certifier-exact-tier scale); revisit only if a
 user-facing need for a tighter X% materializes.
+
+### 8.13 Cross-slot coupling increment 8 — the block gate: SHIPPED (2026-07-13)
+
+Instrument first (§ user GO "couplage d'options par slot"): binding-path PROVENANCE — per-stage
+state retention + backward reconstruction with option identity (`Opt.src`, `bound(provenance =
+true)`, `WAKFU_MM_M3V2_PATH=1`). The S2 path exposed the target: **Mesure (EPIC, +10 DI/+10 CC)
+credited while its BLOCK_AT_LEAST-40 condition was unreachable by the binding build.**
+
+Fix: a BLOCK dim (0..40 sat, step 5, 4 bits) fed by EVERY source (item lines, sub credits incl.
+through the normal knapsack packing, block skills — a missed source could wrongly deny = unsound);
+AT_LEAST gating on the OVER-counted dim (never wrongly denies a real build); the EPIC/RELIC sub
+stages move AFTER skills so the gate reads the full final sheet (gating earlier could deny a build
+whose later layers supply the block).
+
+| | S2 | S3 | states | wall |
+|---|---|---|---|---|
+| before | +11.20% | +6.77% | 580k | 15 s |
+| after (step 5) | **+9.87%** | +6.77% | 4.6M | 83 s |
+| step-10 attempt | +11.20% (gain erased) | — | 2.6M | 44 s |
+
+Step 5 is the sweet spot: the gate's tightness lives in the per-OPTION ceil (small +3/+9 block
+lines must not round to a threshold's worth — step 10 measured the whole gain away). The binding
+path now PAYS for its block sources (M 6 239 → 6 164 with Dérobade continue/Ravage secondaire in
+the path) — the coupling works as designed. CI soundness lock green throughout.
