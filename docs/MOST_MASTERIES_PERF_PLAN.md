@@ -1200,3 +1200,29 @@ Down from the 2026-07-12 incumbent 14 509 755 840 720 — consistent with the mo
 comparisons (`bound ≥ incumbent`) are necessary-only, and a tightness ratio vs it UPPER-bounds
 the true ratio. Comparable objective on the soft leg = `SolverResult.maxDamageObjective`
 (= `solver.objectiveValue()`, the penalized `damage × power6` — already stamped, nothing to add).
+
+### 9.2 S4-1 — core-mirror prototype verdict (MEASURED 2026-07-14): CANARY GREEN, 3.36×, GO to S4-2
+
+`MaxDamageSoftBoundPrototype` (test-side): the MM certificate's stage DP with the core swapped —
+per-state value = the single scalar `W = (400+critCap)·M + 5·critCap·K` (upper-bounds Graw for
+every build since `crit ≤ critCap`; no (M, K) Pareto front, no crit-mastery dim needed), AP dim
+saturating at MAX_OUT_OF_COMBAT_AP (throughput[AP] grows with AP), fold = the solver's exact
+damage chain `throughput[ap]·⌊D·W/PERHIT_DOWNSCALE⌋·resFactor/FINAL_DOWNSCALE × power6(bucket)`
+(no overshoot scale). All conditional subs credited AS HELD (pure relaxation), EC's +DI credited
+penalty-free, conversions at percent·reachableMax(from).
+
+| read | value |
+|---|---|
+| soundness lock (3 seeded pools, `bound ≥ maxDamageObjective`, OPTIMAL solves) | **GREEN** (ratios 1.88–2.10 — loose: no CC target ⇒ critCap fold over-credits K ~25×) |
+| S4 frontier bound | 41 473 440 000 000 — canary GREEN vs the 12.33T incumbent |
+| tightness vs (non-proven) incumbent | **3.36×** — already TIGHTER than CP-SAT's own dual (5.72×) |
+| binding state | W=8 412 500, d=98, ap16/mp8/cc100/hp12000 all SATURATED, e=1 r=1 |
+| attribution (Δ from 41.47T) | noCondSubs 24.51T (**−41%** — the lever), noSkills 31.33T (−24%), noRunes 32.21T (−22%), noSubs 9.94T |
+| wall / states | 570 s, 3.47M states, sequential-only — needs the chunked-parallel port; default test heap OOMs, run with `WAKFU_TEST_MAX_HEAP=8g` |
+
+GO to **S4-2**: transpose the MM exact-condition machinery — assume worlds for the AT_MOST cap
+subs, world B (M-cap knapsack, here on the SECONDARY part of M and on K for Secret Critique),
+block gating, the ramp bit, mpCapMinus — plus the chunked parallel apply. The seeded-pool ~2×
+additionally motivates the anticipated crit-band worlds (weights at the band's hi, collapse
+filter `cc_dim ≥ lo` — sound because the dim over-counts) for NO-CC-target shapes; on the S4
+shape the binding states saturate cc=critCap so the W fold is already exact there.
