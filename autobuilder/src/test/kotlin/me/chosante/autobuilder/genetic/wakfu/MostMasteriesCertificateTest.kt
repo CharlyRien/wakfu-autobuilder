@@ -566,6 +566,104 @@ class MostMasteriesCertificateTest {
             )
         }
 
+    /**
+     * §8.15 P&B-2 PROBE — fix/exclude DD-B&B branching on the S2 binding RINGS choice (quick
+     * tier, oracle incumbent = the banked optimum). The decisive question: does EXCLUDING the
+     * binding choice drop the bound, or does a phantom substitute keep it flat (flat ⇒ fanout
+     * explosion ⇒ the §8.15 NO-GO exit)? Chain: exclude the current binding choice, re-bound,
+     * repeat; node 0 also measures the FIX child (only that pair allowed).
+     *
+     * ```shell
+     * WAKFU_MM_PNB2=1 ./gradlew :autobuilder:test --tests '*MostMasteriesCertificateTest*'
+     * ```
+     */
+    @Test
+    fun `manual P&B-2 fix-exclude probe on S2`() {
+        assumeTrue(System.getenv("WAKFU_MM_PNB2") == "1")
+        val level = 245
+        val p =
+            WakfuBestBuildParams(
+                character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+                targetStats =
+                    TargetStats(
+                        listOf(
+                            TargetStat(Characteristic.MASTERY_DISTANCE, 9999),
+                            TargetStat(Characteristic.ACTION_POINT, 16),
+                            TargetStat(Characteristic.MOVEMENT_POINT, 8),
+                            TargetStat(Characteristic.CRITICAL_HIT, 100),
+                            TargetStat(Characteristic.HP, 12000)
+                        )
+                    ),
+                searchDuration = 600.seconds,
+                stopWhenBuildMatch = false,
+                maxRarity = Rarity.EPIC,
+                forcedItems = emptyList(),
+                excludedItems = emptyList(),
+                scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                useRunes = true,
+                useSublimations = true
+            )
+        val basePool =
+            WakfuBestBuildFinderAlgorithm.equipments
+                .filter { it.rarity <= p.maxRarity && it.rarity !in p.excludedRarities }
+                .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                .groupBy { it.itemType }
+        val shape = requireNotNull(dominationShape(p, WakfuBestBuildFinderAlgorithm.sublimations))
+        val pool = WakfuBuildSolver.filterDominatedPoolMemoizedForTest(basePool, shape)
+
+        fun quickBound(
+            provenance: Boolean,
+            veto: ((String, String) -> Boolean)?,
+        ): MostMasteriesCertificate.Result =
+            requireNotNull(
+                MostMasteriesCertificate.bound(
+                    p,
+                    pool,
+                    WakfuBestBuildFinderAlgorithm.runes,
+                    WakfuBestBuildFinderAlgorithm.sublimations,
+                    provenance = provenance,
+                    blockGate = false,
+                    optionVeto = veto
+                )
+            )
+
+        fun ringsChoiceOf(r: MostMasteriesCertificate.Result): String? =
+            r.bindingPath
+                .firstOrNull { it.startsWith("rings: ") }
+                ?.removePrefix("rings: ")
+                ?.substringBefore(" (m=")
+
+        val excluded = mutableSetOf<String>()
+        var node = 0
+        while (node < 7) {
+            val r = quickBound(provenance = true) { stage, src -> stage == "rings" && src in excluded }
+            val over = 100.0 * r.foldedBound / s2Optimum - 100.0
+            val choice = ringsChoiceOf(r)
+            println(
+                "MM_PNB2 node=$node excluded=${excluded.size} bound=${r.foldedBound} " +
+                    "overshoot=+${"%.2f".format(Locale.ROOT, over)}% wallMs=${r.wallMs} bindingRings=$choice"
+            )
+            if (r.foldedBound <= s2Optimum) {
+                println("MM_PNB2 EXCLUDE-CHAIN CLOSED at node=$node (bound <= incumbent)")
+                break
+            }
+            if (choice == null) {
+                println("MM_PNB2 ABORT: no rings choice on the binding path")
+                break
+            }
+            if (node == 0) {
+                val fix = quickBound(provenance = false) { stage, src -> stage == "rings" && src != choice }
+                val fixOver = 100.0 * fix.foldedBound / s2Optimum - 100.0
+                println(
+                    "MM_PNB2 FIX-CHILD choice=$choice bound=${fix.foldedBound} " +
+                        "overshoot=+${"%.2f".format(Locale.ROOT, fixOver)}% wallMs=${fix.wallMs}"
+                )
+            }
+            excluded += choice
+            node++
+        }
+    }
+
     @Test
     fun `manual M3-v2 tightness on S2 and S3`() {
         assumeTrue(System.getenv("WAKFU_MM_M3V2") == "1")
