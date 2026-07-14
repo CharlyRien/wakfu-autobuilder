@@ -67,10 +67,17 @@ internal object MaxDamageSoftBoundPrototype {
             Characteristic.HP
         )
 
-    // Same grid as the MM certificate's default (coarse) profile.
-    private const val CC_STEP = 10
-    private const val HP_STEP = 500
-    private const val DI_STEP = 1
+    // Same grid as the MM certificate's default (coarse) profile. MUTABLE (harness only): the
+    // provenance pass retains every stage map, so it needs a coarser grid to fit the test heap.
+    @Volatile
+    var ccStep = 10
+
+    @Volatile
+    var hpStep = 500
+
+    @Volatile
+    var diStep = 1
+
     private const val BLOCK_STEP = 5
 
     class Result(
@@ -79,6 +86,8 @@ internal object MaxDamageSoftBoundPrototype {
         val states: Int,
         val wallMs: Long,
         val bindingState: String = "",
+        // Instrument only ([bound] provenance=true): the reconstructed binding PATH.
+        val bindingPath: List<String> = emptyList(),
     )
 
     /** One stage option: weighted-Graw value + per-axis deltas (positive parts only). */
@@ -101,7 +110,11 @@ internal object MaxDamageSoftBoundPrototype {
         val apLow: Int = 0,
         val ccLowRaw: Int = 0,
         val ramp: Boolean = false,
+        // Provenance identity (instrument only — "" in normal runs, so distinct()/dominance
+        // semantics are untouched there).
+        val src: String = "",
     ) {
+        // src deliberately ignored: provenance never changes what an option contributes.
         fun dominates(o: Opt): Boolean =
             w >= o.w &&
                 d >= o.d &&
@@ -211,14 +224,14 @@ internal object MaxDamageSoftBoundPrototype {
             if (assumeCcThresholdRaw >= 0) {
                 (cc(k) + o.ccLowRaw).coerceIn(0, (assumeCcThresholdRaw + 1).coerceAtMost(ccBucketCap))
             } else {
-                (cc(k) + ceilDiv(o.cc, CC_STEP)).coerceAtMost(ccBucketCap)
+                (cc(k) + ceilDiv(o.cc, ccStep)).coerceAtMost(ccBucketCap)
             }
         if (o.requiresBlockAtLeast > 0 && block(k) * BLOCK_STEP < o.requiresBlockAtLeast) return null
         val mpEff = mpCapOf(newMpMinus)
-        val flatHpBuckets = hp(k) + ceilDiv(o.hp, HP_STEP)
+        val flatHpBuckets = hp(k) + ceilDiv(o.hp, hpStep)
         val hpBuckets = if (o.hpPct > 0) ceilDiv(flatHpBuckets * (100 + o.hpPct), 100) else flatHpBuckets
         return key(
-            (d(k) + ceilDiv(o.d, DI_STEP)).coerceAtMost(diBucketCap),
+            (d(k) + ceilDiv(o.d, diStep)).coerceAtMost(diBucketCap),
             newAp,
             (mp(k) + o.mp).coerceAtMost(mpEff),
             newCcBuckets,
@@ -302,12 +315,16 @@ internal object MaxDamageSoftBoundPrototype {
         diag: Set<String> = emptySet(),
         // Two-tier: `false` skips the block dim — the QUICK tier. Both tiers independently sound.
         blockGate: Boolean = true,
+        // Instrument (attribution): retain per-stage states + options and reconstruct the binding
+        // PATH backward. Costs memory (all stage maps retained) — run on a coarse grid.
+        provenance: Boolean = false,
         shouldContinue: () -> Boolean = { true },
         // INTERNAL world-split recursion — never set by callers (MM certificate A#1 pattern).
         worldAssume: Sublimation? = null,
         worldDropCaps: Boolean = false,
     ): Result? {
         val t0 = System.nanoTime()
+        val wantSrc = provenance
         if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return null
         val scenario = params.damageScenario
         if (scenario.survivabilityFloor) return null
@@ -379,6 +396,7 @@ internal object MaxDamageSoftBoundPrototype {
                         debug,
                         diag,
                         blockGate = if (assume == null) blockGate else false,
+                        provenance = provenance,
                         shouldContinue = shouldContinue,
                         worldAssume = assume,
                         worldDropCaps = assume == null
@@ -391,7 +409,8 @@ internal object MaxDamageSoftBoundPrototype {
                 worlds.filterNotNull().maxOf { it.coreBound },
                 worlds.filterNotNull().sumOf { it.states },
                 (System.nanoTime() - t0) / 1_000_000,
-                best.bindingState
+                best.bindingState,
+                best.bindingPath
             )
         }
         val assumeStat = worldAssume?.let { capStatOf(it) }
@@ -439,10 +458,10 @@ internal object MaxDamageSoftBoundPrototype {
                         (assumeThreshold + 1).coerceAtMost(0x7F)
                     } else {
                         // The CC dim feeds the target fold AND (headroom for) the crit factor.
-                        ceilDiv(maxOf(cap(Characteristic.CRITICAL_HIT), critCap.toInt()), CC_STEP)
+                        ceilDiv(maxOf(cap(Characteristic.CRITICAL_HIT), critCap.toInt()), ccStep)
                     },
-                hpBucketCap = ceilDiv(cap(Characteristic.HP), HP_STEP),
-                diBucketCap = ceilDiv(diCap, DI_STEP),
+                hpBucketCap = ceilDiv(cap(Characteristic.HP), hpStep),
+                diBucketCap = ceilDiv(diCap, diStep),
                 blockBucketCap = ceilDiv(blockAtLeastMax, BLOCK_STEP),
                 assumeApThreshold = if (assumeStat == Characteristic.ACTION_POINT) assumeThreshold else -1,
                 assumeCcThresholdRaw = if (assumeStat == Characteristic.CRITICAL_HIT) assumeThreshold else -1
@@ -503,7 +522,8 @@ internal object MaxDamageSoftBoundPrototype {
                     relic = e.rarity == me.chosante.common.Rarity.RELIC,
                     block = if (blockAtLeastMax > 0) statOf(e, Characteristic.BLOCK_PERCENTAGE) else 0,
                     apLow = if (geo.assumeApThreshold >= 0) (e.characteristics[Characteristic.ACTION_POINT] ?: 0) else 0,
-                    ccLowRaw = if (geo.assumeCcThresholdRaw >= 0) (e.characteristics[Characteristic.CRITICAL_HIT] ?: 0) else 0
+                    ccLowRaw = if (geo.assumeCcThresholdRaw >= 0) (e.characteristics[Characteristic.CRITICAL_HIT] ?: 0) else 0,
+                    src = if (wantSrc) e.name.fr else ""
                 )
             val slots = if (params.useRunes) e.maxShardSlots else 0
             if (slots == 0) return listOf(base)
@@ -547,10 +567,10 @@ internal object MaxDamageSoftBoundPrototype {
                     if (geo.assumeCcThresholdRaw >= 0) {
                         (baseValues[Characteristic.CRITICAL_HIT] ?: 0)
                     } else {
-                        ceilDiv((baseValues[Characteristic.CRITICAL_HIT] ?: 0).coerceAtLeast(0), CC_STEP)
+                        ceilDiv((baseValues[Characteristic.CRITICAL_HIT] ?: 0).coerceAtLeast(0), ccStep)
                     }
                 ).coerceIn(0, geo.ccBucketCap),
-                ceilDiv((baseValues[Characteristic.HP] ?: 0).coerceAtLeast(0), HP_STEP).coerceAtMost(geo.hpBucketCap),
+                ceilDiv((baseValues[Characteristic.HP] ?: 0).coerceAtLeast(0), hpStep).coerceAtMost(geo.hpBucketCap),
                 0,
                 0,
                 block = ceilDiv((baseValues[Characteristic.BLOCK_PERCENTAGE] ?: 0).coerceAtLeast(0), BLOCK_STEP).coerceAtMost(geo.blockBucketCap)
@@ -558,6 +578,7 @@ internal object MaxDamageSoftBoundPrototype {
         ] = seedW
 
         var cancelled = false
+        val stageLog = if (provenance) mutableListOf<Triple<String, HashMap<Long, Long>, List<Opt>>>() else null
 
         fun step(
             label: String,
@@ -568,6 +589,7 @@ internal object MaxDamageSoftBoundPrototype {
                 states = HashMap()
                 return
             }
+            stageLog?.add(Triple(label, HashMap(states), options))
             states = geo.apply(states, options)
             if (debug) println("S4_PROTO_STAGE $label states=${states.size} options=${options.size}")
         }
@@ -589,7 +611,15 @@ internal object MaxDamageSoftBoundPrototype {
                 block = a.block + b.block,
                 requiresBlockAtLeast = maxOf(a.requiresBlockAtLeast, b.requiresBlockAtLeast),
                 apLow = a.apLow + b.apLow,
-                ccLowRaw = a.ccLowRaw + b.ccLowRaw
+                ccLowRaw = a.ccLowRaw + b.ccLowRaw,
+                src =
+                    if (a.src.isEmpty()) {
+                        b.src
+                    } else if (b.src.isEmpty()) {
+                        a.src
+                    } else {
+                        a.src + "+" + b.src
+                    }
             )
 
         // Rings: exact distinct-name pairs.
@@ -798,7 +828,7 @@ internal object MaxDamageSoftBoundPrototype {
                 if (capStatOf(sub) != null && sub !== worldAssume) continue
                 val blockRequirement =
                     if (blockAtLeastMax > 0 && cond?.type == SublimationConditionType.BLOCK_AT_LEAST) (cond.value ?: 0) else 0
-                var opt = Opt(0L, 0, requiresBlockAtLeast = blockRequirement)
+                var opt = Opt(0L, 0, requiresBlockAtLeast = blockRequirement, src = if (wantSrc) sub.name.fr else "")
                 for (eff in sub.effects) {
                     when (eff) {
                         is SublimationEffect.StatEffect -> {
@@ -926,11 +956,11 @@ internal object MaxDamageSoftBoundPrototype {
                         val stat = k and statMask
                         val nStat =
                             geo.key(
-                                (geo.d(stat) + ceilDiv(o.d, DI_STEP)).coerceAtMost(geo.diBucketCap),
+                                (geo.d(stat) + ceilDiv(o.d, diStep)).coerceAtMost(geo.diBucketCap),
                                 (geo.ap(stat) + o.ap).coerceAtMost(geo.apCap),
                                 (geo.mp(stat) + o.mp).coerceAtMost(geo.mpCap),
-                                (geo.cc(stat) + ceilDiv(o.cc, CC_STEP)).coerceAtMost(geo.ccBucketCap),
-                                (geo.hp(stat) + ceilDiv(o.hp, HP_STEP)).coerceAtMost(geo.hpBucketCap),
+                                (geo.cc(stat) + ceilDiv(o.cc, ccStep)).coerceAtMost(geo.ccBucketCap),
+                                (geo.hp(stat) + ceilDiv(o.hp, hpStep)).coerceAtMost(geo.hpBucketCap),
                                 0,
                                 0,
                                 block = (geo.block(stat) + ceilDiv(o.block, BLOCK_STEP)).coerceAtMost(geo.blockBucketCap)
@@ -947,16 +977,17 @@ internal object MaxDamageSoftBoundPrototype {
                     val stat = k and statMask
                     Opt(
                         w = wv,
-                        d = geo.d(stat) * DI_STEP,
+                        d = geo.d(stat) * diStep,
                         ap = geo.ap(stat),
                         mp = geo.mp(stat),
-                        cc = geo.cc(stat) * CC_STEP,
-                        hp = geo.hp(stat) * HP_STEP,
+                        cc = geo.cc(stat) * ccStep,
+                        hp = geo.hp(stat) * hpStep,
                         block = geo.block(stat) * BLOCK_STEP,
                         requiresEpicItem = rarity == SublimationRarity.EPIC && cnt > 0,
                         requiresRelicItem = rarity == SublimationRarity.RELIC && cnt > 0,
                         apLow = knapApNeg,
-                        ccLowRaw = knapCcNeg
+                        ccLowRaw = knapCcNeg,
+                        src = if (wantSrc) "$rarity x$cnt" else ""
                     )
                 }
             }
@@ -1014,7 +1045,7 @@ internal object MaxDamageSoftBoundPrototype {
                     sk: me.chosante.common.skills.SkillCharacteristic,
                     pts: Int,
                 ): Opt {
-                    var acc = Opt(0L, 0)
+                    var acc = Opt(0L, 0, src = if (wantSrc && pts > 0) "${sk.name}:$pts" else "")
                     for (component in componentsOf(sk)) {
                         val skChar = component.characteristic ?: continue
                         if (component.unitType == me.chosante.common.skills.UnitType.PERCENT && skChar == Characteristic.HP) {
@@ -1094,6 +1125,8 @@ internal object MaxDamageSoftBoundPrototype {
         var bestCore = 0L
         var bestFolded = 0L
         var bindingState = ""
+        var bindingKey = 0L
+        var bindingW = 0L
         for ((k, wv) in states) {
             // ASSUME-world filters: the assumed cap sub is EPIC (needs an epic item) and the
             // condition must hold on the LOW-read dim.
@@ -1116,7 +1149,7 @@ internal object MaxDamageSoftBoundPrototype {
                 wCap: Long?,
             ): Pair<Long, Long> {
                 val wvX = (wv + assumedOpt.w + extra.w).let { if (wCap != null) minOf(it, wCap) else it }
-                val di = (geo.d(k).toLong() * DI_STEP + assumedOpt.d + extra.d + rampDi).coerceAtMost(diCap.toLong())
+                val di = (geo.d(k).toLong() * diStep + assumedOpt.d + extra.d + rampDi).coerceAtMost(diCap.toLong())
                 val grawUb = wvX.coerceIn(0L, DAMAGE_GRAW_MAX)
                 val perHit = ((100L + di) * grawUb).coerceAtMost(DAMAGE_SCORE_ABS_MAX)
                 val perHitScaled = (perHit / PERHIT_DOWNSCALE).coerceAtMost(PERHIT_SCALED_MAX)
@@ -1134,7 +1167,7 @@ internal object MaxDamageSoftBoundPrototype {
                     if (geo.assumeCcThresholdRaw >= 0) {
                         (assumeThreshold + maxOf(assumedOpt.cc, 0)).toLong() + extra.cc
                     } else {
-                        geo.cc(k).toLong() * CC_STEP + assumedOpt.cc + extra.cc
+                        geo.cc(k).toLong() * ccStep + assumedOpt.cc + extra.cc
                     }
                 val totalActual =
                     weight(Characteristic.ACTION_POINT) * minOf(apRead, targetOf(Characteristic.ACTION_POINT)) +
@@ -1142,7 +1175,7 @@ internal object MaxDamageSoftBoundPrototype {
                         minOf(geo.mp(k).toLong() + assumedOpt.mp + extra.mp, targetOf(Characteristic.MOVEMENT_POINT)) +
                         weight(Characteristic.CRITICAL_HIT) * minOf(ccRead, targetOf(Characteristic.CRITICAL_HIT)) +
                         weight(Characteristic.HP) *
-                        minOf(geo.hp(k).toLong() * HP_STEP + assumedOpt.hp + extra.hp, targetOf(Characteristic.HP))
+                        minOf(geo.hp(k).toLong() * hpStep + assumedOpt.hp + extra.hp, targetOf(Characteristic.HP))
                 val bucket = (totalActual.coerceIn(1L, totalExpected) / bucketSize).toInt().coerceAtMost(maxIndex)
                 return core to core * powTable[bucket]
             }
@@ -1156,9 +1189,11 @@ internal object MaxDamageSoftBoundPrototype {
                 if (core > bestCore) bestCore = core
                 if (folded > bestFolded) {
                     bestFolded = folded
+                    bindingKey = k
+                    bindingW = wv
                     bindingState =
-                        "W=${wv + assumedOpt.w + extra.w} d=${geo.d(k) * DI_STEP}+ramp$rampDi ap=${geo.ap(k)} mp=${geo.mp(k)} " +
-                        "cc=${geo.cc(k) * CC_STEP} hp=${geo.hp(k) * HP_STEP} e=${geo.e(k)} r=${geo.r(k)} " +
+                        "W=${wv + assumedOpt.w + extra.w} d=${geo.d(k) * diStep}+ramp$rampDi ap=${geo.ap(k)} mp=${geo.mp(k)} " +
+                        "cc=${geo.cc(k) * ccStep} hp=${geo.hp(k) * hpStep} e=${geo.e(k)} r=${geo.r(k)} " +
                         "assume=${worldAssume?.name?.fr ?: "-"}$tag core=$core"
                 }
             }
@@ -1166,7 +1201,38 @@ internal object MaxDamageSoftBoundPrototype {
             consider(EMPTY_OPT, null, "")
             for ((wCapB, bOpt) in worldBSubs) consider(bOpt, wCapB, " worldB(cap=$wCapB)")
         }
-        return Result(bestFolded, bestCore, states.size, (System.nanoTime() - t0) / 1_000_000, bindingState)
+        // Instrument: reconstruct the binding path backward — for each stage (last → first), find
+        // a predecessor state + option that lands exactly on the current (key, w).
+        val bindingPath = mutableListOf<String>()
+        if (provenance && stageLog != null && bindingState.isNotEmpty()) {
+            var curK = bindingKey
+            var curW = bindingW
+            for ((label, preMap, options) in stageLog.reversed()) {
+                var found = false
+                outer@ for ((pk, pw) in preMap) {
+                    for (o in options) {
+                        if (pw + o.w != curW) continue
+                        if (geo.applyOne(pk, o) == curK) {
+                            if (o.src.isNotEmpty() || o.w != 0L || o.d != 0 || o.ap != 0 || o.mp != 0 || o.cc != 0 || o.hp != 0) {
+                                bindingPath +=
+                                    "$label: ${o.src.ifEmpty { "opt" }} " +
+                                    "(w=${o.w} d=${o.d} ap=${o.ap} mp=${o.mp} cc=${o.cc} hp=${o.hp} hpPct=${o.hpPct})"
+                            }
+                            curK = pk
+                            curW = pw
+                            found = true
+                            break@outer
+                        }
+                    }
+                }
+                if (!found) {
+                    bindingPath += "$label: <no predecessor found — reconstruction broke here>"
+                    break
+                }
+            }
+            bindingPath.reverse()
+        }
+        return Result(bestFolded, bestCore, states.size, (System.nanoTime() - t0) / 1_000_000, bindingState, bindingPath)
     }
 
     private val EMPTY_OPT = Opt(0L, 0)

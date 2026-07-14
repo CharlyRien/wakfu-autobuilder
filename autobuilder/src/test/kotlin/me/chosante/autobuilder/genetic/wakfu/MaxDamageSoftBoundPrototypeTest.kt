@@ -190,6 +190,30 @@ class MaxDamageSoftBoundPrototypeTest {
                 .describedAs("SOUNDNESS canary — the bound must cover the banked S4 incumbent")
                 .isGreaterThanOrEqualTo(oracle)
         }
+        // Binding-path provenance (WAKFU_S4_PATH=1): coarse grid so the retained stage maps fit
+        // the heap; the path names the option every stage contributed to the argmax state.
+        if (System.getenv("WAKFU_S4_PATH") == "1") {
+            MaxDamageSoftBoundPrototype.diStep = 10
+            MaxDamageSoftBoundPrototype.ccStep = 20
+            MaxDamageSoftBoundPrototype.hpStep = 1000
+            try {
+                val path =
+                    MaxDamageSoftBoundPrototype.bound(
+                        p,
+                        pool,
+                        WakfuBestBuildFinderAlgorithm.runes,
+                        WakfuBestBuildFinderAlgorithm.sublimations,
+                        blockGate = false,
+                        provenance = true
+                    )
+                println("S4_PROTO_PATH bound=${path?.foldedBound} binding=[${path?.bindingState}]")
+                path?.bindingPath?.forEach { println("S4_PROTO_PATH_STEP $it") }
+            } finally {
+                MaxDamageSoftBoundPrototype.diStep = 1
+                MaxDamageSoftBoundPrototype.ccStep = 10
+                MaxDamageSoftBoundPrototype.hpStep = 500
+            }
+        }
         // Attribution: price the big relaxations (UNSOUND arms — deltas only).
         for (arm in listOf("noCondSubs", "noSubs", "noSkills", "noRunes")) {
             val armBound =
