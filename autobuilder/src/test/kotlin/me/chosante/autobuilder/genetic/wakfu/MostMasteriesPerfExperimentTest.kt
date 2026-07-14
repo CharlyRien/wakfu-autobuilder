@@ -728,7 +728,10 @@ class MostMasteriesPerfExperimentTest {
         val termination = AtomicReference<WakfuBuildSolver.SolveOutcome?>()
         val tuning =
             WakfuBuildSolver.SolverTuning(
-                numSearchWorkers = 1,
+                // Canonical protocol = 1 worker. WAKFU_MM_C2_WORKERS overrides for INCUMBENT
+                // banking only (S4-0b: push/prove the reference optimum) — multi-worker det/wall
+                // numbers must never be compared against 1-worker arms.
+                numSearchWorkers = System.getenv("WAKFU_MM_C2_WORKERS")?.toIntOrNull() ?: 1,
                 randomSeed = 1,
                 maxDeterministicTime = det,
                 interleaveSearch = true,
