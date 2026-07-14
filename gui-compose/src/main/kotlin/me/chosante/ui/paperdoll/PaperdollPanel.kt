@@ -801,13 +801,8 @@ private fun ItemTooltip(
                             text = sub.rarity.name,
                             style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
                         )
-                        if (sub.cumulable) {
-                            Text(
-                                // Stacking at a glance (×copies · stack level cap) — spot Zenith discrepancies.
-                                text = tr(Tr.SUBLIMATION_STACK_SHORT).format(sub.maxCopies, sub.maxStackLevel),
-                                style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
-                            )
-                        }
+                        me.chosante.ui.components
+                            .SublimationStackBadge(sub)
                         // A normal sub's required 3-socket colour pattern (epic/relic carry none).
                         sub.colors.forEach { color -> RuneShape(color = color, size = 13.dp) }
                     }
