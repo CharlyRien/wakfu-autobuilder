@@ -1315,3 +1315,25 @@ the S4 optimum (26.95T vs CP-SAT's 56.2T at det 6000) — ≤ +52.3% vs the best
 everywhere (locks green), but the production gates are not met: tightness gate needs the 3-arm
 seam (+ maybe more), wall gate needs ~15× off 761 s. Both are engineering, not walls — the
 campaign continues or pauses on maintainer priority.
+
+### 9.7 S4-2d — weight arms land; the old per-sub worldB fold had a MULTI-CARRIER soundness hole (2026-07-15)
+
+The 3-arm split {plain, secZero, critZero} replaced the worldB per-state fold. First run re-inflated
+Dénouement inside critZero (zeroing wK made the conversion "profitable" again — fixed by capping a
+conversion's `moved` at the ARM CAP when converting FROM the zeroed component: covered builds hold
+it ≤ t + own grants). Verdict (fine grid): bound 33.68T = **1.90×**, binding = secZero with
+**d=138** — the arm stages Neutralité+Prétention+Ambition TOGETHER (all NORMAL, +DI each), which a
+real sec≤0 build CAN do.
+
+**Consequence — the previous 26.95/27.48T readings were UNSOUND for multi-capper builds**: the
+worldB fold considered ONE capper's credits per state, so a build carrying several (their DI
+stacks) could exceed the fold. The same pattern exists in the PRODUCTION MM certificate
+(`MostMasteriesCertificate.worldBSubs`, folded per sub): a real multi-capper build's
+`min(M, caps) × (100 + Σd_i)` can exceed every single-capper fold. On MM's shapes the worldB
+candidates are almost certainly dominated (their M-cap ≈ secondaryBudgetCap(0) is tiny vs the
+main states' full M), so the shipped badge NUMBERS likely stand — but the soundness ARGUMENT has a
+hole that a crafted shape could bind. FIX REQUIRED in MM (stage the cappers arm-style, or fold
+capper SUBSETS); S4's arms are the proven pattern.
+
+Grid ledger (3-arm, sound): fine 33.68T/1.90×/34 min; d4/hp1000 35.10T/1.98×/4 min;
+d10/hp2000/cc20 36.89T/2.08×/2 min. Locks green (seeds 1.47-3.35).
