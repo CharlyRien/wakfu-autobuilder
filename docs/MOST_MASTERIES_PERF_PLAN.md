@@ -1337,3 +1337,14 @@ capper SUBSETS); S4's arms are the proven pattern.
 
 Grid ledger (3-arm, sound): fine 33.68T/1.90×/34 min; d4/hp1000 35.10T/1.98×/4 min;
 d10/hp2000/cc20 36.89T/2.08×/2 min. Locks green (seeds 1.47-3.35).
+
+### 9.8 — MM production fix: world-B SUBSET fold (2026-07-15, found via the S4 transposition)
+
+The S4 arm work (§9.7) exposed a latent soundness hole in the PRODUCTION MM certificate: the
+world-B fold considered ONE objective-capping sub per state, but Neutralité/Prétention/Ambition
+are NORMAL rarity — a real build can carry several and their DI/CC credits STACK, so a
+multi-carrier build could exceed every single-sub fold. Fix: fold every non-empty SUBSET
+(≤ 2^6−1; two-EPIC combos impossible and skipped) with the SUM of members' credits and the MIN of
+their caps (each condition bounds M independently ⇒ min is sound). Measured: **S2 +9.87%
+BIT-FOR-BIT identical** (73 934 594 729 999), S3 +6.77% identical, wall 56.6 s, every lock green —
+the hole never bound on real shapes, closed at zero tightness cost.

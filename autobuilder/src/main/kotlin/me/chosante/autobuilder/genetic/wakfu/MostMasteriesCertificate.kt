@@ -933,7 +933,7 @@ internal object MostMasteriesCertificate {
         // World-B subs (objective-capping conditions): per-sub (M-cap, credits) pairs, folded
         // PER STATE at collapse — the old analytic fold at power6(maxIndex) assumed all targets
         // fully met, which a knapsack-limited carrier cannot do (measured +24.6% vs +21% naive).
-        val worldBSubs = mutableListOf<Pair<Long, Opt>>()
+        val worldBSubs = mutableListOf<Triple<Long, Opt, Boolean>>()
         if (params.useSublimations && "noSubs" !in diag) {
             data class SubOpt(
                 val opt: Opt,
@@ -1045,7 +1045,7 @@ internal object MostMasteriesCertificate {
                         } else {
                             t + otherRequestedMasteriesMax()
                         }
-                    worldBSubs += mCap to opt
+                    worldBSubs += Triple(mCap, opt, sub.rarity == SublimationRarity.EPIC)
                     continue
                 }
                 if (sub === worldAssume) {
@@ -1270,6 +1270,18 @@ internal object MostMasteriesCertificate {
 
         fun targetOf(char: Characteristic): Long = targetByChar[char]?.target?.toLong() ?: 0L
 
+        // Precompute the world-B SUBSET folds (2^n − 1, minus impossible two-EPIC combos): the
+        // combined credits + the min cap of each subset, shared by every state's collapse.
+        if (worldBSubs.size > 6) return null
+        val worldBSubsets: List<Pair<Long, Opt>> =
+            (1 until (1 shl worldBSubs.size)).mapNotNull { mask ->
+                val members = worldBSubs.filterIndexed { i, _ -> (mask shr i) and 1 == 1 }
+                if (members.count { it.third } > 1) return@mapNotNull null
+                val mCap = members.minOf { it.first }
+                val combined = members.map { it.second }.reduce { a, b -> combineOpts(a, b) }
+                mCap to combined
+            }
+
         var bestCore = 0L
         var bestFolded = 0L
         var bindingState = ""
@@ -1348,10 +1360,12 @@ internal object MostMasteriesCertificate {
             }
 
             consider(EMPTY_OPT, null, "")
-            // World B PER STATE (A#2): each objective-capping sub folded on the state's own dims —
-            // M clamped at its knapsack cap, its credits (DI/CC/…) added. The old analytic fold at
-            // power6(maxIndex) assumed all targets met (unreachable for knapsack-limited carriers).
-            for ((mCapB, bOpt) in worldBSubs) consider(bOpt, mCapB, " worldB(cap=$mCapB)")
+            // World B PER STATE (A#2), SUBSET fold (review 2026-07-15): a real build can carry
+            // SEVERAL objective-capping subs (the Neutralité family is NORMAL rarity) and their
+            // credits STACK — folding one sub at a time under-counted multi-carrier builds. Every
+            // non-empty subset (two-EPIC ones are impossible and skipped) folds with the SUM of
+            // its members' credits and the MIN of their caps (each condition bounds M on its own).
+            for ((mCapB, bOpt) in worldBSubsets) consider(bOpt, mCapB, " worldB(cap=$mCapB)")
         }
         // Instrument: reconstruct the binding path backward — for each stage (last → first), find a
         // predecessor state + option that lands exactly on the current (key, m). Deterministic by
