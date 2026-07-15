@@ -1375,3 +1375,15 @@ PIVOT: characterize which sub feature is the provability tax — the stacking co
 (38fe9c0c), the condition reification (39532d15 firstTurnStat vars), or sheer sub count — and find
 a lighter equivalent encoding that lets the sub-heavy soft model prove. That yields a +0% badge,
 not a +74% one. The certificate stays as a fallback/low-core option.
+
+### 9.11 — real parallelism helps but does not close S4-with-subs; the deterministic runs were misleading (2026-07-15)
+
+CRITICAL measurement artifact found: every prior "multi-worker" S4 run used the DETERMINISTIC
+det-budget path (`SolverTuning` non-null → interleaved workers for reproducibility → ~1 physical
+core wall even at numSearchWorkers=8). Production uses `tuning == null` → a real wall-clock parallel
+portfolio on (cores−1) threads. First REAL-parallel S4-with-subs run (all cores, 15 min wall):
+still FEASIBLE (incumbent 17.68T) but dual **37.89T = 2.14×** — vs the deterministic det-6000
+(2h27) 56.2T/3.17×. Real parallelism closes the dual far faster (56→38 in 15 min vs 2h27) — the
+right lever — but 15 min doesn't finish the proof. The certificate (30.85T) still beats CP-SAT's
+real-parallel dual (37.89T). No-subs proves (§9.10); with-subs is the wall. Next: real-parallel +
+condition-stripped to test whether the 16 reified conditions are the specific tax.
