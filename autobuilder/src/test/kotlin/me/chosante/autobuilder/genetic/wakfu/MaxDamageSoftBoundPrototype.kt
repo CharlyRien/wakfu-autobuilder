@@ -425,17 +425,11 @@ internal object MaxDamageSoftBoundPrototype {
                 0
             }
 
-        val mpDiRamps =
-            if (params.useSublimations && "noSubs" !in diag && "noRamps" !in diag) {
-                sublimations
-                    .filter { it.solverChoosable && ("noCondSubs" !in diag || it.condition == null) }
-                    .flatMap { sub -> sub.effects.filterIsInstance<SublimationEffect.PerStatStep>().map { sub to it } }
-                    .filter { (_, eff) -> eff.source == Characteristic.MOVEMENT_POINT && eff.target == Characteristic.DAMAGE_INFLICTED }
-            } else {
-                emptyList()
-            }
-        if (mpDiRamps.size > 1) return null
-        val mpDiRamp = mpDiRamps.firstOrNull()
+        // WALL seam (§9.6): the MP→DI ramp (Poids Plume) is priced at reachableMax like every
+        // other ramp instead of a deferred state BIT — the S4 binding state saturates its MP
+        // target anyway (contribution(mpCap) = the same 24), and the bit doubled the state space.
+        // The dormant ramp machinery (key bit, collapse read) stays for a future re-fine.
+        val mpDiRamp: Pair<Sublimation, SublimationEffect.PerStatStep>? = null
 
         val geo =
             Geometry(
@@ -834,15 +828,11 @@ internal object MaxDamageSoftBoundPrototype {
                         is SublimationEffect.StatEffect -> {
                             if (!WakfuBuildSolver.scenarioGateMatches(eff.scenarioGate, params)) continue
                             val value = eff.magnitudeAtLevel(level)
-                            // A negative MAX_MOVEMENT_POINT rider lowers any carrier's MP ceiling.
-                            if (eff.characteristic == Characteristic.MAX_MOVEMENT_POINT &&
-                                value < 0 &&
-                                Characteristic.MOVEMENT_POINT in targetByChar
-                            ) {
-                                if (-value > 1) return null
-                                opt = opt.copy(mpCapMinus = 1)
-                                continue
-                            }
+                            // WALL seam (§9.6): the negative MAX_MOVEMENT_POINT rider (Armure
+                            // lourde) is IGNORED — the carrier keeps its full MP target read, a
+                            // tiny over-count (≤1 MP of the fold) that halves the state space vs
+                            // the mpMinus bit. Dormant bit machinery kept for a future re-fine.
+                            if (eff.characteristic == Characteristic.MAX_MOVEMENT_POINT) continue
                             if (value <= 0) {
                                 if (value < 0 && geo.assumeApThreshold >= 0 && eff.characteristic == Characteristic.ACTION_POINT) {
                                     opt = opt.copy(apLow = opt.apLow + value)
