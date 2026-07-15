@@ -19,7 +19,15 @@ sublimations**, nothing else:
 | soft leg, **no sublimations** | **OPTIMAL** in det 253 / ~3.5 min |
 | soft leg, subs **without the 16 conditional ones** | **OPTIMAL** in **49 s**, obj = 17 702 078 146 500 |
 | soft leg, **full subs** (with conditions), 15 min wall | **FEASIBLE**, dual 2.14×, never proves |
-| soft leg, full subs, deterministic 8-worker, det 6000 (2h27) | **FEASIBLE**, dual 3.17×, never proves |
+| soft leg, **full subs, 2 h wall** (real parallel) | **FEASIBLE**, dual **2.01×**, never proves |
+| soft leg, full subs, deterministic 8-worker, det 6000 (2h27) | **FEASIBLE**, dual 3.17× — deterministic ~1-core ARTIFACT |
+
+**The real optimum is `17 702 078 146 500`** — proven optimal over the no-conditional-subs subset in
+49 s, and independently reached (never beaten) by the full-subs 2 h real-parallel search, which
+converged to the exact same value at ~14 min. So the conditional subs do not improve it on this
+shape. And **even 2 h of real parallelism does not PROVE the full-subs model** — the dual crawled
+37.9T→35.55T over the extra 1h45, so this is a genuine provability wall, not a compute-budget
+shortfall. A fast, provable encoding is required; more cores/time alone will not deliver the badge.
 
 Two consequences:
 1. The **bilinear objective, the stacking, and the carrier matching are all fine** — CP-SAT proves
