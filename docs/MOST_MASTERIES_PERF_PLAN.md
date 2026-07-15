@@ -1348,3 +1348,12 @@ multi-carrier build could exceed every single-sub fold. Fix: fold every non-empt
 their caps (each condition bounds M independently ⇒ min is sound). Measured: **S2 +9.87%
 BIT-FOR-BIT identical** (73 934 594 729 999), S3 +6.77% identical, wall 56.6 s, every lock green —
 the hole never bound on real shapes, closed at zero tightness cost.
+
+### 9.9 S4-2e — NET DI per sub (MEASURED 2026-07-15): 1.90× → 1.74×
+
+Static audit of the DI sources found Anatomie (EPIC): +40 back-gated AND −20 unconditional — the
+positive-parts-only read credited +40 where the sub's exact whole is +20. Fix: a sub's DI lines
+SUM (signed, gate-matched), clamped ≥ 0 per sub. Fine grid **30.85T = 1.743×** (binding d 138→118,
+still secZero, all targets saturated); d4/hp1000 1.82×/4 min; d10/hp2000/cc20 1.92×/2 min. Seed
+locks tightened to 1.35-1.40 on OPTIMAL small-pool solves. Trajectory: 3.36 → 2.19 → 1.90 (sound)
+→ 1.74 — vs a still-UNPROVEN 17.70T incumbent.

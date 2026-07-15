@@ -901,6 +901,12 @@ internal object MaxDamageSoftBoundPrototype {
                             // the mpMinus bit. Dormant bit machinery kept for a future re-fine.
                             if (eff.characteristic == Characteristic.MAX_MOVEMENT_POINT) continue
                             if (value <= 0) {
+                                // NET DI per sub: a build takes the sub as a whole, so its DI
+                                // lines SUM exactly (Anatomie's +40 back / −20 flat is +20 real —
+                                // the positive-only read credited +40). Clamped ≥ 0 at the end.
+                                if (value < 0 && eff.characteristic == Characteristic.DAMAGE_INFLICTED) {
+                                    opt = opt.copy(d = opt.d + value)
+                                }
                                 if (value < 0 && geo.assumeApThreshold >= 0 && eff.characteristic == Characteristic.ACTION_POINT) {
                                     opt = opt.copy(apLow = opt.apLow + value)
                                 }
@@ -985,6 +991,7 @@ internal object MaxDamageSoftBoundPrototype {
                     assumedOpt = opt
                     continue
                 }
+                if (opt.d < 0) opt = opt.copy(d = 0)
                 if (opt.w == 0L && opt.d == 0 && opt.ap == 0 && opt.mp == 0 && opt.cc == 0 && opt.hp == 0 && !opt.ramp) continue
                 repeat(sub.maxCopies.coerceAtLeast(1)) { subOpts += SubOpt(opt, sub.rarity) }
             }
