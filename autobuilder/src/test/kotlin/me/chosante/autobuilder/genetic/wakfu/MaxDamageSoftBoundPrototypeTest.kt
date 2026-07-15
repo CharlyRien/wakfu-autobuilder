@@ -190,6 +190,38 @@ class MaxDamageSoftBoundPrototypeTest {
                 .describedAs("SOUNDNESS canary — the bound must cover the banked S4 incumbent")
                 .isGreaterThanOrEqualTo(oracle)
         }
+        // Grid screen (WAKFU_S4_GRID=1): price the state-count / tightness trade of coarser
+        // bucket steps — the wall lever (§9.6: d exact ≈ 114 values is the dominant state axis).
+        if (System.getenv("WAKFU_S4_GRID") == "1") {
+            for ((di, hp, cc) in listOf(Triple(2, 500, 10), Triple(4, 1000, 10), Triple(5, 1500, 20), Triple(10, 2000, 20))) {
+                MaxDamageSoftBoundPrototype.diStep = di
+                MaxDamageSoftBoundPrototype.hpStep = hp
+                MaxDamageSoftBoundPrototype.ccStep = cc
+                try {
+                    val g =
+                        MaxDamageSoftBoundPrototype.bound(
+                            p,
+                            pool,
+                            WakfuBestBuildFinderAlgorithm.runes,
+                            WakfuBestBuildFinderAlgorithm.sublimations,
+                            blockGate = false
+                        )
+                    println(
+                        "S4_PROTO_GRID di=$di hp=$hp cc=$cc bound=${g?.foldedBound} states=${g?.states} wallMs=${g?.wallMs}" +
+                            (oracle?.let { " ratio=${"%.4f".format((g?.foldedBound ?: 0).toDouble() / it)}" } ?: "")
+                    )
+                    if (oracle != null && g != null) {
+                        assertThat(g.foldedBound)
+                            .describedAs("grid d$di/hp$hp/cc$cc must stay sound vs the banked incumbent")
+                            .isGreaterThanOrEqualTo(oracle)
+                    }
+                } finally {
+                    MaxDamageSoftBoundPrototype.diStep = 1
+                    MaxDamageSoftBoundPrototype.hpStep = 500
+                    MaxDamageSoftBoundPrototype.ccStep = 10
+                }
+            }
+        }
         // Binding-path provenance (WAKFU_S4_PATH=1): coarse grid so the retained stage maps fit
         // the heap; the path names the option every stage contributed to the argmax state.
         if (System.getenv("WAKFU_S4_PATH") == "1") {
@@ -214,7 +246,9 @@ class MaxDamageSoftBoundPrototypeTest {
                 MaxDamageSoftBoundPrototype.hpStep = 500
             }
         }
-        // Attribution: price the big relaxations (UNSOUND arms — deltas only).
+        // Attribution: price the big relaxations (UNSOUND arms — deltas only). Opt-in: each arm
+        // is a full DP (~12 min) — only worth re-running after a structural change.
+        if (System.getenv("WAKFU_S4_ATTRIB") != "1") return
         for (arm in listOf("noCondSubs", "noSubs", "noSkills", "noRunes")) {
             val armBound =
                 MaxDamageSoftBoundPrototype.bound(
