@@ -1281,3 +1281,13 @@ multiplier on unreachable targets), rune-axis ceilings.
 ⚠️ The 2.19× is measured against the NON-PROVEN det-600 incumbent — the true ratio is better by
 whatever gap remains above 12.33T. Next: an overnight multi-worker S4 solve to push (or prove)
 the reference incumbent, then per-carrier worlds for the objective-capping subs.
+
+### 9.5 S4-0b — incumbent pushed (MEASURED 2026-07-15, 8 workers, det 6000, wall 2h27)
+
+Multi-worker S4 solve (`WAKFU_MM_C2_WORKERS=8`): still FEASIBLE (no proof), but the incumbent
+rose 12.33T → **17 702 078 146 500** (+43.6%) and CP-SAT's own bound fell 70.5T → 56.2T. The
+**certificate (26.95T quick tier) is now the tightest known upper bound on the S4 optimum** —
+better than the solver's own dual. Measured tightness vs the new incumbent: **1.523×** (+52.3%),
+an UPPER bound on the true ratio (optimum ∈ [17.70T, 26.95T]). Already in the plan's
+"even +50% is a user-visible win" zone. Reference incumbent for the harness:
+`WAKFU_S4_ORACLE=17702078146500`.
