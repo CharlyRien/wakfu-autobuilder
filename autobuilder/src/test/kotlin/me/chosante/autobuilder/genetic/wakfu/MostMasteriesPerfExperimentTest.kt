@@ -145,7 +145,12 @@ class MostMasteriesPerfExperimentTest {
                     .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
                     .groupBy { it.itemType }
             val runes = WakfuBestBuildFinderAlgorithm.runes
-            val sublimations = WakfuBestBuildFinderAlgorithm.sublimations
+            // Provability probe (§9.10): drop CONDITIONAL subs to isolate whether the 16 reified
+            // conditions (not the stacking — 0 cumulable choosable subs on this data) are the wall.
+            val sublimations =
+                WakfuBestBuildFinderAlgorithm.sublimations.let {
+                    if (System.getenv("WAKFU_MM_C2_NOCONDSUBS") == "1") it.filter { s -> s.condition == null } else it
+                }
             val selected =
                 System
                     .getenv("WAKFU_MM_C2_BASELINE_FIXTURES")
@@ -726,8 +731,17 @@ class MostMasteriesPerfExperimentTest {
         onCore: ((Set<Characteristic>) -> Unit)? = null,
     ): Summary {
         val termination = AtomicReference<WakfuBuildSolver.SolveOutcome?>()
+        // §9.10 REAL-PARALLELISM probe: `tuning == null` takes the PRODUCTION path — a wall-clock
+        // parallel portfolio on (cores−1) threads, NOT the deterministic det-budget mode (which
+        // interleaves workers for reproducibility and so runs on ~1 physical core even at
+        // numSearchWorkers=8). Every prior "multi-worker" S4 run was actually deterministic mode;
+        // this tests whether REAL 8-core wall-clock parallelism proves the sub-heavy soft leg.
+        val prodParallel = System.getenv("WAKFU_MM_C2_PROD") == "1"
         val tuning =
-            WakfuBuildSolver.SolverTuning(
+            if (prodParallel) {
+                null
+            } else {
+                WakfuBuildSolver.SolverTuning(
                 // Canonical protocol = 1 worker. WAKFU_MM_C2_WORKERS overrides for INCUMBENT
                 // banking only (S4-0b: push/prove the reference optimum) — multi-worker det/wall
                 // numbers must never be compared against 1-worker arms.
@@ -744,7 +758,8 @@ class MostMasteriesPerfExperimentTest {
                 mmHardTargetsAsAssumptions = config.hardAssumptions,
                 mmSoftNoGoodCore = config.noGoodCore,
                 mmInfeasibilityCoreCapture = onCore
-            )
+                )
+            }
         val t0 = System.nanoTime()
         var last: SolverResult<BuildCombination>? = null
         var emissions = 0
@@ -848,7 +863,8 @@ class MostMasteriesPerfExperimentTest {
                             TargetStat(Characteristic.HP, 12000)
                         )
                     ),
-                searchDuration = 600.seconds,
+                // Production (WAKFU_MM_C2_PROD) uses this as the WALL-clock budget — override it.
+                searchDuration = (System.getenv("WAKFU_MM_C2_WALL_SECONDS")?.toLongOrNull() ?: 600L).seconds,
                 stopWhenBuildMatch = false,
                 maxRarity = Rarity.EPIC,
                 forcedItems = emptyList(),
