@@ -1387,3 +1387,26 @@ still FEASIBLE (incumbent 17.68T) but dual **37.89T = 2.14×** — vs the determ
 right lever — but 15 min doesn't finish the proof. The certificate (30.85T) still beats CP-SAT's
 real-parallel dual (37.89T). No-subs proves (§9.10); with-subs is the wall. Next: real-parallel +
 condition-stripped to test whether the 16 reified conditions are the specific tax.
+
+### 9.12 — THE ANSWER: conditional subs are the entire provability wall; the optimum was already found (2026-07-15)
+
+S4 with subs but WITHOUT the 16 conditional subs, real parallel → **OPTIMAL in 49 s**, objective ==
+bound == **17 702 078 146 500 = the exact incumbent** the 2h27 full-subs run banked. Two findings:
+1. The reified CONDITIONS (disjunctive if-then structure; the 07-14 condition-timing fix hardened
+   the Neutralité-family ones) are the entire CP-SAT provability wall — remove them and it proves in
+   under a minute. The bilinear objective, the stacking, the carrier matching are all fine.
+2. On this shape the conditional subs do NOT improve the optimum (same 17.70T with/without) — so the
+   2h27 incumbent WAS optimal all along, just UNPROVABLE. The "proven optimal" badge was reachable
+   the whole time, blocked purely by the condition encoding.
+
+**This reframes the whole S4 campaign.** The right fix is NOT a within-X% certificate — it is to make
+the sub-heavy model PROVE, via a lighter condition encoding OR a WORLD SPLIT of the SEARCH (one CP-SAT
+model per condition-world where each condition is a constant, not a reified disjunction; each world
+proves in ~50 s like the no-cond case; the badge is max over worlds). This is the SAME world-split idea
+that makes the certificate sound, applied to the search — yielding a real +0% badge. The D·Graw
+certificate (§9.0-9.9) stays a sound fallback but is no longer the primary path.
+
+⚠️ REGRESSION CONFIRMED for the maintainer's report: the condition-timing fix (39532d15) added
+firstTurnStat reified vars that made the soft max-damage leg harder for CP-SAT to prove. Not a
+correctness regression (the fix is right), but a PROVABILITY one — the badge that fired before on
+sub-heavy soft requests may now be withheld. The world-split search restores it.
