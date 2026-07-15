@@ -1410,3 +1410,13 @@ certificate (§9.0-9.9) stays a sound fallback but is no longer the primary path
 firstTurnStat reified vars that made the soft max-damage leg harder for CP-SAT to prove. Not a
 correctness regression (the fix is right), but a PROVABILITY one — the badge that fired before on
 sub-heavy soft requests may now be withheld. The world-split search restores it.
+
+### 9.13 — 2 h real-parallel run: optimum confirmed 17.70T, still unproven (2026-07-15)
+
+Full-subs S4, production wall-clock parallel portfolio (all cores), 2 h wall: FEASIBLE, incumbent
+**17 702 078 146 500** (reached at ~14 min, never beaten in the remaining 1h46), dual 35.55T =
+**2.01×** (37.9T at 15 min → 35.55T at 2 h — the dual has effectively stalled). Confirms: (a) the
+real S4 optimum IS 17.70T (proven over the no-cond subset in 49 s AND independently un-improvable by
+the full-subs search); (b) the conditions are a GENUINE provability wall — 2 h of real parallelism
+does not close it, so the badge needs a provable ENCODING, not more compute. Data folded into the
+handoff doc `docs/S4_CONDITION_ENCODING_PROBLEM.md`.
