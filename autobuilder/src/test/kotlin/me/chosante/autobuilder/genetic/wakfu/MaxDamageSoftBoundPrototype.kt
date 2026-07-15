@@ -1270,16 +1270,25 @@ internal object MaxDamageSoftBoundPrototype {
             consider(EMPTY_OPT, null, if (worldArm != "plain") " arm($worldArm)" else "")
         }
         // Instrument: reconstruct the binding path backward — for each stage (last → first), find
-        // a predecessor state + option that lands exactly on the current (key, w).
+        // a predecessor state + option that lands exactly on the current (key, w). INVERTED: the
+        // naive `preMap × options` scan is O(billions) on the big stages (rings had 7.6M options)
+        // and hangs for hours × every world; instead index the stage's predecessor states by their
+        // w-value (buckets are small — w is finely spread) so only the `pw == curW − o.w` bucket is
+        // scanned per option. A hard cap bails the reconstruction rather than risk a runaway.
         val bindingPath = mutableListOf<String>()
         if (provenance && stageLog != null && bindingState.isNotEmpty()) {
             var curK = bindingKey
             var curW = bindingW
-            for ((label, preMap, options) in stageLog.reversed()) {
+            var work = 0L
+            val workCap = 500_000_000L
+            reconstruct@ for ((label, preMap, options) in stageLog.reversed()) {
+                val byW = HashMap<Long, MutableList<Long>>(preMap.size)
+                for ((pk, pw) in preMap) byW.getOrPut(pw) { mutableListOf() }.add(pk)
                 var found = false
-                outer@ for ((pk, pw) in preMap) {
-                    for (o in options) {
-                        if (pw + o.w != curW) continue
+                outer@ for (o in options) {
+                    val bucket = byW[curW - o.w] ?: continue
+                    for (pk in bucket) {
+                        work++
                         if (geo.applyOne(pk, o) == curK) {
                             if (o.src.isNotEmpty() || o.w != 0L || o.d != 0 || o.ap != 0 || o.mp != 0 || o.cc != 0 || o.hp != 0) {
                                 bindingPath +=
@@ -1287,10 +1296,14 @@ internal object MaxDamageSoftBoundPrototype {
                                     "(w=${o.w} d=${o.d} ap=${o.ap} mp=${o.mp} cc=${o.cc} hp=${o.hp} hpPct=${o.hpPct})"
                             }
                             curK = pk
-                            curW = pw
+                            curW = o.let { curW - it.w }
                             found = true
                             break@outer
                         }
+                    }
+                    if (work > workCap) {
+                        bindingPath += "$label: <reconstruction bailed — work cap reached>"
+                        break@reconstruct
                     }
                 }
                 if (!found) {
