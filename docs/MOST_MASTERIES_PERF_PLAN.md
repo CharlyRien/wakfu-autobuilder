@@ -1357,3 +1357,21 @@ SUM (signed, gate-matched), clamped ≥ 0 per sub. Fine grid **30.85T = 1.743×*
 still secZero, all targets saturated); d4/hp1000 1.82×/4 min; d10/hp2000/cc20 1.92×/2 min. Seed
 locks tightened to 1.35-1.40 on OPTIMAL small-pool solves. Trajectory: 3.36 → 2.19 → 1.90 (sound)
 → 1.74 — vs a still-UNPROVEN 17.70T incumbent.
+
+### 9.10 — DECISIVE PIVOT: the soft model PROVES; the SUBLIMATION ENCODING is the wall (2026-07-15)
+
+The maintainer insisted the "complicated soft-penalty formula proved before." Tested it instead of
+arguing. **S4 max-damage soft-direct, 8 workers, NO sublimations → status=OPTIMAL in det 253 / wall
+3m31** (rawObjective == bestBound == 5 824 249 128 720). The bilinear `D·Graw × power6(penalty)`
+objective is NOT the provability wall — CP-SAT closes it cleanly multi-worker. The wall is the
+**sublimation machinery**: with subs, 8 workers × det 6000 (2h27) stays FEASIBLE at 3.17× dual;
+without, det 253 proves. Subs are essential to the optimum (obj 5.82T no-subs → ≥17.70T with-subs,
+~3×), so they can't be dropped — but the model proves once their encoding is lighter.
+
+**Consequence — the D·Graw CERTIFICATE campaign (§9.0-9.9) was solving the wrong problem.** The
+prototype is sound and is the tightest known bound, but the real user story ("proven optimal" badge
+for a sub-heavy max-damage request) is reachable via a PROVING model, not a within-X% certificate.
+PIVOT: characterize which sub feature is the provability tax — the stacking copy chains
+(38fe9c0c), the condition reification (39532d15 firstTurnStat vars), or sheer sub count — and find
+a lighter equivalent encoding that lets the sub-heavy soft model prove. That yields a +0% badge,
+not a +74% one. The certificate stays as a fallback/low-core option.

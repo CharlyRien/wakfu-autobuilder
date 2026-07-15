@@ -854,8 +854,11 @@ class MostMasteriesPerfExperimentTest {
                 forcedItems = emptyList(),
                 excludedItems = emptyList(),
                 scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
-                useRunes = true,
-                useSublimations = true
+                useRunes = System.getenv("WAKFU_MM_C2_NORUNES") != "1",
+                // Regression probe (2026-07-15): the sub machinery (stacking copy chains + condition
+                // reification) may be the CP-SAT provability wall. WAKFU_MM_C2_NOSUBS=1 tests whether
+                // the soft penalized model proves WITHOUT it — the shape the pre-sub-features model was.
+                useSublimations = System.getenv("WAKFU_MM_C2_NOSUBS") != "1"
             )
         )
 
