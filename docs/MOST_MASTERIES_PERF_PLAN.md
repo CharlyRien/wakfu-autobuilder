@@ -1291,3 +1291,27 @@ better than the solver's own dual. Measured tightness vs the new incumbent: **1.
 an UPPER bound on the true ratio (optimum ∈ [17.70T, 26.95T]). Already in the plan's
 "even +50% is a user-visible win" zone. Reference incumbent for the harness:
 `WAKFU_S4_ORACLE=17702078146500`.
+
+### 9.6 S4-2c — carrier WORLDS for objective-capping subs: STRUCTURALLY WRONG, reverted (2026-07-15)
+
+Attempted one world per objective-capping sub (weights zeroed on the capped component + exact cap
+constant at fold). The soundness lock killed it instantly — and rightly: **Neutralité, Prétention
+and Ambition are NORMAL subs** (only Inflexibilité II / Secret critique are EPIC), so several can
+coexist in one build and per-sub worlds do NOT partition the build space (this is exactly why the
+MM certificate handles its worldB per-state, not per-world). Reverted to the sound §9.4 state
+(2.19× vs old incumbent, ≤1.523× vs the pushed 17.70T one).
+
+Banked design for the correct seam (NOT yet implemented — wall-gated): three WEIGHT ARMS per
+world instead of per-sub worlds — {plain: no capper staged; secZeroed: secondary weights 0, ALL
+sec-cappers staged + Secret critique staged cap-ignored, + wM·secondaryBudgetCap(0) constant;
+critZeroed: wK 0, Secret critique staged, sec-cappers excluded, + wK·ownGrants constant}. Every
+build is covered by ≥1 arm (SC+sec-capper lands in secZeroed with SC's cap ignored — sound).
+Cost: ×3 the DP wall — and the quick tier already runs 761 s vs the ≤55 s ship gate, so the WALL
+seams (drop the ramp/mpMinus bits by folding them as constants — the binding state saturates MP
+anyway; coarser d step; constant-fold the low-value slots) must land first.
+
+**Interim S4 verdict (checkpoint):** the certificate at §9.4 is the TIGHTEST KNOWN upper bound on
+the S4 optimum (26.95T vs CP-SAT's 56.2T at det 6000) — ≤ +52.3% vs the best incumbent — sound
+everywhere (locks green), but the production gates are not met: tightness gate needs the 3-arm
+seam (+ maybe more), wall gate needs ~15× off 761 s. Both are engineering, not walls — the
+campaign continues or pauses on maintainer priority.
