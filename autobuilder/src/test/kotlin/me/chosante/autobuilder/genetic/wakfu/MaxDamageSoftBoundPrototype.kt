@@ -322,6 +322,16 @@ internal object MaxDamageSoftBoundPrototype {
         // INTERNAL world-split recursion — never set by callers (MM certificate A#1 pattern).
         worldAssume: Sublimation? = null,
         worldDropCaps: Boolean = false,
+        // WEIGHT ARM (§9.6, replaces the never-binding worldB fold): null = orchestrate. Every
+        // real build is covered by ≥1 (world × arm):
+        //  - "plain": objective-capping subs excluded (builds carrying none);
+        //  - "secZero": secondary weights zeroed + wM·secondaryBudgetCap(t) fold constant;
+        //    ALL SECONDARY_MASTERIES_AT_MOST subs staged (they coexist — NORMAL rarity) and the
+        //    CRITM cappers staged CAP-IGNORED (a SC+Neutralité build lands here: its real K ≤ the
+        //    arm's unconstrained K — over-count, sound);
+        //  - "critZero": wK zeroed + wK·(t + own grants) constant; CRITM cappers staged,
+        //    sec-cappers excluded (their builds live in secZero).
+        worldArm: String? = null,
     ): Result? {
         val t0 = System.nanoTime()
         val wantSrc = provenance
@@ -385,22 +395,45 @@ internal object MaxDamageSoftBoundPrototype {
                 emptyList()
             }
         if (capSubs.size > 6) return null
-        if (capSubs.isNotEmpty() && worldAssume == null && !worldDropCaps) {
+
+        fun capsObjectiveType(sub: Sublimation): SublimationConditionType? =
+            sub.condition?.type?.takeIf {
+                it == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST || it == SublimationConditionType.CRITICAL_MASTERY_AT_MOST
+            }
+
+        val objCapSubs =
+            if (params.useSublimations && "noSubs" !in diag && "noCondSubs" !in diag) {
+                sublimations.filter { it.solverChoosable && capsObjectiveType(it) != null }
+            } else {
+                emptyList()
+            }
+        val hasSecCappers = objCapSubs.any { capsObjectiveType(it) == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST }
+        val hasCritMCappers = objCapSubs.any { capsObjectiveType(it) == SublimationConditionType.CRITICAL_MASTERY_AT_MOST }
+        if (worldArm == null) {
+            val arms =
+                buildList {
+                    add("plain")
+                    if (hasSecCappers) add("secZero")
+                    if (hasCritMCappers) add("critZero")
+                }
             val worlds: List<Result?> =
-                (listOf<Sublimation?>(null) + capSubs).map { assume ->
-                    bound(
-                        params,
-                        pool,
-                        runes,
-                        sublimations,
-                        debug,
-                        diag,
-                        blockGate = if (assume == null) blockGate else false,
-                        provenance = provenance,
-                        shouldContinue = shouldContinue,
-                        worldAssume = assume,
-                        worldDropCaps = assume == null
-                    )
+                (listOf<Sublimation?>(null) + capSubs).flatMap { assume ->
+                    arms.map { arm ->
+                        bound(
+                            params,
+                            pool,
+                            runes,
+                            sublimations,
+                            debug,
+                            diag,
+                            blockGate = if (assume == null) blockGate else false,
+                            provenance = provenance,
+                            shouldContinue = shouldContinue,
+                            worldAssume = assume,
+                            worldDropCaps = assume == null,
+                            worldArm = arm
+                        )
+                    }
                 }
             if (worlds.any { it == null }) return null
             val best = worlds.filterNotNull().maxByOrNull { it.foldedBound } ?: return null
@@ -415,6 +448,8 @@ internal object MaxDamageSoftBoundPrototype {
         }
         val assumeStat = worldAssume?.let { capStatOf(it) }
         val assumeThreshold = worldAssume?.condition?.value ?: -1
+        val armZeroSecondary = worldArm == "secZero"
+        val armZeroCritM = worldArm == "critZero"
 
         val blockAtLeastMax =
             if (blockGate && params.useSublimations && "noSubs" !in diag && "noCondSubs" !in diag) {
@@ -466,15 +501,19 @@ internal object MaxDamageSoftBoundPrototype {
             c: Characteristic,
         ): Int = maxOf(e.characteristics[c] ?: 0, 0)
 
-        /** Weighted-Graw value of one positive stat line. */
+        /**
+         * Weighted-Graw value of one positive stat line. In a zeroed weight ARM the capped
+         * component contributes nothing — its condition-derived cap rides the fold as a constant.
+         */
         fun wOf(
             c: Characteristic,
             v: Int,
         ): Long =
             when {
                 v <= 0 -> 0L
-                c in masteryStats || c in randomStats -> wMastery * v
-                c == Characteristic.MASTERY_CRITICAL -> wCritMastery * v
+                c in masteryStats || c in randomStats ->
+                    if (armZeroSecondary && c in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS) 0L else wMastery * v
+                c == Characteristic.MASTERY_CRITICAL -> if (armZeroCritM) 0L else wCritMastery * v
                 else -> 0L
             }
 
@@ -784,24 +823,44 @@ internal object MaxDamageSoftBoundPrototype {
             return dp.entries.filter { it.key <= bucket(t) }.maxOfOrNull { it.value } ?: t.coerceAtLeast(0L)
         }
 
-        // W-caps for the world-B carriers: the NON-capped components at their reachable max, the
-        // capped component at its condition-derived cap — a sound global upper of any carrier's W.
-        val elementalMasteryReach: Long by lazy {
-            (masteryStats + randomStats)
-                .filter { it !in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS }
-                .sumOf { reachableMax(it).toLong() }
-        }
-        val secondaryMasteryReach: Long by lazy {
-            masteryStats
-                .filter { it in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS }
-                .sumOf { reachableMax(it).toLong() }
-        }
-        val critMasteryReach: Long by lazy { reachableMax(Characteristic.MASTERY_CRITICAL).toLong() }
-
         var epicRelicStages: (() -> Unit)? = null
         var assumedOpt = Opt(0L, 0)
-        // World-B subs (objective-capping conditions): per-sub (W-cap, credits), folded PER STATE.
-        val worldBSubs = mutableListOf<Pair<Long, Opt>>()
+
+        // Weight-arm caps (RAW units): what the zeroed component can reach on a build COVERED by
+        // this arm — condition threshold + the cappers' own grants (a sub never feeds its own
+        // condition, so they ride above t). Feeds the fold constant AND the conversion moved cap.
+        fun ownPositiveOf(
+            sub: Sublimation,
+            pred: (Characteristic) -> Boolean,
+        ): Long =
+            sub.effects
+                .filterIsInstance<SublimationEffect.StatEffect>()
+                .filter { pred(it.characteristic) && WakfuBuildSolver.scenarioGateMatches(it.scenarioGate, params) }
+                .sumOf { maxOf(it.magnitudeAtLevel(level), 0).toLong() }
+
+        val armSecCapRaw: Long =
+            if (armZeroSecondary) {
+                val tMax =
+                    objCapSubs
+                        .filter { capsObjectiveType(it) == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST }
+                        .maxOf { (it.condition?.value ?: 0).toLong() }
+                val ownMax =
+                    objCapSubs
+                        .filter { capsObjectiveType(it) == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST }
+                        .maxOf { ownPositiveOf(it) { c -> c in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS && c in masteryStats } }
+                secondaryBudgetCap(tMax) + ownMax
+            } else {
+                0L
+            }
+        val armCritMCapRaw: Long =
+            if (armZeroCritM) {
+                objCapSubs
+                    .filter { capsObjectiveType(it) == SublimationConditionType.CRITICAL_MASTERY_AT_MOST }
+                    .maxOf { (it.condition?.value ?: 0).toLong() + ownPositiveOf(it) { c -> c == Characteristic.MASTERY_CRITICAL } }
+            } else {
+                0L
+            }
+        val armConstantW = wMastery * armSecCapRaw + wCritMastery * armCritMCapRaw
         if (params.useSublimations && "noSubs" !in diag) {
             data class SubOpt(
                 val opt: Opt,
@@ -820,6 +879,14 @@ internal object MaxDamageSoftBoundPrototype {
                         )
                 // AT_MOST cap subs never enter the stages — the world split handles them.
                 if (capStatOf(sub) != null && sub !== worldAssume) continue
+                // Objective-capping subs per ARM: plain excludes them; secZero stages sec-cappers
+                // AND critM cappers (cap-ignored — sound); critZero stages critM cappers only.
+                if (capsObjective) {
+                    val secCapper = cond?.type == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST
+                    val staged =
+                        (armZeroSecondary) || (armZeroCritM && !secCapper)
+                    if (!staged) continue
+                }
                 val blockRequirement =
                     if (blockAtLeastMax > 0 && cond?.type == SublimationConditionType.BLOCK_AT_LEAST) (cond.value ?: 0) else 0
                 var opt = Opt(0L, 0, requiresBlockAtLeast = blockRequirement, src = if (wantSrc) sub.name.fr else "")
@@ -889,7 +956,17 @@ internal object MaxDamageSoftBoundPrototype {
                         // keep those additive (over-count, sound).
                         is SublimationEffect.Conversion -> {
                             if (!WakfuBuildSolver.scenarioGateMatches(eff.scenarioGate, params)) continue
-                            val moved = (reachableMax(eff.from).coerceAtLeast(0).toLong() * eff.percent / 100L).toInt()
+                            // Arm-covered builds hold the zeroed component ≤ the arm cap — a
+                            // conversion FROM it cannot move more than that (the reachableMax
+                            // base re-inflated Dénouement to +45% of W inside critZero).
+                            val movedBase =
+                                when {
+                                    armZeroCritM && eff.from == Characteristic.MASTERY_CRITICAL -> armCritMCapRaw
+                                    armZeroSecondary && eff.from in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS ->
+                                        armSecCapRaw
+                                    else -> reachableMax(eff.from).coerceAtLeast(0).toLong()
+                                }
+                            val moved = (movedBase * eff.percent / 100L).toInt()
                             if (moved <= 0) continue
                             opt =
                                 when (eff.to) {
@@ -903,19 +980,6 @@ internal object MaxDamageSoftBoundPrototype {
                         }
                         else -> {}
                     }
-                }
-                if (capsObjective) {
-                    // The sound W-cap for a CARRIER of this sub: the capped mastery component at
-                    // its condition-derived cap, the others at their reachable max (+100 base).
-                    val t = (cond?.value ?: 0).toLong()
-                    val wCap =
-                        if (cond?.type == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST) {
-                            wMastery * (100L + elementalMasteryReach + secondaryBudgetCap(t)) + wCritMastery * critMasteryReach
-                        } else {
-                            wMastery * (100L + elementalMasteryReach + secondaryMasteryReach) + wCritMastery * t
-                        }
-                    worldBSubs += wCap to opt
-                    continue
                 }
                 if (sub === worldAssume) {
                     assumedOpt = opt
@@ -1146,7 +1210,7 @@ internal object MaxDamageSoftBoundPrototype {
                 extra: Opt,
                 wCap: Long?,
             ): Pair<Long, Long> {
-                val wvX = (wv + assumedOpt.w + extra.w).let { if (wCap != null) minOf(it, wCap) else it }
+                val wvX = (wv + assumedOpt.w + armConstantW + extra.w).let { if (wCap != null) minOf(it, wCap) else it }
                 val di = (geo.d(k).toLong() * diStep + assumedOpt.d + extra.d + rampDi).coerceAtMost(diCap.toLong())
                 val grawUb = wvX.coerceIn(0L, DAMAGE_GRAW_MAX)
                 val perHit = ((100L + di) * grawUb).coerceAtMost(DAMAGE_SCORE_ABS_MAX)
@@ -1196,8 +1260,7 @@ internal object MaxDamageSoftBoundPrototype {
                 }
             }
 
-            consider(EMPTY_OPT, null, "")
-            for ((wCapB, bOpt) in worldBSubs) consider(bOpt, wCapB, " worldB(cap=$wCapB)")
+            consider(EMPTY_OPT, null, if (worldArm != "plain") " arm($worldArm)" else "")
         }
         // Instrument: reconstruct the binding path backward — for each stage (last → first), find
         // a predecessor state + option that lands exactly on the current (key, w).
