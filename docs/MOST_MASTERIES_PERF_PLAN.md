@@ -1966,3 +1966,45 @@ inconclusive, do not re-run longer without a new idea.
 Remaining: item 4 — the production port (prove entry + ProofState badge showing **proven optimal
 +0%** on the S4 leg, CERTIFIER_VERSION bump, fingerprinted oracle cache, AP-headroom require→bail,
 generality screen beyond CRA-245).
+
+### 9.19 — Wall-time campaign on the exact-closure pipeline: 6m38 → ~2m45 (2026-07-16)
+
+Four measured iterations on `adaptive cert` + `WAKFU_S4_REQUIRE_CONDITIONAL=1` (commits
+`232ca198` + `20a7218d`); every run reproduced the exact closure (bound 17 702 078 146 500,
+ratio 1.0000).
+
+**Shipped (kept):**
+
+1. **Full grid cascade in union mode** — the final bound is `max(oracle, worlds)`, so a world only
+   needs the cheapest grid landing at or below that floor. The top world no longer goes straight to
+   DI=1 (154 s): every contender cascades DI10 → 4 → 1, escalating only while above
+   `maxOf(oracle, refinedBest)`. Both S4 contenders stop at DI10 (plain 17.611T / critZero 17.474T,
+   under the 17.702T oracle) — refinements 154+68 s → ~29+29 s.
+2. **Concurrent oracle** — the no-condition CP-SAT solve (typed oracle) runs in a
+   `CompletableFuture` alongside the coarse DP sweep (independent; first touched after coarse).
+   8 workers + the 1-thread DP coexist fine: oracle ~37-47 s, fully hidden under coarse. Adaptive
+   profile only — targeted A/B screens keep the sequential solve so their walls stay clean.
+3. **2× coarser assume-worlds** — cap-sub worlds sit ~45% under the main worlds; pricing them at
+   `di/hp/cc × 2` is sound (coarser buckets merge states under a max) and cannot promote one into
+   refinement. Coarse sweep 102 s → 78 s (states 3.87M → 2.36M).
+4. **Oracle-floored refinement skip** — in union mode `refinedBest` starts AT the oracle, so any
+   coarse world already at or below it skips refinement outright.
+
+**Measured dead ends (do-not-retry, 10-core M-series / 8 GiB test heap):**
+
+- **World-level parallel DP (pool of 4)**: every world slowed 4-6× (Mesure III plain 20 s → 125 s;
+  oracle degraded 37 s → 150-163 s). The DP is memory-bandwidth/GC-bound — same verdict as the MM
+  certificate's world-parallel measurement. A parallel DI10 refinement wave lost the same way
+  (29 s solo → 87-94 s per world). Rebalancing oracle workers 8→6 did not rescue it (4m22-4m28
+  vs 2m43).
+- **Conditional-only coarse pass**: bound-INERT — at the coarse grid the binding path already
+  carries a conditional sub, so the marker bit doubled every main world's states (63k → 126k)
+  without moving one bound. The 19.4T → 17.6T refinement tightening comes from the finer seams
+  (HP=1000, signed MP, light-weapon split), not the conditional marker.
+
+**Operating point:** end-to-end exact closure **2m43-2m58** wall (thermal-state dependent; was
+6m38, pre-cascade 10m49). Remaining wall = coarse ~78 s + two DI10 refinements ~60-95 s, with the
+oracle hidden. Run-to-run variance on the DP stages is large (same refinement measured 29 s and
+52 s across runs) — further micro-tuning is below the noise floor; the next real lever would be
+intra-stage chunked parallelism inside one world's DP (the MM certificate's win), left for the
+production port if its wall needs it.
