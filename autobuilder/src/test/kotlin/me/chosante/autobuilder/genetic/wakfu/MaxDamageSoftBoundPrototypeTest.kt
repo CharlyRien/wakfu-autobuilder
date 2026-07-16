@@ -77,6 +77,54 @@ class MaxDamageSoftBoundPrototypeTest {
             TargetStat(Characteristic.HP, 12000)
         )
 
+    /** The hybrid union's lower side: a PROVEN CP-SAT optimum, never a trusted constant. */
+    private data class NoConditionOracle(
+        val objective: Long,
+        val status: String,
+        val wallSec: Double,
+        val dataVersion: String,
+    )
+
+    /**
+     * Solves (once per request/pool/data-version, memoized) the NO-CONDITION S4 model with the
+     * production real-parallel portfolio and requires a full `OPTIMAL` proof. This is the typed
+     * replacement for the hand-banked `WAKFU_S4_ORACLE` constant: the hybrid conditional union is
+     * only sound when its no-condition side is PROVEN for the exact same request and pool.
+     */
+    private fun solvedNoConditionOracle(
+        p: WakfuBestBuildParams,
+        pool: Map<ItemType, List<me.chosante.common.Equipment>>,
+    ): NoConditionOracle =
+        noConditionOracleMemo.getOrPut(
+            "${WakfuBestBuildFinderAlgorithm.dataVersion}|${p.hashCode()}|${pool.values.sumOf { it.size }}"
+        ) {
+            WakfuBuildSolver.warmUp()
+            val profile =
+                WakfuBuildSolver.timedMaxDamageProfileForTest(
+                    params = p,
+                    equipmentsByItemType = pool,
+                    runes = WakfuBestBuildFinderAlgorithm.runes,
+                    sublimations = WakfuBestBuildFinderAlgorithm.sublimations.filter { it.condition == null },
+                    workers = 8,
+                    seconds = 600.0,
+                    applyDomination = true
+                )
+            require(profile.status == "OPTIMAL") {
+                "the no-condition oracle must PROVE its optimum (got ${profile.status}, " +
+                    "objective=${profile.objective}, bound=${profile.bestBound}) — without the proof the " +
+                    "hybrid union has no sound lower side"
+            }
+            println(
+                "S4_ORACLE status=${profile.status} objective=${profile.objective} " +
+                    "wallSec=${profile.wallTimeSec} dataVersion=${WakfuBestBuildFinderAlgorithm.dataVersion}"
+            )
+            NoConditionOracle(profile.objective, profile.status, profile.wallTimeSec, WakfuBestBuildFinderAlgorithm.dataVersion)
+        }
+
+    private companion object {
+        val noConditionOracleMemo = java.util.concurrent.ConcurrentHashMap<String, NoConditionOracle>()
+    }
+
     @Test
     fun `manual S4 prototype soundness lock on seeded pools`(): Unit =
         runBlocking {
@@ -272,7 +320,10 @@ class MaxDamageSoftBoundPrototypeTest {
                     )
                 ) { "the prototype bailed on the canonical S4 shape" }
             }
-        val oracle = System.getenv("WAKFU_S4_ORACLE")?.toLongOrNull()
+        // TYPED oracle: the interval's lower side must be the PROVEN no-condition optimum for
+        // THIS request/pool — solved here (real-parallel, ~1 min) unless the env override is set
+        // (the override remains for controlled A/Bs; it is trusted, not re-proven).
+        val oracle = System.getenv("WAKFU_S4_ORACLE")?.toLongOrNull() ?: solvedNoConditionOracle(p, pool).objective
         if (bound != null) {
             println(
                 "S4_PROTO_TIGHTNESS bound=${bound.foldedBound} core=${bound.coreBound} states=${bound.states} " +
@@ -299,8 +350,11 @@ class MaxDamageSoftBoundPrototypeTest {
             var refinedCount = 0
             var finalBound = 0L
             try {
+                // Coarse HP=2000: the §9.2 grid screen measured HP bucketing bound-inert on this
+                // shape (the binding state saturates HP through other relaxed paths) — halving the
+                // HP buckets halves the coarse world sweep. Refinements below restore HP=1000.
                 MaxDamageSoftBoundPrototype.diStep = 10
-                MaxDamageSoftBoundPrototype.hpStep = 1000
+                MaxDamageSoftBoundPrototype.hpStep = 2000
                 MaxDamageSoftBoundPrototype.ccStep = 20
                 val coarse =
                     requireNotNull(
@@ -331,12 +385,15 @@ class MaxDamageSoftBoundPrototypeTest {
                 require(pending.isNotEmpty()) { "adaptive coarse pass did not expose world reads" }
                 if (foldNegativeMaxMp()) println("S4_PROTO_ADAPTIVE coarseMpDebit=RELAXED refineMpDebit=SIGNED")
 
-                MaxDamageSoftBoundPrototype.diStep = 1
+                // Refinements restore HP=1000 (the coarse pass ran HP=2000 for speed).
+                MaxDamageSoftBoundPrototype.hpStep = 1000
                 var refinedBest = 0L
                 while (refinedCount < pending.size && refinedBest < pending[refinedCount].foldedBound) {
                     val world = pending[refinedCount]
-                    val refined =
-                        requireNotNull(
+
+                    fun refineAt(di: Int): MaxDamageSoftBoundPrototype.Result {
+                        MaxDamageSoftBoundPrototype.diStep = di
+                        return requireNotNull(
                             MaxDamageSoftBoundPrototype.bound(
                                 p,
                                 pool,
@@ -357,20 +414,35 @@ class MaxDamageSoftBoundPrototypeTest {
                                 worldDropCaps = world.assume == null,
                                 worldArm = world.arm
                             )
-                        ) { "adaptive DI refinement bailed for assume=${world.assume?.name?.fr ?: "-"} arm=${world.arm}" }
-                    val unionRefined =
-                        if (requireConditionalSub()) {
-                            maxOf(requireNotNull(oracle), refined.foldedBound)
-                        } else {
-                            refined.foldedBound
-                        }
-                    refinedBest = maxOf(refinedBest, unionRefined)
+                        ) { "adaptive DI=$di refinement bailed for assume=${world.assume?.name?.fr ?: "-"} arm=${world.arm}" }
+                    }
+
+                    fun unionOf(bound: Long): Long = if (requireConditionalSub()) maxOf(requireNotNull(oracle), bound) else bound
+
+                    // Grid CASCADE: the top world goes straight to DI=1 (it decides the final
+                    // bound, so it always needs the fine pass); later worlds try DI=4 first and
+                    // escalate only while still above the running best — every grid is
+                    // independently sound, so the cheapest sufficient one carries the world.
+                    var tier = if (refinedCount == 0) 1 else 4
+                    var refined = refineAt(tier)
                     refinedStates += refined.states
+                    if (tier == 4 && unionOf(refined.foldedBound) > refinedBest) {
+                        println(
+                            "S4_PROTO_ADAPTIVE_REFINE assume=${world.assume?.name?.fr ?: "-"} arm=${world.arm} " +
+                                "coarse=${world.foldedBound} refined=${refined.foldedBound} union=${unionOf(refined.foldedBound)} " +
+                                "tier=DI4-escalate states=${refined.states} wallMs=${refined.wallMs}"
+                        )
+                        tier = 1
+                        refined = refineAt(1)
+                        refinedStates += refined.states
+                    }
+                    val unionRefined = unionOf(refined.foldedBound)
+                    refinedBest = maxOf(refinedBest, unionRefined)
                     refinedCount += 1
                     println(
                         "S4_PROTO_ADAPTIVE_REFINE assume=${world.assume?.name?.fr ?: "-"} arm=${world.arm} " +
                             "coarse=${world.foldedBound} refined=${refined.foldedBound} union=$unionRefined " +
-                            "conditionalOnly=${requireConditionalSub()} states=${refined.states} wallMs=${refined.wallMs}"
+                            "tier=DI$tier conditionalOnly=${requireConditionalSub()} states=${refined.states} wallMs=${refined.wallMs}"
                     )
                 }
                 val remainingUpper = pending.drop(refinedCount).maxOfOrNull { it.foldedBound } ?: 0L
