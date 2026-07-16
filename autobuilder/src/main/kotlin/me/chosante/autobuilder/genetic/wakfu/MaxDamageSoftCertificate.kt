@@ -2108,6 +2108,15 @@ internal object MaxDamageSoftCertificate {
     private const val COARSE_HP_STEP = 2000
     private const val COARSE_CC_STEP = 20
     private const val REFINE_HP_STEP = 1000
+
+    /** Budget for the §9.21 conditional CP-SAT probe — paid only on shapes where the DP is loose.
+     *  300 s measured the cra-140 conditional dual at +11.2% (vs +19.8% at 180 s): on the shapes
+     *  that probe at all, the extra two minutes buy most of the badge quality. */
+    private const val CONDITIONAL_PROBE_SECONDS = 300.0
+
+    /** Probe gate: below a 10% DP-vs-oracle gap the DP regime is already tight and the probe's
+     *  dual essentially never beats it (iop-200: +2.9% DP, probe bought nothing for 180 s). */
+    private const val CONDITIONAL_PROBE_MIN_GAP = 0.10
     private const val DEFAULT_DI_STEP = 1
     private const val DEFAULT_HP_STEP = 500
     private const val DEFAULT_CC_STEP = 10
@@ -2261,7 +2270,10 @@ internal object MaxDamageSoftCertificate {
 
             hpStep = REFINE_HP_STEP
             // The union floor starts AT the no-condition upper: a world at or below it can never
-            // move the final bound, so it skips refinement outright (§9.19).
+            // move the final bound, so it skips refinement outright (§9.19). `dpConditionalUpper`
+            // tracks the DP side alone (every world carries its refined-or-coarse sound upper) so
+            // the CP-SAT probe below can take a min against it.
+            var dpConditionalUpper = 0L
             var refinedBest = noConditionUpper
             var refinedCount = 0
             while (refinedCount < pending.size && refinedBest < pending[refinedCount].foldedBound) {
@@ -2293,11 +2305,54 @@ internal object MaxDamageSoftCertificate {
                         ) ?: return null
                     if (refined.foldedBound <= refinedBest) break
                 }
-                refinedBest = maxOf(refinedBest, requireNotNull(refined).foldedBound)
+                val refinedBound = requireNotNull(refined).foldedBound
+                dpConditionalUpper = maxOf(dpConditionalUpper, refinedBound)
+                refinedBest = maxOf(refinedBest, refinedBound)
                 refinedCount += 1
             }
             val remainingUpper = pending.drop(refinedCount).maxOfOrNull { it.foldedBound } ?: 0L
-            val upper = maxOf(refinedBest, remainingUpper)
+            dpConditionalUpper = maxOf(dpConditionalUpper, remainingUpper)
+
+            // §9.21 — the DP and CP-SAT are tight in OPPOSITE regimes: the DP holds on huge pools
+            // where CP-SAT's dual stalls (S4-245: DP exact, CP dual 2x), while on small low-level
+            // pools the DP's relative looseness explodes (+46% at cra-140) yet CP-SAT's dual on
+            // the CONDITIONAL-ONLY model nearly closes (+11% in 300 s). Take the min of the two
+            // sound uppers — and pay the probe ONLY when the DP failed to close onto the oracle,
+            // so tight shapes (the S4 frontier) never spend a second on it. A probe INFEASIBLE
+            // above the cutoff collapses the conditional side onto the oracle (exact closure).
+            var conditionalUpper = dpConditionalUpper
+            val probeGap = noConditionUpper + (noConditionUpper.toDouble() * CONDITIONAL_PROBE_MIN_GAP).toLong()
+            if (conditionalUpper > probeGap && shouldContinue()) {
+                val probeUpper =
+                    try {
+                        val probe =
+                            WakfuBuildSolver.timedMaxDamageProfileForTest(
+                                params = params,
+                                equipmentsByItemType = pool,
+                                runes = runes,
+                                sublimations = sublimations,
+                                workers = oracleWorkers,
+                                seconds = CONDITIONAL_PROBE_SECONDS,
+                                applyDomination = true,
+                                penalizedObjectiveCutoff = noConditionUpper + 1,
+                                requireAnyConditionalSublimation = true
+                            )
+                        if (probe.status == "INFEASIBLE") {
+                            // No conditional build beats the no-condition upper: exact collapse.
+                            noConditionUpper
+                        } else {
+                            // Any conditional build is either under the cutoff (≤ noConditionUpper)
+                            // or a solution of the probe model (≤ its dual bound).
+                            maxOf(noConditionUpper, probe.bestBound)
+                        }
+                    } catch (e: Exception) {
+                        logger.warn(e) { "soft-leg proof: the conditional CP-SAT probe failed — keeping the DP bound" }
+                        conditionalUpper
+                    }
+                conditionalUpper = minOf(conditionalUpper, probeUpper)
+            }
+
+            val upper = maxOf(noConditionUpper, conditionalUpper)
             // Memoize only PROVEN-oracle unions: a timeout dual is sound but transiently loose
             // (CPU load), and pinning it would deny a later, better re-proof of the same request.
             return SoftUnionUpper(upper, noConditionUpper, noConditionProven, (System.nanoTime() - t0) / 1_000_000)

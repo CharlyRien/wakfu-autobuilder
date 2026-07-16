@@ -78,6 +78,172 @@ class MaxDamageSoftCertificateTest {
             TargetStat(Characteristic.HP, 12000)
         )
 
+    /**
+     * Off-frontier diagnosis (§9.21): `WAKFU_S4_SHAPE` retargets the manual screens at the
+     * generality shapes where the union measured loose. Default = the canonical S4 fixture.
+     */
+    private fun shapePreset(): Triple<CharacterClass, Int, List<TargetStat>> =
+        when (val shape = System.getenv("WAKFU_S4_SHAPE")) {
+            null, "", "s4" -> Triple(CharacterClass.CRA, 245, frontierTargets())
+            "cra140-apmp" ->
+                Triple(
+                    CharacterClass.CRA,
+                    140,
+                    listOf(
+                        TargetStat(Characteristic.ACTION_POINT, 14),
+                        TargetStat(Characteristic.MOVEMENT_POINT, 7)
+                    )
+                )
+            "iop200-frontier" ->
+                Triple(
+                    CharacterClass.IOP,
+                    200,
+                    listOf(
+                        TargetStat(Characteristic.ACTION_POINT, 15),
+                        TargetStat(Characteristic.MOVEMENT_POINT, 8),
+                        TargetStat(Characteristic.CRITICAL_HIT, 100),
+                        TargetStat(Characteristic.HP, 10000)
+                    )
+                )
+            else -> error("unknown WAKFU_S4_SHAPE=$shape")
+        }
+
+    /**
+     * The shared seeded-fixture builder (the second agent's fast-iteration protocol): tiny
+     * synthetic pools whose pinned 1-worker CP-SAT solve proves OPTIMAL in seconds — every
+     * orchestration change gets its soundness read HERE first, before any full-pool run.
+     * The rng draw order is part of the lock's identity — do not reorder.
+     */
+    private fun seededPools(): List<Pair<String, Map<ItemType, List<me.chosante.common.Equipment>>>> {
+        fun item(
+            id: Int,
+            type: ItemType,
+            rarity: Rarity = Rarity.LEGENDARY,
+            stats: Map<Characteristic, Int>,
+        ) = me.chosante.common.Equipment(
+            equipmentId = id,
+            guiId = id,
+            level = 200,
+            name = me.chosante.common.I18nText("item$id", "item$id", "", ""),
+            rarity = rarity,
+            itemType = type,
+            characteristics = stats,
+            maxShardSlots = 3
+        )
+
+        val slotTypes =
+            listOf(
+                ItemType.HELMET,
+                ItemType.CAPE,
+                ItemType.BELT,
+                ItemType.BOOTS,
+                ItemType.AMULET,
+                ItemType.RING,
+                ItemType.RING,
+                ItemType.CHEST_PLATE,
+                ItemType.TWO_HANDED_WEAPONS
+            )
+        // The damage core's own axes: elemental + secondary masteries, crit mastery, DI, crit,
+        // plus the target stats — every factor of D·Graw and the fold exercised.
+        val statPalette =
+            listOf(
+                Characteristic.MASTERY_ELEMENTARY,
+                Characteristic.MASTERY_ELEMENTARY_FIRE,
+                Characteristic.MASTERY_DISTANCE,
+                Characteristic.MASTERY_CRITICAL,
+                Characteristic.ACTION_POINT,
+                Characteristic.MOVEMENT_POINT,
+                Characteristic.CRITICAL_HIT,
+                Characteristic.HP,
+                Characteristic.DAMAGE_INFLICTED
+            )
+        return (1L..(System.getenv("WAKFU_S4_LOCK_SEEDS")?.toLongOrNull() ?: 3L)).map { seed ->
+            val rng = java.util.Random(seed)
+            "seed$seed" to
+                slotTypes
+                    .mapIndexed { i, type ->
+                        val stats =
+                            (0 until 2 + rng.nextInt(3)).associate {
+                                val stat = statPalette[rng.nextInt(statPalette.size)]
+                                val magnitude =
+                                    when (stat) {
+                                        Characteristic.ACTION_POINT, Characteristic.MOVEMENT_POINT -> 1
+                                        Characteristic.CRITICAL_HIT -> 2 + rng.nextInt(8)
+                                        Characteristic.HP -> 50 + rng.nextInt(300)
+                                        Characteristic.DAMAGE_INFLICTED -> 1 + rng.nextInt(10)
+                                        else -> 20 + rng.nextInt(120) * (if (rng.nextInt(5) == 0) -1 else 1)
+                                    }
+                                stat to magnitude
+                            }
+                        item(seed.toInt() * 100 + i, type, if (i == 3) Rarity.EPIC else Rarity.LEGENDARY, stats)
+                    }.groupBy { it.itemType }
+        }
+    }
+
+    /**
+     * FAST soundness lock for the PRODUCTION union orchestrator (seconds per seed): on each
+     * seeded pool, [MaxDamageSoftCertificate.hybridUnionUpper] must cover the pinned full-model
+     * CP-SAT soft optimum. Exercises the oracle path, the conditional DP cascade, the §9.21
+     * conditional CP-SAT probe and the min() composition — the pre-flight for ANY orchestrator
+     * change, before paying a full-pool run.
+     *
+     * ```shell
+     * ./gradlew --stop
+     * WAKFU_S4_UNION_LOCK=1 ./gradlew :autobuilder:cleanTest :autobuilder:test \
+     *   --tests '*MaxDamageSoftCertificateTest*union soundness*' --no-daemon
+     * ```
+     */
+    @Test
+    fun `manual S4 union soundness lock on seeded pools`() {
+        assumeTrue(System.getenv("WAKFU_S4_UNION_LOCK") == "1")
+        val p =
+            mdParams(
+                200,
+                listOf(
+                    TargetStat(Characteristic.ACTION_POINT, 12),
+                    TargetStat(Characteristic.CRITICAL_HIT, 100),
+                    TargetStat(Characteristic.HP, 8000)
+                )
+            )
+        WakfuBuildSolver.warmUp()
+        for ((label, pool) in seededPools()) {
+            val full =
+                WakfuBuildSolver.timedMaxDamageProfileForTest(
+                    p,
+                    pool,
+                    WakfuBestBuildFinderAlgorithm.runes,
+                    WakfuBestBuildFinderAlgorithm.sublimations,
+                    workers = 1,
+                    seconds = 600.0,
+                    deterministicLimit = 60.0,
+                    interleave = true,
+                    applyDomination = false
+                )
+            require(full.hasSolution && full.status == "OPTIMAL") {
+                "$label: the pinned full-model oracle must prove OPTIMAL (got ${full.status})"
+            }
+            val union =
+                requireNotNull(
+                    MaxDamageSoftCertificate.hybridUnionUpper(
+                        p,
+                        pool,
+                        WakfuBestBuildFinderAlgorithm.runes,
+                        WakfuBestBuildFinderAlgorithm.sublimations,
+                        oracleWorkers = 2,
+                        oracleSeconds = 60.0
+                    )
+                ) { "$label: the union orchestrator bailed on a supported shape" }
+            println(
+                "S4_UNION_LOCK $label optimum=${full.objective} union=${union.upper} " +
+                    "noCond=${union.noConditionUpper} noCondProven=${union.noConditionProven} " +
+                    "ratio=${"%.4f".format(union.upper.toDouble() / full.objective.coerceAtLeast(1))}"
+            )
+            assertThat(union.upper)
+                .describedAs("$label: SOUNDNESS — the union must never under-count the full-model soft optimum")
+                .isGreaterThanOrEqualTo(full.objective)
+        }
+    }
+
     /** The hybrid union's lower side: a PROVEN CP-SAT optimum, never a trusted constant. */
     private data class NoConditionOracle(
         val objective: Long,
@@ -133,71 +299,7 @@ class MaxDamageSoftCertificateTest {
     fun `manual S4 prototype soundness lock on seeded pools`(): Unit =
         runBlocking {
             assumeTrue(System.getenv("WAKFU_S4_PROTO") == "1")
-
-            fun item(
-                id: Int,
-                type: ItemType,
-                rarity: Rarity = Rarity.LEGENDARY,
-                stats: Map<Characteristic, Int>,
-            ) = me.chosante.common.Equipment(
-                equipmentId = id,
-                guiId = id,
-                level = 200,
-                name = me.chosante.common.I18nText("item$id", "item$id", "", ""),
-                rarity = rarity,
-                itemType = type,
-                characteristics = stats,
-                maxShardSlots = 3
-            )
-
-            val slotTypes =
-                listOf(
-                    ItemType.HELMET,
-                    ItemType.CAPE,
-                    ItemType.BELT,
-                    ItemType.BOOTS,
-                    ItemType.AMULET,
-                    ItemType.RING,
-                    ItemType.RING,
-                    ItemType.CHEST_PLATE,
-                    ItemType.TWO_HANDED_WEAPONS
-                )
-            // The damage core's own axes: elemental + secondary masteries, crit mastery, DI, crit,
-            // plus the target stats — every factor of D·Graw and the fold exercised.
-            val statPalette =
-                listOf(
-                    Characteristic.MASTERY_ELEMENTARY,
-                    Characteristic.MASTERY_ELEMENTARY_FIRE,
-                    Characteristic.MASTERY_DISTANCE,
-                    Characteristic.MASTERY_CRITICAL,
-                    Characteristic.ACTION_POINT,
-                    Characteristic.MOVEMENT_POINT,
-                    Characteristic.CRITICAL_HIT,
-                    Characteristic.HP,
-                    Characteristic.DAMAGE_INFLICTED
-                )
-            val fixtures =
-                (1L..(System.getenv("WAKFU_S4_LOCK_SEEDS")?.toLongOrNull() ?: 3L)).map { seed ->
-                    val rng = java.util.Random(seed)
-                    "seed$seed" to
-                        slotTypes
-                            .mapIndexed { i, type ->
-                                val stats =
-                                    (0 until 2 + rng.nextInt(3)).associate {
-                                        val stat = statPalette[rng.nextInt(statPalette.size)]
-                                        val magnitude =
-                                            when (stat) {
-                                                Characteristic.ACTION_POINT, Characteristic.MOVEMENT_POINT -> 1
-                                                Characteristic.CRITICAL_HIT -> 2 + rng.nextInt(8)
-                                                Characteristic.HP -> 50 + rng.nextInt(300)
-                                                Characteristic.DAMAGE_INFLICTED -> 1 + rng.nextInt(10)
-                                                else -> 20 + rng.nextInt(120) * (if (rng.nextInt(5) == 0) -1 else 1)
-                                            }
-                                        stat to magnitude
-                                    }
-                                item(seed.toInt() * 100 + i, type, if (i == 3) Rarity.EPIC else Rarity.LEGENDARY, stats)
-                            }.groupBy { it.itemType }
-                }
+            val fixtures = seededPools()
 
             // Unreachable-on-a-small-pool targets: the solve lands on the SOFT leg's penalized
             // objective, the exact value the prototype bounds.
@@ -284,13 +386,13 @@ class MaxDamageSoftCertificateTest {
     @Test
     fun `manual S4 prototype tightness on the frontier fixture`() {
         assumeTrue(System.getenv("WAKFU_S4_PROTO") == "1")
-        val level = 245
+        val (clazz, level, targets) = shapePreset()
         val pool =
             WakfuBestBuildFinderAlgorithm.equipments
                 .filter { it.rarity <= Rarity.EPIC }
                 .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
                 .groupBy { it.itemType }
-        val p = mdParams(level, frontierTargets())
+        val p = mdParams(level, targets, clazz)
         // Provenance and targeted grid screens skip the ~47-minute canonical fine read. Manual
         // harness only; none of these switches changes the default certificate semantics.
         val pathOnly = System.getenv("WAKFU_S4_PATH_ONLY") == "1"
@@ -646,7 +748,7 @@ class MaxDamageSoftCertificateTest {
     fun `manual S4 binding-arm CP cutoff`() {
         val cellMode = System.getenv("WAKFU_S4_CP_CELL") == "1"
         assumeTrue(System.getenv("WAKFU_S4_CP_CUTOFF") != null || cellMode)
-        val level = 245
+        val (clazz, level, shapeTargets) = shapePreset()
         val pool =
             WakfuBestBuildFinderAlgorithm.equipments
                 .filter { it.rarity <= Rarity.EPIC }
@@ -691,7 +793,7 @@ class MaxDamageSoftCertificateTest {
                     )
                 ).copy(maxDamageApTarget = 15)
             } else {
-                mdParams(level, frontierTargets())
+                mdParams(level, shapeTargets, clazz)
             }
         val profile =
             WakfuBuildSolver.timedMaxDamageProfileForTest(
