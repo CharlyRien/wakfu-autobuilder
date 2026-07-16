@@ -774,6 +774,12 @@ class MaxDamageSoftCertificateTest {
         val bindingArmSubs =
             when {
                 System.getenv("WAKFU_S4_CP_NOSUBS") == "1" -> emptyList()
+                // RELAXCOND: KEEP every sub but strip the conditions (always-on credits) — a sound
+                // upper model (only relaxes) with ZERO reifications. §9.22 last family (option D).
+                System.getenv("WAKFU_S4_CP_RELAXCOND") == "1" ->
+                    WakfuBestBuildFinderAlgorithm.sublimations.map {
+                        if (it.condition != null && it.solverChoosable) it.copy(condition = null) else it
+                    }
                 System.getenv("WAKFU_S4_CP_NOCOND") == "1" ->
                     WakfuBestBuildFinderAlgorithm.sublimations.filter { it.condition == null }
                 fullConditional || plainFull -> WakfuBestBuildFinderAlgorithm.sublimations
@@ -849,13 +855,13 @@ class MaxDamageSoftCertificateTest {
     @Test
     fun `manual S4 production soft proof end-to-end`() {
         assumeTrue(System.getenv("WAKFU_S4_PROD_PROOF") == "1")
-        val level = 245
+        val (clazz, level, targets) = shapePreset()
         val pool =
             WakfuBestBuildFinderAlgorithm.equipments
                 .filter { it.rarity <= Rarity.EPIC }
                 .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
                 .groupBy { it.itemType }
-        val p = mdParams(level, frontierTargets())
+        val p = mdParams(level, targets, clazz)
         val incumbent = solvedNoConditionOracle(p, pool).objective
         val result =
             me.chosante.autobuilder.genetic.SolverResult(
@@ -868,8 +874,9 @@ class MaxDamageSoftCertificateTest {
                 maxDamageObjective = incumbent,
                 maxDamageHardConstraintsMet = false
             )
+        val proofT0 = System.nanoTime()
         val proof = WakfuBestBuildFinderAlgorithm.proveMaxDamageOptimality(p, result)
-        println("S4_PROD_PROOF incumbent=$incumbent verdict=$proof")
+        println("S4_PROD_PROOF incumbent=$incumbent verdict=$proof proofWallMs=${(System.nanoTime() - proofT0) / 1_000_000}")
         assertThat(proof)
             .describedAs("the production soft-leg proof must close S4 exactly (ProvenOptimal)")
             .isEqualTo(MaxDamageSearch.MaxDamageProof.ProvenOptimal)

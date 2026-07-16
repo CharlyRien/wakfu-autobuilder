@@ -644,7 +644,8 @@ object MaxDamageSearch {
                 // exact closure into "proven within ~4%". 8 workers prove the S4 shape in ~40 s.
                 oracleWorkers = (Runtime.getRuntime().availableProcessors() - 2).coerceIn(4, 8),
                 oracleSeconds = SOFT_ORACLE_BUDGET_SECONDS,
-                shouldContinue = { !isCancelled() }
+                shouldContinue = { !isCancelled() },
+                incumbentObjective = incumbent
             ) ?: return MaxDamageProof.Unavailable
         return when {
             incumbent > union.upper -> {
