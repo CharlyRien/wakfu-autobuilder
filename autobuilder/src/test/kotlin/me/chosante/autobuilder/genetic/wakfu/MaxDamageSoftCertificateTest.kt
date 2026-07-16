@@ -773,9 +773,10 @@ class MaxDamageSoftCertificateTest {
         val fullConditional = System.getenv("WAKFU_S4_CP_FULLCOND") == "1"
         val bindingArmSubs =
             when {
-                fullConditional || plainFull -> WakfuBestBuildFinderAlgorithm.sublimations
+                System.getenv("WAKFU_S4_CP_NOSUBS") == "1" -> emptyList()
                 System.getenv("WAKFU_S4_CP_NOCOND") == "1" ->
                     WakfuBestBuildFinderAlgorithm.sublimations.filter { it.condition == null }
+                fullConditional || plainFull -> WakfuBestBuildFinderAlgorithm.sublimations
                 else ->
                     WakfuBestBuildFinderAlgorithm.sublimations.filter { sub ->
                         sub.condition?.type !in excludedConditionTypes
