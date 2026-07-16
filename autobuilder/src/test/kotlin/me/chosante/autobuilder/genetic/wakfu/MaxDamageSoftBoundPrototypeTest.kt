@@ -323,7 +323,19 @@ class MaxDamageSoftBoundPrototypeTest {
         // TYPED oracle: the interval's lower side must be the PROVEN no-condition optimum for
         // THIS request/pool — solved here (real-parallel, ~1 min) unless the env override is set
         // (the override remains for controlled A/Bs; it is trusted, not re-proven).
-        val oracle = System.getenv("WAKFU_S4_ORACLE")?.toLongOrNull() ?: solvedNoConditionOracle(p, pool).objective
+        // In the adaptive profile the solve starts CONCURRENTLY with the coarse DP pass (they are
+        // independent; the DP first touches the oracle after coarse, so the ~42 s CP-SAT hides
+        // entirely under the ~2 min coarse sweep). Targeted grid screens keep the sequential
+        // solve: their wall readings are A/B material and must not share the CPU with CP-SAT.
+        val oracleEnv = System.getenv("WAKFU_S4_ORACLE")?.toLongOrNull()
+        val oracleFuture =
+            if (oracleEnv == null && gridProfile == "adaptive") {
+                java.util.concurrent.CompletableFuture
+                    .supplyAsync { solvedNoConditionOracle(p, pool).objective }
+            } else {
+                null
+            }
+        val oracle: Long? by lazy { oracleEnv ?: oracleFuture?.join() ?: solvedNoConditionOracle(p, pool).objective }
         if (bound != null) {
             println(
                 "S4_PROTO_TIGHTNESS bound=${bound.foldedBound} core=${bound.coreBound} states=${bound.states} " +
@@ -331,19 +343,19 @@ class MaxDamageSoftBoundPrototypeTest {
                     (if (diagnostic) " diagnostic=BASE_PLAIN_UNSOUND" else "") +
                     (oracle?.let { " oracle=$it ratio=${"%.4f".format(bound.foldedBound.toDouble() / it)}" } ?: " oracle=UNSET")
             )
-            if (oracle != null && !diagnostic) {
-                assertThat(bound.foldedBound)
-                    .describedAs("SOUNDNESS canary — the bound must cover the banked S4 incumbent")
-                    .isGreaterThanOrEqualTo(oracle)
+            if (!diagnostic) {
+                oracle?.let { o ->
+                    assertThat(bound.foldedBound)
+                        .describedAs("SOUNDNESS canary — the bound must cover the banked S4 incumbent")
+                        .isGreaterThanOrEqualTo(o)
+                }
             }
         }
         if (gridProfile == "adaptive") {
             require(!diagnostic) { "adaptive is already a sound all-world promotion; do not combine it with plain diagnostic mode" }
-            if (requireConditionalSub()) {
-                require(oracle != null) {
-                    "the conditional adaptive union needs WAKFU_S4_ORACLE: it caps the independently proven no-condition partition"
-                }
-            }
+            // No oracle guard here: the typed oracle always resolves (env override or an inline
+            // PROVEN solve), and touching it before the coarse pass would serialize the concurrent
+            // CP-SAT solve back behind the DP.
             val adaptiveT0 = System.nanoTime()
             var coarseStates = 0
             var refinedStates = 0
@@ -419,21 +431,34 @@ class MaxDamageSoftBoundPrototypeTest {
 
                     fun unionOf(bound: Long): Long = if (requireConditionalSub()) maxOf(requireNotNull(oracle), bound) else bound
 
-                    // Grid CASCADE: the top world goes straight to DI=1 (it decides the final
-                    // bound, so it always needs the fine pass); later worlds try DI=4 first and
-                    // escalate only while still above the running best — every grid is
-                    // independently sound, so the cheapest sufficient one carries the world.
-                    var tier = if (refinedCount == 0) 1 else 4
+                    // Grid CASCADE — every tier is independently sound, so the cheapest
+                    // sufficient one carries the world; escalation only affects tightness/wall.
+                    // Non-conditional: the top world decides the final bound and goes straight to
+                    // DI=1; later worlds try DI=4 and escalate only while above the running best.
+                    // Conditional-union mode: the final bound is max(oracle, worlds), so a world
+                    // only needs to land AT OR BELOW that floor — every world (including the top
+                    // one) cascades DI=10 → 4 → 1 and stops as soon as it falls under
+                    // maxOf(oracle, refinedBest). §9.18 measured the DI=1 top-world pass 3.8%
+                    // UNDER the oracle: the fine grid was pure waste in union mode.
+                    val tiers =
+                        when {
+                            requireConditionalSub() -> listOf(10, 4, 1)
+                            refinedCount == 0 -> listOf(1)
+                            else -> listOf(4, 1)
+                        }
+                    val floor = if (requireConditionalSub()) maxOf(refinedBest, requireNotNull(oracle)) else refinedBest
+                    var tier = tiers.first()
                     var refined = refineAt(tier)
                     refinedStates += refined.states
-                    if (tier == 4 && unionOf(refined.foldedBound) > refinedBest) {
+                    for (next in tiers.drop(1)) {
+                        if (refined.foldedBound <= floor) break
                         println(
                             "S4_PROTO_ADAPTIVE_REFINE assume=${world.assume?.name?.fr ?: "-"} arm=${world.arm} " +
                                 "coarse=${world.foldedBound} refined=${refined.foldedBound} union=${unionOf(refined.foldedBound)} " +
-                                "tier=DI4-escalate states=${refined.states} wallMs=${refined.wallMs}"
+                                "tier=DI$tier-escalate states=${refined.states} wallMs=${refined.wallMs}"
                         )
-                        tier = 1
-                        refined = refineAt(1)
+                        tier = next
+                        refined = refineAt(next)
                         refinedStates += refined.states
                     }
                     val unionRefined = unionOf(refined.foldedBound)
@@ -453,10 +478,10 @@ class MaxDamageSoftBoundPrototypeTest {
                         "remainingCoarseUpper=$remainingUpper states=${coarseStates + refinedStates} wallMs=$wallMs" +
                         (oracle?.let { " oracle=$it ratio=${"%.4f".format(finalBound.toDouble() / it)}" } ?: " oracle=UNSET")
                 )
-                if (oracle != null) {
+                oracle?.let { o ->
                     assertThat(finalBound)
                         .describedAs("adaptive mixed-grid certificate must cover the banked incumbent")
-                        .isGreaterThanOrEqualTo(oracle)
+                        .isGreaterThanOrEqualTo(o)
                 }
             } finally {
                 MaxDamageSoftBoundPrototype.diStep = 1
@@ -515,10 +540,12 @@ class MaxDamageSoftBoundPrototypeTest {
                             (if (diagnostic) " diagnostic=BASE_PLAIN_UNSOUND" else "") +
                             (oracle?.let { " ratio=${"%.4f".format((g?.foldedBound ?: 0).toDouble() / it)}" } ?: "")
                     )
-                    if (oracle != null && g != null && !diagnostic) {
-                        assertThat(g.foldedBound)
-                            .describedAs("grid d$di/hp$hp/cc$cc must stay sound vs the banked incumbent")
-                            .isGreaterThanOrEqualTo(oracle)
+                    if (g != null && !diagnostic) {
+                        oracle?.let { o ->
+                            assertThat(g.foldedBound)
+                                .describedAs("grid d$di/hp$hp/cc$cc must stay sound vs the banked incumbent")
+                                .isGreaterThanOrEqualTo(o)
+                        }
                     }
                 } finally {
                     MaxDamageSoftBoundPrototype.diStep = 1
