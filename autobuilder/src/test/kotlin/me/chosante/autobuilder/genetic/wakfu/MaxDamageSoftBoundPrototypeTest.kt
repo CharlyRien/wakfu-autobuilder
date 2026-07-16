@@ -615,13 +615,20 @@ class MaxDamageSoftBoundPrototypeTest {
                 SublimationConditionType.CRITICAL_MASTERY_AT_MOST,
                 SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED
             )
+        // WAKFU_S4_CP_FULLCOND=1 = the PARTITION-EXACTNESS probe: the FULL catalog (every
+        // condition modeled) + `requireAnyConditionalSublimation` + the cutoff. INFEASIBLE (or a
+        // proven bound below the cutoff) proves NO conditional build beats the no-condition
+        // optimum ⇒ the full-model optimum equals it EXACTLY (badge +0%).
+        val fullConditional = System.getenv("WAKFU_S4_CP_FULLCOND") == "1"
         val bindingArmSubs =
-            if (System.getenv("WAKFU_S4_CP_NOCOND") == "1") {
-                WakfuBestBuildFinderAlgorithm.sublimations.filter { it.condition == null }
-            } else {
-                WakfuBestBuildFinderAlgorithm.sublimations.filter { sub ->
-                    sub.condition?.type !in excludedConditionTypes
-                }
+            when {
+                fullConditional -> WakfuBestBuildFinderAlgorithm.sublimations
+                System.getenv("WAKFU_S4_CP_NOCOND") == "1" ->
+                    WakfuBestBuildFinderAlgorithm.sublimations.filter { it.condition == null }
+                else ->
+                    WakfuBestBuildFinderAlgorithm.sublimations.filter { sub ->
+                        sub.condition?.type !in excludedConditionTypes
+                    }
             }
         val cutoff = System.getenv("WAKFU_S4_CP_CUTOFF")?.toLongOrNull()
         val seconds = System.getenv("WAKFU_S4_CP_SECONDS")?.toDoubleOrNull() ?: 600.0
@@ -651,6 +658,7 @@ class MaxDamageSoftBoundPrototypeTest {
                 applyDomination = true,
                 deterministicLimit = deterministicLimit,
                 penalizedObjectiveCutoff = cutoff,
+                requireAnyConditionalSublimation = fullConditional,
                 hardConstraints = cellMode,
                 interleave = System.getenv("WAKFU_S4_CP_INTERLEAVE") == "1",
                 logSearch = System.getenv("WAKFU_S4_CP_LOG") == "1"
