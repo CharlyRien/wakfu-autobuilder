@@ -2128,6 +2128,7 @@ Method: fast-locks-first, one arm ≈ 3-5 min on the testbed, det as the thermal
 | M2b: M2 + extraSubsolvers("fixed") | FEASIBLE 240 s | neutral-worse |
 | incumbent objective floor | 249 s / 381k branches (vs 104 s / 2.6k) | 2.4× worse — objective-side constraints hurt BOTH directions |
 | soft AP cell (AP pinned hard ⇒ AP conditions constant, penalty near-constant) | OPTIMAL **83 s** | helps ~2× but ×8 cells ⇒ dead for <10 s; crit/secMast reifications carry the wall |
+| (AP,MP) pinned cell — penalty fully CONSTANT, zero bilinear (new `maxDamageMpPin` seam) | FEASIBLE at 120 s | dead — the wall is purely reifications×damage-objective, NOT the penalty product |
 | profile read (log run) | full workers: millions of branches, 3.7×10⁸ propagations | the LP never cuts fractional conditional subs; the dual is ground out by CDCL |
 
 Combined with the second agent's B/B2/B3 (§6 of the handoff doc): **the conditional-sub wall is

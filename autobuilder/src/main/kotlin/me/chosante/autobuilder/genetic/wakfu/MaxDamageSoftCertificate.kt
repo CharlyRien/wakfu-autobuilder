@@ -414,6 +414,7 @@ internal object MaxDamageSoftCertificate {
         val scenario = params.damageScenario
         if (scenario.survivabilityFloor) return null
         if (params.maxDamageApTarget != null) return null
+        if (params.maxDamageMpPin != null) return null
         val candidates = scenario.candidateElements()
         if (candidates.size != 1) return null
         if (params.forcedItems.isNotEmpty() ||
@@ -2140,6 +2141,7 @@ internal object MaxDamageSoftCertificate {
         if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return false
         if (params.damageScenario.survivabilityFloor) return false
         if (params.maxDamageApTarget != null) return false
+        if (params.maxDamageMpPin != null) return false
         if (params.damageScenario.candidateElements().size != 1) return false
         if (params.forcedItems.isNotEmpty() ||
             params.forcedRunes.isNotEmpty() ||

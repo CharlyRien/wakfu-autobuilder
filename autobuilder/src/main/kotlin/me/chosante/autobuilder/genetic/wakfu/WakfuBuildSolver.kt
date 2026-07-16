@@ -2563,6 +2563,7 @@ object WakfuBuildSolver {
         // External-loop AP probe: pin the build to exactly N AP so each breakpoint can be evaluated (used by the
         // debuff AP-window probes in MaxDamageSearch).
         params.maxDamageApTarget?.let { addEquality(statBuilder.actionPointVar(), newConstant(it.toLong())) }
+        params.maxDamageMpPin?.let { addEquality(statBuilder.movementPointVar(), newConstant(it.toLong())) }
         val damageScore = statBuilder.perTurnDamageScore(params.damageScenario, params.character.clazz, objectiveCutoff)
         // Survivability soft-floor (opt-in): gently tax the damage score when the build's effective-HP
         // proxy is below the floor, BEFORE the hard-target penalty. Folding it into the core score (rather
