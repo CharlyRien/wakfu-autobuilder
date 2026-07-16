@@ -57,4 +57,4 @@ fi
 # historical `--rerun-tasks` command which rebuilt every dependency for each environment change.
 env "${env_args[@]}" \
     ./gradlew --console=plain :autobuilder:cleanTest :autobuilder:test \
-    --tests '*MaxDamageSoftBoundPrototypeTest*frontier*' --no-daemon
+    --tests '*MaxDamageSoftCertificateTest*frontier*' --no-daemon
