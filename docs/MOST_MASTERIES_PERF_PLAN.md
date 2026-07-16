@@ -2057,3 +2057,37 @@ count (`cores−2` in [4,8]) — the §9.11 real-parallel lesson strikes again.
 **Follow-ups (not blockers):** tightness off the S4 frontier varies (exact at S4, +3% iop-200,
 +46% cra-140 → capped); a per-shape tightening campaign is possible if beta feedback asks for it.
 The DP grid steps stay mutable object state guarded by `@Synchronized` on the orchestrator.
+
+### 9.21 — Off-frontier tightening: the conditional CP-SAT probe (2026-07-16)
+
+Diagnosis of the §9.20 cra-140 +46% (commit `230c368a`):
+
+- **Run A** (conditional adaptive union at cra-140): the looseness is NOT one world — the whole DP
+  family sits at 3.0-3.5T vs the 2.0946T oracle, main world included (+46% at DI4). At 140 the
+  assume worlds (Mesure III `CRIT_AT_MOST 50 → +20 DI`, Constance) even sit ABOVE the main world,
+  the inverse of 245. The binding path (`WAKFU_S4_PATH`) shows a coherent real-ish composition
+  (ap=13 mp=7, 10 normal subs, Mesure III carried; the "cc=300" read is a print artifact — raw
+  crit 30 × ccStep, under the 50 threshold); the looseness is spread across the relaxations
+  (support-λ tuned on S4-245, critCap weights, sub packing), no single culprit — a per-shape DP
+  tightening would be its own campaign.
+- **Run B** (conditional-only CP-SAT probe, cutoff = oracle+1, 300 s): status UNKNOWN, dual
+  **2.329T = +11.2%** — on a small low-level pool the reification wall is SOFT and CP-SAT's own
+  dual crushes the DP.
+
+**The regimes are complementary** — DP tight on huge pools where CP-SAT stalls (S4-245: DP exact,
+CP dual 2×); CP-SAT tight on small pools where the DP's relative looseness explodes. Shipped:
+`hybridUnionUpper` takes **min(DP conditional bound, conditional-probe dual)** on the conditional
+side (min of two sound uppers; a probe INFEASIBLE above the cutoff collapses the conditional side
+onto the oracle = exact closure). Gated at a **10% DP-vs-oracle gap** — tight shapes never pay it
+(S4 and iop-200 skip; iop-200 wall 349 s → 179 s) — with a **300 s budget** where it fires.
+
+| shape | before | after | notes |
+|---|---:|---:|---|
+| S4-245 E2E | ProvenOptimal | ProvenOptimal | probe skipped, zero cost |
+| cra-140 | +46% (capped → no badge) | **+12.9%** | real badge; 300 s probe |
+| iop-200 | +2.9% | +2.9% | probe skipped, −3 min wall |
+
+**Process (user feedback, now standing):** every orchestrator change gets its soundness read on
+the FAST seeded union lock first — `manual S4 union soundness lock on seeded pools`
+(`WAKFU_S4_UNION_LOCK=1`, ~1 min, pinned full-model CP-SAT optimum vs the production union,
+`seededPools()` shared with the DP lock) — and pays the full-pool screens exactly once at the end.
