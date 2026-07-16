@@ -2150,3 +2150,27 @@ searches ≥ ~2 min self-prove (`result.isOptimal`, no proof step at all); short
 exact badge from the probe in ~1-2 min (lin1). The scoped next campaign, if wanted: the K-dim DP
 rework (closing the DP under the oracle at low level would make the union exact in oracle+DP ≈
 10-15 s with NO probe).
+
+#### 9.22ter — THE 15th ARM WINS: conditions digestible by NOT reifying them (2026-07-17, `16264fb9`)
+
+After fourteen arms proved no reification surgery works, the winning move was to remove the
+reifications entirely — soundly. The **RELAXED probe**: conditional subs KEPT (slots, credits,
+epic/relic pressure intact) but conditions STRIPPED — zero indicators in the model. Sound upper on
+every build: a real build whose conditional subs are inert is covered by its variant without them
+(same value, feasible in the relaxed model).
+
+| fixture | relaxed probe | verdict |
+|---|---|---|
+| cra-140 full catalog | **OPTIMAL in 7.4 s, objective = the EXACT optimum** (2 094 581 834 070) | free conditional credits do not improve the optimum ⇒ relaxed == incumbent ⇒ proof closed |
+| S4-245 | FEASIBLE at 300 s, dual 29.4T | useless on large pools — the union takes over |
+
+Production wiring (`hybridUnionUpper` STEP 0, 45 s budget): `relaxedUpper ≤ incumbent` ⇒
+**ProvenOptimal immediately**; otherwise the relaxed upper mins into the union BEFORE the λ-0 and
+CP-probe gates (a tight relaxed read short-circuits both heavy fallbacks). **E2E through
+`proveMaxDamageOptimality`: cra-140 badge in `proofWallMs=4299` — 4.3 s, goal `< 10 s` met**
+(was ~2 min); S4-245 unchanged ProvenOptimal (226 s incl. the 45 s relaxed overhead).
+
+The §9.22 verdict refines to: the conditional reifications are indigestible **inside** the model —
+and unnecessary for the PROOF on shapes where the optimum doesn't want the conditional credits
+even free. Complementary regimes, third instance: relaxed probe (low level, instant) / DP+oracle
+union (high level, exact) / plain probe (mid, gated).
