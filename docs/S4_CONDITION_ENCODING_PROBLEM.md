@@ -1,5 +1,14 @@
 # S4 — Conditional sublimations block CP-SAT from proving the max-damage soft leg
 
+> **STATUS 2026-07-16: RESOLVED — not by re-encoding, but by an external proof.** The CP-SAT
+> reification wall described below still stands (do not retry the listed encodings); the badge is
+> delivered instead by the **hybrid partition union** shipped in production
+> (`MaxDamageSoftCertificate.hybridUnionUpper` + `MaxDamageSearch.proveSoftLegQuality`):
+> no-conditional-sub builds are covered by the no-condition CP-SAT model's proven optimum, and
+> conditional-sub builds by a dedicated DP certificate. The S4 fixture closes **exactly**
+> (optimum 17 702 078 146 500 — ProvenOptimal end-to-end). Campaign log:
+> `docs/MOST_MASTERIES_PERF_PLAN.md` §9.10-§9.20.
+
 **Handoff document (2026-07-15).** Self-contained problem statement for whoever picks up the
 condition-encoding work. Everything below is measured, not conjectured.
 

@@ -2010,3 +2010,50 @@ apply is ALREADY chunked-parallel (up to 8 threads, ported from the MM certifica
 exactly why world-level threads collapsed (4 worlds × 8 intra-stage = 32 threads) and why the
 concurrent oracle degraded when stacked on it. The CPU is already saturated; there is no idle
 parallelism left to harvest in this pipeline.
+
+### 9.20 — PRODUCTION PORT SHIPPED: the soft leg gets its badge (2026-07-16)
+
+Commits `cbd3019a` + `bf37062a`. The S4 exact closure now runs through the real production proof
+pipeline — **the last never-proves workload is closed in production**.
+
+**What shipped:**
+- `MaxDamageSoftBoundPrototype` moved to main sources as **`MaxDamageSoftCertificate`**
+  (test harness renamed `MaxDamageSoftCertificateTest`, all env seams intact — the locks now guard
+  the production DP directly). Bail-hardening: packed-key bucket overflow and the signed-AP-fold
+  headroom check return null (badge withheld) instead of throwing.
+- **`MaxDamageSoftCertificate.hybridUnionUpper`** — the production orchestrator: no-condition
+  CP-SAT solve (240 s budget, `OPTIMAL` objective or its dual bound on timeout — both sound)
+  CONCURRENT with the conditional-only DP (coarse sweep + §9.19 DI10→4→1 cascade, winning seams
+  hardcoded: λ=6000/band 5, net item budget, exact normal-sub knapsack, signed AP/MP folds,
+  light-weapon split). Memoized per data/certifier version + request + pool + catalog — PROVEN
+  oracles only, so a transient timeout dual can't pin a loose bound.
+- **`MaxDamageSearch.proveOptimality`**: the target-missing soft branch (previously a hard
+  `Unavailable`) routes to `proveSoftLegQuality` — PENALIZED-units comparison, ledger-style
+  self-check (`incumbent > upper` ⇒ error log + badge suppressed), and a **badge-quality floor**:
+  gap > 25% ⇒ `Unavailable` (a "proven within 46%" badge is noise). GUI badge + CLI verdicts flow
+  through the existing `proveMaxDamageOptimality` pipeline — zero GUI/i18n changes needed.
+- **No `CERTIFIER_VERSION` bump**: the shared AP-cell certifier math is untouched (no cached bound
+  can go stale); the soft-union memo embeds `CERTIFIER_VERSION` so future bumps invalidate it too.
+
+**Gates run (all green):**
+- Full `:autobuilder:test` CI suite (fuzz lock + MM canaries) after the move.
+- **E2E** `manual S4 production soft proof end-to-end` (`WAKFU_S4_PROD_PROOF=1`): an incumbent at
+  the typed re-proven optimum returns **ProvenOptimal** through `proveMaxDamageOptimality`.
+- **Generality screen** (`WAKFU_S4_PROD_SCREEN=1`), shapes beyond CRA-245 — sound everywhere,
+  bails clean, never throws:
+
+  | shape | union | no-cond oracle | short primal | badge quality |
+  |---|---:|---:|---:|---|
+  | iop-200 frontier (AP15/MP8/CC100/HP10k) | 9.168T | 8.909T PROVEN | 7.047T ✓ | ~+3% over oracle |
+  | cra-140 AP14/MP7 | 3.069T | 2.095T PROVEN | 2.093T ✓ | +46% — capped to Unavailable |
+  | xelor-245 with RANGE target | bail | — | — | unsupported-target gate ✓ |
+
+**Gotcha found by the first E2E run (worth remembering):** the oracle was initially given
+`certifierDefaultThreads()` — the HEAP-bound world-DP formula (~4 on an 8 GiB JVM). At 4 CP-SAT
+workers the no-condition solve times out and its stalled dual (+4%) silently degraded the exact
+closure to "proven within 3.99%". CP-SAT workers are memory-cheap; the oracle now gets its own
+count (`cores−2` in [4,8]) — the §9.11 real-parallel lesson strikes again.
+
+**Follow-ups (not blockers):** tightness off the S4 frontier varies (exact at S4, +3% iop-200,
++46% cra-140 → capped); a per-shape tightening campaign is possible if beta feedback asks for it.
+The DP grid steps stay mutable object state guarded by `@Synchronized` on the orchestrator.
