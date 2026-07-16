@@ -331,3 +331,15 @@ document exists at low level too, merely crossable — and cra-140 is therefore 
 testbed** for any condition-encoding experiment: a candidate encoding that cuts 104 s meaningfully
 at 140 is worth re-testing at 245, without waiting hours for UNKNOWNs. (Incumbent-floor cutoffs are
 measured HARMFUL in both directions — do not use them in these A/Bs.)
+
+## Post-scriptum 2 (2026-07-17) — encoding campaign CLOSED: the wall resists all local surgery
+
+A second full encoding campaign ran on the cra-140 testbed (fast, provable scale — see
+`MOST_MASTERIES_PERF_PLAN.md` §9.22 for the complete matrix): redundant big-M rows + conflict
+cliques (M1, adds-only), a conditional-first decision strategy ±`fixed` subsolver (M2/M2b), the
+E-family knobs (lin0/lin1/presolve/detectLinearizedProduct), incumbent objective floors, and
+hard-AP-cell decomposition. **Verdict: with B/B2/B3 above, twelve measured arms agree — no local
+encoding or parameter surgery digests the conditional reifications.** Two positives shipped:
+`linearizationLevel=1` (det −34% on the proof, the only winning knob) and per-shape λ min-sweep in
+the DP union. The remaining structural route is a K-dimension (crit-mastery-aware) certificate
+rework: the DP's main-world residual is W priced at critCap weights on low-cc binding states.

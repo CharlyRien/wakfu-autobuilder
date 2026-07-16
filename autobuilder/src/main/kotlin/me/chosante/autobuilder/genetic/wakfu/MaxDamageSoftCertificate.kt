@@ -2110,8 +2110,10 @@ internal object MaxDamageSoftCertificate {
     private const val REFINE_HP_STEP = 1000
 
     /** Budget for the §9.21 full-model CP-SAT probe — paid only on shapes where the DP is loose.
-     *  cra-140 proves OPTIMAL in ~104 s; 300 s leaves headroom for bigger mid-level pools. */
-    private const val CONDITIONAL_PROBE_SECONDS = 300.0
+     *  cra-140 proves OPTIMAL in ~104 s cold but needed >300 s on a thermally saturated machine
+     *  (§9.22 late-night screens) — 420 s buys the exact badge back on warm hardware; a timeout
+     *  still degrades gracefully to the dual bound. */
+    private const val CONDITIONAL_PROBE_SECONDS = 420.0
 
     /** Probe gate: below a 10% DP-vs-oracle gap the DP regime is already tight and the probe's
      *  dual essentially never beats it (iop-200: +2.9% DP, probe bought nothing for 180 s). */
@@ -2268,49 +2270,63 @@ internal object MaxDamageSoftCertificate {
             val (noConditionUpper, noConditionProven) = joinOracle() ?: return null
 
             hpStep = REFINE_HP_STEP
-            // The union floor starts AT the no-condition upper: a world at or below it can never
-            // move the final bound, so it skips refinement outright (§9.19). `dpConditionalUpper`
-            // tracks the DP side alone (every world carries its refined-or-coarse sound upper) so
-            // the CP-SAT probe below can take a min against it.
-            var dpConditionalUpper = 0L
-            var refinedBest = noConditionUpper
-            var refinedCount = 0
-            while (refinedCount < pending.size && refinedBest < pending[refinedCount].foldedBound) {
-                if (!shouldContinue()) return null
-                val world = pending[refinedCount]
-                var refined: Result? = null
-                for (di in intArrayOf(10, 4, 1)) {
-                    diStep = di
-                    refined =
-                        bound(
-                            params,
-                            pool,
-                            runes,
-                            sublimations,
-                            blockGate = false,
-                            shouldContinue = shouldContinue,
-                            ccSupportLambda = PROD_CC_SUPPORT_LAMBDA,
-                            ccSupportBand = PROD_CC_SUPPORT_BAND,
-                            coupleSecondaryItemNegative = true,
-                            netSecondaryItemBudget = true,
-                            exactNormalSubPacking = true,
-                            foldNegativeItemAp = true,
-                            foldNegativeMaxMp = true,
-                            splitLightWeaponCondition = true,
-                            requireConditionalSub = true,
-                            worldAssume = world.assume,
-                            worldDropCaps = world.assume == null,
-                            worldArm = world.arm
-                        ) ?: return null
-                    if (refined.foldedBound <= refinedBest) break
+
+            // One refinement sweep at a given support-lambda. The union floor starts AT the
+            // no-condition upper: a world at or below it can never move the final bound, so it
+            // skips refinement outright (§9.19). Returns the DP side alone (every world carries
+            // its refined-or-coarse sound upper) or null on bail/cancellation.
+            fun refinementPass(lambda: Long): Long? {
+                var passUpper = 0L
+                var refinedBest = noConditionUpper
+                var refinedCount = 0
+                while (refinedCount < pending.size && refinedBest < pending[refinedCount].foldedBound) {
+                    if (!shouldContinue()) return null
+                    val world = pending[refinedCount]
+                    var refined: Result? = null
+                    for (di in intArrayOf(10, 4, 1)) {
+                        diStep = di
+                        refined =
+                            bound(
+                                params,
+                                pool,
+                                runes,
+                                sublimations,
+                                blockGate = false,
+                                shouldContinue = shouldContinue,
+                                ccSupportLambda = lambda,
+                                ccSupportBand = PROD_CC_SUPPORT_BAND,
+                                coupleSecondaryItemNegative = true,
+                                netSecondaryItemBudget = true,
+                                exactNormalSubPacking = true,
+                                foldNegativeItemAp = true,
+                                foldNegativeMaxMp = true,
+                                splitLightWeaponCondition = true,
+                                requireConditionalSub = true,
+                                worldAssume = world.assume,
+                                worldDropCaps = world.assume == null,
+                                worldArm = world.arm
+                            ) ?: return null
+                        if (refined.foldedBound <= refinedBest) break
+                    }
+                    val refinedBound = requireNotNull(refined).foldedBound
+                    passUpper = maxOf(passUpper, refinedBound)
+                    refinedBest = maxOf(refinedBest, refinedBound)
+                    refinedCount += 1
                 }
-                val refinedBound = requireNotNull(refined).foldedBound
-                dpConditionalUpper = maxOf(dpConditionalUpper, refinedBound)
-                refinedBest = maxOf(refinedBest, refinedBound)
-                refinedCount += 1
+                val remainingUpper = pending.drop(refinedCount).maxOfOrNull { it.foldedBound } ?: 0L
+                return maxOf(passUpper, remainingUpper)
             }
-            val remainingUpper = pending.drop(refinedCount).maxOfOrNull { it.foldedBound } ?: 0L
-            dpConditionalUpper = maxOf(dpConditionalUpper, remainingUpper)
+
+            var dpConditionalUpper = refinementPass(PROD_CC_SUPPORT_LAMBDA) ?: return null
+            // §9.22 — lambda is per-shape tuning, not semantics (§6.A4): every lambda >= 0 is an
+            // independently sound bound, and lambda=6000 (calibrated on the 245 frontier) measured
+            // ACTIVELY loose off it (cra-140: +46.5% at 6000 vs +25.9% at 0). When the first pass
+            // did not close onto the oracle, re-sweep at lambda=0 and take the min — same gate as
+            // the CP probe, so tight shapes (the S4 frontier) never pay the second pass.
+            val lambdaGap = noConditionUpper + (noConditionUpper.toDouble() * CONDITIONAL_PROBE_MIN_GAP).toLong()
+            if (dpConditionalUpper > lambdaGap) {
+                refinementPass(0L)?.let { dpConditionalUpper = minOf(dpConditionalUpper, it) }
+            }
 
             // §9.21 — the DP and CP-SAT are tight in OPPOSITE regimes: the DP holds on huge pools
             // where CP-SAT's dual stalls (S4-245: DP exact, CP dual 2x), while on small low-level
