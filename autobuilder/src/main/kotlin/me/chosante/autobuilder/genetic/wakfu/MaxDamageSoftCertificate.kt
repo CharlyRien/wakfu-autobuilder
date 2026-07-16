@@ -2110,6 +2110,10 @@ internal object MaxDamageSoftCertificate {
     private const val COARSE_CC_STEP = 20
     private const val REFINE_HP_STEP = 1000
 
+    /** Budget for the §9.22 relaxed (conditions-stripped) probe: 7.4 s at cra-140 even on a hot
+     *  machine (no reifications = structurally easy); large pools burn the budget and fall back. */
+    private const val RELAXED_PROBE_SECONDS = 45.0
+
     /** Budget for the §9.21 full-model CP-SAT probe — paid only on shapes where the DP is loose.
      *  cra-140 proves OPTIMAL in ~104 s cold but needed >300 s on a thermally saturated machine
      *  (§9.22 late-night screens) — 420 s buys the exact badge back on warm hardware; a timeout
@@ -2183,6 +2187,9 @@ internal object MaxDamageSoftCertificate {
         oracleWorkers: Int,
         oracleSeconds: Double,
         shouldContinue: () -> Boolean = { true },
+        // §9.22 fast path: when the caller knows the incumbent's PENALIZED objective, the relaxed
+        // probe below can close the proof outright (7.4 s at cra-140). MIN_VALUE = no early exit.
+        incumbentObjective: Long = Long.MIN_VALUE,
     ): SoftUnionUpper? {
         if (!supportsShape(params)) return null
         val memoKey =
@@ -2200,6 +2207,39 @@ internal object MaxDamageSoftCertificate {
             ).joinToString("|")
         unionMemo[memoKey]?.let { return it }
         val t0 = System.nanoTime()
+
+        // §9.22 STEP 0 — the RELAXED probe: strip the conditions (subs kept, slots and credits
+        // intact, ZERO reifications). Sound upper on EVERY build: a real build whose conditional
+        // subs are inert is covered by its variant without them (same value, feasible here). At
+        // cra-140 it proves the EXACT optimum in 7.4 s — the conditional credits do not improve
+        // the optimum even for free — closing the badge instantly; on large pools (S4-245) its
+        // dual is useless (29.4T after 300 s) and the union below takes over. Forced subs never
+        // reach this path ([supportsShape] bails), so the stripped credits are always optional.
+        val relaxedUpper =
+            try {
+                val relaxed =
+                    WakfuBuildSolver.timedMaxDamageProfileForTest(
+                        params = params,
+                        equipmentsByItemType = pool,
+                        runes = runes,
+                        sublimations =
+                            sublimations.map {
+                                if (it.condition != null && it.solverChoosable) it.copy(condition = null) else it
+                            },
+                        workers = oracleWorkers,
+                        seconds = RELAXED_PROBE_SECONDS,
+                        applyDomination = true
+                    )
+                if (relaxed.status == "OPTIMAL") relaxed.objective else relaxed.bestBound
+            } catch (e: Exception) {
+                logger.warn(e) { "soft-leg proof: the relaxed probe failed — continuing with the union" }
+                Long.MAX_VALUE
+            }
+        if (relaxedUpper <= incumbentObjective) {
+            return SoftUnionUpper(relaxedUpper, relaxedUpper, true, (System.nanoTime() - t0) / 1_000_000)
+                .also { unionMemo[memoKey] = it }
+        }
+        if (!shouldContinue()) return null
 
         val noConditionSubs = sublimations.filter { it.condition == null }
         val oracleFuture =
@@ -2320,6 +2360,9 @@ internal object MaxDamageSoftCertificate {
             }
 
             var dpConditionalUpper = refinementPass(PROD_CC_SUPPORT_LAMBDA) ?: return null
+            // The relaxed upper bounds conditional builds too: min it in BEFORE the lambda-0 and
+            // CP-probe gates, so a tight relaxed read short-circuits both heavy fallbacks.
+            dpConditionalUpper = minOf(dpConditionalUpper, relaxedUpper)
             // §9.22 — lambda is per-shape tuning, not semantics (§6.A4): every lambda >= 0 is an
             // independently sound bound, and lambda=6000 (calibrated on the 245 frontier) measured
             // ACTIVELY loose off it (cra-140: +46.5% at 6000 vs +25.9% at 0). When the first pass
@@ -2366,7 +2409,7 @@ internal object MaxDamageSoftCertificate {
                 conditionalUpper = minOf(conditionalUpper, probeUpper)
             }
 
-            val upper = maxOf(noConditionUpper, conditionalUpper)
+            val upper = minOf(maxOf(noConditionUpper, conditionalUpper), relaxedUpper)
             // Memoize only PROVEN-oracle unions: a timeout dual is sound but transiently loose
             // (CPU load), and pinning it would deny a later, better re-proof of the same request.
             return SoftUnionUpper(upper, noConditionUpper, noConditionProven, (System.nanoTime() - t0) / 1_000_000)
