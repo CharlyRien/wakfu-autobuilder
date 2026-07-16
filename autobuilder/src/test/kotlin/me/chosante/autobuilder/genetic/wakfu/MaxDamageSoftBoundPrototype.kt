@@ -56,7 +56,7 @@ import kotlin.math.ceil
  *    tighter weights — banked as a follow-up seam).
  *
  * Bails (null): multi-element/boss scenarios, survivability floor, AP-pinned probes, forced
- * items/runes/subs, a required target outside {AP, MP, CC, HP}.
+ * items/runes/subs/passives, a required target outside {AP, MP, CC, HP}.
  */
 internal object MaxDamageSoftBoundPrototype {
     private val SUPPORTED_TARGETS =
@@ -80,6 +80,15 @@ internal object MaxDamageSoftBoundPrototype {
 
     private const val BLOCK_STEP = 5
 
+    class WorldRead(
+        val assume: Sublimation?,
+        val arm: String,
+        val foldedBound: Long,
+        val coreBound: Long,
+        val states: Int,
+        val wallMs: Long,
+    )
+
     class Result(
         val foldedBound: Long,
         val coreBound: Long,
@@ -88,6 +97,9 @@ internal object MaxDamageSoftBoundPrototype {
         val bindingState: String = "",
         // Instrument only ([bound] provenance=true): the reconstructed binding PATH.
         val bindingPath: List<String> = emptyList(),
+        // Outer-orchestrator reads used by the adaptive promotion harness. Empty on a single
+        // recursive world call.
+        val worldReads: List<WorldRead> = emptyList(),
     )
 
     /** One stage option: weighted-Graw value + per-axis deltas (positive parts only). */
@@ -110,6 +122,9 @@ internal object MaxDamageSoftBoundPrototype {
         val apLow: Int = 0,
         val ccLowRaw: Int = 0,
         val ramp: Boolean = false,
+        // Value-side partition marker: at least one selected sublimation bears a condition.
+        // It is dormant through the equipment prefix and starts splitting only at sub stages.
+        val conditional: Boolean = false,
         // Provenance identity (instrument only — "" in normal runs, so distinct()/dominance
         // semantics are untouched there).
         val src: String = "",
@@ -129,6 +144,7 @@ internal object MaxDamageSoftBoundPrototype {
                 requiresRelicItem == o.requiresRelicItem &&
                 mpCapMinus == o.mpCapMinus &&
                 ramp == o.ramp &&
+                conditional == o.conditional &&
                 block >= o.block &&
                 requiresBlockAtLeast == o.requiresBlockAtLeast &&
                 apLow <= o.apLow &&
@@ -157,7 +173,7 @@ internal object MaxDamageSoftBoundPrototype {
             require(blockBucketCap <= 0xF) { "blockBucketCap $blockBucketCap overflows the 4-bit block field" }
         }
 
-        // Packed key: block(4b @45) ramp(1b @44) mpMinus(1b @43) d(13b @28)
+        // Packed key: conditional(1b @49) block(4b @45) ramp(1b @44) mpMinus(1b @43) d(13b @28)
         //             ap(5b @23) mp(5b @18) cc(7b @11) hp(9b @2) e(1b @1) r(1b @0)
         fun key(
             d: Int,
@@ -170,8 +186,9 @@ internal object MaxDamageSoftBoundPrototype {
             mpMinus: Int = 0,
             ramp: Int = 0,
             block: Int = 0,
+            conditional: Int = 0,
         ): Long =
-            (block.toLong() shl 45) or (ramp.toLong() shl 44) or (mpMinus.toLong() shl 43) or
+            (conditional.toLong() shl 49) or (block.toLong() shl 45) or (ramp.toLong() shl 44) or (mpMinus.toLong() shl 43) or
                 (d.toLong() shl 28) or (ap.toLong() shl 23) or (mp.toLong() shl 18) or
                 (cc.toLong() shl 11) or (hp.toLong() shl 2) or (e.toLong() shl 1) or r.toLong()
 
@@ -195,7 +212,14 @@ internal object MaxDamageSoftBoundPrototype {
 
         fun block(k: Long): Int = ((k shr 45) and 0xF).toInt()
 
+        fun conditional(k: Long): Int = ((k shr 49) and 1L).toInt()
+
         fun mpCapOf(mpMinus: Int): Int = (mpCap - mpMinus).coerceAtLeast(0)
+
+        fun withMp(
+            k: Long,
+            newMp: Int,
+        ): Long = key(d(k), ap(k), newMp, cc(k), hp(k), e(k), r(k), mpMinus(k), ramp(k), block(k), conditional(k))
     }
 
     private fun ceilDiv(
@@ -218,7 +242,7 @@ internal object MaxDamageSoftBoundPrototype {
             if (assumeApThreshold >= 0) {
                 (ap(k) + o.apLow).coerceIn(0, (assumeApThreshold + 1).coerceAtMost(apCap))
             } else {
-                (ap(k) + o.ap).coerceAtMost(apCap)
+                (ap(k) + o.ap).coerceIn(0, apCap)
             }
         val newCcBuckets =
             if (assumeCcThresholdRaw >= 0) {
@@ -233,14 +257,15 @@ internal object MaxDamageSoftBoundPrototype {
         return key(
             (d(k) + ceilDiv(o.d, diStep)).coerceAtMost(diBucketCap),
             newAp,
-            (mp(k) + o.mp).coerceAtMost(mpEff),
+            (mp(k) + o.mp).coerceIn(0, mpEff),
             newCcBuckets,
             hpBuckets.coerceAtMost(hpBucketCap),
             if (o.epic) 1 else e,
             if (o.relic) 1 else r,
             newMpMinus,
             if (o.ramp) 1 else ramp(k),
-            (block(k) + ceilDiv(o.block, BLOCK_STEP)).coerceAtMost(blockBucketCap)
+            (block(k) + ceilDiv(o.block, BLOCK_STEP)).coerceAtMost(blockBucketCap),
+            if (o.conditional) 1 else conditional(k)
         )
     }
 
@@ -251,12 +276,13 @@ internal object MaxDamageSoftBoundPrototype {
         entries: List<Map.Entry<Long, Long>>,
         options: List<Opt>,
         expectedSize: Int,
+        ccSupportLambda: Long,
     ): HashMap<Long, Long> {
         val next = HashMap<Long, Long>(expectedSize)
         for ((k, wv) in entries) {
             for (o in options) {
                 val nk = applyOne(k, o) ?: continue
-                val nw = wv + o.w
+                val nw = wv + o.w + ccSupportLambda * o.cc.coerceAtLeast(0)
                 val cur = next[nk]
                 if (cur == null || nw > cur) next[nk] = nw
             }
@@ -268,11 +294,12 @@ internal object MaxDamageSoftBoundPrototype {
     private fun Geometry.apply(
         states: HashMap<Long, Long>,
         options: List<Opt>,
+        ccSupportLambda: Long,
     ): HashMap<Long, Long> {
         val transitions = states.size.toLong() * options.size
         val workers = Runtime.getRuntime().availableProcessors() - 1
         if (transitions < PARALLEL_APPLY_MIN_TRANSITIONS || workers < 2) {
-            return applySequential(states.entries.toList(), options, states.size * 2)
+            return applySequential(states.entries.toList(), options, states.size * 2, ccSupportLambda)
         }
         val entries = states.entries.toList()
         val chunkCount = minOf(workers, 8)
@@ -287,7 +314,7 @@ internal object MaxDamageSoftBoundPrototype {
                     if (from >= to) {
                         HashMap()
                     } else {
-                        applySequential(entries.subList(from, to), options, (to - from) * 2)
+                        applySequential(entries.subList(from, to), options, (to - from) * 2, ccSupportLambda)
                     }
                 }.collect(
                     java.util.stream.Collectors
@@ -319,9 +346,48 @@ internal object MaxDamageSoftBoundPrototype {
         // PATH backward. Costs memory (all stage maps retained) — run on a coarse grid.
         provenance: Boolean = false,
         shouldContinue: () -> Boolean = { true },
+        // Test-side support-function seam. For λ>0 the DP value is max(W + λ·positiveCC)
+        // per abstract key; collapse partitions the possible actual-CC range into bands and
+        // combines the support-derived W ceiling at each band low with the target fold at its high.
+        // Every rectangle is an over-count, so every λ>=0 independently yields a sound bound.
+        ccSupportLambda: Long = 0L,
+        ccSupportBand: Int = 5,
+        // Test-side secZero tightening: price each item's negative-secondary magnitude on that
+        // same option (`W0 + wMastery*Nitem`) instead of adding the best legal N layout as an
+        // independent fold constant. Non-item negative sources stay independently over-credited.
+        coupleSecondaryItemNegative: Boolean = false,
+        // Stronger form: `Pscenario + Pother - N <= t` gives
+        // `Pscenario <= t + N - Pother`; debit each item's positive non-scenario secondary lines.
+        netSecondaryItemBudget: Boolean = false,
+        // Keep DI signed and CC exact inside the shared 10-normal-sub knapsack, then round each
+        // axis only once when the packed option enters the main DP. This pays useful-stat riders
+        // such as Vélocité II's -10 DI and avoids inflating every +3 CC copy to a full bucket.
+        exactNormalSubPacking: Boolean = false,
+        // Fold equipment MAX_ACTION_POINT debits onto AP in non-AP-assume worlds, matching
+        // Equipment.valueFor. Every debit-capable single slot is staged first, so the AP upper
+        // clamp cannot discard positive headroom before a later -1. AP-assume worlds keep the old
+        // optimistic read until their threshold-sentinel state gains equivalent headroom.
+        foldNegativeItemAp: Boolean = false,
+        // Fold MAX_MOVEMENT_POINT debits as signed MP in the existing axis. The axis gains raw
+        // headroom before its target fold, so later debits cannot lose earlier positive overflow.
+        foldNegativeMaxMp: Boolean = false,
+        // Split the NO_OFFHAND_OR_TWO_HANDED condition into two value-side worlds rather than a
+        // key bit: no carrier sub, or a weapon pool eligible for the carrier.
+        splitLightWeaponCondition: Boolean = false,
+        // Certificate partition seam: retain only builds selecting at least one condition-bearing
+        // sublimation. The marker is added at sub stages, so the expensive equipment prefix is not
+        // duplicated. Combined with an independent exact no-condition optimum, this covers the
+        // full feasible set as a two-way union.
+        requireConditionalSub: Boolean = false,
+        // Diagnostic-only screen: execute only the base world on the plain arm. This is NOT a
+        // certificate because it omits every assumed-cap world and objective-capping arm; it is
+        // solely a fast ranking oracle for ideas whose current binding path is base/plain.
+        diagnosticBasePlain: Boolean = false,
         // INTERNAL world-split recursion — never set by callers (MM certificate A#1 pattern).
         worldAssume: Sublimation? = null,
         worldDropCaps: Boolean = false,
+        // INTERNAL structural-condition recursion.
+        lightWeaponArm: String? = null,
         // WEIGHT ARM (§9.6, replaces the never-binding worldB fold): null = orchestrate. Every
         // real build is covered by ≥1 (world × arm):
         //  - "plain": objective-capping subs excluded (builds carrying none);
@@ -335,6 +401,9 @@ internal object MaxDamageSoftBoundPrototype {
     ): Result? {
         val t0 = System.nanoTime()
         val wantSrc = provenance
+        require(ccSupportLambda >= 0L)
+        require(ccSupportBand > 0)
+        require(!netSecondaryItemBudget || coupleSecondaryItemNegative)
         if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return null
         val scenario = params.damageScenario
         if (scenario.survivabilityFloor) return null
@@ -344,7 +413,8 @@ internal object MaxDamageSoftBoundPrototype {
         if (params.forcedItems.isNotEmpty() ||
             params.forcedRunes.isNotEmpty() ||
             params.forcedRunesByItem.isNotEmpty() ||
-            params.forcedSublimations.isNotEmpty()
+            params.forcedSublimations.isNotEmpty() ||
+            params.forcedPassives.isNotEmpty()
         ) {
             return null
         }
@@ -407,18 +477,95 @@ internal object MaxDamageSoftBoundPrototype {
             } else {
                 emptyList()
             }
+        if (foldNegativeMaxMp &&
+            sublimations.any { sub ->
+                sub.solverChoosable &&
+                    sub.rarity != SublimationRarity.NORMAL &&
+                    sub.effects
+                        .filterIsInstance<SublimationEffect.StatEffect>()
+                        .any {
+                            it.characteristic == Characteristic.MAX_MOVEMENT_POINT &&
+                                it.magnitudeAtLevel(level) < 0
+                        }
+            }
+        ) {
+            return null
+        }
+        val futureNormalMpDebit =
+            if (foldNegativeMaxMp && exactNormalSubPacking) {
+                sublimations
+                    .filter { it.solverChoosable && it.rarity == SublimationRarity.NORMAL }
+                    .sumOf { sub ->
+                        sub.effects
+                            .filterIsInstance<SublimationEffect.StatEffect>()
+                            .filter { it.characteristic == Characteristic.MAX_MOVEMENT_POINT }
+                            .sumOf { (-minOf(it.magnitudeAtLevel(level), 0)).coerceAtLeast(0) } * sub.maxCopies.coerceAtLeast(1)
+                    }
+            } else {
+                0
+            }
+        val futureItemMpDebit =
+            if (foldNegativeMaxMp) {
+                fun maxDebit(type: ItemType): Int =
+                    pool[type].orEmpty().maxOfOrNull {
+                        (-minOf(it.characteristics[Characteristic.MAX_MOVEMENT_POINT] ?: 0, 0)).coerceAtLeast(0)
+                    } ?: 0
+
+                val ringDebits =
+                    pool[ItemType.RING]
+                        .orEmpty()
+                        .map { (-minOf(it.characteristics[Characteristic.MAX_MOVEMENT_POINT] ?: 0, 0)).coerceAtLeast(0) }
+                        .sortedDescending()
+                val weaponDebit =
+                    maxOf(
+                        maxDebit(ItemType.TWO_HANDED_WEAPONS),
+                        maxDebit(ItemType.ONE_HANDED_WEAPONS) + maxDebit(ItemType.OFF_HAND_WEAPONS)
+                    )
+                pool.keys
+                    .filter {
+                        it !in
+                            setOf(
+                                ItemType.RING,
+                                ItemType.ONE_HANDED_WEAPONS,
+                                ItemType.TWO_HANDED_WEAPONS,
+                                ItemType.OFF_HAND_WEAPONS
+                            )
+                    }.sumOf(::maxDebit) +
+                    (ringDebits.getOrNull(0) ?: 0) +
+                    (ringDebits.getOrNull(1) ?: 0) +
+                    weaponDebit
+            } else {
+                0
+            }
         val hasSecCappers = objCapSubs.any { capsObjectiveType(it) == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST }
         val hasCritMCappers = objCapSubs.any { capsObjectiveType(it) == SublimationConditionType.CRITICAL_MASTERY_AT_MOST }
         if (worldArm == null) {
+            data class WorldSpec(
+                val assume: Sublimation?,
+                val arm: String,
+            )
+
             val arms =
                 buildList {
                     add("plain")
                     if (hasSecCappers) add("secZero")
                     if (hasCritMCappers) add("critZero")
                 }
-            val worlds: List<Result?> =
-                (listOf<Sublimation?>(null) + capSubs).flatMap { assume ->
-                    arms.map { arm ->
+            val specs =
+                if (diagnosticBasePlain) {
+                    listOf(WorldSpec(null, "plain"))
+                } else {
+                    (listOf<Sublimation?>(null) + capSubs).flatMap { assume ->
+                        arms.map { arm -> WorldSpec(assume, arm) }
+                    }
+                }
+            // Provenance is diagnostic only. Retaining every stage map in every world/arm made a
+            // coarse path run exceed ten minutes. First price all worlds normally, then replay only
+            // the winning world/arm with retention; the returned bound is still the max of the same
+            // first-pass partition and the replay cannot influence which world wins.
+            val worlds: List<Pair<WorldSpec, Result?>> =
+                specs.map { spec ->
+                    spec to
                         bound(
                             params,
                             pool,
@@ -426,24 +573,123 @@ internal object MaxDamageSoftBoundPrototype {
                             sublimations,
                             debug,
                             diag,
-                            blockGate = if (assume == null) blockGate else false,
-                            provenance = provenance,
+                            blockGate = if (spec.assume == null) blockGate else false,
+                            provenance = false,
                             shouldContinue = shouldContinue,
-                            worldAssume = assume,
-                            worldDropCaps = assume == null,
-                            worldArm = arm
+                            ccSupportLambda = ccSupportLambda,
+                            ccSupportBand = ccSupportBand,
+                            coupleSecondaryItemNegative = coupleSecondaryItemNegative,
+                            netSecondaryItemBudget = netSecondaryItemBudget,
+                            exactNormalSubPacking = exactNormalSubPacking,
+                            foldNegativeItemAp = foldNegativeItemAp,
+                            foldNegativeMaxMp = foldNegativeMaxMp,
+                            splitLightWeaponCondition = splitLightWeaponCondition,
+                            requireConditionalSub = requireConditionalSub,
+                            diagnosticBasePlain = diagnosticBasePlain,
+                            worldAssume = spec.assume,
+                            worldDropCaps = spec.assume == null,
+                            worldArm = spec.arm
                         )
-                    }
                 }
-            if (worlds.any { it == null }) return null
-            val best = worlds.filterNotNull().maxByOrNull { it.foldedBound } ?: return null
+            if (debug) {
+                worlds.forEach { (spec, result) ->
+                    println(
+                        "S4_PROTO_WORLD assume=${spec.assume?.name?.fr ?: "-"} arm=${spec.arm} " +
+                            "bound=${result?.foldedBound ?: "bail"} states=${result?.states ?: 0} wallMs=${result?.wallMs ?: 0}"
+                    )
+                }
+            }
+            if (worlds.any { it.second == null }) return null
+            val (bestSpec, best) = worlds.maxByOrNull { it.second?.foldedBound ?: Long.MIN_VALUE } ?: return null
+            best ?: return null
+            val explained =
+                if (provenance) {
+                    bound(
+                        params,
+                        pool,
+                        runes,
+                        sublimations,
+                        debug,
+                        diag,
+                        blockGate = if (bestSpec.assume == null) blockGate else false,
+                        provenance = true,
+                        shouldContinue = shouldContinue,
+                        ccSupportLambda = ccSupportLambda,
+                        ccSupportBand = ccSupportBand,
+                        coupleSecondaryItemNegative = coupleSecondaryItemNegative,
+                        netSecondaryItemBudget = netSecondaryItemBudget,
+                        exactNormalSubPacking = exactNormalSubPacking,
+                        foldNegativeItemAp = foldNegativeItemAp,
+                        foldNegativeMaxMp = foldNegativeMaxMp,
+                        splitLightWeaponCondition = splitLightWeaponCondition,
+                        requireConditionalSub = requireConditionalSub,
+                        diagnosticBasePlain = diagnosticBasePlain,
+                        worldAssume = bestSpec.assume,
+                        worldDropCaps = bestSpec.assume == null,
+                        worldArm = bestSpec.arm
+                    ) ?: return null
+                } else {
+                    best
+                }
+            val priced = worlds.map { requireNotNull(it.second) }
+            val worldReads =
+                worlds.map { (spec, result) ->
+                    val read = requireNotNull(result)
+                    WorldRead(spec.assume, spec.arm, read.foldedBound, read.coreBound, read.states, read.wallMs)
+                }
             return Result(
                 best.foldedBound,
-                worlds.filterNotNull().maxOf { it.coreBound },
-                worlds.filterNotNull().sumOf { it.states },
+                priced.maxOf { it.coreBound },
+                priced.sumOf { it.states },
                 (System.nanoTime() - t0) / 1_000_000,
-                best.bindingState,
-                best.bindingPath
+                explained.bindingState,
+                explained.bindingPath,
+                worldReads
+            )
+        }
+        if (splitLightWeaponCondition && lightWeaponArm == null) {
+            fun price(
+                arm: String,
+                keepPath: Boolean,
+            ): Result? =
+                bound(
+                    params,
+                    pool,
+                    runes,
+                    sublimations,
+                    debug,
+                    diag,
+                    blockGate,
+                    keepPath,
+                    shouldContinue,
+                    ccSupportLambda,
+                    ccSupportBand,
+                    coupleSecondaryItemNegative,
+                    netSecondaryItemBudget,
+                    exactNormalSubPacking,
+                    foldNegativeItemAp,
+                    foldNegativeMaxMp,
+                    splitLightWeaponCondition,
+                    requireConditionalSub,
+                    diagnosticBasePlain,
+                    worldAssume,
+                    worldDropCaps,
+                    arm,
+                    worldArm
+                )
+
+            val priced = listOf("noExpert", "expertEligible").map { arm -> arm to price(arm, false) }
+            if (priced.any { it.second == null }) return null
+            val (bestArm, bestRead) = priced.maxBy { requireNotNull(it.second).foldedBound }
+            val best = requireNotNull(bestRead)
+            val explained = if (provenance) price(bestArm, true) ?: return null else best
+            return Result(
+                best.foldedBound,
+                priced.maxOf { requireNotNull(it.second).coreBound },
+                priced.sumOf { requireNotNull(it.second).states },
+                (System.nanoTime() - t0) / 1_000_000,
+                explained.bindingState + " lightArm=$bestArm",
+                explained.bindingPath
             )
         }
         val assumeStat = worldAssume?.let { capStatOf(it) }
@@ -478,10 +724,16 @@ internal object MaxDamageSoftBoundPrototype {
                         }
                     ).coerceAtMost(MAX_OUT_OF_COMBAT_AP.toInt()),
                 mpCap =
-                    maxOf(
-                        cap(Characteristic.MOVEMENT_POINT),
-                        if (mpDiRamp != null) MAX_OUT_OF_COMBAT_MP.toInt() else 0
-                    ).coerceAtMost(MAX_OUT_OF_COMBAT_MP.toInt()),
+                    if (foldNegativeMaxMp && cap(Characteristic.MOVEMENT_POINT) > 0) {
+                        // Raw signed reach; collapse still credits at most the requested MP.
+                        // 5-bit headroom avoids upper saturation before later -1 riders.
+                        0x1F
+                    } else {
+                        maxOf(
+                            cap(Characteristic.MOVEMENT_POINT),
+                            if (mpDiRamp != null) MAX_OUT_OF_COMBAT_MP.toInt() else 0
+                        ).coerceAtMost(MAX_OUT_OF_COMBAT_MP.toInt())
+                    },
                 ccBucketCap =
                     if (assumeStat == Characteristic.CRITICAL_HIT) {
                         (assumeThreshold + 1).coerceAtMost(0x7F)
@@ -500,6 +752,14 @@ internal object MaxDamageSoftBoundPrototype {
             e: Equipment,
             c: Characteristic,
         ): Int = maxOf(e.characteristics[c] ?: 0, 0)
+
+        fun itemAp(e: Equipment): Int =
+            statOf(e, Characteristic.ACTION_POINT) +
+                if (foldNegativeItemAp && geo.assumeApThreshold < 0) {
+                    minOf(e.characteristics[Characteristic.MAX_ACTION_POINT] ?: 0, 0)
+                } else {
+                    0
+                }
 
         /**
          * Weighted-Graw value of one positive stat line. In a zeroed weight ARM the capped
@@ -542,21 +802,62 @@ internal object MaxDamageSoftBoundPrototype {
                 )
             }
 
+        fun itemNegativeSecondary(e: Equipment): Long =
+            e.characteristics.entries
+                .filter { it.key in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS }
+                .sumOf { (_, v) -> (-minOf(v, 0)).toLong() }
+
+        fun itemOtherNegativeSecondary(e: Equipment): Long =
+            e.characteristics.entries
+                .filter {
+                    it.key in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS &&
+                        it.key !in masteryStats
+                }.sumOf { (_, v) -> (-minOf(v, 0)).toLong() }
+
+        fun itemOtherPositiveSecondary(e: Equipment): Long =
+            e.characteristics.entries
+                .filter {
+                    it.key in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS &&
+                        it.key !in masteryStats
+                }.sumOf { (_, v) -> maxOf(v, 0).toLong() }
+
         fun itemOpts(e: Equipment): List<Opt> {
+            val negativeSecondary = itemNegativeSecondary(e)
+            val otherNegativeSecondary = itemOtherNegativeSecondary(e)
+            val otherPositiveSecondary = itemOtherPositiveSecondary(e)
             val base =
                 Opt(
-                    w = e.characteristics.entries.sumOf { (c, v) -> wOf(c, v) },
+                    w =
+                        e.characteristics.entries.sumOf { (c, v) -> wOf(c, v) } +
+                            if (armZeroSecondary && coupleSecondaryItemNegative) {
+                                wMastery *
+                                    if (netSecondaryItemBudget) {
+                                        otherNegativeSecondary - otherPositiveSecondary
+                                    } else {
+                                        negativeSecondary
+                                    }
+                            } else {
+                                0L
+                            },
                     d = statOf(e, Characteristic.DAMAGE_INFLICTED),
-                    ap = statOf(e, Characteristic.ACTION_POINT),
-                    mp = statOf(e, Characteristic.MOVEMENT_POINT),
+                    ap = itemAp(e),
+                    mp =
+                        statOf(e, Characteristic.MOVEMENT_POINT) +
+                            if (foldNegativeMaxMp) minOf(e.characteristics[Characteristic.MAX_MOVEMENT_POINT] ?: 0, 0) else 0,
                     cc = statOf(e, Characteristic.CRITICAL_HIT),
                     hp = statOf(e, Characteristic.HP),
                     epic = e.rarity == me.chosante.common.Rarity.EPIC,
                     relic = e.rarity == me.chosante.common.Rarity.RELIC,
                     block = if (blockAtLeastMax > 0) statOf(e, Characteristic.BLOCK_PERCENTAGE) else 0,
-                    apLow = if (geo.assumeApThreshold >= 0) (e.characteristics[Characteristic.ACTION_POINT] ?: 0) else 0,
+                    apLow = if (geo.assumeApThreshold >= 0) itemAp(e) else 0,
                     ccLowRaw = if (geo.assumeCcThresholdRaw >= 0) (e.characteristics[Characteristic.CRITICAL_HIT] ?: 0) else 0,
-                    src = if (wantSrc) e.name.fr else ""
+                    src =
+                        if (wantSrc) {
+                            "${e.name.fr}[id=${e.equipmentId} lvl=${e.level} rarity=${e.rarity} " +
+                                "secN=$negativeSecondary secNOther=$otherNegativeSecondary secOther=$otherPositiveSecondary]"
+                        } else {
+                            ""
+                        }
                 )
             val slots = if (params.useRunes) e.maxShardSlots else 0
             if (slots == 0) return listOf(base)
@@ -576,7 +877,13 @@ internal object MaxDamageSoftBoundPrototype {
                                     cc = base.cc + a3 * perAxis[2],
                                     hp = base.hp + a4 * perAxis[3],
                                     apLow = base.apLow + (if (geo.assumeApThreshold >= 0) a1 * perAxis[0] else 0),
-                                    ccLowRaw = base.ccLowRaw + (if (geo.assumeCcThresholdRaw >= 0) a3 * perAxis[2] else 0)
+                                    ccLowRaw = base.ccLowRaw + (if (geo.assumeCcThresholdRaw >= 0) a3 * perAxis[2] else 0),
+                                    src =
+                                        if (wantSrc) {
+                                            base.src + "{runes=W:$a0 AP:$a1 MP:$a2 CC:$a3 HP:$a4}"
+                                        } else {
+                                            ""
+                                        }
                                 )
                         }
                     }
@@ -590,8 +897,9 @@ internal object MaxDamageSoftBoundPrototype {
         val seedW =
             wMastery * 100L +
                 baseValues.entries.sumOf { (c, v) -> wOf(c, v) }
+        val seedSupport = seedW + ccSupportLambda * (baseValues[Characteristic.CRITICAL_HIT] ?: 0).coerceAtLeast(0)
         var states = HashMap<Long, Long>()
-        states[
+        val seedKey =
             geo.key(
                 0,
                 (baseValues[Characteristic.ACTION_POINT] ?: 0).coerceIn(0, geo.apCap),
@@ -608,7 +916,7 @@ internal object MaxDamageSoftBoundPrototype {
                 0,
                 block = ceilDiv((baseValues[Characteristic.BLOCK_PERCENTAGE] ?: 0).coerceAtLeast(0), BLOCK_STEP).coerceAtMost(geo.blockBucketCap)
             )
-        ] = seedW
+        states[seedKey] = seedSupport
 
         var cancelled = false
         val stageLog = if (provenance) mutableListOf<Triple<String, HashMap<Long, Long>, List<Opt>>>() else null
@@ -623,8 +931,29 @@ internal object MaxDamageSoftBoundPrototype {
                 return
             }
             stageLog?.add(Triple(label, HashMap(states), options))
-            states = geo.apply(states, options)
-            if (debug) println("S4_PROTO_STAGE $label states=${states.size} options=${options.size}")
+            val stageT0 = System.nanoTime()
+            states = geo.apply(states, options, ccSupportLambda)
+            if (debug) {
+                println(
+                    "S4_PROTO_STAGE $label states=${states.size} options=${options.size} " +
+                        "wallMs=${(System.nanoTime() - stageT0) / 1_000_000}"
+                )
+            }
+        }
+
+        fun collapseMpHeadroom(
+            label: String,
+            retainedMp: Int = cap(Characteristic.MOVEMENT_POINT),
+        ) {
+            if (!foldNegativeMaxMp || provenance || cap(Characteristic.MOVEMENT_POINT) <= 0) return
+            val collapsed = HashMap<Long, Long>(states.size)
+            for ((k, wv) in states) {
+                val nk = geo.withMp(k, minOf(geo.mp(k), retainedMp))
+                val current = collapsed[nk]
+                if (current == null || wv > current) collapsed[nk] = wv
+            }
+            states = collapsed
+            if (debug) println("S4_PROTO_STAGE $label states=${states.size} options=0 wallMs=0")
         }
 
         fun combineOpts(
@@ -645,6 +974,7 @@ internal object MaxDamageSoftBoundPrototype {
                 requiresBlockAtLeast = maxOf(a.requiresBlockAtLeast, b.requiresBlockAtLeast),
                 apLow = a.apLow + b.apLow,
                 ccLowRaw = a.ccLowRaw + b.ccLowRaw,
+                conditional = a.conditional || b.conditional,
                 src =
                     if (a.src.isEmpty()) {
                         b.src
@@ -681,9 +1011,16 @@ internal object MaxDamageSoftBoundPrototype {
         // Weapons: 2H | 1H (+ optional off-hand) | off-hand | nothing.
         run {
             val options = mutableListOf(Opt(0L, 0))
-            options += pool[ItemType.TWO_HANDED_WEAPONS].orEmpty().flatMap { prune(itemOpts(it)) }
+            if (lightWeaponArm != "expertEligible") {
+                options += pool[ItemType.TWO_HANDED_WEAPONS].orEmpty().flatMap { prune(itemOpts(it)) }
+            }
             val oneH = pool[ItemType.ONE_HANDED_WEAPONS].orEmpty().map { prune(itemOpts(it)) }
-            val off = pool[ItemType.OFF_HAND_WEAPONS].orEmpty().map { prune(itemOpts(it)) }
+            val off =
+                if (lightWeaponArm == "expertEligible") {
+                    emptyList()
+                } else {
+                    pool[ItemType.OFF_HAND_WEAPONS].orEmpty().map { prune(itemOpts(it)) }
+                }
             oneH.forEach { options += it }
             off.forEach { options += it }
             for (oi in oneH) {
@@ -699,13 +1036,49 @@ internal object MaxDamageSoftBoundPrototype {
                     options += prune(merged)
                 }
             }
+            if (foldNegativeItemAp &&
+                pool
+                    .filterKeys {
+                        it !in
+                            setOf(
+                                ItemType.RING,
+                                ItemType.ONE_HANDED_WEAPONS,
+                                ItemType.TWO_HANDED_WEAPONS,
+                                ItemType.OFF_HAND_WEAPONS
+                            )
+                    }.values
+                    .flatten()
+                    .any { itemAp(it) < 0 }
+            ) {
+                val prefixApUpper = states.keys.maxOf { geo.ap(it) } + options.maxOf { maxOf(it.ap, 0) }
+                require(prefixApUpper <= geo.apCap) {
+                    "foldNegativeItemAp needs weapon-before-debit AP headroom: $prefixApUpper > ${geo.apCap}"
+                }
+            }
             step("weapons", options)
         }
         val singleSlots =
-            pool.keys - setOf(ItemType.RING, ItemType.ONE_HANDED_WEAPONS, ItemType.TWO_HANDED_WEAPONS, ItemType.OFF_HAND_WEAPONS)
+            (
+                pool.keys -
+                    setOf(ItemType.RING, ItemType.ONE_HANDED_WEAPONS, ItemType.TWO_HANDED_WEAPONS, ItemType.OFF_HAND_WEAPONS)
+            ).sortedBy { slot ->
+                if (pool[slot].orEmpty().any {
+                        (foldNegativeItemAp && itemAp(it) < 0) ||
+                            (foldNegativeMaxMp && (it.characteristics[Characteristic.MAX_MOVEMENT_POINT] ?: 0) < 0)
+                    }
+                ) {
+                    0
+                } else {
+                    1
+                }
+            }
         for (slot in singleSlots) {
             step(slot.name, listOf(Opt(0L, 0)) + pool[slot].orEmpty().flatMap { prune(itemOpts(it)) })
         }
+        collapseMpHeadroom(
+            "mp-fold-after-items",
+            cap(Characteristic.MOVEMENT_POINT) + futureNormalMpDebit
+        )
 
         // Sound layer-independent reachable max of a stat (percent skills, ramps, conversions,
         // world-B caps). Rings count top-2; runes included (MM review fix A#6).
@@ -742,6 +1115,16 @@ internal object MaxDamageSoftBoundPrototype {
                     .sumOf { maxOf(it.magnitudeAtLevel(level), 0) } * sub.maxCopies.coerceAtLeast(1)
             }
             return v
+        }
+        // Saturation is sound as long as the raw coordinate retains enough room for every
+        // negative rider that can still follow it. Positive MP beyond that line is equivalent for
+        // the target fold, so the much looser all-sources reachableMax is neither needed nor useful
+        // here (it made tiny seeded pools bail merely because every catalogue sub was summed).
+        if (foldNegativeMaxMp &&
+            cap(Characteristic.MOVEMENT_POINT) > 0 &&
+            cap(Characteristic.MOVEMENT_POINT) + futureItemMpDebit + futureNormalMpDebit > geo.mpCap
+        ) {
+            return null
         }
 
         // Sound SECONDARY-mastery cap for a Neutralité-family carrier (MM review fix A#2,
@@ -823,6 +1206,153 @@ internal object MaxDamageSoftBoundPrototype {
             return dp.entries.filter { it.key <= bucket(t) }.maxOfOrNull { it.value } ?: t.coerceAtLeast(0L)
         }
 
+        /**
+         * Independent upper bound for a `sum(all secondary masteries) <= t` carrier. Write the
+         * signed sum as `P_all - N <= t`, where N is the magnitude of all negative secondary
+         * lines. Then the positive scenario-relevant part obeys `P_objective <= P_all <= t + N`.
+         *
+         * The item part maximizes N over the real slot/weapon layout and the one-EPIC/one-RELIC
+         * budgets. Every non-item negative source is deliberately all-credited independently
+         * (ignoring skill/sub/rune budgets), so this remains an upper bound. Taking the minimum
+         * with [secondaryBudgetCap] is therefore sound and removes its impossible 2H+1H+off-hand
+         * and multi-relic negative-budget stack.
+         */
+        fun negativeSecondaryLines(
+            values: Map<Characteristic, Int>,
+            onlyOutsideScenario: Boolean = false,
+        ): Long =
+            values.entries
+                .filter {
+                    it.key in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS &&
+                        (!onlyOutsideScenario || it.key !in masteryStats)
+                }.sumOf { (_, v) -> (-minOf(v, 0)).toLong() }
+
+        fun secondaryExternalNegativeBudget(onlyOutsideScenario: Boolean = false): Long {
+            var external = negativeSecondaryLines(baseValues, onlyOutsideScenario)
+            if (params.useRunes && "noRunes" !in diag) {
+                for ((slot, items) in pool) {
+                    val sockets = items.maxOfOrNull { it.maxShardSlots } ?: 0
+                    val per =
+                        items.maxOfOrNull { item ->
+                            runes.maxOfOrNull { rune ->
+                                if (rune.characteristic in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS &&
+                                    (!onlyOutsideScenario || rune.characteristic !in masteryStats)
+                                ) {
+                                    -minOf(rune.valueOn(slot, item.level), 0)
+                                } else {
+                                    0
+                                }
+                            } ?: 0
+                        } ?: 0
+                    external += sockets.toLong() * per * (if (slot == ItemType.RING) 2 else 1)
+                }
+            }
+            val skills = params.character.characterSkills
+            for (branch in listOf(skills.intelligence, skills.strength, skills.agility, skills.luck, skills.major)) {
+                for (skill in branch.getCharacteristics()) {
+                    val components =
+                        if (skill is me.chosante.common.skills.SkillCharacteristic.PairedCharacteristic) {
+                            listOf(skill.first, skill.second)
+                        } else {
+                            listOf(skill)
+                        }
+                    for (component in components) {
+                        if (component.characteristic !in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS ||
+                            (onlyOutsideScenario && component.characteristic in masteryStats) ||
+                            component.unitValue >= 0
+                        ) {
+                            continue
+                        }
+                        external +=
+                            if (component.unitType == me.chosante.common.skills.UnitType.FIXED) {
+                                (-component.unitValue).toLong() * minOf(branch.maxPointsToAssign, component.maxPointsAssignable)
+                            } else {
+                                // No negative-percent secondary skill exists in the catalog. If one is
+                                // added, keep this diagnostic bound sound (and intentionally loose).
+                                STAT_ABS_MAX
+                            }
+                    }
+                }
+            }
+            for (sub in sublimations) {
+                if (!sub.solverChoosable) continue
+                val perCopy =
+                    sub.effects
+                        .filterIsInstance<SublimationEffect.StatEffect>()
+                        .filter {
+                            it.characteristic in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS &&
+                                (!onlyOutsideScenario || it.characteristic !in masteryStats)
+                        }.sumOf { effect -> -minOf(effect.magnitudeAtLevel(level), 0).toLong() }
+                external += perCopy * sub.maxCopies.coerceAtLeast(1)
+            }
+            return external
+        }
+
+        fun secondaryNegativeBudgetCap(t: Long): Long {
+            data class NegOpt(
+                val amount: Long,
+                val epic: Boolean = false,
+                val relic: Boolean = false,
+            )
+
+            fun itemOpt(e: Equipment) =
+                NegOpt(
+                    negativeSecondaryLines(e.characteristics),
+                    epic = e.rarity == me.chosante.common.Rarity.EPIC,
+                    relic = e.rarity == me.chosante.common.Rarity.RELIC
+                )
+
+            fun combine(
+                a: NegOpt,
+                b: NegOpt,
+            ): NegOpt? {
+                if (a.epic && b.epic || a.relic && b.relic) return null
+                return NegOpt(a.amount + b.amount, a.epic || b.epic, a.relic || b.relic)
+            }
+
+            fun prune(options: Iterable<NegOpt>): List<NegOpt> =
+                options
+                    .groupBy { it.epic to it.relic }
+                    .values
+                    .map { group -> group.maxBy { it.amount } }
+
+            var layouts = listOf(NegOpt(0L))
+
+            fun step(options: List<NegOpt>) {
+                layouts = prune(layouts.flatMap { a -> options.mapNotNull { b -> combine(a, b) } })
+            }
+
+            val ringItems = pool[ItemType.RING].orEmpty()
+            val ringOptions = mutableListOf(NegOpt(0L))
+            ringOptions += ringItems.map(::itemOpt)
+            for (i in ringItems.indices) {
+                for (j in i + 1 until ringItems.size) {
+                    if (ringItems[i].name.fr.lowercase() == ringItems[j].name.fr.lowercase()) continue
+                    combine(itemOpt(ringItems[i]), itemOpt(ringItems[j]))?.let(ringOptions::add)
+                }
+            }
+            step(prune(ringOptions))
+
+            val twoHanded = pool[ItemType.TWO_HANDED_WEAPONS].orEmpty().map(::itemOpt)
+            val oneHanded = pool[ItemType.ONE_HANDED_WEAPONS].orEmpty().map(::itemOpt)
+            val offHand = pool[ItemType.OFF_HAND_WEAPONS].orEmpty().map(::itemOpt)
+            val weaponOptions = mutableListOf(NegOpt(0L))
+            weaponOptions += twoHanded
+            weaponOptions += oneHanded
+            weaponOptions += offHand
+            for (one in oneHanded) {
+                for (off in offHand) combine(one, off)?.let(weaponOptions::add)
+            }
+            step(prune(weaponOptions))
+
+            val handSlots = setOf(ItemType.RING, ItemType.ONE_HANDED_WEAPONS, ItemType.TWO_HANDED_WEAPONS, ItemType.OFF_HAND_WEAPONS)
+            for (slot in pool.keys - handSlots) {
+                step(prune(listOf(NegOpt(0L)) + pool[slot].orEmpty().map(::itemOpt)))
+            }
+
+            return (t + layouts.maxOf { it.amount } + secondaryExternalNegativeBudget()).coerceAtLeast(0L)
+        }
+
         var epicRelicStages: (() -> Unit)? = null
         var assumedOpt = Opt(0L, 0)
 
@@ -838,20 +1368,34 @@ internal object MaxDamageSoftBoundPrototype {
                 .filter { pred(it.characteristic) && WakfuBuildSolver.scenarioGateMatches(it.scenarioGate, params) }
                 .sumOf { maxOf(it.magnitudeAtLevel(level), 0).toLong() }
 
-        val armSecCapRaw: Long =
+        val secTMax =
             if (armZeroSecondary) {
-                val tMax =
-                    objCapSubs
-                        .filter { capsObjectiveType(it) == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST }
-                        .maxOf { (it.condition?.value ?: 0).toLong() }
-                val ownMax =
-                    objCapSubs
-                        .filter { capsObjectiveType(it) == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST }
-                        .maxOf { ownPositiveOf(it) { c -> c in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS && c in masteryStats } }
-                secondaryBudgetCap(tMax) + ownMax
+                objCapSubs
+                    .filter { capsObjectiveType(it) == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST }
+                    .maxOf { (it.condition?.value ?: 0).toLong() }
             } else {
                 0L
             }
+        val secOwnMax =
+            if (armZeroSecondary) {
+                objCapSubs
+                    .filter { capsObjectiveType(it) == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST }
+                    .maxOf { ownPositiveOf(it) { c -> c in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS && c in masteryStats } }
+            } else {
+                0L
+            }
+        val armSecIndependentCapRaw =
+            if (armZeroSecondary) minOf(secondaryBudgetCap(secTMax), secondaryNegativeBudgetCap(secTMax)) + secOwnMax else 0L
+        val armSecCapRaw =
+            if (armZeroSecondary && coupleSecondaryItemNegative) {
+                secTMax + secondaryExternalNegativeBudget(onlyOutsideScenario = netSecondaryItemBudget) + secOwnMax
+            } else {
+                armSecIndependentCapRaw
+            }
+        // Conversions into DI/CC still need a scalar moved ceiling. The item-coupled cap is represented
+        // inside W rather than as a raw stat, so retain the older independent (looser, sound) ceiling there.
+        val armSecConversionCapRaw =
+            if (armZeroSecondary && coupleSecondaryItemNegative) armSecIndependentCapRaw else armSecCapRaw
         val armCritMCapRaw: Long =
             if (armZeroCritM) {
                 objCapSubs
@@ -869,6 +1413,11 @@ internal object MaxDamageSoftBoundPrototype {
             val subOpts = mutableListOf<SubOpt>()
             for (sub in sublimations) {
                 if (!sub.solverChoosable) continue
+                if (lightWeaponArm == "noExpert" &&
+                    sub.condition?.type == SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED
+                ) {
+                    continue
+                }
                 if ("noCondSubs" in diag && sub.condition != null) continue
                 val cond = sub.condition
                 val capsObjective =
@@ -889,17 +1438,27 @@ internal object MaxDamageSoftBoundPrototype {
                 }
                 val blockRequirement =
                     if (blockAtLeastMax > 0 && cond?.type == SublimationConditionType.BLOCK_AT_LEAST) (cond.value ?: 0) else 0
-                var opt = Opt(0L, 0, requiresBlockAtLeast = blockRequirement, src = if (wantSrc) sub.name.fr else "")
+                var opt =
+                    Opt(
+                        0L,
+                        0,
+                        requiresBlockAtLeast = blockRequirement,
+                        conditional = requireConditionalSub && cond != null,
+                        src = if (wantSrc) sub.name.fr else ""
+                    )
                 for (eff in sub.effects) {
                     when (eff) {
                         is SublimationEffect.StatEffect -> {
                             if (!WakfuBuildSolver.scenarioGateMatches(eff.scenarioGate, params)) continue
                             val value = eff.magnitudeAtLevel(level)
-                            // WALL seam (§9.6): the negative MAX_MOVEMENT_POINT rider (Armure
-                            // lourde) is IGNORED — the carrier keeps its full MP target read, a
-                            // tiny over-count (≤1 MP of the fold) that halves the state space vs
-                            // the mpMinus bit. Dormant bit machinery kept for a future re-fine.
-                            if (eff.characteristic == Characteristic.MAX_MOVEMENT_POINT) continue
+                            // The quick tier may ignore MAX_MP debits. With the exact NORMAL pack,
+                            // keep them signed so positive MP can legally compensate a -1 rider.
+                            if (eff.characteristic == Characteristic.MAX_MOVEMENT_POINT) {
+                                if (foldNegativeMaxMp && exactNormalSubPacking && value < 0) {
+                                    opt = opt.copy(mp = opt.mp + value)
+                                }
+                                continue
+                            }
                             if (value <= 0) {
                                 // NET DI per sub: a build takes the sub as a whole, so its DI
                                 // lines SUM exactly (Anatomie's +40 back / −20 flat is +20 real —
@@ -969,7 +1528,7 @@ internal object MaxDamageSoftBoundPrototype {
                                 when {
                                     armZeroCritM && eff.from == Characteristic.MASTERY_CRITICAL -> armCritMCapRaw
                                     armZeroSecondary && eff.from in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS ->
-                                        armSecCapRaw
+                                        armSecConversionCapRaw
                                     else -> reachableMax(eff.from).coerceAtLeast(0).toLong()
                                 }
                             val moved = (movedBase * eff.percent / 100L).toInt()
@@ -979,7 +1538,19 @@ internal object MaxDamageSoftBoundPrototype {
                                     Characteristic.DAMAGE_INFLICTED -> opt.copy(d = opt.d + moved)
                                     Characteristic.CRITICAL_HIT -> opt.copy(cc = opt.cc + moved)
                                     else -> {
-                                        val netPerUnit = (wOf(eff.to, 1) - wOf(eff.from, 1)).coerceAtLeast(0L)
+                                        // In the coupled secZero arm, `wMastery*N` already reserves one
+                                        // scenario-secondary unit per moved source unit. Replacing it by the
+                                        // destination therefore costs only (w_to - wMastery), not full w_to.
+                                        val sourceWeight =
+                                            if (armZeroSecondary &&
+                                                coupleSecondaryItemNegative &&
+                                                eff.from in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
+                                            ) {
+                                                wMastery
+                                            } else {
+                                                wOf(eff.from, 1)
+                                            }
+                                        val netPerUnit = (wOf(eff.to, 1) - sourceWeight).coerceAtLeast(0L)
                                         opt.copy(w = opt.w + netPerUnit * moved)
                                     }
                                 }
@@ -991,8 +1562,15 @@ internal object MaxDamageSoftBoundPrototype {
                     assumedOpt = opt
                     continue
                 }
-                if (opt.d < 0) opt = opt.copy(d = 0)
-                if (opt.w == 0L && opt.d == 0 && opt.ap == 0 && opt.mp == 0 && opt.cc == 0 && opt.hp == 0 && !opt.ramp) continue
+                val entersNormalPacking =
+                    sub.rarity == SublimationRarity.NORMAL &&
+                        opt.mpCapMinus == 0 &&
+                        !opt.ramp &&
+                        opt.requiresBlockAtLeast == 0
+                if (opt.d < 0 && !(exactNormalSubPacking && entersNormalPacking)) opt = opt.copy(d = 0)
+                if (opt.w == 0L && opt.d == 0 && opt.ap == 0 && opt.mp == 0 && opt.cc == 0 && opt.hp == 0 && !opt.ramp && !opt.conditional) {
+                    continue
+                }
                 repeat(sub.maxCopies.coerceAtLeast(1)) { subOpts += SubOpt(opt, sub.rarity) }
             }
 
@@ -1014,11 +1592,105 @@ internal object MaxDamageSoftBoundPrototype {
                 // carries the pool-wide NEGATIVE parts (a valid lower bound of any subset).
                 val knapApNeg = opts.sumOf { minOf(it.apLow, 0) }
                 val knapCcNeg = opts.sumOf { minOf(it.ccLowRaw, 0) }
-                val statMask = (1L shl 49) - 1
+                if (exactNormalSubPacking && rarity == SublimationRarity.NORMAL) {
+                    data class ExactSubKey(
+                        val count: Int,
+                        val d: Int,
+                        val ap: Int,
+                        val mp: Int,
+                        val cc: Int,
+                        val hpBucket: Int,
+                        val blockBucket: Int,
+                        val conditional: Boolean,
+                    )
+
+                    data class PackedKey(
+                        val d: Int,
+                        val ap: Int,
+                        val mp: Int,
+                        val cc: Int,
+                        val hp: Int,
+                        val block: Int,
+                        val conditional: Boolean,
+                    )
+
+                    val zero = ExactSubKey(0, 0, 0, 0, 0, 0, 0, false)
+                    val ccRawCap = geo.ccBucketCap * ccStep
+                    var exact = HashMap<ExactSubKey, Long>().apply { put(zero, 0L) }
+                    var exactSrc = if (wantSrc) HashMap<ExactSubKey, String>().apply { put(zero, "") } else null
+                    for (o in opts) {
+                        val next = HashMap(exact)
+                        val nextSrc = exactSrc?.let(::HashMap)
+                        for ((k, wv) in exact) {
+                            if (k.count >= capCount) continue
+                            val nk =
+                                ExactSubKey(
+                                    count = k.count + 1,
+                                    // Saturating before a later negative DI rider could under-count.
+                                    d = k.d + o.d,
+                                    ap = (k.ap + o.ap).coerceAtMost(geo.apCap),
+                                    mp = (k.mp + o.mp).coerceAtMost(geo.mpCap),
+                                    cc = (k.cc + o.cc).coerceAtMost(ccRawCap),
+                                    hpBucket = (k.hpBucket + ceilDiv(o.hp, hpStep)).coerceAtMost(geo.hpBucketCap),
+                                    blockBucket =
+                                        (k.blockBucket + ceilDiv(o.block, BLOCK_STEP)).coerceAtMost(geo.blockBucketCap),
+                                    conditional = k.conditional || o.conditional
+                                )
+                            val nw = wv + o.w
+                            val current = next[nk]
+                            if (current == null || nw > current) {
+                                next[nk] = nw
+                                nextSrc?.set(
+                                    nk,
+                                    listOfNotNull(
+                                        exactSrc?.get(k)?.takeIf(String::isNotEmpty),
+                                        o.src.takeIf(String::isNotEmpty)
+                                    ).joinToString("+")
+                                )
+                            }
+                        }
+                        exact = next
+                        exactSrc = nextSrc
+                    }
+
+                    val packed = HashMap<PackedKey, Opt>()
+                    for ((k, wv) in exact) {
+                        val pk =
+                            PackedKey(
+                                d = k.d.coerceAtLeast(0).coerceAtMost(geo.diBucketCap * diStep),
+                                ap = k.ap,
+                                mp = k.mp,
+                                cc = k.cc,
+                                hp = k.hpBucket * hpStep,
+                                block = k.blockBucket * BLOCK_STEP,
+                                conditional = k.conditional
+                            )
+                        val candidate =
+                            Opt(
+                                w = wv,
+                                d = pk.d,
+                                ap = pk.ap,
+                                mp = pk.mp,
+                                cc = pk.cc,
+                                hp = pk.hp,
+                                block = pk.block,
+                                conditional = pk.conditional,
+                                apLow = knapApNeg,
+                                ccLowRaw = knapCcNeg,
+                                src = if (wantSrc) exactSrc?.get(k).orEmpty().ifEmpty { "$rarity x${k.count}" } else ""
+                            )
+                        val current = packed[pk]
+                        if (current == null || candidate.w > current.w) packed[pk] = candidate
+                    }
+                    return packed.values.toList()
+                }
+                val statMask = (1L shl 50) - 1
                 var sub = HashMap<Long, Long>()
                 sub[0L] = 0L
+                var subSrc = if (wantSrc) HashMap<Long, String>().apply { put(0L, "") } else null
                 for (o in opts) {
                     val next = HashMap(sub)
+                    val nextSrc = subSrc?.let(::HashMap)
                     for ((k, wv) in sub) {
                         val cnt = (k shr 50).toInt()
                         if (cnt >= capCount) continue
@@ -1032,14 +1704,22 @@ internal object MaxDamageSoftBoundPrototype {
                                 (geo.hp(stat) + ceilDiv(o.hp, hpStep)).coerceAtMost(geo.hpBucketCap),
                                 0,
                                 0,
-                                block = (geo.block(stat) + ceilDiv(o.block, BLOCK_STEP)).coerceAtMost(geo.blockBucketCap)
+                                block = (geo.block(stat) + ceilDiv(o.block, BLOCK_STEP)).coerceAtMost(geo.blockBucketCap),
+                                conditional = if (geo.conditional(stat) == 1 || o.conditional) 1 else 0
                             )
                         val nk = ((cnt + 1).toLong() shl 50) or nStat
                         val nw = wv + o.w
                         val cur = next[nk]
-                        if (cur == null || nw > cur) next[nk] = nw
+                        if (cur == null || nw > cur) {
+                            next[nk] = nw
+                            nextSrc?.set(
+                                nk,
+                                listOfNotNull(subSrc[k]?.takeIf(String::isNotEmpty), o.src.takeIf(String::isNotEmpty)).joinToString("+")
+                            )
+                        }
                     }
                     sub = next
+                    subSrc = nextSrc
                 }
                 return sub.map { (k, wv) ->
                     val cnt = (k shr 50).toInt()
@@ -1052,11 +1732,12 @@ internal object MaxDamageSoftBoundPrototype {
                         cc = geo.cc(stat) * ccStep,
                         hp = geo.hp(stat) * hpStep,
                         block = geo.block(stat) * BLOCK_STEP,
+                        conditional = geo.conditional(stat) == 1,
                         requiresEpicItem = rarity == SublimationRarity.EPIC && cnt > 0,
                         requiresRelicItem = rarity == SublimationRarity.RELIC && cnt > 0,
                         apLow = knapApNeg,
                         ccLowRaw = knapCcNeg,
-                        src = if (wantSrc) "$rarity x$cnt" else ""
+                        src = if (wantSrc) subSrc?.get(k).orEmpty().ifEmpty { "$rarity x$cnt" } else ""
                     )
                 }
             }
@@ -1087,7 +1768,9 @@ internal object MaxDamageSoftBoundPrototype {
                 step("subs-relic", singleSlotOptions(SublimationRarity.RELIC))
             }
         }
-
+        // Every solver-choosable negative MAX_MP source is NORMAL on the supported catalog and is
+        // now inside the signed pack. From here on MP is monotone, so target-capping is exact.
+        collapseMpHeadroom("mp-fold-after-subs")
         // Skills — after subs (the %HP skill multiplies the whole HP dim). Paired majors are
         // expanded into their two component credits: unlike MM, the elemental half feeds THIS core.
         if ("noSkills" !in diag) {
@@ -1160,10 +1843,12 @@ internal object MaxDamageSoftBoundPrototype {
                     options = next
                 }
                 step("skills-${branch.javaClass.simpleName}", options.map { it.first }.distinct())
+                collapseMpHeadroom("mp-fold-${branch.javaClass.simpleName}")
             }
         }
 
         epicRelicStages?.invoke()
+        collapseMpHeadroom("mp-fold-final")
         if (cancelled) return null
 
         // Collapse: the exact damage chain (throughput lookup + downscales) × the exact
@@ -1196,7 +1881,23 @@ internal object MaxDamageSoftBoundPrototype {
         var bindingState = ""
         var bindingKey = 0L
         var bindingW = 0L
+
+        data class ScoredBand(
+            val core: Long,
+            val folded: Long,
+            val wUpper: Long,
+            val ccLow: Long,
+            val ccHigh: Long,
+        )
+
+        data class FoldResult(
+            val maxCore: Long,
+            val winner: ScoredBand,
+        )
+
         for ((k, wv) in states) {
+            val armForcesConditional = armZeroSecondary || armZeroCritM
+            if (requireConditionalSub && geo.conditional(k) == 0 && !assumedOpt.conditional && !armForcesConditional) continue
             // ASSUME-world filters: the assumed cap sub is EPIC (needs an epic item) and the
             // condition must hold on the LOW-read dim.
             if (worldAssume != null) {
@@ -1216,37 +1917,70 @@ internal object MaxDamageSoftBoundPrototype {
             fun foldWith(
                 extra: Opt,
                 wCap: Long?,
-            ): Pair<Long, Long> {
-                val wvX = (wv + assumedOpt.w + armConstantW + extra.w).let { if (wCap != null) minOf(it, wCap) else it }
+            ): FoldResult {
                 val di = (geo.d(k).toLong() * diStep + assumedOpt.d + extra.d + rampDi).coerceAtMost(diCap.toLong())
-                val grawUb = wvX.coerceIn(0L, DAMAGE_GRAW_MAX)
-                val perHit = ((100L + di) * grawUb).coerceAtMost(DAMAGE_SCORE_ABS_MAX)
-                val perHitScaled = (perHit / PERHIT_DOWNSCALE).coerceAtMost(PERHIT_SCALED_MAX)
                 val apRead =
                     if (geo.assumeApThreshold >= 0) {
                         ((geo.assumeApThreshold + maxOf(assumedOpt.ap, 0)).toLong() + extra.ap)
                     } else {
                         geo.ap(k).toLong() + assumedOpt.ap + extra.ap
                     }
-                val throughput = clampedTable[apRead.coerceIn(0L, clampedTable.lastIndex.toLong()).toInt()]
-                val raw = (throughput * perHitScaled).coerceAtMost(ROTATION_RAW_MAX)
-                val core = (raw * resFactor / FINAL_DOWNSCALE).coerceAtMost(DAMAGE_PERTURN_ABS_MAX)
-                if (targets.isEmpty()) return core to core
                 val ccRead =
                     if (geo.assumeCcThresholdRaw >= 0) {
                         (assumeThreshold + maxOf(assumedOpt.cc, 0)).toLong() + extra.cc
                     } else {
                         geo.cc(k).toLong() * ccStep + assumedOpt.cc + extra.cc
                     }
-                val totalActual =
-                    weight(Characteristic.ACTION_POINT) * minOf(apRead, targetOf(Characteristic.ACTION_POINT)) +
-                        weight(Characteristic.MOVEMENT_POINT) *
-                        minOf(geo.mp(k).toLong() + assumedOpt.mp + extra.mp, targetOf(Characteristic.MOVEMENT_POINT)) +
-                        weight(Characteristic.CRITICAL_HIT) * minOf(ccRead, targetOf(Characteristic.CRITICAL_HIT)) +
-                        weight(Characteristic.HP) *
-                        minOf(geo.hp(k).toLong() * hpStep + assumedOpt.hp + extra.hp, targetOf(Characteristic.HP))
-                val bucket = (totalActual.coerceIn(1L, totalExpected) / bucketSize).toInt().coerceAtMost(maxIndex)
-                return core to core * powTable[bucket]
+                val support =
+                    wv + assumedOpt.w + armConstantW + extra.w +
+                        ccSupportLambda * (assumedOpt.cc.coerceAtLeast(0) + extra.cc.coerceAtLeast(0))
+
+                fun scoreBand(
+                    supportDerivedW: Long,
+                    ccForPenalty: Long,
+                    ccLow: Long,
+                    ccHigh: Long,
+                ): ScoredBand {
+                    val wUpper = supportDerivedW.let { if (wCap != null) minOf(it, wCap) else it }
+                    val grawUb = wUpper.coerceIn(0L, DAMAGE_GRAW_MAX)
+                    val perHit = ((100L + di) * grawUb).coerceAtMost(DAMAGE_SCORE_ABS_MAX)
+                    val perHitScaled = (perHit / PERHIT_DOWNSCALE).coerceAtMost(PERHIT_SCALED_MAX)
+                    val throughput = clampedTable[apRead.coerceIn(0L, clampedTable.lastIndex.toLong()).toInt()]
+                    val raw = (throughput * perHitScaled).coerceAtMost(ROTATION_RAW_MAX)
+                    val core = (raw * resFactor / FINAL_DOWNSCALE).coerceAtMost(DAMAGE_PERTURN_ABS_MAX)
+                    if (targets.isEmpty()) return ScoredBand(core, core, wUpper, ccLow, ccHigh)
+                    val totalActual =
+                        weight(Characteristic.ACTION_POINT) * minOf(apRead, targetOf(Characteristic.ACTION_POINT)) +
+                            weight(Characteristic.MOVEMENT_POINT) *
+                            minOf(geo.mp(k).toLong() + assumedOpt.mp + extra.mp, targetOf(Characteristic.MOVEMENT_POINT)) +
+                            weight(Characteristic.CRITICAL_HIT) * minOf(ccForPenalty, targetOf(Characteristic.CRITICAL_HIT)) +
+                            weight(Characteristic.HP) *
+                            minOf(geo.hp(k).toLong() * hpStep + assumedOpt.hp + extra.hp, targetOf(Characteristic.HP))
+                    val bucket = (totalActual.coerceIn(1L, totalExpected) / bucketSize).toInt().coerceAtMost(maxIndex)
+                    return ScoredBand(core, core * powTable[bucket], wUpper, ccLow, ccHigh)
+                }
+
+                if (ccSupportLambda == 0L || weight(Characteristic.CRITICAL_HIT) == 0L) {
+                    val scored = scoreBand(support, ccRead, 0L, ccRead)
+                    return FoldResult(scored.core, scored)
+                }
+
+                // For a build whose signed CC lies in [lo, hi], positiveCC >= signedCC gives
+                // W <= H_lambda - lambda*lo, while pricing its target fold at hi only over-counts.
+                // Negative signed CC is covered by the lo=0 rectangle (both W and target credit
+                // are then relaxed upward). Values above the target are covered by its last band.
+                val ccUpper = minOf(ccRead.coerceAtLeast(0L), targetOf(Characteristic.CRITICAL_HIT))
+                var lo = 0L
+                var maxCoreForFold = 0L
+                var winner: ScoredBand? = null
+                while (lo <= ccUpper) {
+                    val hi = minOf(ccUpper, lo + ccSupportBand - 1L)
+                    val scored = scoreBand(support - ccSupportLambda * lo, hi, lo, hi)
+                    maxCoreForFold = maxOf(maxCoreForFold, scored.core)
+                    if (winner == null || scored.folded > winner.folded) winner = scored
+                    lo = hi + 1L
+                }
+                return FoldResult(maxCoreForFold, requireNotNull(winner))
             }
 
             fun consider(
@@ -1254,16 +1988,19 @@ internal object MaxDamageSoftBoundPrototype {
                 wCap: Long?,
                 tag: String,
             ) {
-                val (core, folded) = foldWith(extra, wCap)
-                if (core > bestCore) bestCore = core
-                if (folded > bestFolded) {
-                    bestFolded = folded
+                val folded = foldWith(extra, wCap)
+                if (folded.maxCore > bestCore) bestCore = folded.maxCore
+                if (folded.winner.folded > bestFolded) {
+                    bestFolded = folded.winner.folded
                     bindingKey = k
                     bindingW = wv
                     bindingState =
-                        "W=${wv + assumedOpt.w + extra.w} d=${geo.d(k) * diStep}+ramp$rampDi ap=${geo.ap(k)} mp=${geo.mp(k)} " +
+                        "supportLambda=$ccSupportLambda support=$wv ccBand=${folded.winner.ccLow}..${folded.winner.ccHigh} " +
+                        "Wupper=${folded.winner.wUpper} armConstW=$armConstantW armSecCap=$armSecCapRaw " +
+                        "d=${geo.d(k) * diStep}+ramp$rampDi ap=${geo.ap(k)} mp=${geo.mp(k)} " +
                         "cc=${geo.cc(k) * ccStep} hp=${geo.hp(k) * hpStep} e=${geo.e(k)} r=${geo.r(k)} " +
-                        "assume=${worldAssume?.name?.fr ?: "-"}$tag core=$core"
+                        "conditional=${if (geo.conditional(k) == 1 || assumedOpt.conditional || armForcesConditional) 1 else 0} " +
+                        "assume=${worldAssume?.name?.fr ?: "-"}$tag core=${folded.winner.core}"
                 }
             }
 
@@ -1286,7 +2023,8 @@ internal object MaxDamageSoftBoundPrototype {
                 for ((pk, pw) in preMap) byW.getOrPut(pw) { mutableListOf() }.add(pk)
                 var found = false
                 outer@ for (o in options) {
-                    val bucket = byW[curW - o.w] ?: continue
+                    val supportArc = o.w + ccSupportLambda * o.cc.coerceAtLeast(0)
+                    val bucket = byW[curW - supportArc] ?: continue
                     for (pk in bucket) {
                         work++
                         if (geo.applyOne(pk, o) == curK) {
@@ -1296,7 +2034,7 @@ internal object MaxDamageSoftBoundPrototype {
                                     "(w=${o.w} d=${o.d} ap=${o.ap} mp=${o.mp} cc=${o.cc} hp=${o.hp} hpPct=${o.hpPct})"
                             }
                             curK = pk
-                            curW = o.let { curW - it.w }
+                            curW -= supportArc
                             found = true
                             break@outer
                         }

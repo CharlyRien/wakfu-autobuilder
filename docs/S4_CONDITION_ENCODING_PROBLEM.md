@@ -11,30 +11,33 @@ A max-damage search whose **required targets are unreachable** (e.g. AP16 / MP8 
 falls back to the **soft penalized objective** (`damage × power6(target-shortfall)`). On that leg,
 **CP-SAT no longer reaches OPTIMAL**, so the "proven optimal" badge is withheld.
 
-We proved by isolation that the wall is **the reified conditions of the solver-choosable
-sublimations**, nothing else:
+Isolation identifies **the reified conditions of the solver-choosable sublimations** as the
+dominant proof wall on this fixture:
 
 | configuration (lvl-245 CRA, real parallel portfolio, all cores) | result |
 |---|---|
 | soft leg, **no sublimations** | **OPTIMAL** in det 253 / ~3.5 min |
-| soft leg, subs **without the 16 conditional ones** | **OPTIMAL** in **49 s**, obj = 17 702 078 146 500 |
+| soft leg, subs **without the 16 condition-bearing catalog entries** | **OPTIMAL** in **49 s**, obj = 17 702 078 146 500 |
 | soft leg, **full subs** (with conditions), 15 min wall | **FEASIBLE**, dual 2.14×, never proves |
 | soft leg, **full subs, 2 h wall** (real parallel) | **FEASIBLE**, dual **2.01×**, never proves |
 | soft leg, full subs, deterministic 8-worker, det 6000 (2h27) | **FEASIBLE**, dual 3.17× — deterministic ~1-core ARTIFACT |
 
-**The real optimum is `17 702 078 146 500`** — proven optimal over the no-conditional-subs subset in
-49 s, and independently reached (never beaten) by the full-subs 2 h real-parallel search, which
-converged to the exact same value at ~14 min. So the conditional subs do not improve it on this
-shape. And **even 2 h of real parallelism does not PROVE the full-subs model** — the dual crawled
-37.9T→35.55T over the extra 1h45, so this is a genuine provability wall, not a compute-budget
-shortfall. A fast, provable encoding is required; more cores/time alone will not deliver the badge.
+The best-known full-model incumbent is **`17 702 078 146 500`**. The no-condition subset proves that
+same value in 49 s, and the full-subs 2 h search reached it at ~14 min and never improved it. This is
+strong evidence, but **not a proof of the full optimum**: the subset's feasible set is smaller, and
+the full run ended FEASIBLE with dual 35.55T. The current independent sound prototype certificate
+closes the upper side to **17 762 813 128 500**, giving the interval
+**[17 702 078 146 500, 17 762 813 128 500]**, only **0.343095%** wide. This latest bound is green
+against three deterministic exact-pool CP-SAT locks; see §6 and
+`MOST_MASTERIES_PERF_PLAN.md` §9.15.
 
 Two consequences:
-1. The **bilinear objective, the stacking, and the carrier matching are all fine** — CP-SAT proves
-   through them in under a minute. Only the **condition reification** breaks provability.
-2. On this shape the conditional subs **do not even improve the optimum** — the no-conditional-subs
-   proof lands on `17 702 078 146 500`, the *exact* incumbent the 2h27 full-subs run had already
-   found but could not prove. So **the optimum was reached all along; only the proof was missing.**
+1. The bilinear objective, stacking and carrier matching are tractable on the restricted fixture —
+   CP-SAT proves through them in under a minute. Adding the modeled condition layer destroys that
+   proof behavior.
+2. Equality of the restricted optimum and full incumbent does not establish that conditional subs
+   cannot improve the build; only a full CP-SAT proof or a certificate meeting the incumbent can do
+   that.
 
 This is a **provability regression** introduced by the (semantically correct) condition-timing fix
 `39532d15` (2026-07-14), which added `firstTurnStat` reified variables. Before it, sub-heavy soft
@@ -70,7 +73,8 @@ Read the verdict from the `MM_PERF_AB SUMMARY shape=S4-...` line (`status`, `raw
   portfolio** (`if (tuning == null)` branch, `WakfuBuildSolver.kt` ~L2905). **Do NOT use the
   deterministic path for provability questions** — a non-null `SolverTuning` with
   `maxDeterministicTime` runs the workers *interleaved for reproducibility*, i.e. on ~1 physical
-  core, so it dramatically under-represents what real parallelism proves. Every earlier
+  core, so it dramatically under-represents what real parallelism proves. It is still useful for
+  controlled A/B runs when paired with a fixed seed and `interleaveSearch=true`. Every earlier
   "multi-worker" S4 measurement in `docs/MOST_MASTERIES_PERF_PLAN.md` §9.0–9.5 was this deterministic
   artifact.
 - `WAKFU_MM_C2_NOCONDSUBS=1` → filters `sub.condition != null` out of the sublimation list.
@@ -110,7 +114,12 @@ re-scorer (`FindClosestBuildFromInputScoring.kt`, `subConditionHolds`) evaluates
 integer math — any encoding change must keep the two in lockstep (there is a differential lock:
 `SublimationConditionTest`, `SublimationPreCombatConditionTest`).
 
-### The 16 solver-choosable conditional subs, by type
+### The condition-bearing catalog entries
+
+There are 16 solver-choosable entries in the JSON, but only **15 enter CP-SAT with a modeled
+condition**. `Force Herculéenne` uses `AP_ODD`, which is outside `SUPPORTED_SUB_CONDITIONS` and is
+filtered by `isModelableSublimation`; it creates no reification.
+
 ```
  4  SECONDARY_MASTERIES_AT_MOST   (Neutralité/Prétention/Ambition III, Inflexibilité II — firstTurn=true)
  2  CRIT_AT_MOST                  (Constance, Mesure III)
@@ -118,7 +127,8 @@ integer math — any encoding change must keep the two in lockstep (there is a d
  1  AP_AT_MOST                    (Inflexibilité)
  1  CRITICAL_MASTERY_AT_MOST      (Secret critique)
  1  BLOCK_AT_LEAST                (Mesure)
- 1  RANGE_AT_LEAST / 1 RANGE_AT_MOST / 1 AP_ODD / 1 DODGE_LT_PCT_OF_LEVEL / 1 NO_OFFHAND_OR_TWO_HANDED
+ 1  RANGE_AT_LEAST / 1 RANGE_AT_MOST / 1 DODGE_LT_PCT_OF_LEVEL / 1 NO_OFFHAND_OR_TWO_HANDED
+ 1  AP_ODD catalog entry — unsupported/filter-out, not reified
 ```
 
 ---
@@ -127,8 +137,8 @@ integer math — any encoding change must keep the two in lockstep (there is a d
 
 - Each `reifyLe`/`reifyGe` is an **indicator (big-M-style) constraint**. Its LP relaxation is weak:
   the fractional `b` lets `value` sit on both sides of the threshold at once, so the relaxation does
-  not exclude the switching point. With **16 of them**, the search must effectively branch the
-  power-set of conditions to certify the dual — the objective is nonlinear (`value` feeds mastery →
+  not exclude the switching point. With **15 modeled conditions**, the search can be driven toward a
+  power-set-sized condition split to certify the dual — the objective is nonlinear (`value` feeds mastery →
   `D·Graw` → penalty), so the disjunctions never collapse in presolve.
 - The `firstTurn` reads (07-14 fix) make `value` a **larger sum** (pre-combat + start-of-combat flat
   sub terms, each subVar-gated), widening the reified expression's domain and adding gated products —
@@ -157,40 +167,139 @@ integer math — any encoding change must keep the two in lockstep (there is a d
 
 ---
 
-## 6. Candidate directions (unranked — for the next agent to evaluate)
+## 6. Current direction and tested alternatives
 
-- **A. Search-side WORLD SPLIT (mirrors the certificate).** Solve one CP-SAT model per *condition
+- **A. Continue the independent certificate (CURRENT).** The sound D·Graw prototype now bounds S4
+  by **28.85412T = 1.6300×** the incumbent, improving the prior sound 30.85T/1.743× result. The latest
+  tightening replaces an impossible negative-secondary stack (all weapon types and multiple rarity
+  layouts) with a legal distinct-ring/weapon/EPIC/RELIC maximum: `armSecCap 3323 → 2587`. The binding
+  path is still `secZero` and saturates AP16/MP8/CC100/HP12000. Independent exact HP/CC envelopes
+  were also tested soundly, but other relaxed paths sharing the binding key reach HP12000/CC100, so
+  the coarse bound stayed 31.85706T; the experiment was reverted. A sound support function now does
+  preserve the missing tradeoff inside each key: `Hλ=max(W+λ·positiveCC)`, collapsed over CC bands
+  using `W≤Hλ−λ·bandLow` and target credit at `bandHigh`. At `λ=5000` it lowers the coarse bound to
+  **30.87351T (−3.09%)** without adding states; λ7000/10000 are worse. Three deterministic exact-pool
+  CP-SAT locks with a real CC target remain green. The canonical fine grid confirms the gain:
+  **28.04238T = 1.5841×**, down from 28.85412T/1.6300×, with the same 46,857,707 states and a measured
+  wall of 1,979,857 ms (32m59.9s). A further sound item-layout coupling removes the independent
+  combination of best `W0` gear with another layout's 2587 negative-secondary budget: each item is
+  priced directly as `W0 + 500·Nitem`. The combined coarse bound drops sharply
+  **30.87351T→24.13557T (−21.83%, 1.3634×)** with no new state, and all three exact-pool locks stay
+  green. The fine grid confirms **21.92445T = 1.2385×** (down 21.81% from 28.04238T), with the same
+  46,857,707 states and 1,708,112 ms DP wall. The certified interval is now
+  **[17.7020781465T, 21.92445T]**. The existing production certifier only bounds raw damage and
+  cannot directly represent S4's unmet-target soft penalty, so this remains a separate proof path,
+  not yet a `CERTIFIER_VERSION` port. A stronger item identity
+  `Pscenario <= t + Nitem - positiveNonScenarioSecondary(item)` then removes the remaining
+  impossible Neutralité path: coarse **24.13557T→23.58279T**, with `plain` now winning. Finally,
+  exact signed DI + exact CC inside the shared normal-sub knapsack pays Vélocité II's −10 DI
+  rider and stops rounding each +3 CC copy independently; coarse falls another **10.43% to
+  21.12267T = 1.1932×** and all three exact-pool locks remain green. Re-running those locks with
+  the current λ=7000 configuration gives 3.3218×/1.5331×/1.5373×.
+  An exact bit coupling `Expert des armes légères` to the weapon layout was measured but rejected:
+  only −0.86% bound for +120% wall. Full log: `MOST_MASTERIES_PERF_PLAN.md` §9.
+  The canonical fine grid confirms a **20.48772T = 1.1574×** sound bound (53,452,911 states,
+  2,856,407 ms): a 6.55% improvement over 21.92445T, at +14.1% states / +67.2% wall. The certified
+  interval initially became **[17.7020781465T, 20.48772T]**. Re-sweeping the support after the arm
+  changed finds a new λ=7000 plateau (λ=10000 is identical in coarse grid). The canonical fine
+  rerun certifies **20.40555T = 1.1527×** with the same 53,452,911 states and 2,821,827 ms wall.
+  The current interval is **[17.7020781465T, 20.40555T]**, i.e. a proven maximum gap of **15.27%**.
+  Its binding state is still `plain`, CC band 100, `Wupper=4,224,500`, d=94; the next certificate lever is a per-key multi-slope CC support envelope,
+  not another independent CC maximum or a full exact-CC dimension.
+  Iteration no longer needs that 47-minute gate: `scripts/s4-certificate-screen.sh` provides a
+  stamped non-certifying `base/plain` screen plus `coarse`, DI-only, CC-only and HP-only profiles;
+  `coarse cert` covers every world/arm and `fine cert` is reserved for promotion. It uses
+  `cleanTest` so environment-only experiments reuse compiled classes, and optional timings expose
+  every stage/world wall.
+  Measured: `coarse plain` 9 s, DI-only plain 21 s, all-world coarse certificate 2m28s. A sound
+  adaptive gate keeps coarse bounds for every world and DI-refines only contenders; here it refines
+  base/plain once, proves the same **20.40555T** bound in **3m06s** (5.01M states), and stops because
+  the next coarse world upper is 20.06691T. This replaces the 47-minute grid for normal promotion;
+  the full fine run remains an occasional calibration/nightly check.
+  **2026-07-16 update:** four further sound prototype tightenings changed the scale of the result:
+  signed item `MAX_AP` in the AP axis; signed item/NORMAL-sub `MAX_MP` in the existing MP axis;
+  corrected `secZero` algebra that permits only negative mastery *outside* the scenario to fund the
+  condition; and a value-side union for `Expert des armes légères` (`noExpert` versus weapon-eligible
+  layouts). The extra `mpCapMinus` bit was measured at **13m31s** and replaced: coarse worlds retain
+  the loose MP read, while only contenders pay the signed refinement. A per-key multi-slope CC
+  envelope was also measured with `{0,7000}` and `{7000,10000,20000,50000}`: **no gain**, about
+  18 s → 74 s, fully reverted. Re-sweeping the surviving single support gives λ=6000. The sound
+  adaptive all-world result is now **17.7628131285T** in **6m54s** / 9,949,088 states, versus the
+  independently CP-SAT-proven no-condition optimum **17.7020781465T** (58.4 s). Thus the current
+  certified interval is **[17.7020781465T, 17.7628131285T]**, only **0.343095%** wide. The exact
+  deterministic seeded locks are green at ratios 3.3141× / 1.5351× / 1.5350× with all flags on.
+  Full measurements and the incumbent provenance are in `MOST_MASTERIES_PERF_PLAN.md` §9.15.
+  **Forensic follow-up:** reconstructing the certificate's own support provenance proves that it is
+  not a better build missed by CP-SAT. Its concrete path has CC97 (not 100) and exact score
+  22,251.2901; the sound support envelope combines its `Hλ` with the separate CC100 rectangle.
+  CP-SAT proves the no-condition AP15/MP8/CC100/HP12000 cell exactly at raw **19,382,375** in
+  14.76 s, identical to the incumbent's raw proxy. Removing all conditional subs leaves the
+  certificate bound unchanged. A naive exact-CC DP tightens only to **17.760644022T (+0.330842%)**
+  while costing 21.13M states / 36m57s; HP=100 is inert and costs 15m40s. Verdict: the remaining
+  difference is certificate-envelope looseness, not a CP-SAT incumbent miss. See §9.16 for the
+  exact items/runes/subs and the cutoff/cell controls.
+- **A3. Complete semantic partition (PROTOTYPE PROOF, 0.0000%).** Split the feasible set into
+  builds selecting no condition-bearing sub and builds selecting at least one. CP-SAT already
+  proves the first partition exactly at **17.7020781465T**. A dormant certificate key marker tracks
+  the second partition only from the sub stages onward; normal-sub packing, assumed cap worlds and
+  objective-cap arms preserve the partition. An adaptive run keeps ordinary coarse bounds for all
+  worlds already below the CP optimum and condition-refines only the contenders. It returns:
+  conditional base/plain **17.0253169185T**, conditional critZero **16.9211998065T**, next coarse
+  world **17.6934017205T**, hence final union upper **17.7020781465T** exactly. Wall is **10m48.8s**
+  / 12.73M aggregate states. A new deterministic CP oracle constrained by
+  `sum(condition-bearing sub vars) >= 1` proves seed 1 at 0.551021875745T; the conditional
+  certificate covers it at 1.885243906T. This is the first complete S4 proof, but still test-side:
+  run the other two partition locks, type/cache the no-condition proof input, reduce wall, then port
+  and bump `CERTIFIER_VERSION`.
+- **A4. λ is tuning, not semantics.** A targeted second support located the 97→111-positive-CC
+  knee at μ=6100, but only reduced W by 300 and left the integer final bound unchanged while slowing
+  the DI world ~92→169 s; it was reverted. Any λ≥0 remains sound and can only change tightness.
+  λ=6000 is measured for S4, not universal. This prototype supports required AP/MP/CC/HP targets;
+  unrelated shapes such as an impossible 10,000-resistance request must bail as unavailable rather
+  than reuse the S4 tuning.
+- **B. Direct selected-sub implication (MEASURED-NO; reverted).** The exact projection
+  `subVar ⇒ condition` removes the otherwise-private `b ⇔ condition` variable for choosable subs;
+  forced subs retain full reification. Semantic locks passed. At fixed seed, 1 worker,
+  `interleaveSearch=true`, det 60, it improved the early incumbent 6.286T→10.833T but worsened the
+  dual 71.380T→77.210T (+8.17%) and wall 144.6→184.7 s (+28%). A real-parallel 180 s sample was also
+  worse (dual 35.921T→39.431T). Do not retry this change alone without a new propagation argument.
+- **B2. Share identical predicates (MEASURED-NO; reverted).** Four subs have the same first-turn
+  `secondary masteries ≤ 0` predicate. Memoizing by normalized condition reduces 15 modeled entries
+  to 12 unique reifications and is exactly equivalent, but at fixed seed/1 worker/interleave/det 60
+  it worsened the dual **46.790T→50.920T (+8.83%)** and the incumbent 7.526T→4.218T. Wall improved
+  156.2→130.4 s, but proof quality is the gate. The duplicate predicates were useful propagation;
+  this optimization was reverted.
+- **B3. Direct structural conflicts (MEASURED-NO; reverted).** Replacing only the choosable
+  `NO_OFFHAND_OR_TWO_HANDED` reification by exact pairwise `sub + offhand/2H ≤ 1` constraints improves
+  incumbent 7.526T→7.773T and wall 156.1→132.0 s, but worsens the dual
+  **46.790T→50.920T (+8.83%)**. Forced-sub inert semantics stayed fully reified. This lands on almost
+  the same bad dual as B2: local removal/projection of reifications is now an exhausted family.
+- **C. Search-side WORLD SPLIT (unimplemented).** Solve one CP-SAT model per *condition
   world* where each condition is a **constant** (assumed held / not held), so no indicator remains —
   each world proves in ~50 s like the no-cond case; the answer is the max over worlds. The naive
-  power-set is 2^16, so the leverage is in **pruning worlds**: the no-cond proof gives a strong
-  incumbent+bound (17.70T), and a world only needs solving if its conditional subs *could* beat it —
-  a bound the certificate's per-sub contribution estimate can supply. On S4 no world beats no-cond, so
-  it would prove almost immediately. Watch: worlds where an AT_MOST condition forces a stat low
-  interact with the objective (low crit ⇒ low damage), so most are self-defeating and prunable.
-- **B. Tighter indicator encoding.** Replace the two-sided `reifyLe`/`reifyGe` with a one-sided
-  implication where only one direction is load-bearing (the sub is *gated* by `subVar ≤ b`, so only
-  `b ⟹ value ≤ n` matters for feasibility; `¬b ⟹ value ≥ n+1` may be droppable when `b` is only ever
-  read through `subVar ≤ b`). Fewer/《looser reverse indicators can tighten the LP without changing the
-  feasible set. Verify against the scalar mirror + the differential locks.
-- **C. Lazily add conditions.** Solve no-cond first (proven, 49 s). Then, per conditional sub, test
+  power-set is 2^15 modeled conditions, so the leverage is in **soundly pruning worlds**. The
+  certificate may supply bounds, but equality with the no-cond incumbent is not itself a pruning
+  proof. Watch AT_MOST conditions that force an objective stat low.
+- **D. Lazily add conditions.** Solve no-cond first (proven, 49 s). Then, per conditional sub, test
   whether adding just that sub (its condition reified) can raise the objective above the no-cond
   optimum; skip the ones that can't. Only the survivors enter a combined solve. This is B&B over
-  conditions with the no-cond optimum as the incumbent — likely proves S4 in ~1 min.
-- **D. Presolve / linearization knobs.** The max-damage path already sets `linearizationLevel = 2` and
+  conditions, but single-sub tests alone do not cover improvements requiring several coexisting
+  normal subs; pruning must use a sound combined upper bound.
+- **E. Presolve / linearization knobs.** The max-damage path already sets `linearizationLevel = 2` and
   `maxPresolveIterations = 3` (`WakfuBuildSolver.kt` ~L2904/L2918). Try higher presolve iterations or
   `numSearchWorkers` portfolios tuned for indicator-heavy models. Cheapest to try; least certain.
 
-**Gate for any fix:** the full-subs S4 soft leg reaches `status=OPTIMAL` with the *same* objective the
-no-cond run proved (17 702 078 146 500 on this shape — the conditional subs must not be dropped, only
-encoded provably), in a wall comparable to the badge budget (target ≤ ~1 min real-parallel like the
-no-cond case). Keep every `SublimationConditionTest` / `SublimationPreCombatConditionTest` /
-`MostMasteriesCertificateTest` lock green.
+**Gate for a CP-SAT fix:** the full-subs S4 soft leg reaches `status=OPTIMAL`; do not require the
+result to equal 17 702 078 146 500 until the full model proves it. Target wall is comparable to the
+badge budget (~1 min real-parallel). **Gate for a certificate fix:** every exact-pool and banked
+incumbent soundness canary remains `bound ≥ feasible objective`, and the S4 interval strictly
+tightens. Keep every sublimation differential lock and certificate soundness lock green.
 
 ---
 
 ## 7. Pointers
 
-- Full measurement log: `docs/MOST_MASTERIES_PERF_PLAN.md` §9.10–§9.12.
+- Full measurement log: `docs/MOST_MASTERIES_PERF_PLAN.md` §9.10–§9.14.
 - Reification: `SublimationTerms.kt` (`appliesVar`, `reifyCondition`, `reifyStatBound`,
   `reifyLe`/`reifyGe`). Semantics: `SublimationSemantics.kt`. First-turn read:
   `StatBuilder.firstTurnStat` / `startOfCombatFlatSubTermsByStat`, and `SublimationTerms.

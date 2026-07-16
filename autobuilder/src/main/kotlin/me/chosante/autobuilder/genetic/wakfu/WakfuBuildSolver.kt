@@ -1274,6 +1274,10 @@ object WakfuBuildSolver {
         probingLevel: Int? = null,
         objectiveShaving: Boolean = false,
         searchBranching: Int? = null,
+        // Cut on the FINAL soft-penalized objective only. Keep separate from [objectiveCutoff],
+        // which is also threaded into perTurnDamageScore as a raw D·Graw cutoff and therefore has
+        // different units whenever required-target penalty folding is active.
+        penalizedObjectiveCutoff: Long? = null,
         objectiveCutoff: Long? = null,
         // Portfolio-composition research knobs (parameter-only, soundness-safe like the above).
         logSearch: Boolean = false,
@@ -1286,6 +1290,9 @@ object WakfuBuildSolver {
         // C4: screen the CONSTRAINED hard-leg shape (required targets as `actual ≥ target`, plain objective) — the
         // shape whose bilinear dual gap C6 targets — instead of the soft-penalty relaxation. Default false = today.
         hardConstraints: Boolean = false,
+        // Test-only partition oracle: require at least one modeled condition-bearing sublimation.
+        // Used to lock the certificate's complementary {no condition | some condition} split.
+        requireAnyConditionalSublimation: Boolean = false,
     ): MaxDamageTimedProfile {
         val built =
             buildModel(
@@ -1298,7 +1305,16 @@ object WakfuBuildSolver {
                 maxDamageObjectiveCutoff = objectiveCutoff,
                 hardConstraints = hardConstraints
             )
-        objectiveCutoff?.let { built.model.addGreaterOrEqual(built.objective, it) }
+        (penalizedObjectiveCutoff ?: objectiveCutoff)?.let { built.model.addGreaterOrEqual(built.objective, it) }
+        if (requireAnyConditionalSublimation) {
+            val conditionalVars =
+                built.subModel.subVars
+                    .filterKeys { it.condition != null }
+                    .values
+                    .toTypedArray()
+            require(conditionalVars.isNotEmpty()) { "conditional partition requested with no modeled conditional sublimation" }
+            built.model.addGreaterOrEqual(LinearExpr.sum(conditionalVars), 1L)
+        }
         val solver = CpSolver()
         solver.parameters.logSearchProgress = logSearch
         solver.parameters.linearizationLevel = linearizationLevel

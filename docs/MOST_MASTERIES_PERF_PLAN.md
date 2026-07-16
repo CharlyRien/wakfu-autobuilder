@@ -1355,10 +1355,10 @@ Static audit of the DI sources found Anatomie (EPIC): +40 back-gated AND −20 u
 positive-parts-only read credited +40 where the sub's exact whole is +20. Fix: a sub's DI lines
 SUM (signed, gate-matched), clamped ≥ 0 per sub. Fine grid **30.85T = 1.743×** (binding d 138→118,
 still secZero, all targets saturated); d4/hp1000 1.82×/4 min; d10/hp2000/cc20 1.92×/2 min. Seed
-locks tightened to 1.35-1.40 on OPTIMAL small-pool solves. Trajectory: 3.36 → 2.19 → 1.90 (sound)
-→ 1.74 — vs a still-UNPROVEN 17.70T incumbent.
+locks stayed sound (two at 1.35-1.40×, one loose at 3.35×) on OPTIMAL small-pool solves.
+Trajectory: 3.36 → 2.19 → 1.90 (sound) → 1.74 — vs a still-UNPROVEN 17.70T incumbent.
 
-### 9.10 — DECISIVE PIVOT: the soft model PROVES; the SUBLIMATION ENCODING is the wall (2026-07-15)
+### 9.10 — CP-SAT isolation: the soft core proves without sublimations (2026-07-15)
 
 The maintainer insisted the "complicated soft-penalty formula proved before." Tested it instead of
 arguing. **S4 max-damage soft-direct, 8 workers, NO sublimations → status=OPTIMAL in det 253 / wall
@@ -1368,13 +1368,11 @@ objective is NOT the provability wall — CP-SAT closes it cleanly multi-worker.
 without, det 253 proves. Subs are essential to the optimum (obj 5.82T no-subs → ≥17.70T with-subs,
 ~3×), so they can't be dropped — but the model proves once their encoding is lighter.
 
-**Consequence — the D·Graw CERTIFICATE campaign (§9.0-9.9) was solving the wrong problem.** The
-prototype is sound and is the tightest known bound, but the real user story ("proven optimal" badge
-for a sub-heavy max-damage request) is reachable via a PROVING model, not a within-X% certificate.
-PIVOT: characterize which sub feature is the provability tax — the stacking copy chains
-(38fe9c0c), the condition reification (39532d15 firstTurnStat vars), or sheer sub count — and find
-a lighter equivalent encoding that lets the sub-heavy soft model prove. That yields a +0% badge,
-not a +74% one. The certificate stays as a fallback/low-core option.
+**Consequence.** This opened a useful second proof path; it did not invalidate the D·Graw
+certificate campaign. A full-model CP-SAT proof would provide the exact oracle and a +0% badge,
+while the independent certificate provides an actual sound upper bound even when CP-SAT does not
+close. Characterize the sublimation tax in parallel with certificate tightening; do not assume the
+full-model incumbent is optimal merely because a restricted model proves the same value.
 
 ### 9.11 — real parallelism helps but does not close S4-with-subs; the deterministic runs were misleading (2026-07-15)
 
@@ -1388,35 +1386,537 @@ right lever — but 15 min doesn't finish the proof. The certificate (30.85T) st
 real-parallel dual (37.89T). No-subs proves (§9.10); with-subs is the wall. Next: real-parallel +
 condition-stripped to test whether the 16 reified conditions are the specific tax.
 
-### 9.12 — THE ANSWER: conditional subs are the entire provability wall; the optimum was already found (2026-07-15)
+### 9.12 — isolation result: modeled conditional subs dominate the CP-SAT proof wall (2026-07-15)
 
-S4 with subs but WITHOUT the 16 conditional subs, real parallel → **OPTIMAL in 49 s**, objective ==
-bound == **17 702 078 146 500 = the exact incumbent** the 2h27 full-subs run banked. Two findings:
+S4 with subs but WITHOUT the 16 condition-bearing catalog entries (15 of them are actually
+solver-modeled; `Force Herculéenne`/`AP_ODD` is unsupported and filtered), real parallel →
+**OPTIMAL in 49 s**, objective == bound == **17 702 078 146 500**, equal to the incumbent the
+2h27 full-subs run banked. Two findings:
 1. The reified CONDITIONS (disjunctive if-then structure; the 07-14 condition-timing fix hardened
-   the Neutralité-family ones) are the entire CP-SAT provability wall — remove them and it proves in
-   under a minute. The bilinear objective, the stacking, the carrier matching are all fine.
-2. On this shape the conditional subs do NOT improve the optimum (same 17.70T with/without) — so the
-   2h27 incumbent WAS optimal all along, just UNPROVABLE. The "proven optimal" badge was reachable
-   the whole time, blocked purely by the condition encoding.
+   the Neutralité-family ones) are the dominant isolated CP-SAT provability wall — remove them and
+   this restricted model proves in under a minute. The bilinear objective, stacking and carrier
+   matching are tractable on that restricted shape.
+2. The equality is strong evidence that the full-model incumbent may already be optimal, but it is
+   **not a proof**: the no-condition feasible set is a subset of the full feasible set. A conditional
+   sub could still produce a better, undiscovered full-model build.
 
-**This reframes the whole S4 campaign.** The right fix is NOT a within-X% certificate — it is to make
-the sub-heavy model PROVE, via a lighter condition encoding OR a WORLD SPLIT of the SEARCH (one CP-SAT
-model per condition-world where each condition is a constant, not a reified disjunction; each world
-proves in ~50 s like the no-cond case; the badge is max over worlds). This is the SAME world-split idea
-that makes the certificate sound, applied to the search — yielding a real +0% badge. The D·Graw
-certificate (§9.0-9.9) stays a sound fallback but is no longer the primary path.
+**This adds a CP-SAT target to the S4 campaign.** A lighter exact condition encoding or a complete
+search-side world split could yield a +0% proof. Until one actually proves every full-model world,
+the D·Graw certificate remains the primary source of an independent upper bound.
 
 ⚠️ REGRESSION CONFIRMED for the maintainer's report: the condition-timing fix (39532d15) added
 firstTurnStat reified vars that made the soft max-damage leg harder for CP-SAT to prove. Not a
 correctness regression (the fix is right), but a PROVABILITY one — the badge that fired before on
-sub-heavy soft requests may now be withheld. The world-split search restores it.
+sub-heavy soft requests may now be withheld. A complete, sound world-split search could restore it.
 
-### 9.13 — 2 h real-parallel run: optimum confirmed 17.70T, still unproven (2026-07-15)
+### 9.13 — 2 h real-parallel run: incumbent stable at 17.70T, still unproven (2026-07-15)
 
 Full-subs S4, production wall-clock parallel portfolio (all cores), 2 h wall: FEASIBLE, incumbent
 **17 702 078 146 500** (reached at ~14 min, never beaten in the remaining 1h46), dual 35.55T =
-**2.01×** (37.9T at 15 min → 35.55T at 2 h — the dual has effectively stalled). Confirms: (a) the
-real S4 optimum IS 17.70T (proven over the no-cond subset in 49 s AND independently un-improvable by
-the full-subs search); (b) the conditions are a GENUINE provability wall — 2 h of real parallelism
-does not close it, so the badge needs a provable ENCODING, not more compute. Data folded into the
-handoff doc `docs/S4_CONDITION_ENCODING_PROBLEM.md`.
+**2.01×** (37.9T at 15 min → 35.55T at 2 h — the dual has effectively stalled). This confirms the
+incumbent's empirical stability and the severe proof wall, **not** global optimality: FEASIBLE plus
+"never beaten" remains a lower bound only. A provable encoding or the independent certificate must
+close the interval. Data folded into `docs/S4_CONDITION_ENCODING_PROBLEM.md`.
+
+### 9.14 — certificate resumed; legal negative-secondary budget cuts the sound bound to 1.630× (2026-07-15)
+
+The restricted-model result in §9.12 does not prove the full model, so work resumed on the S4
+certificate while testing one easy exact CP-SAT encoding projection.
+
+#### CP-SAT condition projection — exact, measured, REJECTED
+
+For a solver-chosen conditional sub, the existing encoding creates `b ⇔ condition` and posts
+`subVar ≤ b`. Because `b` has no other consumer on this path, its projection onto the real model
+variables is exactly the one-sided constraint `subVar ⇒ condition`. Forced subs still need the full
+truth-value gate because they may be equipped while inert. The projected implementation passed the
+sublimation semantic/differential locks, but proof performance regressed:
+
+| protocol | full reification | projected implication | verdict |
+|---|---:|---:|---|
+| real parallel, 180 s | incumbent 17.351T, dual 35.921T | incumbent 15.243T, dual 39.431T | worse primal and dual in this noisy wall sample |
+| deterministic, fixed seed, `interleaveSearch=true`, 1 worker, det 60 | incumbent 6.286T, dual 71.380T, 144.6 s | incumbent 10.833T, dual 77.210T, 184.7 s | better early primal, but dual **+8.17%** and wall **+28%** at equal deterministic work |
+
+The proof objective is the dual, so this arm is **parked and reverted**. Do not retry the direct
+implication alone without a new propagation idea; exactness and fewer booleans did not translate to
+a stronger CP-SAT proof.
+
+#### Identical-condition memoization — exact, measured, REJECTED
+
+Four choosable subs (`Neutralité III`, `Prétention III`, `Ambition III`, `Inflexibilité II`) share
+the exact normalized predicate `SECONDARY_MASTERIES_AT_MOST(0), firstTurn=true`. A cache keyed by
+`SubConditionSpec` made them reuse one sum and one reified boolean, reducing the 15 modeled catalog
+conditions to 12 unique reifications without changing the feasible set.
+
+Same-JVM deterministic A/B, fixed seed, one worker, `interleaveSearch=true`, det 60, with the
+max-damage production cut configuration explicitly held equal:
+
+| arm | incumbent | dual bound | wall |
+|---|---:|---:|---:|
+| four full reifications | 7.526083577250T | **46.789725248960T** | 156.182 s |
+| one shared predicate | 4.217834479125T | 50.920109934095T | **130.419 s** |
+
+The smaller model is 16.5% faster in wall but its dual is **8.83% worse**, and its incumbent is
+worse too. The duplicate reifications evidently provide useful propagation/search redundancy.
+Rejected and reverted; do not retry predicate memoization alone.
+
+#### Direct light-weapon conflicts — exact, measured, REJECTED
+
+The last local projection isolated the one purely structural predicate
+`NO_OFFHAND_OR_TWO_HANDED` (`Expert des armes légères III`). For a solver-chosen sub, its full
+truth-value reification plus `subVar ≤ condition` was replaced by the exact binary conflicts
+`subVar + equipVar ≤ 1` for every off-hand/2H choice. Forced-sub semantics were deliberately left
+fully reified.
+
+Same-JVM deterministic A/B under the identical protocol/configuration:
+
+| arm | incumbent | dual bound | wall |
+|---|---:|---:|---:|
+| full reification | 7.526083577250T | **46.789725248960T** | 156.062 s |
+| direct binary conflicts | **7.773156462500T** | 50.920109920720T | **131.982 s** |
+
+The direct conflicts improve the early incumbent and wall, but worsen the proof dual by
+**8.83%**—almost exactly the same bad dual reached by identical-condition memoization. Rejected and
+reverted. Together with the generic implication experiment, this exhausts the credible local
+“remove/project a reification” family: CP-SAT benefits from the redundant truth-value structure on
+this nonlinear objective even when the projected feasible set is identical.
+
+#### Sound certificate tightening — legal negative-secondary layout
+
+Coarse provenance showed the binding `secZero` arm carrying `armSecCap=3323`. That number was the
+sum of independent per-type negative-secondary maxima, including impossible simultaneous
+`2H + 1H + off-hand` weapons and multiple EPIC/RELIC layouts. For a Neutralité-family condition,
+write the signed all-secondary sum as:
+
+```text
+P_all - N <= t  =>  P_scenario <= P_all <= t + N
+```
+
+The new independent bound maximizes `N` over legal distinct-ring and weapon layouts with the real
+one-EPIC/one-RELIC budgets. Base, runes, skills and sublimations are all credited independently on
+their negative side, deliberately relaxing their budgets. Forced-passive shapes now bail rather
+than omitting their positive lines. Therefore the result remains an upper bound; taking the minimum
+with the previous signed-budget knapsack is sound. On S4 the cap is `3323 → 2587` (−22.15%), and
+`armConstW` falls `1,661,500 → 1,293,500`.
+
+Results:
+
+| read | before | after |
+|---|---:|---:|
+| coarse provenance bound | 34.05573T | **31.85706T** (−6.46%) |
+| fine-grid sound bound | 30.85T (1.743×) | **28.85412T (1.6300×)** |
+| fine-grid work | — | 46,857,707 states / 3,031,851 ms (50m31.9s) |
+| binding state | `secZero`, all targets saturated | `Wbase=4,022,500`, `armConstW=1,293,500`, `armSecCap=2587`, `d=118`, AP16/MP8/CC100/HP12000 saturated |
+
+The certified interval is now **[17.7020781465T, 28.85412T]**. Three seeded exact-CP-SAT
+soundness locks remain green (`bound ≥ optimum`; ratios 3.3514, 1.4014, 1.3504). This is a
+test-side prototype change, not the production certifier, so `CERTIFIER_VERSION` is unchanged.
+
+#### Independent exact target envelopes — SOUND but MEASURED-NO, reverted
+
+The path still saturates every nominally unreachable target, and `Geometry.applyOne` rounds HP/CC
+upward at every stage. A constant-state-size experiment packed independent maxima
+`(max W, max exact HP, max exact CC)` into the existing map value for each abstract key. The maxima
+may come from different builds, so their Cartesian combination is a sound relaxation; collapse
+takes the minimum of the old bucket upper and the exact-value upper.
+
+It did not move S4: the same coarse binding key has `hpUpper=12000` and `ccUpper=100` through other
+relaxed paths, so the bound remains **31.85706T**. Seeded soundness stayed green, but that campaign
+slowed from ~5m25 to ~10m in this sample. Reverted. This also disproves the simple “per-stage
+rounding is the next lever” hypothesis: an axis bound independent of objective value loses the same
+tradeoff as the original DP.
+
+#### Coupled `W + λ·CC` support function — SOUND, coarse win
+
+The next experiment preserves one tradeoff without widening the DP map. For each existing abstract
+key, retain
+
+```text
+Hλ = max(W + λ·CCpositive)
+```
+
+where `CCpositive` is the sum of non-negative CC contributions. Since the build's signed critical
+hit value `c` is always `≤ CCpositive`, a build whose `c` lies in an integer band `[lo, hi]` obeys
+`W ≤ Hλ − λ·lo`; evaluating its target penalty at `hi` also only over-counts. The maximum of those
+rectangles over the bands is therefore a sound upper bound. Negative `c` is covered by the `lo=0`
+rectangle, and values above the target by the final target-capped rectangle. `λ=0` is exactly the
+previous prototype. This is different from §8.14's inert multiplier on the global 10-sub count: the
+support is maximized **inside every merged DP key**, so it directly prevents taking `W` from a
+low-CC path and CC target credit from another path.
+
+Coarse grid (`DI=10`, `CC=20`, `HP=1000`, CC bands of 5):
+
+| λ | sound bound | vs λ=0 |
+|---:|---:|---:|
+| 0 | 31.85706T | — |
+| 5,000 | **30.87351T** | **−3.09%** |
+| 7,000 | 30.95817T | −2.82% |
+| 10,000 | 31.08267T | −2.43% |
+
+The winner remains the `secZero` arm and the `CC=100` band. The state count is unchanged; only the
+scalar retained at each key changes. `λ≈5000` is the measured coarse minimum (the winning support
+line switches to a ~107-positive-CC path immediately above it).
+
+The manual soundness lock was strengthened to include an unreachable `CC=100` target, so it really
+exercises the banded collapse. Three fixed-seed, one-worker, `interleaveSearch=true` CP-SAT oracles
+all proved optimal and stayed below the certificate:
+
+| seed | exact CP-SAT optimum | support bound | ratio |
+|---:|---:|---:|---:|
+| 1 | 0.568852079565T | 2.114631300285T | 3.7174× |
+| 2 | 2.276045688840T | 3.889129242460T | 1.7087× |
+| 3 | 2.113135111800T | 3.602508108220T | 1.7048× |
+
+Status: retained in the test-side prototype; production certifier and `CERTIFIER_VERSION` remain
+unchanged.
+
+The canonical fine grid (`DI=1`, `CC=10`, `HP=500`) confirms that the coupling survives refinement:
+
+| read | λ=0 | λ=5,000 support |
+|---|---:|---:|
+| fine-grid sound bound | 28.85412T (1.6300×) | **28.04238T (1.5841×)** |
+| improvement | — | **−2.81%** |
+| states | 46,857,707 | 46,857,707 (unchanged) |
+| measured wall | 3,031,851 ms | **1,979,857 ms (32m59.9s)** |
+| binding | `secZero`, d=118, targets saturated | `secZero`, d=118, CC band 100..100, `Wupper=5,166,500`, targets saturated |
+
+The certified S4 interval is now **[17.7020781465T, 28.04238T]**. The wall comparison is not a
+controlled speed claim (different run/session), but importantly the support adds no states and did
+not make this sample slower. This is a certificate-tightening milestone, not yet a production port:
+the existing production certifier bounds raw damage and cannot represent S4's unmet-target soft
+penalty, so this prototype remains a separate proof path until its interval is useful enough.
+
+#### Couple Neutralité's negative budget to the chosen item layout — SOUND, large coarse win
+
+The `secZero` arm previously maximized two incompatible layouts independently: the DP chose the
+largest non-secondary `W0`, while the fold added `wMastery·2587` from a separate legal layout with
+the most negative secondary mastery. For every build satisfying `P_all − N ≤ t`, however,
+`P_scenario ≤ t + N`. Therefore the same scalar DP can price each item as
+`W0(item) + wMastery·N(item)` and leave only non-item negative sources in the constant. This
+preserves the exact ring/weapon/EPIC/RELIC coupling without a new dimension or state.
+
+Conversions from the capped component are valued relative to the already-reserved `wMastery` per
+unit: `max(0, w_destination − wMastery)·moved`. Thus Dénouement's critM→elemental conversion is
+correctly neutral at the S4 crit cap (500−500=0), rather than double-credited or omitted. A separate
+loose raw ceiling remains only for future conversions into DI/CC.
+
+Combined with the winning CC support (`λ=5000`, band 5), the coarse bound falls
+**30.87351T → 24.13557T (−21.83%)**, or **1.3634×** the incumbent. The winner remains `secZero`, but
+`armConstW`/`armSecCap` fall to zero and the actual item layout carries the negative-budget credit
+inside `support`. All three strengthened deterministic exact-pool locks remain green.
+
+The canonical fine grid confirms essentially the same gain:
+
+| read | CC support only | + coupled negative item layout |
+|---|---:|---:|
+| fine sound bound | 28.04238T (1.5841×) | **21.92445T (1.2385×)** |
+| improvement | — | **−21.81%** |
+| states | 46,857,707 | 46,857,707 |
+| DP wall | 1,979,857 ms | **1,708,112 ms (28m28.1s)** |
+| binding | `secZero`, d=118 | `secZero`, d=118, `Wupper=4,039,000`, all targets saturated |
+
+The certified S4 interval is now **[17.7020781465T, 21.92445T]**. Next: replay only this winning
+world/arm with item-level `secN`/`secOther` provenance, then decide whether the exact net budget
+`N − positiveNonScenarioSecondary` closes more of the remaining 23.85% gap.
+
+#### Net secondary item budget + exact normal-sub packing — SOUND, coarse wins
+
+The coupled `secZero` provenance exposed another impossible Cartesian product. Its chosen item
+layout supplied only `Nitem=430` negative secondary mastery but also `Pother=1439` positive
+non-scenario secondary mastery. The condition actually implies
+
+```text
+Pscenario + Pother - N <= t  =>  Pscenario <= t + N - Pother
+```
+
+so the item credit is now `500·(Nitem-Pother)`, not `500·Nitem`; non-item sources remain
+independently over-credited. The coarse bound falls **24.13557T → 23.58279T (−2.29%)** and the
+winning arm switches from `secZero` to `plain`, eliminating Neutralité-family cap looseness from
+the maximum. The three exact seeded locks stay green with the prior values (ratios 3.7174,
+1.7087, 1.7048).
+
+The new `plain` provenance then showed a local aggregation loss in the normal-sub knapsack:
+`Ravage secondaire II` contributes +3 CC per copy but every copy was rounded to a whole CC bucket,
+and `Vélocité II`'s useful +1 MP had its −10 DI rider clamped away before packing. The retained
+test seam (`WAKFU_S4_EXACT_NORMAL_SUBS=1`) sums CC exactly and DI signed across the shared ten-sub
+knapsack, then rounds/clamps once at its output. This is sound: positive CC only saturates at the
+target, while signed DI is never saturated before every negative rider has been accumulated.
+
+| read | net item budget | + exact normal-sub pack |
+|---|---:|---:|
+| coarse bound | 23.58279T | **21.12267T (−10.43%)** |
+| coarse wall | 205 s without retained path | **156 s** |
+| binding | `plain`, d=110, targets saturated | `plain`, d=100, CC band 100, targets saturated |
+| ratio vs incumbent | 1.3322× | **1.1932×** |
+
+The strengthened exact locks also improve and remain green: seed 1 `1.967223541710T ≥
+0.568852079565T` (3.4582×), seed 2 `3.649609241740T ≥ 2.276045688840T` (1.6035×), seed 3
+`3.365390133840T ≥ 2.113135111800T` (1.5926×).
+
+The next path selects `Expert des armes légères III` together with an off-hand (`Dagues Tylo`),
+violating `NO_OFFHAND_OR_TWO_HANDED`. An exact one-bit item/sub coupling lowers the coarse bound only
+**21.12267T → 20.94090T (−0.86%)** while slowing the no-provenance run **156 s → 344 s**.
+Moving the weapon stage next to the sub knapsack made the late transition still slower. Both forms
+were rejected and removed; do not retry this bit without a value-side/two-channel implementation
+that avoids doubling states.
+
+The canonical fine grid confirms the exact normal-sub gain, though at a material wall cost:
+
+| read | coupled item layout | + net item budget + exact normal subs |
+|---|---:|---:|
+| fine sound bound | 21.92445T | **20.48772T (−6.55%)** |
+| ratio / proven gap vs incumbent | 1.2385× / 23.85% | **1.1574× / 15.74%** |
+| states | 46,857,707 | **53,452,911 (+14.1%)** |
+| DP wall | 1,708,112 ms (28m28.1s) | **2,856,407 ms (47m36.4s, +67.2%)** |
+| binding | `secZero`, d=118, Wupper=4,039,000 | `plain`, d=94, Wupper=4,241,500, CC band 100 |
+
+The canary is green (`20.48772T >= 17.7020781465T`). A post-tightening slope sweep shows that the
+old λ=5000 optimum no longer applies after `secZero` disappears: coarse λ=7000 and λ=10000 both
+give **21.03801T** versus 21.12267T at λ=5000. The support changes to a 100-positive-CC path at
+λ=7000, so higher slopes stay on the same `Wupper=4,224,500` plateau. The canonical fine rerun at
+λ=7000 confirms **20.40555T = 1.1527×** (a further −0.40%), with the same 53,452,911 states and
+2,821,827 ms (47m01.8s). Binding remains `plain`, d=94, CC band 100.
+
+The certified interval is now **[17.7020781465T, 20.40555T]**, a proven maximum gap of **15.27%**.
+The remaining visible relaxation is the same merged key claiming
+the CC=100 target band: its support-max provenance carries only 88 positive CC, while another
+lower-W path makes the bucket's independent CC upper reach 100. A useful next experiment therefore
+needs a second support slope / per-key convex envelope; another independent CC maximum was already
+measured inert, and exact CC as a full state dimension would multiply the 53M-state wall.
+
+#### Iteration funnel — replace the 47-minute promotion loop
+
+The fine run is no longer the development loop. `scripts/s4-certificate-screen.sh` exposes targeted
+profiles and reuses compiled classes via `cleanTest` instead of rebuilding every task:
+
+```sh
+./scripts/s4-certificate-screen.sh coarse plain  # base/plain only: diagnostic, UNSOUND
+./scripts/s4-certificate-screen.sh di plain      # DI=1; CC/HP coarse
+./scripts/s4-certificate-screen.sh cc plain      # CC=10; DI/HP coarse
+./scripts/s4-certificate-screen.sh hp plain      # HP=500; DI/CC coarse
+./scripts/s4-certificate-screen.sh coarse cert   # all worlds/arms: sound screen
+./scripts/s4-certificate-screen.sh adaptive cert # coarse worlds + DI-refine only contenders
+./scripts/s4-certificate-screen.sh fine cert     # promotion only (~47 min)
+```
+
+Every diagnostic line is stamped `diagnostic=BASE_PLAIN_UNSOUND`; it never checks or updates the
+certified interval. `WAKFU_S4_TIMINGS=1` prints wall time per stage and per world. Promotion policy:
+rank ideas on `coarse plain`, select the affected-axis profile, then run `coarse cert` + the seeded
+exact locks; pay `fine cert` only for a material winner (normally ≥1–2% coarse, or a wall reduction).
+
+Measured funnel on the current S4 shape (warm compiled classes; Gradle wall includes JVM startup):
+
+| command | sound? | bound | states | DP / Gradle wall |
+|---|---|---:|---:|---:|
+| `coarse plain` | no, diagnostic | 21.03801T | 108,816 | 6.3 s / **9 s** |
+| `cc plain` | no, diagnostic | 21.03801T | 218,455 | 9.5 s / **12 s** |
+| `hp plain` | no, diagnostic | 21.03801T | 226,413 | 9.5 s / **12 s** |
+| `di plain` | no, diagnostic | **20.40555T** | 553,424 | 18.2 s / **21 s** |
+| `coarse cert` | yes | 21.03801T | 4,461,075 | 145.2 s / **2m28s** |
+| `di cert` | yes | **20.40555T** | 22,387,811 | 794.4 s / **13m18s** |
+| `adaptive cert` | **yes** | **20.40555T** | 5,014,499 | 182.8 s / **3m06s** |
+| `fine cert` | yes | 20.40555T | 53,452,911 | 2,821.8 s / **47m02s** |
+
+The adaptive certificate first computes every coarse world upper bound, then DI-refines contenders
+in descending coarse-bound order until the best refined bound covers every remaining coarse bound.
+This is sound because unrefined worlds keep their independently sound coarse upper. On S4 it refines
+only base/plain (`21.03801T → 20.40555T`); the next unrefined upper is base/critZero at 20.06691T.
+Therefore the mixed-grid maximum is exactly the canonical fine bound while being **15.2× faster**.
+The 47-minute grid is now only an occasional calibration/nightly lock, not the promotion loop.
+
+### 9.15 — signed AP/MP folds + value-side weapon split close S4 to 0.343% (2026-07-16)
+
+The post-funnel provenance exposed four independent relaxations. All changes below remain in the
+**test-side S4 prototype only**; the production CP-SAT encoding and `CERTIFIER_VERSION` are
+unchanged.
+
+1. Item `MAX_ACTION_POINT < 0` is folded into the existing signed AP coordinate (outside the
+   optimistic AP-assumption worlds). Negative-capable slots run before positive-only slots and the
+   prefix headroom guard prevents saturation before a later debit. Direct DI base/plain fell
+   **20.40555T → 18.75468T**.
+2. The first `MAX_MOVEMENT_POINT < 0` prototype used an extra `mpCapMinus` bit. It reached
+   17.929834329T diagnostically but made the adaptive certificate take **13m31s**. It was replaced
+   by signed MP in the existing coordinate: item `MP + min(MAX_MP, 0)`, and exact signed NORMAL-sub
+   packing for Armure lourde. The coordinate reserves only
+   `target MP + maximum remaining negative riders`; excess positive MP can be saturated soundly.
+   Coarse worlds deliberately keep the old looser read and only contender refinements pay for the
+   signed axis. This hybrid took **8m31s** at that stage, with the same bound. The original bit is
+   dormant and must not be retried as the default representation.
+3. `secZero` provenance found Coiffeuse Mortelle's scenario-relevant `-430 MASTERY_BACK` being used
+   as condition budget while its negative objective contribution was ignored. The correct bound is
+   `Sscenario <= t + Noutside - Poutside`; scenario-negative mastery never creates free budget.
+   Direct secZero DI fell **18.064318932T → 17.0947283265T**, removing that arm from contention.
+4. `Expert des armes légères` was still combined with an off-hand. Instead of the rejected state
+   bit (§9.14, +120% wall), a value-side union prices two independent sound arms:
+   `noExpert` excludes the carrier, while `expertEligible` excludes off-hand and two-handed weapon
+   layouts. The max of both arms is the union upper bound. Direct plain DI fell
+   **18.75468T → 17.8148716845T** without doubling every DP state.
+
+The earlier proposed per-key multi-slope envelope was implemented and measured before these
+structural changes. Slopes `{0,7000}` and `{7000,10000,20000,50000}` produced **no bound gain** and
+slowed the direct DI screen from about **18 s to 74 s**; it was fully reverted. After the structural
+changes, a new single-slope sweep found the discrete support knee:
+
+| λ | direct DI base/plain bound |
+|---:|---:|
+| 0 | 18.346302777T |
+| 4000 | 17.8322245365T |
+| 5000 | 17.795349726T |
+| 5200 | 17.7888424065T |
+| 5400 | 17.7801659805T |
+| 5600 | 17.773658661T |
+| 5800 | 17.7671513415T |
+| **6000** | **17.7628131285T** |
+| 6200 | 17.7671513415T |
+
+The sound adaptive all-world run at λ=6000 refined only base/plain and base/critZero:
+
+| result | value |
+|---|---:|
+| final upper bound | **17.7628131285T** |
+| proven no-condition incumbent/lower bound | **17.7020781465T** |
+| remaining absolute gap | **0.0607349820T** |
+| remaining relative gap | **0.343095%** |
+| states | 9,949,088 |
+| DP wall | 411,315 ms (**6m54s**) |
+| refined plain | 17.7628131285T (2,069,882 states, 91.75 s) |
+| refined critZero | 16.9211998065T (2,069,882 states, 81.48 s) |
+| largest remaining coarse world | secZero 17.6934017205T |
+
+The incumbent itself was re-solved with the production no-condition S4 model and proven
+`OPTIMAL`, raw = bound = **17.7020781465T**, in **58.4 s**. An opt-in
+`WAKFU_MM_DUMP_BUILD=1` dump now records its complete items, runes, sublimations and skills for
+provenance comparisons. Its resolved frontier is **AP15 / MP8 / CC100 / HP12466 / DI84**, with
+elemental 2983, distance 1221, back 2158 and critical mastery 2409; raw proxy = 19,382,375. The
+certificate's binding arm is also on AP15 / DI84, so the residual 0.343% is now localized to the
+mastery (`Graw`) relaxation rather than AP/MP/DI target folding.
+
+The strengthened deterministic seeded-pool oracle lock (`1 worker`, `randomSeed=1`,
+`interleaveSearch=true`) is green with every new flag enabled and λ=6000:
+
+| pool | exact CP-SAT objective | prototype upper | ratio |
+|---|---:|---:|---:|
+| seed 1 | 0.568852079565T | 1.885243906000T | 3.3141× |
+| seed 2 | 2.276045688840T | 3.493916752480T | 1.5351× |
+| seed 3 | 2.113135111800T | 3.243714903000T | 1.5350× |
+
+The full lock wall was **18m25s**; this is an exhaustive development guard, not the normal S4
+certificate wall. The current certified interval is therefore
+**[17.7020781465T, 17.7628131285T]**. Remaining work should explain the last 60.735G through the
+binding `plain/noExpert` provenance (ring/rune/sub/skill coupling); do not retry the multi-slope
+envelope, the `mpCapMinus` bit, or the old global Expert state bit without a new argument.
+
+Two post-lock axis probes localize that residue further. DI-exact/CC=5 (four times finer than the
+adaptive refinement) stayed **bit-identical at 17.7628131285T**, with 4,345,706 states and 4m55s.
+DI-exact/HP=250 likewise stayed identical, with 4,505,304 states and 3m41s. The binding read is
+`Wupper=4,451,000`, i.e. `Graw=8,902`, while the exact incumbent resolves to `Graw=8,871`: only
+**31 mastery points** remain relaxed. Do not spend another iteration on CC=5 or HP=250; the next
+useful split is identity/value-side separation of the unconditional EPIC arm from each remaining
+conditional EPIC carrier, reusing the exact 58-second no-condition optimum for the former.
+
+### 9.16 — forensic provenance: CP-SAT did not miss a better build; the certificate envelope is loose (2026-07-16)
+
+The previous conclusion that only “31 mastery points” separated the abstract binding read from the
+incumbent needed a constructive check. Provenance was extended with exact equipment id/level/rarity
+and the per-item rune-axis composition, then rerun on the binding `plain/noExpert` arm at DI=1.
+Its support argmax is:
+
+- AP15 / MP8 / **97 actual CC** / HP12430 after 11 intelligence points / DI84;
+- `Anneau creux de Wakfu + Anneau Chuchotis ancestral`, all four sockets on the W axis;
+- Ravage III, Carnage III ×2, Vivacité II, Destruction III ×2, Poids Plume III,
+  Influence vitale III ×2, Brûlure III, then Anatomie;
+- Strength elemental 21 + distance 40; Luck crit 20 + back 41; the same four majors.
+
+The reconstructed `BuildCombination` is legal, but the exact scalar re-score is only
+**22,251.2901** (AP15 / MP8 / CC97 / HP12430 / DI84), versus **111,332.4534** for the banked
+incumbent. It is therefore not a hidden better build. The certificate combines this path's maximum
+support `Hλ` with the CC=100 rectangle. That remains **sound**: for every real CC=100 path,
+`W + λ·100 <= Hλ`, even if the path attaining `Hλ` itself has CC97. It is simply a convex-envelope
+relaxation, so provenance is diagnostic rather than a constructive witness.
+
+Three independent CP checks confirm the verdict:
+
+| check | result |
+|---|---:|
+| binding arm, final soft objective `>= incumbent + 1`, 8 workers / 300 s | `UNKNOWN`, no feasible solution found, dual 29.817890904430T |
+| exact no-condition cell AP=15, MP>=8, CC>=100, HP>=12000, plain raw objective | **OPTIMAL 19,382,375 in 14.76 s** |
+| same cell with the remaining conditional EPIC subs, 180 s | FEASIBLE at the same 19,382,375; dual 30,024,750 |
+
+The exact no-condition cell equals the incumbent's raw proxy, proving CP-SAT did not miss anything
+in the space used by the provenance. Removing every conditional sub from the certificate is also
+bit-identical (`17.7628131285T`, 49 s), so conditional EPIC identities are not the current lever.
+
+Forcing the DP's CC coordinate to exact units (`ccStep=1`, support bands of 1) separates the 97 and
+100 keys and gives **17.760644022T**, i.e. a sound targeted binding-arm gap of **0.330842%**. The
+improvement is only 2.1691065G while the naive cost jumps to **21,127,639 states / 36m57s**; this is
+a calibration, not a production plan. HP=100 with conditional subs removed is also inert at
+17.7628131285T and costs 11,250,726 states / 15m40s. Do not retry naive full CC=1 or HP=100.
+
+**Verdict:** the certificate is the loose side; CP-SAT did not overlook the provenance build. The
+next useful implementation should preserve a cheap coarse CC upper for penalty folding while adding
+a targeted value-side lower/frontier for the CC=100 contender, rather than multiplying the whole DP
+by 20. Provenance must always be exact-rescored before being treated as a candidate incumbent.
+
+### 9.17 — semantic condition partition closes S4 at 0.0000% (2026-07-16)
+
+The proposed second CC support was retried only after §9.16 supplied a new, exact reason: the
+λ=6000 support argmax has 97 CC while the binding rectangle prices CC100. A second independently
+maximized support `Hμ` was retained on the same keys and both W ceilings were intersected at
+collapse. The discrete knee is μ=6100: the support changes from a 97-positive-CC path to a
+111-positive-CC path. At the knee, the CC100 W ceiling improves only **4,451,000 → 4,450,700**.
+That 300-unit reduction disappears in the integer damage/downscale chain, leaving the final bound
+**bit-identical at 17.7628131285T**. The base/plain DI screen slowed from about 92 s to **169 s**.
+The experiment was reverted: μ=6100 is not retained anywhere.
+
+This also clarifies the role of λ. Every λ≥0 is independently sound because
+`W <= Hλ - λ·lo` on a CC band whose lower endpoint is `lo`; λ can only affect tightness and runtime,
+never correctness. The measured λ=6000 is therefore an S4 tuning, not a universal game constant.
+Unsupported target shapes still bail. In particular this prototype supports only required
+AP/MP/CC/HP targets; a request for an unreachable resistance target (for example 10,000 resistance)
+must return “certificate unavailable”, not reuse the S4 tuning as though it generalized.
+
+The useful split is instead semantic and exhaustive:
+
+```text
+all feasible builds
+  = builds selecting no condition-bearing sub
+  ∪ builds selecting at least one condition-bearing sub
+```
+
+The first partition already has an independent CP-SAT proof: **OPTIMAL
+17.7020781465T**. For the second partition, the prototype adds one dormant key marker at bit 49.
+It stays zero through every equipment stage and starts splitting only when sub options are packed;
+normal-sub aggregate options preserve it exactly, and assumed cap worlds / secZero / critZero arms
+are marked as condition-bearing by construction. Collapse discards marker=0. This is not the old
+global Expert bit: the expensive equipment prefix is unchanged, and the marker represents the
+complete semantic partition rather than one structural predicate.
+
+A naive all-world condition-only run was stopped after it exceeded a reasonable iteration budget.
+The sound adaptive union is cheaper:
+
+1. price every world with the normal coarse full-space certificate;
+2. keep every coarse world already ≤ the no-condition optimum;
+3. only for contenders, DI-refine the `condition-used=1` partition;
+4. cap that world's complementary no-condition partition by the independently proven CP optimum.
+
+Measured result:
+
+| component | sound upper |
+|---|---:|
+| exact no-condition CP-SAT partition | **17.7020781465T** |
+| conditional base/plain DI refinement | 17.0253169185T |
+| conditional base/critZero DI refinement | 16.9211998065T |
+| largest unrefined coarse world | 17.6934017205T |
+| final union upper | **17.7020781465T** |
+
+The adaptive run refined two worlds, visited 12,725,057 aggregate states and took **648,776 ms
+(10m48.8s)**. Therefore the S4 interval is now
+**[17.7020781465T, 17.7020781465T]**: the banked incumbent is globally optimal for this supported
+fixture, via a hybrid proof (exact CP-SAT on the no-condition partition + independent sound DP on
+the condition-used partition).
+
+The new partition lock adds `Σ conditionalSubVar ≥ 1` to the deterministic CP-SAT test oracle.
+Seed 1 is green: exact conditional optimum **0.551021875745T** ≤ certificate
+**1.885243906000T** (3.4214×), status `OPTIMAL`, wall 6m23 for the one-seed manual campaign.
+Before production integration, run all three partition seeds, remove the manual oracle injection in
+favor of a typed proof result/cache entry, and optimize the 10m49 wall. Production certifier code and
+`CERTIFIER_VERSION` remain untouched in this prototype campaign.

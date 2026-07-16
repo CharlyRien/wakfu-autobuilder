@@ -742,22 +742,22 @@ class MostMasteriesPerfExperimentTest {
                 null
             } else {
                 WakfuBuildSolver.SolverTuning(
-                // Canonical protocol = 1 worker. WAKFU_MM_C2_WORKERS overrides for INCUMBENT
-                // banking only (S4-0b: push/prove the reference optimum) — multi-worker det/wall
-                // numbers must never be compared against 1-worker arms.
-                numSearchWorkers = System.getenv("WAKFU_MM_C2_WORKERS")?.toIntOrNull() ?: 1,
-                randomSeed = 1,
-                maxDeterministicTime = det,
-                interleaveSearch = true,
-                maxPresolveIterationsOverride = 1,
-                linearizationLevelOverride = 1,
-                applyDominationOverride = true,
-                mmOvershootEncoding = config.overshootEncoding,
-                mmProductEncoding = config.productEncoding,
-                mmMasteryScoreUpperBound = config.masteryScoreUpperBound,
-                mmHardTargetsAsAssumptions = config.hardAssumptions,
-                mmSoftNoGoodCore = config.noGoodCore,
-                mmInfeasibilityCoreCapture = onCore
+                    // Canonical protocol = 1 worker. WAKFU_MM_C2_WORKERS overrides for INCUMBENT
+                    // banking only (S4-0b: push/prove the reference optimum) — multi-worker det/wall
+                    // numbers must never be compared against 1-worker arms.
+                    numSearchWorkers = System.getenv("WAKFU_MM_C2_WORKERS")?.toIntOrNull() ?: 1,
+                    randomSeed = 1,
+                    maxDeterministicTime = det,
+                    interleaveSearch = true,
+                    maxPresolveIterationsOverride = 1,
+                    linearizationLevelOverride = 1,
+                    applyDominationOverride = true,
+                    mmOvershootEncoding = config.overshootEncoding,
+                    mmProductEncoding = config.productEncoding,
+                    mmMasteryScoreUpperBound = config.masteryScoreUpperBound,
+                    mmHardTargetsAsAssumptions = config.hardAssumptions,
+                    mmSoftNoGoodCore = config.noGoodCore,
+                    mmInfeasibilityCoreCapture = onCore
                 )
             }
         val t0 = System.nanoTime()
@@ -810,6 +810,49 @@ class MostMasteriesPerfExperimentTest {
                 "optimal=${summary.isOptimal} detUsed=${summary.deterministicTime} branches=${summary.branches} " +
                 "conflicts=${summary.conflicts} emissions=${summary.emissions} firstEmissionMs=${summary.firstEmissionMs ?: "NA"}"
         )
+        if (System.getenv("WAKFU_MM_DUMP_BUILD") == "1") {
+            last?.individual?.let { build ->
+                val scenario = shape.params.damageScenario
+                val stats =
+                    computeCharacteristicsValues(
+                        build,
+                        shape.params.character.baseCharacteristicValues,
+                        masteryElementsWanted = mapOf(scenario.element.masteryCharacteristic to 1),
+                        resistanceElementsWanted = shape.params.targetStats.resistanceElementsWanted,
+                        scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                        damageScenario = scenario
+                    )
+                println("MM_PERF_BUILD items=${build.equipments.joinToString(" | ") { "${it.itemType}:${it.name.fr}" }}")
+                println(
+                    "MM_PERF_BUILD runes=" +
+                        build.runes.entries.joinToString(" | ") { (item, itemRunes) ->
+                            "${item.name.fr}=[${itemRunes.joinToString { it.characteristic.name }}]"
+                        }
+                )
+                println(
+                    "MM_PERF_BUILD subs=" +
+                        build.sublimations.entries.joinToString(" | ") { (item, itemSubs) ->
+                            "${item.name.fr}=[${itemSubs.joinToString { it.name.fr }}]"
+                        }
+                )
+                println("MM_PERF_BUILD skills=${build.characterSkills.allCharacteristicValues}")
+                println(
+                    "MM_PERF_BUILD objective=${last?.maxDamageObjective} rawProxy=${last?.maxDamageRawProxy} stats=" +
+                        listOf(
+                            Characteristic.ACTION_POINT,
+                            Characteristic.MOVEMENT_POINT,
+                            Characteristic.CRITICAL_HIT,
+                            Characteristic.HP,
+                            Characteristic.DAMAGE_INFLICTED,
+                            Characteristic.MASTERY_ELEMENTARY,
+                            scenario.element.masteryCharacteristic,
+                            Characteristic.MASTERY_DISTANCE,
+                            Characteristic.MASTERY_BACK,
+                            Characteristic.MASTERY_CRITICAL
+                        ).joinToString { "$it=${stats[it] ?: 0}" }
+                )
+            }
+        }
         return summary
     }
 
