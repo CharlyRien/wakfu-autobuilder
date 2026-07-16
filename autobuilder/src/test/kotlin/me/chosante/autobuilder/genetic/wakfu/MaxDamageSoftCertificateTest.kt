@@ -747,7 +747,10 @@ class MaxDamageSoftCertificateTest {
     @Test
     fun `manual S4 binding-arm CP cutoff`() {
         val cellMode = System.getenv("WAKFU_S4_CP_CELL") == "1"
-        assumeTrue(System.getenv("WAKFU_S4_CP_CUTOFF") != null || cellMode)
+        // WAKFU_S4_CP_PLAIN=1: the UNRESTRICTED full-model solve (full catalog, no cutoff, no
+        // conditional constraint) — "does plain CP-SAT prove this shape's soft leg at all?".
+        val plainFull = System.getenv("WAKFU_S4_CP_PLAIN") == "1"
+        assumeTrue(System.getenv("WAKFU_S4_CP_CUTOFF") != null || cellMode || plainFull)
         val (clazz, level, shapeTargets) = shapePreset()
         val pool =
             WakfuBestBuildFinderAlgorithm.equipments
@@ -770,7 +773,7 @@ class MaxDamageSoftCertificateTest {
         val fullConditional = System.getenv("WAKFU_S4_CP_FULLCOND") == "1"
         val bindingArmSubs =
             when {
-                fullConditional -> WakfuBestBuildFinderAlgorithm.sublimations
+                fullConditional || plainFull -> WakfuBestBuildFinderAlgorithm.sublimations
                 System.getenv("WAKFU_S4_CP_NOCOND") == "1" ->
                     WakfuBestBuildFinderAlgorithm.sublimations.filter { it.condition == null }
                 else ->
@@ -805,8 +808,8 @@ class MaxDamageSoftCertificateTest {
                 seconds = seconds,
                 applyDomination = true,
                 deterministicLimit = deterministicLimit,
-                penalizedObjectiveCutoff = cutoff,
-                requireAnyConditionalSublimation = fullConditional,
+                penalizedObjectiveCutoff = if (plainFull) null else cutoff,
+                requireAnyConditionalSublimation = fullConditional && !plainFull,
                 hardConstraints = cellMode,
                 interleave = System.getenv("WAKFU_S4_CP_INTERLEAVE") == "1",
                 logSearch = System.getenv("WAKFU_S4_CP_LOG") == "1"
