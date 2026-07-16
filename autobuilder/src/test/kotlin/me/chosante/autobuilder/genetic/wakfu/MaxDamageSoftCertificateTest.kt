@@ -27,10 +27,10 @@ import kotlin.time.Duration.Companion.seconds
  * ```shell
  * ./gradlew --stop   # the daemon freezes its env snapshot
  * WAKFU_S4_PROTO=1 [WAKFU_S4_ORACLE=<incumbent>] \
- *   ./gradlew :autobuilder:test --tests '*MaxDamageSoftBoundPrototypeTest*' --rerun-tasks
+ *   ./gradlew :autobuilder:test --tests '*MaxDamageSoftCertificateTest*' --rerun-tasks
  * ```
  */
-class MaxDamageSoftBoundPrototypeTest {
+class MaxDamageSoftCertificateTest {
     private fun ccSupportLambda(): Long = System.getenv("WAKFU_S4_CC_LAMBDA")?.toLongOrNull() ?: 0L
 
     private fun ccSupportBand(): Int = System.getenv("WAKFU_S4_CC_BAND")?.toIntOrNull() ?: 5
@@ -254,7 +254,7 @@ class MaxDamageSoftBoundPrototypeTest {
                 require(optimal) { "$label: the conditional-partition soundness oracle must prove OPTIMAL" }
                 val bound =
                     requireNotNull(
-                        MaxDamageSoftBoundPrototype.bound(
+                        MaxDamageSoftCertificate.bound(
                             p,
                             pool,
                             WakfuBestBuildFinderAlgorithm.runes,
@@ -301,7 +301,7 @@ class MaxDamageSoftBoundPrototypeTest {
                 null
             } else {
                 requireNotNull(
-                    MaxDamageSoftBoundPrototype.bound(
+                    MaxDamageSoftCertificate.bound(
                         p,
                         pool,
                         WakfuBestBuildFinderAlgorithm.runes,
@@ -368,12 +368,12 @@ class MaxDamageSoftBoundPrototypeTest {
                 // Coarse HP=2000: the §9.2 grid screen measured HP bucketing bound-inert on this
                 // shape (the binding state saturates HP through other relaxed paths) — halving the
                 // HP buckets halves the coarse world sweep. Refinements below restore HP=1000.
-                MaxDamageSoftBoundPrototype.diStep = 10
-                MaxDamageSoftBoundPrototype.hpStep = 2000
-                MaxDamageSoftBoundPrototype.ccStep = 20
+                MaxDamageSoftCertificate.diStep = 10
+                MaxDamageSoftCertificate.hpStep = 2000
+                MaxDamageSoftCertificate.ccStep = 20
                 val coarse =
                     requireNotNull(
-                        MaxDamageSoftBoundPrototype.bound(
+                        MaxDamageSoftCertificate.bound(
                             p,
                             pool,
                             WakfuBestBuildFinderAlgorithm.runes,
@@ -406,15 +406,15 @@ class MaxDamageSoftBoundPrototypeTest {
                 if (foldNegativeMaxMp()) println("S4_PROTO_ADAPTIVE coarseMpDebit=RELAXED refineMpDebit=SIGNED")
 
                 // Refinements restore HP=1000 (the coarse pass ran HP=2000 for speed).
-                MaxDamageSoftBoundPrototype.hpStep = 1000
+                MaxDamageSoftCertificate.hpStep = 1000
 
                 fun refineAt(
-                    world: MaxDamageSoftBoundPrototype.WorldRead,
+                    world: MaxDamageSoftCertificate.WorldRead,
                     di: Int,
-                ): MaxDamageSoftBoundPrototype.Result {
-                    MaxDamageSoftBoundPrototype.diStep = di
+                ): MaxDamageSoftCertificate.Result {
+                    MaxDamageSoftCertificate.diStep = di
                     return requireNotNull(
-                        MaxDamageSoftBoundPrototype.bound(
+                        MaxDamageSoftCertificate.bound(
                             p,
                             pool,
                             WakfuBestBuildFinderAlgorithm.runes,
@@ -440,8 +440,8 @@ class MaxDamageSoftBoundPrototypeTest {
                 fun unionOf(bound: Long): Long = if (requireConditionalSub()) maxOf(requireNotNull(oracle), bound) else bound
 
                 fun refineLog(
-                    world: MaxDamageSoftBoundPrototype.WorldRead,
-                    refined: MaxDamageSoftBoundPrototype.Result,
+                    world: MaxDamageSoftCertificate.WorldRead,
+                    refined: MaxDamageSoftCertificate.Result,
                     tierLabel: String,
                 ) = println(
                     "S4_PROTO_ADAPTIVE_REFINE assume=${world.assume?.name?.fr ?: "-"} arm=${world.arm} " +
@@ -502,9 +502,9 @@ class MaxDamageSoftBoundPrototypeTest {
                         .isGreaterThanOrEqualTo(o)
                 }
             } finally {
-                MaxDamageSoftBoundPrototype.diStep = 1
-                MaxDamageSoftBoundPrototype.hpStep = 500
-                MaxDamageSoftBoundPrototype.ccStep = 10
+                MaxDamageSoftCertificate.diStep = 1
+                MaxDamageSoftCertificate.hpStep = 500
+                MaxDamageSoftCertificate.ccStep = 10
             }
         }
         // Targeted screens refine only the axis touched by an idea. `all` retains the historical
@@ -528,12 +528,12 @@ class MaxDamageSoftBoundPrototypeTest {
             }
         if (grids.isNotEmpty()) {
             for ((di, hp, cc) in grids) {
-                MaxDamageSoftBoundPrototype.diStep = di
-                MaxDamageSoftBoundPrototype.hpStep = hp
-                MaxDamageSoftBoundPrototype.ccStep = cc
+                MaxDamageSoftCertificate.diStep = di
+                MaxDamageSoftCertificate.hpStep = hp
+                MaxDamageSoftCertificate.ccStep = cc
                 try {
                     val g =
-                        MaxDamageSoftBoundPrototype.bound(
+                        MaxDamageSoftCertificate.bound(
                             p,
                             pool,
                             WakfuBestBuildFinderAlgorithm.runes,
@@ -566,9 +566,9 @@ class MaxDamageSoftBoundPrototypeTest {
                         }
                     }
                 } finally {
-                    MaxDamageSoftBoundPrototype.diStep = 1
-                    MaxDamageSoftBoundPrototype.hpStep = 500
-                    MaxDamageSoftBoundPrototype.ccStep = 10
+                    MaxDamageSoftCertificate.diStep = 1
+                    MaxDamageSoftCertificate.hpStep = 500
+                    MaxDamageSoftCertificate.ccStep = 10
                 }
             }
         }
@@ -577,12 +577,12 @@ class MaxDamageSoftBoundPrototypeTest {
         if (System.getenv("WAKFU_S4_PATH") == "1") {
             val pathArm = System.getenv("WAKFU_S4_PATH_ARM")?.takeIf(String::isNotBlank)
             val pathLightArm = System.getenv("WAKFU_S4_PATH_LIGHT_ARM")?.takeIf(String::isNotBlank)
-            MaxDamageSoftBoundPrototype.diStep = if (System.getenv("WAKFU_S4_PATH_DI") == "1") 1 else 10
-            MaxDamageSoftBoundPrototype.ccStep = System.getenv("WAKFU_S4_PATH_CC")?.toIntOrNull() ?: 20
-            MaxDamageSoftBoundPrototype.hpStep = System.getenv("WAKFU_S4_PATH_HP")?.toIntOrNull() ?: 1000
+            MaxDamageSoftCertificate.diStep = if (System.getenv("WAKFU_S4_PATH_DI") == "1") 1 else 10
+            MaxDamageSoftCertificate.ccStep = System.getenv("WAKFU_S4_PATH_CC")?.toIntOrNull() ?: 20
+            MaxDamageSoftCertificate.hpStep = System.getenv("WAKFU_S4_PATH_HP")?.toIntOrNull() ?: 1000
             try {
                 val path =
-                    MaxDamageSoftBoundPrototype.bound(
+                    MaxDamageSoftCertificate.bound(
                         p,
                         pool,
                         WakfuBestBuildFinderAlgorithm.runes,
@@ -608,9 +608,9 @@ class MaxDamageSoftBoundPrototypeTest {
                 println("S4_PROTO_PATH bound=${path?.foldedBound} binding=[${path?.bindingState}]")
                 path?.bindingPath?.forEach { println("S4_PROTO_PATH_STEP $it") }
             } finally {
-                MaxDamageSoftBoundPrototype.diStep = 1
-                MaxDamageSoftBoundPrototype.ccStep = 10
-                MaxDamageSoftBoundPrototype.hpStep = 500
+                MaxDamageSoftCertificate.diStep = 1
+                MaxDamageSoftCertificate.ccStep = 10
+                MaxDamageSoftCertificate.hpStep = 500
             }
         }
         // Attribution: price the big relaxations (UNSOUND arms — deltas only). Opt-in: each arm
@@ -618,7 +618,7 @@ class MaxDamageSoftBoundPrototypeTest {
         if (System.getenv("WAKFU_S4_ATTRIB") != "1") return
         for (arm in listOf("noCondSubs", "noSubs", "noSkills", "noRunes")) {
             val armBound =
-                MaxDamageSoftBoundPrototype.bound(
+                MaxDamageSoftCertificate.bound(
                     p,
                     pool,
                     WakfuBestBuildFinderAlgorithm.runes,
@@ -713,6 +713,47 @@ class MaxDamageSoftBoundPrototypeTest {
                 "status=${profile.status} objective=${profile.objective} bound=${profile.bestBound} " +
                 "wall=${profile.wallTimeSec} det=${profile.deterministicTime} branches=${profile.branches}"
         )
+    }
+
+    /**
+     * §9.20 E2E gate for the PRODUCTION soft-leg proof: an incumbent at the (typed, re-proven)
+     * no-condition optimum — which §9.18 proved IS the full-model optimum on this shape — must
+     * come back **ProvenOptimal** through the real production entry
+     * (`proveMaxDamageOptimality` → target-missing soft branch → `hybridUnionUpper`).
+     *
+     * ```shell
+     * ./gradlew --stop
+     * WAKFU_S4_PROD_PROOF=1 WAKFU_TEST_MAX_HEAP=8g ./gradlew :autobuilder:cleanTest \
+     *   :autobuilder:test --tests '*MaxDamageSoftCertificateTest*production*' --no-daemon
+     * ```
+     */
+    @Test
+    fun `manual S4 production soft proof end-to-end`() {
+        assumeTrue(System.getenv("WAKFU_S4_PROD_PROOF") == "1")
+        val level = 245
+        val pool =
+            WakfuBestBuildFinderAlgorithm.equipments
+                .filter { it.rarity <= Rarity.EPIC }
+                .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                .groupBy { it.itemType }
+        val p = mdParams(level, frontierTargets())
+        val incumbent = solvedNoConditionOracle(p, pool).objective
+        val result =
+            me.chosante.autobuilder.genetic.SolverResult(
+                // An empty build: `fullyMeetsRequiredTargets` is false for it, which is exactly
+                // what routes the proof into the soft-leg branch under test.
+                individual = BuildCombination(emptyList(), CharacterSkills(level)),
+                matchPercentage = java.math.BigDecimal.ZERO,
+                progressPercentage = 100,
+                isOptimal = false,
+                maxDamageObjective = incumbent,
+                maxDamageHardConstraintsMet = false
+            )
+        val proof = WakfuBestBuildFinderAlgorithm.proveMaxDamageOptimality(p, result)
+        println("S4_PROD_PROOF incumbent=$incumbent verdict=$proof")
+        assertThat(proof)
+            .describedAs("the production soft-leg proof must close S4 exactly (ProvenOptimal)")
+            .isEqualTo(MaxDamageSearch.MaxDamageProof.ProvenOptimal)
     }
 
     @Test

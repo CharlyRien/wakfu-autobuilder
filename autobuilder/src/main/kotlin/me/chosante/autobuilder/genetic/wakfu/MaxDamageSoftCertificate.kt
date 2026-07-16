@@ -1,5 +1,6 @@
 package me.chosante.autobuilder.genetic.wakfu
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import me.chosante.autobuilder.domain.SpellCatalog
 import me.chosante.autobuilder.domain.SpellRotationOptimizer
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.scaledWeight
@@ -15,8 +16,10 @@ import java.math.BigInteger
 import kotlin.math.ceil
 
 /**
- * S4-2 PROTOTYPE (plan §9) — a target-aware sound upper bound on the MAX-DAMAGE SOFT folded
- * objective (the targets-unreachable fallback leg — the only workload that never proves):
+ * PRODUCTION certificate (plan §9, promoted from the S4 prototype — history under
+ * `MaxDamageSoftCertificateTest`, campaign log §9.10-§9.19): a target-aware sound upper bound
+ * on the MAX-DAMAGE SOFT folded objective (the targets-unreachable fallback leg, which CP-SAT
+ * alone never proves — the conditional-sublimation reification wall):
  *
  *   `damage(build) × power6(bucket(totalActual))`
  *
@@ -58,7 +61,7 @@ import kotlin.math.ceil
  * Bails (null): multi-element/boss scenarios, survivability floor, AP-pinned probes, forced
  * items/runes/subs/passives, a required target outside {AP, MP, CC, HP}.
  */
-internal object MaxDamageSoftBoundPrototype {
+internal object MaxDamageSoftCertificate {
     private val SUPPORTED_TARGETS =
         setOf(
             Characteristic.ACTION_POINT,
@@ -66,6 +69,8 @@ internal object MaxDamageSoftBoundPrototype {
             Characteristic.CRITICAL_HIT,
             Characteristic.HP
         )
+
+    private val logger = KotlinLogging.logger {}
 
     // Same grid as the MM certificate's default (coarse) profile. MUTABLE (harness only): the
     // provenance pass retains every stage map, so it needs a coarser grid to fit the test heap.
@@ -166,12 +171,13 @@ internal object MaxDamageSoftBoundPrototype {
         val assumeApThreshold: Int = -1,
         val assumeCcThresholdRaw: Int = -1,
     ) {
-        init {
-            require(hpBucketCap <= 0x1FF) { "hpBucketCap $hpBucketCap overflows the 9-bit hp field" }
-            require(ccBucketCap <= 0x7F) { "ccBucketCap $ccBucketCap overflows the 7-bit cc field" }
-            require(diBucketCap <= 0x1FFF) { "diBucketCap $diBucketCap overflows the 13-bit d field" }
-            require(blockBucketCap <= 0xF) { "blockBucketCap $blockBucketCap overflows the 4-bit block field" }
-        }
+        /**
+         * False when a bucket cap overflows its packed-key field (an extreme request/grid combo,
+         * e.g. a huge HP target on a fine step). Callers must BAIL (return null) — withholding the
+         * badge is always sound; throwing would crash a production proof.
+         */
+        val fitsPackedKey: Boolean =
+            hpBucketCap <= 0x1FF && ccBucketCap <= 0x7F && diBucketCap <= 0x1FFF && blockBucketCap <= 0xF
 
         // Packed key: conditional(1b @49) block(4b @45) ramp(1b @44) mpMinus(1b @43) d(13b @28)
         //             ap(5b @23) mp(5b @18) cc(7b @11) hp(9b @2) e(1b @1) r(1b @0)
@@ -777,6 +783,7 @@ internal object MaxDamageSoftBoundPrototype {
                 assumeApThreshold = if (assumeStat == Characteristic.ACTION_POINT) assumeThreshold else -1,
                 assumeCcThresholdRaw = if (assumeStat == Characteristic.CRITICAL_HIT) assumeThreshold else -1
             )
+        if (!geo.fitsPackedKey) return null
 
         fun statOf(
             e: Equipment,
@@ -1081,8 +1088,10 @@ internal object MaxDamageSoftBoundPrototype {
                     .any { itemAp(it) < 0 }
             ) {
                 val prefixApUpper = states.keys.maxOf { geo.ap(it) } + options.maxOf { maxOf(it.ap, 0) }
-                require(prefixApUpper <= geo.apCap) {
-                    "foldNegativeItemAp needs weapon-before-debit AP headroom: $prefixApUpper > ${geo.apCap}"
+                if (prefixApUpper > geo.apCap) {
+                    // The signed AP fold needs weapon-before-debit headroom in the 5-bit AP dim.
+                    // On an exotic shape without it, BAIL (sound: no badge) instead of throwing.
+                    return null
                 }
             }
             step("weapons", options)
@@ -2085,4 +2094,216 @@ internal object MaxDamageSoftBoundPrototype {
     }
 
     private val EMPTY_OPT = Opt(0L, 0)
+
+    // ---------------------------------------------------------------------------------------------
+    // PRODUCTION soft-leg proof orchestration (plan §9.20) — the hybrid partition union.
+    // ---------------------------------------------------------------------------------------------
+
+    /** The winning support-function knee/band from the §9.13 screen — fixed in production. */
+    private const val PROD_CC_SUPPORT_LAMBDA = 6000L
+    private const val PROD_CC_SUPPORT_BAND = 5
+
+    /** The §9.19 adaptive grid: coarse sweep steps and the fine defaults refinements restore. */
+    private const val COARSE_DI_STEP = 10
+    private const val COARSE_HP_STEP = 2000
+    private const val COARSE_CC_STEP = 20
+    private const val REFINE_HP_STEP = 1000
+    private const val DEFAULT_DI_STEP = 1
+    private const val DEFAULT_HP_STEP = 500
+    private const val DEFAULT_CC_STEP = 10
+
+    /** A sound upper bound on the PENALIZED soft objective over EVERY build (union of both partitions). */
+    internal class SoftUnionUpper(
+        val upper: Long,
+        val noConditionUpper: Long,
+        /** True when the no-condition side is a full CP-SAT `OPTIMAL` proof (else its dual bound — looser but sound). */
+        val noConditionProven: Boolean,
+        val wallMs: Long,
+    )
+
+    private val unionMemo = java.util.concurrent.ConcurrentHashMap<String, SoftUnionUpper>()
+
+    /** Mirrors [bound]'s cheap up-front shape gates so the orchestrator can refuse a shape BEFORE
+     *  spending an oracle solve on it. Deep bails (geometry overflow, >6 cap subs, AP-headroom)
+     *  still surface as a null [bound] — the orchestrator then returns null too. */
+    private fun supportsShape(params: WakfuBestBuildParams): Boolean {
+        if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return false
+        if (params.damageScenario.survivabilityFloor) return false
+        if (params.maxDamageApTarget != null) return false
+        if (params.damageScenario.candidateElements().size != 1) return false
+        if (params.forcedItems.isNotEmpty() ||
+            params.forcedRunes.isNotEmpty() ||
+            params.forcedRunesByItem.isNotEmpty() ||
+            params.forcedSublimations.isNotEmpty() ||
+            params.forcedPassives.isNotEmpty()
+        ) {
+            return false
+        }
+        val targets = params.targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }
+        return targets.none { it.characteristic !in SUPPORTED_TARGETS }
+    }
+
+    /**
+     * PRODUCTION entry for the max-damage SOFT-leg proof (the targets-unreachable fallback — the
+     * workload CP-SAT alone never proves, §9.10-9.12). Returns a sound upper bound on the
+     * PENALIZED objective over ALL builds as the union of an exhaustive partition:
+     *
+     *  - **no conditional sublimation** — the no-condition CP-SAT model, solved CONCURRENTLY with
+     *    the DP below on the production wall-clock portfolio. `OPTIMAL` ⇒ its objective is the
+     *    partition's exact optimum; on a timeout its DUAL bound stands in (sound, just looser).
+     *  - **≥1 conditional sublimation** — this file's DP with the `requireConditionalSub` marker:
+     *    a coarse all-world sweep, then each contender still above the union floor refines through
+     *    the §9.19 DI10→4→1 cascade (the cheapest sufficient grid carries the world).
+     *
+     * Every ingredient is a sound upper on its partition, so the max is a sound upper on every
+     * build. Returns null on a bailed shape or cancellation — the caller withholds the badge.
+     * Memoized per data/certifier version + request + pool + catalog (a GUI re-proof of the same
+     * finished search must not re-pay the oracle).
+     *
+     * `@Synchronized`: the grid steps are shared mutable state on this object.
+     */
+    @Synchronized
+    fun hybridUnionUpper(
+        params: WakfuBestBuildParams,
+        pool: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        oracleWorkers: Int,
+        oracleSeconds: Double,
+        shouldContinue: () -> Boolean = { true },
+    ): SoftUnionUpper? {
+        if (!supportsShape(params)) return null
+        val memoKey =
+            listOf(
+                me.chosante.common.WakfuData.VERSION,
+                WakfuBuildSolver.CERTIFIER_VERSION,
+                params.hashCode(),
+                pool.values
+                    .flatten()
+                    .map { it.equipmentId }
+                    .sorted()
+                    .hashCode(),
+                sublimations.map { it.name.fr }.sorted().hashCode(),
+                runes.size
+            ).joinToString("|")
+        unionMemo[memoKey]?.let { return it }
+        val t0 = System.nanoTime()
+
+        val noConditionSubs = sublimations.filter { it.condition == null }
+        val oracleFuture =
+            java.util.concurrent.CompletableFuture.supplyAsync {
+                WakfuBuildSolver.warmUp()
+                WakfuBuildSolver.timedMaxDamageProfileForTest(
+                    params = params,
+                    equipmentsByItemType = pool,
+                    runes = runes,
+                    sublimations = noConditionSubs,
+                    workers = oracleWorkers,
+                    seconds = oracleSeconds,
+                    applyDomination = true
+                )
+            }
+
+        fun joinOracle(): Pair<Long, Boolean>? =
+            try {
+                val profile = oracleFuture.join()
+                if (profile.status == "OPTIMAL") {
+                    profile.objective to true
+                } else {
+                    // The dual bound of the no-condition model is a sound upper for its partition
+                    // even on a timeout (domination is exactness-preserving, so the reduced-model
+                    // dual still covers the full pool).
+                    profile.bestBound to false
+                }
+            } catch (e: Exception) {
+                logger.warn(e) { "soft-leg proof: the no-condition oracle solve failed — badge withheld" }
+                null
+            }
+
+        try {
+            val hasConditional =
+                params.useSublimations && sublimations.any { it.solverChoosable && it.condition != null }
+            if (!hasConditional) {
+                // The active catalog carries no conditional sublimation: the no-condition model IS
+                // the full model and its bound alone covers every build.
+                val (upper, proven) = joinOracle() ?: return null
+                return SoftUnionUpper(upper, upper, proven, (System.nanoTime() - t0) / 1_000_000)
+                    .also { unionMemo[memoKey] = it }
+            }
+
+            diStep = COARSE_DI_STEP
+            hpStep = COARSE_HP_STEP
+            ccStep = COARSE_CC_STEP
+            val coarse =
+                bound(
+                    params,
+                    pool,
+                    runes,
+                    sublimations,
+                    blockGate = false,
+                    shouldContinue = shouldContinue,
+                    ccSupportLambda = PROD_CC_SUPPORT_LAMBDA,
+                    ccSupportBand = PROD_CC_SUPPORT_BAND,
+                    coupleSecondaryItemNegative = true,
+                    netSecondaryItemBudget = true,
+                    exactNormalSubPacking = true,
+                    foldNegativeItemAp = true,
+                    // The coarse pass keeps the cheaper optimistic MP read and unsplit light
+                    // weapon (both sound uppers); only contenders pay the fine seams below.
+                    foldNegativeMaxMp = false,
+                    splitLightWeaponCondition = false,
+                    requireConditionalSub = false
+                ) ?: return null
+            val pending = coarse.worldReads.sortedByDescending { it.foldedBound }
+            if (pending.isEmpty()) return null
+
+            val (noConditionUpper, noConditionProven) = joinOracle() ?: return null
+
+            hpStep = REFINE_HP_STEP
+            // The union floor starts AT the no-condition upper: a world at or below it can never
+            // move the final bound, so it skips refinement outright (§9.19).
+            var refinedBest = noConditionUpper
+            var refinedCount = 0
+            while (refinedCount < pending.size && refinedBest < pending[refinedCount].foldedBound) {
+                if (!shouldContinue()) return null
+                val world = pending[refinedCount]
+                var refined: Result? = null
+                for (di in intArrayOf(10, 4, 1)) {
+                    diStep = di
+                    refined =
+                        bound(
+                            params,
+                            pool,
+                            runes,
+                            sublimations,
+                            blockGate = false,
+                            shouldContinue = shouldContinue,
+                            ccSupportLambda = PROD_CC_SUPPORT_LAMBDA,
+                            ccSupportBand = PROD_CC_SUPPORT_BAND,
+                            coupleSecondaryItemNegative = true,
+                            netSecondaryItemBudget = true,
+                            exactNormalSubPacking = true,
+                            foldNegativeItemAp = true,
+                            foldNegativeMaxMp = true,
+                            splitLightWeaponCondition = true,
+                            requireConditionalSub = true,
+                            worldAssume = world.assume,
+                            worldDropCaps = world.assume == null,
+                            worldArm = world.arm
+                        ) ?: return null
+                    if (refined.foldedBound <= refinedBest) break
+                }
+                refinedBest = maxOf(refinedBest, requireNotNull(refined).foldedBound)
+                refinedCount += 1
+            }
+            val remainingUpper = pending.drop(refinedCount).maxOfOrNull { it.foldedBound } ?: 0L
+            val upper = maxOf(refinedBest, remainingUpper)
+            return SoftUnionUpper(upper, noConditionUpper, noConditionProven, (System.nanoTime() - t0) / 1_000_000)
+                .also { unionMemo[memoKey] = it }
+        } finally {
+            diStep = DEFAULT_DI_STEP
+            hpStep = DEFAULT_HP_STEP
+            ccStep = DEFAULT_CC_STEP
+        }
+    }
 }
