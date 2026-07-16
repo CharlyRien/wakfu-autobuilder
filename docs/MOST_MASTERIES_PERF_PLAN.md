@@ -1920,3 +1920,22 @@ Seed 1 is green: exact conditional optimum **0.551021875745T** ≤ certificate
 Before production integration, run all three partition seeds, remove the manual oracle injection in
 favor of a typed proof result/cache entry, and optimize the 10m49 wall. Production certifier code and
 `CERTIFIER_VERSION` remain untouched in this prototype campaign.
+
+### 9.17 — takeover: partitioned locks ×3 green, typed oracle, grid cascade — pipeline 10m49 → ~5m52 (2026-07-16)
+
+Continuation of the §9.14-9.16 campaign (remaining-work items 1-3):
+1. **Partitioned lock, all 3 seeds GREEN** (`conditionalOnly=true`): each seed's conditional-only
+   exact CP-SAT optimum proves OPTIMAL and stays under the conditional-only DP bound
+   (ratios 3.4214 / 1.6586 / 1.6754).
+2. **Typed no-condition oracle**: the harness now SOLVES the no-condition model (production
+   real-parallel portfolio) and REQUIRES `OPTIMAL`, memoized per (data version, request, pool) —
+   measured 49.4 s, objective 17 702 078 146 500 exactly. `WAKFU_S4_ORACLE` remains as a trusted
+   override for controlled A/Bs only; the screen script no longer banks a default.
+3. **Adaptive grid cascade + coarse HP=2000**: the top world refines straight at DI=1; later worlds
+   try DI=4 and escalate only while still above the running best (every grid independently sound).
+   Bound **bit-identical 17 762 813 128 500** (ratio 1.0034), DP wall **490.7 s → 302.7 s (−38%)**;
+   end-to-end oracle+certificate ≈ **5m52**. critZero now stops at DI=4 (50 s vs 109 s).
+
+Remaining: item 4 — the production port (prove entry + GUI badge through ProofState, CERTIFIER_VERSION
+bump) with the review guardrails: data-version-fingerprinted oracle cache, AP-headroom `require` →
+BAIL, and a 2-3-shape generality screen before enabling the badge broadly.
