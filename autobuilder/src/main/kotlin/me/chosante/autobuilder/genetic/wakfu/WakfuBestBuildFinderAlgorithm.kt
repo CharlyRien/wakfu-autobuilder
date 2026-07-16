@@ -218,6 +218,12 @@ object WakfuBestBuildFinderAlgorithm {
             }
         }
 
+    // Quick/full proof tiers share one prepared pool per params instance (identity-keyed: the GUI
+    // passes the same object twice; a new search builds new params and naturally invalidates it).
+    private val mmProofPoolMemo =
+        java.util.concurrent.atomic
+            .AtomicReference<Pair<WakfuBestBuildParams, Map<ItemType, List<Equipment>>>?>(null)
+
     /**
      * The most-masteries QUALITY certificate (backup certifier, docs/MOST_MASTERIES_PERF_PLAN.md
      * §8.9bis): a post-search, single-thread sound upper bound on the SOFT folded objective —
@@ -234,12 +240,6 @@ object WakfuBestBuildFinderAlgorithm {
      * missing comparable objective) returns [MostMasteriesProof.Unavailable] — a bail hides the
      * badge, it never fakes one.
      */
-    // Quick/full proof tiers share one prepared pool per params instance (identity-keyed: the GUI
-    // passes the same object twice; a new search builds new params and naturally invalidates it).
-    private val mmProofPoolMemo =
-        java.util.concurrent.atomic
-            .AtomicReference<Pair<WakfuBestBuildParams, Map<ItemType, List<Equipment>>>?>(null)
-
     fun proveMostMasteriesQuality(
         params: WakfuBestBuildParams,
         result: SolverResult<BuildCombination>,
