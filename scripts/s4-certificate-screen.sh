@@ -39,7 +39,9 @@ env_args=(
     "WAKFU_S4_FOLD_ITEM_MAX_AP=${WAKFU_S4_FOLD_ITEM_MAX_AP:-1}"
     "WAKFU_S4_FOLD_MAX_MP=${WAKFU_S4_FOLD_MAX_MP:-1}"
     "WAKFU_S4_SPLIT_LIGHT_WEAPON=${WAKFU_S4_SPLIT_LIGHT_WEAPON:-1}"
-    "WAKFU_S4_ORACLE=${WAKFU_S4_ORACLE:-17702078146500}"
+    # No default oracle: the harness now SOLVES the no-condition model and requires OPTIMAL
+    # (typed oracle). Export WAKFU_S4_ORACLE only for controlled A/Bs — it is trusted, not re-proven.
+    ${WAKFU_S4_ORACLE:+"WAKFU_S4_ORACLE=$WAKFU_S4_ORACLE"}
     "WAKFU_TEST_MAX_HEAP=${WAKFU_TEST_MAX_HEAP:-8g}"
     "WAKFU_S4_TIMINGS=${WAKFU_S4_TIMINGS:-1}"
 )
