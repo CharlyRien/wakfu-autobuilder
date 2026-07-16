@@ -607,6 +607,9 @@ object MaxDamageSearch {
      *  in (sound, looser — the badge degrades to "proven within X%", never to a wrong "optimal"). */
     private const val SOFT_ORACLE_BUDGET_SECONDS = 240.0
 
+    /** Above this gap fraction a "proven within X%" badge is noise, not information — show nothing. */
+    private const val SOFT_PROOF_MAX_USEFUL_FRACTION = 0.25
+
     /**
      * §9.20 — the SOFT-leg (targets-unreachable fallback) proof. The incumbent's PENALIZED objective is
      * compared against [MaxDamageSoftCertificate.hybridUnionUpper], a sound upper bound on the penalized
@@ -654,7 +657,13 @@ object MaxDamageSearch {
                 MaxDamageProof.Unavailable
             }
             incumbent == union.upper -> MaxDamageProof.ProvenOptimal
-            else -> MaxDamageProof.ProvenWithin((union.upper.toDouble() / incumbent.toDouble()) - 1.0)
+            else -> {
+                val fraction = (union.upper.toDouble() / incumbent.toDouble()) - 1.0
+                // Badge-quality floor: the union is loose on some shapes (the §9.20 generality
+                // screen measured +46% at cra-140 vs EXACT at the S4 frontier). A "proven within
+                // 46%" badge carries no information — beyond 25% show honest absence instead.
+                if (fraction > SOFT_PROOF_MAX_USEFUL_FRACTION) MaxDamageProof.Unavailable else MaxDamageProof.ProvenWithin(fraction)
+            }
         }
     }
 
