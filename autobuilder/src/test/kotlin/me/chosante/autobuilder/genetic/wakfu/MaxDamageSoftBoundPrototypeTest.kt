@@ -105,7 +105,10 @@ class MaxDamageSoftBoundPrototypeTest {
                     equipmentsByItemType = pool,
                     runes = WakfuBestBuildFinderAlgorithm.runes,
                     sublimations = WakfuBestBuildFinderAlgorithm.sublimations.filter { it.condition == null },
-                    workers = 8,
+                    // 8 workers coexist fine with the SINGLE-threaded DP sweep (oracle 37 s while
+                    // coarse runs); adding a 4-thread DP world pool degraded it to ~150 s — the
+                    // world pool was reverted, not the workers.
+                    workers = System.getenv("WAKFU_S4_ORACLE_WORKERS")?.toIntOrNull() ?: 8,
                     seconds = 600.0,
                     applyDomination = true
                 )
@@ -387,8 +390,13 @@ class MaxDamageSoftBoundPrototypeTest {
                             // sound upper bound; only contenders pay the signed-MP refinement.
                             foldNegativeMaxMp = false,
                             splitLightWeaponCondition = false,
-                            // Keep the cheap full-space upper here. Only worlds still above the
-                            // no-condition oracle pay for the conditional-use partition below.
+                            // Keep the cheap full-space upper here. Pricing the coarse pass
+                            // conditional-only was MEASURED BOUND-INERT (2026-07-16): at this
+                            // grid the binding path already carries a conditional sub, so the
+                            // marker bit doubled the states (63k→126k per main world) without
+                            // moving a single bound — the 19.4T→17.6T tightening seen in
+                            // refinements comes from their finer seams (HP=1000, signed MP,
+                            // light-weapon split), not from the conditional marker. Do not retry.
                             requireConditionalSub = false
                         )
                     ) { "adaptive coarse pass bailed" }
@@ -399,47 +407,66 @@ class MaxDamageSoftBoundPrototypeTest {
 
                 // Refinements restore HP=1000 (the coarse pass ran HP=2000 for speed).
                 MaxDamageSoftBoundPrototype.hpStep = 1000
-                var refinedBest = 0L
+
+                fun refineAt(
+                    world: MaxDamageSoftBoundPrototype.WorldRead,
+                    di: Int,
+                ): MaxDamageSoftBoundPrototype.Result {
+                    MaxDamageSoftBoundPrototype.diStep = di
+                    return requireNotNull(
+                        MaxDamageSoftBoundPrototype.bound(
+                            p,
+                            pool,
+                            WakfuBestBuildFinderAlgorithm.runes,
+                            WakfuBestBuildFinderAlgorithm.sublimations,
+                            debug = timings(),
+                            blockGate = false,
+                            ccSupportLambda = ccSupportLambda(),
+                            ccSupportBand = ccSupportBand(),
+                            coupleSecondaryItemNegative = coupleSecondaryItemNegative(),
+                            netSecondaryItemBudget = netSecondaryItemBudget(),
+                            exactNormalSubPacking = exactNormalSubPacking(),
+                            foldNegativeItemAp = foldNegativeItemAp(),
+                            foldNegativeMaxMp = foldNegativeMaxMp(),
+                            splitLightWeaponCondition = splitLightWeaponCondition(),
+                            requireConditionalSub = requireConditionalSub(),
+                            worldAssume = world.assume,
+                            worldDropCaps = world.assume == null,
+                            worldArm = world.arm
+                        )
+                    ) { "adaptive DI=$di refinement bailed for assume=${world.assume?.name?.fr ?: "-"} arm=${world.arm}" }
+                }
+
+                fun unionOf(bound: Long): Long = if (requireConditionalSub()) maxOf(requireNotNull(oracle), bound) else bound
+
+                fun refineLog(
+                    world: MaxDamageSoftBoundPrototype.WorldRead,
+                    refined: MaxDamageSoftBoundPrototype.Result,
+                    tierLabel: String,
+                ) = println(
+                    "S4_PROTO_ADAPTIVE_REFINE assume=${world.assume?.name?.fr ?: "-"} arm=${world.arm} " +
+                        "coarse=${world.foldedBound} refined=${refined.foldedBound} union=${unionOf(refined.foldedBound)} " +
+                        "tier=$tierLabel conditionalOnly=${requireConditionalSub()} states=${refined.states} wallMs=${refined.wallMs}"
+                )
+
+                // Grid CASCADE — every tier is independently sound, so the cheapest sufficient one
+                // carries the world; escalation only affects tightness/wall, never soundness.
+                // Refinements are SEQUENTIAL: a parallel DI10 wave over the contenders was measured
+                // (2026-07-16) at 87-94 s per world vs 29 s solo — the DP is memory-bandwidth/
+                // GC-bound, so world-level threads lose here exactly as in the coarse sweep.
+                //
+                // Conditional-union mode: the final bound is max(oracle, worlds), so a world only
+                // needs the cheapest grid landing AT OR BELOW maxOf(oracle, refinedBest) — every
+                // world cascades DI=10 → 4 → 1 and stops at the first sufficient tier. §9.18
+                // measured the DI=1 top-world pass 3.8% UNDER the oracle: fine grids are almost
+                // always waste in union mode. Non-conditional: the top world decides the final
+                // bound and goes straight to DI=1; later worlds try DI=4 and escalate only while
+                // above the running best.
+                // In union mode the floor starts AT the oracle: a coarse world already at or below
+                // it can never move the final bound (max(oracle, worlds)), so it skips refinement.
+                var refinedBest = if (requireConditionalSub()) requireNotNull(oracle) else 0L
                 while (refinedCount < pending.size && refinedBest < pending[refinedCount].foldedBound) {
                     val world = pending[refinedCount]
-
-                    fun refineAt(di: Int): MaxDamageSoftBoundPrototype.Result {
-                        MaxDamageSoftBoundPrototype.diStep = di
-                        return requireNotNull(
-                            MaxDamageSoftBoundPrototype.bound(
-                                p,
-                                pool,
-                                WakfuBestBuildFinderAlgorithm.runes,
-                                WakfuBestBuildFinderAlgorithm.sublimations,
-                                debug = timings(),
-                                blockGate = false,
-                                ccSupportLambda = ccSupportLambda(),
-                                ccSupportBand = ccSupportBand(),
-                                coupleSecondaryItemNegative = coupleSecondaryItemNegative(),
-                                netSecondaryItemBudget = netSecondaryItemBudget(),
-                                exactNormalSubPacking = exactNormalSubPacking(),
-                                foldNegativeItemAp = foldNegativeItemAp(),
-                                foldNegativeMaxMp = foldNegativeMaxMp(),
-                                splitLightWeaponCondition = splitLightWeaponCondition(),
-                                requireConditionalSub = requireConditionalSub(),
-                                worldAssume = world.assume,
-                                worldDropCaps = world.assume == null,
-                                worldArm = world.arm
-                            )
-                        ) { "adaptive DI=$di refinement bailed for assume=${world.assume?.name?.fr ?: "-"} arm=${world.arm}" }
-                    }
-
-                    fun unionOf(bound: Long): Long = if (requireConditionalSub()) maxOf(requireNotNull(oracle), bound) else bound
-
-                    // Grid CASCADE — every tier is independently sound, so the cheapest
-                    // sufficient one carries the world; escalation only affects tightness/wall.
-                    // Non-conditional: the top world decides the final bound and goes straight to
-                    // DI=1; later worlds try DI=4 and escalate only while above the running best.
-                    // Conditional-union mode: the final bound is max(oracle, worlds), so a world
-                    // only needs to land AT OR BELOW that floor — every world (including the top
-                    // one) cascades DI=10 → 4 → 1 and stops as soon as it falls under
-                    // maxOf(oracle, refinedBest). §9.18 measured the DI=1 top-world pass 3.8%
-                    // UNDER the oracle: the fine grid was pure waste in union mode.
                     val tiers =
                         when {
                             requireConditionalSub() -> listOf(10, 4, 1)
@@ -448,27 +475,18 @@ class MaxDamageSoftBoundPrototypeTest {
                         }
                     val floor = if (requireConditionalSub()) maxOf(refinedBest, requireNotNull(oracle)) else refinedBest
                     var tier = tiers.first()
-                    var refined = refineAt(tier)
+                    var refined = refineAt(world, tier)
                     refinedStates += refined.states
                     for (next in tiers.drop(1)) {
                         if (refined.foldedBound <= floor) break
-                        println(
-                            "S4_PROTO_ADAPTIVE_REFINE assume=${world.assume?.name?.fr ?: "-"} arm=${world.arm} " +
-                                "coarse=${world.foldedBound} refined=${refined.foldedBound} union=${unionOf(refined.foldedBound)} " +
-                                "tier=DI$tier-escalate states=${refined.states} wallMs=${refined.wallMs}"
-                        )
+                        refineLog(world, refined, "DI$tier-escalate")
                         tier = next
-                        refined = refineAt(next)
+                        refined = refineAt(world, next)
                         refinedStates += refined.states
                     }
-                    val unionRefined = unionOf(refined.foldedBound)
-                    refinedBest = maxOf(refinedBest, unionRefined)
+                    refinedBest = maxOf(refinedBest, unionOf(refined.foldedBound))
                     refinedCount += 1
-                    println(
-                        "S4_PROTO_ADAPTIVE_REFINE assume=${world.assume?.name?.fr ?: "-"} arm=${world.arm} " +
-                            "coarse=${world.foldedBound} refined=${refined.foldedBound} union=$unionRefined " +
-                            "tier=DI$tier conditionalOnly=${requireConditionalSub()} states=${refined.states} wallMs=${refined.wallMs}"
-                    )
+                    refineLog(world, refined, "DI$tier")
                 }
                 val remainingUpper = pending.drop(refinedCount).maxOfOrNull { it.foldedBound } ?: 0L
                 finalBound = maxOf(refinedBest, remainingUpper)

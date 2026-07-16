@@ -563,33 +563,63 @@ internal object MaxDamageSoftBoundPrototype {
             // coarse path run exceed ten minutes. First price all worlds normally, then replay only
             // the winning world/arm with retention; the returned bound is still the max of the same
             // first-pass partition and the replay cannot influence which world wins.
+            //
+            // Worlds are priced SEQUENTIALLY on purpose. A 4-thread world pool was measured
+            // (2026-07-16, 10-core M-series, 8 GiB heap): every world slowed 4-6× (Mesure III
+            // plain 20 s → 125 s wall) — the DP is memory-bandwidth/GC-bound, matching the MM
+            // certificate's "world-level parallel is SLOWER" verdict. Do not retry world threads;
+            // the only concurrency that pays here is the CP-SAT oracle solving alongside this
+            // single-threaded sweep (harness-side).
+            //
+            // Assume-worlds (one cap sub forced under its threshold) price on a 2× COARSER grid:
+            // coarser buckets only merge states under a max, so each bound stays a sound upper —
+            // and every measured assume-world lands ~45% under the main worlds, so the extra
+            // looseness cannot promote one into the refinement set.
+            val savedDi = diStep
+            val savedHp = hpStep
+            val savedCc = ccStep
             val worlds: List<Pair<WorldSpec, Result?>> =
-                specs.map { spec ->
-                    spec to
-                        bound(
-                            params,
-                            pool,
-                            runes,
-                            sublimations,
-                            debug,
-                            diag,
-                            blockGate = if (spec.assume == null) blockGate else false,
-                            provenance = false,
-                            shouldContinue = shouldContinue,
-                            ccSupportLambda = ccSupportLambda,
-                            ccSupportBand = ccSupportBand,
-                            coupleSecondaryItemNegative = coupleSecondaryItemNegative,
-                            netSecondaryItemBudget = netSecondaryItemBudget,
-                            exactNormalSubPacking = exactNormalSubPacking,
-                            foldNegativeItemAp = foldNegativeItemAp,
-                            foldNegativeMaxMp = foldNegativeMaxMp,
-                            splitLightWeaponCondition = splitLightWeaponCondition,
-                            requireConditionalSub = requireConditionalSub,
-                            diagnosticBasePlain = diagnosticBasePlain,
-                            worldAssume = spec.assume,
-                            worldDropCaps = spec.assume == null,
-                            worldArm = spec.arm
-                        )
+                try {
+                    specs.map { spec ->
+                        if (spec.assume == null) {
+                            diStep = savedDi
+                            hpStep = savedHp
+                            ccStep = savedCc
+                        } else {
+                            diStep = savedDi * 2
+                            hpStep = savedHp * 2
+                            ccStep = savedCc * 2
+                        }
+                        spec to
+                            bound(
+                                params,
+                                pool,
+                                runes,
+                                sublimations,
+                                debug,
+                                diag,
+                                blockGate = if (spec.assume == null) blockGate else false,
+                                provenance = false,
+                                shouldContinue = shouldContinue,
+                                ccSupportLambda = ccSupportLambda,
+                                ccSupportBand = ccSupportBand,
+                                coupleSecondaryItemNegative = coupleSecondaryItemNegative,
+                                netSecondaryItemBudget = netSecondaryItemBudget,
+                                exactNormalSubPacking = exactNormalSubPacking,
+                                foldNegativeItemAp = foldNegativeItemAp,
+                                foldNegativeMaxMp = foldNegativeMaxMp,
+                                splitLightWeaponCondition = splitLightWeaponCondition,
+                                requireConditionalSub = requireConditionalSub,
+                                diagnosticBasePlain = diagnosticBasePlain,
+                                worldAssume = spec.assume,
+                                worldDropCaps = spec.assume == null,
+                                worldArm = spec.arm
+                            )
+                    }
+                } finally {
+                    diStep = savedDi
+                    hpStep = savedHp
+                    ccStep = savedCc
                 }
             if (debug) {
                 worlds.forEach { (spec, result) ->
