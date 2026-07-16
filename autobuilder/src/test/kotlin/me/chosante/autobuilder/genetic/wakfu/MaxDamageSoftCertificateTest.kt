@@ -56,8 +56,9 @@ class MaxDamageSoftCertificateTest {
     private fun mdParams(
         level: Int,
         targets: List<TargetStat>,
+        clazz: CharacterClass = CharacterClass.CRA,
     ) = WakfuBestBuildParams(
-        character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+        character = Character(clazz, level, 0, CharacterSkills(level)),
         targetStats = TargetStats(targets),
         searchDuration = 600.seconds,
         stopWhenBuildMatch = false,
@@ -754,6 +755,94 @@ class MaxDamageSoftCertificateTest {
         assertThat(proof)
             .describedAs("the production soft-leg proof must close S4 exactly (ProvenOptimal)")
             .isEqualTo(MaxDamageSearch.MaxDamageProof.ProvenOptimal)
+    }
+
+    /**
+     * §9.20 generality screen: shapes beyond the CRA-245 fixture through the production union.
+     * Contract under test: NEVER an exception — a sound union (with a per-shape soundness canary:
+     * any full-model primal found in a short solve must sit at or below the union upper) or a
+     * clean bail. `WAKFU_S4_PROD_SCREEN=1`; ~10-15 min (two full unions + short primal solves).
+     */
+    @Test
+    fun `manual S4 production soft proof generality screen`() {
+        assumeTrue(System.getenv("WAKFU_S4_PROD_SCREEN") == "1")
+        val shapes =
+            listOf(
+                // A different class + level, same unreachable-frontier flavour.
+                "iop-200-frontier" to
+                    mdParams(
+                        200,
+                        listOf(
+                            TargetStat(Characteristic.ACTION_POINT, 15),
+                            TargetStat(Characteristic.MOVEMENT_POINT, 8),
+                            TargetStat(Characteristic.CRITICAL_HIT, 100),
+                            TargetStat(Characteristic.HP, 10000)
+                        ),
+                        CharacterClass.IOP
+                    ),
+                // Mid-level, AP/MP only.
+                "cra-140-apmp" to
+                    mdParams(
+                        140,
+                        listOf(
+                            TargetStat(Characteristic.ACTION_POINT, 14),
+                            TargetStat(Characteristic.MOVEMENT_POINT, 7)
+                        )
+                    ),
+                // Unsupported required target (RANGE): supportsShape must refuse it instantly.
+                "xelor-245-range-bail" to
+                    mdParams(
+                        245,
+                        listOf(
+                            TargetStat(Characteristic.ACTION_POINT, 16),
+                            TargetStat(Characteristic.RANGE, 6)
+                        ),
+                        CharacterClass.XELOR
+                    )
+            )
+        for ((label, p) in shapes) {
+            val level = p.character.level
+            val pool =
+                WakfuBestBuildFinderAlgorithm.equipments
+                    .filter { it.rarity <= Rarity.EPIC }
+                    .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                    .groupBy { it.itemType }
+            val union =
+                MaxDamageSoftCertificate.hybridUnionUpper(
+                    p,
+                    pool,
+                    WakfuBestBuildFinderAlgorithm.runes,
+                    WakfuBestBuildFinderAlgorithm.sublimations,
+                    oracleWorkers = 8,
+                    oracleSeconds = 180.0
+                )
+            println(
+                "S4_PROD_SCREEN shape=$label union=${union?.upper ?: "bail"} " +
+                    "noCond=${union?.noConditionUpper} noCondProven=${union?.noConditionProven} wallMs=${union?.wallMs}"
+            )
+            if (label.endsWith("-bail")) {
+                assertThat(union).describedAs("$label must bail (unsupported target)").isNull()
+                continue
+            }
+            if (union == null) continue // a clean bail is acceptable; the screen only forbids exceptions/unsoundness
+            // Soundness canary: any primal of the FULL model must sit at or below the union upper.
+            val primal =
+                WakfuBuildSolver.timedMaxDamageProfileForTest(
+                    params = p,
+                    equipmentsByItemType = pool,
+                    runes = WakfuBestBuildFinderAlgorithm.runes,
+                    sublimations = WakfuBestBuildFinderAlgorithm.sublimations,
+                    workers = 8,
+                    seconds = 60.0,
+                    applyDomination = true
+                )
+            println("S4_PROD_SCREEN shape=$label primalStatus=${primal.status} primal=${primal.objective}")
+            if (primal.hasSolution) {
+                assertThat(union.upper)
+                    .describedAs("$label: the union upper must cover every full-model primal")
+                    .isGreaterThanOrEqualTo(primal.objective)
+            }
+        }
     }
 
     @Test

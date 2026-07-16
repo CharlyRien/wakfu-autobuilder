@@ -2228,7 +2228,7 @@ internal object MaxDamageSoftCertificate {
                 // the full model and its bound alone covers every build.
                 val (upper, proven) = joinOracle() ?: return null
                 return SoftUnionUpper(upper, upper, proven, (System.nanoTime() - t0) / 1_000_000)
-                    .also { unionMemo[memoKey] = it }
+                    .also { if (proven) unionMemo[memoKey] = it }
             }
 
             diStep = COARSE_DI_STEP
@@ -2298,8 +2298,10 @@ internal object MaxDamageSoftCertificate {
             }
             val remainingUpper = pending.drop(refinedCount).maxOfOrNull { it.foldedBound } ?: 0L
             val upper = maxOf(refinedBest, remainingUpper)
+            // Memoize only PROVEN-oracle unions: a timeout dual is sound but transiently loose
+            // (CPU load), and pinning it would deny a later, better re-proof of the same request.
             return SoftUnionUpper(upper, noConditionUpper, noConditionProven, (System.nanoTime() - t0) / 1_000_000)
-                .also { unionMemo[memoKey] = it }
+                .also { if (noConditionProven) unionMemo[memoKey] = it }
         } finally {
             diStep = DEFAULT_DI_STEP
             hpStep = DEFAULT_HP_STEP

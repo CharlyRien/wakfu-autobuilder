@@ -561,7 +561,7 @@ object MaxDamageSearch {
             // the AP-cell damage ledger cannot certify it (penalized units), but the dedicated
             // soft certificate can — the hybrid partition union of [MaxDamageSoftCertificate]
             // (plan §9.20). It compares in PENALIZED objective units end to end.
-            return proveSoftLegQuality(baseParams, equipmentsByItemType, runes, sublimations, result, threads, isCancelled)
+            return proveSoftLegQuality(baseParams, equipmentsByItemType, runes, sublimations, result, isCancelled)
         }
 
         val ledger =
@@ -622,7 +622,6 @@ object MaxDamageSearch {
         runes: List<RuneType>,
         sublimations: List<Sublimation>,
         result: SolverResult<BuildCombination>,
-        threads: Int,
         isCancelled: () -> Boolean,
     ): MaxDamageProof {
         // A greedy warm-start emission is not a solution of the model — its objective is not in
@@ -636,7 +635,11 @@ object MaxDamageSearch {
                 equipmentsByItemType,
                 runes,
                 sublimations,
-                oracleWorkers = threads,
+                // NOT [threads] (the heap-bound DP-world formula, often ~4): CP-SAT workers are
+                // memory-cheap and this solve needs the REAL parallel portfolio — §9.11 measured
+                // low-worker duals stalling ~2× above the optimum, which silently degrades an
+                // exact closure into "proven within ~4%". 8 workers prove the S4 shape in ~40 s.
+                oracleWorkers = (Runtime.getRuntime().availableProcessors() - 2).coerceIn(4, 8),
                 oracleSeconds = SOFT_ORACLE_BUDGET_SECONDS,
                 shouldContinue = { !isCancelled() }
             ) ?: return MaxDamageProof.Unavailable
