@@ -20,6 +20,7 @@ import me.chosante.common.SublimationKind
 
 internal fun StatBuilder.buildSublimationTerms(): Map<Characteristic, List<Term>> {
     val map = mutableMapOf<Characteristic, MutableList<Term>>()
+    postConditionalSubBranchingStrategy()
     for ((sub, _) in subModel.subVars) {
         // Combat-conditional subs (only ever forced) reserve their slot/sockets but their
         // situational effects are not auto-credited to the build (could be penalties / unmet).
@@ -286,6 +287,33 @@ private fun StatBuilder.reifyStatBound(
         ConditionComparison.AT_LEAST -> reifyGe(value, n, tag)
         ConditionComparison.EXACT -> and(reifyLe(value, n, "${tag}_le"), reifyGe(value, n, "${tag}_ge"), tag)
     }
+}
+
+/**
+ * §9.22 — WORLD-SPLIT-BY-BRANCHING for the max-damage proof: a decision strategy telling the
+ * fixed-search subsolvers to decide the CONDITIONAL sub booleans FIRST, zero side first. The
+ * cra-140 profile showed the proof grinding millions of branches because the reified condition
+ * indicators float undecided through most of the tree; deciding them up front makes the all-zero
+ * subtree exactly the no-condition model (proven in ~4.5 s there) and gives every carrying
+ * subtree a FIXED condition instead of a floating indicator — the option-C world split of
+ * `docs/S4_CONDITION_ENCODING_PROBLEM.md`, executed natively by the search instead of by
+ * enumerating models. A pure search HINT: the feasible set, objective and portfolio composition
+ * are untouched (non-fixed-search workers ignore it), so soundness and the differential locks are
+ * unaffected by construction. Scoped to max-damage, the only mode with the proof wall.
+ */
+private fun StatBuilder.postConditionalSubBranchingStrategy() {
+    if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return
+    val conditionalSubVars =
+        subModel.subVars
+            .filterKeys { it.condition != null && it.condition?.type in SUPPORTED_SUB_CONDITIONS && it !in subModel.forced }
+            .values
+            .toTypedArray<IntVar>()
+    if (conditionalSubVars.isEmpty()) return
+    model.addDecisionStrategy(
+        conditionalSubVars,
+        com.google.ortools.sat.DecisionStrategyProto.VariableSelectionStrategy.CHOOSE_FIRST,
+        com.google.ortools.sat.DecisionStrategyProto.DomainReductionStrategy.SELECT_MIN_VALUE
+    )
 }
 
 /**

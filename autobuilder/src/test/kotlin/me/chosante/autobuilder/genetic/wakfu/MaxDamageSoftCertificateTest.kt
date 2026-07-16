@@ -788,14 +788,18 @@ class MaxDamageSoftCertificateTest {
         val deterministicLimit = System.getenv("WAKFU_S4_CP_DET")?.toDoubleOrNull()
         val runParams =
             if (cellMode) {
-                mdParams(
-                    level,
-                    listOf(
-                        TargetStat(Characteristic.MOVEMENT_POINT, 8),
-                        TargetStat(Characteristic.CRITICAL_HIT, 100),
-                        TargetStat(Characteristic.HP, 12000)
-                    )
-                ).copy(maxDamageApTarget = 15)
+                // Shape-aware AP cell (WAKFU_S4_CP_APCELL, default 15). CELL_SOFT keeps the FULL
+                // target list (incl. AP — its shortfall penalty must price the pinned actual) and
+                // the soft penalized objective: max over all achievable AP cells then equals the
+                // full soft optimum EXACTLY (the AP pin is a hard equality, so cells partition).
+                val apCell = System.getenv("WAKFU_S4_CP_APCELL")?.toIntOrNull() ?: 15
+                val cellTargets =
+                    if (System.getenv("WAKFU_S4_CP_CELL_SOFT") == "1") {
+                        shapeTargets
+                    } else {
+                        shapeTargets.filter { it.characteristic != Characteristic.ACTION_POINT }
+                    }
+                mdParams(level, cellTargets, clazz).copy(maxDamageApTarget = apCell)
             } else {
                 mdParams(level, shapeTargets, clazz)
             }
@@ -811,9 +815,14 @@ class MaxDamageSoftCertificateTest {
                 deterministicLimit = deterministicLimit,
                 penalizedObjectiveCutoff = cutoff,
                 requireAnyConditionalSublimation = fullConditional && !plainFull,
-                hardConstraints = cellMode,
+                hardConstraints = cellMode && System.getenv("WAKFU_S4_CP_CELL_SOFT") != "1",
                 interleave = System.getenv("WAKFU_S4_CP_INTERLEAVE") == "1",
-                logSearch = System.getenv("WAKFU_S4_CP_LOG") == "1"
+                logSearch = System.getenv("WAKFU_S4_CP_LOG") == "1",
+                linearizationLevel = System.getenv("WAKFU_S4_CP_LIN")?.toIntOrNull() ?: 2,
+                maxPresolveIterations = System.getenv("WAKFU_S4_CP_PRESOLVE")?.toIntOrNull() ?: 3,
+                detectLinearizedProduct = System.getenv("WAKFU_S4_CP_DETECT_PROD") == "1",
+                symmetryLevel = System.getenv("WAKFU_S4_CP_SYM")?.toIntOrNull(),
+                extraSubsolvers = System.getenv("WAKFU_S4_CP_EXTRA")?.split(',')?.filter { it.isNotBlank() } ?: emptyList()
             )
         println(
             "S4_BINDING_CP cell=$cellMode cutoff=${cutoff ?: "-"} keptSubs=${bindingArmSubs.size} " +

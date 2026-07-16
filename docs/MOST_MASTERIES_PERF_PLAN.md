@@ -2109,3 +2109,43 @@ S4-245 E2E ProvenOptimal unchanged (probe skipped); iop-200 +2.9% unchanged (pro
 
 Method note: this correction went seeded-union-lock (1 min, ratio 1.0000 ×3) → single full-pool
 confirmation, per the fast-locks-first protocol.
+
+### 9.22 — Condition-encoding campaign on the cra-140 testbed: the wall resists ALL local surgery (2026-07-16/17)
+
+Goal (user): make the conditional-sub reifications digestible by CP-SAT — ideally the full plain
+solve under 10 s at cra-140 (baseline 104-169 s thermal-dependent; no-cond 4.5 s; no-subs 0.38 s).
+Method: fast-locks-first, one arm ≈ 3-5 min on the testbed, det as the thermal-robust metric.
+
+**Every arm measured (full catalog unless noted), and its verdict:**
+
+| arm | result | verdict |
+|---|---|---|
+| baseline (lin2) | OPTIMAL 104-169 s, det ~1060 | reference |
+| lin1 | OPTIMAL 134 s, det 700 (−34%) — but did NOT replicate in the union flow (probe failed to close a shape the lin2 probe closes) | REVERTED — "no solver knobs, ever" re-confirmed |
+| lin0 / presolve8 / detectLinearizedProduct | FEASIBLE at 240 s | worse — dead |
+| M1: redundant big-M rows + conflict cliques (adds, removes nothing) | FEASIBLE 240 s, det 1250 | worse — the B-family curse extends to ADDING rows |
+| M2: decision strategy (conditional bools first, zero side) | FEASIBLE 240 s | neutral (ignored: no fixed-search worker in the 8-portfolio) |
+| M2b: M2 + extraSubsolvers("fixed") | FEASIBLE 240 s | neutral-worse |
+| incumbent objective floor | 249 s / 381k branches (vs 104 s / 2.6k) | 2.4× worse — objective-side constraints hurt BOTH directions |
+| soft AP cell (AP pinned hard ⇒ AP conditions constant, penalty near-constant) | OPTIMAL **83 s** | helps ~2× but ×8 cells ⇒ dead for <10 s; crit/secMast reifications carry the wall |
+| profile read (log run) | full workers: millions of branches, 3.7×10⁸ propagations | the LP never cuts fractional conditional subs; the dual is ground out by CDCL |
+
+Combined with the second agent's B/B2/B3 (§6 of the handoff doc): **the conditional-sub wall is
+not digestible by any local encoding or parameter surgery** — twelve measured arms across two
+campaigns now agree. The remaining routes are structural: a K-dimension (crit-mastery-aware) DP
+certificate rework — the main-world binding path at 140 prices W at critCap=100 weights on a
+cc=30 state, the single largest identified residual — or CP-SAT-internal work beyond model surgery.
+
+**Positive finding shipped (`hybridUnionUpper`):** **λ is per-shape** (§6.A4 said so; now measured
+off-frontier): λ=6000 (245-calibrated) is ACTIVELY loose at cra-140 — sweep {0, 2000, 6000, 12000,
+20000} → +25.9% / +28.5% / +46.5% / +95.6% / +169.4%. The production DP now re-sweeps at λ=0 and
+takes the min when the λ=6000 pass did not close, gated at the same 10% as the probe — tight
+shapes pay nothing. (lin1 in the probe was shipped then REVERTED the same night: its single
+−34%-det measure did not replicate in the union flow — a probe that closed at lin2 stopped
+closing. The "no solver knobs, ever" verdict now covers the soft probe too.)
+
+**Reality of the <10 s target:** not reachable by re-encoding. At 140 the practical picture is:
+searches ≥ ~2 min self-prove (`result.isOptimal`, no proof step at all); shorter searches get the
+exact badge from the probe in ~1-2 min (lin1). The scoped next campaign, if wanted: the K-dim DP
+rework (closing the DP under the oracle at low level would make the union exact in oracle+DP ≈
+10-15 s with NO probe).
