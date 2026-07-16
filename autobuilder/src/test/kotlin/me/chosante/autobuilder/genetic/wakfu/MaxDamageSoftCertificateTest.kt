@@ -799,7 +799,10 @@ class MaxDamageSoftCertificateTest {
                     } else {
                         shapeTargets.filter { it.characteristic != Characteristic.ACTION_POINT }
                     }
-                mdParams(level, cellTargets, clazz).copy(maxDamageApTarget = apCell)
+                mdParams(level, cellTargets, clazz).copy(
+                    maxDamageApTarget = apCell,
+                    maxDamageMpPin = System.getenv("WAKFU_S4_CP_MPCELL")?.toIntOrNull()
+                )
             } else {
                 mdParams(level, shapeTargets, clazz)
             }

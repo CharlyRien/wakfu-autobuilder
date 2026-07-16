@@ -1430,6 +1430,8 @@ internal class StatBuilder(
     // The build's resolved Action Points variable (base + gear + skills), for the external-loop AP probe.
     fun actionPointVar(): IntVar = actualStat(Characteristic.ACTION_POINT)
 
+    fun movementPointVar(): IntVar = actualStat(Characteristic.MOVEMENT_POINT)
+
     /**
      * Monotonic **effective-HP proxy** for the survivability soft-floor (Lot 5):
      * `EHP ≈ HP · (100 + avgResist) / 100`, with `avgResist` the average of the four elemental
