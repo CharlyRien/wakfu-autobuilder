@@ -1939,3 +1939,30 @@ Continuation of the §9.14-9.16 campaign (remaining-work items 1-3):
 Remaining: item 4 — the production port (prove entry + GUI badge through ProofState, CERTIFIER_VERSION
 bump) with the review guardrails: data-version-fingerprinted oracle cache, AP-headroom `require` →
 BAIL, and a 2-3-shape generality screen before enabling the badge broadly.
+
+### 9.18 — EXACT closure reproduced + pipeline 10m49 → 6m38; CP-SAT cross-check inconclusive (2026-07-16)
+
+The full hybrid union (typed solved oracle + conditional-only adaptive DP with the grid cascade)
+reproduces the second agent's EXACT S4 closure:
+
+| read | value |
+|---|---:|
+| oracle (no-condition CP-SAT, PROVEN OPTIMAL) | 17 702 078 146 500 (42.4 s) |
+| conditional-only plain (DI1) | 17 025 316 918 500 — under the oracle |
+| conditional-only critZero (**stopped at DI4** by the cascade) | 17 289 947 911 500 — under the oracle |
+| largest unrefined coarse world | 17 693 401 720 500 — under the oracle |
+| **final bound / gap** | **17 702 078 146 500 / 0.0000%** |
+| end-to-end wall | **6m38** (oracle 42 s + DP 356 s) vs the pre-cascade 10m49 (**−39%**) |
+
+The S4 full-model optimum is therefore **exactly proven**: every conditional world's sound upper
+bound falls below the proven no-condition optimum, so no conditional build can beat it.
+
+Independent CP-SAT cross-check (partition + cutoff — full catalog, `requireAnyConditionalSublimation`,
+`penalizedObjectiveCutoff = oracle+1`, 9 workers, 30 min): **UNKNOWN** — no conditional build above
+the cutoff was FOUND (weak positive signal) but no refutation either (dual stalled at 35.45T, the
+reification wall as always). The DP-side proof stands alone; the cross-check is banked as
+inconclusive, do not re-run longer without a new idea.
+
+Remaining: item 4 — the production port (prove entry + ProofState badge showing **proven optimal
++0%** on the S4 leg, CERTIFIER_VERSION bump, fingerprinted oracle cache, AP-headroom require→bail,
+generality screen beyond CRA-245).
