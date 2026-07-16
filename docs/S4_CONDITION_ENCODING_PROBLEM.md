@@ -318,3 +318,16 @@ tightens. Keep every sublimation differential lock and certificate soundness loc
 - Regression origin: commit `39532d15` (condition-timing fix — correct, do not revert).
 - The test harness + all env toggles: `MostMasteriesPerfExperimentTest` (`mdFrontierShape` = the S4
   fixture; `solve()` = the `tuning==null` switch).
+
+---
+
+## Post-scriptum 2026-07-16 — a FAST testbed for encoding experiments exists now
+
+Cost attribution at **cra-140** (plain full-model solve, `WAKFU_S4_CP_PLAIN=1` +
+`WAKFU_S4_SHAPE=cra140-apmp`, 8 workers): no subs **0.38 s**; 204 unconditional subs **4.5 s**;
++28 conditional subs **104 s** (×23). The optimum is a no-conditional build proven in 4.5 s — the
+remaining ~100 s exclusively pay the conditional-sub reifications. So the wall described in this
+document exists at low level too, merely crossable — and cra-140 is therefore a **measurable-scale
+testbed** for any condition-encoding experiment: a candidate encoding that cuts 104 s meaningfully
+at 140 is worth re-testing at 245, without waiting hours for UNKNOWNs. (Incumbent-floor cutoffs are
+measured HARMFUL in both directions — do not use them in these A/Bs.)
