@@ -808,7 +808,7 @@ class MaxDamageSoftCertificateTest {
                 seconds = seconds,
                 applyDomination = true,
                 deterministicLimit = deterministicLimit,
-                penalizedObjectiveCutoff = if (plainFull) null else cutoff,
+                penalizedObjectiveCutoff = cutoff,
                 requireAnyConditionalSublimation = fullConditional && !plainFull,
                 hardConstraints = cellMode,
                 interleave = System.getenv("WAKFU_S4_CP_INTERLEAVE") == "1",
