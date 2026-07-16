@@ -2091,3 +2091,21 @@ onto the oracle = exact closure). Gated at a **10% DP-vs-oracle gap** — tight 
 the FAST seeded union lock first — `manual S4 union soundness lock on seeded pools`
 (`WAKFU_S4_UNION_LOCK=1`, ~1 min, pinned full-model CP-SAT optimum vs the production union,
 `seededPools()` shared with the DP lock) — and pays the full-pool screens exactly once at the end.
+
+#### 9.21bis — CORRECTION: the probe must be the PLAIN full-model solve (2026-07-16, `6bc740f7`)
+
+The user challenged §9.21's "CP-SAT cannot prove the soft leg even at 140" — and was right.
+Measured at cra-140: the **plain full model proves OPTIMAL in 104 s / 2 634 branches**
+(`WAKFU_S4_CP_PLAIN=1`). §9.21's inference was poisoned by its own probe design: the
+{cutoff at oracle+1 + require-a-conditional-sub} model is a strictly HARDER problem (a
+near-optimal-infeasibility proof — UNKNOWN at 300 s, dual +11%, on the very shape the plain solve
+closes). **The conditional-reification wall is a LARGE-POOL phenomenon** — at 245 the plain dual
+stalls 2-4×, at 140 it just closes.
+
+Shipped: `hybridUnionUpper`'s probe is now the plain full-model solve — `OPTIMAL` collapses the
+union onto the TRUE optimum; a timeout's dual is still a sound upper on every build. Same 10% gate
+and 300 s budget. Results: **cra-140 badge +12.9% → ProvenOptimal (exact, 2 094 581 834 070)**;
+S4-245 E2E ProvenOptimal unchanged (probe skipped); iop-200 +2.9% unchanged (probe skipped).
+
+Method note: this correction went seeded-union-lock (1 min, ratio 1.0000 ×3) → single full-pool
+confirmation, per the fast-locks-first protocol.
