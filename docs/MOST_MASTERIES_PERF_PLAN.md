@@ -2005,6 +2005,8 @@ ratio 1.0000).
 **Operating point:** end-to-end exact closure **2m43-2m58** wall (thermal-state dependent; was
 6m38, pre-cascade 10m49). Remaining wall = coarse ~78 s + two DI10 refinements ~60-95 s, with the
 oracle hidden. Run-to-run variance on the DP stages is large (same refinement measured 29 s and
-52 s across runs) — further micro-tuning is below the noise floor; the next real lever would be
-intra-stage chunked parallelism inside one world's DP (the MM certificate's win), left for the
-production port if its wall needs it.
+52 s across runs) — further micro-tuning is below the noise floor. CORRECTION: the DP's stage
+apply is ALREADY chunked-parallel (up to 8 threads, ported from the MM certificate) — which is
+exactly why world-level threads collapsed (4 worlds × 8 intra-stage = 32 threads) and why the
+concurrent oracle degraded when stacked on it. The CPU is already saturated; there is no idle
+parallelism left to harvest in this pipeline.
