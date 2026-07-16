@@ -2109,9 +2109,8 @@ internal object MaxDamageSoftCertificate {
     private const val COARSE_CC_STEP = 20
     private const val REFINE_HP_STEP = 1000
 
-    /** Budget for the §9.21 conditional CP-SAT probe — paid only on shapes where the DP is loose.
-     *  300 s measured the cra-140 conditional dual at +11.2% (vs +19.8% at 180 s): on the shapes
-     *  that probe at all, the extra two minutes buy most of the badge quality. */
+    /** Budget for the §9.21 full-model CP-SAT probe — paid only on shapes where the DP is loose.
+     *  cra-140 proves OPTIMAL in ~104 s; 300 s leaves headroom for bigger mid-level pools. */
     private const val CONDITIONAL_PROBE_SECONDS = 300.0
 
     /** Probe gate: below a 10% DP-vs-oracle gap the DP regime is already tight and the probe's
@@ -2315,11 +2314,15 @@ internal object MaxDamageSoftCertificate {
 
             // §9.21 — the DP and CP-SAT are tight in OPPOSITE regimes: the DP holds on huge pools
             // where CP-SAT's dual stalls (S4-245: DP exact, CP dual 2x), while on small low-level
-            // pools the DP's relative looseness explodes (+46% at cra-140) yet CP-SAT's dual on
-            // the CONDITIONAL-ONLY model nearly closes (+11% in 300 s). Take the min of the two
-            // sound uppers — and pay the probe ONLY when the DP failed to close onto the oracle,
-            // so tight shapes (the S4 frontier) never spend a second on it. A probe INFEASIBLE
-            // above the cutoff collapses the conditional side onto the oracle (exact closure).
+            // pools the DP's relative looseness explodes (+46% at cra-140) yet a PLAIN full-model
+            // CP-SAT solve proves OPTIMAL outright (104 s at cra-140, 2.6k branches — the
+            // reification wall is a large-pool phenomenon). So when the DP failed to close onto
+            // the oracle, re-solve the FULL model plainly and take the min: OPTIMAL closes the
+            // union exactly; a timeout's dual bound is still a sound upper on EVERY build. Do NOT
+            // model this probe as {cutoff at oracle+1 + require-a-conditional-sub}: that variant
+            // is a strictly HARDER problem (proving near-optimal infeasibility) — measured UNKNOWN
+            // after 300 s (+11%) on the very shape the plain solve proves in 104 s. The 10% gate
+            // keeps tight shapes (the S4 frontier, iop-200) from ever paying the probe.
             var conditionalUpper = dpConditionalUpper
             val probeGap = noConditionUpper + (noConditionUpper.toDouble() * CONDITIONAL_PROBE_MIN_GAP).toLong()
             if (conditionalUpper > probeGap && shouldContinue()) {
@@ -2333,20 +2336,13 @@ internal object MaxDamageSoftCertificate {
                                 sublimations = sublimations,
                                 workers = oracleWorkers,
                                 seconds = CONDITIONAL_PROBE_SECONDS,
-                                applyDomination = true,
-                                penalizedObjectiveCutoff = noConditionUpper + 1,
-                                requireAnyConditionalSublimation = true
+                                applyDomination = true
                             )
-                        if (probe.status == "INFEASIBLE") {
-                            // No conditional build beats the no-condition upper: exact collapse.
-                            noConditionUpper
-                        } else {
-                            // Any conditional build is either under the cutoff (≤ noConditionUpper)
-                            // or a solution of the probe model (≤ its dual bound).
-                            maxOf(noConditionUpper, probe.bestBound)
-                        }
+                        // OPTIMAL: objective == bestBound, the union collapses onto the true
+                        // optimum. Otherwise the dual still upper-bounds every build.
+                        probe.bestBound
                     } catch (e: Exception) {
-                        logger.warn(e) { "soft-leg proof: the conditional CP-SAT probe failed — keeping the DP bound" }
+                        logger.warn(e) { "soft-leg proof: the full-model CP-SAT probe failed — keeping the DP bound" }
                         conditionalUpper
                     }
                 conditionalUpper = minOf(conditionalUpper, probeUpper)
