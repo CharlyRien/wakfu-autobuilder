@@ -400,6 +400,15 @@ workers grind 10⁶-10⁷ branches / 10⁸ propagations refuting them via CDCL.
 - Conditional-only + cutoff probes as an inference tool: that model is strictly HARDER than the
   plain solve (near-optimal-infeasibility proof) — never infer "won't prove" from it.
 
+## 3bis. One OPEN A/B for the controlled protocol (cheap first task)
+
+`linearizationLevel=1` on the plain probe: under the CONTROLLED protocol (1 worker, fixed seed,
+interleave, det 120, same JVM) it tightens the cra-140 dual **3.697T → 2.872T (−22%) at equal
+det** with a marginally worse incumbent. It was shipped then reverted on a CONFOUNDED production
+read (the machine was thermally saturated — the lin2 control also failed that screen). Neither
+"ship" nor "dead" is proven: settle it with multi-seed, multi-shape controlled pairs plus one
+real-parallel confirmation, before any other work. (Prod default remains lin2 until then.)
+
 ## 4. Open routes, in order of expected value
 
 1. **K-dim DP rework (the structural fix).** The conditional-only DP's residual looseness at low
@@ -441,3 +450,9 @@ bails); the 16 sublimation differential locks; full `:autobuilder:test`.
 - Measurement discipline: `./gradlew --stop` first; `WAKFU_TEST_MAX_HEAP=8g`; compare in `det`
   (wall is thermal: the same proof measured 104 s cold and >300 s after hours of benching);
   NEVER run concurrent gradle during timing arms; `caffeinate -i` on long runs.
+- **Protocol note (user review):** the §9.22 arms ran on the 8-worker wall-clock portfolio —
+  their BINARY reads (OPTIMAL vs FEASIBLE-at-cap) are protocol-robust, but fine det comparisons
+  on the portfolio are not. For any encoding A/B (including resurrecting a do-not-retry with a
+  new argument), use the CONTROLLED protocol: `WAKFU_S4_CP_WORKERS=1 WAKFU_S4_CP_INTERLEAVE=1
+  WAKFU_S4_CP_DET=<budget>` at a fixed seed, same-JVM pairs — the B/B2/B3 standard. Provability
+  conclusions ("does it prove at all") still need a real-parallel confirmation run (§9.11).
