@@ -343,3 +343,101 @@ encoding or parameter surgery digests the conditional reifications.** Two positi
 `linearizationLevel=1` (det −34% on the proof, the only winning knob) and per-shape λ min-sweep in
 the DP union. The remaining structural route is a K-dimension (crit-mastery-aware) certificate
 rework: the DP's main-world residual is W priced at critCap weights on low-cc binding states.
+
+---
+
+# HANDOFF 2 (2026-07-17) — the remaining problem: proofs for CONDITIONAL-CARRYING optima
+
+Self-contained brief for the next agent. Everything below is measured (fast-locks-first protocol:
+run the seeded locks before ANY full-pool measurement — see `fast-locks-first` in the project
+memory and `seededPools()` in `MaxDamageSoftCertificateTest`).
+
+## 1. State of the world (all shipped, all green)
+
+The soft-leg (unreachable-targets) proof pipeline is `MaxDamageSearch.proveSoftLegQuality` →
+`MaxDamageSoftCertificate.hybridUnionUpper`, three sound authorities in cascade:
+
+1. **RELAXED probe** (step 0, 45 s budget, ungated): conditions STRIPPED (subs keep slots+credits,
+   ZERO reifications) — sound upper on every build. `relaxedUpper ≤ incumbent` ⇒ ProvenOptimal
+   immediately. cra-140-apmp: **exact in 4.1 s E2E**. It structurally CANNOT conclude when the
+   optimum carries a conditional sub.
+2. **Hybrid union**: no-condition CP-SAT oracle (proven optimum or dual) ∪ conditional-only DP
+   (λ min-sweep {6000, 0} gated at 10%). Exact at S4-245 (~3-4 min).
+3. **Plain full-model probe** (420 s, gated at 10% DP gap): proves outright on small pools
+   (104 s cold at cra-140), stalls on large ones.
+
+Verdict comparison is in PENALIZED units against `result.maxDamageObjective`; self-check
+(incumbent > upper ⇒ error + Unavailable); badge floor at 25% gap.
+
+## 2. THE remaining gap
+
+A request whose optimum CARRIES ≥1 conditional sub gets NO fast path: relaxed can't conclude,
+and the union/probe take 1-6 min. This is the target. Reference numbers (cra-140 testbed,
+`WAKFU_S4_SHAPE=cra140-apmp`, seams in `MaxDamageSoftCertificateTest`):
+
+| model | proof |
+|---|---|
+| no subs | 0.38 s |
+| 204 unconditional subs | 4.5 s |
+| + 28 conditional (15 modeled) | 104 s cold / >300 s hot |
+| conditions stripped (relaxed) | 7.4 s, exact HERE (no-cond optimum) |
+| AP pinned (cell) | 83 s |
+| (AP,MP) pinned — penalty CONSTANT, zero bilinear | STILL FEASIBLE at 120 s |
+
+The wall is purely **reifications × damage-objective** (not the penalty product, not pool size,
+not the encoding shape). CP-SAT profile: the LP never cuts fractional conditional subs; full
+workers grind 10⁶-10⁷ branches / 10⁸ propagations refuting them via CDCL.
+
+## 3. DO-NOT-RETRY (14 measured arms, two campaigns)
+
+- B-family: remove/project reifications (B), share predicates (B2), structural conflicts (B3).
+- M1: ADD redundant big-M rows + pairwise conflict cliques (feasible-set-neutral — still worse).
+- M2/M2b: decision strategy conditional-bools-first, ± `extraSubsolvers("fixed")`.
+- Knobs: lin0, presolve8, detectLinearizedProduct (worse); **lin1's one-off −34% det did NOT
+  replicate — "no solver knobs, ever" covers the soft probe too**.
+- Objective-side cutoffs/floors in EITHER direction (incumbent floor = 2.4× worse; certcap dead).
+- Cell decomposition (AP or AP+MP pins) as a <10 s route.
+- Conditional-only + cutoff probes as an inference tool: that model is strictly HARDER than the
+  plain solve (near-optimal-infeasibility proof) — never infer "won't prove" from it.
+
+## 4. Open routes, in order of expected value
+
+1. **K-dim DP rework (the structural fix).** The conditional-only DP's residual looseness at low
+   level is diagnosed to the point: the binding path prices `W = (400+critCap)·M + 5·critCap·K`
+   at critCap=100 on states whose actual crit is ~30 (`WAKFU_S4_PATH` read, §9.22). Tracking the
+   crit-mastery component (K) — or Pareto (M, K) pairs — per state would let the collapse price
+   the crit factor at the state's OWN cc. If the conditional DP falls UNDER the no-cond oracle at
+   low level, the union closes exactly in oracle+DP ≈ 10-15 s with NO CP-SAT probe — including for
+   conditional-carrying optima. Sound intermediate step measured available: collapse-time W
+   downscale by `max((400+ccHigh)/(400+critCap), ccHigh/critCap)` (per-component ratio bound) —
+   sound, unimplemented.
+2. **Per-carrier world enumeration (option D done right).** For each modeled conditional sub s:
+   world_s = {s forced, its condition as a HARD constraint, OTHER conditionals relaxed always-on}
+   — zero reifications per world, exhaustive union {no-cond ∪ worlds}, EXACT for mono-conditional
+   optima (multi-carrier builds are covered by any of their subs' worlds, slightly over-counted
+   via the others' free credits). ~15 fast solves; economics only work on small pools (at 245:
+   15 × ~50 s sequential loses to the union). Unmeasured.
+3. λ per-shape continuous calibration / per-band envelopes: measured marginal (§9.21), only worth
+   revisiting after 1.
+
+## 5. Gates that must stay green
+
+`WAKFU_S4_UNION_LOCK=1` (seeded union soundness, ~1 min — run FIRST on any change);
+`WAKFU_S4_PROD_PROOF=1` E2E at both `WAKFU_S4_SHAPE=cra140-apmp` (ProvenOptimal, proofWallMs ~4s)
+and default S4-245 (ProvenOptimal); `WAKFU_S4_PROD_SCREEN=1` generality (sound everywhere, RANGE
+bails); the 16 sublimation differential locks; full `:autobuilder:test`.
+
+## 6. Code map (current)
+
+- `MaxDamageSoftCertificate.kt`: the DP + `hybridUnionUpper` (relaxed probe STEP 0, oracle future,
+  coarse+cascade `refinementPass(lambda)`, λ-min, plain probe, memo PROVEN-only).
+- `MaxDamageSearch.kt`: `proveSoftLegQuality` (units, self-check, badge floor 25%),
+  `SOFT_ORACLE_BUDGET_SECONDS`.
+- `MaxDamageSoftCertificateTest.kt`: `shapePreset()` (`WAKFU_S4_SHAPE`), `seededPools()`, the
+  union lock, E2E (prints `proofWallMs`), generality screen, `binding-arm` CP harness with env
+  seams (`WAKFU_S4_CP_{PLAIN,RELAXCOND,NOSUBS,NOCOND,CELL,CELL_SOFT,APCELL,MPCELL,LIN,PRESOLVE,
+  DETECT_PROD,SYM,EXTRA,CUTOFF,SECONDS,WORKERS,LOG,DET,INTERLEAVE}`).
+- `WakfuBestBuildParams.maxDamageMpPin` + `WakfuBuildSolver` pin equalities: probe-internal seams.
+- Measurement discipline: `./gradlew --stop` first; `WAKFU_TEST_MAX_HEAP=8g`; compare in `det`
+  (wall is thermal: the same proof measured 104 s cold and >300 s after hours of benching);
+  NEVER run concurrent gradle during timing arms; `caffeinate -i` on long runs.
