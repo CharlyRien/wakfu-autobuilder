@@ -2215,25 +2215,31 @@ internal object MaxDamageSoftCertificate {
         // the optimum even for free — closing the badge instantly; on large pools (S4-245) its
         // dual is useless (29.4T after 300 s) and the union below takes over. Forced subs never
         // reach this path ([supportsShape] bails), so the stripped credits are always optional.
+        // Deliberately UNGATED: whether the probe closes depends on the REQUEST (do the
+        // conditional credits improve ITS optimum, even free?), which no a-priori proxy (pool
+        // size, level) can decide — shapes where it is useless only pay this bounded overhead
+        // before the union takes over.
         val relaxedUpper =
-            try {
-                val relaxed =
-                    WakfuBuildSolver.timedMaxDamageProfileForTest(
-                        params = params,
-                        equipmentsByItemType = pool,
-                        runes = runes,
-                        sublimations =
-                            sublimations.map {
-                                if (it.condition != null && it.solverChoosable) it.copy(condition = null) else it
-                            },
-                        workers = oracleWorkers,
-                        seconds = RELAXED_PROBE_SECONDS,
-                        applyDomination = true
-                    )
-                if (relaxed.status == "OPTIMAL") relaxed.objective else relaxed.bestBound
-            } catch (e: Exception) {
-                logger.warn(e) { "soft-leg proof: the relaxed probe failed — continuing with the union" }
-                Long.MAX_VALUE
+            run {
+                try {
+                    val relaxed =
+                        WakfuBuildSolver.timedMaxDamageProfileForTest(
+                            params = params,
+                            equipmentsByItemType = pool,
+                            runes = runes,
+                            sublimations =
+                                sublimations.map {
+                                    if (it.condition != null && it.solverChoosable) it.copy(condition = null) else it
+                                },
+                            workers = oracleWorkers,
+                            seconds = RELAXED_PROBE_SECONDS,
+                            applyDomination = true
+                        )
+                    if (relaxed.status == "OPTIMAL") relaxed.objective else relaxed.bestBound
+                } catch (e: Exception) {
+                    logger.warn(e) { "soft-leg proof: the relaxed probe failed — continuing with the union" }
+                    Long.MAX_VALUE
+                }
             }
         if (relaxedUpper <= incumbentObjective) {
             return SoftUnionUpper(relaxedUpper, relaxedUpper, true, (System.nanoTime() - t0) / 1_000_000)

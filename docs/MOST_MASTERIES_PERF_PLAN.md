@@ -2174,3 +2174,12 @@ The §9.22 verdict refines to: the conditional reifications are indigestible **i
 and unnecessary for the PROOF on shapes where the optimum doesn't want the conditional credits
 even free. Complementary regimes, third instance: relaxed probe (low level, instant) / DP+oracle
 union (high level, exact) / plain probe (mid, gated).
+
+**Generality caveat (user challenge, confirmed by measurement):** the fast path is
+REQUEST-dependent, not level-dependent. It fires iff (a) the relaxed model proves within its
+budget and (b) the conditional credits do not improve THAT request's optimum even free. cra-140
+AP14/MP7 has both; iop-200 has neither (relaxed FEASIBLE at 120 s, dual 16.5T — falls back to the
+union, badge unchanged). A pool-size gate was tried and REVERTED on user feedback: no a-priori
+proxy can decide (b) — the probe is deliberately UNGATED, its 45 s budget being the bounded cost
+of asking. On requests where a conditional sub genuinely belongs to the optimum, the fast path
+simply never concludes (it cannot prove relaxed ≤ incumbent) — it can delay, never mislead.
