@@ -409,6 +409,25 @@ read (the machine was thermally saturated — the lin2 control also failed that 
 "ship" nor "dead" is proven: settle it with multi-seed, multi-shape controlled pairs plus one
 real-parallel confirmation, before any other work. (Prod default remains lin2 until then.)
 
+## 3ter. Controlled re-test queue (the §9.22 arms were thermally ordered — re-verify under the protocol)
+
+In priority order, each as 1-worker/fixed-seed/interleave/det-120 same-JVM pairs, 2-3 seeds:
+1. **Conflict cliques ALONE** (unbundle from M1 — the bundle mixed pure-CDCL clause structure,
+   plausibly good, with LP-diluting big-M rows, plausibly bad; never isolated). Re-implement from
+   §9.22: `subA + subB ≤ 1` for pairwise-unsatisfiable same-stat/same-sheet predicates,
+   non-forced choosable subs only.
+2. lin1 multi-seed/multi-shape (§3bis — dual −22% on the single controlled pair).
+3. M2b decision-strategy + `extraSubsolvers("fixed")` under interleave (the portfolio ignored the
+   strategy; 1-worker interleave would actually exercise it — the branching world split was never
+   truly measured).
+4. `WAKFU_S4_CP_SYM` sweep {2,3,4} (seam exists, never run; the four identical secMast≤0
+   predicates are a real symmetry).
+5. presolve8 / detectLinearizedProduct controlled confirmations (their FEASIBLE-at-cap reads came
+   after the baseline in a heating session).
+6. Cross-combinations if any single arm wins (cliques+lin1 first).
+NOT worth re-testing: the B-family (already measured under this protocol), the incumbent floor
+(×145 branches — noise-insensitive), cell decompositions (structural economics dead at any clock).
+
 ## 4. Open routes, in order of expected value
 
 1. **K-dim DP rework (the structural fix).** The conditional-only DP's residual looseness at low
