@@ -2855,3 +2855,11 @@ fusing the λ-calib/re-split passes. Campaign continues; walls at 14 h of contin
   phase, so feca65's serial hole stays gone (128.5 s, 209 at sweep 3).
 
 Milestone committed as `f4e00bb2` (v17→v29, 16 files, +5074). μ lock green with the <175 μ pass.
+
+#### 9.33 — Deterministic node budgets: the B&B is load-invariant (2026-07-18 close)
+
+The wall-budget prognosis erraticism (§9.32) is fixed: per-node budgets are now CP-SAT
+DETERMINISTIC time (det 60, root ×2 — measured roots close at det 50-70, inner nodes 20-48),
+with the wall raised to a coarse 45 s safety net. Under 16 h of continuous bench load:
+cra80-ap10 back to **ProvenOptimal (113.6 s, 9 nodes — the tree closes reliably)**; cra-140
+ProvenOptimal 106.9 s; B&B CI locks green. Cold walls unchanged (det binds at ~8-25 s/node).

@@ -1701,6 +1701,12 @@ object WakfuBuildSolver {
                     maxSecondsPerNode
                 }
             configure(solver, minOf(nodeBudget, secondsRemaining()).coerceAtLeast(0.001))
+            // The prognosis-driving ROOT gets double the deterministic budget (its read decides
+            // the whole route); deterministic budgets are load-invariant where wall budgets went
+            // erratic under bench load.
+            if (rootBailFraction != null && node.required.isEmpty() && node.excluded.isEmpty()) {
+                deterministicLimitPerNode?.let { solver.parameters.maxDeterministicTime = it * 2 }
+            }
             val status = solver.solve(built.model)
             // ONLY these three statuses carry usable information. Anything else (MODEL_INVALID,
             // UNKNOWN with a garbage native bound, …) must end the tree inconclusively — routing
