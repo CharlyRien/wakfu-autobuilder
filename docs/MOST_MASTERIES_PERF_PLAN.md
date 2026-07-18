@@ -2877,3 +2877,15 @@ panda170 8.13%).
 Probe-vs-E2E note: the 40 s secZero probe (split-both, 3.8333T) and the E2E μ-pass per-arm reads
 (3.9113/3.8309T) disagree by ~2% on the same world — worth a 30 s parameter-diff check at the
 start of the P3 campaign (suspected: light-arm mapping or band defaults in the probe harness).
+
+#### 9.35 — enutrof125: the OPEN tree-progress case (2026-07-18 end of session)
+
+enutrof125-cchp regressed to 318-324 s under the current build: its ROOT closes OPTIMAL (so
+neither the dual bail nor the new unproven-root budget shrink fires) yet the tree CRAWLS
+(7-8 nodes, full 180 s, Inconclusive) and the DP fall-through (2.02% badge) stacks on top. The
+missing mechanism is an in-tree PROGRESS prognosis (frontier convergence toward the incumbent
+after K nodes), not another root heuristic. Shipped meanwhile: `UNPROVEN_ROOT_TREE_BUDGET = 75 s`
+for FEASIBLE-root trees (its own class), B&B locks green, cra80 ProvenOptimal 131 s under 17 h
+load. NEXT SESSION, first task: design the progress prognosis with 40 s probes on enutrof's
+tree reads (the node dumps are one WAKFU_S4_WORLD_BB run away) — do NOT tune more heuristics on a
+17 h-loaded machine.
