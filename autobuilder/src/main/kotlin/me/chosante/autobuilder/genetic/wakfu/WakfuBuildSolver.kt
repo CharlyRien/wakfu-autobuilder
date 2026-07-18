@@ -1525,6 +1525,11 @@ object WakfuBuildSolver {
      * every exact build in the parent. A node is discarded as soon as its sound upper is at most
      * [incumbentObjective], avoiding a monolithic model containing every indicator.
      */
+    // A tree whose ROOT stayed FEASIBLE (dual within the bail band but unproven) gets this
+    // reduced budget: it sometimes closes (worth a chance) but often crawls to the full budget
+    // and pays the DP fall-through on top.
+    private const val UNPROVEN_ROOT_TREE_BUDGET_SECONDS = 75.0
+
     internal fun conditionalWorldBranchAndBound(
         params: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
@@ -1573,7 +1578,7 @@ object WakfuBuildSolver {
         val inFlight = java.util.IdentityHashMap<Node, Unit>()
         val reads = arrayListOf<ConditionalWorldBranchRead>()
         val startedAt = System.nanoTime()
-        val deadline = startedAt + (totalSeconds.coerceAtLeast(0.0) * 1_000_000_000.0).toLong()
+        var deadline = startedAt + (totalSeconds.coerceAtLeast(0.0) * 1_000_000_000.0).toLong()
         var closedUpper = Long.MIN_VALUE
         var nodesTaken = 0
         var terminal: ConditionalWorldProof? = null
@@ -1956,9 +1961,20 @@ object WakfuBuildSolver {
                     // Root prognosis: a hopeless root dual means no bounded budget will close the
                     // tree — end here (one node's cost) so the caller falls through to the DP.
                     if (rootBailFraction != null && reads.size == 1 && terminal == null) {
-                        val rootUpper = reads.first().bestBound
-                        if (rootUpper > incumbentObjective + (incumbentObjective.toDouble() * rootBailFraction).toLong()) {
-                            terminal = inconclusive(rootUpper)
+                        val root = reads.first()
+                        if (root.bestBound > incumbentObjective + (incumbentObjective.toDouble() * rootBailFraction).toLong()) {
+                            terminal = inconclusive(root.bestBound)
+                        } else if (root.status != "OPTIMAL") {
+                            // The root dual is within the band but the root itself did not CLOSE:
+                            // such trees sometimes finish (worth a chance) but often crawl
+                            // (enutrof125 burned the full 180 s then paid the DP anyway =
+                            // 324 s). Shrink the tree budget — proven-root trees (cra80/cra140)
+                            // keep the full one.
+                            deadline =
+                                minOf(
+                                    deadline,
+                                    System.nanoTime() + (UNPROVEN_ROOT_TREE_BUDGET_SECONDS * 1_000_000_000.0).toLong()
+                                )
                         }
                     }
                     outcome.closedContribution?.let { closedUpper = maxOf(closedUpper, it) }

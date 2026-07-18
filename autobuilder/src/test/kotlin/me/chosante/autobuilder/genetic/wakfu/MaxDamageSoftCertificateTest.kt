@@ -165,6 +165,18 @@ class MaxDamageSoftCertificateTest {
                         TargetStat(Characteristic.HP, 2500)
                     )
                 )
+            // Sweep-3 borderline wall (135 s pre-lazy-join fixes).
+            "enutrof125-cchp" ->
+                Triple(
+                    CharacterClass.ENUTROF,
+                    125,
+                    listOf(
+                        TargetStat(Characteristic.ACTION_POINT, 13),
+                        TargetStat(Characteristic.MOVEMENT_POINT, 6),
+                        TargetStat(Characteristic.CRITICAL_HIT, 70),
+                        TargetStat(Characteristic.HP, 5000)
+                    )
+                )
             // Sweep-3 loose-badge class (AP/MP-only) — second representative.
             "panda170-apmp" ->
                 Triple(
