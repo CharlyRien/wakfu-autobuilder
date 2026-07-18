@@ -2912,3 +2912,21 @@ Also count consecutive zero-progress nodes (dual == inherited after a full budge
 at 2. SECOND WALL: the low-level DP fall-through itself costs ~140 s (same class as feca65's
 stack) — enutrof cannot reach <120 s without also thinning that path; profile it with the stage
 stamps on a cold machine before touching anything.
+
+**MEASURED (implemented, `TWO_NODE_DET_BAIL=130` + `ZERO_PROGRESS_STALL_LIMIT=2` with a
+spent-budget guard):** enutrof tree 180 s → **82.4 s (2 nodes, prognosis bail)**, E2E total
+324 → **228.6 s** (verdict unchanged, ProvenWithin 2.02%); **cra80-ap10 stays ProvenOptimal**
+(141 s under bench load) — no false termination on a closing tree; B&B CI locks green.
+Follow-up refinement: the SECOND node is capped at `min(nodeDet, 130 − rootDet)` — it only
+exists to answer the prognosis, so a cheaper read that triggers the same bail saves ~25 s.
+**Final measured (both refinements in):** enutrof tree **45.3 s (1 node — the root read alone
+now triggers the bail)**, E2E total **185.1 s** (from 324; verdict ProvenWithin 2.02%
+unchanged); cra80-ap10 tree closes 9 nodes / 124.4 s → **ProvenOptimal 124.4 s**; the default
+S4-245 shape re-measured ProvenOptimal 108.2 / 113.6 s. The enutrof E2E still fails only the
+150 s wall assertion — remaining wall = the ~140 s low-level DP fall-through stack
+(feca-class), to be profiled COLD before touching anything.
+
+Harness gotchas rediscovered this pass (cost ~4 reruns): the E2E gate is
+`WAKFU_S4_PROD_PROOF=1` + shape via `WAKFU_S4_SHAPE` (NOT `WAKFU_S4_E2E_SHAPE`); the test
+filter is `*end-to-end*` (no test name contains "e2e"); and after `./gradlew --stop` the test
+JVM heap resets to the Gradle default — the DP worlds OOM without `WAKFU_TEST_MAX_HEAP=8g`.
