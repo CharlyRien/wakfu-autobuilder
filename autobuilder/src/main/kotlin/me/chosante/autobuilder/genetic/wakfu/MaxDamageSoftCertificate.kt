@@ -2594,8 +2594,15 @@ internal object MaxDamageSoftCertificate {
      *  after 120-300 s. The global budget is strict; in this measured low-level regime an unfinished
      *  tree returns its sound frontier dual directly instead of stacking the legacy budgets. */
     private const val CONDITIONAL_WORLD_BB_SECONDS = 180.0
-    private const val CONDITIONAL_WORLD_BB_NODE_SECONDS = 15.0
+
+    // Coarse SAFETY NET only — the deterministic budget below is the real (load-invariant)
+    // per-node limit and typically binds first (det 60 ≈ 8-25 s wall depending on load).
+    private const val CONDITIONAL_WORLD_BB_NODE_SECONDS = 45.0
     private const val CONDITIONAL_WORLD_BB_MAX_NODES = 64
+
+    // Load-invariant per-node deterministic budget (roots measured closing at det 50-70, inner
+    // nodes at 20-48; the root gets ×2 inside the driver).
+    private const val CONDITIONAL_WORLD_BB_NODE_DET = 60.0
 
     // Root prognosis: a root dual beyond this band over the incumbent means the reification wall
     // makes the tree unclosable in any bounded budget (iop110-full +142% never closes; cra80-ap10
@@ -2931,6 +2938,12 @@ internal object MaxDamageSoftCertificate {
                         // within the bail band) may keep their full closure budget.
                         totalSeconds = minOf(CONDITIONAL_WORLD_BB_SECONDS, oracleSeconds),
                         maxSecondsPerNode = CONDITIONAL_WORLD_BB_NODE_SECONDS,
+                        // Deterministic node budget (load-INVARIANT): under 15 h of bench load
+                        // the 30 s wall root stopped closing and cra80 went erratic (4.45%
+                        // instead of ProvenOptimal). Measured dets: roots close at 50-70, inner
+                        // nodes at 20-48; 60 (root ×2 inside) covers both with margin while the
+                        // wall stays a coarse safety net.
+                        deterministicLimitPerNode = CONDITIONAL_WORLD_BB_NODE_DET,
                         maxNodes = CONDITIONAL_WORLD_BB_MAX_NODES,
                         applyDomination = true,
                         rootBailFraction = CONDITIONAL_WORLD_BB_ROOT_BAIL,
