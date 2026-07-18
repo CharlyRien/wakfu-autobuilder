@@ -3391,11 +3391,13 @@ internal object MaxDamageSoftCertificate {
                         }
                         candidate.tier = tiers.lastIndex
                     }
+                // NB: do NOT min with `relaxedUpper` here — that forces the LAZY CP probe
+                // (20 s+) regardless of gap; the gated consultation after the capFree
+                // re-split is the only place allowed to pay it.
                 dpConditionalUpper =
                     minOf(
                         dpConditionalUpper,
-                        refinementPass(primaryCandidates) ?: return null,
-                        relaxedUpper
+                        refinementPass(primaryCandidates) ?: return null
                     )
                 stamp("secondarySupportPass")
             }
