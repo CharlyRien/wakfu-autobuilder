@@ -165,6 +165,16 @@ class MaxDamageSoftCertificateTest {
                         TargetStat(Characteristic.HP, 2500)
                     )
                 )
+            // Sweep-3 loose-badge class (AP/MP-only) — second representative.
+            "panda170-apmp" ->
+                Triple(
+                    CharacterClass.PANDAWA,
+                    170,
+                    listOf(
+                        TargetStat(Characteristic.ACTION_POINT, 14),
+                        TargetStat(Characteristic.MOVEMENT_POINT, 7)
+                    )
+                )
             // Sweep-3 loose-badge class representative (AP/MP-only, 12.87%).
             "xelor155-apmp" ->
                 Triple(
