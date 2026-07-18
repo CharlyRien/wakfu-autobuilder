@@ -2863,3 +2863,17 @@ DETERMINISTIC time (det 60, root ×2 — measured roots close at det 50-70, inne
 with the wall raised to a coarse 45 s safety net. Under 16 h of continuous bench load:
 cra80-ap10 back to **ProvenOptimal (113.6 s, 9 nodes — the tree closes reliably)**; cra-140
 ProvenOptimal 106.9 s; B&B CI locks green. Cold walls unchanged (det binds at ~8-25 s/node).
+
+#### 9.34 — AP/MP-only class closed to its structural floor (2026-07-18 end)
+
+panda170-apmp: 12.17% → **8.13% / 85.2 s** (queue-resume + μ<175, same as xelor). The residual
+owner on BOTH class representatives is `secZero/base` after every pass (xelor 5.95%, panda 8.13%)
+— the SAME structural secondary-credit looseness as IOP-200's 0.70%, larger on AP/MP-only shapes.
+No quick wins left in this class: walls are healthy (85-101 s), the badges await the 2-dim
+S⁺×negB modeling campaign (P3), now with six well-characterized target shapes
+(IOP-200 0.70%, iop110 2.78%, enutrof125 2.89%, cra185 3.15%, xelor155 5.95%, feca65 5.91%,
+panda170 8.13%).
+
+Probe-vs-E2E note: the 40 s secZero probe (split-both, 3.8333T) and the E2E μ-pass per-arm reads
+(3.9113/3.8309T) disagree by ~2% on the same world — worth a 30 s parameter-diff check at the
+start of the P3 campaign (suspected: light-arm mapping or band defaults in the probe harness).
