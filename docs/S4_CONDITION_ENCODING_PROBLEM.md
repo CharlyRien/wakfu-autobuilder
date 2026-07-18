@@ -359,8 +359,12 @@ The soft-leg (unreachable-targets) proof pipeline is `MaxDamageSearch.proveSoftL
 
 1. **RELAXED probe** (step 0, 45 s budget, ungated): conditions STRIPPED (subs keep slots+credits,
    ZERO reifications) — sound upper on every build. `relaxedUpper ≤ incumbent` ⇒ ProvenOptimal
-   immediately. cra-140-apmp: **exact in 4.1 s E2E**. It structurally CANNOT conclude when the
-   optimum carries a conditional sub.
+   immediately. **Soundness correction (CERTIFIER_VERSION 17):** the original implementation only
+   cleared `condition`; that made `STATIC_CONDITIONAL` fail `isModelableSubShape` and silently
+   disappear, so the claimed cra-140 exact/4.1 s result was not a valid upper bound. The corrected
+   transform changes those entries to `FLAT`, preserves single-copy semantics, and only strips
+   supported modeled conditions. Correct cra-140 read: **2.377161024480T in 2.87 s**, +13.49% over
+   the 2.094581834070T incumbent — useful upper, but it does NOT close alone.
 2. **Hybrid union**: no-condition CP-SAT oracle (proven optimum or dual) ∪ conditional-only DP
    (λ min-sweep {6000, 0} gated at 10%). Exact at S4-245 (~3-4 min).
 3. **Plain full-model probe** (420 s, gated at 10% DP gap): proves outright on small pools
@@ -380,7 +384,7 @@ and the union/probe take 1-6 min. This is the target. Reference numbers (cra-140
 | no subs | 0.38 s |
 | 204 unconditional subs | 4.5 s |
 | + 28 conditional (15 modeled) | 104 s cold / >300 s hot |
-| conditions stripped (relaxed) | 7.4 s, exact HERE (no-cond optimum) |
+| conditions stripped (corrected relaxation) | 2.87 s, 2.377T (+13.49%, does not close) |
 | AP pinned (cell) | 83 s |
 | (AP,MP) pinned — penalty CONSTANT, zero bilinear | STILL FEASIBLE at 120 s |
 
@@ -393,40 +397,70 @@ workers grind 10⁶-10⁷ branches / 10⁸ propagations refuting them via CDCL.
 - B-family: remove/project reifications (B), share predicates (B2), structural conflicts (B3).
 - M1: ADD redundant big-M rows + pairwise conflict cliques (feasible-set-neutral — still worse).
 - M2/M2b: decision strategy conditional-bools-first, ± `extraSubsolvers("fixed")`.
-- Knobs: lin0, presolve8, detectLinearizedProduct (worse); **lin1's one-off −34% det did NOT
-  replicate — "no solver knobs, ever" covers the soft probe too**.
+- Knobs: lin0/presolve8 worse; detectLinearizedProduct and symmetry 3/4 inert; lin1 is
+  seed-sensitive with two large dual regressions in five controlled pairs. None dominates.
 - Objective-side cutoffs/floors in EITHER direction (incumbent floor = 2.4× worse; certcap dead).
 - Cell decomposition (AP or AP+MP pins) as a <10 s route.
 - Conditional-only + cutoff probes as an inference tool: that model is strictly HARDER than the
   plain solve (near-optimal-infeasibility proof) — never infer "won't prove" from it.
 
-## 3bis. One OPEN A/B for the controlled protocol (cheap first task)
+## 3bis. Resolved A/B: lin1 does not dominate
 
-`linearizationLevel=1` on the plain probe: under the CONTROLLED protocol (1 worker, fixed seed,
-interleave, det 120, same JVM) it tightens the cra-140 dual **3.697T → 2.872T (−22%) at equal
-det** with a marginally worse incumbent. It was shipped then reverted on a CONFOUNDED production
-read (the machine was thermally saturated — the lin2 control also failed that screen). Neither
-"ship" nor "dead" is proven: settle it with multi-seed, multi-shape controlled pairs plus one
-real-parallel confirmation, before any other work. (Prod default remains lin2 until then.)
+`linearizationLevel=1` tightened the first controlled cra-140 dual **3.697T → 2.872T (−22%)**,
+but the completed five-pair campaign below found large seed-dependent reversals (up to +24.6%).
+It is now a measured NO-GO; production remains lin2.
 
-## 3ter. Controlled re-test queue (the §9.22 arms were thermally ordered — re-verify under the protocol)
+## 3ter. Controlled re-test queue — COMPLETE (2026-07-17)
 
-In priority order, each as 1-worker/fixed-seed/interleave/det-120 same-JVM pairs, 2-3 seeds:
-1. **Conflict cliques ALONE** (unbundle from M1 — the bundle mixed pure-CDCL clause structure,
-   plausibly good, with LP-diluting big-M rows, plausibly bad; never isolated). Re-implement from
-   §9.22: `subA + subB ≤ 1` for pairwise-unsatisfiable same-stat/same-sheet predicates,
-   non-forced choosable subs only.
-2. lin1 multi-seed/multi-shape (§3bis — dual −22% on the single controlled pair).
-3. M2b decision-strategy + `extraSubsolvers("fixed")` under interleave (the portfolio ignored the
-   strategy; 1-worker interleave would actually exercise it — the branching world split was never
-   truly measured).
-4. `WAKFU_S4_CP_SYM` sweep {2,3,4} (seam exists, never run; the four identical secMast≤0
-   predicates are a real symmetry).
-5. presolve8 / detectLinearizedProduct controlled confirmations (their FEASIBLE-at-cap reads came
-   after the baseline in a heating session).
-6. Cross-combinations if any single arm wins (cliques+lin1 first).
+All formerly confounded §9.22 candidates were re-run as 1-worker/fixed-seed/interleave/det-120
+same-JVM pairs with alternating order. None dominates, so there is no winning arm to cross-combine.
 NOT worth re-testing: the B-family (already measured under this protocol), the incumbent floor
 (×145 branches — noise-insensitive), cell decompositions (structural economics dead at any clock).
+
+### Controlled result: isolated conflict cliques are dead (2026-07-17)
+
+The M1 cliques were isolated from its redundant big-M rows and re-tested as sound implied
+`subA + subB ≤ 1` clauses only. Protocol: cra-140-apmp, 1 worker, interleave, det=120, two seeds,
+same-JVM pairs with alternating order. At equal deterministic work the candidate's dual ratio
+was **1.0049** and **1.0246** (higher is worse); incumbent deltas were −6.80G and +27.19G.
+Seed 2 did cut branches to 0.369×, but still worsened the dual by 2.46%, so the extra conflicts
+steered search without strengthening the proof. **NO-GO, implementation reverted.**
+
+### Controlled result: lin1 is seed-sensitive, not a production win (2026-07-17)
+
+The open lin1 result was settled across cra-140-apmp (three seeds) and iop200-frontier (two seeds),
+again as alternating same-JVM 1-worker/interleave/det=120 pairs against lin2. Candidate/baseline
+dual ratios were CRA **0.7770 / 1.2465 / 0.9050**, IOP **0.9850 / 1.1777**. Thus lin1 improved
+the bound in three runs but regressed catastrophically in two; on IOP it also returned a worse
+incumbent on both seeds. It redistributes work between LP/CDCL rather than dominating lin2.
+**NO-GO for production; lin2 stays the default.**
+
+### Controlled result: conditional-first `fixed` search is dead (2026-07-17)
+
+Adding the `fixed` subsolver made CP-SAT honor the existing decision strategy (conditional sub
+booleans first, zero first). On cra-140-apmp, two controlled pairs returned dual ratios **1.0409**
+and **1.2473**, with branch ratios **6.04×** and **1.99×**. The proposed native world split
+therefore drives search into a much worse tree. **NO-GO; portfolio unchanged.**
+
+### Controlled result: symmetry levels 3/4 are inert (2026-07-17)
+
+`symmetry_level=3` produced bit-for-bit identical search metrics to baseline on two cra-140 seeds:
+same incumbent, dual, branches, conflicts and LP iterations. Level 4 was then screened on one seed
+and was equally identical. The apparent repeated secondary-mastery predicates do not expose extra
+symmetry to these settings after presolve. **No effect; production unchanged.**
+
+### Controlled result: presolve8 loses; product detection is inert (2026-07-17)
+
+Presolve8 returned dual ratios **1.0397 / 1.2531** on two cra-140 seeds. It improved the incumbent
+and reduced branches, but weakened the proof bound — the wrong trade-off for this certificate.
+`detectLinearizedProduct=true` was then bit-for-bit identical to baseline on both seeds. **Both
+NO-GO; the controlled CP-SAT parameter/encoding queue is exhausted.**
+
+The final normal test suite also caught a pre-existing seam debt: `maxDamageMpPin` had not been
+listed in the certificate fingerprint tripwire. It is now normalized to `null` in the cache key,
+exactly like the AP pin (both are probe-internal and the certifier bails while active), and locked
+by an explicit fingerprint test. This prevents distinct in-memory keys sharing an accidental disk
+fingerprint while preserving cache hits for the real unpinned request.
 
 ## 4. Open routes, in order of expected value
 
@@ -439,19 +473,19 @@ NOT worth re-testing: the B-family (already measured under this protocol), the i
    conditional-carrying optima. Sound intermediate step measured available: collapse-time W
    downscale by `max((400+ccHigh)/(400+critCap), ccHigh/critCap)` (per-component ratio bound) —
    sound, unimplemented.
-2. **Per-carrier world enumeration (option D done right).** For each modeled conditional sub s:
-   world_s = {s forced, its condition as a HARD constraint, OTHER conditionals relaxed always-on}
-   — zero reifications per world, exhaustive union {no-cond ∪ worlds}, EXACT for mono-conditional
-   optima (multi-carrier builds are covered by any of their subs' worlds, slightly over-counted
-   via the others' free credits). ~15 fast solves; economics only work on small pools (at 245:
-   15 × ~50 s sequential loses to the union). Unmeasured.
+2. **Conditional-world B&B — SHIPPED in v20.** Flat per-carrier worlds were measured and rejected;
+   the exhaustive recursive partition `{s=0 | s=1 + exact condition}` is the structural version
+   that closes CRA-80/110. Production enables it only in the measured level≤110 regime, for at
+   most 180 s. An unfinished tree returns `min(relaxedUpper, frontierUpper)` directly, avoiding
+   serial accumulation with the legacy 240/420 s budgets. Higher levels keep the old DP/oracle
+   route unchanged. Next optimization is sibling parallelism under a divided worker budget.
 3. λ per-shape continuous calibration / per-band envelopes: measured marginal (§9.21), only worth
    revisiting after 1.
 
 ## 5. Gates that must stay green
 
-`WAKFU_S4_UNION_LOCK=1` (seeded union soundness, ~1 min — run FIRST on any change);
-`WAKFU_S4_PROD_PROOF=1` E2E at both `WAKFU_S4_SHAPE=cra140-apmp` (ProvenOptimal, proofWallMs ~4s)
+`WAKFU_S4_UNION_LOCK=1` (seeded union soundness — run FIRST on any change);
+`WAKFU_S4_PROD_PROOF=1` E2E at both `WAKFU_S4_SHAPE=cra140-apmp` (timing must be re-banked under v18)
 and default S4-245 (ProvenOptimal); `WAKFU_S4_PROD_SCREEN=1` generality (sound everywhere, RANGE
 bails); the 16 sublimation differential locks; full `:autobuilder:test`.
 
@@ -475,3 +509,718 @@ bails); the 16 sublimation differential locks; full `:autobuilder:test`.
   new argument), use the CONTROLLED protocol: `WAKFU_S4_CP_WORKERS=1 WAKFU_S4_CP_INTERLEAVE=1
   WAKFU_S4_CP_DET=<budget>` at a fixed seed, same-JVM pairs — the B/B2/B3 standard. Provability
   conclusions ("does it prove at all") still need a real-parallel confirmation run (§9.11).
+
+## HANDOFF 3 (2026-07-17) — corrected relaxation + iterative condition generation
+
+The first naturally conditional-carrying, quickly provable fixture is CRA-80/free with the
+conditional-only catalog (16 decoded entries, 15 solver-modeled):
+
+| model | result |
+|---|---|
+| exact conditions | OPTIMAL **522720**, 11.81 s; selected `6821, 8492` |
+| corrected condition-stripped upper | OPTIMAL **663120**, 1.04–1.27 s; selected `6821, 6931, 7115, 8492` |
+
+This exposed the v16 under-count: the former `copy(condition=null)` relaxation returned 452160
+because every `STATIC_CONDITIONAL` was filtered out. v17 centralizes the correct transform in
+`Sublimation.withRelaxedBuildStaticCondition()` and bumps the certificate cache version.
+
+### Structural arm measured: outer approximation / lazy condition generation
+
+Prototype seam: `WAKFU_S4_COND_REFINE=1 WAKFU_S4_SHAPE=cra80-free`. It solves the relaxed upper,
+pins every equipment/skill/rune/sub decision in the exact model (validation costs only 1–10 ms),
+then restores condition gates and repeats. A pinned assignment that validates exact while its
+upper solve is OPTIMAL proves the global exact optimum.
+
+- **Coarse restore (all selected conditions):** closes exactly in 4 upper solves: 1.27 s → 17.58 s
+  → 12.84 s → 51.66 s, **84.30 s total**. Sound, but 7× slower than the direct exact solve.
+- **Selective restore (only individually violated selected conditions):** iteration 1 restores
+  `6821, 6931, 7115`; iteration 2 finds the exact incumbent immediately but remains FEASIBLE at
+  60 s with bound 577440. Leaving the satisfied `8492` condition relaxed weakens the global bound;
+  fewer reifications are not monotonically better.
+
+**Verdict: NO-GO for production in this form.** Keep the research seam and measurements; do not
+retry full-assignment no-goods or simple lazy gate restoration without a stronger generalized
+cut. The validation is free, but each partially reified upper model recreates the same proof wall.
+The next genuinely different CP route would need an unsat-core-derived condition/stat cover cut
+or per-carrier world bounds, not another local indicator encoding.
+
+### Structural arm measured: per-carrier worlds, then external condition B&B
+
+The naive sound union `{no conditional} ∪ {one forced exact carrier s, every other condition
+relaxed}` is **too loose** on CRA-80 conditional-only: 16 worlds / 52.56 s, union upper **663120**
+(identical to the root relaxation). In the `8492` world, the model still takes `6821, 6931, 7115`
+for free. **NO-GO as a flat enumeration.**
+
+The useful refinement is an **external B&B over sub selection**. At any node, solve a mixed upper
+model. If its assignment abuses a relaxed selected sub `s`, partition the exact builds into:
+
+- `s = 0` (exclude it), and
+- `s = 1` with `condition(s)` restored exactly.
+
+This partition is exhaustive because a solver-choosable selected sub in the exact model must meet
+its condition. A node can be pruned whenever its CP-SAT dual is `≤ incumbent`, even if status is
+only FEASIBLE. It is also sound to run the normal per-node domination: each mixed model's
+`dominationShape` pins every stat read by the conditions that remain exact, so
+`exactNodeOpt ≤ mixedNodeOpt = dominatedMixedOpt ≤ CP dual`.
+
+Branching on the largest rough damage marginal (DI, then AP/MP/range/crit, then ordinary stats)
+is important. CRA-80 conditional-only:
+
+| protocol | result |
+|---|---|
+| ID-order, 15 s/node | 11 nodes, proven, 62.78 s |
+| impact-order, 15 s/node | 7 nodes, proven, 26.76 s |
+| impact-order, 5 s/node | 7 nodes, proven, 17.77 s |
+| impact-order, 2 s/node, 8 workers | proven in 9.47 / 10.51 s twice, but one hot repeat stopped inconclusive |
+| deterministic 1-worker/interleave | needs det=30/node; proven at **108.79 det**, worse than exact ~61.79 det |
+
+Thus the tiny fixture win is portfolio-sensitive, not algorithmic domination. The full-catalog
+result is stronger: the previously unproved CRA-80 incumbent **820040 is now PROVEN OPTIMAL** in
+7 nodes, reproduced at **94.73 s** and **86.80 s**, while monolithic CP-SAT was still FEASIBLE at
+120 s (bound 1,018,080). The tree is stable: exclude `6931 → 7115 → 6821`; the no-three branch
+closes at 820040, and the three selected branches have duals below it.
+
+The second full-catalog gate also closes: CRA-110 incumbent **1565500 is PROVEN OPTIMAL** in
+9 nodes / **124.07 s**, whereas monolithic CP-SAT was still FEASIBLE after 300 s (1,565,500 /
+1,885,670). Once the current assignment became exact-valid but its parent dual stayed open, the
+B&B soundly branched on the highest-impact condition still relaxed (`7256`); its excluded child
+closed at 1,547,320 and its forced child dual was only 762,035.
+
+The engine is now production code (`conditionalWorldBranchAndBound`; the old `ForTest` wrapper
+remains for the measurement harness) under **CERTIFIER_VERSION 20**. Its bounded result is typed:
+`Proven(upper)`, `Inconclusive(frontierUpper)`, or `Counterexample(exactObjective)`. Production
+spends at most 180 s total, 15 s per node, 64 nodes at level≤110. `Proven` returns immediately;
+an inconclusive sound frontier is combined with the corrected relaxed probe and returned, while
+a counterexample returns the relaxed global upper. The legacy DP/oracle path remains unchanged
+above level 110.
+
+Two independent locks guard it. The fast non-manual campaign uses 8 seeded three-condition pools;
+for every seed it closes at the pinned exact optimum and, critically, rejects `optimum − 1` by
+exhibiting a pinned exact counterexample. The mandatory v18 production-union campaign then passed
+3/3 against independent one-worker CP-SAT optima in 9m19s: seed1 `568852079565`, seed2
+`2276045688840`, seed3 `2113135111800`, all with `union == optimum` (ratio 1.0000).
+
+An initial v18 CRA-80 E2E run exposed an operational bug: after the 150 s world budget missed on
+a hot machine, it stacked the old oracle/DP budgets and was still running after ~7 minutes. v19
+also treats an OPTIMAL node's rounded objective as its bound (rather than `ceil` of a floating
+dual that could become optimum+1) and makes the low-level budget terminal.
+
+Remaining performance work: re-measure the real production E2E shapes under the new 180 s policy,
+then consider sibling-node parallelism with divided workers. The soundness and bounded-fallback
+gates required for shipping are closed.
+
+The first v19 bounded CRA-80 run terminated soundly in 194.6 s including the relaxed probe, but
+remained at `937840` (+14.36% over 820040). Profiling the orchestration exposed hidden work not in
+the per-node wall summary: one pinned solve per selected branch candidate, used only to classify
+which condition was individually violated. v20 removes those probes and branches directly on the
+largest-impact selected conditional. The binary partition stays identical and exhaustive; only
+the performance heuristic changes.
+
+The v20 production re-run closes exactly: `upper = incumbent = 820040` (`noCondProven=true`) in
+**200.4 s E2E** on the hot machine, including ~20 s for the corrected relaxed probe and the full
+world-tree orchestration. This is the honest production timing (not merely the sum of recorded
+mixed-node solves): bounded to about 3m20 and exact on CRA-80, versus v19's similarly bounded but
+only +14.36% result and monolithic CP-SAT still open at 120 s.
+
+### Level-245 generalization screen — NO-GO (v21, 2026-07-17)
+
+There is no soundness barrier to running the same tree at 245, but the measured dual economics are
+bad. Full catalog, incumbent `17,702,078,146,500`, 8 workers, 15 s/node, 180 s total:
+
+- exclusion-first v20: 11 FEASIBLE nodes, frontier `50.920T` (finite-time child duals could even
+  exceed their parent before intersection);
+- forced-first plus v21 parent-bound intersection: 16 nodes, several forced compounds prove
+  INFEASIBLE in ~1 s, but every still-feasible forced node retains the root dual; frontier
+  **36.515T**.
+
+Both are much worse than the existing fine DP upper **20.406T** and incumbent 17.702T. The issue
+is not DFS order: on the level-245 pool a 15 s CP-SAT node does not tighten its dual below the
+ancestor, so partitioning merely creates more large proof obligations. Keep the production gate
+at level≤110.
+
+One free tightening survives the screen and ships as v21: every child upper is intersected with
+its inherited parent upper. A child world is a subset of its parent, so `min(childDual,parentDual)`
+is exact and prevents timeout noise from worsening a deeper frontier. `requiredFirst` remains a
+manual research seam only; production keeps the proven low-level order.
+
+### Universal-certificate restart: crit-aware scalar supports (research, OFF)
+
+Following the product strategy review, further conditional-CP heuristics are deprioritized: the
+target order is monolithic CP-SAT ≤2 min, then one fast certificate across all levels. The first
+certificate experiment avoids a dense `(M,K)` key dimension. The DP still stores one scalar
+`WA=(400+A)M+5AK`; at collapse, for CC-band high `c`, it soundly transports that support by
+`max((400+c)/(400+A), c/A)`. With λ support active even when CC is not a requested target, this
+adds no states and is independently sound for every anchor `A>0`.
+
+The seeded 3-pool CP-SAT lock passed with the transform ON. CRA-80/full catalog/conditional
+partition, all production tightenings, 834,540 states:
+
+| support | bound | gap vs 820040 | DP wall |
+|---|---:|---:|---:|
+| old scalar, no crit-aware bands | 1,686,240 | +105.63% | 5.35 s |
+| A=100, λ=6000 | 1,362,240 | +66.12% | 5.39 s |
+| A=100, λ=2000 | 937,440 | +14.32% | 4.55 s |
+| **A=100, λ=1500** | **928,800** | **+13.26%** | **4.93 s** |
+
+Multiple scalar anchors compose soundly as `max_CCband min_anchor upper(anchor,band)`. Anchors
+`{50,75,100}` improve to **918,000 (+11.95%)**; adding 25 changes nothing. The dominating band is
+75..79, where A=100 is already best (`A25=3,140,640; A50=1,495,440; A75=954,720;
+A100=918,000`). Thus the remaining 11.95% is NOT primarily the M/K projection: a dense K
+dimension or more anchors is unlikely to close it. Next certificate work should inspect the
+band-75 binding world's path merge / condition arm, not spend more state on crit weights.
+
+### Universal-certificate restart: signed MP ramp + support calibration (research, OFF)
+
+Band/world provenance localized the CRA-80 envelope winner to
+`A=100 / base / plain / expertEligible`. Its reconstructed path contained `Poids Plume III`, but
+the DP had deliberately dropped the MP state when MP was not requested and priced the MP→DI ramp
+at the globally reachable MP. That mixed the best mastery path with a 24-DI ramp it did not own.
+
+The research seam `stateDependentMpRamp` now keeps the unique MP→DI ramp inside the exact
+10-normal-sublimation knapsack, tracks signed MP, and evaluates the ramp only from the collapsed
+path's MP. If a future catalogue has more than one such ramp, the certifier bails. A fast
+non-manual semantic lock uses incompatible MP/mastery item choices and an exact CP-SAT oracle; the
+new bound remains above the optimum and is strictly below the legacy ramp relaxation. It passes in
+~0.35 s. A second non-manual campaign covers eight deterministic random pools (three item slots,
+positive/negative MP, elemental/distance/critical mastery, DI and crit, with free/MP/crit targets):
+every coupled bound covers its exact CP-SAT optimum and is never above the legacy bound. The whole
+targeted lock takes 39 s. The older all-catalogue seeded campaign was stopped after 40 minutes;
+this isolated replacement gives useful coverage without turning normal CI into an overnight job.
+
+Measured impact with all other research seams enabled:
+
+| shape | incumbent/oracle | signed-ramp upper | gap | DP wall |
+|---|---:|---:|---:|---:|
+| CRA-80 free, `{25,50,75,100}` band envelope | 820,040 | **825,840** | **+0.707%** | ~75 s |
+| CRA-110 free, A=100 | 1,565,500 | **1,595,805** | **+1.94%** | 21.1 s |
+| CRA-140 AP14/MP7, A=100 | 2,094,581,834,070 | **2,270,344,148,380** | **+8.39%** | 33.5 s |
+
+For CRA-80, the former binding path's fictitious ramp disappears (`ramp=0`). A one-anchor adaptive
+all-world pass reaches **836,640 (+2.02%) in 11.2 s**; the multi-anchor/finer envelope buys the
+last 10,800 points shown above.
+
+The crit-support dual price λ is not universal. On IOP-200's dominant `secZero` world, otherwise
+identical DI=1 reads were 9.630T at λ=0, 9.330T at λ=1500, and **9.168T at λ=6000**. Conversely,
+forcing λ=6000 on CRA-80 `secZero` made that arm dominate at **1,195,200 (+45.75%)**, while λ=1500
+keeps every arm in the 0.79–0.84M range. The harness now has an OFF research policy: λ=1500 below
+level 175; at high level, only `secZero` uses 6000. This is sound because every non-negative λ is
+an independent upper bound; the policy only selects which sound projection to compute.
+
+A second proposed dual support `W + λ·CC + μ·HP` was measured and rejected. Scaling all HP by the
+maximum attainable HP% aptitude made μ=10 worsen IOP-200 from 9.168T to 9.420T and μ=100 explode
+to 14.026T. The seam was removed completely. Do not retry an HP scalar support unless HP% is first
+conditioned exactly (for example by an outer aptitude world); otherwise the percentage relaxation
+dominates the intended HP/path correlation gain.
+
+### IOP-200: the adaptive certificate now fits under two minutes (research, OFF)
+
+The correctly partitioned hybrid (`no-condition oracle ∪ conditional-only DP`) first reproduced
+the expected per-world-λ upper **9,167,663,226,930** against the conservative 8.9T oracle floor,
+but took **321.9 s / 12,266,945 states**. Three sound orchestration changes retain that exact bound:
+
+1. A best-first grid queue refines only the world with the largest *current* upper, one DI tier at
+   a time. Once a DI1 world is the queue maximum, every other coarse/refined upper is below it.
+   This removes useless DI4/DI1 passes on the initial coarse winner (`plain`).
+2. `secZero`, `critZero`, and ASSUME worlds already imply a conditional carrier. Dropping their
+   redundant selected-conditional bit is bit-identical by construction and by a dedicated
+   equivalence lock; `secZero` DI1 falls from 3.96M to 2.64M states.
+3. HP=2000 is bit-identical to HP=1000 on every final IOP authority (`plain`, `critZero`, and
+   `secZero` DI1). Keeping that grid in refinements cuts the remaining state sets by more than half.
+
+An intermediate result (best-first + marker elision, HP=1000) was **144.2 s / 6.06M states**. The
+final research profile uses a HP=4000 coarse sweep, HP=2000 refinements, and skips the ineffective
+`secZero` DI4 tier after its DI10 scout. It returns the same **9.167663T (+3.01%)** in
+**73.6 s / 2,369,591 states** (82 s including Gradle startup): plain DI10 12.0 s, secZero DI10 6.1 s,
+critZero DI10 8.9 s, secZero DI1 17.0 s. A DI20 scout was measured and rejected: it stayed above
+the winner on plain/critZero and merely added 25 s.
+
+### Production v22: bounded DP+DP fallback under two minutes
+
+The same profile generalizes strongly to S4-245. With the known no-condition floor, the
+conditional-only DP needs only plain/critZero DI10 and returns the exact **17,702,078,146,500** in
+**103.5 s**. Plain is 17.238T, critZero 17.136T, and every remaining coarse world is ≤17.693T.
+
+The production E2E exposed that relaunching a second CP-SAT oracle is incompatible with the time
+target. Eight oracle workers competing with the DP stretch the proof to 178.4 s; 2 workers time
+out at 240 s (44.63T dual), and 4 workers also time out / finish at 275.6 s (18.696T). A global DP
+without the conditional partition is sound but lands at the historical **17.762813T (+0.343%)**
+and takes 200 s, so it is not the answer either.
+
+The useful decomposition is DP on both sides. Filtering the catalogue to `condition == null`
+makes the no-condition DP tiny: HP=4000 is bit-identical and completes in about **12 s including
+Gradle**, with upper 17.762813T. Production v22 uses that authority above level 175 and then the
+best-first conditional DP; it no longer relaunches CP-SAT after the main solve has stalled. The
+real production path returns the global **17.762813T (+0.343%)** certificate in **103.5 s runtime**
+(the no-condition bound becomes the union winner). This deliberately changes the S4 badge from
+`ProvenOptimal` to `ProvenWithin(0.343%)` while meeting the two-minute contract. Closing that small
+no-condition residual is now the precise route back to exactness.
+
+IOP-200 production E2E also stays comfortably inside the contract: **62.9 s runtime**, global
+upper **9,267,128,776,880**, i.e. +4.13% against the conservative 8.9T incumbent floor. The
+conditional authority alone is tighter (9.167663T, +3.01%), but the fast no-condition DP carries
+the global union. This is the honest product number; the earlier 73.6 s/+3.01% was a
+conditional-partition benchmark with the no-condition floor injected.
+
+This changes production bounds/orchestration and cache contents, so `CERTIFIER_VERSION` is **22**.
+Normal `:autobuilder:test` passes in 5m43 and `:autobuilder:ktlintCheck` passes. The mandatory
+seeded production-union campaign also passes 3/3 in 4m59: exact CP-SAT optima
+568,852,079,565 / 2,276,045,688,840 / 2,113,135,111,800 are covered by v22 uppers
+1,155,552,532,365 / 3,826,178,473,040 / 3,684,355,936,940. These artificial level-200 pools are
+deliberately loose (+103%/+68%/+74%), so they award no useful badge; their role is the independent
+soundness gate for the new composition. The primary promotion gates are green.
+
+## Handoff — v23 frontier cells + secondary Lagrangian support (2026-07-17)
+
+This is the exact continuation point for the next agent. The worktree is intentionally dirty and
+contains the whole v17→v23 campaign; do not discard unrelated edits. `CERTIFIER_VERSION` is already
+**23**. The invariant remains: every composed number is an upper bound; on an unknown native bound,
+overflow or unsupported shape, return `Long.MAX_VALUE`/bail rather than under-count.
+
+### What is implemented in production now
+
+The soft DP now exports, without another state dimension:
+
+- `targetCellBounds[(AP,MP,CC,HP)]`: folded upper per target-credit rectangle;
+- `targetCellCoreBounds`: corresponding pre-penalty damage core;
+- `PenaltyProfile`: exact production penalty bucket/multiplier reconstruction;
+- `belowTargetBounds`: diagnostic complement reads.
+
+`frontierRegionUpper` soundly replaces at most four offending **no-condition** rectangles by:
+
+1. all other DP rectangles;
+2. the same rectangle below a computed HP floor, using its DP core and a capped penalty;
+3. an exact CP-SAT raw-damage region above that HP floor, multiplied by the rectangle's worst
+   penalty multiplier.
+
+The partition is exhaustive. AP/MP/CC lower/upper bounds are posted on resolved sheet-stat vars;
+the HP floor handles the rounded top HP cell explicitly. A timed-out CP solve uses its dual. A
+negative/missing native sentinel is treated as infinity (never folded to zero).
+
+Measured real-pool results:
+
+| shape | old no-condition DP | v23 region result | details |
+|---|---:|---:|---|
+| CRA-245 S4 | 17.762813T | **17.702078146500T exact** | one offender `(15,8,100,12000)`, HP floor 11974, exact raw 19,382,375 |
+| IOP-200 | 9.267129T | **8.909052797060T exact** | two offenders: `(13,8,100,10000)` floor 9741 and `(13,8,99,10000)` floor 9841 |
+
+For S4, the complete production union is now `ProvenOptimal`, but the honest sequential wall is
+**144.4 s** (about 103 s conditional DP + regional CP). Running the region concurrently was worse:
+8 regional workers in parallel gave 163.9 s; a targeted 4-worker portfolio gave 167.9 s. Keep the
+current sequential order. This is exact but misses the desired two-minute target by ~24 s; optimize
+the conditional DP, not the ~15–25 s regional solve.
+
+The generic region lock passes on all seeded pools:
+
+```shell
+WAKFU_S4_FRONTIER_LOCK=1 WAKFU_TEST_MAX_HEAP=8g ./gradlew \
+  :autobuilder:cleanTest :autobuilder:test \
+  --tests '*MaxDamageSoftCertificateTest*manual frontier region partition covers seeded no-condition optima*' \
+  --no-daemon
+```
+
+It passed in 2m27. The complete production-union soundness lock also passed 3/3 in 8m06:
+
+```text
+seed1 exact=568852079565  union=1155552532365
+seed2 exact=2276045688840 union=3826178473040
+seed3 exact=2113135111800 union=3684355936940
+```
+
+Those synthetic requests time out in the optional region refinement and safely keep the old DP
+bound (`noCondProven=false`). This exposes an operational follow-up: do not blindly spend 120 s on
+every arbitrary request; add a useful activation/budget policy after the real-shape promotion.
+
+### Conditional IOP residual: provenance and rejected ideas
+
+With the no-condition side closed exactly, IOP-200's remaining production winner is the
+conditional `secZero/noExpert` DP. Changing the mid-level crit support from λ=6000 to **λ=4000**
+improves it to **9.143179399250T** (about +2.63% over 8.909052797060T). λ sweeps around it were
+worse. CC support band 5→1 removes the old `95..99`/path-at-104 mismatch but leaves the bound
+bit-identical at 9.143179T: do not pursue finer CC bands.
+
+The reconstructed coarse path selects the following discrete build:
+
+```text
+items: 26897 27416 26497 26287 26996 25078 27557 26952
+       26323 21760 21859 14527 14422 27923
+normal subs: Vélocité II, Vivacité II, Destruction III×2, Neutralité III,
+             Poids Plume III, Ambition III, Influence vitale III×2, Brûlure III
+epic sub: Anatomie
+```
+
+A new research-only pin seam on `timedMaxDamageProfileForTest` pins all equipment and exact
+sublimation copy counts while leaving skills/runes free. Exact validation proves that path feasible
+but worth only **7.822582943760T**, raw **9,636,120**, with
+`AP=13, MP=8, CC=100, HP=17856`. The DP path has the same penalty cell and DI=98; the gap is therefore
+entirely in the mastery core, not the request penalty, and it is **not** a better incumbent missed by
+CP-SAT. The opt-in test is:
+
+```shell
+WAKFU_IOP_DP_WITNESS=1 WAKFU_S4_SHAPE=iop200-frontier ./gradlew \
+  :autobuilder:cleanTest :autobuilder:test \
+  --tests '*MaxDamageSoftCertificateTest*IOP DP witness*' --no-daemon
+```
+
+Two independent endpoint uppers were measured and rejected alone:
+
+- price only actually available positive scenario-secondary mastery (`μ=0`): **10.208226T**;
+- use the global exact secondary-budget knapsack without item coupling: **12.098071T**.
+
+Both are sound but looser than the item-coupled budget projection.
+
+### Promising unfinished work: secondary-condition Lagrangian envelope
+
+For a `SECONDARY_MASTERIES_AT_MOST(0)` carrier, write scenario secondary mastery as `S` and all
+other signed secondary mastery as `O`; the condition is `S + O ≤ 0`. For every
+`0 ≤ μ ≤ wMastery`, the objective term has the sound upper
+
+```text
+wMastery*S ≤ (wMastery - μ)*S - μ*O.
+```
+
+The DP can price this without a new key:
+
+- positive scenario-secondary lines receive coefficient `wMastery - μ`;
+- other negative/positive secondary lines receive `+μ/-μ` on their own item option;
+- external negative budget and threshold constants are multiplied by `μ`;
+- negative terms may still be dropped, which only raises the upper.
+
+The research parameter `secondarySupportPrice` is already added to `bound`; `μ=wMastery=500`
+reproduces the historical `secZero` arm. Direct IOP-200 DI1 reads (λ=4000, CC band 1) are:
+
+| μ | conditional upper |
+|---:|---:|
+| 500 | 9.143179399250T |
+| 400 | 9.071258155440T |
+| 300 | 8.997806672400T |
+| **250** | **8.971792605490T** |
+| 255 | 8.973322844720T |
+| 200 | 9.054425523910T |
+
+So μ=250 closes the conditional gap to about **+0.704%**, with no extra DP state. This is the best
+current lead.
+
+**Original handoff state:** integration stopped halfway at user request; the parameter initially
+worked only in the direct fixed `worldArm=secZero, lightWeaponArm=noExpert` research run.
+
+#### Progress journal after handoff
+
+- **μ propagation + adaptive queue implemented:** `secondarySupportPrice` now follows both world
+  replay and light-weapon recursion. Production retains the mutable best-first candidates from the
+  μ=500 pass, recomputes only still-relevant `secZero` worlds at DI1/μ=250, intersects each world
+  with `min`, then resumes the same queue so any newly exposed plain/critZero world pays only its
+  missing DI tiers. S4 should skip the pass because its first conditional union is already below
+  the no-condition authority.
+- **Targeted μ=250 soundness lock passed** in 1m42 with 8-worker exact capper worlds. Exact/upper:
+  seed1 `297707299560 / 786608298630`, seed2 `325614023000 / 2745267700560`, seed3
+  `354366378345 / 2962599906750`. `INFEASIBLE` forced-capper worlds are correctly absent from the
+  exact union. The first deterministic version of this lock was stopped/replaced because it spent
+  ~9 minutes and failed only by treating an exact-INFEASIBLE world as an error. Ktlint and both
+  main/test compilation pass after the integration.
+- **IOP-200 production E2E:** no-condition is proven exactly at `8.909052797060T`; the complete
+  union falls to **`8.971792605490T` (+0.704%)**, proving that no plain/critZero world re-emerges
+  above μ=250. Runtime is **158.9 s**, however, versus the ≤120 s target. Next optimization:
+  preserve the split light-arm bounds in each best-first candidate and recompute μ=250 only for
+  arms whose current upper can still beat the no-condition authority; the binding arm is
+  `noExpert`, so the current unconditional two-arm replay likely pays avoidable wall.
+
+Remaining production checklist:
+
+1. add a seeded equivalence/soundness lock for μ in `{0,250,500}` against exact CP-SAT, then rerun
+   `WAKFU_S4_UNION_LOCK=1` and the real IOP production path;
+2. re-run S4 production to confirm identical exact result and ~144 s wall.
+
+The prior `secSupply` pseudo-arm was fully reverted after its 10.208T NO-GO. Do not reintroduce it;
+the general μ support subsumes it. The μ support itself changes certificate arithmetic, so v23 is
+already the intended cache version; if another certifier change is made after this handoff, bump
+the version again.
+
+### Remaining promotion gates
+
+The frontier lock and production-union lock passed before the latest diagnostic fields/μ seam.
+Compilation and targeted tests pass, but the following have **not** yet been rerun after the final
+research edits:
+
+```shell
+./gradlew :autobuilder:ktlintCheck
+WAKFU_TEST_MAX_HEAP=8g ./gradlew :autobuilder:test --no-daemon
+WAKFU_S4_UNION_LOCK=1 WAKFU_TEST_MAX_HEAP=8g ./gradlew \
+  :autobuilder:cleanTest :autobuilder:test \
+  --tests '*MaxDamageSoftCertificateTest*union soundness*' --no-daemon
+```
+
+Also update this section with the final IOP E2E upper/wall and the S4 non-regression before calling
+v23 promoted.
+
+## Handoff update — v24 (2026-07-18)
+
+v23's remaining checklist is DONE: μ lock extended to μ∈{0,250,500} (green, 3 seeds × 3 μ),
+production-union lock re-passed (×3, bit-identical), and the shapes re-measured. v24 ships the
+guarded acceptance floor (stop refining once every world is within 1.5% of the incumbent; guarded
+to `tier >= 0` so S4-245 keeps ProvenOptimal), the DI10→DI1 jump for all ≥175 worlds, and 4×
+coarser assume-worlds. Stage/per-DP-pass instrumentation is now permanent
+(`soft-leg proof stage=` / `refine world=` INFO + test-only `log4j2-test.xml`). The E2E contract
+is shape-aware (S4 exact, others ≤2%). Full numbers: perf plan §9.23.
+
+Open walls: S4-245 153 s hot ProvenOptimal; IOP-200 157-160 s hot at 1.08%; cra-80 ~200 s (B&B);
+cra-140 probe-bound (the open research gap — 462 s on a hot machine, the 420 s plain probe did not
+prove; it proves ~104 s cold). Cooldown measurements pending — every number above is from a
+saturated machine. Do-not-retry additions: merging μ=250 into the primary refinement (loses arm
+selectivity, cost-neutral at best); grid coarsening beyond 4× has sub-linear payoff (the DP cost
+floor is per-option scanning, not states).
+
+## ProvenOptimal-everywhere measurement campaign (2026-07-18, post-v25)
+
+The user raised the bar from "a sound verdict under two minutes" to "ProvenOptimal under two
+minutes, every request". Five decisive measurements (all firsts):
+
+| shape | route | result |
+|---|---|---|
+| IOP-200 | monolithic full model, 8w, 600 s | FEASIBLE, dual 21.02T = **+136%** — hopeless; best primal 8.759T does not even reach the 8.909T incumbent |
+| IOP-200 | conditional-world B&B, 20 s/node, 600 s | does NOT close: 30 nodes, EVERY mixed node dual ~28.3T (+218%) — the reification wall hits mixed nodes at this scale too |
+| cra80-ap10 | monolithic full model, 8w, 300 s | FEASIBLE, **+20.9%** — the partition (3.34%) is 6× tighter than the monolith |
+| cra80-ap10 | B&B UNBOUNDED (600 s, 256 nodes) | **CLOSES: Proven(820040000000) in 43 nodes / 456.8 s** → ProvenOptimal is reachable, needs ~4× wall engineering |
+| cra-140 | B&B (300 s, 15 s/node) | does not close: 33 nodes, frontier +2.60% — the monolith (~104 s cold) stays its best exact route |
+
+Resulting map to "ProvenOptimal < 2 min everywhere":
+
+- **S4-245** ✅ already (96.3 s, v25).
+- **cra80-ap10**: pure engineering — the closed tree needs ~4×: wide (k-ary) branching over the
+  whole selected-conditional support to feed 4 node-workers (the DFS chain leaves the frontier
+  1-2 nodes wide, so the shipped 2-worker parallelism only bought 1.2×), plus adaptive per-node
+  budgets (most FEASIBLE nodes ride their inherited parent dual anyway).
+- **cra-140**: route the plain full-model probe FIRST/concurrently for this class (level <175,
+  mid pools) — ProvenOptimal ~104-120 s on a cold machine; thermally fragile (>300 s hot).
+- **IOP-200**: ❌ NO measured route proves it at ANY duration (monolith +136%, mixed B&B +218%,
+  DP +0.704%). The only paths are research: close the conditional DP's last 0.704% (the
+  cross-path merge looseness in the secZero core — K-dim / carrier-exact modeling), or discover
+  a better-than-8.909T conditional incumbent (none found by any search so far).
+
+Decision point for the user: launch the IOP-200 research campaign (multi-session), or accept
+ProvenWithin(≤1.1%) as that shape's terminal badge.
+
+### P3 entry point — the IOP-200 phantom is LOCATED (2026-07-18, DI1 provenance)
+
+Binding path of the secZero/noExpert μ=250 DI1 world (bound 8.9718T, the union owner):
+`support=3361500 Wupper=2961500 core=11051755 d=74+ramp24 cc=100` — items+skills+runes sum to
+exactly Wupper, so the **+400,000 of W (~13.5%) is pure μ-support credit**. The path carries
+**843 positive scenario-secondary mastery** (Bague Fléopard 108 secN, Coiffeuse Mortelle 430,
+L'Ami Léhunui 305) priced at `(wMastery − μ) = 250`/unit by the Lagrangian projection, while the
+exact build must actually offset them under `S + O ≤ 0`. Witness cross-check: DP core 11,051,755
+vs exact pinned 9,636,120 (+14.7%) — the entire residual.
+
+Concrete research routes, in order:
+1. **State-conditional μ pricing**: the projection charges μ per positive scenario-secondary unit
+   assuming an external negative budget; make the credited budget the negative secondary
+   ACTUALLY reachable by the remaining slots of that state (a per-state cap on the μ term, like
+   the state-dependent MP ramp fix that closed CRA-80's invented credit §9.22sexdecies).
+2. Net-secondary state dimension (K-dim): track the path's signed scenario-secondary sum coarsely
+   (e.g. 3-5 buckets) and zero the support credit for states whose net cannot reach ≤ 0.
+3. μ per world re-calibration is DEAD (sweeps measured, 250 is the min).
+
+Reproduce the diagnostic:
+```shell
+WAKFU_S4_PROTO=1 WAKFU_S4_PATH_ONLY=1 WAKFU_S4_PATH=1 WAKFU_S4_SHAPE=iop200-frontier \
+WAKFU_S4_PATH_ARM=secZero WAKFU_S4_PATH_LIGHT_ARM=noExpert WAKFU_S4_PATH_DI=1 \
+WAKFU_S4_PATH_HP=2000 WAKFU_S4_PATH_CC=10 WAKFU_S4_CC_LAMBDA=4000 WAKFU_S4_CC_BAND=5 \
+WAKFU_S4_SECONDARY_PRICE=250 WAKFU_S4_COUPLE_NEG_ITEMS=1 WAKFU_S4_NET_NEG_ITEMS=1 \
+WAKFU_S4_EXACT_NORMAL_SUBS=1 WAKFU_S4_FOLD_ITEM_MAX_AP=1 WAKFU_S4_FOLD_MAX_MP=1 \
+WAKFU_S4_SPLIT_LIGHT_WEAPON=1 WAKFU_S4_REQUIRE_CONDITIONAL=1 WAKFU_S4_CRIT_AWARE_COLLAPSE=1 \
+WAKFU_S4_CRIT_WEIGHT_ANCHOR=100 WAKFU_S4_STATE_MP_RAMP=1 WAKFU_S4_ELIDE_IMPLIED_COND=1 \
+WAKFU_TEST_MAX_HEAP=8g ./gradlew :autobuilder:cleanTest :autobuilder:test \
+  --tests '*MaxDamageSoftCertificateTest*prototype tightness*' --no-daemon
+```
+
+### P3 addendum — the joint (λ, μ) grid is DEAD; the 400k is the λ-crit term (2026-07-18)
+
+Correction to the entry point above: the +400,000 support-vs-W delta on the binding state is the
+**λ-crit support term** (λ=4000 × CC=100), not the μ-secondary projection (the μ pricing is baked
+per-option). A λ sweep at μ=250 (each value independently sound, min sound):
+
+| λ | secZero/noExpert DI1 bound |
+|---:|---:|
+| 2500 | 9.0789T |
+| 3000 | 9.0345T |
+| 3500 | 8.9917T |
+| **4000** | **8.9718T** (production) |
+| 5000 | 8.9810T |
+
+λ=4000 sits at the curve's minimum at μ=250 too — the joint grid buys ~0.1%, not the needed 0.7%.
+DO-NOT-RETRY scalar (λ, μ) tuning. The residual lives in the collapse arithmetic itself
+(W×(400+CC) transport across crit bands + the secondary budget interplay on a path that REALLY
+sits at CC=100 with 843 positive scenario-secondary): closing it requires the state-conditional
+routes (per-state reachable negative-secondary cap, or coarse net-secondary K buckets) — the P3
+research proper, with the witness (7.8226T exact vs 11,051,755 core) as the oracle to close against.
+
+### P3 addendum 2 — the conditional-region-CP route caps at +0.55% (analysis, 2026-07-18)
+
+Transplanting the v23 frontier pattern to the conditional side — per sec-capper c, one exact CP
+with c FORCED, c's condition posted LINEARLY (no reification: the carrier is fixed), every other
+conditional condition-stripped (sound relaxation) — would likely close the secZero and critZero
+worlds (1-2 reifications ≈ the digestible regime; the μ-lock solves of exactly this shape prove
+OPTIMAL in ~60 s on seeded pools). BUT the **plain world binds at 8.958T (+0.55%) on its own**:
+its builds carry non-capper conditionals (Neutralité-class) whose conditions can only enter CP
+reified — the measured wall. So this route's ceiling is ProvenWithin(0.55%), not ProvenOptimal.
+
+Conclusion unchanged and now fully mapped: IOP-200 ProvenOptimal requires the state-conditional
+DP surgery (per-state reachable-negative-secondary cap or net-secondary K buckets) applied to BOTH
+the secZero and plain worlds, validated against the banked witness (7.8226T exact) and the μ/union
+locks. Optional intermediate ship if wanted: capper-region CP for a 1.08% → ~0.55% badge.
+
+### P3 addendum 3 — IOP-200 is down to ONE world (2026-07-18)
+
+Three decisive reads:
+
+| world | production λ | bound | λ=4000 read | closes vs 8.909T? |
+|---|---:|---:|---:|---|
+| plain | 1500 | 8.958T | **8.638T** | ✅ |
+| critZero | 1500 | 8.955T | **8.575T** | ✅ |
+| secZero (μ250) | 4000 | 8.9718T | (λ-swept, 4000 is the min) | ❌ +0.704% |
+
+The production λ_LOW=1500 was simply miscalibrated for plain/critZero at IOP — a per-world λ
+multi-read {1500, 4000} min-intersection closes BOTH (each λ independently sound). The capper-CP
+route is DEAD: all four sec-cappers keep +24%..+153% duals at 120 s with the other conditionals
+relaxed (Inflexibilité II best at 11.04T), and Secret critique proves OPTIMAL at 9.114T > incumbent
+(a world bound under relaxation, not a counterexample — but it does not close either).
+
+**The entire remaining IOP-200 gap is the secZero world.** The P3 surgery is now scoped to ONE
+place: add a bucketized net-scenario-secondary dimension to the secZero DP reads (state key), and
+at collapse EXCLUDE states whose minimal reachable net is provably > 0 (their carrier would be
+inert — such builds are covered by the plain/no-cond side). Validation: the banked witness
+(7.8226T exact), the μ{0,250,500} lock, the union lock. Note: do NOT ship the per-world λ
+multi-read alone — it does not move the badge while secZero holds the max (pure wall cost).
+
+### P3 implementation spec — the secZero net-secondary dimension (written 2026-07-18)
+
+Goal: in `MaxDamageSoftCertificate.bound()` secZero reads ONLY, exclude at collapse the states
+whose FINAL signed secondary (scenario S + other O, items only — skills/runes only ADD secondary,
+so their minimal contribution is 0) is provably above the most permissive sec-capper threshold
+`t = secTMax`. The 8.9718T phantom path carries +843; killing it must land the world ≤ 8.909T.
+
+**Lower-bound semantics (the soundness core).** Store per state a value `v` with the invariant
+`v ≤ v_exact = floor((netSec + OFFSET) / SEC_STEP)` where `OFFSET = Σ_slots max(0, −minSecNet(slot))`
+(a precomputed constant making the tracked quantity non-negative; never clamp UP). Transitions:
+`v' = min(v + floor((option.secNet + slack) / SEC_STEP), cap)` — per-option FLOOR rounding and
+the `min` saturation both only lower `v`, preserving the invariant. Exclusion test (sound):
+`v × SEC_STEP − OFFSET > t ⇒ netSec > t` (since `netSec + OFFSET ≥ v_exact × SEC_STEP ≥ v × SEC_STEP`).
+`cap = ceil((t + OFFSET) / SEC_STEP) + 1` — every provably-over state merges into one bucket.
+SEC_STEP ≈ 250, OFFSET ≈ 2000 ⇒ cap ≈ 9-10 ⇒ 4 bits.
+
+**Insertion points:**
+1. `Opt` gains `secNet: Int` (signed scenario+other secondary of the option) — populate where the
+   coupled μ pricing already reads per-item secondary lines (items, weapons pairs, rings pairs;
+   subs' secondary lines too — Influence vitale etc. carry secondary? include them, signed).
+2. `Geometry`: params `secBucketCap: Int = 0` (0 = off) + `secOffset/secStep`; packed field 4b @50
+   (`fitsPackedKey` unchanged — bits 50-53 free; extend the check `secBucketCap <= 0xF`).
+   `applyOne`: `newSec = min(sec(k) + floorDiv(o.secNet + ?, step), secBucketCap)` — careful:
+   floor of a NEGATIVE delta rounds DOWN (more negative) ✓ sound.
+3. Collapse (the `for (k in states)` loop, near the `assumeApThreshold` skip at ~2154): when
+   `armZeroSecondary && secBucketCap > 0 && geo.sec(k) * SEC_STEP − OFFSET > secTMax` ⇒ `continue`.
+4. Orchestrator: enable via a new `bound()` param `secondaryNetDimension: Boolean` passed by
+   `refineWorld` when `world.arm == "secZero"` (and by the μ-pass call), OFF everywhere else.
+5. `CERTIFIER_VERSION` bump.
+
+**Validation sequence (fast-locks-first):** (a) μ{0,250,500} lock (seeded capper optima MUST stay
+covered — the dimension must never exclude a state hosting a feasible capper build; if the lock
+reddens, the exclusion formula is wrong, likely OFFSET/sign); (b) the IOP witness read: the
+secZero DI1 μ250 bound must DROP from 8.9718T (target ≤ 8.909T) while the pinned exact 7.8226T
+build stays covered; (c) union lock; (d) E2E iop (expect ProvenOptimal if ≤ incumbent) + s4
+(must stay ProvenOptimal — S4's secZero world must not lose coverage: its capper builds have
+net ≤ t by construction, so exclusion never fires on covered builds); (e) full suite.
+
+**Known risk:** the μ pricing already charges ±μ per secondary unit inside W — the new dimension
+EXCLUDES states rather than re-pricing, so there is no double-count interaction; but a state's
+final skills/runes may RAISE net above t while items alone are ≤ t — that build's carrier is inert
+⇒ covered by plain/no-cond ⇒ excluding on ITEMS-ONLY net is NOT sound the other way: items-net ≤ t
+but true net > t means we KEEP the state — keeping is always sound (only exclusion needs proof). ✓
+
+### P3 spec v2 — CREDIT-CAP design (supersedes the exclusion design above, 2026-07-18)
+
+Code reading corrects the diagnosis: the provenance `secN` fields are NEGATIVE secondary — the
+phantom path stacks negative-secondary items because the coupled pricing credits `μ·negSec(item)`
+into W per item (itemOpts, `+ secSupportPrice * negativeSecondary`), i.e. **budget credited with
+nothing to fund** (the path carries no positive scenario-secondary S).
+
+Exact identity: for a build satisfying `S + O ≤ t`, `wM·S = (wM−μ)·S + μ·S` and `S ≤ t + negB`,
+so the exact credit is `μ·min(S, t + negB)`. The sound one-dimension fix:
+
+1. Track per state `S⁺` = accumulated POSITIVE scenario-secondary (characteristics in
+   SECONDARY ∩ (masteryStats ∪ randomStats), items AND subs), rounded **UP** per option
+   (`ceilDiv(o.secPos, SEC_STEP)`, saturating at a small cap) — stored ≥ true, which is the sound
+   direction for capping a CREDIT.
+2. REMOVE the per-item `μ·negSec` W credit in this mode (and the μ parts of `armConstantW`).
+3. At collapse add `μ·min(S⁺_stored × SEC_STEP, NEG_BUDGET_MAX + secTMax + secOwnMax)` where
+   `NEG_BUDGET_MAX` = Σ_slots max-item negative secondary (the `futureItemMpDebit` pattern) plus
+   the external budget already computed. Sound: true ≤ (wM−μ)S + μ·min(S_up, cap_const).
+4. Positive scenario lines keep their `(wM−μ)` per-line pricing (unchanged).
+5. Bucket cap small: resolution only needed up to `NEG_BUDGET_MAX + t` ≈ ≤1250; SEC_STEP=250 →
+   cap 5 (3 bits @50 in the packed key; extend `fitsPackedKey`). Most options have secPos=0 →
+   state blowup ~1.5-2× on secZero reads only.
+6. The phantom path has S⁺ = 0 → collapse credit 0 → its ~μ×843 = 210k phantom W dies; expected
+   secZero drop 8.9718T → target ≤ 8.909T (witness 7.8226T stays covered: its credit is exact-ish).
+
+Everything else from spec v1 (validation sequence, orchestrator gating via a `bound()` param on
+secZero reads, CERTIFIER_VERSION bump) unchanged.
+
+**Spec v2 soundness addendum — the skills/runes complement.** `S_total` includes positive
+scenario-secondary allocated by SKILLS and RUNES (both priced per-line at `(wM−μ)` but chosen at
+collapse, outside the tracked dimension). The collapse credit must therefore be
+`μ·min(S⁺_items+subs × SEC_STEP + SKILL_RUNE_SEC_MAX, capBudget)` with `SKILL_RUNE_SEC_MAX` a
+TIGHT sound constant (max positive scenario-secondary reachable via the skill allocation + the
+rune shard combos actually priced by `runeAxesW` when the best weighted char is a secondary
+mastery). If that constant is loose (≥ the ~843 phantom scale) the min never bites and the fix is
+inert — compute it from the actual skill branch values and rune tables, and print it in the
+binding state for verification. If skills/runes CANNOT produce scenario-secondary on the request's
+mastery set, the constant is 0 and the pure item/sub dimension suffices.
+
+**Spec v2 implementation state (2026-07-18, end of session):**
+
+DONE (compiled, DORMANT — behavior bit-identical, `secBucketCap` defaults to 0 everywhere):
+- `Opt.secPos: Int` (positive scenario-secondary of the option);
+- `Geometry.secBucketCap` param + `sec(k)` accessor + 3-bit packed field @50 + `fitsPackedKey`
+  extension + `withMp` preservation + `applyOne` UP-rounded saturating accumulation
+  (`SEC_DIM_STEP = 250`).
+
+REMAINING (the activation, in order):
+1. Populate `secPos`: item opts (Σ max(v,0) over SECONDARY ∩ (masteryStats ∪ randomStats)),
+   sub opts (same over their StatEffects), and SKILL opts — skills are DP STAGES (provenance
+   shows `skills-Strength/Luck/Major` as path steps), so populating their options suffices; no
+   skill constant needed.
+2. Runes: the item-option W axis takes max(wOf) over runes; a real build's secondary rune can
+   out-value the credited axis by at most `RUNE_SEC_SHORTFALL = Σ_slots max(0, wM·v_secmax −
+   wM·v_elemmax)` — compute it; with uniform shard values per slot it is ZERO. Add it (in W
+   units, divided by μ → sec units) to the min's left side.
+3. In dim mode: drop the per-item `μ·negSec` W credit (itemOpts line ~1067, guard with
+   `&& !secondaryNetDimension`) and the μ part of `armConstantW`; at collapse (the `support =`
+   sum in `foldWith`, ~line 2198) add
+   `secSupportPrice * min(geo.sec(k)·SEC_DIM_STEP + runeShortfallSec, armSecCapRaw + ITEM_NEG_BUDGET_MAX)`
+   where `ITEM_NEG_BUDGET_MAX` = Σ_slots max-item negative secondary (futureItemMpDebit pattern;
+   ring second-best + weapon-combo handling). NOTE: the budget side becomes a global constant
+   (looser than today's per-item credits) while the S side becomes state-exact (much tighter on
+   S=0 phantom paths). Net effect at IOP must be measured; the phantom dies by construction.
+4. New `bound()` param `secondaryNetDimension: Boolean = false`; geometry gets
+   `secBucketCap = 5` when active && armZeroSecondary; `refineWorld` and the μ-pass pass it for
+   `world.arm == "secZero"`; coarse pass stays OFF (bounds must not regress there before the
+   queue refines).
+5. CERTIFIER_VERSION 26 → 27; validation sequence per spec v1 (μ lock FIRST — it is the direct
+   soundness oracle for exactly this pricing).
+
+### P3 spec v2 MEASURED: 1-dim credit-cap is a NO-GO (2026-07-18)
+
+The full activation was implemented and measured (secPos populated on items/subs/skills + rune
+shortfall, per-item μ·negSec credit dropped, collapse credit μ·min(S⁺, globalBudgetCap)):
+
+- μ soundness lock: GREEN with the dimension ON (3 seeds × 3 μ — the arm is sound);
+- IOP secZero DI1 μ250: **9.933T vs 8.9718T — WORSE by +10.7%**.
+
+Root cause: dropping the COUPLED per-item credit for a GLOBAL budget cap makes positive
+scenario-secondary effectively full-price ((wM−μ) per line + μ via a min that never bites at the
+global cap ≈ armSecCapRaw + ΣslotMaxNeg), so a NEW S⁺-rich binding path emerges above the old
+one. The coupled per-item pricing is tighter than the naive credit-cap.
+
+The exact form is `μ·min(S⁺_state, t + negB_state)` — BOTH quantities per state (~25× states,
+out of budget). DO-NOT-RETRY the 1-dim global-cap variant. Remaining honest routes for the last
++0.704%: (a) 2-dim S⁺×negB with aggressive elision (SAFE sentinels both sides — research), or
+(b) accept ProvenWithin(0.704%) as IOP-200's terminal badge. The plumbing (Opt.secPos, Geometry
+sec field, `secondaryNetDimension` seam incl. WAKFU_S4_SEC_DIM on the μ lock and the path
+harness) stays in the tree, DORMANT and union-lock-proven inert, for route (a).

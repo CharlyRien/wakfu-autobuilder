@@ -6,6 +6,7 @@ import me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
 import me.chosante.common.ScenarioGate
 import me.chosante.common.SublimationCondition
 import me.chosante.common.SublimationConditionType
+import me.chosante.common.SublimationKind
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
@@ -24,6 +25,31 @@ class SublimationSemanticsTest {
     private val mostMasteries = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
     private val precision = ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
     private val fireWanted = setOf(Characteristic.MASTERY_ELEMENTARY_FIRE)
+
+    @Test
+    fun `relaxing conditions preserves static conditional and conversion catalog entries`() {
+        val originals =
+            WakfuBestBuildFinderAlgorithm.sublimations.filter {
+                it.condition != null && it.solverChoosable && it.condition!!.type in SUPPORTED_SUB_CONDITIONS
+            }
+        val relaxed = originals.map { it.withRelaxedBuildStaticCondition() }
+
+        assertThat(relaxed.map { it.stateId }).containsExactlyElementsOf(originals.map { it.stateId })
+        assertThat(relaxed).allMatch { it.condition == null }
+        assertThat(relaxed).allMatch { !it.cumulable && it.maxCopies == 1 }
+        assertThat(
+            relaxed.filter { relaxedSub -> originals.single { it.stateId == relaxedSub.stateId }.kind == SublimationKind.STATIC_CONDITIONAL }
+        ).allMatch { it.kind == SublimationKind.FLAT }
+        assertThat(
+            relaxed.filter { relaxedSub -> originals.single { it.stateId == relaxedSub.stateId }.kind == SublimationKind.CONVERSION }
+        ).allMatch { it.kind == SublimationKind.CONVERSION }
+
+        val unsupported =
+            WakfuBestBuildFinderAlgorithm.sublimations.single {
+                it.solverChoosable && it.condition?.type == SublimationConditionType.AP_ODD
+            }
+        assertThat(unsupported.withRelaxedBuildStaticCondition()).isEqualTo(unsupported)
+    }
 
     @Test
     fun `an ungated effect always fires`() {

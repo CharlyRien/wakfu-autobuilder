@@ -448,7 +448,7 @@ class BuildSearchModelE2ETest {
                     )
                 },
                 // Prove instantly so proofState reaches ProvenOptimal without a real (minutes-long) solve.
-                optimalityProver = { _, _, _ -> MaxDamageSearch.MaxDamageProof.ProvenOptimal },
+                optimalityProver = { _, _, _, _ -> MaxDamageSearch.MaxDamageProof.ProvenOptimal },
                 zenithBuilder = { "" },
                 mainDispatcher = Dispatchers.Unconfined,
                 ioDispatcher = Dispatchers.Unconfined,

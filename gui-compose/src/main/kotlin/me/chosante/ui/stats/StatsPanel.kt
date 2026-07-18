@@ -286,9 +286,24 @@ private fun ProofProgressIndicator(
     }
     val elapsedSeconds = (nowMs.value - progress.startedAtMs).coerceAtLeast(0L) / 1_000L
     val label =
-        when (progress.phase) {
-            ProofPhase.CERTIFYING -> Tr.PROVING_OPTIMALITY
-            ProofPhase.CONSTRUCTING -> Tr.PROOF_CONSTRUCTING
+        when {
+            progress.phase == ProofPhase.CONSTRUCTING -> Tr.PROOF_CONSTRUCTING
+            // Soft-proof stage narration: the engine reports the stage that just COMPLETED, so
+            // each key is phrased as what the proof does next. Unknown keys fall back to the
+            // generic label so new engine stages never break the UI.
+            progress.detailKey != null ->
+                when (progress.detailKey) {
+                    "worldTree" -> Tr.PROOF_STAGE_WORLD_TREE
+                    "relaxedProbe" -> Tr.PROOF_STAGE_AFTER_RELAXED
+                    "noConditionDp+region" -> Tr.PROOF_STAGE_AFTER_NO_COND
+                    "coarse" -> Tr.PROOF_STAGE_AFTER_COARSE
+                    "primaryRefinement" -> Tr.PROOF_STAGE_AFTER_REFINE
+                    "secondarySupportPass" -> Tr.PROOF_STAGE_AFTER_SECONDARY
+                    "lambdaAutoCalibration", "lambdaZeroPass" -> Tr.PROOF_STAGE_FINALIZING
+                    "plainProbe" -> Tr.PROOF_STAGE_CP_PROBE
+                    else -> Tr.PROVING_OPTIMALITY
+                }
+            else -> Tr.PROVING_OPTIMALITY
         }
     Row(
         modifier = modifier,

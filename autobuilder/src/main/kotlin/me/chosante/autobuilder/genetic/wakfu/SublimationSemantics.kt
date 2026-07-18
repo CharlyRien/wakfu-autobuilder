@@ -6,8 +6,10 @@ import me.chosante.autobuilder.domain.firesInMostMasteries
 import me.chosante.common.Characteristic
 import me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
 import me.chosante.common.ScenarioGate
+import me.chosante.common.Sublimation
 import me.chosante.common.SublimationCondition
 import me.chosante.common.SublimationConditionType
+import me.chosante.common.SublimationKind
 
 // SublimationSemantics — the SINGLE SOURCE OF TRUTH for the sublimation DECISION logic shared by the CP-SAT
 // objective (StatBuilder / SublimationTerms / SublimationModelBuilder / MaxDamageCertifier) and the scalar
@@ -19,6 +21,25 @@ import me.chosante.common.SublimationConditionType
 // A1 drift fault line): which static conditions are modelable, and whether a scenario gate fires for a request.
 // Anything that computes a magnitude (a condition's reified/scalar evaluation, a per-element strongest test)
 // stays in its own engine.
+
+/**
+ * Removes a solver-choosable build-static condition while preserving every selectable sub and
+ * effect. A [SublimationKind.STATIC_CONDITIONAL] with `condition = null` is not modelable, so it
+ * must become [SublimationKind.FLAT]; merely clearing the condition silently drops it from the
+ * relaxed model and can under-count the true optimum. Conversions remain conversions.
+ */
+internal fun Sublimation.withRelaxedBuildStaticCondition(): Sublimation {
+    val buildCondition = condition ?: return this
+    if (!solverChoosable || buildCondition.type !in SUPPORTED_SUB_CONDITIONS) return this
+    return when (kind) {
+        // Keep the original single-copy semantics. [Sublimation.maxCopies] also keys on
+        // `condition == null`; clearing only the condition could otherwise turn a future cumulable
+        // conditional sub into several relaxed copies, changing more than the condition gate.
+        SublimationKind.STATIC_CONDITIONAL -> copy(kind = SublimationKind.FLAT, cumulable = false, condition = null)
+        SublimationKind.CONVERSION, SublimationKind.FLAT -> copy(cumulable = false, condition = null)
+        SublimationKind.COMBAT_CONDITIONAL -> this
+    }
+}
 
 /**
  * The static-conditional sublimation [SublimationConditionType]s the solver can reify against build stats

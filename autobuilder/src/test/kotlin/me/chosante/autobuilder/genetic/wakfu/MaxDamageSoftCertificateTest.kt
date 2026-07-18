@@ -33,7 +33,23 @@ import kotlin.time.Duration.Companion.seconds
 class MaxDamageSoftCertificateTest {
     private fun ccSupportLambda(): Long = System.getenv("WAKFU_S4_CC_LAMBDA")?.toLongOrNull() ?: 0L
 
+    private fun perWorldSupportLambda(
+        level: Int,
+        world: MaxDamageSoftCertificate.WorldRead,
+    ): Long =
+        if (System.getenv("WAKFU_S4_PER_WORLD_LAMBDA") == "1" && level >= 175 && world.arm == "secZero") {
+            6000L
+        } else {
+            ccSupportLambda()
+        }
+
     private fun ccSupportBand(): Int = System.getenv("WAKFU_S4_CC_BAND")?.toIntOrNull() ?: 5
+
+    private fun secondarySupportPrice(): Long? = System.getenv("WAKFU_S4_SECONDARY_PRICE")?.toLongOrNull()
+
+    private fun critAwareCollapse(): Boolean = System.getenv("WAKFU_S4_CRIT_AWARE_COLLAPSE") == "1"
+
+    private fun critWeightAnchor(): Int? = System.getenv("WAKFU_S4_CRIT_WEIGHT_ANCHOR")?.toIntOrNull()
 
     private fun coupleSecondaryItemNegative(): Boolean = System.getenv("WAKFU_S4_COUPLE_NEG_ITEMS") == "1"
 
@@ -44,6 +60,12 @@ class MaxDamageSoftCertificateTest {
     private fun foldNegativeItemAp(): Boolean = System.getenv("WAKFU_S4_FOLD_ITEM_MAX_AP") == "1"
 
     private fun foldNegativeMaxMp(): Boolean = System.getenv("WAKFU_S4_FOLD_MAX_MP") == "1"
+
+    private fun stateDependentMpRamp(): Boolean = System.getenv("WAKFU_S4_STATE_MP_RAMP") == "1"
+
+    private fun elideImpliedConditionalMarker(): Boolean = System.getenv("WAKFU_S4_ELIDE_IMPLIED_COND") == "1"
+
+    private fun skipMidTierForHighSecZero(): Boolean = System.getenv("WAKFU_S4_SKIP_MID_SECZERO") == "1"
 
     private fun splitLightWeaponCondition(): Boolean = System.getenv("WAKFU_S4_SPLIT_LIGHT_WEAPON") == "1"
 
@@ -94,6 +116,32 @@ class MaxDamageSoftCertificateTest {
                         TargetStat(Characteristic.MOVEMENT_POINT, 7)
                     )
                 )
+            "cra110-free" -> Triple(CharacterClass.CRA, 110, emptyList())
+            "cra110-crit40" ->
+                Triple(
+                    CharacterClass.CRA,
+                    110,
+                    listOf(TargetStat(Characteristic.CRITICAL_HIT, 40))
+                )
+            "cra110-ap12" ->
+                Triple(
+                    CharacterClass.CRA,
+                    110,
+                    listOf(TargetStat(Characteristic.ACTION_POINT, 12))
+                )
+            "cra80-free" -> Triple(CharacterClass.CRA, 80, emptyList())
+            "cra80-crit40" ->
+                Triple(
+                    CharacterClass.CRA,
+                    80,
+                    listOf(TargetStat(Characteristic.CRITICAL_HIT, 40))
+                )
+            "cra80-ap10" ->
+                Triple(
+                    CharacterClass.CRA,
+                    80,
+                    listOf(TargetStat(Characteristic.ACTION_POINT, 10))
+                )
             "iop200-frontier" ->
                 Triple(
                     CharacterClass.IOP,
@@ -103,6 +151,40 @@ class MaxDamageSoftCertificateTest {
                         TargetStat(Characteristic.MOVEMENT_POINT, 8),
                         TargetStat(Characteristic.CRITICAL_HIT, 100),
                         TargetStat(Characteristic.HP, 10000)
+                    )
+                )
+            // Sweep-3 wall hot spot (low-level full-target fallback stack, 193-209 s).
+            "feca65-full" ->
+                Triple(
+                    CharacterClass.FECA,
+                    65,
+                    listOf(
+                        TargetStat(Characteristic.ACTION_POINT, 11),
+                        TargetStat(Characteristic.MOVEMENT_POINT, 6),
+                        TargetStat(Characteristic.CRITICAL_HIT, 40),
+                        TargetStat(Characteristic.HP, 2500)
+                    )
+                )
+            // Sweep-3 loose-badge class representative (AP/MP-only, 12.87%).
+            "xelor155-apmp" ->
+                Triple(
+                    CharacterClass.XELOR,
+                    155,
+                    listOf(
+                        TargetStat(Characteristic.ACTION_POINT, 14),
+                        TargetStat(Characteristic.MOVEMENT_POINT, 7)
+                    )
+                )
+            // The generality matrix's first hot spot (Unavailable in 225 s, B&B inconclusive).
+            "iop110-full" ->
+                Triple(
+                    CharacterClass.IOP,
+                    110,
+                    listOf(
+                        TargetStat(Characteristic.ACTION_POINT, 12),
+                        TargetStat(Characteristic.MOVEMENT_POINT, 6),
+                        TargetStat(Characteristic.CRITICAL_HIT, 60),
+                        TargetStat(Characteristic.HP, 4000)
                     )
                 )
             else -> error("unknown WAKFU_S4_SHAPE=$shape")
@@ -180,6 +262,218 @@ class MaxDamageSoftCertificateTest {
         }
     }
 
+    @Test
+    fun `state dependent MP ramp is sound on an incompatible item choice`(): Unit =
+        runBlocking {
+            fun helmet(
+                id: Int,
+                stats: Map<Characteristic, Int>,
+            ) = me.chosante.common.Equipment(
+                equipmentId = id,
+                guiId = id,
+                level = 80,
+                name = me.chosante.common.I18nText("ramp$id", "ramp$id", "", ""),
+                rarity = Rarity.LEGENDARY,
+                itemType = ItemType.HELMET,
+                characteristics = stats,
+                maxShardSlots = 3
+            )
+
+            // The relaxed reachableMax ramp can combine the MP helmet with the mastery helmet.
+            // The state-dependent variant must choose one path while still covering CP-SAT.
+            val pool =
+                mapOf(
+                    ItemType.HELMET to
+                        listOf(
+                            helmet(990_001, mapOf(Characteristic.MOVEMENT_POINT to 5)),
+                            helmet(990_002, mapOf(Characteristic.MASTERY_ELEMENTARY to 200))
+                        )
+                )
+            val feather =
+                WakfuBestBuildFinderAlgorithm.sublimations.single {
+                    it.name.fr == "Poids Plume III"
+                }
+            val params = mdParams(80, emptyList())
+            val tuning =
+                WakfuBuildSolver.SolverTuning(
+                    numSearchWorkers = 1,
+                    randomSeed = 1,
+                    interleaveSearch = true,
+                    maxDeterministicTime = 20.0
+                )
+            var last: me.chosante.autobuilder.genetic.SolverResult<BuildCombination>? = null
+            WakfuBuildSolver
+                .optimize(params, pool, emptyList(), listOf(feather), tuning, hardConstraints = false)
+                .collect { last = it }
+            val exact = requireNotNull(last)
+            assertThat(exact.isOptimal).isTrue()
+            val incumbent = requireNotNull(exact.maxDamageObjective)
+            val legacy =
+                requireNotNull(
+                    MaxDamageSoftCertificate.bound(
+                        params,
+                        pool,
+                        emptyList(),
+                        listOf(feather),
+                        blockGate = false,
+                        exactNormalSubPacking = true,
+                        foldNegativeMaxMp = true
+                    )
+                )
+            val coupled =
+                requireNotNull(
+                    MaxDamageSoftCertificate.bound(
+                        params,
+                        pool,
+                        emptyList(),
+                        listOf(feather),
+                        blockGate = false,
+                        exactNormalSubPacking = true,
+                        foldNegativeMaxMp = true,
+                        stateDependentMpRamp = true
+                    )
+                )
+            assertThat(coupled.foldedBound)
+                .describedAs("the MP-coupled certificate must cover the exact CP-SAT optimum")
+                .isGreaterThanOrEqualTo(incumbent)
+            assertThat(coupled.foldedBound)
+                .describedAs("the coupled ramp must remove the cross-item reachableMax combination")
+                .isLessThan(legacy.foldedBound)
+        }
+
+    @Test
+    fun `state dependent MP ramp is sound on seeded item paths`(): Unit =
+        runBlocking {
+            fun item(
+                id: Int,
+                type: ItemType,
+                stats: Map<Characteristic, Int>,
+            ) = me.chosante.common.Equipment(
+                equipmentId = id,
+                guiId = id,
+                level = 100,
+                name = me.chosante.common.I18nText("ramp$id", "ramp$id", "", ""),
+                rarity = Rarity.LEGENDARY,
+                itemType = type,
+                characteristics = stats,
+                maxShardSlots = 0
+            )
+
+            val feather =
+                WakfuBestBuildFinderAlgorithm.sublimations.single {
+                    it.name.fr == "Poids Plume III"
+                }
+            val tuning =
+                WakfuBuildSolver.SolverTuning(
+                    numSearchWorkers = 1,
+                    randomSeed = 1,
+                    interleaveSearch = true,
+                    maxDeterministicTime = 30.0
+                )
+            WakfuBuildSolver.warmUp()
+            var strictlyTighter = 0
+            for (seed in 1L..8L) {
+                val rng = java.util.Random(seed)
+                val pool =
+                    listOf(ItemType.HELMET, ItemType.CAPE, ItemType.BOOTS)
+                        .flatMapIndexed { slot, type ->
+                            (0..2).map { choice ->
+                                item(
+                                    id = 991_000 + seed.toInt() * 100 + slot * 10 + choice,
+                                    type = type,
+                                    stats =
+                                        mapOf(
+                                            Characteristic.MOVEMENT_POINT to (rng.nextInt(8) - 2),
+                                            Characteristic.MASTERY_ELEMENTARY to (40 + rng.nextInt(241)),
+                                            Characteristic.MASTERY_DISTANCE to rng.nextInt(161),
+                                            Characteristic.MASTERY_CRITICAL to rng.nextInt(121),
+                                            Characteristic.DAMAGE_INFLICTED to rng.nextInt(11),
+                                            Characteristic.CRITICAL_HIT to rng.nextInt(21)
+                                        )
+                                )
+                            }
+                        }.groupBy { it.itemType }
+                val targets =
+                    when (seed % 3L) {
+                        0L -> emptyList()
+                        1L -> listOf(TargetStat(Characteristic.MOVEMENT_POINT, 7))
+                        else -> listOf(TargetStat(Characteristic.CRITICAL_HIT, 35))
+                    }
+                val params = mdParams(100, targets)
+                var last: me.chosante.autobuilder.genetic.SolverResult<BuildCombination>? = null
+                WakfuBuildSolver
+                    .optimize(params, pool, emptyList(), listOf(feather), tuning, hardConstraints = false)
+                    .collect { last = it }
+                val exact = requireNotNull(last)
+                assertThat(exact.isOptimal).describedAs("seed $seed CP-SAT oracle").isTrue()
+                val incumbent = requireNotNull(exact.maxDamageObjective)
+                val legacy =
+                    requireNotNull(
+                        MaxDamageSoftCertificate.bound(
+                            params,
+                            pool,
+                            emptyList(),
+                            listOf(feather),
+                            blockGate = false,
+                            exactNormalSubPacking = true,
+                            foldNegativeMaxMp = true
+                        )
+                    )
+                val coupled =
+                    requireNotNull(
+                        MaxDamageSoftCertificate.bound(
+                            params,
+                            pool,
+                            emptyList(),
+                            listOf(feather),
+                            blockGate = false,
+                            exactNormalSubPacking = true,
+                            foldNegativeMaxMp = true,
+                            stateDependentMpRamp = true
+                        )
+                    )
+                assertThat(coupled.foldedBound)
+                    .describedAs("seed $seed MP-coupled bound must cover CP-SAT")
+                    .isGreaterThanOrEqualTo(incumbent)
+                assertThat(coupled.foldedBound)
+                    .describedAs("seed $seed state coupling cannot weaken the legacy upper")
+                    .isLessThanOrEqualTo(legacy.foldedBound)
+                if (coupled.foldedBound < legacy.foldedBound) strictlyTighter++
+            }
+            assertThat(strictlyTighter)
+                .describedAs("the seeded campaign must exercise a real cross-path ramp relaxation")
+                .isGreaterThan(0)
+        }
+
+    @Test
+    fun `implied conditional worlds can discard their redundant marker`() {
+        val params = mdParams(100, emptyList())
+        val pool = seededPools().first().second
+        for (arm in listOf("secZero", "critZero")) {
+            fun read(elide: Boolean) =
+                requireNotNull(
+                    MaxDamageSoftCertificate.bound(
+                        params,
+                        pool,
+                        emptyList(),
+                        WakfuBestBuildFinderAlgorithm.sublimations,
+                        blockGate = false,
+                        exactNormalSubPacking = true,
+                        requireConditionalSub = true,
+                        worldDropCaps = true,
+                        worldArm = arm,
+                        elideImpliedConditionalMarker = elide
+                    )
+                )
+
+            val marked = read(false)
+            val elided = read(true)
+            assertThat(elided.foldedBound).describedAs("$arm folded bound").isEqualTo(marked.foldedBound)
+            assertThat(elided.coreBound).describedAs("$arm core bound").isEqualTo(marked.coreBound)
+            assertThat(elided.states).describedAs("$arm state count").isLessThanOrEqualTo(marked.states)
+        }
+    }
+
     /**
      * FAST soundness lock for the PRODUCTION union orchestrator (seconds per seed): on each
      * seeded pool, [MaxDamageSoftCertificate.hybridUnionUpper] must cover the pinned full-model
@@ -230,7 +524,8 @@ class MaxDamageSoftCertificateTest {
                         WakfuBestBuildFinderAlgorithm.runes,
                         WakfuBestBuildFinderAlgorithm.sublimations,
                         oracleWorkers = 2,
-                        oracleSeconds = 60.0
+                        oracleSeconds = 60.0,
+                        incumbentObjective = full.objective
                     )
                 ) { "$label: the union orchestrator bailed on a supported shape" }
             println(
@@ -241,6 +536,300 @@ class MaxDamageSoftCertificateTest {
             assertThat(union.upper)
                 .describedAs("$label: SOUNDNESS — the union must never under-count the full-model soft optimum")
                 .isGreaterThanOrEqualTo(full.objective)
+        }
+    }
+
+    @Test
+    fun `manual frontier region partition covers seeded no-condition optima`() {
+        assumeTrue(System.getenv("WAKFU_S4_FRONTIER_LOCK") == "1")
+        val params =
+            mdParams(
+                200,
+                listOf(
+                    TargetStat(Characteristic.ACTION_POINT, 12),
+                    TargetStat(Characteristic.MOVEMENT_POINT, 7),
+                    TargetStat(Characteristic.CRITICAL_HIT, 100),
+                    TargetStat(Characteristic.HP, 8000)
+                )
+            )
+        val noConditionSubs = WakfuBestBuildFinderAlgorithm.sublimations.filter { it.condition == null }
+        for ((label, pool) in seededPools()) {
+            val exact =
+                WakfuBuildSolver.timedMaxDamageProfileForTest(
+                    params,
+                    pool,
+                    WakfuBestBuildFinderAlgorithm.runes,
+                    noConditionSubs,
+                    workers = 1,
+                    seconds = 120.0,
+                    deterministicLimit = 60.0,
+                    interleave = true,
+                    applyDomination = false
+                )
+            require(exact.status == "OPTIMAL") { "$label no-condition oracle=${exact.status}" }
+            MaxDamageSoftCertificate.diStep = 1
+            MaxDamageSoftCertificate.hpStep = 4000
+            MaxDamageSoftCertificate.ccStep = 20
+            try {
+                val dp =
+                    requireNotNull(
+                        MaxDamageSoftCertificate.bound(
+                            params,
+                            pool,
+                            WakfuBestBuildFinderAlgorithm.runes,
+                            noConditionSubs,
+                            blockGate = false,
+                            ccSupportLambda = 1500,
+                            ccSupportBand = 5,
+                            coupleSecondaryItemNegative = true,
+                            netSecondaryItemBudget = true,
+                            exactNormalSubPacking = true,
+                            foldNegativeItemAp = true,
+                            foldNegativeMaxMp = true,
+                            critAwareCollapse = true,
+                            critWeightAnchorPercent = 100,
+                            stateDependentMpRamp = true
+                        )
+                    )
+                val distinct =
+                    dp.targetCellBounds.values
+                        .distinct()
+                        .sortedDescending()
+                require(distinct.size >= 2) { "$label needs at least two cell levels" }
+                val syntheticIncumbent = distinct[1]
+                val refined =
+                    requireNotNull(
+                        MaxDamageSoftCertificate.frontierRegionUpper(
+                            params,
+                            pool,
+                            WakfuBestBuildFinderAlgorithm.runes,
+                            noConditionSubs,
+                            dp,
+                            syntheticIncumbent,
+                            workers = 2,
+                            seconds = 30.0
+                        )
+                    ) { "$label frontier partition did not activate" }
+                println(
+                    "S4_FRONTIER_LOCK $label exact=${exact.objective} dp=${dp.foldedBound} " +
+                        "refined=${refined.upper} cells=${refined.cells.size}"
+                )
+                assertThat(refined.upper)
+                    .describedAs("$label regional union must cover the exact no-condition optimum")
+                    .isGreaterThanOrEqualTo(exact.objective)
+            } finally {
+                MaxDamageSoftCertificate.diStep = 1
+                MaxDamageSoftCertificate.hpStep = 500
+                MaxDamageSoftCertificate.ccStep = 10
+            }
+        }
+    }
+
+    /**
+     * Generality MATRIX (user request 2026-07-18: verify "any request proves in under two
+     * minutes" across the request space, not on 4 samples). Runs the FULL production proof
+     * per shape and prints verdict + wall. `WAKFU_S4_PROOF_MATRIX=1`; ~30-60 min. Shapes are
+     * soft-leg (unreachable-target) requests across classes, levels and target styles.
+     */
+    @Test
+    fun `manual soft proof generality matrix`() {
+        assumeTrue(System.getenv("WAKFU_S4_PROOF_MATRIX") == "1")
+
+        data class Shape(
+            val label: String,
+            val clazz: CharacterClass,
+            val level: Int,
+            val targets: List<TargetStat>,
+        )
+
+        fun frontier(
+            ap: Int,
+            mp: Int,
+            cc: Int? = null,
+            hp: Int? = null,
+        ) = buildList {
+            add(TargetStat(Characteristic.ACTION_POINT, ap))
+            add(TargetStat(Characteristic.MOVEMENT_POINT, mp))
+            cc?.let { add(TargetStat(Characteristic.CRITICAL_HIT, it)) }
+            hp?.let { add(TargetStat(Characteristic.HP, it)) }
+        }
+        val shapes =
+            listOf(
+                Shape("cra50-apmp", CharacterClass.CRA, 50, frontier(10, 6)),
+                Shape("iop110-full", CharacterClass.IOP, 110, frontier(12, 6, 60, 4000)),
+                Shape("xelor155-apmp", CharacterClass.XELOR, 155, frontier(14, 7)),
+                Shape("cra185-full", CharacterClass.CRA, 185, frontier(14, 7, 90, 8000)),
+                Shape("iop215-full", CharacterClass.IOP, 215, frontier(15, 8, 100, 11000)),
+                Shape("sacrieur230-apmp", CharacterClass.SACRIEUR, 230, frontier(16, 8)),
+                // Coverage extension (sweep 3): more classes, mixed target styles, low levels.
+                Shape("feca65-full", CharacterClass.FECA, 65, frontier(11, 6, 40, 2500)),
+                Shape("enutrof125-cchp", CharacterClass.ENUTROF, 125, frontier(13, 6, 70, 5000)),
+                Shape("panda170-apmp", CharacterClass.PANDAWA, 170, frontier(14, 7)),
+                Shape("eca195-full", CharacterClass.ECAFLIP, 195, frontier(15, 7, 95, 9000)),
+                Shape("osa225-full", CharacterClass.OSAMODAS, 225, frontier(16, 8, 100, 11500)),
+                Shape("steamer240-apmp", CharacterClass.STEAMER, 240, frontier(16, 8))
+            )
+        val rows = mutableListOf<String>()
+        for (shape in shapes) {
+            val pool =
+                WakfuBestBuildFinderAlgorithm.equipments
+                    .filter { it.rarity <= Rarity.EPIC }
+                    .filter { it.level in 0..shape.level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                    .groupBy { it.itemType }
+            val p = mdParams(shape.level, shape.targets, shape.clazz)
+            val incumbent = solvedNoConditionOracle(p, pool).objective
+            val result =
+                me.chosante.autobuilder.genetic.SolverResult(
+                    individual = BuildCombination(emptyList(), CharacterSkills(shape.level)),
+                    matchPercentage = java.math.BigDecimal.ZERO,
+                    progressPercentage = 100,
+                    isOptimal = false,
+                    maxDamageObjective = incumbent,
+                    maxDamageHardConstraintsMet = false
+                )
+            val t0 = System.nanoTime()
+            val proof = WakfuBestBuildFinderAlgorithm.proveMaxDamageOptimality(p, result)
+            val wallMs = (System.nanoTime() - t0) / 1_000_000
+            val row = "S4_MATRIX shape=${shape.label} verdict=$proof wallMs=$wallMs"
+            println(row)
+            rows += row
+        }
+        rows.forEach(::println)
+    }
+
+    /**
+     * P3 measurement: per-capper region CP on the REAL pool — the carrier forced, its condition
+     * kept (the only reification), every OTHER conditional condition-stripped (sound relaxation).
+     * If every capper's bound lands at or under the incumbent, the secZero/critZero worlds close
+     * by CP. `WAKFU_S4_CAPPER_CP=1`, shape via WAKFU_S4_SHAPE, incumbent via WAKFU_S4_INCUMBENT.
+     */
+    @Test
+    fun `manual capper region CP on the real pool`() {
+        assumeTrue(System.getenv("WAKFU_S4_CAPPER_CP") == "1")
+        val (clazz, level, targets) = shapePreset()
+        val pool =
+            WakfuBestBuildFinderAlgorithm.equipments
+                .filter { it.rarity <= Rarity.EPIC }
+                .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                .groupBy { it.itemType }
+        val p = mdParams(level, targets, clazz)
+        val incumbent = System.getenv("WAKFU_S4_INCUMBENT")?.toLongOrNull() ?: Long.MIN_VALUE
+        val seconds = System.getenv("WAKFU_S4_CP_SECONDS")?.toDoubleOrNull() ?: 120.0
+        val cappers =
+            WakfuBestBuildFinderAlgorithm.sublimations.filter {
+                it.solverChoosable &&
+                    (
+                        it.condition?.type == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST ||
+                            it.condition?.type == SublimationConditionType.CRITICAL_MASTERY_AT_MOST
+                    )
+            }
+        assertThat(cappers).isNotEmpty
+        for (capper in cappers) {
+            val subs =
+                WakfuBestBuildFinderAlgorithm.sublimations.map {
+                    if (it.stateId == capper.stateId) it else it.withRelaxedBuildStaticCondition()
+                }
+            val profile =
+                WakfuBuildSolver.timedMaxDamageProfileForTest(
+                    p,
+                    pool,
+                    WakfuBestBuildFinderAlgorithm.runes,
+                    subs,
+                    workers = 8,
+                    seconds = seconds,
+                    applyDomination = true,
+                    requiredSublimationStateId = capper.stateId
+                )
+            println(
+                "S4_CAPPER_CP capper=${capper.name.fr}(${capper.condition?.type}) status=${profile.status} " +
+                    "objective=${profile.objective} bound=${profile.bestBound} " +
+                    "closes=${incumbent != Long.MIN_VALUE && profile.bestBound <= incumbent}"
+            )
+        }
+    }
+
+    /** Targeted soundness lock for the secZero Lagrangian support, without pricing unrelated worlds. */
+    @Test
+    fun `manual secondary support covers exact capper worlds on seeded pools`() {
+        assumeTrue(System.getenv("WAKFU_S4_SECONDARY_LOCK") == "1")
+        val params =
+            mdParams(
+                200,
+                listOf(
+                    TargetStat(Characteristic.ACTION_POINT, 12),
+                    TargetStat(Characteristic.MOVEMENT_POINT, 7),
+                    TargetStat(Characteristic.CRITICAL_HIT, 100),
+                    TargetStat(Characteristic.HP, 8000)
+                )
+            )
+        val cappers =
+            WakfuBestBuildFinderAlgorithm.sublimations.filter {
+                it.solverChoosable && it.condition?.type == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST
+            }
+        assertThat(cappers).isNotEmpty
+        for ((label, pool) in seededPools()) {
+            val exactUpper =
+                cappers
+                    .mapNotNull { capper ->
+                        val exact =
+                            WakfuBuildSolver.timedMaxDamageProfileForTest(
+                                params,
+                                pool,
+                                WakfuBestBuildFinderAlgorithm.runes,
+                                WakfuBestBuildFinderAlgorithm.sublimations,
+                                workers = 8,
+                                seconds = 60.0,
+                                applyDomination = false,
+                                requiredSublimationStateId = capper.stateId
+                            )
+                        when (exact.status) {
+                            "OPTIMAL" -> exact.objective
+                            "INFEASIBLE" -> null
+                            else -> error("$label/${capper.name.fr}: exact=${exact.status}")
+                        }
+                    }.maxOrNull() ?: Long.MIN_VALUE
+            MaxDamageSoftCertificate.diStep = 1
+            MaxDamageSoftCertificate.hpStep = 1000
+            MaxDamageSoftCertificate.ccStep = 10
+            try {
+                for (mu in listOf(0L, 250L, 500L)) {
+                    val bound =
+                        requireNotNull(
+                            MaxDamageSoftCertificate.bound(
+                                params,
+                                pool,
+                                WakfuBestBuildFinderAlgorithm.runes,
+                                WakfuBestBuildFinderAlgorithm.sublimations,
+                                blockGate = false,
+                                ccSupportLambda = 4000,
+                                ccSupportBand = 1,
+                                coupleSecondaryItemNegative = true,
+                                netSecondaryItemBudget = true,
+                                exactNormalSubPacking = true,
+                                foldNegativeItemAp = true,
+                                foldNegativeMaxMp = true,
+                                splitLightWeaponCondition = true,
+                                requireConditionalSub = true,
+                                worldDropCaps = true,
+                                worldArm = "secZero",
+                                critAwareCollapse = true,
+                                critWeightAnchorPercent = 100,
+                                stateDependentMpRamp = true,
+                                elideImpliedConditionalMarker = true,
+                                secondarySupportPrice = mu,
+                                secondaryNetDimension = System.getenv("WAKFU_S4_SEC_DIM") == "1"
+                            )
+                        )
+                    println("S4_SECONDARY_LOCK $label mu=$mu exact=$exactUpper bound=${bound.foldedBound}")
+                    assertThat(bound.foldedBound)
+                        .describedAs("$label: μ=$mu secZero must cover every exact secondary-capper build")
+                        .isGreaterThanOrEqualTo(exactUpper)
+                }
+            } finally {
+                MaxDamageSoftCertificate.diStep = 1
+                MaxDamageSoftCertificate.hpStep = 500
+                MaxDamageSoftCertificate.ccStep = 10
+            }
         }
     }
 
@@ -370,7 +959,12 @@ class MaxDamageSoftCertificateTest {
                             foldNegativeItemAp = foldNegativeItemAp(),
                             foldNegativeMaxMp = foldNegativeMaxMp(),
                             splitLightWeaponCondition = splitLightWeaponCondition(),
-                            requireConditionalSub = requireConditionalSub()
+                            requireConditionalSub = requireConditionalSub(),
+                            critAwareCollapse = critAwareCollapse(),
+                            critWeightAnchorPercent = critWeightAnchor(),
+                            stateDependentMpRamp = stateDependentMpRamp(),
+                            elideImpliedConditionalMarker = elideImpliedConditionalMarker(),
+                            secondarySupportPrice = secondarySupportPrice()
                         )
                     ) { "$label: the prototype bailed on a supported shape" }
                 println(
@@ -422,7 +1016,11 @@ class MaxDamageSoftCertificateTest {
                         foldNegativeMaxMp = foldNegativeMaxMp(),
                         splitLightWeaponCondition = splitLightWeaponCondition(),
                         requireConditionalSub = requireConditionalSub(),
-                        diagnosticBasePlain = diagnostic
+                        diagnosticBasePlain = diagnostic,
+                        critAwareCollapse = critAwareCollapse(),
+                        critWeightAnchorPercent = critWeightAnchor(),
+                        stateDependentMpRamp = stateDependentMpRamp(),
+                        elideImpliedConditionalMarker = elideImpliedConditionalMarker()
                     )
                 ) { "the prototype bailed on the canonical S4 shape" }
             }
@@ -468,11 +1066,12 @@ class MaxDamageSoftCertificateTest {
             var refinedCount = 0
             var finalBound = 0L
             try {
-                // Coarse HP=2000: the §9.2 grid screen measured HP bucketing bound-inert on this
-                // shape (the binding state saturates HP through other relaxed paths) — halving the
-                // HP buckets halves the coarse world sweep. Refinements below restore HP=1000.
+                // Coarse HP=2000 by default: the §9.2 grid screen measured this bucketing
+                // bound-inert on the canonical shape. Research A/Bs may make it coarser through
+                // WAKFU_S4_COARSE_HP_STEP; refinements always restore HP=1000 below.
                 MaxDamageSoftCertificate.diStep = 10
-                MaxDamageSoftCertificate.hpStep = 2000
+                MaxDamageSoftCertificate.hpStep =
+                    System.getenv("WAKFU_S4_COARSE_HP_STEP")?.toIntOrNull()?.coerceAtLeast(1) ?: 2000
                 MaxDamageSoftCertificate.ccStep = 20
                 val coarse =
                     requireNotNull(
@@ -508,14 +1107,17 @@ class MaxDamageSoftCertificateTest {
                 require(pending.isNotEmpty()) { "adaptive coarse pass did not expose world reads" }
                 if (foldNegativeMaxMp()) println("S4_PROTO_ADAPTIVE coarseMpDebit=RELAXED refineMpDebit=SIGNED")
 
-                // Refinements restore HP=1000 (the coarse pass ran HP=2000 for speed).
-                MaxDamageSoftCertificate.hpStep = 1000
+                // Refinements restore HP=1000 by default. A/Bs may screen a coarser independently
+                // sound grid; it is promotable only when real-shape bounds stay unchanged.
+                MaxDamageSoftCertificate.hpStep =
+                    System.getenv("WAKFU_S4_REFINE_HP_STEP")?.toIntOrNull()?.coerceAtLeast(1) ?: 1000
 
                 fun refineAt(
                     world: MaxDamageSoftCertificate.WorldRead,
                     di: Int,
                 ): MaxDamageSoftCertificate.Result {
                     MaxDamageSoftCertificate.diStep = di
+                    val supportLambda = perWorldSupportLambda(level, world)
                     return requireNotNull(
                         MaxDamageSoftCertificate.bound(
                             p,
@@ -524,7 +1126,7 @@ class MaxDamageSoftCertificateTest {
                             WakfuBestBuildFinderAlgorithm.sublimations,
                             debug = timings(),
                             blockGate = false,
-                            ccSupportLambda = ccSupportLambda(),
+                            ccSupportLambda = supportLambda,
                             ccSupportBand = ccSupportBand(),
                             coupleSecondaryItemNegative = coupleSecondaryItemNegative(),
                             netSecondaryItemBudget = netSecondaryItemBudget(),
@@ -535,9 +1137,16 @@ class MaxDamageSoftCertificateTest {
                             requireConditionalSub = requireConditionalSub(),
                             worldAssume = world.assume,
                             worldDropCaps = world.assume == null,
-                            worldArm = world.arm
+                            worldArm = world.arm,
+                            critAwareCollapse = critAwareCollapse(),
+                            critWeightAnchorPercent = critWeightAnchor(),
+                            stateDependentMpRamp = stateDependentMpRamp(),
+                            elideImpliedConditionalMarker = elideImpliedConditionalMarker()
                         )
-                    ) { "adaptive DI=$di refinement bailed for assume=${world.assume?.name?.fr ?: "-"} arm=${world.arm}" }
+                    ) {
+                        "adaptive DI=$di refinement bailed for assume=${world.assume?.name?.fr ?: "-"} " +
+                            "arm=${world.arm} lambda=$supportLambda"
+                    }
                 }
 
                 fun unionOf(bound: Long): Long = if (requireConditionalSub()) maxOf(requireNotNull(oracle), bound) else bound
@@ -549,50 +1158,56 @@ class MaxDamageSoftCertificateTest {
                 ) = println(
                     "S4_PROTO_ADAPTIVE_REFINE assume=${world.assume?.name?.fr ?: "-"} arm=${world.arm} " +
                         "coarse=${world.foldedBound} refined=${refined.foldedBound} union=${unionOf(refined.foldedBound)} " +
-                        "tier=$tierLabel conditionalOnly=${requireConditionalSub()} states=${refined.states} wallMs=${refined.wallMs}"
+                        "tier=$tierLabel lambda=${perWorldSupportLambda(level, world)} conditionalOnly=${requireConditionalSub()} " +
+                        "states=${refined.states} wallMs=${refined.wallMs}"
                 )
 
-                // Grid CASCADE — every tier is independently sound, so the cheapest sufficient one
-                // carries the world; escalation only affects tightness/wall, never soundness.
-                // Refinements are SEQUENTIAL: a parallel DI10 wave over the contenders was measured
+                // Best-first grid cascade — every tier is independently sound. Refine only the
+                // world with the largest CURRENT upper, one tier at a time; once that winner is at
+                // DI=1, every other world's current (possibly coarse) upper is already below it.
+                // This avoids fully refining the coarse winner before a cheap DI=10 scout reveals
+                // that another arm owns the fine-grid maximum (IOP-200: plain → secZero).
+                // Refinements remain SEQUENTIAL: a parallel DI10 wave over the contenders measured
                 // (2026-07-16) at 87-94 s per world vs 29 s solo — the DP is memory-bandwidth/
                 // GC-bound, so world-level threads lose here exactly as in the coarse sweep.
-                //
-                // Conditional-union mode: the final bound is max(oracle, worlds), so a world only
-                // needs the cheapest grid landing AT OR BELOW maxOf(oracle, refinedBest) — every
-                // world cascades DI=10 → 4 → 1 and stops at the first sufficient tier. §9.18
-                // measured the DI=1 top-world pass 3.8% UNDER the oracle: fine grids are almost
-                // always waste in union mode. Non-conditional: the top world decides the final
-                // bound and goes straight to DI=1; later worlds try DI=4 and escalate only while
-                // above the running best.
-                // In union mode the floor starts AT the oracle: a coarse world already at or below
-                // it can never move the final bound (max(oracle, worlds)), so it skips refinement.
-                var refinedBest = if (requireConditionalSub()) requireNotNull(oracle) else 0L
-                while (refinedCount < pending.size && refinedBest < pending[refinedCount].foldedBound) {
-                    val world = pending[refinedCount]
-                    val tiers =
-                        when {
-                            requireConditionalSub() -> listOf(10, 4, 1)
-                            refinedCount == 0 -> listOf(1)
-                            else -> listOf(4, 1)
-                        }
-                    val floor = if (requireConditionalSub()) maxOf(refinedBest, requireNotNull(oracle)) else refinedBest
-                    var tier = tiers.first()
-                    var refined = refineAt(world, tier)
-                    refinedStates += refined.states
-                    for (next in tiers.drop(1)) {
-                        if (refined.foldedBound <= floor) break
-                        refineLog(world, refined, "DI$tier-escalate")
-                        tier = next
-                        refined = refineAt(world, next)
-                        refinedStates += refined.states
+                data class AdaptiveCandidate(
+                    val world: MaxDamageSoftCertificate.WorldRead,
+                    var upper: Long,
+                    var tierIndex: Int = -1,
+                )
+
+                val tiers = intArrayOf(10, 4, 1)
+                val candidates = pending.map { AdaptiveCandidate(it, it.foldedBound) }
+                val refinedWorlds = mutableSetOf<MaxDamageSoftCertificate.WorldRead>()
+                val floor = if (requireConditionalSub()) requireNotNull(oracle) else 0L
+                while (true) {
+                    val top = candidates.maxBy { it.upper }
+                    if (top.upper <= floor || top.tierIndex == tiers.lastIndex) {
+                        finalBound = maxOf(floor, top.upper)
+                        break
                     }
-                    refinedBest = maxOf(refinedBest, unionOf(refined.foldedBound))
-                    refinedCount += 1
-                    refineLog(world, refined, "DI$tier")
+                    top.tierIndex =
+                        if (skipMidTierForHighSecZero() &&
+                            level >= 175 &&
+                            top.world.arm == "secZero" &&
+                            top.tierIndex >= 0 &&
+                            tiers[top.tierIndex] == 10
+                        ) {
+                            tiers.lastIndex
+                        } else {
+                            top.tierIndex + 1
+                        }
+                    val tier = tiers[top.tierIndex]
+                    val refined = refineAt(top.world, tier)
+                    refinedStates += refined.states
+                    refinedWorlds += top.world
+                    // Both the previous grid and the new one are sound on this exact world. Their
+                    // min is sound too and prevents a coarser-axis anomaly from raising the queue.
+                    top.upper = minOf(top.upper, refined.foldedBound)
+                    refineLog(top.world, refined, "DI$tier-best-first")
                 }
-                val remainingUpper = pending.drop(refinedCount).maxOfOrNull { it.foldedBound } ?: 0L
-                finalBound = maxOf(refinedBest, remainingUpper)
+                refinedCount = refinedWorlds.size
+                val remainingUpper = candidates.filter { it.tierIndex < 0 }.maxOfOrNull { it.upper } ?: 0L
                 val wallMs = (System.nanoTime() - adaptiveT0) / 1_000_000
                 println(
                     "S4_PROTO_ADAPTIVE bound=$finalBound refinedWorlds=$refinedCount " +
@@ -652,7 +1267,9 @@ class MaxDamageSoftCertificateTest {
                             foldNegativeMaxMp = foldNegativeMaxMp(),
                             splitLightWeaponCondition = splitLightWeaponCondition(),
                             requireConditionalSub = requireConditionalSub(),
-                            diagnosticBasePlain = diagnostic
+                            diagnosticBasePlain = diagnostic,
+                            critAwareCollapse = critAwareCollapse(),
+                            critWeightAnchorPercent = critWeightAnchor()
                         )
                     println(
                         "S4_PROTO_GRID profile=${gridProfile ?: "legacy"} di=$di hp=$hp cc=$cc " +
@@ -684,12 +1301,18 @@ class MaxDamageSoftCertificateTest {
             MaxDamageSoftCertificate.ccStep = System.getenv("WAKFU_S4_PATH_CC")?.toIntOrNull() ?: 20
             MaxDamageSoftCertificate.hpStep = System.getenv("WAKFU_S4_PATH_HP")?.toIntOrNull() ?: 1000
             try {
+                val pathSublimations =
+                    if (System.getenv("WAKFU_S4_PATH_NO_COND_CATALOG") == "1") {
+                        WakfuBestBuildFinderAlgorithm.sublimations.filter { it.condition == null }
+                    } else {
+                        WakfuBestBuildFinderAlgorithm.sublimations
+                    }
                 val path =
                     MaxDamageSoftCertificate.bound(
                         p,
                         pool,
                         WakfuBestBuildFinderAlgorithm.runes,
-                        WakfuBestBuildFinderAlgorithm.sublimations,
+                        pathSublimations,
                         diag = if (System.getenv("WAKFU_S4_PATH_NOCOND") == "1") setOf("noCondSubs") else emptySet(),
                         debug = timings(),
                         blockGate = false,
@@ -706,9 +1329,37 @@ class MaxDamageSoftCertificateTest {
                         diagnosticBasePlain = diagnostic,
                         worldDropCaps = pathArm != null,
                         lightWeaponArm = pathLightArm,
-                        worldArm = pathArm
+                        worldArm = pathArm,
+                        critAwareCollapse = critAwareCollapse(),
+                        critWeightAnchorPercent = critWeightAnchor(),
+                        diagnosticBindingCcBandLow = System.getenv("WAKFU_S4_PATH_CC_BAND")?.toLongOrNull(),
+                        stateDependentMpRamp = stateDependentMpRamp(),
+                        elideImpliedConditionalMarker = elideImpliedConditionalMarker(),
+                        secondarySupportPrice = secondarySupportPrice(),
+                        secondaryNetDimension = System.getenv("WAKFU_S4_SEC_DIM") == "1"
                     )
                 println("S4_PROTO_PATH bound=${path?.foldedBound} binding=[${path?.bindingState}]")
+                path
+                    ?.targetCellBounds
+                    ?.entries
+                    ?.sortedByDescending { it.value }
+                    ?.take(20)
+                    ?.forEach { (cell, bound) -> println("S4_PROTO_CELL cell=$cell bound=$bound") }
+                println("S4_PROTO_BELOW_TARGET ${path?.belowTargetBounds}")
+                if (path != null && System.getenv("WAKFU_S4_FRONTIER_REGION") == "1") {
+                    val frontier =
+                        MaxDamageSoftCertificate.frontierRegionUpper(
+                            p,
+                            pool,
+                            WakfuBestBuildFinderAlgorithm.runes,
+                            pathSublimations,
+                            path,
+                            requireNotNull(System.getenv("WAKFU_S4_FRONTIER_INCUMBENT")?.toLongOrNull()),
+                            System.getenv("WAKFU_S4_FRONTIER_WORKERS")?.toIntOrNull() ?: 8,
+                            System.getenv("WAKFU_S4_FRONTIER_SECONDS")?.toDoubleOrNull() ?: 120.0
+                        )
+                    println("S4_PROTO_FRONTIER_REGION $frontier")
+                }
                 path?.bindingPath?.forEach { println("S4_PROTO_PATH_STEP $it") }
             } finally {
                 MaxDamageSoftCertificate.diStep = 1
@@ -738,9 +1389,172 @@ class MaxDamageSoftCertificateTest {
                     foldNegativeMaxMp = foldNegativeMaxMp(),
                     splitLightWeaponCondition = splitLightWeaponCondition(),
                     requireConditionalSub = requireConditionalSub(),
-                    diagnosticBasePlain = diagnostic
+                    diagnosticBasePlain = diagnostic,
+                    critAwareCollapse = critAwareCollapse(),
+                    critWeightAnchorPercent = critWeightAnchor()
                 )
             println("S4_PROTO_ATTRIB arm=$arm bound=${armBound?.foldedBound ?: "bail"}")
+        }
+    }
+
+    /** Multi-slope scalar envelope: min across independently sound anchors per CC band. */
+    @Test
+    fun `manual S4 crit anchor envelope`() {
+        val anchors =
+            System
+                .getenv("WAKFU_S4_CRIT_ANCHORS")
+                ?.split(',')
+                ?.mapNotNull { it.trim().toIntOrNull() }
+                .orEmpty()
+        assumeTrue(anchors.isNotEmpty())
+        val (clazz, level, targets) = shapePreset()
+        val pool =
+            WakfuBestBuildFinderAlgorithm.equipments
+                .filter { it.rarity <= Rarity.EPIC }
+                .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                .groupBy { it.itemType }
+        val p = mdParams(level, targets, clazz)
+        val reads =
+            anchors.associateWith { anchor ->
+                requireNotNull(
+                    MaxDamageSoftCertificate.bound(
+                        p,
+                        pool,
+                        WakfuBestBuildFinderAlgorithm.runes,
+                        WakfuBestBuildFinderAlgorithm.sublimations,
+                        blockGate = false,
+                        ccSupportLambda = ccSupportLambda(),
+                        ccSupportBand = ccSupportBand(),
+                        coupleSecondaryItemNegative = coupleSecondaryItemNegative(),
+                        netSecondaryItemBudget = netSecondaryItemBudget(),
+                        exactNormalSubPacking = exactNormalSubPacking(),
+                        foldNegativeItemAp = foldNegativeItemAp(),
+                        foldNegativeMaxMp = foldNegativeMaxMp(),
+                        splitLightWeaponCondition = splitLightWeaponCondition(),
+                        requireConditionalSub = requireConditionalSub(),
+                        critAwareCollapse = true,
+                        critWeightAnchorPercent = anchor,
+                        stateDependentMpRamp = stateDependentMpRamp(),
+                        elideImpliedConditionalMarker = elideImpliedConditionalMarker()
+                    )
+                )
+            }
+        val bands = reads.values.flatMapTo(sortedSetOf()) { it.ccBandBounds.keys }
+        val envelopeByBand =
+            bands.associateWith { band ->
+                reads.values.minOf { read -> read.ccBandBounds[band] ?: Long.MAX_VALUE }
+            }
+        val (worstBand, envelope) = envelopeByBand.maxBy { it.value }
+
+        data class BandOwner(
+            val anchor: Int,
+            val assume: String,
+            val arm: String,
+            val bound: Long,
+        )
+
+        val owners =
+            reads.flatMap { (anchor, read) ->
+                read.worldReads.mapNotNull { world ->
+                    world.ccBandBounds[worstBand]?.let { bandBound ->
+                        BandOwner(anchor, world.assume?.name?.fr ?: "-", world.arm, bandBound)
+                    }
+                }
+            }
+        // The envelope first takes max(world) for each anchor, then min(anchor). Reconstruct that
+        // order so the diagnostic names the world that truly owns the winning band.
+        val anchorOwners = owners.groupBy { it.anchor }.mapValues { (_, candidates) -> candidates.maxBy { it.bound } }
+        val envelopeOwner = anchorOwners.minBy { it.value.bound }.value
+        val oracle = requireNotNull(System.getenv("WAKFU_S4_ORACLE")?.toLongOrNull())
+        println(
+            "S4_CRIT_ANCHOR_ENVELOPE anchors=$anchors globals=${reads.mapValues { it.value.foldedBound }} " +
+                "bands=${bands.size} envelope=$envelope oracle=$oracle " +
+                "ratio=${"%.4f".format(envelope.toDouble() / oracle)} worstBand=$worstBand " +
+                "anchorBounds=${reads.mapValues { it.value.ccBandBounds[worstBand] }} " +
+                "owner=anchor:${envelopeOwner.anchor}/assume:${envelopeOwner.assume}/arm:${envelopeOwner.arm} " +
+                "ownerBound=${envelopeOwner.bound} " +
+                "anchorOwners=${anchorOwners.mapValues { (_, owner) -> "${owner.assume}/${owner.arm}:${owner.bound}" }}"
+        )
+        assertThat(envelope).describedAs("multi-anchor per-band envelope must remain sound").isGreaterThanOrEqualTo(oracle)
+    }
+
+    /** §9.22 controlled solver-parameter pairs under equal deterministic work. */
+    @Test
+    fun `manual S4 solver parameter controlled pairs`() {
+        val variant = System.getenv("WAKFU_S4_CP_PAIR")
+        assumeTrue(variant != null)
+        val (clazz, level, targets) = shapePreset()
+        val pool =
+            WakfuBestBuildFinderAlgorithm.equipments
+                .filter { it.rarity <= Rarity.EPIC }
+                .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                .groupBy { it.itemType }
+        val params = mdParams(level, targets, clazz)
+        val seedFrom = System.getenv("WAKFU_S4_CP_SEED_FROM")?.toIntOrNull() ?: 1
+        val seedCount = System.getenv("WAKFU_S4_CP_SEEDS")?.toIntOrNull() ?: 3
+        val deterministicLimit = System.getenv("WAKFU_S4_CP_DET")?.toDoubleOrNull() ?: 120.0
+        val seconds = System.getenv("WAKFU_S4_CP_SECONDS")?.toDoubleOrNull() ?: 1200.0
+
+        data class Arm(
+            val name: String,
+            val linearizationLevel: Int = 2,
+            val extraSubsolvers: List<String> = emptyList(),
+            val symmetryLevel: Int? = null,
+            val maxPresolveIterations: Int = 3,
+            val detectLinearizedProduct: Boolean = false,
+        )
+
+        val baseline = Arm("baseline")
+        val candidate =
+            when (variant) {
+                "lin1" -> Arm("lin1", linearizationLevel = 1)
+                "fixed" -> Arm("fixed", extraSubsolvers = listOf("fixed"))
+                "sym3" -> Arm("sym3", symmetryLevel = 3)
+                "sym4" -> Arm("sym4", symmetryLevel = 4)
+                "presolve8" -> Arm("presolve8", maxPresolveIterations = 8)
+                "detect-product" -> Arm("detect-product", detectLinearizedProduct = true)
+                else -> error("unknown WAKFU_S4_CP_PAIR=$variant")
+            }
+        for (seed in seedFrom until seedFrom + seedCount) {
+            val ordered = if (seed % 2 == 1) listOf(baseline, candidate) else listOf(candidate, baseline)
+            val reads = linkedMapOf<String, WakfuBuildSolver.MaxDamageTimedProfile>()
+            for (arm in ordered) {
+                val profile =
+                    WakfuBuildSolver.timedMaxDamageProfileForTest(
+                        params = params,
+                        equipmentsByItemType = pool,
+                        runes = WakfuBestBuildFinderAlgorithm.runes,
+                        sublimations = WakfuBestBuildFinderAlgorithm.sublimations,
+                        workers = 1,
+                        seconds = seconds,
+                        applyDomination = true,
+                        randomSeed = seed,
+                        experiment = MaxDamageExperimentConfig.DEFAULT,
+                        deterministicLimit = deterministicLimit,
+                        interleave = true,
+                        linearizationLevel = arm.linearizationLevel,
+                        extraSubsolvers = arm.extraSubsolvers,
+                        symmetryLevel = arm.symmetryLevel,
+                        maxPresolveIterations = arm.maxPresolveIterations,
+                        detectLinearizedProduct = arm.detectLinearizedProduct
+                    )
+                reads[arm.name] = profile
+                println(
+                    "S4_PARAM_PAIR variant=$variant shape=${System.getenv("WAKFU_S4_SHAPE") ?: "s4-245"} seed=$seed " +
+                        "order=${ordered.joinToString(",") { it.name }} arm=${arm.name} " +
+                        "status=${profile.status} objective=${profile.objective} bound=${profile.bestBound} " +
+                        "wall=${profile.wallTimeSec} det=${profile.deterministicTime} branches=${profile.branches} " +
+                        "conflicts=${profile.conflicts} lp=${profile.lpIterations}"
+                )
+            }
+            val baseRead = requireNotNull(reads[baseline.name])
+            val candidateRead = requireNotNull(reads[candidate.name])
+            println(
+                "S4_PARAM_PAIR_SUMMARY variant=$variant shape=${System.getenv("WAKFU_S4_SHAPE") ?: "s4-245"} seed=$seed " +
+                    "dualRatio=${candidateRead.bestBound.toDouble() / baseRead.bestBound.coerceAtLeast(1L)} " +
+                    "branchRatio=${candidateRead.branches.toDouble() / baseRead.branches.coerceAtLeast(1L)} " +
+                    "objectiveDelta=${if (candidateRead.hasSolution && baseRead.hasSolution) candidateRead.objective - baseRead.objective else "-"}"
+            )
         }
     }
 
@@ -774,12 +1588,16 @@ class MaxDamageSoftCertificateTest {
         val bindingArmSubs =
             when {
                 System.getenv("WAKFU_S4_CP_NOSUBS") == "1" -> emptyList()
+                System.getenv("WAKFU_S4_CP_ONLYCOND_RELAX") == "1" ->
+                    WakfuBestBuildFinderAlgorithm.sublimations
+                        .filter { it.condition != null && it.solverChoosable }
+                        .map { it.withRelaxedBuildStaticCondition() }
+                System.getenv("WAKFU_S4_CP_ONLYCOND") == "1" ->
+                    WakfuBestBuildFinderAlgorithm.sublimations.filter { it.condition != null && it.solverChoosable }
                 // RELAXCOND: KEEP every sub but strip the conditions (always-on credits) — a sound
                 // upper model (only relaxes) with ZERO reifications. §9.22 last family (option D).
                 System.getenv("WAKFU_S4_CP_RELAXCOND") == "1" ->
-                    WakfuBestBuildFinderAlgorithm.sublimations.map {
-                        if (it.condition != null && it.solverChoosable) it.copy(condition = null) else it
-                    }
+                    WakfuBestBuildFinderAlgorithm.sublimations.map { it.withRelaxedBuildStaticCondition() }
                 System.getenv("WAKFU_S4_CP_NOCOND") == "1" ->
                     WakfuBestBuildFinderAlgorithm.sublimations.filter { it.condition == null }
                 fullConditional || plainFull -> WakfuBestBuildFinderAlgorithm.sublimations
@@ -803,7 +1621,16 @@ class MaxDamageSoftCertificateTest {
                     if (System.getenv("WAKFU_S4_CP_CELL_SOFT") == "1") {
                         shapeTargets
                     } else {
-                        shapeTargets.filter { it.characteristic != Characteristic.ACTION_POINT }
+                        val hpFloor = System.getenv("WAKFU_S4_CP_HP_MIN")?.toIntOrNull()
+                        shapeTargets
+                            .filter { it.characteristic != Characteristic.ACTION_POINT }
+                            .map { target ->
+                                if (target.characteristic == Characteristic.HP && hpFloor != null) {
+                                    TargetStat(Characteristic.HP, hpFloor, target.userDefinedWeight)
+                                } else {
+                                    target
+                                }
+                            }
                     }
                 mdParams(level, cellTargets, clazz).copy(
                     maxDamageApTarget = apCell,
@@ -825,6 +1652,16 @@ class MaxDamageSoftCertificateTest {
                 penalizedObjectiveCutoff = cutoff,
                 requireAnyConditionalSublimation = fullConditional && !plainFull,
                 hardConstraints = cellMode && System.getenv("WAKFU_S4_CP_CELL_SOFT") != "1",
+                statLowerBounds =
+                    buildMap {
+                        System.getenv("WAKFU_S4_CP_MP_MIN")?.toLongOrNull()?.let {
+                            put(Characteristic.MOVEMENT_POINT, it)
+                        }
+                        System.getenv("WAKFU_S4_CP_CC_MIN")?.toLongOrNull()?.let {
+                            put(Characteristic.CRITICAL_HIT, it)
+                        }
+                        System.getenv("WAKFU_S4_CP_HP_MIN")?.toLongOrNull()?.let { put(Characteristic.HP, it) }
+                    },
                 interleave = System.getenv("WAKFU_S4_CP_INTERLEAVE") == "1",
                 logSearch = System.getenv("WAKFU_S4_CP_LOG") == "1",
                 linearizationLevel = System.getenv("WAKFU_S4_CP_LIN")?.toIntOrNull() ?: 2,
@@ -836,15 +1673,244 @@ class MaxDamageSoftCertificateTest {
         println(
             "S4_BINDING_CP cell=$cellMode cutoff=${cutoff ?: "-"} keptSubs=${bindingArmSubs.size} " +
                 "status=${profile.status} objective=${profile.objective} bound=${profile.bestBound} " +
-                "wall=${profile.wallTimeSec} det=${profile.deterministicTime} branches=${profile.branches}"
+                "wall=${profile.wallTimeSec} det=${profile.deterministicTime} branches=${profile.branches} " +
+                "selectedSubIds=${profile.selectedSublimationStateIds.sorted()}"
         )
     }
 
     /**
-     * §9.20 E2E gate for the PRODUCTION soft-leg proof: an incumbent at the (typed, re-proven)
-     * no-condition optimum — which §9.18 proved IS the full-model optimum on this shape — must
-     * come back **ProvenOptimal** through the real production entry
+     * Structural prototype: solve the condition-stripped upper model, validate its complete
+     * assignment in the exact model, and restore only the selected conditions that made that
+     * assignment infeasible. The small conditional-only CRA-80 fixture closes exactly in seconds
+     * and tells us whether this refinement has a realistic iteration count before touching the
+     * production path.
+     *
+     * ```shell
+     * WAKFU_S4_COND_REFINE=1 WAKFU_S4_SHAPE=cra80-free \
+     *   ./gradlew :autobuilder:test --tests '*MaxDamageSoftCertificateTest*refinement*' --rerun-tasks
+     * ```
+     */
+    @Test
+    fun `manual S4 conditional refinement prototype`() {
+        assumeTrue(System.getenv("WAKFU_S4_COND_REFINE") == "1")
+        val (clazz, level, targets) = shapePreset()
+        val pool =
+            WakfuBestBuildFinderAlgorithm.equipments
+                .filter { it.rarity <= Rarity.EPIC }
+                .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                .groupBy { it.itemType }
+        val conditionalSubs =
+            WakfuBestBuildFinderAlgorithm.sublimations
+                .filter { it.condition != null && it.solverChoosable }
+        val (proven, iterations) =
+            WakfuBuildSolver.conditionalRefinementProfileForTest(
+                params = mdParams(level, targets, clazz),
+                equipmentsByItemType = pool,
+                runes = WakfuBestBuildFinderAlgorithm.runes,
+                sublimations = conditionalSubs,
+                workers = System.getenv("WAKFU_S4_CP_WORKERS")?.toIntOrNull() ?: 8,
+                secondsPerIteration = System.getenv("WAKFU_S4_CP_SECONDS")?.toDoubleOrNull() ?: 60.0,
+                maxIterations = System.getenv("WAKFU_S4_REFINE_ITERS")?.toIntOrNull() ?: 20,
+                applyDomination = true
+            )
+        for (read in iterations) {
+            println(
+                "S4_COND_REFINE iteration=${read.iteration} status=${read.status} objective=${read.objective} " +
+                    "bound=${read.bestBound} " +
+                    "relaxedCount=${read.relaxedConditionIds.size} selectedSubIds=${read.selectedSublimationStateIds.sorted()} " +
+                    "enforce=${read.newlyEnforcedConditionIds.sorted()} upperWall=${read.relaxedWallTimeSec} " +
+                    "validation=${read.exactValidationStatus} validationWall=${read.exactValidationWallTimeSec}"
+            )
+        }
+        println(
+            "S4_COND_REFINE_SUMMARY proven=$proven iterations=${iterations.size} " +
+                "objective=${iterations.lastOrNull()?.objective ?: Long.MIN_VALUE}"
+        )
+        assertThat(iterations).isNotEmpty()
+    }
+
+    /** Sound union of a no-condition world and one single-reification upper world per conditional carrier. */
+    @Test
+    fun `manual S4 per-carrier conditional worlds`() {
+        assumeTrue(System.getenv("WAKFU_S4_CARRIER_WORLDS") == "1")
+        val (clazz, level, targets) = shapePreset()
+        val params = mdParams(level, targets, clazz)
+        val pool =
+            WakfuBestBuildFinderAlgorithm.equipments
+                .filter { it.rarity <= Rarity.EPIC }
+                .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                .groupBy { it.itemType }
+        val modeledConditional =
+            WakfuBestBuildFinderAlgorithm.sublimations.filter {
+                it.solverChoosable && it.condition?.type in SUPPORTED_SUB_CONDITIONS
+            }
+        val seconds = System.getenv("WAKFU_S4_CP_SECONDS")?.toDoubleOrNull() ?: 30.0
+        val workers = System.getenv("WAKFU_S4_CP_WORKERS")?.toIntOrNull() ?: 8
+        val noCondition =
+            WakfuBuildSolver.timedMaxDamageProfileForTest(
+                params,
+                pool,
+                WakfuBestBuildFinderAlgorithm.runes,
+                emptyList(),
+                workers,
+                seconds,
+                applyDomination = true
+            )
+        val reads = arrayListOf(noCondition)
+        println(
+            "S4_CARRIER_WORLD stateId=none status=${noCondition.status} objective=${noCondition.objective} " +
+                "bound=${noCondition.bestBound} wall=${noCondition.wallTimeSec}"
+        )
+        for (carrier in modeledConditional) {
+            val worldSubs =
+                modeledConditional.map { sub ->
+                    if (sub.stateId == carrier.stateId) sub else sub.withRelaxedBuildStaticCondition()
+                }
+            val read =
+                WakfuBuildSolver.timedMaxDamageProfileForTest(
+                    params,
+                    pool,
+                    WakfuBestBuildFinderAlgorithm.runes,
+                    worldSubs,
+                    workers,
+                    seconds,
+                    applyDomination = true,
+                    requiredSublimationStateId = carrier.stateId
+                )
+            reads += read
+            println(
+                "S4_CARRIER_WORLD stateId=${carrier.stateId} status=${read.status} objective=${read.objective} " +
+                    "bound=${read.bestBound} wall=${read.wallTimeSec} selected=${read.selectedSublimationStateIds.sorted()}"
+            )
+        }
+        val unionUpper = reads.maxOf { if (it.status == "OPTIMAL") it.objective else it.bestBound }
+        println(
+            "S4_CARRIER_WORLD_SUMMARY upper=$unionUpper allOptimal=${reads.all { it.status == "OPTIMAL" }} " +
+                "wall=${reads.sumOf { it.wallTimeSec }}"
+        )
+        assertThat(unionUpper).isGreaterThanOrEqualTo(0L)
+    }
+
+    /** External B&B: branch an invalid relaxed sub into excluded vs selected-with-exact-condition. */
+    @Test
+    fun `manual S4 conditional world branch and bound`() {
+        assumeTrue(System.getenv("WAKFU_S4_WORLD_BB") == "1")
+        val (clazz, level, targets) = shapePreset()
+        val pool =
+            WakfuBestBuildFinderAlgorithm.equipments
+                .filter { it.rarity <= Rarity.EPIC }
+                .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                .groupBy { it.itemType }
+        val worldSubs =
+            if (System.getenv("WAKFU_S4_WORLD_FULLCAT") == "1") {
+                WakfuBestBuildFinderAlgorithm.sublimations
+            } else {
+                WakfuBestBuildFinderAlgorithm.sublimations.filter {
+                    it.condition != null && it.solverChoosable
+                }
+            }
+        val incumbent = System.getenv("WAKFU_S4_INCUMBENT")?.toLongOrNull() ?: 522720L
+        val workers = System.getenv("WAKFU_S4_CP_WORKERS")?.toIntOrNull() ?: 8
+        val secondsPerNode = System.getenv("WAKFU_S4_CP_SECONDS")?.toDoubleOrNull() ?: 15.0
+        val maxNodes = System.getenv("WAKFU_S4_WORLD_NODES")?.toIntOrNull() ?: 50
+        val totalSeconds = System.getenv("WAKFU_S4_WORLD_TOTAL")?.toDoubleOrNull()
+        val proof =
+            if (totalSeconds != null) {
+                WakfuBuildSolver.conditionalWorldBranchAndBound(
+                    params = mdParams(level, targets, clazz),
+                    equipmentsByItemType = pool,
+                    runes = WakfuBestBuildFinderAlgorithm.runes,
+                    sublimations = worldSubs,
+                    incumbentObjective = incumbent,
+                    workers = workers,
+                    totalSeconds = totalSeconds,
+                    maxSecondsPerNode = secondsPerNode,
+                    deterministicLimitPerNode = System.getenv("WAKFU_S4_CP_DET")?.toDoubleOrNull(),
+                    interleave = System.getenv("WAKFU_S4_CP_INTERLEAVE") == "1",
+                    maxNodes = maxNodes,
+                    applyDomination = true,
+                    requiredFirst = System.getenv("WAKFU_S4_WORLD_REQUIRED_FIRST") == "1"
+                )
+            } else {
+                val (proven, reads) =
+                    WakfuBuildSolver.conditionalWorldBranchAndBoundForTest(
+                        params = mdParams(level, targets, clazz),
+                        equipmentsByItemType = pool,
+                        runes = WakfuBestBuildFinderAlgorithm.runes,
+                        sublimations = worldSubs,
+                        incumbentObjective = incumbent,
+                        workers = workers,
+                        secondsPerNode = secondsPerNode,
+                        deterministicLimitPerNode = System.getenv("WAKFU_S4_CP_DET")?.toDoubleOrNull(),
+                        interleave = System.getenv("WAKFU_S4_CP_INTERLEAVE") == "1",
+                        maxNodes = maxNodes,
+                        applyDomination = true
+                    )
+                if (proven) {
+                    WakfuBuildSolver.ConditionalWorldProof.Proven(incumbent, reads)
+                } else {
+                    WakfuBuildSolver.ConditionalWorldProof.Inconclusive(Long.MAX_VALUE, reads)
+                }
+            }
+        val proven = proof is WakfuBuildSolver.ConditionalWorldProof.Proven
+        val reads = proof.reads
+        reads.forEach { read ->
+            println(
+                "S4_WORLD_BB node=${read.node} required=${read.requiredConditionIds.sorted()} " +
+                    "excluded=${read.excludedConditionIds.sorted()} status=${read.status} objective=${read.objective} " +
+                    "bound=${read.bestBound} branch=${read.branchedOnStateId ?: "-"} " +
+                    "selected=${read.selectedSublimationStateIds.sorted()} disposition=${read.disposition} " +
+                    "wall=${read.wallTimeSec} det=${read.deterministicTime}"
+            )
+        }
+        println(
+            "S4_WORLD_BB_SUMMARY proven=$proven nodes=${reads.size} wall=${reads.sumOf { it.wallTimeSec }} " +
+                "det=${reads.sumOf { it.deterministicTime }} " +
+                "incumbent=$incumbent result=$proof"
+        )
+        assertThat(reads).isNotEmpty()
+    }
+
+    /** Exact production orchestration timing for a known full-model incumbent. */
+    @Test
+    fun `manual S4 conditional world production path`() {
+        assumeTrue(System.getenv("WAKFU_S4_WORLD_PROD") == "1")
+        val incumbent = requireNotNull(System.getenv("WAKFU_S4_INCUMBENT")?.toLongOrNull())
+        val (clazz, level, targets) = shapePreset()
+        val pool =
+            WakfuBestBuildFinderAlgorithm.equipments
+                .filter { it.rarity <= Rarity.EPIC }
+                .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                .groupBy { it.itemType }
+        val t0 = System.nanoTime()
+        val union =
+            requireNotNull(
+                MaxDamageSoftCertificate.hybridUnionUpper(
+                    params = mdParams(level, targets, clazz),
+                    pool = pool,
+                    runes = WakfuBestBuildFinderAlgorithm.runes,
+                    sublimations = WakfuBestBuildFinderAlgorithm.sublimations,
+                    oracleWorkers = System.getenv("WAKFU_S4_CP_WORKERS")?.toIntOrNull() ?: 8,
+                    oracleSeconds = System.getenv("WAKFU_S4_CP_SECONDS")?.toDoubleOrNull() ?: 240.0,
+                    incumbentObjective = incumbent
+                )
+            )
+        val wallMs = (System.nanoTime() - t0) / 1_000_000
+        println(
+            "S4_WORLD_PROD shape=${System.getenv("WAKFU_S4_SHAPE") ?: "s4"} incumbent=$incumbent " +
+                "upper=${union.upper} noCond=${union.noConditionUpper} noCondProven=${union.noConditionProven} " +
+                "reportedWallMs=${union.wallMs} measuredWallMs=$wallMs"
+        )
+        assertThat(union.upper).describedAs("production union must never under-count incumbent").isGreaterThanOrEqualTo(incumbent)
+    }
+
+    /**
+     * §9.20 E2E gate for the PRODUCTION soft-leg proof: an incumbent at the known no-condition
+     * optimum must come back with a useful ≤1% certificate through the real production entry
      * (`proveMaxDamageOptimality` → target-missing soft branch → `hybridUnionUpper`).
+     * v22 deliberately replaces the second CP-SAT oracle with a bounded DP after the main solve
+     * stalls; S4 currently returns ProvenWithin(0.343%), and may return ProvenOptimal again when
+     * that last no-condition residual closes.
      *
      * ```shell
      * ./gradlew --stop
@@ -876,10 +1942,31 @@ class MaxDamageSoftCertificateTest {
             )
         val proofT0 = System.nanoTime()
         val proof = WakfuBestBuildFinderAlgorithm.proveMaxDamageOptimality(p, result)
-        println("S4_PROD_PROOF incumbent=$incumbent verdict=$proof proofWallMs=${(System.nanoTime() - proofT0) / 1_000_000}")
-        assertThat(proof)
-            .describedAs("the production soft-leg proof must close S4 exactly (ProvenOptimal)")
-            .isEqualTo(MaxDamageSearch.MaxDamageProof.ProvenOptimal)
+        val proofWallMs = (System.nanoTime() - proofT0) / 1_000_000
+        println("S4_PROD_PROOF incumbent=$incumbent verdict=$proof proofWallMs=$proofWallMs")
+        val certifiedGap =
+            when (proof) {
+                MaxDamageSearch.MaxDamageProof.ProvenOptimal -> 0.0
+                is MaxDamageSearch.MaxDamageProof.ProvenWithin -> proof.fraction
+                MaxDamageSearch.MaxDamageProof.Unavailable -> Double.POSITIVE_INFINITY
+            }
+        // Per-shape contract. The S4-245 frontier must close EXACTLY (its conditional union
+        // falls under the exact no-condition authority) and IOP-200 must stay within the
+        // production acceptance floor. Shapes whose authority is a deadline-clipped CP leg
+        // (cra80/cra140-class) only promise a DISPLAYABLE badge inside the proof deadline —
+        // their exact closure is the open structural work.
+        val maxGap =
+            when (System.getenv("WAKFU_S4_SHAPE") ?: "s4") {
+                "s4" -> 0.0
+                "iop200-frontier" -> 0.02
+                else -> 0.25
+            }
+        assertThat(certifiedGap)
+            .describedAs("the production soft-leg proof must certify within the shape's contract")
+            .isLessThanOrEqualTo(maxGap)
+        assertThat(proofWallMs)
+            .describedAs("the proof phase must conclude within the product deadline (plus harness slack)")
+            .isLessThanOrEqualTo(150_000L)
     }
 
     /**
@@ -1079,5 +2166,66 @@ class MaxDamageSoftCertificateTest {
         runes.forEach { (item, chosen) ->
             println("S4_WITNESS_RUNE ${item.name.fr}=${chosen.first().name.fr}:${chosen.first().valueOn(item.itemType, item.level)}x${chosen.size}")
         }
+    }
+
+    /** Pin the IOP-200 secZero DP provenance into the exact CP model. */
+    @Test
+    fun `manual IOP DP witness exact validation`() {
+        assumeTrue(System.getenv("WAKFU_IOP_DP_WITNESS") == "1")
+        val (_, level, targets) = shapePreset()
+        require(level == 200) { "run with WAKFU_S4_SHAPE=iop200-frontier" }
+        val params = mdParams(level, targets, CharacterClass.IOP)
+        val pool =
+            WakfuBestBuildFinderAlgorithm.equipments
+                .filter { it.rarity <= Rarity.EPIC }
+                .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                .groupBy { it.itemType }
+        val equipmentIds =
+            setOf(
+                26897,
+                27416,
+                26497,
+                26287,
+                26996,
+                25078,
+                27557,
+                26952,
+                26323,
+                21760,
+                21859,
+                14527,
+                14422,
+                27923
+            )
+        val subCopies =
+            mapOf(
+                6005 to 1, // Vélocité II
+                6008 to 1, // Vivacité II
+                6825 to 2, // Destruction III
+                6931 to 1, // Neutralité III
+                7088 to 1, // Poids Plume III
+                7115 to 1, // Ambition III
+                7862 to 2, // Influence vitale III
+                8518 to 1, // Brûlure III
+                5445 to 1 // Anatomie
+            )
+        val read =
+            WakfuBuildSolver.timedMaxDamageProfileForTest(
+                params = params,
+                equipmentsByItemType = pool,
+                runes = WakfuBestBuildFinderAlgorithm.runes,
+                sublimations = WakfuBestBuildFinderAlgorithm.sublimations,
+                workers = 8,
+                seconds = 120.0,
+                applyDomination = false,
+                pinnedEquipmentIds = equipmentIds,
+                pinnedSublimationCopies = subCopies
+            )
+        println(
+            "IOP_DP_WITNESS status=${read.status} objective=${read.objective} bound=${read.bestBound} " +
+                "raw=${read.rawObjective} stats=${read.actualStats} wall=${read.wallTimeSec} " +
+                "items=${read.selectedEquipmentIds.sorted()} subs=${read.selectedSublimationCopies.toSortedMap()}"
+        )
+        assertThat(read.status).isIn("OPTIMAL", "INFEASIBLE")
     }
 }

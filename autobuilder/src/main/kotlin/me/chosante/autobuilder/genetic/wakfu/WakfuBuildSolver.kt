@@ -30,6 +30,7 @@ import me.chosante.common.Rarity
 import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationConditionType
+import me.chosante.common.SublimationEffect
 import me.chosante.common.SublimationRarity
 import me.chosante.common.skills.Assignable
 import me.chosante.common.skills.CharacterSkills
@@ -184,9 +185,23 @@ object WakfuBuildSolver {
      * packed `(state, AP-cell, crit-step)` coordinate list built during the DP sweep instead of re-scanning
      * `all cells × all crit steps`. Same visiting order and predicates ⇒ ledger byte-identical (locked by
      * [MaxDamageCertifierHarvestIndexTest]); fast tier −16%, total −9% serial. OFF seam:
-     * `WAKFU_MAX_DAMAGE_CERT_INDEXED_HARVEST=0`.
+     * `WAKFU_MAX_DAMAGE_CERT_INDEXED_HARVEST=0`;
+     * 17: fixes the soft-proof conditions-stripped relaxation so STATIC_CONDITIONAL subs become
+     * FLAT instead of being filtered out. This restores the required upper-bound relation on
+     * conditional-carrying optima and invalidates every cached union computed by v16;
+     * 18: adds the bounded external conditional-world B&B ahead of the soft DP. Its exhaustive
+     * `{sub=0 | sub=1+exact-condition}` partitions either close at the incumbent or contribute a
+     * sound global frontier dual; every cached v17 soft union must therefore be recomputed;
+     * 19: confines that B&B to the measured level≤110 regime and makes its 180 s budget terminal
+     * (inconclusive returns the sound frontier upper instead of stacking the old DP/oracle budgets).
+     * OPTIMAL nodes also use their rounded exact objective, avoiding a +1 floating dual epsilon;
+     * 20: removes per-candidate pinned probe solves from conditional-world branching. They only
+     * improved the branch heuristic (not soundness) and consumed much of the real total budget;
+     * 21: intersects every finite-time child dual with its inherited parent dual. A child is a
+     * subset of its parent, so this is an exact free tightening and prevents timeout noise from
+     * making a deeper frontier bound worse than an already-known ancestor bound.
      */
-    const val CERTIFIER_VERSION: Int = 16
+    const val CERTIFIER_VERSION: Int = 29
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
@@ -833,6 +848,9 @@ object WakfuBuildSolver {
         val mmPenaltyBucketProbeVars: Pair<IntVar, IntVar>? = null,
         // §8.5 S-D only: the hard leg's assumption literals (target → literal); null otherwise.
         val mmAssumptionLiterals: Map<Characteristic, com.google.ortools.sat.BoolVar>? = null,
+        // Test/research partition seam: resolved sheet-stat vars used by exact region oracles.
+        // Keeping them on BuiltModel avoids rebuilding a second StatBuilder after the objective.
+        val actualStatVars: Map<Characteristic, IntVar> = emptyMap(),
     )
 
     /**
@@ -1053,6 +1071,7 @@ object WakfuBuildSolver {
         var mmPenaltyProbeVars: Pair<IntVar, IntVar>? = null
         // §8.5 S-D: the hard leg's assumption literals (target → literal).
         var mmAssumptionLits: Map<Characteristic, com.google.ortools.sat.BoolVar>? = null
+        var actualStatVars: Map<Characteristic, IntVar> = emptyMap()
         val objective =
             when (params.scoreComputationMode) {
                 ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT -> {
@@ -1158,6 +1177,13 @@ object WakfuBuildSolver {
                     certifierExplain = statBuilder.certifierExplainForTest
                     certifierExplainItemIds = statBuilder.certifierExplainItemIds
                     critDiffJointCutBound = statBuilder.critDiffJointCutBoundForTest
+                    actualStatVars =
+                        listOf(
+                            Characteristic.ACTION_POINT,
+                            Characteristic.MOVEMENT_POINT,
+                            Characteristic.CRITICAL_HIT,
+                            Characteristic.HP
+                        ).associateWith(statBuilder::actualStat)
                     built.objective
                 }
             }
@@ -1189,7 +1215,8 @@ object WakfuBuildSolver {
             maxDamageStaticallyInfeasible,
             critDiffJointCutBound,
             mmPenaltyProbeVars,
-            mmAssumptionLits
+            mmAssumptionLits,
+            actualStatVars
         )
     }
 
@@ -1250,9 +1277,757 @@ object WakfuBuildSolver {
         val constraints: Int,
         val poolSize: Int,
         val experiment: MaxDamageExperimentConfig,
+        val selectedEquipmentIds: Set<Int>,
+        val selectedSublimationStateIds: Set<Int>,
+        val selectedSublimationCopies: Map<Int, Long>,
+        val actualStats: Map<Characteristic, Long>,
+        val rawObjective: Long,
     ) {
         val hasSolution: Boolean
             get() = objective != Long.MIN_VALUE
+    }
+
+    /** One outer-approximation step of [conditionalRefinementProfileForTest]. */
+    internal data class ConditionalRefinementIteration(
+        val iteration: Int,
+        val status: String,
+        val objective: Long,
+        val bestBound: Long,
+        val relaxedConditionIds: Set<Int>,
+        val selectedSublimationStateIds: Set<Int>,
+        val newlyEnforcedConditionIds: Set<Int>,
+        val relaxedWallTimeSec: Double,
+        val exactValidationStatus: String,
+        val exactValidationWallTimeSec: Double,
+    )
+
+    /**
+     * Research-only structural encoding for build-static sublimations.
+     *
+     * Start with every choosable condition removed, solve that upper model to optimality, then pin
+     * its complete decision assignment in the exact model. If the exact model rejects it, restore
+     * the exact gates of every selected condition-bearing sub and rebuild. Each failed iteration
+     * activates at least one previously relaxed condition, so the loop converges in at most
+     * `conditional sub count + 1` solves. When the pinned assignment is exact-feasible, its relaxed
+     * objective is achievable in the exact model and equals the upper model's optimum: that is a
+     * proof of the exact global optimum.
+     *
+     * This deliberately lives behind a test seam until its behaviour on the full S4 shape is known.
+     */
+    internal fun conditionalRefinementProfileForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        workers: Int,
+        secondsPerIteration: Double,
+        maxIterations: Int,
+        applyDomination: Boolean,
+    ): Pair<Boolean, List<ConditionalRefinementIteration>> {
+        val conditionalIds =
+            sublimations
+                .asSequence()
+                .filter {
+                    it.solverChoosable &&
+                        it.condition?.type in SUPPORTED_SUB_CONDITIONS
+                }.mapTo(linkedSetOf()) { it.stateId }
+        val enforcedIds = linkedSetOf<Int>()
+        val iterations = arrayListOf<ConditionalRefinementIteration>()
+
+        repeat(maxIterations) { index ->
+            val mixedSubs =
+                sublimations.map { sub ->
+                    if (sub.stateId in enforcedIds) sub else sub.withRelaxedBuildStaticCondition()
+                }
+            val relaxedBuilt =
+                buildModel(
+                    params,
+                    equipmentsByItemType,
+                    runes,
+                    mixedSubs,
+                    applyDomination = applyDomination
+                )
+            val relaxedSolver = CpSolver()
+            relaxedSolver.parameters.linearizationLevel = 2
+            relaxedSolver.parameters.maxPresolveIterations = 3
+            relaxedSolver.parameters.numSearchWorkers = workers
+            relaxedSolver.parameters.randomSeed = 1
+            relaxedSolver.parameters.maxTimeInSeconds = secondsPerIteration
+            val relaxedStatus = relaxedSolver.solve(relaxedBuilt.model)
+            val relaxedHasSolution =
+                relaxedStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                    relaxedStatus == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+            require(relaxedHasSolution) { "conditional refinement upper solve $index has no solution: $relaxedStatus" }
+            val relaxedVars = diagnosticVars(relaxedBuilt)
+            val assignment = relaxedVars.associate { it.name to relaxedSolver.value(it) }
+            val selectedSubIds =
+                relaxedBuilt.subModel.subVars
+                    .filterValues { relaxedSolver.value(it) > 0L }
+                    .keys
+                    .mapTo(linkedSetOf()) { it.stateId }
+            if (relaxedStatus != com.google.ortools.sat.CpSolverStatus.OPTIMAL) {
+                iterations +=
+                    ConditionalRefinementIteration(
+                        iteration = index + 1,
+                        status = relaxedStatus.toString(),
+                        objective = relaxedSolver.objectiveValue().toLong(),
+                        bestBound = relaxedSolver.bestObjectiveBound().toLong(),
+                        relaxedConditionIds = conditionalIds - enforcedIds,
+                        selectedSublimationStateIds = selectedSubIds,
+                        newlyEnforcedConditionIds = emptySet(),
+                        relaxedWallTimeSec = relaxedSolver.wallTime(),
+                        exactValidationStatus = "NOT_RUN",
+                        exactValidationWallTimeSec = 0.0
+                    )
+                return false to iterations
+            }
+
+            // Domination is shape-dependent: the relaxed sub effects can retain a different
+            // item pool than the exact effects. Validate against models built on the already-
+            // selected relaxed pool so every decision name remains identical.
+            fun validatePinned(validationSubs: List<Sublimation>): Pair<com.google.ortools.sat.CpSolverStatus, CpSolver> {
+                val validationBuilt =
+                    buildModel(
+                        params,
+                        relaxedBuilt.allEquips.groupBy { it.itemType },
+                        runes,
+                        validationSubs,
+                        forceFullPool = true,
+                        applyDomination = false
+                    )
+                val validationVars = diagnosticVars(validationBuilt)
+                val validationNames = validationVars.mapTo(linkedSetOf()) { it.name }
+                require(validationNames == assignment.keys) {
+                    "relaxed/exact decision-variable drift: relaxedOnly=${assignment.keys - validationNames}, " +
+                        "exactOnly=${validationNames - assignment.keys}"
+                }
+                validationVars.forEach { validationBuilt.model.addEquality(it, assignment.getValue(it.name)) }
+                val validationSolver = CpSolver()
+                validationSolver.parameters.linearizationLevel = 2
+                validationSolver.parameters.maxPresolveIterations = 3
+                validationSolver.parameters.numSearchWorkers = 1
+                validationSolver.parameters.randomSeed = 1
+                validationSolver.parameters.maxTimeInSeconds = secondsPerIteration.coerceAtMost(30.0)
+                return validationSolver.solve(validationBuilt.model) to validationSolver
+            }
+
+            val (exactStatus, exactSolver) = validatePinned(sublimations)
+            val exactFeasible =
+                exactStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                    exactStatus == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+
+            val newlyEnforced =
+                if (exactFeasible) {
+                    emptySet()
+                } else {
+                    require(exactStatus == com.google.ortools.sat.CpSolverStatus.INFEASIBLE) {
+                        "conditional refinement validation is inconclusive: $exactStatus"
+                    }
+                    val candidates =
+                        selectedSubIds
+                            .asSequence()
+                            .filter { it in conditionalIds && it !in enforcedIds }
+                            .toCollection(linkedSetOf())
+                    require(candidates.isNotEmpty()) {
+                        "exact assignment is infeasible but no selected relaxed condition can explain it; " +
+                            "selected=$selectedSubIds enforced=$enforcedIds"
+                    }
+                    // Identify the actual offenders instead of reifying every selected condition.
+                    // Each probe restores ONE candidate on top of the already-enforced set while
+                    // all decisions are pinned, so presolve normally decides it immediately.
+                    // If no condition fails alone (an interaction), conservatively restore all.
+                    val individuallyViolated =
+                        candidates
+                            .asSequence()
+                            .filter { candidateId ->
+                                val probeSubs =
+                                    sublimations.map { sub ->
+                                        if (sub.stateId in enforcedIds || sub.stateId == candidateId) {
+                                            sub
+                                        } else {
+                                            sub.withRelaxedBuildStaticCondition()
+                                        }
+                                    }
+                                val (probeStatus, _) = validatePinned(probeSubs)
+                                require(
+                                    probeStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                                        probeStatus == com.google.ortools.sat.CpSolverStatus.FEASIBLE ||
+                                        probeStatus == com.google.ortools.sat.CpSolverStatus.INFEASIBLE
+                                ) { "single-condition validation is inconclusive for $candidateId: $probeStatus" }
+                                probeStatus == com.google.ortools.sat.CpSolverStatus.INFEASIBLE
+                            }.toCollection(linkedSetOf())
+                    individuallyViolated.ifEmpty { candidates }
+                }
+            iterations +=
+                ConditionalRefinementIteration(
+                    iteration = index + 1,
+                    status = relaxedStatus.toString(),
+                    objective = relaxedSolver.objectiveValue().toLong(),
+                    bestBound = relaxedSolver.bestObjectiveBound().toLong(),
+                    relaxedConditionIds = conditionalIds - enforcedIds,
+                    selectedSublimationStateIds = selectedSubIds,
+                    newlyEnforcedConditionIds = newlyEnforced,
+                    relaxedWallTimeSec = relaxedSolver.wallTime(),
+                    exactValidationStatus = exactStatus.toString(),
+                    exactValidationWallTimeSec = exactSolver.wallTime()
+                )
+            if (exactFeasible) {
+                require(exactSolver.objectiveValue().toLong() == relaxedSolver.objectiveValue().toLong()) {
+                    "exact-feasible assignment changed objective: relaxed=${relaxedSolver.objectiveValue()}, " +
+                        "exact=${exactSolver.objectiveValue()}"
+                }
+                return true to iterations
+            }
+            newlyEnforced.forEach { enforcedIds += it }
+        }
+        return false to iterations
+    }
+
+    internal data class ConditionalWorldBranchRead(
+        val node: Int,
+        val requiredConditionIds: Set<Int>,
+        val excludedConditionIds: Set<Int>,
+        val status: String,
+        val objective: Long,
+        val bestBound: Long,
+        val selectedSublimationStateIds: Set<Int>,
+        val branchedOnStateId: Int?,
+        val wallTimeSec: Double,
+        val deterministicTime: Double,
+        val disposition: String,
+    )
+
+    internal sealed interface ConditionalWorldProof {
+        val reads: List<ConditionalWorldBranchRead>
+
+        /** Every leaf has a sound dual at most [upper]. */
+        data class Proven(
+            val upper: Long,
+            override val reads: List<ConditionalWorldBranchRead>,
+        ) : ConditionalWorldProof
+
+        /** The bounded run stopped; [upper] still soundly covers every open leaf. */
+        data class Inconclusive(
+            val upper: Long,
+            override val reads: List<ConditionalWorldBranchRead>,
+        ) : ConditionalWorldProof
+
+        /** A completely pinned assignment is feasible in the exact model above the proposed incumbent. */
+        data class Counterexample(
+            val objective: Long,
+            override val reads: List<ConditionalWorldBranchRead>,
+        ) : ConditionalWorldProof
+    }
+
+    /**
+     * Research-only external branch-and-bound over conditional-sub selection. For an invalid
+     * relaxed assignment using `s`, children `{s = 0}` and `{s = 1, condition(s) exact}` partition
+     * every exact build in the parent. A node is discarded as soon as its sound upper is at most
+     * [incumbentObjective], avoiding a monolithic model containing every indicator.
+     */
+    internal fun conditionalWorldBranchAndBound(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        incumbentObjective: Long,
+        workers: Int,
+        totalSeconds: Double,
+        maxSecondsPerNode: Double,
+        deterministicLimitPerNode: Double? = null,
+        interleave: Boolean = false,
+        maxNodes: Int,
+        applyDomination: Boolean,
+        requiredFirst: Boolean = false,
+        // Root prognosis (generality-matrix fix, 2026-07-18): when the ROOT node's dual exceeds
+        // incumbent × (1 + fraction), the reification wall makes closure hopeless in any bounded
+        // budget (iop110-full: root +142% vs cra80-ap10's +14% which closes) — bail after the
+        // single root solve so the caller can fall through to the DP union instead.
+        rootBailFraction: Double? = null,
+        shouldContinue: () -> Boolean = { true },
+    ): ConditionalWorldProof {
+        data class Node(
+            val enforced: Set<Int> = emptySet(),
+            val required: Set<Int> = emptySet(),
+            val excluded: Set<Int> = emptySet(),
+            val inheritedUpper: Long = Long.MAX_VALUE,
+            // Parent's mixed-solve assignment, used as a CP-SAT solution hint: child models share
+            // most of the structure, so the parent primal seeds a strong incumbent immediately.
+            // Hints may violate the child's fixes — CP-SAT repairs them; soundness is unaffected.
+            val hint: Map<String, Long>? = null,
+        )
+
+        val subByStateId = sublimations.associateBy { it.stateId }
+        val candidateConditionalIds =
+            sublimations
+                .asSequence()
+                .filter { it.solverChoosable && it.condition?.type in SUPPORTED_SUB_CONDITIONS }
+                .mapTo(linkedSetOf()) { it.stateId }
+        // Sibling nodes are independent CP solves and small models scale poorly past ~4 CP
+        // workers, so two concurrent nodes at workers/2 beat one node at full width. All mutable
+        // tree state below is guarded by [lock]; in-flight nodes stay part of the open frontier
+        // so a timeout that fires mid-solve still reports a sound inconclusive upper.
+        val lock = Object()
+        val queue = java.util.ArrayDeque<Node>()
+        queue.add(Node())
+        val inFlight = java.util.IdentityHashMap<Node, Unit>()
+        val reads = arrayListOf<ConditionalWorldBranchRead>()
+        val startedAt = System.nanoTime()
+        val deadline = startedAt + (totalSeconds.coerceAtLeast(0.0) * 1_000_000_000.0).toLong()
+        var closedUpper = Long.MIN_VALUE
+        var nodesTaken = 0
+        var terminal: ConditionalWorldProof? = null
+
+        fun secondsRemaining(): Double = ((deadline - System.nanoTime()).coerceAtLeast(0L) / 1_000_000_000.0)
+
+        // Callers must hold [lock].
+        fun frontierUpper(currentUpper: Long? = null): Long =
+            sequenceOf(currentUpper ?: Long.MIN_VALUE)
+                .plus(queue.asSequence().map { it.inheritedUpper })
+                .plus(inFlight.keys.asSequence().map { it.inheritedUpper })
+                .maxOrNull() ?: Long.MAX_VALUE
+
+        // Callers must hold [lock].
+        fun inconclusive(currentUpper: Long? = null): ConditionalWorldProof.Inconclusive =
+            ConditionalWorldProof.Inconclusive(
+                upper = maxOf(closedUpper, frontierUpper(currentUpper)),
+                reads = reads.toList()
+            )
+
+        fun soundIntegralUpper(value: Double): Long =
+            when {
+                value.isNaN() || value == Double.POSITIVE_INFINITY -> Long.MAX_VALUE
+                value == Double.NEGATIVE_INFINITY -> Long.MIN_VALUE
+                value >= Long.MAX_VALUE.toDouble() -> Long.MAX_VALUE
+                value <= Long.MIN_VALUE.toDouble() -> Long.MIN_VALUE
+                else -> kotlin.math.ceil(value).toLong()
+            }
+
+        // 2 node-workers × workers/2 CP threads. Measured at cra80-ap10 (2026-07-18): 4×2 was a
+        // REGRESSION (tree stopped closing — 2 CP threads cannot close the required-nodes that
+        // 4 threads prove in 8-14 s, and the machine is CPU-bound at 2×4 anyway).
+        val nodeWorkerCount = if (workers >= 4) 2 else 1
+        val cpWorkersPerNode = maxOf(1, workers / nodeWorkerCount)
+
+        fun configure(
+            solver: CpSolver,
+            seconds: Double,
+        ) {
+            solver.parameters.linearizationLevel = 2
+            solver.parameters.maxPresolveIterations = 3
+            solver.parameters.numSearchWorkers = cpWorkersPerNode
+            solver.parameters.randomSeed = 1
+            solver.parameters.maxTimeInSeconds = seconds
+            deterministicLimitPerNode?.let { solver.parameters.maxDeterministicTime = it }
+            solver.parameters.interleaveSearch = interleave
+        }
+
+        // Perf-only heuristic (soundness is independent of the choice): branch first on the
+        // relaxed credit with the largest rough max-damage marginal. This approximates one
+        // strong-branching decision without solving 2×candidate child probes.
+        fun branchImpact(stateId: Int): Long {
+            val sub = subByStateId.getValue(stateId)
+            val flatImpact =
+                sub.effects.filterIsInstance<SublimationEffect.StatEffect>().sumOf { effect ->
+                    val weight =
+                        when (effect.characteristic) {
+                            Characteristic.ACTION_POINT -> 100_000L
+                            Characteristic.MOVEMENT_POINT -> 50_000L
+                            Characteristic.RANGE -> 20_000L
+                            Characteristic.DAMAGE_INFLICTED -> 10_000L
+                            Characteristic.CRITICAL_HIT, Characteristic.BLOCK_PERCENTAGE -> 1_000L
+                            else -> 1L
+                        }
+                    kotlin.math.abs(effect.magnitudeAtLevel(params.character.level).toLong()) * weight
+                }
+            return flatImpact + (sub.conversion?.percent?.toLong() ?: 0L) * 1_000L
+        }
+
+        // A processed node's effect on the shared tree, applied atomically by the driver: the
+        // read id is assigned under [lock], children keep the serial pop order, and a terminal
+        // outcome (counterexample / inconclusive) wins over any concurrent sibling.
+        class NodeOutcome(
+            val read: ((Int) -> ConditionalWorldBranchRead)? = null,
+            val children: List<Node> = emptyList(),
+            val closedContribution: Long? = null,
+            val counterexample: Long? = null,
+            val inconclusiveUpper: Long? = null,
+            val isInconclusive: Boolean = false,
+        )
+
+        fun processNode(node: Node): NodeOutcome {
+            val mixedSubs =
+                sublimations.map { sub ->
+                    if (sub.stateId in node.enforced) sub else sub.withRelaxedBuildStaticCondition()
+                }
+            val built =
+                buildModel(
+                    params,
+                    equipmentsByItemType,
+                    runes,
+                    mixedSubs,
+                    // Sound outer-bound chain: exact-node optimum ≤ mixed-node optimum.
+                    // [dominationShape] pins every stat read by the conditions that remain exact,
+                    // so domination preserves the mixed optimum; stripped conditions need no pin.
+                    // Therefore mixed dominated optimum still upper-bounds the exact node.
+                    applyDomination = applyDomination
+                )
+
+            fun applyNodeFixes(target: BuiltModel) {
+                val varsById =
+                    target.subModel.subVars.entries
+                        .associate { it.key.stateId to it.value }
+                node.required.forEach { stateId -> target.model.addEquality(varsById.getValue(stateId), 1L) }
+                node.excluded.forEach { stateId -> target.model.addEquality(varsById.getValue(stateId), 0L) }
+            }
+            applyNodeFixes(built)
+            // NOTE (measured 2026-07-18): posting `objective ≤ inheritedUpper` on the mixed node
+            // is sound but SLOWER (161 s vs 140 s tree closure at cra80-ap10) — consistent with
+            // the §9.22 "objective caps in either direction" do-not-retry.
+            node.hint?.let { hint ->
+                val seen = HashSet<String>()
+                diagnosticVars(built).forEach { v ->
+                    if (seen.add(v.name)) hint[v.name]?.let { built.model.addHint(v, it) }
+                }
+            }
+            val solver = CpSolver()
+            // The ROOT node's read drives the route prognosis: give it headroom (production
+            // measured cra80's root closing at 11-13 s — a 15 s cap left no thermal margin and a
+            // loose FEASIBLE root dual triggered a FALSE bail).
+            val nodeBudget =
+                if (rootBailFraction != null && node.required.isEmpty() && node.excluded.isEmpty()) {
+                    maxOf(maxSecondsPerNode, 30.0)
+                } else {
+                    maxSecondsPerNode
+                }
+            configure(solver, minOf(nodeBudget, secondsRemaining()).coerceAtLeast(0.001))
+            val status = solver.solve(built.model)
+            // ONLY these three statuses carry usable information. Anything else (MODEL_INVALID,
+            // UNKNOWN with a garbage native bound, …) must end the tree inconclusively — routing
+            // it through the prune test once turned a MODEL_INVALID node's bound=0 into a fake
+            // closed contribution (caught by the production self-check, 2026-07-18).
+            val hasSolution =
+                status == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                    status == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+            if (!hasSolution && status != com.google.ortools.sat.CpSolverStatus.INFEASIBLE) {
+                return NodeOutcome(isInconclusive = true, inconclusiveUpper = node.inheritedUpper)
+            }
+            // The model objective is integral, but OR-Tools exposes both values as Double. A proof path must
+            // never floor a dual that happens to arrive as 100.999999999: ceil is the conservative integral
+            // upper bound. Conversely, a complete primal assignment has an integral objective, so round it.
+            val objective = if (hasSolution) kotlin.math.round(solver.objectiveValue()).toLong() else Long.MIN_VALUE
+            val solverUpper =
+                if (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL && hasSolution) {
+                    objective
+                } else {
+                    soundIntegralUpper(solver.bestObjectiveBound())
+                }
+            // The exact/mixed child feasible set is a subset of its parent world. A short child
+            // solve can expose a numerically WORSE dual than its already-solved parent, but the
+            // parent's bound remains valid for every descendant. Intersect them for free.
+            val upper = minOf(solverUpper, node.inheritedUpper)
+            val branchableIds =
+                built.subModel.subVars.keys
+                    .asSequence()
+                    .map { it.stateId }
+                    .filterTo(linkedSetOf()) { it in candidateConditionalIds }
+            val selectedIds =
+                if (hasSolution) {
+                    built.subModel.subVars
+                        .filterValues { solver.value(it) > 0L }
+                        .keys
+                        .mapTo(linkedSetOf()) { it.stateId }
+                } else {
+                    emptySet()
+                }
+
+            if (status == com.google.ortools.sat.CpSolverStatus.INFEASIBLE || upper <= incumbentObjective) {
+                return NodeOutcome(
+                    read = { id ->
+                        ConditionalWorldBranchRead(
+                            id,
+                            node.required,
+                            node.excluded,
+                            status.toString(),
+                            objective,
+                            upper,
+                            selectedIds,
+                            null,
+                            solver.wallTime(),
+                            deterministicTimeFrom(solver.responseStats()),
+                            "PRUNED"
+                        )
+                    },
+                    closedContribution = if (status != com.google.ortools.sat.CpSolverStatus.INFEASIBLE) upper else null
+                )
+            }
+            if (!hasSolution) {
+                return NodeOutcome(
+                    isInconclusive = true,
+                    inconclusiveUpper = if (upper == Long.MIN_VALUE) node.inheritedUpper else upper
+                )
+            }
+            val assignment = diagnosticVars(built).associate { it.name to solver.value(it) }
+
+            fun validatePinned(validationSubs: List<Sublimation>): Pair<com.google.ortools.sat.CpSolverStatus, Long> {
+                val validation =
+                    buildModel(
+                        params,
+                        built.allEquips.groupBy { it.itemType },
+                        runes,
+                        validationSubs,
+                        forceFullPool = true,
+                        applyDomination = false
+                    )
+                applyNodeFixes(validation)
+                val vars = diagnosticVars(validation)
+                require(vars.mapTo(linkedSetOf()) { it.name } == assignment.keys)
+                vars.forEach { validation.model.addEquality(it, assignment.getValue(it.name)) }
+                val validationSolver = CpSolver()
+                validationSolver.parameters.numSearchWorkers = 1
+                validationSolver.parameters.maxTimeInSeconds = minOf(10.0, secondsRemaining()).coerceAtLeast(0.001)
+                val validationStatus = validationSolver.solve(validation.model)
+                val validationHasSolution =
+                    validationStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                        validationStatus == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+                return validationStatus to
+                    if (validationHasSolution) {
+                        kotlin.math.round(validationSolver.objectiveValue()).toLong()
+                    } else {
+                        Long.MIN_VALUE
+                    }
+            }
+
+            val (exactStatus, exactObjective) = validatePinned(sublimations)
+            if (exactStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                exactStatus == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+            ) {
+                val remainingIds = branchableIds.filter { it !in node.enforced && it !in node.excluded }
+                val fallbackBranchId = remainingIds.maxByOrNull(::branchImpact)
+                val disposition =
+                    when {
+                        exactObjective > incumbentObjective -> "COUNTEREXAMPLE"
+                        fallbackBranchId != null -> "BRANCH_VALID"
+                        else -> "INCONCLUSIVE"
+                    }
+                val readBuilder = { id: Int ->
+                    ConditionalWorldBranchRead(
+                        id,
+                        node.required,
+                        node.excluded,
+                        status.toString(),
+                        objective,
+                        upper,
+                        selectedIds,
+                        fallbackBranchId,
+                        solver.wallTime(),
+                        deterministicTimeFrom(solver.responseStats()),
+                        disposition
+                    )
+                }
+                return when (disposition) {
+                    "BRANCH_VALID" -> {
+                        val branchId = requireNotNull(fallbackBranchId)
+                        val requiredChild =
+                            node.copy(
+                                enforced = node.enforced + branchId,
+                                required = node.required + branchId,
+                                inheritedUpper = upper,
+                                hint = assignment
+                            )
+                        val excludedChild =
+                            node.copy(excluded = node.excluded + branchId, inheritedUpper = upper, hint = assignment)
+                        NodeOutcome(
+                            read = readBuilder,
+                            children =
+                                if (requiredFirst) {
+                                    listOf(requiredChild, excludedChild)
+                                } else {
+                                    listOf(excludedChild, requiredChild)
+                                }
+                        )
+                    }
+                    "COUNTEREXAMPLE" -> NodeOutcome(read = readBuilder, counterexample = exactObjective)
+                    else -> NodeOutcome(read = readBuilder, isInconclusive = true, inconclusiveUpper = upper)
+                }
+            }
+            if (exactStatus != com.google.ortools.sat.CpSolverStatus.INFEASIBLE) {
+                return NodeOutcome(isInconclusive = true, inconclusiveUpper = upper)
+            }
+
+            val candidates =
+                selectedIds
+                    .asSequence()
+                    .filter { it in branchableIds && it !in node.enforced && it !in node.excluded }
+                    .toList()
+            if (candidates.isEmpty()) return NodeOutcome(isInconclusive = true, inconclusiveUpper = upper)
+            // Any selected conditional gives the exhaustive `{s=0 | s=1+exact-condition}` split.
+            // Earlier code rebuilt and solved one pinned model PER candidate merely to prefer an
+            // individually violated gate. That was soundness-neutral pseudo strong branching and
+            // consumed a large, unreported share of the total wall budget on full catalogs.
+            // k-ary SOS partition over the whole selected-conditional support: children
+            // {c1 required} ∪ {c1 excluded, c2 required} ∪ … ∪ {all k excluded}. Identical
+            // coverage to iterating the binary split, but the k independent required-children
+            // exist IMMEDIATELY — the binary chain kept the frontier 1-2 nodes wide, which
+            // starved the node-workers (measured 1.2× on 2 workers at cra80-ap10).
+            val ordered = candidates.sortedByDescending(::branchImpact)
+            val branchId = ordered.first()
+            val readBuilder = { id: Int ->
+                ConditionalWorldBranchRead(
+                    id,
+                    node.required,
+                    node.excluded,
+                    status.toString(),
+                    objective,
+                    upper,
+                    selectedIds,
+                    branchId,
+                    solver.wallTime(),
+                    deterministicTimeFrom(solver.responseStats()),
+                    "BRANCH"
+                )
+            }
+            val children = mutableListOf<Node>()
+            val runningExcluded = mutableSetOf<Int>()
+            for (candidate in ordered) {
+                children +=
+                    node.copy(
+                        enforced = node.enforced + candidate,
+                        required = node.required + candidate,
+                        excluded = node.excluded + runningExcluded,
+                        inheritedUpper = upper,
+                        hint = assignment
+                    )
+                runningExcluded += candidate
+            }
+            children += node.copy(excluded = node.excluded + runningExcluded, inheritedUpper = upper, hint = assignment)
+            if (!requiredFirst) children.reverse()
+            return NodeOutcome(read = readBuilder, children = children)
+        }
+
+        fun workerLoop() {
+            while (true) {
+                val node: Node? =
+                    synchronized(lock) {
+                        when {
+                            terminal != null -> return
+                            queue.isEmpty() && inFlight.isEmpty() -> return
+                            !shouldContinue() || secondsRemaining() <= 0.0 -> {
+                                terminal = inconclusive()
+                                return
+                            }
+                            queue.isEmpty() -> null
+                            nodesTaken >= maxNodes ->
+                                if (inFlight.isEmpty()) {
+                                    terminal = inconclusive()
+                                    return
+                                } else {
+                                    null
+                                }
+                            else -> {
+                                nodesTaken++
+                                queue.removeFirst().also { inFlight[it] = Unit }
+                            }
+                        }
+                    }
+                if (node == null) {
+                    Thread.sleep(5)
+                    continue
+                }
+                val outcome =
+                    try {
+                        processNode(node)
+                    } catch (t: Throwable) {
+                        synchronized(lock) {
+                            inFlight.remove(node)
+                            if (terminal == null) terminal = inconclusive(node.inheritedUpper)
+                        }
+                        throw t
+                    }
+                synchronized(lock) {
+                    inFlight.remove(node)
+                    outcome.read?.let { reads += it(reads.size + 1) }
+                    // Root prognosis: a hopeless root dual means no bounded budget will close the
+                    // tree — end here (one node's cost) so the caller falls through to the DP.
+                    if (rootBailFraction != null && reads.size == 1 && terminal == null) {
+                        val rootUpper = reads.first().bestBound
+                        if (rootUpper > incumbentObjective + (incumbentObjective.toDouble() * rootBailFraction).toLong()) {
+                            terminal = inconclusive(rootUpper)
+                        }
+                    }
+                    outcome.closedContribution?.let { closedUpper = maxOf(closedUpper, it) }
+                    when {
+                        outcome.counterexample != null -> {
+                            if (terminal == null) {
+                                terminal = ConditionalWorldProof.Counterexample(outcome.counterexample, reads.toList())
+                            }
+                        }
+                        outcome.isInconclusive -> {
+                            if (terminal == null) terminal = inconclusive(outcome.inconclusiveUpper)
+                        }
+                        else -> outcome.children.asReversed().forEach { queue.addFirst(it) }
+                    }
+                }
+            }
+        }
+
+        if (nodeWorkerCount == 1) {
+            workerLoop()
+        } else {
+            val pool =
+                java.util.concurrent.Executors
+                    .newFixedThreadPool(nodeWorkerCount - 1)
+            try {
+                val extras =
+                    (1 until nodeWorkerCount).map {
+                        pool.submit(java.util.concurrent.Callable { workerLoop() })
+                    }
+                workerLoop()
+                extras.forEach { it.get() }
+            } finally {
+                pool.shutdownNow()
+            }
+        }
+        synchronized(lock) {
+            terminal?.let { return it }
+            return if (queue.isEmpty() && inFlight.isEmpty()) {
+                ConditionalWorldProof.Proven(closedUpper, reads.toList())
+            } else {
+                inconclusive()
+            }
+        }
+    }
+
+    /** Compatibility seam for the manual S4 harness while the bounded engine graduates to production. */
+    internal fun conditionalWorldBranchAndBoundForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        incumbentObjective: Long,
+        workers: Int,
+        secondsPerNode: Double,
+        deterministicLimitPerNode: Double? = null,
+        interleave: Boolean = false,
+        maxNodes: Int,
+        applyDomination: Boolean,
+    ): Pair<Boolean, List<ConditionalWorldBranchRead>> {
+        val result =
+            conditionalWorldBranchAndBound(
+                params,
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                incumbentObjective,
+                workers,
+                totalSeconds = secondsPerNode * maxNodes,
+                maxSecondsPerNode = secondsPerNode,
+                deterministicLimitPerNode = deterministicLimitPerNode,
+                interleave = interleave,
+                maxNodes = maxNodes,
+                applyDomination = applyDomination
+            )
+        return (result is ConditionalWorldProof.Proven) to result.reads
     }
 
     internal fun timedMaxDamageProfileForTest(
@@ -1263,6 +2038,7 @@ object WakfuBuildSolver {
         workers: Int,
         seconds: Double,
         applyDomination: Boolean,
+        randomSeed: Int = 1,
         experiment: MaxDamageExperimentConfig = MaxDamageExperimentConfig.DEFAULT,
         maxPresolveIterations: Int = 3,
         linearizationLevel: Int = 2,
@@ -1293,6 +2069,18 @@ object WakfuBuildSolver {
         // Test-only partition oracle: require at least one modeled condition-bearing sublimation.
         // Used to lock the certificate's complementary {no condition | some condition} split.
         requireAnyConditionalSublimation: Boolean = false,
+        // Research-only carrier-world seam: force one modeled sublimation while the caller chooses
+        // which other conditions stay exact/relaxed in [sublimations].
+        requiredSublimationStateId: Int? = null,
+        // Research-only exact-region seam. Bounds are posted on the resolved sheet stats and can
+        // therefore be used to validate a DP-complement partition without changing the objective.
+        statLowerBounds: Map<Characteristic, Long> = emptyMap(),
+        statUpperBounds: Map<Characteristic, Long> = emptyMap(),
+        // Research-only provenance validator: pin the discrete equipment/sub assignment exposed
+        // by a certificate path, while leaving runes and skills free for the exact model to
+        // optimize. null means unpinned; an empty map/set deliberately pins every choice to zero.
+        pinnedEquipmentIds: Set<Int>? = null,
+        pinnedSublimationCopies: Map<Int, Int>? = null,
     ): MaxDamageTimedProfile {
         val built =
             buildModel(
@@ -1315,12 +2103,37 @@ object WakfuBuildSolver {
             require(conditionalVars.isNotEmpty()) { "conditional partition requested with no modeled conditional sublimation" }
             built.model.addGreaterOrEqual(LinearExpr.sum(conditionalVars), 1L)
         }
+        requiredSublimationStateId?.let { stateId ->
+            val required =
+                built.subModel.subVars.entries
+                    .singleOrNull { it.key.stateId == stateId }
+                    ?.value
+                    ?: error("required sublimation $stateId is not modeled in this world")
+            built.model.addEquality(required, 1L)
+        }
+        statLowerBounds.forEach { (stat, lower) ->
+            built.model.addGreaterOrEqual(requireNotNull(built.actualStatVars[stat]) { "unsupported lower-bound stat $stat" }, lower)
+        }
+        statUpperBounds.forEach { (stat, upper) ->
+            built.model.addLessOrEqual(requireNotNull(built.actualStatVars[stat]) { "unsupported upper-bound stat $stat" }, upper)
+        }
+        pinnedEquipmentIds?.let { selectedIds ->
+            built.equipVars.forEach { (equipment, variable) ->
+                built.model.addEquality(variable, if (equipment.equipmentId in selectedIds) 1L else 0L)
+            }
+        }
+        pinnedSublimationCopies?.let { selectedCopies ->
+            built.subModel.subVars.forEach { (sub, baseVariable) ->
+                val variables = (listOf(baseVariable) + built.subModel.copyVars[sub].orEmpty()).toTypedArray()
+                built.model.addEquality(LinearExpr.sum(variables), selectedCopies.getOrDefault(sub.stateId, 0).toLong())
+            }
+        }
         val solver = CpSolver()
         solver.parameters.logSearchProgress = logSearch
         solver.parameters.linearizationLevel = linearizationLevel
         solver.parameters.maxPresolveIterations = maxPresolveIterations
         solver.parameters.numSearchWorkers = workers
-        solver.parameters.randomSeed = 1
+        solver.parameters.randomSeed = randomSeed
         if (symmetryLevel != null) solver.parameters.symmetryLevel = symmetryLevel
         if (probingLevel != null) solver.parameters.cpModelProbingLevel = probingLevel
         if (objectiveShaving) solver.parameters.useObjectiveShavingSearch = true
@@ -1376,7 +2189,43 @@ object WakfuBuildSolver {
             variables = proto.variablesCount,
             constraints = proto.constraintsCount,
             poolSize = built.allEquips.size,
-            experiment = experiment
+            experiment = experiment,
+            selectedEquipmentIds =
+                if (hasSolution) {
+                    built.equipVars
+                        .filterValues { solver.value(it) > 0L }
+                        .keys
+                        .mapTo(linkedSetOf()) { it.equipmentId }
+                } else {
+                    emptySet()
+                },
+            selectedSublimationStateIds =
+                if (hasSolution) {
+                    built.subModel.subVars
+                        .filterValues { solver.value(it) > 0L }
+                        .keys
+                        .mapTo(linkedSetOf()) { it.stateId }
+                } else {
+                    emptySet()
+                },
+            selectedSublimationCopies =
+                if (hasSolution) {
+                    built.subModel.subVars
+                        .mapNotNull { (sub, baseVariable) ->
+                            val copies =
+                                solver.value(baseVariable) +
+                                    built.subModel.copyVars[sub]
+                                        .orEmpty()
+                                        .sumOf(solver::value)
+                            sub.stateId.takeIf { copies > 0L }?.let { it to copies }
+                        }.toMap()
+                } else {
+                    emptyMap()
+                },
+            actualStats =
+                if (hasSolution) built.actualStatVars.mapValues { (_, variable) -> solver.value(variable) } else emptyMap(),
+            rawObjective =
+                if (hasSolution && built.maxDamageRawScore != null) solver.value(built.maxDamageRawScore) else Long.MIN_VALUE
         )
     }
 
