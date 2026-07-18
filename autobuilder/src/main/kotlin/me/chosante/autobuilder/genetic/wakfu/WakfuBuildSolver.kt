@@ -1519,17 +1519,26 @@ object WakfuBuildSolver {
         ) : ConditionalWorldProof
     }
 
+    // A tree whose ROOT stayed FEASIBLE (dual within the bail band but unproven) gets this
+    // reduced budget: it sometimes closes (worth a chance) but often crawls to the full budget
+    // and pays the DP fall-through on top.
+    private const val UNPROVEN_ROOT_TREE_BUDGET_SECONDS = 75.0
+
+    // Two-node prognosis (§9.36, data-backed): the root alone cannot discriminate a crawling
+    // tree (enutrof and cra80 share a +14% root dual, but only cra80 closes) — the cumulative
+    // DETERMINISTIC cost of the root + its first child does (enutrof 142 vs cra80 70-118).
+    private const val TWO_NODE_DET_BAIL = 130.0
+
+    // Consecutive full-budget nodes contributing NOTHING (dual == inherited) mark a walled
+    // branch class (enutrof's `7115` chain produced four in a row) — terminate at this count.
+    private const val ZERO_PROGRESS_STALL_LIMIT = 2
+
     /**
      * Research-only external branch-and-bound over conditional-sub selection. For an invalid
      * relaxed assignment using `s`, children `{s = 0}` and `{s = 1, condition(s) exact}` partition
      * every exact build in the parent. A node is discarded as soon as its sound upper is at most
      * [incumbentObjective], avoiding a monolithic model containing every indicator.
      */
-    // A tree whose ROOT stayed FEASIBLE (dual within the bail band but unproven) gets this
-    // reduced budget: it sometimes closes (worth a chance) but often crawls to the full budget
-    // and pays the DP fall-through on top.
-    private const val UNPROVEN_ROOT_TREE_BUDGET_SECONDS = 75.0
-
     internal fun conditionalWorldBranchAndBound(
         params: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
@@ -1582,6 +1591,7 @@ object WakfuBuildSolver {
         var closedUpper = Long.MIN_VALUE
         var nodesTaken = 0
         var terminal: ConditionalWorldProof? = null
+        var zeroProgressStreak = 0
 
         fun secondsRemaining(): Double = ((deadline - System.nanoTime()).coerceAtLeast(0L) / 1_000_000_000.0)
 
@@ -1711,6 +1721,14 @@ object WakfuBuildSolver {
             // erratic under bench load.
             if (rootBailFraction != null && node.required.isEmpty() && node.excluded.isEmpty()) {
                 deterministicLimitPerNode?.let { solver.parameters.maxDeterministicTime = it * 2 }
+            } else if (rootBailFraction != null && deterministicLimitPerNode != null) {
+                // The SECOND node only needs to answer the two-node prognosis: cap it at the
+                // remaining prognosis budget (a cheaper read that would trigger the bail anyway).
+                val rootDet = synchronized(lock) { if (reads.size == 1) reads.first().deterministicTime else null }
+                if (rootDet != null) {
+                    solver.parameters.maxDeterministicTime =
+                        minOf(deterministicLimitPerNode, (TWO_NODE_DET_BAIL - rootDet + 1.0).coerceAtLeast(10.0))
+                }
             }
             val status = solver.solve(built.model)
             // ONLY these three statuses carry usable information. Anything else (MODEL_INVALID,
@@ -1957,7 +1975,25 @@ object WakfuBuildSolver {
                     }
                 synchronized(lock) {
                     inFlight.remove(node)
-                    outcome.read?.let { reads += it(reads.size + 1) }
+                    outcome.read?.let { read ->
+                        val r = read(reads.size + 1)
+                        reads += r
+                        if (rootBailFraction != null && terminal == null) {
+                            // Two-node prognosis: nodes priced beyond any closable budget.
+                            if (reads.size == 2 && reads.sumOf { it.deterministicTime } > TWO_NODE_DET_BAIL) {
+                                terminal = inconclusive(reads.first().bestBound)
+                            }
+                            // Walled-branch class: FULL-budget reads contributing nothing. The
+                            // spent-budget condition keeps fast FEASIBLE reads of a closing tree
+                            // from counting.
+                            val spentBudget = deterministicLimitPerNode?.let { r.deterministicTime >= it * 0.9 } ?: (r.wallTimeSec >= maxSecondsPerNode * 0.9)
+                            zeroProgressStreak =
+                                if (r.status == "FEASIBLE" && r.bestBound >= node.inheritedUpper && spentBudget) zeroProgressStreak + 1 else 0
+                            if (zeroProgressStreak >= ZERO_PROGRESS_STALL_LIMIT && terminal == null) {
+                                terminal = inconclusive(r.bestBound)
+                            }
+                        }
+                    }
                     // Root prognosis: a hopeless root dual means no bounded budget will close the
                     // tree — end here (one node's cost) so the caller falls through to the DP.
                     if (rootBailFraction != null && reads.size == 1 && terminal == null) {
