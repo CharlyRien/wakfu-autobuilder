@@ -3202,6 +3202,11 @@ internal object MaxDamageSoftCertificate {
 
             val tiers = intArrayOf(10, 4, 1)
 
+            // Identical (world, tier, λ, μ, arm) reads are deterministic — the queue-resume after
+            // the capFree re-split re-pays the λ-calibration read otherwise (measured 2.7 s dupe
+            // on enutrof: critZero/base DI10 λ4000 priced twice).
+            val refineMemo = HashMap<List<Any?>, Result>()
+
             fun refineWorld(
                 world: WorldRead,
                 di: Int,
@@ -3210,6 +3215,8 @@ internal object MaxDamageSoftCertificate {
                 lightArm: String? = null,
                 armOverride: String? = null,
             ): Result? {
+                val memoKey = listOf(world, di, lambdaOverride ?: supportLambda(world), secondaryPrice, lightArm, armOverride)
+                refineMemo[memoKey]?.let { return it }
                 diStep = di
                 val rt0 = System.nanoTime()
 
@@ -3251,7 +3258,10 @@ internal object MaxDamageSoftCertificate {
                     // coupled per-item pricing (IOP secZero DI1: 9.933T vs 8.9718T). The exact
                     // form needs BOTH S⁺ and negB per state (~25x states). Kept as a research
                     // seam; production stays on the coupled per-item credits.
-                ).also { logRefine(it) }
+                ).also {
+                    logRefine(it)
+                    if (it != null) refineMemo[memoKey] = it
+                }
             }
 
             fun intersect(
@@ -3301,12 +3311,10 @@ internal object MaxDamageSoftCertificate {
                     }
                     if (top.tier == tiers.lastIndex) return maxOf(noConditionUpper, top.upper)
                     top.tier =
-                        if (params.character.level >= PROD_SECZERO_HIGH_SCALE_LEVEL &&
-                            top.tier >= 0 &&
-                            tiers[top.tier] == 10
-                        ) {
-                            // ≥175 every world jumps DI10→DI1: the DI4 tier measured as pure wall
-                            // (IOP-200 plain: DI4 bound 9.060T vs its own DI10 read 9.005T).
+                        if (top.tier >= 0 && tiers[top.tier] == 10) {
+                            // Every world jumps DI10→DI1: the DI4 tier measured as pure wall at
+                            // BOTH scales (IOP-200 plain: DI4 9.060T vs its own DI10 9.005T;
+                            // enutrof125 plain: DI4 2460T vs DI10 2440T, critZero 2388T vs 2370T).
                             tiers.lastIndex
                         } else {
                             top.tier + 1
@@ -3315,6 +3323,11 @@ internal object MaxDamageSoftCertificate {
                     // light-arm split IS the binding tightener (S4 plain: 18.13T unsplit vs
                     // 17.24T split), so the scout rarely clears the floor and its cost stacks on
                     // top (S4 +7.6 s, IOP +13 s).
+                    // NOTE (measured 2026-07-18): refining a capFree world through its exact
+                    // three-arm partition instead of the merged cover read is a NO-GO in the
+                    // QUEUE — at DI10 the arms cost MORE than the cover (enutrof Mesure III:
+                    // 28.8+12.0+14.5 s vs 43.6 s merged). The re-split stays where it is
+                    // (post-queue, DI1, only for worlds still above the floor).
                     val refined = refineWorld(top.world, tiers[top.tier], lambdaOverride) ?: return null
                     // The coarse/current and refined reads are independent sound uppers on the
                     // same world; their min is sound and guards against non-monotone grid rounding.

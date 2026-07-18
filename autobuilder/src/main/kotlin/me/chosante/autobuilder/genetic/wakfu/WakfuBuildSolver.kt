@@ -201,7 +201,7 @@ object WakfuBuildSolver {
      * subset of its parent, so this is an exact free tightening and prevents timeout noise from
      * making a deeper frontier bound worse than an already-known ancestor bound.
      */
-    const val CERTIFIER_VERSION: Int = 29
+    const val CERTIFIER_VERSION: Int = 30
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
