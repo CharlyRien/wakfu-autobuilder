@@ -31,7 +31,12 @@ import kotlin.time.Duration.Companion.seconds
  * ```
  */
 class MaxDamageSoftCertificateTest {
-    private fun ccSupportLambda(): Long = System.getenv("WAKFU_S4_CC_LAMBDA")?.toLongOrNull() ?: 0L
+    // PRODUCTION PARITY BY DEFAULT (P3 param-diff, 2026-07-19): every research-harness read used
+    // to default each modeling flag OFF (opt-in `== "1"`), so a probe that forgot one env flag
+    // silently priced a DIFFERENT model than the production μ-pass read on the same world (~2%
+    // apart on IOP-200 secZero). Defaults now mirror `refineWorld` (opt-OUT via `=0` / explicit
+    // value); set the env only to deviate from production.
+    private fun ccSupportLambda(): Long = System.getenv("WAKFU_S4_CC_LAMBDA")?.toLongOrNull() ?: 1500L
 
     private fun perWorldSupportLambda(
         level: Int,
@@ -47,29 +52,29 @@ class MaxDamageSoftCertificateTest {
 
     private fun secondarySupportPrice(): Long? = System.getenv("WAKFU_S4_SECONDARY_PRICE")?.toLongOrNull()
 
-    private fun critAwareCollapse(): Boolean = System.getenv("WAKFU_S4_CRIT_AWARE_COLLAPSE") == "1"
+    private fun critAwareCollapse(): Boolean = System.getenv("WAKFU_S4_CRIT_AWARE_COLLAPSE") != "0"
 
-    private fun critWeightAnchor(): Int? = System.getenv("WAKFU_S4_CRIT_WEIGHT_ANCHOR")?.toIntOrNull()
+    private fun critWeightAnchor(): Int? = System.getenv("WAKFU_S4_CRIT_WEIGHT_ANCHOR")?.toIntOrNull() ?: 100
 
-    private fun coupleSecondaryItemNegative(): Boolean = System.getenv("WAKFU_S4_COUPLE_NEG_ITEMS") == "1"
+    private fun coupleSecondaryItemNegative(): Boolean = System.getenv("WAKFU_S4_COUPLE_NEG_ITEMS") != "0"
 
-    private fun netSecondaryItemBudget(): Boolean = System.getenv("WAKFU_S4_NET_NEG_ITEMS") == "1"
+    private fun netSecondaryItemBudget(): Boolean = System.getenv("WAKFU_S4_NET_NEG_ITEMS") != "0"
 
-    private fun exactNormalSubPacking(): Boolean = System.getenv("WAKFU_S4_EXACT_NORMAL_SUBS") == "1"
+    private fun exactNormalSubPacking(): Boolean = System.getenv("WAKFU_S4_EXACT_NORMAL_SUBS") != "0"
 
-    private fun foldNegativeItemAp(): Boolean = System.getenv("WAKFU_S4_FOLD_ITEM_MAX_AP") == "1"
+    private fun foldNegativeItemAp(): Boolean = System.getenv("WAKFU_S4_FOLD_ITEM_MAX_AP") != "0"
 
-    private fun foldNegativeMaxMp(): Boolean = System.getenv("WAKFU_S4_FOLD_MAX_MP") == "1"
+    private fun foldNegativeMaxMp(): Boolean = System.getenv("WAKFU_S4_FOLD_MAX_MP") != "0"
 
-    private fun stateDependentMpRamp(): Boolean = System.getenv("WAKFU_S4_STATE_MP_RAMP") == "1"
+    private fun stateDependentMpRamp(): Boolean = System.getenv("WAKFU_S4_STATE_MP_RAMP") != "0"
 
-    private fun elideImpliedConditionalMarker(): Boolean = System.getenv("WAKFU_S4_ELIDE_IMPLIED_COND") == "1"
+    private fun elideImpliedConditionalMarker(): Boolean = System.getenv("WAKFU_S4_ELIDE_IMPLIED_COND") != "0"
 
     private fun skipMidTierForHighSecZero(): Boolean = System.getenv("WAKFU_S4_SKIP_MID_SECZERO") == "1"
 
-    private fun splitLightWeaponCondition(): Boolean = System.getenv("WAKFU_S4_SPLIT_LIGHT_WEAPON") == "1"
+    private fun splitLightWeaponCondition(): Boolean = System.getenv("WAKFU_S4_SPLIT_LIGHT_WEAPON") != "0"
 
-    private fun requireConditionalSub(): Boolean = System.getenv("WAKFU_S4_REQUIRE_CONDITIONAL") == "1"
+    private fun requireConditionalSub(): Boolean = System.getenv("WAKFU_S4_REQUIRE_CONDITIONAL") != "0"
 
     private fun diagnosticBasePlain(): Boolean = System.getenv("WAKFU_S4_DIAG_BASE_PLAIN") == "1"
 
