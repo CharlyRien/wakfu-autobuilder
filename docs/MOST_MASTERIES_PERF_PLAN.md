@@ -2836,3 +2836,22 @@ feca65 residual (~164 s hot): a ~35 s join hole remains (the 4-worker overlapped
 outlives the 30 s tree bail) + the stacked legs (relaxed 29 s, λ-calib 21 s, re-split+resume 32 s)
 — each individually justified; the next cut is joining the oracle lazily at first REAL need and
 fusing the λ-calib/re-split passes. Campaign continues; walls at 14 h of continuous benches.
+
+#### 9.32 — Sweep 5 close: xelor 5.95%, thermal variance exposes the wall-budget prognosis (2026-07-18 late)
+
+- **xelor155-apmp: 10.79% → 5.95% / 101.4 s** — the sweep-4bis queue-resume plus extending the μ
+  support pass below level 175 (the ≥175 gate was arbitrary; a 40 s probe measured μ=250
+  tightening secZero DI1 by 1.1% at 155). The 30-60 s single-world probes predicted the outcome
+  before any E2E — the fast-iteration protocol the user asked for, now the campaign standard.
+- **cra80-ap10 became erratic under 15.5 h of continuous load**: the 30 s wall-budget root no
+  longer closes, the tree goes Inconclusive and the DP fall-through returns 4.45%/117 s instead
+  of ProvenOptimal/41 s. The prognosis and node budgets are WALL-based and therefore
+  load-sensitive. **Next fix: switch the root/node budgets to CP-SAT DETERMINISTIC time**
+  (maxDeterministicTime — the seam already exists in conditionalWorldBranchAndBound), which the
+  controlled-protocol work already showed is load-invariant. Also: never bail on a timeout alone
+  — only on a genuinely hopeless dual.
+- Oracle placement finalized: future starts AFTER the B&B (before it stole cores from proving
+  trees: cra80 41→176 s even at half workers); the LAZY join still overlaps it with the whole DP
+  phase, so feca65's serial hole stays gone (128.5 s, 209 at sweep 3).
+
+Milestone committed as `f4e00bb2` (v17→v29, 16 files, +5074). μ lock green with the <175 μ pass.
