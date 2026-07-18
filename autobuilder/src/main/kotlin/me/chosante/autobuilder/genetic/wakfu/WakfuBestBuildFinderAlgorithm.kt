@@ -316,6 +316,8 @@ object WakfuBestBuildFinderAlgorithm {
         // B8: polled once per certifier DP stage so a cancelled proof (search restarted / window closed) stops
         // the ~minutes-per-cell exact pass promptly instead of running it to completion off-screen.
         isCancelled: () -> Boolean = { false },
+        // User-facing progress: soft-leg stage keys, forwarded to the GUI proof narrator.
+        onPhase: (String) -> Unit = {},
     ): MaxDamageSearch.MaxDamageProof {
         if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
             return MaxDamageSearch.MaxDamageProof.Unavailable
@@ -330,7 +332,7 @@ object WakfuBestBuildFinderAlgorithm {
             )
         // Pass the rune / sublimation catalogs exactly as [run] does (exclusions applied) — the model honours
         // useRunes / useSublimations internally, so the certificate sees the same availability the search did.
-        return MaxDamageSearch.proveOptimality(params, equipmentsByItemType, runes, activeSublimations(params), result, isCancelled = isCancelled)
+        return MaxDamageSearch.proveOptimality(params, equipmentsByItemType, runes, activeSublimations(params), result, isCancelled = isCancelled, onPhase = onPhase)
     }
 
     /**

@@ -510,6 +510,8 @@ object MaxDamageSearch {
         // B8: polled once per certifier DP stage. When the caller cancels the proof (search restarted / window
         // closed) the certificate bails promptly and this returns Unavailable with nothing cached.
         isCancelled: () -> Boolean = { false },
+        // User-facing progress: stage keys from the soft-leg union, forwarded to the GUI narrator.
+        onPhase: (String) -> Unit = {},
     ): MaxDamageProof {
         // The item prefilter (multi-element mastery / resistance targets) is a top-N-per-stat HEURISTIC that can
         // prune the true optimum. When it fires, NEITHER of the two proof authorities is sound: CP-SAT's `OPTIMAL`
@@ -561,7 +563,7 @@ object MaxDamageSearch {
             // the AP-cell damage ledger cannot certify it (penalized units), but the dedicated
             // soft certificate can — the hybrid partition union of [MaxDamageSoftCertificate]
             // (plan §9.20). It compares in PENALIZED objective units end to end.
-            return proveSoftLegQuality(baseParams, equipmentsByItemType, runes, sublimations, result, isCancelled)
+            return proveSoftLegQuality(baseParams, equipmentsByItemType, runes, sublimations, result, isCancelled, onPhase)
         }
 
         val ledger =
@@ -626,6 +628,7 @@ object MaxDamageSearch {
         sublimations: List<Sublimation>,
         result: SolverResult<BuildCombination>,
         isCancelled: () -> Boolean,
+        onPhase: (String) -> Unit = {},
     ): MaxDamageProof {
         // A greedy warm-start emission is not a solution of the model — its objective is not in
         // solver units, so it is not comparable to the certificate.
@@ -645,7 +648,8 @@ object MaxDamageSearch {
                 oracleWorkers = (Runtime.getRuntime().availableProcessors() - 2).coerceIn(4, 8),
                 oracleSeconds = SOFT_ORACLE_BUDGET_SECONDS,
                 shouldContinue = { !isCancelled() },
-                incumbentObjective = incumbent
+                incumbentObjective = incumbent,
+                onPhase = onPhase
             ) ?: return MaxDamageProof.Unavailable
         return when {
             incumbent > union.upper -> {
@@ -1122,6 +1126,7 @@ object MaxDamageCertificateCache {
                     searchDuration = Duration.ZERO,
                     stopWhenBuildMatch = false,
                     maxDamageApTarget = null,
+                    maxDamageMpPin = null,
                     solverWorkers = null
                 ),
             poolIds =
@@ -1148,8 +1153,8 @@ object MaxDamageCertificateCache {
      * verified against (see [MaxDamageCertificateDiskCache]). Every atom is length-prefixed (`<len>|<value>`) so
      * the encoding is prefix-free: distinct keys never collide. Sets/maps are sorted (their `equals` is
      * order-insensitive); lists keep order (their `equals` is not). It therefore distinguishes any two
-     * `equals`-unequal keys — a hit can only ever be for the exact same request. The four fields the [Key]
-     * already normalized away (search duration, stop-on-match, AP pin, worker count) are constant here and
+     * `equals`-unequal keys — a hit can only ever be for the exact same request. The five fields the [Key]
+     * already normalized away (search duration, stop-on-match, AP/MP pins, worker count) are constant here and
      * omitted. A tripwire test ([WakfuBuildSolverTest] `fingerprint covers every field`) fails if a field is
      * added to the fingerprinted graph without being encoded here.
      */

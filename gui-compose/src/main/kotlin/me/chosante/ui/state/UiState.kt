@@ -57,6 +57,9 @@ data class ProofProgress(
     val startedAtMs: Long,
     val cellsDone: Int? = null,
     val cellsTotal: Int? = null,
+    // Engine stage key of the soft-leg proof (relaxedProbe, coarse, primaryRefinement, …) so the
+    // UI can narrate WHAT the multi-minute proof is doing. Null until the engine reports one.
+    val detailKey: String? = null,
 )
 
 /** Max-damage AP-cell certificate verdict for the finished build (P4.4). See [UiState.proofState]. */

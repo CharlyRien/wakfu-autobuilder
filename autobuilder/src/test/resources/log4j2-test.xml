@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Test-only logging: surface the soft-proof stage stamps (logger.info) in JUnit output. -->
+<Configuration status="WARN">
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{HH:mm:ss.SSS} %-5level %logger{1} - %msg%n"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <Logger name="me.chosante.autobuilder.genetic.wakfu.MaxDamageSoftCertificate" level="info"/>
+        <Logger name="me.chosante.autobuilder.genetic.wakfu.MaxDamageSearch" level="info"/>
+        <Root level="warn">
+            <AppenderRef ref="Console"/>
+        </Root>
+    </Loggers>
+</Configuration>

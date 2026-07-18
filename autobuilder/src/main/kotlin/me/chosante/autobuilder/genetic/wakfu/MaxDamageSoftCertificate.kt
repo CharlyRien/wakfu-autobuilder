@@ -3,6 +3,8 @@ package me.chosante.autobuilder.genetic.wakfu
 import io.github.oshai.kotlinlogging.KotlinLogging
 import me.chosante.autobuilder.domain.SpellCatalog
 import me.chosante.autobuilder.domain.SpellRotationOptimizer
+import me.chosante.autobuilder.domain.TargetStat
+import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.scaledWeight
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
@@ -92,7 +94,54 @@ internal object MaxDamageSoftCertificate {
         val coreBound: Long,
         val states: Int,
         val wallMs: Long,
+        // Research instrument: already-computed per-CC-band maxima for this world. This adds no
+        // DP state and lets the harness identify which world owns an envelope band.
+        val ccBandBounds: Map<Long, Long> = emptyMap(),
+        val targetCellBounds: Map<TargetCell, Long> = emptyMap(),
+        val targetCellCoreBounds: Map<TargetCell, Long> = emptyMap(),
+        val belowTargetBounds: Map<Characteristic, Long> = emptyMap(),
+        val penaltyProfile: PenaltyProfile? = null,
+        val lightArmBounds: Map<String, Long> = emptyMap(),
     )
+
+    data class TargetCell(
+        val ap: Long,
+        val mp: Long,
+        val cc: Long,
+        val hp: Long,
+    )
+
+    data class PenaltyProfile(
+        val totalExpected: Long,
+        val bucketSize: Long,
+        val maxIndex: Int,
+        val powScale: BigInteger,
+        val weights: Map<Characteristic, Long>,
+        val targets: Map<Characteristic, Long>,
+    ) {
+        fun totalCredit(cell: TargetCell): Long =
+            weights.getOrDefault(Characteristic.ACTION_POINT, 0L) * cell.ap +
+                weights.getOrDefault(Characteristic.MOVEMENT_POINT, 0L) * cell.mp +
+                weights.getOrDefault(Characteristic.CRITICAL_HIT, 0L) * cell.cc +
+                weights.getOrDefault(Characteristic.HP, 0L) * cell.hp
+
+        fun multiplier(totalCredit: Long): Long {
+            val bucket = (totalCredit.coerceIn(1L, totalExpected) / bucketSize).toInt().coerceAtMost(maxIndex)
+            return BigInteger
+                .valueOf(bucket.toLong())
+                .pow(6)
+                .divide(powScale)
+                .toLong()
+        }
+
+        fun folded(
+            core: Long,
+            totalCredit: Long,
+        ): Long =
+            (BigInteger.valueOf(core.coerceAtLeast(0L)) * BigInteger.valueOf(multiplier(totalCredit)))
+                .min(BigInteger.valueOf(Long.MAX_VALUE))
+                .toLong()
+    }
 
     class Result(
         val foldedBound: Long,
@@ -105,7 +154,47 @@ internal object MaxDamageSoftCertificate {
         // Outer-orchestrator reads used by the adaptive promotion harness. Empty on a single
         // recursive world call.
         val worldReads: List<WorldRead> = emptyList(),
+        // Research instrument: sound folded upper per CC-band low endpoint. World/arm unions
+        // combine with max; a multi-anchor envelope can then combine independent supports with
+        // min per band before taking the global max.
+        val ccBandBounds: Map<Long, Long> = emptyMap(),
+        // Research instrument: the same final folds grouped by their target-credit rectangle.
+        // This is deliberately not used as a certificate partition yet: rounded DP dimensions
+        // can make rectangles overlap real builds, so replacing one requires a separate coverage
+        // proof. It does identify every rectangle that can still own the global percentage.
+        val targetCellBounds: Map<TargetCell, Long> = emptyMap(),
+        val targetCellCoreBounds: Map<TargetCell, Long> = emptyMap(),
+        // Sound complement reads: for each requested sheet stat, maximum folded objective under
+        // the relaxation `actual credit <= target - 1`. These reads let an exact oracle own the
+        // all-targets-satisfied region while DP safely owns every strict-shortfall arm.
+        val belowTargetBounds: Map<Characteristic, Long> = emptyMap(),
+        val penaltyProfile: PenaltyProfile? = null,
+        val lightArmBounds: Map<String, Long> = emptyMap(),
     )
+
+    private fun unionBandBounds(results: List<Result>): Map<Long, Long> =
+        results
+            .flatMap { it.ccBandBounds.entries }
+            .groupingBy { it.key }
+            .fold(Long.MIN_VALUE) { best, entry -> maxOf(best, entry.value) }
+
+    private fun unionTargetCellBounds(results: List<Result>): Map<TargetCell, Long> =
+        results
+            .flatMap { it.targetCellBounds.entries }
+            .groupingBy { it.key }
+            .fold(Long.MIN_VALUE) { best, entry -> maxOf(best, entry.value) }
+
+    private fun unionTargetCellCoreBounds(results: List<Result>): Map<TargetCell, Long> =
+        results
+            .flatMap { it.targetCellCoreBounds.entries }
+            .groupingBy { it.key }
+            .fold(Long.MIN_VALUE) { best, entry -> maxOf(best, entry.value) }
+
+    private fun unionBelowTargetBounds(results: List<Result>): Map<Characteristic, Long> =
+        results
+            .flatMap { it.belowTargetBounds.entries }
+            .groupingBy { it.key }
+            .fold(Long.MIN_VALUE) { best, entry -> maxOf(best, entry.value) }
 
     /** One stage option: weighted-Graw value + per-axis deltas (positive parts only). */
     private data class Opt(
@@ -126,6 +215,10 @@ internal object MaxDamageSoftCertificate {
         // ASSUME-world LOW semantics (signed, floor/raw) — see the MM certificate's A#1 fix.
         val apLow: Int = 0,
         val ccLowRaw: Int = 0,
+        // POSITIVE scenario-secondary mastery of the option (items/subs). Only read when the
+        // secZero credit-cap dimension is active (P3 spec v2): the state stores an UPPER bound
+        // of the build's item/sub-side S⁺, which soundly caps the μ budget credit at collapse.
+        val secPos: Int = 0,
         val ramp: Boolean = false,
         // Value-side partition marker: at least one selected sublimation bears a condition.
         // It is dormant through the equipment prefix and starts splitting only at sub stages.
@@ -170,6 +263,9 @@ internal object MaxDamageSoftCertificate {
         val blockBucketCap: Int = 0,
         val assumeApThreshold: Int = -1,
         val assumeCcThresholdRaw: Int = -1,
+        // P3 credit-cap dimension (spec v2): 0 = off. When active (secZero reads only), the key
+        // carries an UP-rounded S⁺ bucket that soundly caps the μ budget credit at collapse.
+        val secBucketCap: Int = 0,
     ) {
         /**
          * False when a bucket cap overflows its packed-key field (an extreme request/grid combo,
@@ -177,10 +273,14 @@ internal object MaxDamageSoftCertificate {
          * badge is always sound; throwing would crash a production proof.
          */
         val fitsPackedKey: Boolean =
-            hpBucketCap <= 0x1FF && ccBucketCap <= 0x7F && diBucketCap <= 0x1FFF && blockBucketCap <= 0xF
+            hpBucketCap <= 0x1FF &&
+                ccBucketCap <= 0x7F &&
+                diBucketCap <= 0x1FFF &&
+                blockBucketCap <= 0xF &&
+                secBucketCap <= 0x7
 
-        // Packed key: conditional(1b @49) block(4b @45) ramp(1b @44) mpMinus(1b @43) d(13b @28)
-        //             ap(5b @23) mp(5b @18) cc(7b @11) hp(9b @2) e(1b @1) r(1b @0)
+        // Packed key: sec(3b @50) conditional(1b @49) block(4b @45) ramp(1b @44) mpMinus(1b @43)
+        //             d(13b @28) ap(5b @23) mp(5b @18) cc(7b @11) hp(9b @2) e(1b @1) r(1b @0)
         fun key(
             d: Int,
             ap: Int,
@@ -193,8 +293,10 @@ internal object MaxDamageSoftCertificate {
             ramp: Int = 0,
             block: Int = 0,
             conditional: Int = 0,
+            sec: Int = 0,
         ): Long =
-            (conditional.toLong() shl 49) or (block.toLong() shl 45) or (ramp.toLong() shl 44) or (mpMinus.toLong() shl 43) or
+            (sec.toLong() shl 50) or
+                (conditional.toLong() shl 49) or (block.toLong() shl 45) or (ramp.toLong() shl 44) or (mpMinus.toLong() shl 43) or
                 (d.toLong() shl 28) or (ap.toLong() shl 23) or (mp.toLong() shl 18) or
                 (cc.toLong() shl 11) or (hp.toLong() shl 2) or (e.toLong() shl 1) or r.toLong()
 
@@ -220,12 +322,14 @@ internal object MaxDamageSoftCertificate {
 
         fun conditional(k: Long): Int = ((k shr 49) and 1L).toInt()
 
+        fun sec(k: Long): Int = ((k shr 50) and 0x7).toInt()
+
         fun mpCapOf(mpMinus: Int): Int = (mpCap - mpMinus).coerceAtLeast(0)
 
         fun withMp(
             k: Long,
             newMp: Int,
-        ): Long = key(d(k), ap(k), newMp, cc(k), hp(k), e(k), r(k), mpMinus(k), ramp(k), block(k), conditional(k))
+        ): Long = key(d(k), ap(k), newMp, cc(k), hp(k), e(k), r(k), mpMinus(k), ramp(k), block(k), conditional(k), sec(k))
     }
 
     private fun ceilDiv(
@@ -271,7 +375,10 @@ internal object MaxDamageSoftCertificate {
             newMpMinus,
             if (o.ramp) 1 else ramp(k),
             (block(k) + ceilDiv(o.block, BLOCK_STEP)).coerceAtMost(blockBucketCap),
-            if (o.conditional) 1 else conditional(k)
+            if (o.conditional) 1 else conditional(k),
+            // UP-rounded accumulation (ceil + saturating min at the cap): stored ≥ true S⁺,
+            // the sound direction for CAPPING a credit (spec v2).
+            if (secBucketCap > 0) (sec(k) + ceilDiv(o.secPos, SEC_DIM_STEP)).coerceAtMost(secBucketCap) else 0
         )
     }
 
@@ -404,6 +511,36 @@ internal object MaxDamageSoftCertificate {
         //  - "critZero": wK zeroed + wK·(t + own grants) constant; CRITM cappers staged,
         //    sec-cappers excluded (their builds live in secZero).
         worldArm: String? = null,
+        // Research seam: W is priced at critCap during the DP. At collapse, rescale that single
+        // non-negative weighted sum by the worst coefficient ratio reachable at the state's
+        // actual crit band. This is sound without adding an (M,K) dimension; default OFF until
+        // the seeded locks + real-shape campaign pass.
+        critAwareCollapse: Boolean = false,
+        // Research-only scalar support anchor. Instead of carrying a dense (M,K) dimension,
+        // price W at one crit anchor A: (400+A)M + 5AK. Collapse transports that support to the
+        // actual crit band with the worst coefficient ratio. Every A>0 is independently sound;
+        // taking min across a few anchors approximates the Pareto envelope with unchanged keys.
+        critWeightAnchorPercent: Int? = null,
+        // Research-only provenance selector. The returned bound remains the global maximum, but
+        // bindingState/bindingPath explain this CC-band low endpoint instead of the global winner.
+        diagnosticBindingCcBandLow: Long? = null,
+        // Research seam: keep the unique MP→DI ramp (Poids Plume in the current catalogue) in
+        // the normal-sub knapsack and evaluate it from the path's own signed MP at collapse.
+        // If future data introduces several such ramps we bail instead of silently under-counting.
+        stateDependentMpRamp: Boolean = false,
+        // P3 spec v2 credit-cap dimension (secZero arm only): replace the unconditional per-item
+        // μ·negSec budget credit by μ·min(state S⁺, global budget cap) at collapse — the exact
+        // identity is value = (wM−μ)·S + μ·min(S, t+negB). A state whose S⁺ bucket SATURATED
+        // gets the full budget cap (the up-bound is lost there), i.e. today's behavior.
+        secondaryNetDimension: Boolean = false,
+        // Research seam: ASSUME/secZero/critZero worlds already imply that a conditional carrier
+        // is selected by their exhaustive partition. Do not retain a redundant marker bit there.
+        // The base/plain world still tracks the bit normally.
+        elideImpliedConditionalMarker: Boolean = false,
+        // Research support for SECONDARY_MASTERIES_AT_MOST. If μ is in [0,wMastery], price
+        // scenario-secondary supply at (wMastery-μ) and the signed other-secondary budget at μ.
+        // This is the Lagrangian upper `wM*S - μ(S+O)`; μ=wM is the historical secZero arm.
+        secondarySupportPrice: Long? = null,
     ): Result? {
         val t0 = System.nanoTime()
         val wantSrc = provenance
@@ -431,8 +568,9 @@ internal object MaxDamageSoftCertificate {
         val level = params.character.level
         val diCap = DAMAGE_DI_MAX.toInt()
         val critCap = scenario.critCapPercent.toLong().coerceIn(0L, 100L)
-        val wMastery = 400L + critCap
-        val wCritMastery = 5L * critCap
+        val critWeightAnchor = (critWeightAnchorPercent?.toLong() ?: critCap).coerceIn(1L, 100L)
+        val wMastery = 400L + critWeightAnchor
+        val wCritMastery = 5L * critWeightAnchor
 
         // The scenario's throughput table — the exact constant the solver looks up by AP.
         val (element, resistance) = candidates.single()
@@ -562,9 +700,12 @@ internal object MaxDamageSoftCertificate {
                 if (diagnosticBasePlain) {
                     listOf(WorldSpec(null, "plain"))
                 } else {
-                    (listOf<Sublimation?>(null) + capSubs).flatMap { assume ->
-                        arms.map { arm -> WorldSpec(assume, arm) }
-                    }
+                    // Base worlds keep the arm partition; each assume-world is priced ONCE with
+                    // the "capFree" cover arm (every objective capper staged, no cap, no forcing)
+                    // — a sound superset of its three arm reads at a third of the sweep cost
+                    // (S4-245: the nine per-arm assume reads were 43 s of the 69 s coarse).
+                    arms.map { arm -> WorldSpec(null, arm) } +
+                        capSubs.map { assume -> WorldSpec(assume, "capFree") }
                 }
             // Provenance is diagnostic only. Retaining every stage map in every world/arm made a
             // coarse path run exceed ten minutes. First price all worlds normally, then replay only
@@ -578,10 +719,13 @@ internal object MaxDamageSoftCertificate {
             // the only concurrency that pays here is the CP-SAT oracle solving alongside this
             // single-threaded sweep (harness-side).
             //
-            // Assume-worlds (one cap sub forced under its threshold) price on a 2× COARSER grid:
+            // Assume-worlds (one cap sub forced under its threshold) price on a 4× COARSER grid:
             // coarser buckets only merge states under a max, so each bound stays a sound upper —
-            // and every measured assume-world lands ~45% under the main worlds, so the extra
-            // looseness cannot promote one into the refinement set.
+            // and every measured assume-world lands ~45% under the main worlds (S4-245: 9.5-10.4T
+            // vs the 17.702T authority even at 2×), so the extra looseness cannot promote one into
+            // the refinement set; if it ever did, the best-first queue re-prices it at DI10.
+            // Measured 2026-07-18: at 2× the nine S4 assume-worlds still cost 55 s of the 69 s
+            // coarse sweep — the 4× grid is the wall fix.
             val savedDi = diStep
             val savedHp = hpStep
             val savedCc = ccStep
@@ -593,9 +737,11 @@ internal object MaxDamageSoftCertificate {
                             hpStep = savedHp
                             ccStep = savedCc
                         } else {
-                            diStep = savedDi * 2
-                            hpStep = savedHp * 2
-                            ccStep = savedCc * 2
+                            diStep = savedDi * 4
+                            // Absolute floor: assume-worlds always land far under the main worlds,
+                            // so they never need the caller's (possibly refine-grade) HP step.
+                            hpStep = maxOf(savedHp * 4, 16_000)
+                            ccStep = savedCc * 4
                         }
                         spec to
                             bound(
@@ -620,7 +766,13 @@ internal object MaxDamageSoftCertificate {
                                 diagnosticBasePlain = diagnosticBasePlain,
                                 worldAssume = spec.assume,
                                 worldDropCaps = spec.assume == null,
-                                worldArm = spec.arm
+                                worldArm = spec.arm,
+                                critAwareCollapse = critAwareCollapse,
+                                critWeightAnchorPercent = critWeightAnchorPercent,
+                                diagnosticBindingCcBandLow = diagnosticBindingCcBandLow,
+                                stateDependentMpRamp = stateDependentMpRamp,
+                                elideImpliedConditionalMarker = elideImpliedConditionalMarker,
+                                secondarySupportPrice = secondarySupportPrice
                             )
                     }
                 } finally {
@@ -663,7 +815,13 @@ internal object MaxDamageSoftCertificate {
                         diagnosticBasePlain = diagnosticBasePlain,
                         worldAssume = bestSpec.assume,
                         worldDropCaps = bestSpec.assume == null,
-                        worldArm = bestSpec.arm
+                        worldArm = bestSpec.arm,
+                        critAwareCollapse = critAwareCollapse,
+                        critWeightAnchorPercent = critWeightAnchorPercent,
+                        diagnosticBindingCcBandLow = diagnosticBindingCcBandLow,
+                        stateDependentMpRamp = stateDependentMpRamp,
+                        elideImpliedConditionalMarker = elideImpliedConditionalMarker,
+                        secondarySupportPrice = secondarySupportPrice
                     ) ?: return null
                 } else {
                     best
@@ -672,7 +830,20 @@ internal object MaxDamageSoftCertificate {
             val worldReads =
                 worlds.map { (spec, result) ->
                     val read = requireNotNull(result)
-                    WorldRead(spec.assume, spec.arm, read.foldedBound, read.coreBound, read.states, read.wallMs)
+                    WorldRead(
+                        spec.assume,
+                        spec.arm,
+                        read.foldedBound,
+                        read.coreBound,
+                        read.states,
+                        read.wallMs,
+                        read.ccBandBounds,
+                        read.targetCellBounds,
+                        read.targetCellCoreBounds,
+                        read.belowTargetBounds,
+                        read.penaltyProfile,
+                        read.lightArmBounds
+                    )
                 }
             return Result(
                 best.foldedBound,
@@ -681,7 +852,12 @@ internal object MaxDamageSoftCertificate {
                 (System.nanoTime() - t0) / 1_000_000,
                 explained.bindingState,
                 explained.bindingPath,
-                worldReads
+                worldReads,
+                unionBandBounds(priced),
+                unionTargetCellBounds(priced),
+                unionTargetCellCoreBounds(priced),
+                unionBelowTargetBounds(priced),
+                priced.firstNotNullOfOrNull { it.penaltyProfile }
             )
         }
         if (splitLightWeaponCondition && lightWeaponArm == null) {
@@ -712,7 +888,14 @@ internal object MaxDamageSoftCertificate {
                     worldAssume,
                     worldDropCaps,
                     arm,
-                    worldArm
+                    worldArm,
+                    critAwareCollapse,
+                    critWeightAnchorPercent,
+                    diagnosticBindingCcBandLow,
+                    stateDependentMpRamp,
+                    secondaryNetDimension,
+                    elideImpliedConditionalMarker,
+                    secondarySupportPrice
                 )
 
             val priced = listOf("noExpert", "expertEligible").map { arm -> arm to price(arm, false) }
@@ -726,13 +909,30 @@ internal object MaxDamageSoftCertificate {
                 priced.sumOf { requireNotNull(it.second).states },
                 (System.nanoTime() - t0) / 1_000_000,
                 explained.bindingState + " lightArm=$bestArm",
-                explained.bindingPath
+                explained.bindingPath,
+                ccBandBounds = unionBandBounds(priced.map { requireNotNull(it.second) }),
+                targetCellBounds = unionTargetCellBounds(priced.map { requireNotNull(it.second) }),
+                targetCellCoreBounds = unionTargetCellCoreBounds(priced.map { requireNotNull(it.second) }),
+                belowTargetBounds = unionBelowTargetBounds(priced.map { requireNotNull(it.second) }),
+                penaltyProfile = priced.firstNotNullOfOrNull { it.second?.penaltyProfile },
+                lightArmBounds = priced.associate { (arm, result) -> arm to requireNotNull(result).foldedBound }
             )
         }
         val assumeStat = worldAssume?.let { capStatOf(it) }
         val assumeThreshold = worldAssume?.condition?.value ?: -1
         val armZeroSecondary = worldArm == "secZero"
         val armZeroCritM = worldArm == "critZero"
+        // "capFree": stage every objective-capper sub with NO cap and NO forcing — a single sound
+        // cover of all three arms of an assume-world (cap-ignored staging is sound, and with both
+        // armZero* flags false every mastery line and conversion prices at its full sound
+        // ceiling). Used to price assume-worlds once instead of three times.
+        val armCapFree = worldArm == "capFree"
+        val secDimActive = secondaryNetDimension && armZeroSecondary
+        val armForcesConditional = armZeroSecondary || armZeroCritM
+        val secSupportPrice = (secondarySupportPrice ?: wMastery).coerceIn(0L, wMastery)
+        val needsConditionalMarker =
+            requireConditionalSub &&
+                !(elideImpliedConditionalMarker && (worldAssume != null || armForcesConditional))
 
         val blockAtLeastMax =
             if (blockGate && params.useSublimations && "noSubs" !in diag && "noCondSubs" !in diag) {
@@ -743,11 +943,25 @@ internal object MaxDamageSoftCertificate {
                 0
             }
 
-        // WALL seam (§9.6): the MP→DI ramp (Poids Plume) is priced at reachableMax like every
-        // other ramp instead of a deferred state BIT — the S4 binding state saturates its MP
-        // target anyway (contribution(mpCap) = the same 24), and the bit doubled the state space.
-        // The dormant ramp machinery (key bit, collapse read) stays for a future re-fine.
-        val mpDiRamp: Pair<Sublimation, SublimationEffect.PerStatStep>? = null
+        val mpDiRampCandidates =
+            if (stateDependentMpRamp && params.useSublimations && "noSubs" !in diag) {
+                sublimations.mapNotNull { sub ->
+                    if (!sub.solverChoosable) return@mapNotNull null
+                    val ramp = sub.perStatStep ?: return@mapNotNull null
+                    if (ramp.source == Characteristic.MOVEMENT_POINT &&
+                        ramp.target == Characteristic.DAMAGE_INFLICTED &&
+                        WakfuBuildSolver.scenarioGateMatches(ramp.scenarioGate, params)
+                    ) {
+                        sub to ramp
+                    } else {
+                        null
+                    }
+                }
+            } else {
+                emptyList()
+            }
+        if (mpDiRampCandidates.size > 1) return null
+        val mpDiRamp = mpDiRampCandidates.singleOrNull()
 
         val geo =
             Geometry(
@@ -782,7 +996,8 @@ internal object MaxDamageSoftCertificate {
                 diBucketCap = ceilDiv(diCap, diStep),
                 blockBucketCap = ceilDiv(blockAtLeastMax, BLOCK_STEP),
                 assumeApThreshold = if (assumeStat == Characteristic.ACTION_POINT) assumeThreshold else -1,
-                assumeCcThresholdRaw = if (assumeStat == Characteristic.CRITICAL_HIT) assumeThreshold else -1
+                assumeCcThresholdRaw = if (assumeStat == Characteristic.CRITICAL_HIT) assumeThreshold else -1,
+                secBucketCap = if (secDimActive) 5 else 0
             )
         if (!geo.fitsPackedKey) return null
 
@@ -810,7 +1025,11 @@ internal object MaxDamageSoftCertificate {
             when {
                 v <= 0 -> 0L
                 c in masteryStats || c in randomStats ->
-                    if (armZeroSecondary && c in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS) 0L else wMastery * v
+                    if (armZeroSecondary && c in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS) {
+                        (wMastery - secSupportPrice) * v
+                    } else {
+                        wMastery * v
+                    }
                 c == Characteristic.MASTERY_CRITICAL -> if (armZeroCritM) 0L else wCritMastery * v
                 else -> 0L
             }
@@ -859,6 +1078,31 @@ internal object MaxDamageSoftCertificate {
                         it.key !in masteryStats
                 }.sumOf { (_, v) -> maxOf(v, 0).toLong() }
 
+        // A real build can socket a scenario-secondary shard whose FULL value exceeds the W the
+        // axis credited (the axis prices secondary at wM−μ): its μ complement must ride the S⁺
+        // dimension. With uniform shard values the best non-secondary shard dominates and this
+        // is zero per shard.
+        val runeSecOver: (ItemType, Int) -> Int = { type, lvl ->
+            if (params.useRunes && "noRunes" !in diag) {
+                val vSecMax =
+                    runes
+                        .filter {
+                            it.characteristic in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS &&
+                                (it.characteristic in masteryStats || it.characteristic in randomStats)
+                        }.maxOfOrNull { it.valueOn(type, lvl) } ?: 0
+                if (vSecMax > 0 && wMastery * vSecMax > runeAxesW(type, lvl)) vSecMax else 0
+            } else {
+                0
+            }
+        }
+
+        fun itemPositiveScenarioSecondary(e: Equipment): Int =
+            e.characteristics.entries
+                .filter {
+                    it.key in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS &&
+                        (it.key in masteryStats || it.key in randomStats)
+                }.sumOf { maxOf(it.value, 0) }
+
         fun itemOpts(e: Equipment): List<Opt> {
             val negativeSecondary = itemNegativeSecondary(e)
             val otherNegativeSecondary = itemOtherNegativeSecondary(e)
@@ -867,8 +1111,8 @@ internal object MaxDamageSoftCertificate {
                 Opt(
                     w =
                         e.characteristics.entries.sumOf { (c, v) -> wOf(c, v) } +
-                            if (armZeroSecondary && coupleSecondaryItemNegative) {
-                                wMastery *
+                            if (armZeroSecondary && coupleSecondaryItemNegative && !secDimActive) {
+                                secSupportPrice *
                                     if (netSecondaryItemBudget) {
                                         otherNegativeSecondary - otherPositiveSecondary
                                     } else {
@@ -889,6 +1133,10 @@ internal object MaxDamageSoftCertificate {
                     block = if (blockAtLeastMax > 0) statOf(e, Characteristic.BLOCK_PERCENTAGE) else 0,
                     apLow = if (geo.assumeApThreshold >= 0) itemAp(e) else 0,
                     ccLowRaw = if (geo.assumeCcThresholdRaw >= 0) (e.characteristics[Characteristic.CRITICAL_HIT] ?: 0) else 0,
+                    // Populated ONLY when the credit-cap dimension is active: a populated secPos
+                    // splits stat-identical ring pairs / weapon combos at distinct(), which
+                    // measured as a 2.5-7x refine-read slowdown with the dimension OFF.
+                    secPos = if (secDimActive) itemPositiveScenarioSecondary(e) else 0,
                     src =
                         if (wantSrc) {
                             "${e.name.fr}[id=${e.equipmentId} lvl=${e.level} rarity=${e.rarity} " +
@@ -916,6 +1164,7 @@ internal object MaxDamageSoftCertificate {
                                     hp = base.hp + a4 * perAxis[3],
                                     apLow = base.apLow + (if (geo.assumeApThreshold >= 0) a1 * perAxis[0] else 0),
                                     ccLowRaw = base.ccLowRaw + (if (geo.assumeCcThresholdRaw >= 0) a3 * perAxis[2] else 0),
+                                    secPos = if (secDimActive) base.secPos + a0 * runeSecOver(e.itemType, e.level) else 0,
                                     src =
                                         if (wantSrc) {
                                             base.src + "{runes=W:$a0 AP:$a1 MP:$a2 CC:$a3 HP:$a4}"
@@ -1012,6 +1261,7 @@ internal object MaxDamageSoftCertificate {
                 requiresBlockAtLeast = maxOf(a.requiresBlockAtLeast, b.requiresBlockAtLeast),
                 apLow = a.apLow + b.apLow,
                 ccLowRaw = a.ccLowRaw + b.ccLowRaw,
+                secPos = a.secPos + b.secPos,
                 conditional = a.conditional || b.conditional,
                 src =
                     if (a.src.isEmpty()) {
@@ -1444,7 +1694,50 @@ internal object MaxDamageSoftCertificate {
             } else {
                 0L
             }
-        val armConstantW = wMastery * armSecCapRaw + wCritMastery * armCritMCapRaw
+        // Global μ budget cap for the credit-cap dimension: the old total credit ceiling
+        // (arm constant + one per-item basis per slot; rings top-2, weapon combo like the MP
+        // debit fold). Sound because S ≤ t + negB_true ≤ this cap for every covered build.
+        val itemSecBudgetMax: Long =
+            if (secDimActive && coupleSecondaryItemNegative) {
+                fun basis(e: Equipment): Long =
+                    (
+                        if (netSecondaryItemBudget) {
+                            itemOtherNegativeSecondary(e) - itemOtherPositiveSecondary(e)
+                        } else {
+                            itemNegativeSecondary(e)
+                        }
+                    ).coerceAtLeast(0L)
+
+                fun maxBasis(type: ItemType): Long = pool[type].orEmpty().maxOfOrNull(::basis) ?: 0L
+                val ringBases =
+                    pool[ItemType.RING]
+                        .orEmpty()
+                        .map(::basis)
+                        .sortedDescending()
+                val weaponBasis =
+                    maxOf(
+                        maxBasis(ItemType.TWO_HANDED_WEAPONS),
+                        maxBasis(ItemType.ONE_HANDED_WEAPONS) + maxBasis(ItemType.OFF_HAND_WEAPONS)
+                    )
+                pool.keys
+                    .filter {
+                        it !in
+                            setOf(
+                                ItemType.RING,
+                                ItemType.ONE_HANDED_WEAPONS,
+                                ItemType.TWO_HANDED_WEAPONS,
+                                ItemType.OFF_HAND_WEAPONS
+                            )
+                    }.sumOf(::maxBasis) +
+                    (ringBases.getOrNull(0) ?: 0L) +
+                    (ringBases.getOrNull(1) ?: 0L) +
+                    weaponBasis
+            } else {
+                0L
+            }
+        val secDimBudgetCap = armSecCapRaw + itemSecBudgetMax
+        val armConstantW =
+            (if (secDimActive) 0L else secSupportPrice * armSecCapRaw) + wCritMastery * armCritMCapRaw
         if (params.useSublimations && "noSubs" !in diag) {
             data class SubOpt(
                 val opt: Opt,
@@ -1473,7 +1766,7 @@ internal object MaxDamageSoftCertificate {
                 if (capsObjective) {
                     val secCapper = cond?.type == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST
                     val staged =
-                        (armZeroSecondary) || (armZeroCritM && !secCapper)
+                        armCapFree || armZeroSecondary || (armZeroCritM && !secCapper)
                     if (!staged) continue
                 }
                 val blockRequirement =
@@ -1483,7 +1776,7 @@ internal object MaxDamageSoftCertificate {
                         0L,
                         0,
                         requiresBlockAtLeast = blockRequirement,
-                        conditional = requireConditionalSub && cond != null,
+                        conditional = needsConditionalMarker && cond != null,
                         src = if (wantSrc) sub.name.fr else ""
                     )
                 for (eff in sub.effects) {
@@ -1525,7 +1818,20 @@ internal object MaxDamageSoftCertificate {
                                     Characteristic.HP -> opt.copy(hp = opt.hp + value)
                                     Characteristic.BLOCK_PERCENTAGE ->
                                         if (blockAtLeastMax > 0) opt.copy(block = opt.block + value) else opt.copy(w = opt.w + wOf(eff.characteristic, value))
-                                    else -> opt.copy(w = opt.w + wOf(eff.characteristic, value))
+                                    else ->
+                                        opt.copy(
+                                            w = opt.w + wOf(eff.characteristic, value),
+                                            secPos =
+                                                opt.secPos +
+                                                    if (secDimActive &&
+                                                        eff.characteristic in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS &&
+                                                        (eff.characteristic in masteryStats || eff.characteristic in randomStats)
+                                                    ) {
+                                                        value
+                                                    } else {
+                                                        0
+                                                    }
+                                        )
                                 }
                         }
                         is SublimationEffect.PerStatStep -> {
@@ -1605,7 +1911,7 @@ internal object MaxDamageSoftCertificate {
                 val entersNormalPacking =
                     sub.rarity == SublimationRarity.NORMAL &&
                         opt.mpCapMinus == 0 &&
-                        !opt.ramp &&
+                        (!opt.ramp || (exactNormalSubPacking && stateDependentMpRamp)) &&
                         opt.requiresBlockAtLeast == 0
                 if (opt.d < 0 && !(exactNormalSubPacking && entersNormalPacking)) opt = opt.copy(d = 0)
                 if (opt.w == 0L && opt.d == 0 && opt.ap == 0 && opt.mp == 0 && opt.cc == 0 && opt.hp == 0 && !opt.ramp && !opt.conditional) {
@@ -1624,7 +1930,7 @@ internal object MaxDamageSoftCertificate {
                         .filter {
                             it.rarity == rarity &&
                                 it.opt.mpCapMinus == 0 &&
-                                !it.opt.ramp &&
+                                (!it.opt.ramp || (exactNormalSubPacking && stateDependentMpRamp)) &&
                                 it.opt.requiresBlockAtLeast == 0
                         }.map { it.opt }
                 if (opts.isEmpty()) return listOf(Opt(0L, 0))
@@ -1642,6 +1948,7 @@ internal object MaxDamageSoftCertificate {
                         val hpBucket: Int,
                         val blockBucket: Int,
                         val conditional: Boolean,
+                        val ramp: Boolean,
                     )
 
                     data class PackedKey(
@@ -1652,9 +1959,10 @@ internal object MaxDamageSoftCertificate {
                         val hp: Int,
                         val block: Int,
                         val conditional: Boolean,
+                        val ramp: Boolean,
                     )
 
-                    val zero = ExactSubKey(0, 0, 0, 0, 0, 0, 0, false)
+                    val zero = ExactSubKey(0, 0, 0, 0, 0, 0, 0, false, false)
                     val ccRawCap = geo.ccBucketCap * ccStep
                     var exact = HashMap<ExactSubKey, Long>().apply { put(zero, 0L) }
                     var exactSrc = if (wantSrc) HashMap<ExactSubKey, String>().apply { put(zero, "") } else null
@@ -1674,7 +1982,8 @@ internal object MaxDamageSoftCertificate {
                                     hpBucket = (k.hpBucket + ceilDiv(o.hp, hpStep)).coerceAtMost(geo.hpBucketCap),
                                     blockBucket =
                                         (k.blockBucket + ceilDiv(o.block, BLOCK_STEP)).coerceAtMost(geo.blockBucketCap),
-                                    conditional = k.conditional || o.conditional
+                                    conditional = k.conditional || o.conditional,
+                                    ramp = k.ramp || o.ramp
                                 )
                             val nw = wv + o.w
                             val current = next[nk]
@@ -1703,7 +2012,8 @@ internal object MaxDamageSoftCertificate {
                                 cc = k.cc,
                                 hp = k.hpBucket * hpStep,
                                 block = k.blockBucket * BLOCK_STEP,
-                                conditional = k.conditional
+                                conditional = k.conditional,
+                                ramp = k.ramp
                             )
                         val candidate =
                             Opt(
@@ -1715,6 +2025,7 @@ internal object MaxDamageSoftCertificate {
                                 hp = pk.hp,
                                 block = pk.block,
                                 conditional = pk.conditional,
+                                ramp = pk.ramp,
                                 apLow = knapApNeg,
                                 ccLowRaw = knapCcNeg,
                                 src = if (wantSrc) exactSrc?.get(k).orEmpty().ifEmpty { "$rarity x${k.count}" } else ""
@@ -1786,7 +2097,11 @@ internal object MaxDamageSoftCertificate {
             // the shared slot budget by ≤ the handful of such subs — sound).
             for (flagged in subOpts.filter {
                 it.rarity == SublimationRarity.NORMAL &&
-                    (it.opt.mpCapMinus != 0 || it.opt.ramp || it.opt.requiresBlockAtLeast != 0)
+                    (
+                        it.opt.mpCapMinus != 0 ||
+                            (it.opt.ramp && !(exactNormalSubPacking && stateDependentMpRamp)) ||
+                            it.opt.requiresBlockAtLeast != 0
+                    )
             }) {
                 step("sub-flagged", listOf(Opt(0L, 0), flagged.opt))
             }
@@ -1862,7 +2177,20 @@ internal object MaxDamageSoftCertificate {
                                 Characteristic.HP -> acc.copy(hp = acc.hp + v)
                                 Characteristic.BLOCK_PERCENTAGE ->
                                     if (blockAtLeastMax > 0) acc.copy(block = acc.block + v) else acc.copy(w = acc.w + wOf(skChar, v))
-                                else -> acc.copy(w = acc.w + wOf(skChar, v))
+                                else ->
+                                    acc.copy(
+                                        w = acc.w + wOf(skChar, v),
+                                        secPos =
+                                            acc.secPos +
+                                                if (secDimActive &&
+                                                    skChar in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS &&
+                                                    (skChar in masteryStats || skChar in randomStats)
+                                                ) {
+                                                    v
+                                                } else {
+                                                    0
+                                                }
+                                    )
                             }
                     }
                     return acc
@@ -1921,6 +2249,11 @@ internal object MaxDamageSoftCertificate {
         var bindingState = ""
         var bindingKey = 0L
         var bindingW = 0L
+        var bestBindingFolded = Long.MIN_VALUE
+        val ccBandBounds = linkedMapOf<Long, Long>()
+        val targetCellBounds = linkedMapOf<TargetCell, Long>()
+        val targetCellCoreBounds = linkedMapOf<TargetCell, Long>()
+        val belowTargetBounds = linkedMapOf<Characteristic, Long>()
 
         data class ScoredBand(
             val core: Long,
@@ -1928,16 +2261,18 @@ internal object MaxDamageSoftCertificate {
             val wUpper: Long,
             val ccLow: Long,
             val ccHigh: Long,
+            val targetCell: TargetCell,
+            val belowTargetFolded: Map<Characteristic, Long>,
         )
 
         data class FoldResult(
             val maxCore: Long,
             val winner: ScoredBand,
+            val bands: List<ScoredBand>,
         )
 
         for ((k, wv) in states) {
-            val armForcesConditional = armZeroSecondary || armZeroCritM
-            if (requireConditionalSub && geo.conditional(k) == 0 && !assumedOpt.conditional && !armForcesConditional) continue
+            if (needsConditionalMarker && geo.conditional(k) == 0 && !assumedOpt.conditional) continue
             // ASSUME-world filters: the assumed cap sub is EPIC (needs an epic item) and the
             // condition must hold on the LOW-read dim.
             if (worldAssume != null) {
@@ -1971,8 +2306,25 @@ internal object MaxDamageSoftCertificate {
                     } else {
                         geo.cc(k).toLong() * ccStep + assumedOpt.cc + extra.cc
                     }
+                // Credit-cap dimension (spec v2): μ·min(S⁺ upper, budget cap). A saturated bucket
+                // lost its upper bound — fall back to the full budget cap (today's behavior).
+                val secDimCredit =
+                    if (secDimActive) {
+                        val sUp =
+                            if (geo.sec(k) >= geo.secBucketCap) {
+                                secDimBudgetCap
+                            } else {
+                                minOf(
+                                    geo.sec(k).toLong() * SEC_DIM_STEP + assumedOpt.secPos + extra.secPos,
+                                    secDimBudgetCap
+                                )
+                            }
+                        secSupportPrice * sUp
+                    } else {
+                        0L
+                    }
                 val support =
-                    wv + assumedOpt.w + armConstantW + extra.w +
+                    wv + assumedOpt.w + armConstantW + extra.w + secDimCredit +
                         ccSupportLambda * (assumedOpt.cc.coerceAtLeast(0) + extra.cc.coerceAtLeast(0))
 
                 fun scoreBand(
@@ -1981,46 +2333,118 @@ internal object MaxDamageSoftCertificate {
                     ccLow: Long,
                     ccHigh: Long,
                 ): ScoredBand {
-                    val wUpper = supportDerivedW.let { if (wCap != null) minOf(it, wCap) else it }
+                    val cappedW = supportDerivedW.let { if (wCap != null) minOf(it, wCap) else it }.coerceAtLeast(0L)
+                    val wUpper =
+                        if (!critAwareCollapse || critCap <= 0L) {
+                            cappedW
+                        } else {
+                            // WA = (400+A)M + 5AK at A=critWeightAnchor. For any M,K>=0:
+                            // W(c) <= max((400+c)/(400+A), c/A) * WA. The ratio may exceed one
+                            // when c>A; it remains a sound transport between scalar supports.
+                            val c = ccHigh.coerceIn(0L, critCap)
+                            val masteryNumerator = 400L + c
+                            val masteryDenominator = 400L + critWeightAnchor
+                            val critMasteryNumerator = c
+                            val critMasteryDenominator = critWeightAnchor
+                            val (numerator, denominator) =
+                                if (masteryNumerator * critMasteryDenominator >=
+                                    critMasteryNumerator * masteryDenominator
+                                ) {
+                                    masteryNumerator to masteryDenominator
+                                } else {
+                                    critMasteryNumerator to critMasteryDenominator
+                                }
+                            (cappedW * numerator + denominator - 1L) / denominator
+                        }
                     val grawUb = wUpper.coerceIn(0L, DAMAGE_GRAW_MAX)
                     val perHit = ((100L + di) * grawUb).coerceAtMost(DAMAGE_SCORE_ABS_MAX)
                     val perHitScaled = (perHit / PERHIT_DOWNSCALE).coerceAtMost(PERHIT_SCALED_MAX)
                     val throughput = clampedTable[apRead.coerceIn(0L, clampedTable.lastIndex.toLong()).toInt()]
                     val raw = (throughput * perHitScaled).coerceAtMost(ROTATION_RAW_MAX)
                     val core = (raw * resFactor / FINAL_DOWNSCALE).coerceAtMost(DAMAGE_PERTURN_ABS_MAX)
-                    if (targets.isEmpty()) return ScoredBand(core, core, wUpper, ccLow, ccHigh)
+                    if (targets.isEmpty()) {
+                        return ScoredBand(core, core, wUpper, ccLow, ccHigh, TargetCell(0L, 0L, 0L, 0L), emptyMap())
+                    }
+                    val apCredit = minOf(apRead, targetOf(Characteristic.ACTION_POINT))
+                    val mpCredit =
+                        minOf(
+                            geo.mp(k).toLong() + assumedOpt.mp + extra.mp,
+                            targetOf(Characteristic.MOVEMENT_POINT)
+                        )
+                    val ccCredit = minOf(ccForPenalty, targetOf(Characteristic.CRITICAL_HIT))
+                    val hpCredit =
+                        minOf(
+                            geo.hp(k).toLong() * hpStep + assumedOpt.hp + extra.hp,
+                            targetOf(Characteristic.HP)
+                        )
                     val totalActual =
-                        weight(Characteristic.ACTION_POINT) * minOf(apRead, targetOf(Characteristic.ACTION_POINT)) +
-                            weight(Characteristic.MOVEMENT_POINT) *
-                            minOf(geo.mp(k).toLong() + assumedOpt.mp + extra.mp, targetOf(Characteristic.MOVEMENT_POINT)) +
-                            weight(Characteristic.CRITICAL_HIT) * minOf(ccForPenalty, targetOf(Characteristic.CRITICAL_HIT)) +
-                            weight(Characteristic.HP) *
-                            minOf(geo.hp(k).toLong() * hpStep + assumedOpt.hp + extra.hp, targetOf(Characteristic.HP))
-                    val bucket = (totalActual.coerceIn(1L, totalExpected) / bucketSize).toInt().coerceAtMost(maxIndex)
-                    return ScoredBand(core, core * powTable[bucket], wUpper, ccLow, ccHigh)
+                        weight(Characteristic.ACTION_POINT) * apCredit +
+                            weight(Characteristic.MOVEMENT_POINT) * mpCredit +
+                            weight(Characteristic.CRITICAL_HIT) * ccCredit +
+                            weight(Characteristic.HP) * hpCredit
+
+                    fun foldedAt(totalCredit: Long): Long {
+                        val bucket = (totalCredit.coerceIn(1L, totalExpected) / bucketSize).toInt().coerceAtMost(maxIndex)
+                        return core * powTable[bucket]
+                    }
+                    val credits =
+                        mapOf(
+                            Characteristic.ACTION_POINT to apCredit,
+                            Characteristic.MOVEMENT_POINT to mpCredit,
+                            Characteristic.CRITICAL_HIT to ccCredit,
+                            Characteristic.HP to hpCredit
+                        )
+                    val below =
+                        credits
+                            .mapNotNull { (stat, credit) ->
+                                val target = targetOf(stat)
+                                if (target <= 0L || (stat == Characteristic.CRITICAL_HIT && ccLow >= target)) {
+                                    null
+                                } else {
+                                    val cappedCredit = minOf(credit, target - 1L)
+                                    stat to foldedAt(totalActual - weight(stat) * (credit - cappedCredit))
+                                }
+                            }.toMap()
+                    return ScoredBand(
+                        core,
+                        foldedAt(totalActual),
+                        wUpper,
+                        ccLow,
+                        ccHigh,
+                        TargetCell(apCredit, mpCredit, ccCredit, hpCredit),
+                        below
+                    )
                 }
 
-                if (ccSupportLambda == 0L || weight(Characteristic.CRITICAL_HIT) == 0L) {
+                if (ccSupportLambda == 0L || (!critAwareCollapse && weight(Characteristic.CRITICAL_HIT) == 0L)) {
                     val scored = scoreBand(support, ccRead, 0L, ccRead)
-                    return FoldResult(scored.core, scored)
+                    return FoldResult(scored.core, scored, listOf(scored))
                 }
 
                 // For a build whose signed CC lies in [lo, hi], positiveCC >= signedCC gives
                 // W <= H_lambda - lambda*lo, while pricing its target fold at hi only over-counts.
                 // Negative signed CC is covered by the lo=0 rectangle (both W and target credit
                 // are then relaxed upward). Values above the target are covered by its last band.
-                val ccUpper = minOf(ccRead.coerceAtLeast(0L), targetOf(Characteristic.CRITICAL_HIT))
+                val ccFoldCap =
+                    if (weight(Characteristic.CRITICAL_HIT) == 0L) {
+                        critCap
+                    } else {
+                        targetOf(Characteristic.CRITICAL_HIT)
+                    }
+                val ccUpper = minOf(ccRead.coerceAtLeast(0L), ccFoldCap)
                 var lo = 0L
                 var maxCoreForFold = 0L
                 var winner: ScoredBand? = null
+                val bands = arrayListOf<ScoredBand>()
                 while (lo <= ccUpper) {
                     val hi = minOf(ccUpper, lo + ccSupportBand - 1L)
                     val scored = scoreBand(support - ccSupportLambda * lo, hi, lo, hi)
+                    bands += scored
                     maxCoreForFold = maxOf(maxCoreForFold, scored.core)
                     if (winner == null || scored.folded > winner.folded) winner = scored
                     lo = hi + 1L
                 }
-                return FoldResult(maxCoreForFold, requireNotNull(winner))
+                return FoldResult(maxCoreForFold, requireNotNull(winner), bands)
             }
 
             fun consider(
@@ -2029,18 +2453,32 @@ internal object MaxDamageSoftCertificate {
                 tag: String,
             ) {
                 val folded = foldWith(extra, wCap)
+                folded.bands.forEach { band ->
+                    ccBandBounds[band.ccLow] = maxOf(ccBandBounds[band.ccLow] ?: Long.MIN_VALUE, band.folded)
+                    targetCellBounds[band.targetCell] =
+                        maxOf(targetCellBounds[band.targetCell] ?: Long.MIN_VALUE, band.folded)
+                    targetCellCoreBounds[band.targetCell] =
+                        maxOf(targetCellCoreBounds[band.targetCell] ?: Long.MIN_VALUE, band.core)
+                    band.belowTargetFolded.forEach { (stat, bound) ->
+                        belowTargetBounds[stat] = maxOf(belowTargetBounds[stat] ?: Long.MIN_VALUE, bound)
+                    }
+                }
                 if (folded.maxCore > bestCore) bestCore = folded.maxCore
-                if (folded.winner.folded > bestFolded) {
-                    bestFolded = folded.winner.folded
+                bestFolded = maxOf(bestFolded, folded.winner.folded)
+                val bindingWinner =
+                    diagnosticBindingCcBandLow?.let { requested -> folded.bands.firstOrNull { it.ccLow == requested } }
+                        ?: if (diagnosticBindingCcBandLow == null) folded.winner else return
+                if (bindingWinner.folded > bestBindingFolded) {
+                    bestBindingFolded = bindingWinner.folded
                     bindingKey = k
                     bindingW = wv
                     bindingState =
-                        "supportLambda=$ccSupportLambda support=$wv ccBand=${folded.winner.ccLow}..${folded.winner.ccHigh} " +
-                        "Wupper=${folded.winner.wUpper} armConstW=$armConstantW armSecCap=$armSecCapRaw " +
+                        "supportLambda=$ccSupportLambda support=$wv ccBand=${bindingWinner.ccLow}..${bindingWinner.ccHigh} " +
+                        "Wupper=${bindingWinner.wUpper} armConstW=$armConstantW armSecCap=$armSecCapRaw secPrice=$secSupportPrice " +
                         "d=${geo.d(k) * diStep}+ramp$rampDi ap=${geo.ap(k)} mp=${geo.mp(k)} " +
                         "cc=${geo.cc(k) * ccStep} hp=${geo.hp(k) * hpStep} e=${geo.e(k)} r=${geo.r(k)} " +
                         "conditional=${if (geo.conditional(k) == 1 || assumedOpt.conditional || armForcesConditional) 1 else 0} " +
-                        "assume=${worldAssume?.name?.fr ?: "-"}$tag core=${folded.winner.core}"
+                        "assume=${worldAssume?.name?.fr ?: "-"}$tag core=${bindingWinner.core} folded=${bindingWinner.folded}"
                 }
             }
 
@@ -2091,7 +2529,31 @@ internal object MaxDamageSoftCertificate {
             }
             bindingPath.reverse()
         }
-        return Result(bestFolded, bestCore, states.size, (System.nanoTime() - t0) / 1_000_000, bindingState, bindingPath)
+        return Result(
+            bestFolded,
+            bestCore,
+            states.size,
+            (System.nanoTime() - t0) / 1_000_000,
+            bindingState,
+            bindingPath,
+            ccBandBounds = ccBandBounds,
+            targetCellBounds = targetCellBounds,
+            targetCellCoreBounds = targetCellCoreBounds,
+            belowTargetBounds = belowTargetBounds,
+            penaltyProfile =
+                if (targets.isEmpty()) {
+                    null
+                } else {
+                    PenaltyProfile(
+                        totalExpected,
+                        bucketSize,
+                        maxIndex,
+                        powScale,
+                        SUPPORTED_TARGETS.associateWith(::weight),
+                        SUPPORTED_TARGETS.associateWith(::targetOf)
+                    )
+                }
+        )
     }
 
     private val EMPTY_OPT = Opt(0L, 0)
@@ -2100,19 +2562,50 @@ internal object MaxDamageSoftCertificate {
     // PRODUCTION soft-leg proof orchestration (plan §9.20) — the hybrid partition union.
     // ---------------------------------------------------------------------------------------------
 
-    /** The winning support-function knee/band from the §9.13 screen — fixed in production. */
+    /** Sound support-function knees selected by the measured stat scale/arm (§9.22septdecies). */
     private const val PROD_CC_SUPPORT_LAMBDA = 6000L
+    private const val PROD_CC_SUPPORT_LAMBDA_LOW = 1500L
+    private const val PROD_SECZERO_MID_SUPPORT_LAMBDA = 4000L
+    private const val PROD_SECZERO_SECONDARY_SUPPORT_PRICE = 250L
+
+    // Refinement acceptance band vs the search incumbent: below this gap the ProvenWithin badge
+    // is already sub-2% and further DI1 passes buy hundredths of a percent for tens of seconds.
+    private const val PROD_SOFT_BADGE_ACCEPT_FRACTION = 0.015
+
+    // P3 credit-cap dimension (spec v2): bucket step for the UP-rounded S⁺ state field.
+    private const val SEC_DIM_STEP = 250
     private const val PROD_CC_SUPPORT_BAND = 5
+    private const val PROD_CRIT_WEIGHT_ANCHOR = 100
+    private const val PROD_HIGH_SCALE_LEVEL = 225
+    private const val PROD_SECZERO_HIGH_SCALE_LEVEL = 175
 
     /** The §9.19 adaptive grid: coarse sweep steps and the fine defaults refinements restore. */
     private const val COARSE_DI_STEP = 10
-    private const val COARSE_HP_STEP = 2000
+    private const val COARSE_HP_STEP = 4000
     private const val COARSE_CC_STEP = 20
-    private const val REFINE_HP_STEP = 1000
+    private const val REFINE_HP_STEP = 2000
 
-    /** Budget for the §9.22 relaxed (conditions-stripped) probe: 7.4 s at cra-140 even on a hot
-     *  machine (no reifications = structurally easy); large pools burn the budget and fall back. */
+    /** Budget for the §9.22 relaxed (conditions-stripped) probe: the corrected v17 relaxation
+     *  proves its upper in 2.9 s at cra-140; large pools burn the budget and fall back. */
     private const val RELAXED_PROBE_SECONDS = 45.0
+
+    /** First exact-structure attempt after the free-condition relaxation. CRA-80 and CRA-110
+     *  full-catalog proofs closed in 87-125 s with 7-9 nodes, versus monolithic CP-SAT still open
+     *  after 120-300 s. The global budget is strict; in this measured low-level regime an unfinished
+     *  tree returns its sound frontier dual directly instead of stacking the legacy budgets. */
+    private const val CONDITIONAL_WORLD_BB_SECONDS = 180.0
+    private const val CONDITIONAL_WORLD_BB_NODE_SECONDS = 15.0
+    private const val CONDITIONAL_WORLD_BB_MAX_NODES = 64
+
+    // Root prognosis: a root dual beyond this band over the incumbent means the reification wall
+    // makes the tree unclosable in any bounded budget (iop110-full +142% never closes; cra80-ap10
+    // +14% closes in 9 nodes) — bail after one node and use the DP union instead.
+    private const val CONDITIONAL_WORLD_BB_ROOT_BAIL = 0.25
+
+    // Extended 110 → 140 (2026-07-18): with k-ary SOS branching + parent-assignment hints the
+    // tree closes cra-140 in 6 nodes / 65 s (it did not close at all under the binary chain).
+    // 200+ stays out: mixed-node duals are +218% there (the reification wall).
+    private const val CONDITIONAL_WORLD_BB_MAX_LEVEL = 140
 
     /** Budget for the §9.21 full-model CP-SAT probe — paid only on shapes where the DP is loose.
      *  cra-140 proves OPTIMAL in ~104 s cold but needed >300 s on a thermally saturated machine
@@ -2120,12 +2613,158 @@ internal object MaxDamageSoftCertificate {
      *  still degrades gracefully to the dual bound. */
     private const val CONDITIONAL_PROBE_SECONDS = 420.0
 
+    // Product deadline for the whole soft-proof phase: the open-ended CP legs (the ≤110
+    // conditional-world tree and the full-model plain probe) are clipped to what remains of this
+    // budget, so every request gets a sound verdict in about two minutes. The DP legs are never
+    // clipped — S4-245/IOP-200 close well inside the deadline and never reach the CP legs.
+    private const val PROOF_PHASE_DEADLINE_SECONDS = 110.0
+
+    // A clipped CP leg still needs enough time to produce a useful dual.
+    private const val MIN_CLIPPED_CP_SECONDS = 20.0
+
     /** Probe gate: below a 10% DP-vs-oracle gap the DP regime is already tight and the probe's
      *  dual essentially never beats it (iop-200: +2.9% DP, probe bought nothing for 180 s). */
     private const val CONDITIONAL_PROBE_MIN_GAP = 0.10
+    private const val FRONTIER_REGION_TOTAL_SECONDS = 120.0
     private const val DEFAULT_DI_STEP = 1
     private const val DEFAULT_HP_STEP = 500
     private const val DEFAULT_CC_STEP = 10
+
+    internal data class FrontierRegionCellRead(
+        val regionUpper: Long,
+        val hpComplementUpper: Long,
+        val cell: TargetCell,
+        val hpFloor: Long,
+        val oracleStatus: String,
+        val oracleRawUpper: Long,
+        val oracleWallSeconds: Double,
+    )
+
+    internal data class FrontierRegionRead(
+        val upper: Long,
+        val complementUpper: Long,
+        val cells: List<FrontierRegionCellRead>,
+    )
+
+    /**
+     * Research primitive for the last loose DP rectangle. It is intentionally conservative:
+     * activate only when at most four target-credit rectangles are above [incumbent]. Every real
+     * build then belongs to one of three exhaustive arms:
+     *
+     *  1. another AP/MP/CC/HP rectangle (its existing DP fold is retained),
+     *  2. the dominant rectangle but HP below [hpFloor] (same core upper, penalty credit capped),
+     *  3. the exact AP/MP/CC region with HP >= [hpFloor] (plain/raw CP-SAT upper, multiplied by
+     *     the rectangle's worst penalty multiplier).
+     *
+     * The method returns null rather than guessing when the ledger has multiple offenders.
+     */
+    internal fun frontierRegionUpper(
+        params: WakfuBestBuildParams,
+        pool: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        dp: Result,
+        incumbent: Long,
+        workers: Int,
+        seconds: Double,
+    ): FrontierRegionRead? {
+        if (incumbent <= 0L) return null
+        val offenders =
+            dp.targetCellBounds
+                .filterValues { it > incumbent }
+                .entries
+                .sortedByDescending { it.value }
+        if (offenders.isEmpty() || offenders.size > 4) return null
+        val secondsPerCell = seconds / offenders.size
+        val profile = dp.penaltyProfile ?: return null
+        val hpWeight = profile.weights.getOrDefault(Characteristic.HP, 0L)
+        if (offenders.any { it.key.hp < profile.targets.getOrDefault(Characteristic.HP, 0L) }) return null
+        val otherCellsUpper =
+            dp.targetCellBounds.entries
+                .filter { entry -> offenders.none { it.key == entry.key } }
+                .maxOfOrNull { it.value } ?: Long.MIN_VALUE
+
+        fun requested(stat: Characteristic): Long = profile.targets.getOrDefault(stat, 0L)
+
+        val cellReads =
+            offenders.map { offender ->
+                val cell = offender.key
+                val core = dp.targetCellCoreBounds[cell] ?: return null
+                val baseCredit = profile.totalCredit(cell)
+                var hpComplementCap = cell.hp
+                if (hpWeight > 0L) {
+                    while (hpComplementCap >= 0L) {
+                        val credit = baseCredit - hpWeight * (cell.hp - hpComplementCap)
+                        if (profile.folded(core, credit) <= incumbent) break
+                        hpComplementCap--
+                    }
+                } else {
+                    hpComplementCap = -1L
+                }
+                val hpFloor = (hpComplementCap + 1L).coerceAtLeast(0L)
+                val hpComplementUpper =
+                    if (hpComplementCap >= 0L) {
+                        profile.folded(core, baseCredit - hpWeight * (cell.hp - hpComplementCap))
+                    } else {
+                        Long.MIN_VALUE
+                    }
+                val ccLow =
+                    if (cell.cc >= requested(Characteristic.CRITICAL_HIT)) {
+                        requested(Characteristic.CRITICAL_HIT)
+                    } else {
+                        (cell.cc / PROD_CC_SUPPORT_BAND) * PROD_CC_SUPPORT_BAND
+                    }
+                val lower =
+                    linkedMapOf(
+                        Characteristic.ACTION_POINT to cell.ap,
+                        Characteristic.MOVEMENT_POINT to cell.mp,
+                        Characteristic.CRITICAL_HIT to ccLow,
+                        Characteristic.HP to hpFloor
+                    ).filter { (stat, _) -> requested(stat) > 0L }
+                val upper =
+                    buildMap {
+                        if (cell.ap < requested(Characteristic.ACTION_POINT)) put(Characteristic.ACTION_POINT, cell.ap)
+                        if (cell.mp < requested(Characteristic.MOVEMENT_POINT)) put(Characteristic.MOVEMENT_POINT, cell.mp)
+                        if (cell.cc < requested(Characteristic.CRITICAL_HIT)) put(Characteristic.CRITICAL_HIT, cell.cc)
+                    }
+                val regionTargets =
+                    lower.mapNotNull { (stat, value) -> value.takeIf { it > 0L }?.let { TargetStat(stat, it.toInt()) } }
+                val oracleParams = params.copy(targetStats = TargetStats(regionTargets))
+                val oracle =
+                    WakfuBuildSolver.timedMaxDamageProfileForTest(
+                        params = oracleParams,
+                        equipmentsByItemType = pool,
+                        runes = runes,
+                        sublimations = sublimations,
+                        workers = workers,
+                        seconds = secondsPerCell,
+                        applyDomination = lower.values.all { it > 0L },
+                        hardConstraints = true,
+                        statLowerBounds = lower,
+                        statUpperBounds = upper
+                    )
+                // UNKNOWN normally still carries a finite dual. Treat a missing/negative native
+                // sentinel as infinity: folding it to zero would make a timeout unsound.
+                val rawUpper =
+                    (if (oracle.status == "OPTIMAL") oracle.objective else oracle.bestBound)
+                        .takeIf { it >= 0L } ?: Long.MAX_VALUE
+                FrontierRegionCellRead(
+                    profile.folded(rawUpper, baseCredit),
+                    hpComplementUpper,
+                    cell,
+                    hpFloor,
+                    oracle.status,
+                    rawUpper,
+                    oracle.wallTimeSec
+                )
+            }
+        val complementUpper = maxOf(otherCellsUpper, cellReads.maxOf { it.hpComplementUpper })
+        return FrontierRegionRead(
+            maxOf(complementUpper, cellReads.maxOf { it.regionUpper }),
+            complementUpper,
+            cellReads
+        )
+    }
 
     /** A sound upper bound on the PENALIZED soft objective over EVERY build (union of both partitions). */
     internal class SoftUnionUpper(
@@ -2188,8 +2827,11 @@ internal object MaxDamageSoftCertificate {
         oracleSeconds: Double,
         shouldContinue: () -> Boolean = { true },
         // §9.22 fast path: when the caller knows the incumbent's PENALIZED objective, the relaxed
-        // probe below can close the proof outright (7.4 s at cra-140). MIN_VALUE = no early exit.
+        // probe below can close outright when its upper meets the incumbent. MIN_VALUE = no early exit.
         incumbentObjective: Long = Long.MIN_VALUE,
+        // User-facing progress: invoked with the stage key each time a proof stage completes, so
+        // the GUI can narrate the multi-minute soft proof (user request 2026-07-18).
+        onPhase: (String) -> Unit = {},
     ): SoftUnionUpper? {
         if (!supportsShape(params)) return null
         val memoKey =
@@ -2208,63 +2850,224 @@ internal object MaxDamageSoftCertificate {
         unionMemo[memoKey]?.let { return it }
         val t0 = System.nanoTime()
 
+        // Stage stamps: the wall of a 1-3 minute proof must stay attributable without a re-run.
+        fun stamp(label: String) {
+            logger.info { "soft-leg proof stage=$label elapsedMs=${(System.nanoTime() - t0) / 1_000_000}" }
+            onPhase(label)
+        }
+
+        fun deadlineSecondsRemaining(): Double =
+            (PROOF_PHASE_DEADLINE_SECONDS - (System.nanoTime() - t0) / 1_000_000_000.0)
+                .coerceAtLeast(MIN_CLIPPED_CP_SECONDS)
+
         // §9.22 STEP 0 — the RELAXED probe: strip the conditions (subs kept, slots and credits
         // intact, ZERO reifications). Sound upper on EVERY build: a real build whose conditional
-        // subs are inert is covered by its variant without them (same value, feasible here). At
-        // cra-140 it proves the EXACT optimum in 7.4 s — the conditional credits do not improve
-        // the optimum even for free — closing the badge instantly; on large pools (S4-245) its
-        // dual is useless (29.4T after 300 s) and the union below takes over. Forced subs never
+        // subs are inert is covered by its variant without them (same value, feasible here). The
+        // v17-corrected relaxation proves a +13.49% upper in 2.9 s at cra-140 (so the union below
+        // takes over there); on large pools (S4-245) its dual is also loose. Forced subs never
         // reach this path ([supportsShape] bails), so the stripped credits are always optional.
-        // Deliberately UNGATED: whether the probe closes depends on the REQUEST (do the
-        // conditional credits improve ITS optimum, even free?), which no a-priori proxy (pool
-        // size, level) can decide — shapes where it is useless only pay this bounded overhead
-        // before the union takes over.
-        val relaxedUpper =
-            run {
-                try {
-                    val relaxed =
-                        WakfuBuildSolver.timedMaxDamageProfileForTest(
-                            params = params,
-                            equipmentsByItemType = pool,
-                            runes = runes,
-                            sublimations =
-                                sublimations.map {
-                                    if (it.condition != null && it.solverChoosable) it.copy(condition = null) else it
-                                },
-                            workers = oracleWorkers,
-                            seconds = RELAXED_PROBE_SECONDS,
-                            applyDomination = true
-                        )
-                    if (relaxed.status == "OPTIMAL") relaxed.objective else relaxed.bestBound
-                } catch (e: Exception) {
-                    logger.warn(e) { "soft-leg proof: the relaxed probe failed — continuing with the union" }
+        // At level >=175 the v22 DP closes S4-245 in 103 s and gives IOP-200 +3.01% in 74 s;
+        // the relaxed probe was loose on both and its serial 45 s alone broke the two-minute
+        // product target. Keep it on the smaller regimes where it proves in seconds / feeds the
+        // low-level world tree, and let the high-level oracle+DP start immediately.
+        // LAZY: on the ≤110 route the conditional-world tree usually closes exactly, in which
+        // case the 15-45 s relaxed read is never paid at all.
+        val relaxedUpper: Long by lazy {
+            (
+                if (params.character.level >= PROD_SECZERO_HIGH_SCALE_LEVEL) {
                     Long.MAX_VALUE
+                } else {
+                    try {
+                        val relaxed =
+                            WakfuBuildSolver.timedMaxDamageProfileForTest(
+                                params = params,
+                                equipmentsByItemType = pool,
+                                runes = runes,
+                                sublimations = sublimations.map { it.withRelaxedBuildStaticCondition() },
+                                workers = oracleWorkers,
+                                // Deadline-clipped like every other CP leg (feca65 measured the
+                                // LAZY relaxed read burning its fixed 45 s late in a long proof).
+                                seconds = minOf(RELAXED_PROBE_SECONDS, deadlineSecondsRemaining()),
+                                applyDomination = true
+                            )
+                        if (relaxed.status == "OPTIMAL") relaxed.objective else relaxed.bestBound
+                    } catch (e: Exception) {
+                        logger.warn(e) { "soft-leg proof: the relaxed probe failed — continuing with the union" }
+                        Long.MAX_VALUE
+                    }
                 }
+            ).also { stamp("relaxedProbe") }
+        }
+
+        val hasConditional =
+            params.useSublimations && sublimations.any { it.solverChoosable && it.condition?.type in SUPPORTED_SUB_CONDITIONS }
+        val worldTreeEligible =
+            hasConditional && incumbentObjective != Long.MIN_VALUE && params.character.level <= CONDITIONAL_WORLD_BB_MAX_LEVEL
+        if (!worldTreeEligible) {
+            if (relaxedUpper <= incumbentObjective) {
+                return SoftUnionUpper(relaxedUpper, relaxedUpper, true, (System.nanoTime() - t0) / 1_000_000)
+                    .also { unionMemo[memoKey] = it }
             }
-        if (relaxedUpper <= incumbentObjective) {
-            return SoftUnionUpper(relaxedUpper, relaxedUpper, true, (System.nanoTime() - t0) / 1_000_000)
-                .also { unionMemo[memoKey] = it }
+            if (!shouldContinue()) return null
+        }
+
+        val noConditionSubs = sublimations.filter { it.condition == null }
+
+        var conditionalWorldUpper = Long.MAX_VALUE
+        if (worldTreeEligible) {
+            onPhase("worldTree")
+            val worldT0 = System.nanoTime()
+            val worldProof =
+                try {
+                    WakfuBuildSolver.conditionalWorldBranchAndBound(
+                        params = params,
+                        equipmentsByItemType = pool,
+                        runes = runes,
+                        sublimations = sublimations,
+                        incumbentObjective = incumbentObjective,
+                        workers = oracleWorkers,
+                        // With the root prognosis below, a hopeless tree costs ONE node before
+                        // falling through to the DP union — so the closable trees (root dual
+                        // within the bail band) may keep their full closure budget.
+                        totalSeconds = minOf(CONDITIONAL_WORLD_BB_SECONDS, oracleSeconds),
+                        maxSecondsPerNode = CONDITIONAL_WORLD_BB_NODE_SECONDS,
+                        maxNodes = CONDITIONAL_WORLD_BB_MAX_NODES,
+                        applyDomination = true,
+                        rootBailFraction = CONDITIONAL_WORLD_BB_ROOT_BAIL,
+                        shouldContinue = shouldContinue
+                    )
+                } catch (e: Exception) {
+                    logger.warn(e) { "soft-leg proof: conditional-world B&B failed — continuing with the DP union" }
+                    null
+                }
+            logger.info {
+                "soft-leg proof: conditional-world result=${worldProof?.javaClass?.simpleName ?: "failed"} " +
+                    "nodes=${worldProof?.reads?.size ?: 0} wallMs=${(System.nanoTime() - worldT0) / 1_000_000}"
+            }
+            when (worldProof) {
+                is WakfuBuildSolver.ConditionalWorldProof.Proven -> {
+                    return SoftUnionUpper(
+                        worldProof.upper,
+                        worldProof.upper,
+                        true,
+                        (System.nanoTime() - t0) / 1_000_000
+                    ).also { unionMemo[memoKey] = it }
+                }
+                is WakfuBuildSolver.ConditionalWorldProof.Inconclusive -> {
+                    // Generality-matrix fix (iop110-full: Unavailable in 225 s): an inconclusive
+                    // tree no longer ends the proof — its frontier joins the union by min and the
+                    // pipeline FALLS THROUGH to the DP authorities, which handle exactly the
+                    // shapes whose mixed-node duals are reification-walled. The old budget-
+                    // stacking concern is contained by the root prognosis (a hopeless tree costs
+                    // one node) and the proof-phase deadline on the CP legs.
+                    conditionalWorldUpper = worldProof.upper
+                }
+                is WakfuBuildSolver.ConditionalWorldProof.Counterexample -> {
+                    logger.info {
+                        "soft-leg proof: conditional-world B&B found exact objective " +
+                            "${worldProof.objective} above incumbent=$incumbentObjective"
+                    }
+                    return SoftUnionUpper(relaxedUpper, relaxedUpper, false, (System.nanoTime() - t0) / 1_000_000)
+                }
+                null -> Unit
+            }
         }
         if (!shouldContinue()) return null
 
-        val noConditionSubs = sublimations.filter { it.condition == null }
+        // Above 175, relaunching CP-SAT beside the parallel DP is the wrong fallback: 8 CP workers
+        // stretch S4 to 178 s, while 2/4 workers fail to prove in 240 s. A no-condition DP on the
+        // filtered catalogue is itself a sound partition upper and takes ~12 s at S4 (HP=4000).
+        // This follows the product order: main CP-SAT first; if it stalls, certificate only.
+        val highLevelNoCondition =
+            if (params.character.level >= PROD_SECZERO_HIGH_SCALE_LEVEL) {
+                diStep = 1
+                hpStep = 4000
+                ccStep = COARSE_CC_STEP
+                bound(
+                    params,
+                    pool,
+                    runes,
+                    noConditionSubs,
+                    blockGate = false,
+                    shouldContinue = shouldContinue,
+                    ccSupportLambda =
+                        if (params.character.level >= PROD_HIGH_SCALE_LEVEL) {
+                            PROD_CC_SUPPORT_LAMBDA
+                        } else {
+                            PROD_CC_SUPPORT_LAMBDA_LOW
+                        },
+                    ccSupportBand = PROD_CC_SUPPORT_BAND,
+                    coupleSecondaryItemNegative = true,
+                    netSecondaryItemBudget = true,
+                    exactNormalSubPacking = true,
+                    foldNegativeItemAp = true,
+                    foldNegativeMaxMp = true,
+                    splitLightWeaponCondition = false,
+                    requireConditionalSub = false,
+                    critAwareCollapse = true,
+                    critWeightAnchorPercent = PROD_CRIT_WEIGHT_ANCHOR,
+                    stateDependentMpRamp = true
+                ) ?: return null
+            } else {
+                null
+            }
+        val highLevelNoConditionUpper =
+            highLevelNoCondition?.let { dp ->
+                val regional =
+                    if (incumbentObjective > 0L && dp.foldedBound > incumbentObjective) {
+                        try {
+                            frontierRegionUpper(
+                                params,
+                                pool,
+                                runes,
+                                noConditionSubs,
+                                dp,
+                                incumbentObjective,
+                                oracleWorkers,
+                                minOf(FRONTIER_REGION_TOTAL_SECONDS, oracleSeconds)
+                            )
+                        } catch (e: Exception) {
+                            logger.warn(e) {
+                                "soft-leg proof: no-condition frontier refinement failed — keeping the DP upper"
+                            }
+                            null
+                        }
+                    } else {
+                        null
+                    }
+                minOf(dp.foldedBound, regional?.upper ?: Long.MAX_VALUE)
+            }
+        if (highLevelNoCondition != null) stamp("noConditionDp+region")
+        // Started AFTER the B&B (starting it before stole cores from a PROVING tree: cra80-ap10
+        // regressed 41 s → 176 s at even half workers). The LAZY join below still overlaps this
+        // solve with the whole DP phase, so the old post-oracle serial hole stays gone (feca65:
+        // DP 60-90 s > the ~39 s oracle solve — the final join is instant).
         val oracleFuture =
-            java.util.concurrent.CompletableFuture.supplyAsync {
-                WakfuBuildSolver.warmUp()
-                WakfuBuildSolver.timedMaxDamageProfileForTest(
-                    params = params,
-                    equipmentsByItemType = pool,
-                    runes = runes,
-                    sublimations = noConditionSubs,
-                    workers = oracleWorkers,
-                    seconds = oracleSeconds,
-                    applyDomination = true
-                )
+            if (highLevelNoCondition == null) {
+                java.util.concurrent.CompletableFuture.supplyAsync {
+                    WakfuBuildSolver.warmUp()
+                    WakfuBuildSolver.timedMaxDamageProfileForTest(
+                        params = params,
+                        equipmentsByItemType = pool,
+                        runes = runes,
+                        sublimations = noConditionSubs,
+                        workers = oracleWorkers,
+                        seconds = oracleSeconds,
+                        applyDomination = true
+                    )
+                }
+            } else {
+                null
             }
 
-        fun joinOracle(): Pair<Long, Boolean>? =
-            try {
-                val profile = oracleFuture.join()
+        fun joinOracle(): Pair<Long, Boolean>? {
+            highLevelNoConditionUpper?.let { upper ->
+                // `true` here means this partition authority alone is at/below the known feasible
+                // full-model incumbent; the final max still decides global optimality.
+                return upper to (upper <= incumbentObjective)
+            }
+            return try {
+                val profile = requireNotNull(oracleFuture).join()
                 if (profile.status == "OPTIMAL") {
                     profile.objective to true
                 } else {
@@ -2277,10 +3080,9 @@ internal object MaxDamageSoftCertificate {
                 logger.warn(e) { "soft-leg proof: the no-condition oracle solve failed — badge withheld" }
                 null
             }
+        }
 
         try {
-            val hasConditional =
-                params.useSublimations && sublimations.any { it.solverChoosable && it.condition != null }
             if (!hasConditional) {
                 // The active catalog carries no conditional sublimation: the no-condition model IS
                 // the full model and its bound alone covers every build.
@@ -2289,8 +3091,14 @@ internal object MaxDamageSoftCertificate {
                     .also { if (proven) unionMemo[memoKey] = it }
             }
 
+            val highScale = params.character.level >= PROD_HIGH_SCALE_LEVEL
+            val coarseLambda = if (highScale) PROD_CC_SUPPORT_LAMBDA else PROD_CC_SUPPORT_LAMBDA_LOW
             diStep = COARSE_DI_STEP
-            hpStep = COARSE_HP_STEP
+            // NOTE (measured 2026-07-18): a refine-grade hp step here left every S4/IOP coarse
+            // bound BIT-IDENTICAL for +14% states — the binding coarse path overshoots the HP
+            // target, so the bucketed HP penalty never engages. The coarse looseness lives in the
+            // seams (light-arm split / MP fold), not the HP grid.
+            hpStep = if (params.character.level >= PROD_SECZERO_HIGH_SCALE_LEVEL) COARSE_HP_STEP else 2000
             ccStep = COARSE_CC_STEP
             val coarse =
                 bound(
@@ -2300,7 +3108,7 @@ internal object MaxDamageSoftCertificate {
                     sublimations,
                     blockGate = false,
                     shouldContinue = shouldContinue,
-                    ccSupportLambda = PROD_CC_SUPPORT_LAMBDA,
+                    ccSupportLambda = coarseLambda,
                     ccSupportBand = PROD_CC_SUPPORT_BAND,
                     coupleSecondaryItemNegative = true,
                     netSecondaryItemBudget = true,
@@ -2314,69 +3122,330 @@ internal object MaxDamageSoftCertificate {
                 ) ?: return null
             val pending = coarse.worldReads.sortedByDescending { it.foldedBound }
             if (pending.isEmpty()) return null
-
-            val (noConditionUpper, noConditionProven) = joinOracle() ?: return null
-
-            hpStep = REFINE_HP_STEP
-
-            // One refinement sweep at a given support-lambda. The union floor starts AT the
-            // no-condition upper: a world at or below it can never move the final bound, so it
-            // skips refinement outright (§9.19). Returns the DP side alone (every world carries
-            // its refined-or-coarse sound upper) or null on bail/cancellation.
-            fun refinementPass(lambda: Long): Long? {
-                var passUpper = 0L
-                var refinedBest = noConditionUpper
-                var refinedCount = 0
-                while (refinedCount < pending.size && refinedBest < pending[refinedCount].foldedBound) {
-                    if (!shouldContinue()) return null
-                    val world = pending[refinedCount]
-                    var refined: Result? = null
-                    for (di in intArrayOf(10, 4, 1)) {
-                        diStep = di
-                        refined =
-                            bound(
-                                params,
-                                pool,
-                                runes,
-                                sublimations,
-                                blockGate = false,
-                                shouldContinue = shouldContinue,
-                                ccSupportLambda = lambda,
-                                ccSupportBand = PROD_CC_SUPPORT_BAND,
-                                coupleSecondaryItemNegative = true,
-                                netSecondaryItemBudget = true,
-                                exactNormalSubPacking = true,
-                                foldNegativeItemAp = true,
-                                foldNegativeMaxMp = true,
-                                splitLightWeaponCondition = true,
-                                requireConditionalSub = true,
-                                worldAssume = world.assume,
-                                worldDropCaps = world.assume == null,
-                                worldArm = world.arm
-                            ) ?: return null
-                        if (refined.foldedBound <= refinedBest) break
+            stamp("coarse")
+            logger.info {
+                "soft-leg proof coarse worlds=${pending.size} states=${coarse.states} " +
+                    pending.joinToString(" ") {
+                        "${it.arm}/${it.assume?.name?.fr ?: "base"}=${it.foldedBound}@${it.wallMs}ms"
                     }
-                    val refinedBound = requireNotNull(refined).foldedBound
-                    passUpper = maxOf(passUpper, refinedBound)
-                    refinedBest = maxOf(refinedBest, refinedBound)
-                    refinedCount += 1
-                }
-                val remainingUpper = pending.drop(refinedCount).maxOfOrNull { it.foldedBound } ?: 0L
-                return maxOf(passUpper, remainingUpper)
             }
 
-            var dpConditionalUpper = refinementPass(PROD_CC_SUPPORT_LAMBDA) ?: return null
-            // The relaxed upper bounds conditional builds too: min it in BEFORE the lambda-0 and
-            // CP-probe gates, so a tight relaxed read short-circuits both heavy fallbacks.
-            dpConditionalUpper = minOf(dpConditionalUpper, relaxedUpper)
+            // LAZY oracle join (feca65's ~35-45 s serial hole): the DP queue only needs a STOP
+            // threshold, and the search incumbent is a sound one — a world at or under the
+            // incumbent cannot own the badge (the final union max is at least the no-condition
+            // authority, itself >= the incumbent). So while an incumbent exists, let the oracle
+            // keep solving in the background through the WHOLE DP phase and join it only for the
+            // final assembly below. Without an incumbent (test paths), join now.
+            // At >=175 the authority is the synchronous DP+region read — no hole to hide, join
+            // now (it can also be TIGHTER than the incumbent-based stop, so the queue stops
+            // earlier there). The lazy path only serves the <175 oracle-CP future.
+            val earlyJoined =
+                if (incumbentObjective > 0L && highLevelNoCondition == null) {
+                    null
+                } else {
+                    joinOracle() ?: return null
+                }
+            val noConditionUpper = earlyJoined?.first ?: incumbentObjective
+
+            hpStep = if (params.character.level >= PROD_SECZERO_HIGH_SCALE_LEVEL) REFINE_HP_STEP else 1000
+
+            fun supportLambda(world: WorldRead): Long =
+                when {
+                    world.arm == "secZero" && params.character.level >= PROD_HIGH_SCALE_LEVEL ->
+                        PROD_CC_SUPPORT_LAMBDA
+                    world.arm == "secZero" && params.character.level >= PROD_SECZERO_HIGH_SCALE_LEVEL ->
+                        PROD_SECZERO_MID_SUPPORT_LAMBDA
+                    highScale -> PROD_CC_SUPPORT_LAMBDA
+                    else -> PROD_CC_SUPPORT_LAMBDA_LOW
+                }
+
+            // Stop refining once every world is within this fraction of the search incumbent:
+            // the badge then reads e.g. "proven within 1.1%" instead of "0.7%", for tens of
+            // seconds less wall. Only meaningful when a real incumbent exists.
+            val refinementFloor =
+                if (incumbentObjective > 0L) {
+                    maxOf(
+                        noConditionUpper,
+                        incumbentObjective + (incumbentObjective.toDouble() * PROD_SOFT_BADGE_ACCEPT_FRACTION).toLong()
+                    )
+                } else {
+                    noConditionUpper
+                }
+
+            // Best-first grid queue (§9.22septdecies). Candidate state survives support-envelope
+            // refinements: after μ tightens secZero, resume the SAME queue so a newly exposed
+            // plain/critZero contender pays only its missing DI tiers.
+            data class Candidate(
+                val world: WorldRead,
+                var upper: Long,
+                var tier: Int = -1,
+                // One-shot alternate-λ read at DI10 before any deeper descent (LOW-λ worlds only):
+                // iop215 measured plain paying DI1@λ1500 43.7 s, staying above the floor, then the
+                // post-μ calibration re-paying DI1@λ4000 — while the alternate at DI10 closes it
+                // for ~13 s.
+                var altTried: Boolean = false,
+                val lightArmUppers: MutableMap<String, Long> = world.lightArmBounds.toMutableMap(),
+            )
+
+            val tiers = intArrayOf(10, 4, 1)
+
+            fun refineWorld(
+                world: WorldRead,
+                di: Int,
+                lambdaOverride: Long? = null,
+                secondaryPrice: Long? = null,
+                lightArm: String? = null,
+                armOverride: String? = null,
+            ): Result? {
+                diStep = di
+                val rt0 = System.nanoTime()
+
+                fun logRefine(r: Result?) =
+                    logger.info {
+                        "soft-leg proof refine world=${armOverride ?: world.arm}/${world.assume?.name?.fr ?: "base"} di=$di " +
+                            "lambda=${lambdaOverride ?: supportLambda(world)} mu=${secondaryPrice ?: "-"} " +
+                            "lightArm=${lightArm ?: "both"} bound=${r?.foldedBound} " +
+                            "wallMs=${(System.nanoTime() - rt0) / 1_000_000}"
+                    }
+                return bound(
+                    params,
+                    pool,
+                    runes,
+                    sublimations,
+                    blockGate = false,
+                    shouldContinue = shouldContinue,
+                    ccSupportLambda = lambdaOverride ?: supportLambda(world),
+                    ccSupportBand = PROD_CC_SUPPORT_BAND,
+                    coupleSecondaryItemNegative = true,
+                    netSecondaryItemBudget = true,
+                    exactNormalSubPacking = true,
+                    foldNegativeItemAp = true,
+                    foldNegativeMaxMp = true,
+                    splitLightWeaponCondition = true,
+                    requireConditionalSub = true,
+                    worldAssume = world.assume,
+                    worldDropCaps = world.assume == null,
+                    lightWeaponArm = lightArm,
+                    worldArm = armOverride ?: world.arm,
+                    critAwareCollapse = true,
+                    critWeightAnchorPercent = PROD_CRIT_WEIGHT_ANCHOR,
+                    stateDependentMpRamp = true,
+                    elideImpliedConditionalMarker = true,
+                    secondarySupportPrice = secondaryPrice
+                    // NOTE (measured 2026-07-18): secondaryNetDimension is a NO-GO here — the
+                    // 1-dim credit-cap with a GLOBAL budget makes positive scenario-secondary
+                    // effectively full-price and a new S⁺-rich binding path emerges ABOVE the
+                    // coupled per-item pricing (IOP secZero DI1: 9.933T vs 8.9718T). The exact
+                    // form needs BOTH S⁺ and negB per state (~25x states). Kept as a research
+                    // seam; production stays on the coupled per-item credits.
+                ).also { logRefine(it) }
+            }
+
+            fun intersect(
+                candidate: Candidate,
+                refined: Result,
+            ) {
+                candidate.upper = minOf(candidate.upper, refined.foldedBound)
+                refined.lightArmBounds.forEach { (arm, upper) ->
+                    candidate.lightArmUppers.merge(arm, upper, ::minOf)
+                }
+                if (candidate.lightArmUppers.isNotEmpty()) {
+                    candidate.upper = minOf(candidate.upper, candidate.lightArmUppers.values.max())
+                }
+            }
+
+            // [lambdaOverride] retains the independently-sound λ=0 fallback for loose shapes.
+            fun refinementPass(
+                candidates: List<Candidate>,
+                lambdaOverride: Long? = null,
+            ): Long? {
+                while (true) {
+                    if (!shouldContinue()) return null
+                    val top = candidates.maxBy { it.upper }
+                    if (top.upper <= noConditionUpper) return noConditionUpper
+                    // Product acceptance floor: the DP can never fall below a conditional-carrying
+                    // optimum, so a sub-percent ProvenWithin badge is this route's terminal state.
+                    // Once every world is within the acceptance band of the search incumbent, stop
+                    // paying DI1 passes for hundredths of a percent — reporting the current max is
+                    // sound (it is a valid upper; stopping early only loosens the displayed %).
+                    // Guarded to worlds already past one fine read (tier >= 0): a COARSE bound
+                    // landing inside the band must still pay its DI10 pass, else a shape whose
+                    // fine reads close onto an exact authority (S4-245) would trade its
+                    // ProvenOptimal badge for a ProvenWithin stop.
+                    if (top.tier >= 0 && top.upper <= refinementFloor) return maxOf(noConditionUpper, top.upper)
+                    // Before descending a LOW-λ world past DI10, try the alternate λ at the SAME
+                    // grid once — each λ is independently sound and the cheap read often closes
+                    // the world outright (per-request λ auto-calibration, wall side).
+                    if (lambdaOverride == null &&
+                        top.tier == 0 &&
+                        !top.altTried &&
+                        supportLambda(top.world) == PROD_CC_SUPPORT_LAMBDA_LOW
+                    ) {
+                        top.altTried = true
+                        val alt = refineWorld(top.world, tiers[0], lambdaOverride = PROD_SECZERO_MID_SUPPORT_LAMBDA) ?: return null
+                        intersect(top, alt)
+                        continue
+                    }
+                    if (top.tier == tiers.lastIndex) return maxOf(noConditionUpper, top.upper)
+                    top.tier =
+                        if (params.character.level >= PROD_SECZERO_HIGH_SCALE_LEVEL &&
+                            top.tier >= 0 &&
+                            tiers[top.tier] == 10
+                        ) {
+                            // ≥175 every world jumps DI10→DI1: the DI4 tier measured as pure wall
+                            // (IOP-200 plain: DI4 bound 9.060T vs its own DI10 read 9.005T).
+                            tiers.lastIndex
+                        } else {
+                            top.tier + 1
+                        }
+                    // NOTE (measured 2026-07-18): an UNSPLIT-first DI10 scout is a NO-GO — the
+                    // light-arm split IS the binding tightener (S4 plain: 18.13T unsplit vs
+                    // 17.24T split), so the scout rarely clears the floor and its cost stacks on
+                    // top (S4 +7.6 s, IOP +13 s).
+                    val refined = refineWorld(top.world, tiers[top.tier], lambdaOverride) ?: return null
+                    // The coarse/current and refined reads are independent sound uppers on the
+                    // same world; their min is sound and guards against non-monotone grid rounding.
+                    intersect(top, refined)
+                }
+            }
+
+            val primaryCandidates = pending.map { Candidate(it, it.foldedBound) }
+            var dpConditionalUpper = refinementPass(primaryCandidates) ?: return null
+            stamp("primaryRefinement")
+
+            // Per-request λ auto-calibration (user request 2026-07-18: "find the proving means
+            // per request automatically"). The crit-support λ is per-shape tuning and the fixed
+            // low-band constant CAN be miscalibrated (IOP-200: plain 9.005T@λ1500 vs 8.751T@λ4000
+            // at DI10 — the world drops BELOW the exact authority at the alternate λ). Any λ ≥ 0
+            // is independently sound, so re-read at the alternate λ and min-intersect — but ONLY
+            // the world currently OWNING the union max (the badge owner), iteratively: alternate
+            // reads on non-owners cannot change the verdict and only pay wall. Runs after the μ
+            // support pass below so the owner is judged on FINAL world bounds.
+            fun lambdaAutoCalibration(): Long? {
+                val altTried = HashSet<WorldRead>()
+                while (true) {
+                    val owner = primaryCandidates.maxBy { it.upper }
+                    if (owner.upper <= noConditionUpper) break
+                    if (owner.tier < 0 ||
+                        supportLambda(owner.world) != PROD_CC_SUPPORT_LAMBDA_LOW ||
+                        !altTried.add(owner.world)
+                    ) {
+                        break
+                    }
+                    if (!shouldContinue()) return null
+                    refineWorld(owner.world, tiers[owner.tier.coerceAtLeast(0)], lambdaOverride = PROD_SECZERO_MID_SUPPORT_LAMBDA)
+                        ?.let { intersect(owner, it) } ?: return null
+                }
+                return maxOf(noConditionUpper, primaryCandidates.maxOf { it.upper })
+            }
+            // A second Lagrangian projection of SECONDARY_AT_MOST. μ=500 is the historical
+            // budget-only secZero arm; μ=250 also prices actual scenario-secondary supply and
+            // closes IOP-200's invented mastery. Refine only secZero worlds that can still beat
+            // the no-condition authority, intersect per world, then resume the existing queue.
+            // Level gate removed (was >=175): the per-world filter below is the real gate, and
+            // the xelor155 probe measured mu=250 tightening secZero DI1 by 1.1% at level 155 too.
+            if (dpConditionalUpper > refinementFloor) {
+                primaryCandidates
+                    .filter { it.world.arm == "secZero" && it.upper > refinementFloor }
+                    .sortedByDescending { it.upper }
+                    .forEach { candidate ->
+                        if (!shouldContinue()) return null
+                        if (candidate.lightArmUppers.isEmpty()) {
+                            val supported =
+                                refineWorld(
+                                    candidate.world,
+                                    tiers.last(),
+                                    secondaryPrice = PROD_SECZERO_SECONDARY_SUPPORT_PRICE
+                                ) ?: return null
+                            intersect(candidate, supported)
+                        } else {
+                            candidate.lightArmUppers
+                                .filterValues { it > refinementFloor }
+                                .keys
+                                .toList()
+                                .forEach { lightArm ->
+                                    val supported =
+                                        refineWorld(
+                                            candidate.world,
+                                            tiers.last(),
+                                            secondaryPrice = PROD_SECZERO_SECONDARY_SUPPORT_PRICE,
+                                            lightArm = lightArm
+                                        ) ?: return null
+                                    candidate.lightArmUppers.merge(lightArm, supported.foldedBound, ::minOf)
+                                }
+                            candidate.upper =
+                                minOf(candidate.upper, candidate.lightArmUppers.values.max())
+                        }
+                        candidate.tier = tiers.lastIndex
+                    }
+                dpConditionalUpper =
+                    minOf(
+                        dpConditionalUpper,
+                        refinementPass(primaryCandidates) ?: return null,
+                        relaxedUpper
+                    )
+                stamp("secondarySupportPass")
+            }
+            dpConditionalUpper = minOf(dpConditionalUpper, lambdaAutoCalibration() ?: return null)
+            stamp("lambdaAutoCalibration")
+            // capFree re-split (matrix sweep-3 fix): the merged assume cover is priced with NO
+            // caps, which is fine while it stays under the authority (S4/IOP: ~45% under, zero
+            // cost) but at small/mid levels it can OWN the badge (xelor155: capFree/Mesure III
+            // +12.87%). Its exact three-arm partition is always available — re-price any capFree
+            // world still above the floor per arm and take the max (a sound upper of the same
+            // world; min with the cover read).
+            run {
+                val loose =
+                    primaryCandidates
+                        .filter { it.world.arm == "capFree" && it.upper > refinementFloor }
+                        .sortedByDescending { it.upper }
+                for (candidate in loose) {
+                    if (!shouldContinue()) return null
+                    var resplit = Long.MIN_VALUE
+                    for (arm in listOf("plain", "secZero", "critZero")) {
+                        val read =
+                            refineWorld(candidate.world, tiers.last(), armOverride = arm)
+                                ?: return null
+                        resplit = maxOf(resplit, read.foldedBound)
+                    }
+                    if (resplit > Long.MIN_VALUE) {
+                        candidate.upper = minOf(candidate.upper, resplit)
+                        candidate.tier = tiers.lastIndex
+                    }
+                }
+                // RESUME the queue: the re-split may hand the union max to a world still at a
+                // coarse tier (feca65: secZero/base owned the badge at DI10 only — its DI1 read
+                // costs ~2 s at that level and was never paid).
+                dpConditionalUpper =
+                    minOf(
+                        dpConditionalUpper,
+                        refinementPass(primaryCandidates) ?: return null,
+                        maxOf(noConditionUpper, primaryCandidates.maxOf { it.upper })
+                    )
+            }
+            stamp("capFreeResplit")
+            // The DP phase is over — join the REAL oracle authority for the final assembly (the
+            // queue above only needed the provisional incumbent stop threshold).
+            val (oracleUpper, noConditionProven) = earlyJoined ?: (joinOracle() ?: return null)
+            stamp("oracleJoin")
+            // The relaxed upper bounds conditional builds too — but touching the LAZY probe pays
+            // its CP budget, so consult it only AFTER every cheap tightening pass (feca65: gated
+            // before the capFree re-split the union was still +19.8% and the probe burned 31 s;
+            // after it the union sits at +9.3% and the probe is never paid).
+            if (dpConditionalUpper > oracleUpper + (oracleUpper.toDouble() * CONDITIONAL_PROBE_MIN_GAP).toLong()) {
+                dpConditionalUpper = minOf(dpConditionalUpper, relaxedUpper)
+            }
             // §9.22 — lambda is per-shape tuning, not semantics (§6.A4): every lambda >= 0 is an
             // independently sound bound, and lambda=6000 (calibrated on the 245 frontier) measured
             // ACTIVELY loose off it (cra-140: +46.5% at 6000 vs +25.9% at 0). When the first pass
             // did not close onto the oracle, re-sweep at lambda=0 and take the min — same gate as
             // the CP probe, so tight shapes (the S4 frontier) never pay the second pass.
-            val lambdaGap = noConditionUpper + (noConditionUpper.toDouble() * CONDITIONAL_PROBE_MIN_GAP).toLong()
+            val lambdaGap = oracleUpper + (oracleUpper.toDouble() * CONDITIONAL_PROBE_MIN_GAP).toLong()
             if (dpConditionalUpper > lambdaGap) {
-                refinementPass(0L)?.let { dpConditionalUpper = minOf(dpConditionalUpper, it) }
+                val lambdaZeroCandidates = pending.map { Candidate(it, it.foldedBound) }
+                refinementPass(lambdaZeroCandidates, lambdaOverride = 0L)
+                    ?.let { dpConditionalUpper = minOf(dpConditionalUpper, it) }
+                stamp("lambdaZeroPass")
             }
 
             // §9.21 — the DP and CP-SAT are tight in OPPOSITE regimes: the DP holds on huge pools
@@ -2391,7 +3460,7 @@ internal object MaxDamageSoftCertificate {
             // after 300 s (+11%) on the very shape the plain solve proves in 104 s. The 10% gate
             // keeps tight shapes (the S4 frontier, iop-200) from ever paying the probe.
             var conditionalUpper = dpConditionalUpper
-            val probeGap = noConditionUpper + (noConditionUpper.toDouble() * CONDITIONAL_PROBE_MIN_GAP).toLong()
+            val probeGap = oracleUpper + (oracleUpper.toDouble() * CONDITIONAL_PROBE_MIN_GAP).toLong()
             if (conditionalUpper > probeGap && shouldContinue()) {
                 val probeUpper =
                     try {
@@ -2402,7 +3471,7 @@ internal object MaxDamageSoftCertificate {
                                 runes = runes,
                                 sublimations = sublimations,
                                 workers = oracleWorkers,
-                                seconds = CONDITIONAL_PROBE_SECONDS,
+                                seconds = minOf(CONDITIONAL_PROBE_SECONDS, deadlineSecondsRemaining()),
                                 applyDomination = true
                             )
                         // OPTIMAL: objective == bestBound, the union collapses onto the true
@@ -2413,12 +3482,18 @@ internal object MaxDamageSoftCertificate {
                         conditionalUpper
                     }
                 conditionalUpper = minOf(conditionalUpper, probeUpper)
+                stamp("plainProbe")
             }
 
-            val upper = minOf(maxOf(noConditionUpper, conditionalUpper), relaxedUpper)
+            // Same lazy-probe gate as above: only consult the relaxed read when the union is
+            // still >10% loose (at >=175 the lazy body is a free MAX_VALUE either way).
+            var upper = minOf(maxOf(oracleUpper, conditionalUpper), conditionalWorldUpper)
+            if (upper > oracleUpper + (oracleUpper.toDouble() * CONDITIONAL_PROBE_MIN_GAP).toLong()) {
+                upper = minOf(upper, relaxedUpper)
+            }
             // Memoize only PROVEN-oracle unions: a timeout dual is sound but transiently loose
             // (CPU load), and pinning it would deny a later, better re-proof of the same request.
-            return SoftUnionUpper(upper, noConditionUpper, noConditionProven, (System.nanoTime() - t0) / 1_000_000)
+            return SoftUnionUpper(upper, oracleUpper, noConditionProven, (System.nanoTime() - t0) / 1_000_000)
                 .also { if (noConditionProven) unionMemo[memoKey] = it }
         } finally {
             diStep = DEFAULT_DI_STEP

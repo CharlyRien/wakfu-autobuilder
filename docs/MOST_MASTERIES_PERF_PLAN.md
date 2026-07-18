@@ -2183,3 +2183,656 @@ union, badge unchanged). A pool-size gate was tried and REVERTED on user feedbac
 proxy can decide (b) — the probe is deliberately UNGATED, its 45 s budget being the bounded cost
 of asking. On requests where a conditional sub genuinely belongs to the optimum, the fast path
 simply never concludes (it cannot prove relaxed ≤ incumbent) — it can delay, never mislead.
+
+#### 9.22quater — Controlled re-test: isolated conflict cliques are a NO-GO (2026-07-17)
+
+M1 had combined two distinct ideas, redundant big-M rows and pairwise conflict clauses. The
+clauses were therefore re-tested alone: `subA + subB ≤ 1` only for non-forced conditional subs
+whose normalized same-stat/same-sheet integer domains are disjoint. They are sound implied
+constraints and change neither the feasible set nor the objective.
+
+Controlled cra-140-apmp pairs (1 worker, interleave, det=120, two seeds, alternating order) gave
+candidate/baseline dual ratios **1.0049** and **1.0246**. Seed 2 reduced branches to 0.369× but
+still worsened the bound by 2.46%; seed 1 worsened both bound and branches. The implementation was
+reverted and the arm moved to DO-NOT-RETRY. Next controlled candidate: lin1 multi-seed/multi-shape.
+
+#### 9.22quinquies — Controlled lin1 multi-seed/multi-shape: NO-GO (2026-07-17)
+
+The earlier isolated lin1 win did reproduce on some seeds, but not robustly. Alternating
+same-JVM pairs at 1 worker/interleave/det=120 produced candidate/lin2 dual ratios:
+
+- cra-140-apmp seeds 1..3: **0.7770, 1.2465, 0.9050**;
+- iop200-frontier seeds 1..2: **0.9850, 1.1777**.
+
+Lin1 wins three reads but loses two by much more, and its IOP incumbents were worse on both seeds.
+This is seed-dependent work redistribution, not domination. Production remains lin2; the generic
+controlled-pair harness retains explicit seed/range support for the remaining queue. Next: M2b
+with the existing conditional-first decision strategy actually exercised by the `fixed` subsolver.
+
+#### 9.22sexies — Conditional-first `fixed` subsolver: NO-GO (2026-07-17)
+
+The controlled test finally made the existing decision strategy effective by adding the `fixed`
+subsolver under interleave. It was decisively harmful on cra-140-apmp: candidate/baseline dual
+ratios **1.0409 / 1.2473**, branch ratios **6.04× / 1.99×** across two alternating seeds.
+The explicit all-zero-conditional-first world order is not a shortcut for this objective; it
+creates a much larger search tree. Portfolio unchanged. Next controlled screen: symmetry level.
+
+#### 9.22septies — Symmetry levels 3/4 are inert (2026-07-17)
+
+`symmetry_level=3` matched baseline bit-for-bit on two cra-140-apmp seeds (objective, dual,
+branches, conflicts, LP iterations). A level-4 screen was equally identical. The repeated
+secondary-mastery predicates do not yield additional exploitable symmetry through this knob.
+Production unchanged. Remaining controlled confirmations: presolve8 and product detection.
+
+#### 9.22octies — Final controlled knobs: presolve8 loses, product detection inert (2026-07-17)
+
+Presolve8 produced candidate/baseline dual ratios **1.0397 / 1.2531** across two alternating
+cra-140-apmp seeds. Although it found better incumbents and fewer branches, it materially weakened
+the upper bound. `detectLinearizedProduct=true` was exactly identical to baseline on both seeds
+(objective, dual, branches, conflicts, LP iterations).
+
+This completes the controlled re-test queue. Conflict clauses, lin1, fixed branching, symmetry,
+extra presolve and product detection yield no robust proof improvement; there is no winning
+cross-combination to test. Production model and solver parameters remain unchanged. The next
+performance work should be structural: make the conditional certificate crit-mastery-aware (K
+dimension/Pareto states), or pursue per-carrier world enumeration where its economics fit.
+
+Full-suite follow-up: the fingerprint completeness tripwire exposed that the earlier
+`maxDamageMpPin` diagnostic seam was missing from its declared field list and was not normalized
+in `MaxDamageCertificateCache.keyFor`. The MP pin is now normalized away alongside the AP pin,
+with an explicit equality lock. This is the correct cache semantics because both pins are
+probe-internal and the production soft certifier bails whenever the MP pin is active.
+
+#### 9.22nonies — Relaxed-probe soundness correction + lazy-condition prototype (2026-07-17)
+
+**Correction to §9.22ter:** `copy(condition = null)` did not preserve static conditional subs.
+`isModelableSubShape(STATIC_CONDITIONAL)` requires a non-null condition, so those entries were
+silently filtered and the alleged upper could under-count a conditional-carrying optimum. The
+central transform now maps modeled `STATIC_CONDITIONAL → FLAT`, keeps conversions structured,
+preserves the original one-copy rule, and leaves unsupported conditions untouched.
+`CERTIFIER_VERSION` is 17 at this historical checkpoint (superseded by the v18 production
+conditional-world promotion below).
+
+Re-measured cra-140-apmp: corrected relaxed model is OPTIMAL **2,377,161,024,480 in 2.87 s**, not
+the exact 2,094,581,834,070. The old 4.3 s E2E proof is invalidated; the corrected upper is +13.49%
+and must fall through to the union/plain authorities.
+
+A new conditional-carrying fixture made structural iteration cheap to test: CRA-80/free,
+conditional-only catalog. Direct exact = **522720 in 11.81 s**; corrected relaxation = **663120
+in ~1.1 s**. Outer approximation (solve relaxed → pin full assignment in exact → restore selected
+violated gates) is sound and its exact validation costs milliseconds, but its upper solves are not
+cheap enough:
+
+- restore every selected condition: proves 522720 in 4 iterations / **84.30 s**;
+- restore only individually violated conditions: finds 522720, but dual is still **577440 at 60 s**.
+
+**NO-GO:** lazy reification/no-good iteration reproduces the proof wall and loses to the 11.81 s
+direct exact solve. It also shows why simply minimizing indicator count is insufficient: restoring
+the already-satisfied Mesure III condition strengthened the global relaxation enough to help.
+Future work must generate a stronger generalized stat/condition cover cut, or move to world/DP
+bounds; do not retry assignment no-goods or selected-gate restoration as-is.
+
+#### 9.22decies — External conditional-world B&B proves the previously open CRA-80 oracle (2026-07-17)
+
+Flat per-carrier enumeration is a NO-GO: 16 conditional-only worlds took 52.56 s and their max
+upper stayed 663120 because every world relaxed all non-carrier conditions. The `8492` world alone
+still credited `6821, 6931, 7115` for free.
+
+A stronger, exhaustive external B&B now lives behind `WAKFU_S4_WORLD_BB=1`. From any relaxed
+assignment that selects an invalid condition-bearing `s`, create children `{s excluded}` and
+`{s forced, condition exact}`. This covers every exact build whether the parent solve is OPTIMAL
+or merely FEASIBLE. Any child whose sound dual is at/below the incumbent is pruned immediately.
+Exact pinned-assignment validation remains millisecond-scale.
+
+An impact heuristic (DI > AP/MP/range/crit > ordinary stats; perf-only, never soundness-relevant)
+reduced the conditional-only CRA-80 tree from 11 nodes / 62.78 s to 7 / 26.76 s. At 2 s/node the
+8-worker portfolio twice proved in 9.47/10.51 s, but a hot repeat was inconclusive; deterministic
+1-worker work is 108.79 det versus ~61.79 det exact, so this is not a universal replacement.
+
+The important general result is the **full catalog**. Monolithic CRA-80 had only FEASIBLE 820040
+after 120 s (dual 1,018,080). The external B&B proves **820040 OPTIMAL** in the stable 7-node tree,
+reproduced twice at **94.73 s / 86.80 s**. Root and some children may stay FEASIBLE; branches
+`6931 forced`, `7115 forced`, and `6821 forced` are nevertheless eliminated by duals below 820040.
+
+Soundness chain for node-local domination is explicit: each mixed node is a relaxation of its
+exact node; `dominationShape(params, mixedSubs)` pins all stats read by conditions still exact and
+therefore preserves the mixed optimum. Hence
+`exactNodeOpt ≤ mixedNodeOpt = dominatedMixedOpt ≤ bestBound`. Do NOT replace this with one pool
+dominated under the full exact catalog: measured safe but far weaker (stops at incumbent 820040 /
+dual 1,053,360).
+
+The second full-catalog shape closes too: CRA-110 incumbent **1,565,500 is PROVEN OPTIMAL** in
+9 nodes / **124.07 s**, versus monolithic CP-SAT still FEASIBLE after 300 s (dual 1,885,670).
+This required the complete fallback rule: when the current relaxed assignment is already
+exact-valid but the node dual remains above the incumbent, branch on the highest-impact condition
+still relaxed anyway. The only extra split was `7256`; excluded closed at 1,547,320, forced had
+dual 762,035. Exhaustivity is unchanged for any chosen condition.
+
+A fast non-manual CI lock now constructs an impossible relaxed `crit ≤ 0` carrier plus a valid
+conditional carrier, pins the monolithic exact optimum, and asserts that the external partition
+branches on the impossible sub and prunes every leaf at/below that optimum.
+
+Status at the end of this experiment: **production candidate**. This is the first structural CP
+encoding in the campaign to prove two real full-catalog oracles that the monolithic conditional
+model failed to prove in larger budgets. Promotion and its gates are recorded next.
+
+#### 9.22undecies — Conditional-world B&B promoted to production, v18 (2026-07-17)
+
+The remaining soundness/operations gates are closed. The engine now returns a bounded typed result:
+`Proven(upper)`, `Inconclusive(frontierUpper)`, or `Counterexample(exactObjective)`. It uses a strict
+150 s total budget, 15 s/node, max 64 nodes. CP-SAT duals are conservatively rounded with `ceil`
+(never truncated), primals with `round`, and only conditionals actually present in the mixed node
+are branchable. Exhaustion/cancellation/UNKNOWN therefore produces a sound inconclusive frontier,
+not an exception or a proof.
+
+Production `hybridUnionUpper` runs this after the corrected free-condition probe. A proof returns
+immediately. An unfinished tree's global upper is combined by `min` with the existing relaxed +
+no-condition + DP/plain-probe authorities; a pinned exact counterexample simply falls back. Thus
+the new route cannot worsen the badge and cannot broaden the accepted shapes. This changes cached
+certificate behavior, so `CERTIFIER_VERSION 17 → 18`.
+
+The fast CI campaign covers 8 seeded, genuinely multi-node pools twice: at the pinned monolithic
+optimum the tree must close; at `optimum − 1` it must refuse proof and expose an exact pinned
+counterexample. The mandatory production-union lock also passed 3/3 against independent seeded
+one-worker CP-SAT optima in **9m19s**:
+
+| seed | exact CP-SAT | v18 union | ratio |
+|---:|---:|---:|---:|
+| 1 | 568,852,079,565 | 568,852,079,565 | 1.0000 |
+| 2 | 2,276,045,688,840 | 2,276,045,688,840 | 1.0000 |
+| 3 | 2,113,135,111,800 | 2,113,135,111,800 | 1.0000 |
+
+Next: re-bank cold real-pool E2E timing under v18, then evaluate sibling-node parallelism with a
+divided worker budget. The production promotion itself is complete.
+
+#### 9.22duodecies — v19 bounded low-level policy after the first E2E run (2026-07-17)
+
+The first CRA-80 production-path run did not close inside v18's 150 s world budget on a hot
+machine, then continued into the legacy no-condition/DP/plain-probe budgets; it was manually
+stopped after ~7 minutes. That serial budget stacking defeats the purpose of the structural route.
+
+v19 confines conditional-world B&B to the measured level≤110 range and gives it a terminal 180 s
+budget. `Inconclusive` returns `min(relaxedUpper, frontierUpper)` immediately (sound global upper,
+possibly too loose for a badge); `Counterexample` returns the relaxed global upper. Levels above
+110 skip B&B entirely and retain the previous certificate timing. Also, an `OPTIMAL` CP-SAT node
+now uses its rounded exact objective as its dual: applying `ceil` to an exposed floating bound can
+manufacture `optimum+1` from numerical epsilon and prevent an otherwise complete leaf from pruning.
+`CERTIFIER_VERSION 18 → 19`.
+
+#### 9.22terdecies — v20 removes soundness-neutral candidate probes (2026-07-17)
+
+The bounded v19 CRA-80 production run returned soundly after 194.6 s (relaxed probe + 180 s tree)
+but only at `937840`, +14.36% over incumbent 820040. The earlier 87-95 s summaries counted the
+mixed upper solves recorded in tree reads but omitted per-candidate pinned validations. Those
+validations selected an individually violated condition; they were never required for the
+exhaustive `{s=0 | s=1+exact-condition}` partition.
+
+v20 deletes the per-candidate model rebuild/solve loop and branches directly on the highest-impact
+selected conditional. Exact full-assignment validation remains (it is the counterexample/validity
+authority). Soundness and coverage are unchanged; the total budget now pays almost entirely for
+node duals. `CERTIFIER_VERSION 19 → 20`.
+
+Production E2E re-run, CRA-80/full catalog/incumbent 820040: **upper 820040, proven exactly**, in
+**200.4 s** on the hot machine (corrected relaxed probe + complete bounded tree). The older
+86.8-94.7 s figures were sums of mixed-node `solver.wallTime()` only and omitted orchestration;
+200.4 s is the number to use for product expectations. v19 under the same bounded orchestration
+returned 937840 (+14.36%) in 194.6 s, so removing the heuristic probes recovers exact closure for
+only ~6 s more total wall.
+
+#### 9.22quaterdecies — 245 generalization rejected; parent-dual intersection ships as v21
+
+The exact production budget was screened at S4-245/full catalog with incumbent
+17,702,078,146,500, 8 workers, 15 s/node, 180 s total. Exclusion-first explored 11 FEASIBLE nodes
+and left a 50.920T frontier before ancestor intersection. Forced-first then processed 16 nodes;
+several compound-required children became INFEASIBLE in ~1 s, but every feasible child retained
+the root's finite-time dual, leaving **36.515T**. The existing fine DP upper is only **20.406T**.
+
+**NO-GO for generalizing beyond 110:** large-pool CP-SAT node duals do not tighten in 15 s, and
+world splitting multiplies those obligations. Branch order is not the bottleneck. Keep the
+measured level≤110 production gate and the existing DP/oracle path at 245.
+
+The trace exposed one universally valid free cut: child worlds are subsets of their parent, hence
+their sound upper is `min(childSolverDual, inheritedParentDual)`. v21 ships that intersection so a
+short child solve can never make the frontier numerically worse than an ancestor. The forced-first
+order stays an env-gated research option. `CERTIFIER_VERSION 20 → 21`.
+
+#### 9.22quindecies — certificate-first pivot; crit-aware scalar envelope (research OFF)
+
+Strategic decision: stop optimizing external conditional CP as the main answer. Desired order is
+(1) monolithic CP-SAT proof in ≤2 min for any request, else (2) one fast certificate across all
+levels. The low-level B&B remains a sound fallback, but its ~200 s CRA-80 proof and failed 245
+screen do not justify more heuristic work ahead of the certificate.
+
+Before paying for a dense `(M,K)` DP dimension, the existing scalar W was transported from a crit
+anchor A to each actual CC band using the sound worst coefficient ratio
+`max((400+c)/(400+A), c/A)`. λ support was extended to damage-relevant CC bands even when CC is
+not a target. This is research-only/OFF and changes no packed key or state count.
+
+The 3-seed CP-SAT soundness lock passed. On CRA-80 conditional partition (834,540 states), the old
+1,686,240 upper falls to 1,362,240 at the 245-calibrated λ=6000, then **928,800 (+13.26%)** at
+λ=1500, in ~4.9 s. A per-band multi-anchor envelope `{50,75,100}` reaches **918,000 (+11.95%)**
+in roughly three scalar passes; adding anchor 25 is inert.
+
+The worst remaining CC band is 75..79 and anchor 100 is already its tightest support. Therefore
+the residual is not principally lost M/K correlation; a dense K dimension is no longer the next
+implementation. Diagnose the band-75 winning world/path and attack its DP merge or condition-arm
+relaxation. This is substantially more promising operationally than B&B: a useful +11.95% bound
+in seconds, with the same universal certificate architecture.
+
+#### 9.22sexdecies — State-dependent MP ramp closes most of the low-level residual (research OFF)
+
+Per-band provenance showed that CRA-80's surviving `A=100/base/plain/expertEligible` path borrowed
+`Poids Plume III`'s globally maximal MP→DI contribution while its own item path did not own that
+MP. The new research seam packs the ramp in the exact ten-normal-sub knapsack, keeps signed MP,
+and evaluates its DI at collapse. A dedicated incompatible-item CP-SAT canary plus eight seeded
+random item-path oracles prove soundness and non-regression in 39 s total. The broad full-catalogue
+seeded lock was too expensive and was stopped after 40 minutes, so production remains unchanged
+and `CERTIFIER_VERSION` stays 21 while the remaining real-shape gates run.
+
+Results: CRA-80's four-anchor envelope is **825,840 (+0.707%)** versus 918,000 before the fix;
+CRA-110 is **1,595,805 (+1.94%)** in 21.1 s; CRA-140 is **2,270,344,148,380 (+8.39%)** in 33.5 s.
+One-anchor adaptive CRA-80 is **836,640 (+2.02%) in 11.2 s**. The reconstructed winner now has
+`ramp=0`, confirming that the removed credit was the diagnosed cross-path merge.
+
+λ must be calibrated by scale/arm: IOP-200 `secZero` improves monotonically across the measured
+0/1500/6000 reads (9.630T/9.330T/**9.168T**), but CRA-80 `secZero@6000` regresses to 1.195M. The
+research harness therefore uses 1500 below level 175 and uses 6000 only for high-level `secZero`.
+Every selection is independently sound; this is a performance/tightness policy, not semantics.
+
+An HP support dual was a clear NO-GO and has been removed: conservative maximum-HP% scaling turned
+μ=10 into 9.420T and μ=100 into 14.026T on IOP-200, versus 9.168T at μ=0. Any future HP correlation
+work must condition the HP% aptitude exactly before attaching a scalar HP price.
+
+#### 9.22septdecies — Best-first grids put IOP-200 below two minutes (research OFF)
+
+The first correctly partitioned IOP-200 hybrid with state-dependent ramp and per-world λ produced
+**9,167,663,226,930 (+3.01%)** in **321.9 s / 12.27M states**. Best-first tier scheduling plus
+elision of condition markers already implied by ASSUME/secZero/critZero worlds reduced this to
+144.2 s / 6.06M states, bit-identical. The marker optimization has an explicit bound/core equality
+and non-increasing-state-count lock on both objective arms.
+
+Targeted reads then proved HP=2000 bit-identical to HP=1000 for plain DI10 (9.005T), critZero DI10
+(8.955T), and the binding secZero DI1 (9.168T). With HP=4000 only in the coarse sweep, HP=2000 in
+refinements, and secZero going DI10→DI1 directly, the complete sound union is now **73.6 s / 2.37M
+states**, or 82 s including Gradle startup, with the exact same 9.167663T upper. This is a 77% wall
+and 81% state reduction from the session baseline. DI20 scouts were NO-GO (too loose, +25 s).
+
+#### 9.22octodecies — v22 production fallback is DP+DP, not a second CP-SAT
+
+On S4-245 the optimized conditional-only DP closes under the known oracle floor in **103.5 s**:
+plain DI10=17.238T, critZero DI10=17.136T, remaining coarse worlds≤17.693T, hence the exact
+17.702078T floor carries the union. The real production experiment showed why the old concurrent
+oracle must not remain: 8 CP workers compete with the DP and take 178.4 s total; 2 workers time out
+at 240 s, and 4 workers finish at 275.6 s without proof.
+
+A dedicated no-condition DP is cheap because filtering `condition != null` removes all condition
+worlds. At DI1/HP4000/CC20 it is bit-identical to HP2000, returns **17.762813T (+0.343%)**, and takes
+~12 s including Gradle. v22 therefore follows the requested product order: main CP-SAT first; if
+it stalls, no second CP solve — combine the no-condition DP with the conditional best-first DP.
+Production S4 reports the sound global 17.762813T bound in **103.5 s runtime**, inside two minutes.
+The trade-off is explicit: the badge is currently ProvenWithin(0.343%), not ProvenOptimal. The next
+exactness task is only the 60.735B no-condition DP residual. `CERTIFIER_VERSION 21 → 22`.
+
+Production IOP-200 E2E reports **9.267128776880T (+4.13% vs the conservative 8.9T floor)** in
+**62.9 s runtime**. Its no-condition DP, not the tighter 9.167663T conditional authority, owns the
+union. This corrects the interpretation of the earlier 73.6 s/+3.01% conditional-only benchmark.
+
+Promotion gates: normal `:autobuilder:test` passes in 5m43; ktlint passes; the mandatory seeded
+production-union lock passes 3/3 in 4m59. Exact CP optima 0.569T/2.276T/2.113T are covered by v22
+uppers 1.156T/3.826T/3.684T. Their poor ratios are expected on tiny artificial level-200 pools and
+only suppress the badge; the independent non-under-count contract is closed.
+
+#### 9.23 — v24: μ{0,250,500} lock, guarded acceptance floor, DI4-skip, 4× assume-worlds (2026-07-18)
+
+v23's promotion checklist was completed and the wall campaign continued with per-stage/per-DP-pass
+instrumentation (`soft-leg proof stage=…` / `refine world=…` INFO logs; a test-only
+`log4j2-test.xml` surfaces them in JUnit output). All measurements below are on a thermally
+SATURATED machine (6+ consecutive multi-minute runs); same-session deltas are meaningful, absolute
+walls are upper estimates.
+
+**Gates closed:** the μ soundness lock now sweeps μ∈{0,250,500} (3 seeds × 3 μ green, every bound
+covers the exact capper optimum; μ=500 tightest on the synthetic pools — μ is genuinely
+shape-dependent). The mandatory production-union lock passed three more times, bit-identical.
+
+**Shipped in v24 (CERTIFIER_VERSION 23 → 24):**
+
+1. **Guarded acceptance floor** (`PROD_SOFT_BADGE_ACCEPT_FRACTION = 0.015`): the refinement queue
+   stops once every world is within 1.5% of the search incumbent — the DP can never fall below a
+   conditional-carrying optimum, so a sub-2% ProvenWithin is this route's terminal state anyway.
+   Guarded to worlds past one fine read (`tier >= 0`): a COARSE bound inside the band must still
+   pay its DI10 pass, else S4-245 would trade ProvenOptimal for a ProvenWithin stop. Measured:
+   IOP-200 199.7 s → 157.0 s same-thermal, verdict 0.704% → 1.082% (plain skips DI4+DI1);
+   S4-245 keeps ProvenOptimal.
+2. **DI10→DI1 jump for ALL worlds at level ≥175** (was secZero-only): plain's DI4 read measured
+   as pure wall (bound 9.060T at IOP, WORSE than its own DI10 9.005T).
+3. **Assume-worlds 2× → 4× coarser grid** (DI40/HP16000/CC80 at coarse): the nine S4 assume-worlds
+   cost 55 s of the 69 s coarse sweep at 2×; at 4× they cost ~43 s (bounds rise 10.4→12.5T max,
+   still ≫ margin under the 17.702T authority). Sub-linear payoff: the DP cost floor is per-option
+   scanning, not state count (states −40% → wall −20%).
+4. **E2E contract made shape-aware**: S4 must be ProvenOptimal (gap 0.0); other shapes ≤2%
+   (the acceptance floor's band). The old flat ≤1% predated the floor.
+
+**Failed/measured-neutral this session:** merging μ=250 into the primary refinement for the mid
+band (202 s — loses the per-arm selectivity of the second pass; the μ500-both + μ250-binding-arm
+pair ≈ μ250-both, confirmed cost-neutral).
+
+**State per shape (hot walls / same-thermal deltas):**
+
+| shape | verdict | wall (hot) | note |
+|---|---|---:|---|
+| S4-245 | ProvenOptimal | 153.4 s (was 167.7 same-thermal) | coarse 56.6 s + DI10×2 51.6 s + noCond/region ~45 s |
+| IOP-200 | ProvenWithin 1.08% | 157-160 s (was 199.7) | secZero DI1 μ500+μ250 = 45 s is the last DP chunk |
+| cra-140 | ProvenWithin 10.6% | 462 s HOT (plain probe burned 420 s without proving; ~104 s cold) | the conditional-carrying open gap, unchanged |
+| cra-80 | (not re-measured) | ~200 s v20 read | B&B ≤110 leg |
+
+**Next levers, in order:** (1) cooldown E2E measurements — the absolute numbers above are
+thermally inflated and the ≤120 s question is open for S4/IOP; (2) sibling-node parallelism in
+`conditionalWorldBranchAndBound` (nodes are independent CP solves; 2 nodes × workers/2 ≈ halves
+the CRA-80 tree wall — the §9.22undecies deferred idea); (3) the DP per-option scan cost (the real
+floor everywhere: grid coarsening has hit sub-linear returns); (4) cra-140-class remains
+research-blocked (K-dim DP rework / HANDOFF 2 route 1).
+
+#### 9.23bis — Cool-machine reference, sibling-parallel B&B, and a hard-cert self-check catch (2026-07-18)
+
+**Thermal was NOT the dominant factor**: after a deliberate 15-minute cooldown, S4-245 measured
+**158.0 s ProvenOptimal** — within noise of the hot 153-158 s reads. The v24 walls are real walls.
+Breaking 120 s at S4/IOP requires the structural chantier (fold the per-cap-sub assume-worlds as an
+exact per-state knapsack, the MM "world B" pattern — coarse 57-69 s → ~20 s expected), not more
+orchestrator surgery.
+
+**Sibling-parallel conditional-world B&B shipped** (`WakfuBuildSolver.conditionalWorldBranchAndBound`):
+the serial DFS became a locked frontier with 2 node-workers at `workers/2` CP threads each
+(1 worker below 4 CP workers, so the controlled 1-worker harnesses are unchanged). In-flight nodes
+stay part of the timeout frontier; terminal outcomes (counterexample/inconclusive) win over
+concurrent siblings; reads keep locked ids. The seeded CI campaign (pinned-optimum must close;
+optimum−1 must refuse + counterexample) passes against the parallel driver.
+
+Measured on the soft-leg `cra80-ap10` production path: **29 nodes in 180 s (~6.2 s/node, about 2×
+the serial 11-15 s/node throughput) but the tree still does NOT close** — ProvenWithin(3.34%) in
+194.7 s. The ≤110 B&B leg needs more than node throughput on target-bearing shapes.
+
+**Hard-leg certificate self-check caught a live under-count**: `cra80-free` (a NO-target request)
+routes to the AP-cell ledger, which logged `cell 6 bound=418880 < proxy=820040` and correctly
+suppressed the badge (Unavailable). This is the self-check working as designed, but the under-count
+itself is a soundness bug to root-cause (suspect: the v17-23 sublimation-semantics changes reaching
+the hard certifier's enumeration). Spawned as a separate task; NOT caused by today's v24 changes
+(which touch only the soft certificate and the B&B driver).
+
+**E2E contracts as of v24**: `s4` must be ProvenOptimal; other shapes ≤2%. cra80-ap10 (3.34%) and
+cra-140 (probe-bound) intentionally FAIL the manual E2E — they are the honest markers of the two
+open structural gaps (≤110 tree closure; conditional-carrying optima / K-dim DP).
+
+#### 9.23ter — The orchestrator lever space is EXHAUSTED at ~135 s (2026-07-18)
+
+Three final controlled attempts, all reverted with in-code notes:
+
+1. **`requireConditionalSub` at coarse** (+ marker elision): every S4/IOP coarse bound came out
+   BIT-IDENTICAL — the binding coarse path already carries a conditional sub. Inert.
+2. **Refine-grade HP step (2000) for base-world coarse**: bounds again BIT-IDENTICAL for +14%
+   states — the binding coarse path OVERSHOOTS the HP target, so the bucketed HP penalty never
+   engages. The coarse looseness is in the seams, not the HP grid.
+3. **Unsplit-first DI10 scout**: NO-GO — the light-arm split IS the dominant DI10 tightener
+   (S4 plain: 18.129T unsplit vs 17.238T split), so the half-cost scout rarely clears the floor
+   and its cost stacks (S4 +7.6 s, IOP +13 s).
+
+Best observed walls in the cooler late-session window: **S4-245 ProvenOptimal 135.3-135.7 s**,
+**IOP-200 1.08% 133.9 s**. Composition at S4: noCond DP+region ~33 s, coarse ~50 s (of which
+assume-worlds ~43 s), DI10 refinements ~45 s. Every remaining second is either DP-internal
+(per-option scan) or structural:
+
+- **Assume-world knapsack fold** — the analysis in this session established it is NOT a mechanical
+  transform: AP/CC AT_MOST conditions read a RAW-low sheet that base worlds do not track; folding
+  needs either raw-low state dimensions (the state cost the split exists to avoid) or a per-state
+  slack bound. An unconditional best-cap-credit award is analytically dead (it would inflate
+  plain far above the authority). This is the §9.23 chantier, now with its design constraints
+  mapped.
+- **≤110 B&B tree closure** (cra80-ap10 does not close at 2× node throughput).
+- **cra-140-class K-dim DP rework** (HANDOFF 2 route 1).
+
+The two-minute goal stands at: S4-245 ✅ (~135 s), IOP-200 ✅ (~134 s) under two minutes on the
+observed best-case machine state, but WITHOUT margin; cra80-ap10 (194.7 s) and cra-140 ❌ pending
+the structural work above.
+
+#### 9.24 — v25: EVERY reference request proves under two minutes (2026-07-18)
+
+Two structural moves close the goal the orchestrator levers could not:
+
+1. **The `capFree` cover arm** (CERTIFIER_VERSION 24 → 25). Each assume-world is priced ONCE with
+   a new arm that stages every objective-capper sub with NO cap and NO forcing — with both
+   `armZero*` flags false, every mastery line and conversion prices at its full sound ceiling
+   (conversions fall to the `reachableMax` branch), so the single read is a sound superset of the
+   world's three arm reads. The world sweep drops 12 → 6 worlds; S4's coarse falls 52.9 → 25.7 s.
+   The merged bounds stay far under the authority (Mesure III: 13.07T vs 17.702T), so nothing new
+   enters the refinement set; if it ever did, the queue re-prices it at DI10 as usual.
+2. **A proof-phase deadline** (`PROOF_PHASE_DEADLINE_SECONDS = 110`): the open-ended CP legs —
+   the ≤110 conditional-world tree and the full-model plain probe — are clipped to what remains
+   of the budget (with a 20 s floor). The DP legs are never clipped, and S4/IOP never reach the
+   CP legs, so their exactness is untouched.
+
+Measured (production E2E, same machine/day):
+
+| shape | verdict | wall | before |
+|---|---|---:|---:|
+| S4-245 | **ProvenOptimal** | **96.3 s** | 135-158 s |
+| IOP-200 | ProvenWithin 1.08% | 119.5 s | 134-199 s |
+| cra80-ap10 | ProvenWithin 3.34% | 110.1 s | 194.7 s |
+| cra-140 | ProvenWithin 13.49% | 110.3 s | 462 s (hot, unbounded probe) |
+
+Notably cra80-ap10's clipped 12-node tree yields the SAME 3.34% frontier as the 29-node run —
+the v21 parent-dual intersection carries the pruning. cra-140's 13.49% is the relaxed-probe upper
+(the clipped plain probe did not tighten on a hot machine; cold it may still prove outright inside
+its ~70 s slice) — its QUALITY remains the open K-dim research gap, but its wall no longer is.
+
+Locks: the union lock and the μ{0,250,500} lock pass under v25; per-shape E2E contracts now
+encode the product: `s4` = ProvenOptimal, `iop200-frontier` ≤ 2%, deadline-clipped shapes ≤ 25%
+(the badge floor) — ALL with a 150 s wall assertion.
+
+#### 9.25 — v25b: k-ary branching + parent hints make the world tree CLOSE — 3 of 4 shapes ProvenOptimal (2026-07-18)
+
+The user raised the bar to **ProvenOptimal under two minutes everywhere**. Campaign results:
+
+1. **k-ary SOS branching** in `conditionalWorldBranchAndBound`: at a BRANCH node over selected
+   conditionals [c1..ck], emit {c1 req} ∪ {c1 excl, c2 req} ∪ … ∪ {all excl} instead of the binary
+   chain. Same coverage, but the "all excluded" child skips the substitute-ring rediscovery that
+   the binary chain paid one 15 s node at a time: cra80-ap10 closure 43 nodes/456.8 s → 13/140.1 s.
+2. **Parent-assignment hints**: each child receives the parent's mixed-solve assignment as a CP-SAT
+   solution hint (deduped by var name — duplicate hint entries are MODEL_INVALID). Closure
+   13 nodes/140 s → **10 nodes/104 s**, then 9/61 s and cra-140 **6 nodes/65.5 s** (a tree that
+   never closed under the binary chain).
+3. **B&B-first routing**: the relaxed probe is now LAZY — on the ≤gate route the tree runs first
+   with its full budget and a Proven result never pays the probe at all.
+4. **Gate extended 110 → 140** (measured closed; 200+ stays out — mixed duals +218%).
+5. **Soundness fix caught by the self-check**: MODEL_INVALID (from the initial duplicate-var
+   hints) fell into the prune test with a garbage native bound of 0 and became a fake closed
+   contribution (`Proven(upper=0)` → badge suppressed by the self-check exactly as designed).
+   Any status outside {OPTIMAL, FEASIBLE, INFEASIBLE} now ends the tree inconclusively.
+
+Failed/reverted with in-code notes: 4×2 node-workers (2 CP threads cannot close required-nodes;
+CPU-bound at 2×4 anyway); `objective ≤ inheritedUpper` node cap (161 s vs 140 s — §9.22 cap
+do-not-retry holds); 10 s/node (tree explodes, 56 nodes).
+
+**Production E2E, ProvenOptimal walls:** S4-245 **96.3 s**, cra80-ap10 **61.1 s** (9 nodes),
+cra-140 **35.1 s** (5 nodes). The ONLY remaining non-optimal shape is IOP-200
+(ProvenWithin 1.08%, ~119 s): no measured CP route proves it (monolith +136% at 600 s; mixed
+nodes +218%), so its route is the P3 research task — close the conditional DP's last 0.704%
+(cross-path merge looseness in the secZero core) or find a better conditional incumbent.
+
+#### 9.26 — v27: per-request λ auto-calibration + GUI proof narration (2026-07-18, user GO)
+
+The user's generalization concern ("nos 4 formes sont des échantillons — le 0.7% peut être plus
+grand ailleurs; il faut automatiser la découverte du moyen de prouver par requête") shipped as:
+
+1. **Badge-owner λ auto-calibration** (CERTIFIER_VERSION 27): after the μ pass, the pipeline
+   re-reads THE WORLD OWNING THE UNION MAX at the alternate λ (LOW-band worlds only, since that is
+   the measured miscalibration class) and min-intersects, iterating while the owner changes. Each
+   λ is independently sound. One extra DP read only when it can change the verdict. Placement
+   matters: BEFORE the μ pass the owner is misidentified (secZero at its μ500 bound) — measured as
+   a no-op at 116 s/1.08%; after the μ pass it fires correctly.
+   Journey: naive always-alt = 434 s (compounded by a secPos dedup regression, see below) →
+   146 s → badge-owner-only post-μ = **141.5 s hot, badge 1.082% → 0.704%** at IOP-200.
+   Trade-off vs no-calibration (116-120 s / 1.08%) accepted by the user for genericity; the
+   150 s E2E wall contract absorbs it.
+2. **GUI proof narration** (user GO): `onPhase` threaded proveMaxDamageOptimality →
+   proveOptimality → proveSoftLegQuality → hybridUnionUpper's stage stamps; ProofProgress gains
+   `detailKey`; StatsPanel maps stage keys to EN/FR labels ("Balayage des mondes conditionnels…",
+   "Auto-calibration de la preuve pour cette requête…", "Tentative de preuve CP-SAT complète…",
+   B&B = "Exploration des mondes de sublimations conditionnelles…"). Unknown keys fall back to the
+   generic label.
+3. **secPos dedup regression fixed**: populating `Opt.secPos` unconditionally split stat-identical
+   ring pairs / weapon combos at distinct() — a 2.5-7× refine-read slowdown (secZero DI1 20 s →
+   143 s) with IDENTICAL bounds. All secPos population is now gated on `secDimActive` (the
+   dormant P3 seam), and refine walls returned to baseline.
+
+Gates: full :autobuilder:test + :gui-compose:test + ktlint green; μ{0,250,500} lock green (also
+green with the research dimension ON); union lock green.
+
+#### 9.27 — First generality matrix run: the hot spots are FOUND (2026-07-18)
+
+The matrix harness (`WAKFU_S4_PROOF_MATRIX=1`, 6 shapes across classes × levels × target styles,
+full production proof each) delivered its purpose on the first run — the 4 reference shapes were
+hiding real hot spots:
+
+| shape | verdict | wall |
+|---|---|---:|
+| cra50-apmp | **ProvenOptimal** | 35.1 s ✅ |
+| iop110-full | **Unavailable** | **225.4 s** ❌❌ |
+| xelor155-apmp | ProvenWithin **12.87%** | 110.4 s ⚠️ |
+| cra185-full | ProvenWithin 3.15% | 137.3 s ⚠️ |
+| iop215-full | ProvenWithin 0.35% | **179.6 s** ❌ |
+| sacrieur230-apmp | ProvenWithin 9.55% | 49.1 s ⚠️ |
+
+Diagnoses to run (next campaign, driven by this instrument):
+1. **iop110-full**: the ≤140 B&B did not close (Unavailable = the inconclusive frontier exceeded
+   the 25% badge floor) and burned 225 s — the k-ary+hint tree needs the same closure diagnosis
+   that fixed cra80-ap10, or the shape must fall through to the DP union instead of the terminal
+   Inconclusive return.
+2. **iop215-full**: badge excellent (0.35%) but 179.6 s — the mid-band pipeline needs its stage
+   breakdown (likely the same μ/DI1 cost class as IOP-200 pre-v24).
+3. **xelor155-apmp 12.87% / sacrieur230-apmp 9.55%**: loose DP classes never diagnosed (Xelor WP
+   mechanics; 230 without CC/HP targets) — provenance runs needed.
+
+The matrix is now the campaign driver: after each fix, re-run it; add shapes as classes/styles
+get coverage. This is the automation the user asked for ("trouver les moyens de prouver en
+fonction de la requête") on the DETECTION side; the per-request routing (B&B gate, λ
+auto-calibration, complementary regimes min) is the response side.
+
+#### 9.28 — v28: the matrix campaign's first sweep (root prognosis + DP fall-through + DI10 alt-λ)
+
+Three generalization mechanisms shipped, driven by the §9.27 matrix hot spots:
+
+1. **B&B root prognosis** (`rootBailFraction = 0.25`, root gets a 30 s budget): a root dual beyond
+   incumbent+25% means the reification wall makes the tree unclosable (iop110-full root +142%
+   never closes; cra80-ap10 +14% closes in 5-9 nodes) — bail after ONE node. The root budget
+   matters: at 15 s a thermally-slowed cra80 root stayed FEASIBLE with a loose dual and
+   FALSE-bailed (ProvenOptimal lost); at 30 s it closes OPTIMAL and the prognosis is reliable.
+2. **Inconclusive tree → DP fall-through** (was a terminal return): iop110-full went
+   Unavailable/225 s → ProvenWithin(2.78%)/114-125 s. The lazy relaxed probe is now gated at
+   >10% union gap in BOTH min sites (it burned its full 45 s at the END of a 2.78% proof).
+3. **DI10 alternate-λ before descent**: a LOW-λ world still above the floor at DI10 tries the
+   alternate λ at the SAME grid once before paying DI4/DI1 (iop215: plain paid DI1@1500 43.7 s,
+   stayed above the floor, then the post-μ calibration re-paid DI1@4000 — the DI10 alt read
+   closes it for ~13 s). The post-μ badge-owner calibration is kept as the badge-side play.
+
+Matrix sweep 2 (hot machine, full suite run just before):
+
+| shape | sweep 1 | sweep 2 |
+|---|---|---|
+| cra50-apmp | ProvenOptimal 35 s | ProvenOptimal 54.6 s |
+| iop110-full | Unavailable 225 s | **2.78% / 125.3 s** |
+| xelor155-apmp | 12.87% / 110 s | 12.87% / 113.9 s |
+| cra185-full | 3.15% / 137 s | 3.15% / **107.7 s** |
+| iop215-full | 0.35% / 180 s | **ProvenOptimal 124.0 s** |
+| sacrieur230-apmp | 9.55% / 49 s | 9.55% / 55.6 s |
+
+CERTIFIER_VERSION 28. Full suite + union lock green. Remaining matrix items: the loose badges
+(xelor155 12.87%, sacrieur230 9.55% — provenance diagnoses), iop110's 2.78%, and re-verifying the
+four reference shapes under v28 (theory: untouched — S4 λ6000, IOP-200 floor-stops before the alt
+gate, cra80/cra140 close in the tree).
+
+#### 9.28bis — v28 reference non-regression + the 10-shape state (2026-07-18 close)
+
+References under v28: S4-245 ProvenOptimal 108.5 s; IOP-200 0.704% 133.8 s; cra-140 ProvenOptimal
+49.9 s; cra80-ap10 ProvenOptimal 41.0 s. Combined with sweep 2, the 10 measured shapes:
+
+- **ProvenOptimal**: S4-245 (108 s), cra80-ap10 (41 s), cra-140 (50 s), cra50-apmp (55 s),
+  iop215-full (124 s).
+- **ProvenWithin ≤3.2%**: IOP-200 (0.70%/134 s), iop110-full (2.78%/125 s), cra185-full
+  (3.15%/108 s).
+- **Loose badges, wall fine**: xelor155-apmp (12.87%/114 s), sacrieur230-apmp (9.55%/56 s).
+
+Every measured shape returns its verdict in ≤134 s on a loaded machine. Open campaign items:
+provenance diagnoses for the two loose-badge classes; the 2-dim S⁺×negB research for the
+sub-1% shapes' ProvenOptimal; extend the matrix as coverage grows.
+
+#### 9.29 — Matrix sweep 3 (12 shapes): coverage doubled, two class-patterns emerge (2026-07-18)
+
+| shape | verdict | wall (loaded machine, 11 h of benches) |
+|---|---|---:|
+| cra50-apmp | ProvenOptimal | 71.5 s |
+| iop110-full | 2.78% | 151.3 s (thermal; 114-125 isolated) |
+| xelor155-apmp | 12.87% | 111.5 s |
+| cra185-full | 3.15% | 108.3 s |
+| iop215-full | ProvenOptimal | 123.9 s |
+| sacrieur230-apmp | 9.55% | 57.4 s |
+| feca65-full | 14.96% | **193.3 s** ← hot spot |
+| enutrof125-cchp | 2.89% | 135.3 s |
+| panda170-apmp | 13.33% | 114.0 s |
+| eca195-full | 6.55% | 106.2 s |
+| osa225-full | **ProvenOptimal** | 124.2 s |
+| steamer240-apmp | 9.42% | 56.3 s |
+
+Two clear class-patterns for the next iteration:
+
+1. **AP/MP-only shapes share 9-13% badges** (xelor155, panda170, sacrieur230, steamer240 — and
+   likely feca65's style contributes): one common phantom suspected (the crit-support λ pricing on
+   shapes with NO CC target?). ONE provenance diagnosis (WAKFU_S4_PATH on a binding world of
+   xelor155-apmp) should close four shapes at once.
+2. **feca65-full stacks fallbacks to 193 s**: low-level full-target = B&B root-bails (loose root),
+   DP lands 15% (> the 10% gates) → relaxed 45 s AND the CP probe both fire. The per-leg deadline
+   clip must apply to the low-level path too (budget the relaxed+probe legs against
+   PROOF_PHASE_DEADLINE remaining, as the ≥175 legs already are).
+
+The matrix is doing its job: each sweep finds the next class of work. State: 12/12 shapes return a
+displayable verdict; 9/12 under 120 s hot, 3 between 124-193 s (thermal-inflated); 4/12
+ProvenOptimal.
+
+#### 9.30 — v29: capFree re-split converts two more shapes (matrix sweep 4, 2026-07-18 night)
+
+Sweep-3's "AP/MP-only loose badge" pattern root-caused: the badge owner was the **capFree merged
+assume cover** (xelor155: capFree/Mesure III at +12.87% — priced with NO caps, fine while under
+the authority as at S4/IOP, but at small/mid levels it emerges ABOVE and owns the badge). Fix
+(CERTIFIER_VERSION 29): any capFree world still above the floor at the final tier is RE-SPLIT
+into its exact three-arm partition (plain/secZero/critZero per assume — sound, and lazy: never
+triggered when the cover stays under the authority, so S4/IOP pay nothing).
+
+Sweep 4 (machine at 12 h of continuous benches — walls ~+25% thermal):
+
+| shape | sweep 3 | sweep 4 |
+|---|---|---|
+| sacrieur230-apmp | 9.55% / 57 s | **ProvenOptimal** / 113 s |
+| steamer240-apmp | 9.42% / 56 s | **ProvenOptimal** / 115 s |
+| feca65-full | 14.96% / 193 s | 9.29% / 209 s |
+| xelor155-apmp | 12.87% / 112 s | 10.79% / 141 s |
+| panda170-apmp | 13.33% / 114 s | 12.17% / 150 s |
+| (others) | — | stable |
+
+**6/12 matrix shapes ProvenOptimal** (cra50, iop215, sacrieur230, osa225, steamer240 + references
+cra80-ap10/cra-140/S4-245 outside the matrix = 9 total). Remaining campaign: xelor155/panda170
+residual owners (~11-12%, post-capFree — identify via the E2E refine logs), feca65 (209 s wall +
+9.3%), enutrof125 (184 s thermal). Union lock green.
+
+#### 9.31 — Sweep 4bis: feca65 209 → 163.7 s, badge 14.96% → 5.91% (2026-07-18 night)
+
+Three low-level-path fixes (CERTIFIER_VERSION 29, same version — orchestration only):
+1. Lazy relaxed probe deadline-clipped (was a fixed 45 s burned late).
+2. **Queue RESUME after the capFree re-split** — the re-split can hand the union max to a world
+   still at a coarse tier (feca65: secZero/base owned the badge at DI10 only; its DI1 costs ~2 s).
+   Badge 9.29% → 5.91%.
+3. **Early no-condition oracle**: the oracle future now starts BEFORE the B&B (it was serialized
+   after it — a measured 45 s hole at feca65 whose oracle takes ~39 s), at HALF workers during the
+   overlap (8+8 tree workers on 10 cores doubled the oracle wall and re-created the hole).
+
+feca65 residual (~164 s hot): a ~35 s join hole remains (the 4-worker overlapped oracle still
+outlives the 30 s tree bail) + the stacked legs (relaxed 29 s, λ-calib 21 s, re-split+resume 32 s)
+— each individually justified; the next cut is joining the oracle lazily at first REAL need and
+fusing the λ-calib/re-split passes. Campaign continues; walls at 14 h of continuous benches.

@@ -69,7 +69,7 @@ import kotlin.time.Duration.Companion.seconds
 
 private typealias BuildFinder = (WakfuBestBuildParams) -> Flow<SolverResult<BuildCombination>>
 private typealias ZenithBuilder = suspend (ZenithInputParameters) -> String
-private typealias OptimalityProver = (WakfuBestBuildParams, SolverResult<BuildCombination>, () -> Boolean) -> MaxDamageSearch.MaxDamageProof
+private typealias OptimalityProver = (WakfuBestBuildParams, SolverResult<BuildCombination>, () -> Boolean, (String) -> Unit) -> MaxDamageSearch.MaxDamageProof
 
 /** The four specific elemental masteries, mutually exclusive with the aggregate "all elements". */
 private val ELEMENTAL_MASTERY_ELEMENTS =
@@ -116,7 +116,9 @@ class BuildSearchModel(
     private val buildFinder: BuildFinder = { WakfuBestBuildFinderAlgorithm.run(it) },
     // Post-search certificate optimality proof (P4.4). Injectable so tests drive proofState deterministically
     // without a real (minutes-long) exact solve.
-    private val optimalityProver: OptimalityProver = { params, result, isCancelled -> WakfuBestBuildFinderAlgorithm.proveMaxDamageOptimality(params, result, isCancelled) },
+    private val optimalityProver: OptimalityProver = { params, result, isCancelled, onPhase ->
+        WakfuBestBuildFinderAlgorithm.proveMaxDamageOptimality(params, result, isCancelled, onPhase)
+    },
     // Most-masteries backup certificate (plan §8.9bis): the post-search "proven within X%" quality
     // bound for searches CP-SAT left un-proven. Injectable for the same reason as [optimalityProver]
     // (the real DP takes ~15-60 s on the full pool).
@@ -1130,7 +1132,14 @@ class BuildSearchModel(
                 reportProofProgress(ProofProgress(phase = ProofPhase.CERTIFYING, startedAtMs = proofStartMs))
                 val proof =
                     try {
-                        optimalityProver(params, result) { proofCancelled.get() }
+                        optimalityProver(params, result, { proofCancelled.get() }) { stageKey ->
+                            // The engine reports from a worker thread; hop to the UI state safely.
+                            scope.launch {
+                                reportProofProgress(
+                                    ProofProgress(phase = ProofPhase.CERTIFYING, startedAtMs = proofStartMs, detailKey = stageKey)
+                                )
+                            }
+                        }
                     } catch (cancellation: CancellationException) {
                         throw cancellation
                     } catch (throwable: Throwable) {
