@@ -2889,3 +2889,26 @@ for FEASIBLE-root trees (its own class), B&B locks green, cra80 ProvenOptimal 13
 load. NEXT SESSION, first task: design the progress prognosis with 40 s probes on enutrof's
 tree reads (the node dumps are one WAKFU_S4_WORLD_BB run away) — do NOT tune more heuristics on a
 17 h-loaded machine.
+
+#### 9.36 — enutrof node dump: the two-node prognosis design (data, 2026-07-18 23h)
+
+Node dump (WAKFU_S4_WORLD_BB, incumbent 2288092050000):
+
+| node | required/excluded | status | bound | wall/det |
+|---|---|---|---|---|
+| 1 root | —/— | OPTIMAL 2.611T (+14.1%) | | 21.3 s / det 76.4 |
+| 2-4,6 | various | OPTIMAL, prune/branch | 2.25-2.36T | 23-34 s / det 44-101 |
+| 5,7,8,9 | required=[7115] chain | FEASIBLE at the 45 s cap, **dual == inherited (zero progress)** | 2.611T | det 61-103 |
+
+Findings: (a) enutrof nodes are INTRINSICALLY expensive (OPTIMAL closes at det 66-101 vs cra80's
+20-70) — the det-60 cap cuts nodes that were about to close; (b) the crawl is the `7115` branch:
+four consecutive full-budget FEASIBLE reads contributing NOTHING (dual == inherited); (c) the
+root alone cannot discriminate (det 76 vs cra80's 50-70, same +14% relative dual!) — but
+**root + first child cumulative det does: enutrof 142 vs cra80 70-118**.
+
+DESIGN (implement cold, ~20 min): TWO-NODE PROGNOSIS — after the root and its first child, if
+cumulative det > ~130, bail to the DP (the tree's nodes are priced beyond any closable budget).
+Also count consecutive zero-progress nodes (dual == inherited after a full budget) and terminate
+at 2. SECOND WALL: the low-level DP fall-through itself costs ~140 s (same class as feca65's
+stack) — enutrof cannot reach <120 s without also thinning that path; profile it with the stage
+stamps on a cold machine before touching anything.
