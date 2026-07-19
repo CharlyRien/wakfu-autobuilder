@@ -1224,3 +1224,29 @@ out of budget). DO-NOT-RETRY the 1-dim global-cap variant. Remaining honest rout
 (b) accept ProvenWithin(0.704%) as IOP-200's terminal badge. The plumbing (Opt.secPos, Geometry
 sec field, `secondaryNetDimension` seam incl. WAKFU_S4_SEC_DIM on the μ lock and the path
 harness) stays in the tree, DORMANT and union-lock-proven inert, for route (a).
+
+### P3 route (a) MEASURED: the 2-dim S⁺×negB family is a NO-GO — IOP-200 terminal = ProvenWithin(0.704%) (2026-07-19)
+
+Both 2-dim forms were implemented (negB 3b @53, DOWN/UP-rounded per direction, saturation-safe
+both sides, dominance clauses extended, μ+union locks GREEN for each) and measured on the IOP-200
+secZero owner read:
+
+1. **Credit form** — μ·min(S⁺_up, armSecCapRaw + negB_up) replacing the per-item credits:
+   DI10 9.9190T vs 9.2442T baseline (**+7.3% LOOSER**). Same failure mode as the 1-dim: at IOP
+   scales (budgets 843–3000 raw) both cap-5×250 buckets saturate instantly → global-cap fallback
+   ≫ per-path credit. Finer buckets can't fix it: the per-item UP-rounding slack alone
+   (≥100·nItems raw) exceeds the 0.704% target.
+2. **Correction form** (safe sentinels) — keep the exact baseline W and only SUBTRACT the provable
+   over-credit −μ·max(0, negB_down + armSecCapRaw − S⁺_up). No regression possible by
+   construction (DI10 bit-identical to baseline confirms), the phantom (S⁺=0) dies up to
+   DOWN-rounding… but the S⁺×negB state product makes the DI1 read (the ONLY tier where the
+   phantom binds) computationally infeasible: fine grid >88 min, coarse cc20/hp1000 grid
+   >10 min (killed), vs ~20 s baseline. Outside any production proof budget.
+
+With the CP monolith (+136%), the joint (λ,μ) grids (inert), the 1-dim credit-cap (+10.7%), the
+DD exclude-chain family (ensemble of near-equivalent phantom paths) and now both 2-dim forms all
+measured dead, **route (b) is adopted: ProvenWithin(0.704%) is IOP-200's terminal badge** (and
+the AP/MP-only badge class shares the same structural residual). The correction seam stays in the
+tree (WAKFU_S4_SEC_DIM2, dormant, lock-proven inert when off) with two soundness hardenings that
+survive it: the secPos S⁺ tracking now clamps negative sub/skill lines to 0 (an S⁺ under-count
+was unsound in every mode) and `dominates` carries the secPos/secNeg monotonicity clauses.

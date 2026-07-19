@@ -219,6 +219,11 @@ internal object MaxDamageSoftCertificate {
         // secZero credit-cap dimension is active (P3 spec v2): the state stores an UPPER bound
         // of the build's item/sub-side S⁺, which soundly caps the μ budget credit at collapse.
         val secPos: Int = 0,
+        // NEGATIVE-secondary budget basis of the option (items only; net-other clamped >= 0,
+        // same composition as itemSecBudgetMax). Only read when the 2-dim credit budget is
+        // active (P3 route a): the state stores an UPPER bound of the build's item-side
+        // negative-secondary budget, replacing the global itemSecBudgetMax at collapse.
+        val secNeg: Int = 0,
         val ramp: Boolean = false,
         // Value-side partition marker: at least one selected sublimation bears a condition.
         // It is dormant through the equipment prefix and starts splitting only at sub stages.
@@ -246,7 +251,11 @@ internal object MaxDamageSoftCertificate {
                 block >= o.block &&
                 requiresBlockAtLeast == o.requiresBlockAtLeast &&
                 apLow <= o.apLow &&
-                ccLowRaw <= o.ccLowRaw
+                ccLowRaw <= o.ccLowRaw &&
+                // Credit-dimension monotonicity: a larger secPos/secNeg yields a >= collapse
+                // credit (looser, sound side), so dominance must not drop the larger one.
+                secPos >= o.secPos &&
+                secNeg <= o.secNeg
     }
 
     private fun prune(options: List<Opt>): List<Opt> {
@@ -266,6 +275,8 @@ internal object MaxDamageSoftCertificate {
         // P3 credit-cap dimension (spec v2): 0 = off. When active (secZero reads only), the key
         // carries an UP-rounded S⁺ bucket that soundly caps the μ budget credit at collapse.
         val secBucketCap: Int = 0,
+        // P3 route (a) second dimension: UP-rounded item-side negative-secondary budget. 0 = off.
+        val negBucketCap: Int = 0,
     ) {
         /**
          * False when a bucket cap overflows its packed-key field (an extreme request/grid combo,
@@ -277,9 +288,10 @@ internal object MaxDamageSoftCertificate {
                 ccBucketCap <= 0x7F &&
                 diBucketCap <= 0x1FFF &&
                 blockBucketCap <= 0xF &&
-                secBucketCap <= 0x7
+                secBucketCap <= 0x7 &&
+                negBucketCap <= 0x7
 
-        // Packed key: sec(3b @50) conditional(1b @49) block(4b @45) ramp(1b @44) mpMinus(1b @43)
+        // Packed key: negB(3b @53) sec(3b @50) conditional(1b @49) block(4b @45) ramp(1b @44) mpMinus(1b @43)
         //             d(13b @28) ap(5b @23) mp(5b @18) cc(7b @11) hp(9b @2) e(1b @1) r(1b @0)
         fun key(
             d: Int,
@@ -294,8 +306,9 @@ internal object MaxDamageSoftCertificate {
             block: Int = 0,
             conditional: Int = 0,
             sec: Int = 0,
+            negB: Int = 0,
         ): Long =
-            (sec.toLong() shl 50) or
+            (negB.toLong() shl 53) or (sec.toLong() shl 50) or
                 (conditional.toLong() shl 49) or (block.toLong() shl 45) or (ramp.toLong() shl 44) or (mpMinus.toLong() shl 43) or
                 (d.toLong() shl 28) or (ap.toLong() shl 23) or (mp.toLong() shl 18) or
                 (cc.toLong() shl 11) or (hp.toLong() shl 2) or (e.toLong() shl 1) or r.toLong()
@@ -324,12 +337,14 @@ internal object MaxDamageSoftCertificate {
 
         fun sec(k: Long): Int = ((k shr 50) and 0x7).toInt()
 
+        fun negB(k: Long): Int = ((k shr 53) and 0x7).toInt()
+
         fun mpCapOf(mpMinus: Int): Int = (mpCap - mpMinus).coerceAtLeast(0)
 
         fun withMp(
             k: Long,
             newMp: Int,
-        ): Long = key(d(k), ap(k), newMp, cc(k), hp(k), e(k), r(k), mpMinus(k), ramp(k), block(k), conditional(k), sec(k))
+        ): Long = key(d(k), ap(k), newMp, cc(k), hp(k), e(k), r(k), mpMinus(k), ramp(k), block(k), conditional(k), sec(k), negB(k))
     }
 
     private fun ceilDiv(
@@ -378,7 +393,11 @@ internal object MaxDamageSoftCertificate {
             if (o.conditional) 1 else conditional(k),
             // UP-rounded accumulation (ceil + saturating min at the cap): stored ≥ true S⁺,
             // the sound direction for CAPPING a credit (spec v2).
-            if (secBucketCap > 0) (sec(k) + ceilDiv(o.secPos, SEC_DIM_STEP)).coerceAtMost(secBucketCap) else 0
+            if (secBucketCap > 0) (sec(k) + ceilDiv(o.secPos, SEC_DIM_STEP)).coerceAtMost(secBucketCap) else 0,
+            // DOWN-rounded accumulation for the budget dimension (correction mode): stored ≤
+            // true item negB, so the subtracted over-credit is a lower bound (sound); saturation
+            // only weakens the correction toward 0.
+            if (negBucketCap > 0) (negB(k) + o.secNeg / SEC_DIM_STEP).coerceAtMost(negBucketCap) else 0
         )
     }
 
@@ -533,6 +552,16 @@ internal object MaxDamageSoftCertificate {
         // identity is value = (wM−μ)·S + μ·min(S, t+negB). A state whose S⁺ bucket SATURATED
         // gets the full budget cap (the up-bound is lost there), i.e. today's behavior.
         secondaryNetDimension: Boolean = false,
+        // P3 route (a) — the 2-dim CORRECTION form (safe sentinels both sides). The baseline W
+        // keeps its exact per-item μ·negSec credits (no regression possible); the two tracked
+        // dimensions only fund a SUBTRACTIVE collapse correction
+        //   −μ·max(0, negB_down·STEP + armSecCapRaw − S⁺_up)
+        // i.e. reclaim the provable over-credit on paths whose positive scenario-secondary S⁺
+        // cannot fund the credited budget (the IOP-200 phantom has S⁺ = 0). negB is DOWN-rounded
+        // (≤ true ⇒ the subtracted quantity is a lower bound of the true over-credit — sound),
+        // S⁺ is UP-rounded; EITHER bucket saturating degrades the correction toward 0 (baseline).
+        // Research seam (WAKFU_S4_SEC_DIM2).
+        secondaryNegBudgetDimension: Boolean = false,
         // Research seam: ASSUME/secZero/critZero worlds already imply that a conditional carrier
         // is selected by their exhaustive partition. Do not retain a redundant marker bit there.
         // The base/plain world still tracks the bit normally.
@@ -894,6 +923,7 @@ internal object MaxDamageSoftCertificate {
                     diagnosticBindingCcBandLow,
                     stateDependentMpRamp,
                     secondaryNetDimension,
+                    secondaryNegBudgetDimension,
                     elideImpliedConditionalMarker,
                     secondarySupportPrice
                 )
@@ -928,6 +958,9 @@ internal object MaxDamageSoftCertificate {
         // ceiling). Used to price assume-worlds once instead of three times.
         val armCapFree = worldArm == "capFree"
         val secDimActive = secondaryNetDimension && armZeroSecondary
+        // Correction mode requires the coupled per-item credits to exist (it reclaims from them).
+        val secCorrActive = secondaryNegBudgetDimension && armZeroSecondary && coupleSecondaryItemNegative && !secondaryNetDimension
+        val secTrackActive = secDimActive || secCorrActive
         val armForcesConditional = armZeroSecondary || armZeroCritM
         val secSupportPrice = (secondarySupportPrice ?: wMastery).coerceIn(0L, wMastery)
         val needsConditionalMarker =
@@ -997,7 +1030,8 @@ internal object MaxDamageSoftCertificate {
                 blockBucketCap = ceilDiv(blockAtLeastMax, BLOCK_STEP),
                 assumeApThreshold = if (assumeStat == Characteristic.ACTION_POINT) assumeThreshold else -1,
                 assumeCcThresholdRaw = if (assumeStat == Characteristic.CRITICAL_HIT) assumeThreshold else -1,
-                secBucketCap = if (secDimActive) 5 else 0
+                secBucketCap = if (secTrackActive) 5 else 0,
+                negBucketCap = if (secCorrActive) 5 else 0
             )
         if (!geo.fitsPackedKey) return null
 
@@ -1136,7 +1170,21 @@ internal object MaxDamageSoftCertificate {
                     // Populated ONLY when the credit-cap dimension is active: a populated secPos
                     // splits stat-identical ring pairs / weapon combos at distinct(), which
                     // measured as a 2.5-7x refine-read slowdown with the dimension OFF.
-                    secPos = if (secDimActive) itemPositiveScenarioSecondary(e) else 0,
+                    secPos = if (secTrackActive) itemPositiveScenarioSecondary(e) else 0,
+                    // Same composition as the itemSecBudgetMax basis (net-other clamped >= 0):
+                    // the state's negB replaces exactly that global sum.
+                    secNeg =
+                        if (secCorrActive) {
+                            (
+                                if (netSecondaryItemBudget) {
+                                    otherNegativeSecondary - otherPositiveSecondary
+                                } else {
+                                    negativeSecondary
+                                }
+                            ).coerceAtLeast(0L).toInt()
+                        } else {
+                            0
+                        },
                     src =
                         if (wantSrc) {
                             "${e.name.fr}[id=${e.equipmentId} lvl=${e.level} rarity=${e.rarity} " +
@@ -1164,7 +1212,7 @@ internal object MaxDamageSoftCertificate {
                                     hp = base.hp + a4 * perAxis[3],
                                     apLow = base.apLow + (if (geo.assumeApThreshold >= 0) a1 * perAxis[0] else 0),
                                     ccLowRaw = base.ccLowRaw + (if (geo.assumeCcThresholdRaw >= 0) a3 * perAxis[2] else 0),
-                                    secPos = if (secDimActive) base.secPos + a0 * runeSecOver(e.itemType, e.level) else 0,
+                                    secPos = if (secTrackActive) base.secPos + a0 * runeSecOver(e.itemType, e.level) else 0,
                                     src =
                                         if (wantSrc) {
                                             base.src + "{runes=W:$a0 AP:$a1 MP:$a2 CC:$a3 HP:$a4}"
@@ -1262,6 +1310,7 @@ internal object MaxDamageSoftCertificate {
                 apLow = a.apLow + b.apLow,
                 ccLowRaw = a.ccLowRaw + b.ccLowRaw,
                 secPos = a.secPos + b.secPos,
+                secNeg = a.secNeg + b.secNeg,
                 conditional = a.conditional || b.conditional,
                 src =
                     if (a.src.isEmpty()) {
@@ -1823,11 +1872,11 @@ internal object MaxDamageSoftCertificate {
                                             w = opt.w + wOf(eff.characteristic, value),
                                             secPos =
                                                 opt.secPos +
-                                                    if (secDimActive &&
+                                                    if (secTrackActive &&
                                                         eff.characteristic in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS &&
                                                         (eff.characteristic in masteryStats || eff.characteristic in randomStats)
                                                     ) {
-                                                        value
+                                                        maxOf(value, 0)
                                                     } else {
                                                         0
                                                     }
@@ -2182,11 +2231,11 @@ internal object MaxDamageSoftCertificate {
                                         w = acc.w + wOf(skChar, v),
                                         secPos =
                                             acc.secPos +
-                                                if (secDimActive &&
+                                                if (secTrackActive &&
                                                     skChar in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS &&
                                                     (skChar in masteryStats || skChar in randomStats)
                                                 ) {
-                                                    v
+                                                    maxOf(v, 0)
                                                 } else {
                                                     0
                                                 }
@@ -2320,6 +2369,15 @@ internal object MaxDamageSoftCertificate {
                                 )
                             }
                         secSupportPrice * sUp
+                    } else if (secCorrActive && geo.sec(k) < geo.secBucketCap) {
+                        // Correction mode: the baseline W already credited μ·(negB_exact +
+                        // armSecCapRaw); the true needed credit is μ·S ≤ μ·S⁺_up. Reclaim the
+                        // provable over-credit −μ·max(0, negB_down + armSecCapRaw − S⁺_up).
+                        // A saturated S⁺ bucket (else-branch) loses its upper — correction 0,
+                        // i.e. exactly the baseline bound.
+                        val sUp = geo.sec(k).toLong() * SEC_DIM_STEP + assumedOpt.secPos + extra.secPos
+                        -secSupportPrice *
+                            maxOf(0L, geo.negB(k).toLong() * SEC_DIM_STEP + armSecCapRaw - sUp)
                     } else {
                         0L
                     }
