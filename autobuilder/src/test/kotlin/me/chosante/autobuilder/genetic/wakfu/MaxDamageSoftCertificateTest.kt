@@ -844,7 +844,8 @@ class MaxDamageSoftCertificateTest {
                                 stateDependentMpRamp = true,
                                 elideImpliedConditionalMarker = true,
                                 secondarySupportPrice = mu,
-                                secondaryNetDimension = System.getenv("WAKFU_S4_SEC_DIM") == "1"
+                                secondaryNetDimension = System.getenv("WAKFU_S4_SEC_DIM") == "1",
+                                secondaryNegBudgetDimension = System.getenv("WAKFU_S4_SEC_DIM2") == "1"
                             )
                         )
                     println("S4_SECONDARY_LOCK $label mu=$mu exact=$exactUpper bound=${bound.foldedBound}")
@@ -1363,7 +1364,8 @@ class MaxDamageSoftCertificateTest {
                         stateDependentMpRamp = stateDependentMpRamp(),
                         elideImpliedConditionalMarker = elideImpliedConditionalMarker(),
                         secondarySupportPrice = secondarySupportPrice(),
-                        secondaryNetDimension = System.getenv("WAKFU_S4_SEC_DIM") == "1"
+                        secondaryNetDimension = System.getenv("WAKFU_S4_SEC_DIM") == "1",
+                        secondaryNegBudgetDimension = System.getenv("WAKFU_S4_SEC_DIM2") == "1"
                     )
                 println("S4_PROTO_PATH bound=${path?.foldedBound} binding=[${path?.bindingState}]")
                 path
