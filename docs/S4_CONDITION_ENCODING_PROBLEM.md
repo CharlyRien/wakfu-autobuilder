@@ -1316,3 +1316,29 @@ all four under-counts; keep them green at every step. Fast protocol: 30-60s sing
 (WAKFU_S4_PROOF_MATRIX=1) only at milestones. Bump CERTIFIER_VERSION on any arithmetic change.
 Do-not-retry: the P3 2-dim S⁺×negB family, the (λ,μ) grids, solver knobs, DD exactness — see the
 sections above.
+
+### Progress journal — v32 ramp world-split (2026-07-20)
+
+- Implemented the exhaustive partition requested by the handoff: every ordinary objective/cap
+  world now EXCLUDES the unique MP→DI ramp carrier, and one additional `rampCover` world REQUIRES
+  it while relaxing every other cap-sublimation condition. This is one logical ramp world (the
+  existing light-weapon structural split may still price its two exhaustive weapon arms).
+- The required-ramp world forces exact NORMAL-sub packing and signed MP folding even when called
+  from the coarse production sweep. Its MP coordinate now includes both negative `MAX_MP` lines
+  and plain negative `MOVEMENT_POINT` lines, on equipment and sublimations; this covers
+  `Armure lourde II`'s `-1 MP`, the omission named in the handoff. Ordinary no-ramp worlds retain
+  the cheaper historical MP model.
+- `WorldRead` carries the ramp partition identity so every best-first refinement re-prices the
+  SAME set. `CERTIFIER_VERSION` is bumped 31→32. Compile + test compile + ktlint are green.
+- Direct soundness milestone GREEN: both hardened production-priced tests matching
+  `state dependent MP ramp is sound *` pass, including the executed incompatible-choice repro
+  and 8 seeded pools containing negative item MP. Next: 30–60 s mono-shape probes, then the union
+  and μ locks only if the tightening is useful; no proof matrix yet.
+
+**⚠️ Matrix numbers above are LOAD-CONTAMINATED.** The two post-wave matrix sweeps (2026-07-20,
+after hours of continuous compile/test load) disagree by up to 13 points on the same shapes with
+BIT-EQUIVALENT arithmetic (osa225 1.6% vs 14.6%, three shapes flipping to Unavailable = deadline
+bails under thermal throttle): the deadline-clipped refinement pipeline makes badges strongly
+wall-speed-dependent. FIRST task of the tightening campaign: re-base the honest badge table with
+ONE cold matrix run (idle machine), before touching anything — per the fast-locks-first
+directive, never conclude tightness from a loaded-machine sweep.
