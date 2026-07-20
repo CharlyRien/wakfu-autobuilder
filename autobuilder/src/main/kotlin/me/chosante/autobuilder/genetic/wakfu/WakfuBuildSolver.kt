@@ -201,7 +201,7 @@ object WakfuBuildSolver {
      * subset of its parent, so this is an exact free tightening and prevents timeout noise from
      * making a deeper frontier bound worse than an already-known ancestor bound.
      */
-    const val CERTIFIER_VERSION: Int = 30
+    const val CERTIFIER_VERSION: Int = 31
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
@@ -676,11 +676,13 @@ object WakfuBuildSolver {
                         for (v in diagnosticVars(built)) hint[v.name]?.let { built.model.addHint(v, it) }
                     }
                     // Backup certificate (§8.9bis): the emitted objective is certificate-comparable on
-                    // the MM SOFT leg, or on any MM request without required targets (identical models).
+                    // the MM SOFT leg (penalized units = the certificate's foldedBound units) AND on the
+                    // HARD leg (review fix 2026-07-20): every hard-leg emission MEETS the required
+                    // targets, so its penalty terms are zero and the raw objective equals the penalized
+                    // soft objective — previously the hard leg stamped null and the backup badge never
+                    // ran on typical targeted requests, its own motivating scenario.
                     val mmObjectiveComparable =
                         params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
-                            // (the model's exact fold predicate — a 0-valued required target still folds the objective)
-                            (!hardConstraints || params.targetStats.none { it.characteristic.isRequiredMostMasteriesTarget() }) &&
                             // The measurement seams replace the searched objective — never comparable.
                             tuning?.mmPenaltyBucketInterval == null &&
                             tuning?.mmDiFactorInterval == null
@@ -739,7 +741,8 @@ object WakfuBuildSolver {
                             onSolverReady = { solverHandle.set(it) },
                             suppressBelowScore = warmScore,
                             finalIsOptimalOverride = outcome.status == com.google.ortools.sat.CpSolverStatus.OPTIMAL,
-                            maxWallSecondsOverride = 30.0
+                            maxWallSecondsOverride = 30.0,
+                            mmObjectiveOverride = if (mmObjectiveComparable) outcome.objectiveValue else null
                         )
                     }
                     onTermination?.invoke(outcome)
@@ -1370,8 +1373,8 @@ object WakfuBuildSolver {
                     ConditionalRefinementIteration(
                         iteration = index + 1,
                         status = relaxedStatus.toString(),
-                        objective = relaxedSolver.objectiveValue().toLong(),
-                        bestBound = relaxedSolver.bestObjectiveBound().toLong(),
+                        objective = kotlin.math.round(relaxedSolver.objectiveValue()).toLong(),
+                        bestBound = kotlin.math.ceil(relaxedSolver.bestObjectiveBound()).toLong(),
                         relaxedConditionIds = conditionalIds - enforcedIds,
                         selectedSublimationStateIds = selectedSubIds,
                         newlyEnforcedConditionIds = emptySet(),
@@ -1462,8 +1465,8 @@ object WakfuBuildSolver {
                 ConditionalRefinementIteration(
                     iteration = index + 1,
                     status = relaxedStatus.toString(),
-                    objective = relaxedSolver.objectiveValue().toLong(),
-                    bestBound = relaxedSolver.bestObjectiveBound().toLong(),
+                    objective = kotlin.math.round(relaxedSolver.objectiveValue()).toLong(),
+                    bestBound = kotlin.math.ceil(relaxedSolver.bestObjectiveBound()).toLong(),
                     relaxedConditionIds = conditionalIds - enforcedIds,
                     selectedSublimationStateIds = selectedSubIds,
                     newlyEnforcedConditionIds = newlyEnforced,
@@ -2134,6 +2137,16 @@ object WakfuBuildSolver {
         // therefore be used to validate a DP-complement partition without changing the objective.
         statLowerBounds: Map<Characteristic, Long> = emptyMap(),
         statUpperBounds: Map<Characteristic, Long> = emptyMap(),
+        // Frontier-region coverage pins (review fix 2026-07-20). The soft certificate's DP cells
+        // are keyed by CREDITED stats (negative item lines clamped at 0, negative sub lines
+        // dropped), so covering "every build whose state maps into a cell" needs pins on the
+        // CREDITED value, not the real sheet stat: credited = real + Σ elided debits, an exact
+        // per-build identity, posted as `actualStat + Σ debit_e·x_e + Σ debit_s·s ≥ v`. The
+        // [creditedHpPctFactor] over-scales HP debits by the maximum hp% multiplier (the DP
+        // multiplies CREDITED flats, so the elided gap can exceed the raw debit — over-relaxing
+        // the debit side keeps the pin implied by coverage, i.e. sound).
+        creditedStatLowerBounds: Map<Characteristic, Long> = emptyMap(),
+        creditedHpPctFactor: Int = 100,
         // Research-only provenance validator: pin the discrete equipment/sub assignment exposed
         // by a certificate path, while leaving runes and skills free for the exact model to
         // optimize. null means unpinned; an empty map/set deliberately pins every choice to zero.
@@ -2174,6 +2187,28 @@ object WakfuBuildSolver {
         }
         statUpperBounds.forEach { (stat, upper) ->
             built.model.addLessOrEqual(requireNotNull(built.actualStatVars[stat]) { "unsupported upper-bound stat $stat" }, upper)
+        }
+        creditedStatLowerBounds.forEach { (stat, lower) ->
+            val expr = LinearExpr.newBuilder()
+            expr.add(requireNotNull(built.actualStatVars[stat]) { "unsupported credited-bound stat $stat" })
+            val pctFactor = if (stat == Characteristic.HP) creditedHpPctFactor else 100
+            for ((equipment, equipVar) in built.equipVars) {
+                val raw = equipment.characteristics[stat] ?: 0
+                if (raw < 0) expr.addTerm(equipVar, ((-raw).toLong() * pctFactor + 99) / 100)
+            }
+            for ((sub, subVar) in built.subModel.subVars) {
+                val debit =
+                    sub.effects
+                        .filterIsInstance<me.chosante.common.SublimationEffect.StatEffect>()
+                        .filter { it.characteristic == stat && scenarioGateMatches(it.scenarioGate, params) }
+                        .sumOf { (-minOf(it.magnitudeAtLevel(built.subModel.characterLevel), 0)).toLong() }
+                if (debit > 0L) {
+                    val scaled = (debit * pctFactor + 99) / 100
+                    expr.addTerm(subVar, scaled)
+                    for (copyVar in built.subModel.copyVars[sub].orEmpty()) expr.addTerm(copyVar, scaled)
+                }
+            }
+            built.model.addGreaterOrEqual(expr, lower)
         }
         pinnedEquipmentIds?.let { selectedIds ->
             built.equipVars.forEach { (equipment, variable) ->
@@ -2234,8 +2269,11 @@ object WakfuBuildSolver {
         val stats = solver.responseStats()
         return MaxDamageTimedProfile(
             status = status.toString(),
-            objective = if (hasSolution) solver.objectiveValue().toLong() else Long.MIN_VALUE,
-            bestBound = solver.bestObjectiveBound().toLong(),
+            // Review fix (2026-07-20): a complete primal assignment has an integral objective —
+            // ROUND it; the dual arrives as a double and must be CEILED, never floored (these
+            // values are consumed as sound UPPER authorities by the soft-proof oracles).
+            objective = if (hasSolution) kotlin.math.round(solver.objectiveValue()).toLong() else Long.MIN_VALUE,
+            bestBound = kotlin.math.ceil(solver.bestObjectiveBound()).toLong(),
             objectiveCutoff = objectiveCutoff,
             wallTimeSec = solver.wallTime(),
             deterministicTime = deterministicTimeFrom(stats),
@@ -3814,9 +3852,13 @@ object WakfuBuildSolver {
         // near-forced and must never eat the user's remaining duration). Null = the params duration.
         maxWallSecondsOverride: Double? = null,
         // Backup certificate (§8.9bis): stamp [SolverResult.mostMasteriesObjective] on every emission —
-        // set by [optimize] iff the searched objective is certificate-comparable (MM soft leg, or MM
-        // with no required target where the two models coincide).
+        // set by [optimize] iff the searched objective is certificate-comparable (MM soft leg in
+        // penalized units, or MM hard leg whose target-feasible emissions have zero penalties).
         mmObjectiveComparable: Boolean = false,
+        // P2b stage 2 (review fix 2026-07-20): the overshoot solve's own objective is NOT the MM
+        // primary — stamp the PINNED stage-1 primary instead so the final displayed emission keeps
+        // a certificate-comparable objective (else the backup badge gate reads null and never runs).
+        mmObjectiveOverride: Long? = null,
     ): SolveOutcome? {
         val solver = CpSolver()
         onSolverReady(solver)
@@ -3914,7 +3956,8 @@ object WakfuBuildSolver {
                             progress.coerceAtMost(100),
                             maxDamageObjective = if (maxDamage) objectiveValue().toLong() else null,
                             maxDamageRawProxy = if (maxDamage) maxDamageRawScoreVar?.let { value(it) } else null,
-                            mostMasteriesObjective = if (mmObjectiveComparable) objectiveValue().toLong() else null
+                            mostMasteriesObjective =
+                                if (mmObjectiveComparable) objectiveValue().toLong() else mmObjectiveOverride
                         )
                     )
                 }
@@ -3940,7 +3983,8 @@ object WakfuBuildSolver {
                             isOptimal = finalIsOptimalOverride ?: (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL),
                             maxDamageObjective = if (maxDamage) solver.objectiveValue().toLong() else null,
                             maxDamageRawProxy = if (maxDamage) maxDamageRawScoreVar?.let { solver.value(it) } else null,
-                            mostMasteriesObjective = if (mmObjectiveComparable) solver.objectiveValue().toLong() else null
+                            mostMasteriesObjective =
+                                if (mmObjectiveComparable) solver.objectiveValue().toLong() else mmObjectiveOverride
                         )
                     )
                 }

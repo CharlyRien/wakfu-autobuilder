@@ -281,7 +281,18 @@ object WakfuBestBuildFinderAlgorithm {
         // The model's exact fold predicate (no `target > 0` filter — a 0-valued required target still folds).
         val hasRequiredTargets = params.targetStats.any { it.characteristic.isRequiredMostMasteriesTarget() }
         val upper = if (hasRequiredTargets) bound.foldedBound else bound.coreBound
-        return if (incumbent >= upper) {
+        // Self-check (mandatory, mirrors the max-damage siblings): the certificate is a sound
+        // upper bound on a FEASIBLE incumbent, so a strictly greater incumbent can only mean
+        // the certifier under-counted on live data — suppress the badge and log loudly.
+        // Equality alone is the proven-optimal case.
+        if (incumbent > upper) {
+            logger.error {
+                "MM certificate self-check FAILED (badge suppressed): upper=$upper < incumbent=$incumbent " +
+                    "— the certifier under-counted on live data. Solve is unaffected."
+            }
+            return MostMasteriesProof.Unavailable
+        }
+        return if (incumbent == upper) {
             MostMasteriesProof.ProvenOptimal
         } else {
             MostMasteriesProof.ProvenWithin(upper.toDouble() / incumbent - 1)

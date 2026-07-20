@@ -344,7 +344,11 @@ class MaxDamageSoftCertificateTest {
                         listOf(feather),
                         blockGate = false,
                         exactNormalSubPacking = true,
-                        foldNegativeMaxMp = true
+                        foldNegativeMaxMp = true,
+                        // Same W pricing as the coupled read below — the legacy-vs-coupled
+                        // comparison is only meaningful at identical crit pricing.
+                        critAwareCollapse = true,
+                        critWeightAnchorPercent = 100
                     )
                 )
             val coupled =
@@ -357,7 +361,12 @@ class MaxDamageSoftCertificateTest {
                         blockGate = false,
                         exactNormalSubPacking = true,
                         foldNegativeMaxMp = true,
-                        stateDependentMpRamp = true
+                        stateDependentMpRamp = true,
+                        // Production parity (review fix 2026-07-20): without the crit-aware collapse
+                        // the anchor's ~24% slack MASKED a real ramp under-count — the lock must pin
+                        // the same W pricing production runs.
+                        critAwareCollapse = true,
+                        critWeightAnchorPercent = 100
                     )
                 )
             assertThat(coupled.foldedBound)
@@ -456,7 +465,10 @@ class MaxDamageSoftCertificateTest {
                             blockGate = false,
                             exactNormalSubPacking = true,
                             foldNegativeMaxMp = true,
-                            stateDependentMpRamp = true
+                            stateDependentMpRamp = true,
+                            // Production parity (see the sibling lock): pin the crit-aware W pricing.
+                            critAwareCollapse = true,
+                            critWeightAnchorPercent = 100
                         )
                     )
                 assertThat(coupled.foldedBound)
@@ -471,6 +483,57 @@ class MaxDamageSoftCertificateTest {
                 .describedAs("the seeded campaign must exercise a real cross-path ramp relaxation")
                 .isGreaterThan(0)
         }
+
+    @Test
+    fun `every WakfuBestBuildParams field is classified for the soft certificate`() {
+        // Tripwire (mirrors the MaxDamageCertificateCache fingerprint test): supportsShape is a
+        // hand-enumerated deny-list, so a NEW objective-affecting param would silently slip past
+        // it and the DP would price a model missing that dimension — an under-count risk the
+        // production self-check cannot catch. A new field must be classified here on purpose:
+        // gate it in supportsShape, model it in bound(), or record it as objective-neutral.
+        val gatedBySupportsShape =
+            setOf(
+                "scoreComputationMode",
+                "damageScenario",
+                "maxDamageApTarget",
+                "maxDamageMpPin",
+                "forcedItems",
+                "forcedRunes",
+                "forcedRunesByItem",
+                "forcedSublimations",
+                "forcedPassives",
+                "targetStats"
+            )
+        val reflectedInCertificateInputs =
+            setOf(
+                // These reach the certificate through its pool/catalog/params inputs (the caller
+                // pre-filters the pool; bound() reads character/useRunes/useSublimations itself).
+                "character",
+                "maxRarity",
+                "excludedRarities",
+                "excludedItems",
+                "useRunes",
+                "useSublimations",
+                "maxSublimationTier",
+                "excludedSublimations"
+            )
+        val objectiveNeutral = setOf("searchDuration", "stopWhenBuildMatch", "solverWorkers")
+        val classified = gatedBySupportsShape + reflectedInCertificateInputs + objectiveNeutral
+        val actual =
+            WakfuBestBuildParams::class.java.declaredFields
+                .filter {
+                    !it.isSynthetic &&
+                        !java.lang.reflect.Modifier
+                            .isStatic(it.modifiers)
+                }.map { it.name }
+                .toSet()
+        assertThat(actual)
+            .describedAs(
+                "WakfuBestBuildParams changed shape — classify the new/renamed field for the soft " +
+                    "certificate (supportsShape gate, bound() modeling, or objective-neutral) before " +
+                    "updating this pinned set"
+            ).isEqualTo(classified)
+    }
 
     @Test
     fun `implied conditional worlds can discard their redundant marker`() {
@@ -1934,21 +1997,6 @@ class MaxDamageSoftCertificateTest {
     }
 
     /**
-     * §9.20 E2E gate for the PRODUCTION soft-leg proof: an incumbent at the known no-condition
-     * optimum must come back with a useful ≤1% certificate through the real production entry
-     * (`proveMaxDamageOptimality` → target-missing soft branch → `hybridUnionUpper`).
-     * v22 deliberately replaces the second CP-SAT oracle with a bounded DP after the main solve
-     * stalls; S4 currently returns ProvenWithin(0.343%), and may return ProvenOptimal again when
-     * that last no-condition residual closes.
-     *
-     * ```shell
-     * ./gradlew --stop
-     * WAKFU_S4_PROD_PROOF=1 WAKFU_TEST_MAX_HEAP=8g ./gradlew :autobuilder:cleanTest \
-     *   :autobuilder:test --tests '*MaxDamageSoftCertificateTest*production*' --no-daemon
-     * ```
-     */
-
-    /**
      * Hard-leg AP-cell ledger probe for NO-target shapes (`WAKFU_S4_HARD_LEDGER=1`, shape via
      * `WAKFU_S4_SHAPE`, e.g. cra80-free). Positive soundness closure of the 2026-07-18 false
      * alarm: the ledger's global ceiling must cover the PROVEN no-condition oracle optimum
@@ -1987,6 +2035,20 @@ class MaxDamageSoftCertificateTest {
             .isGreaterThanOrEqualTo(oracle.objective)
     }
 
+    /**
+     * §9.20 E2E gate for the PRODUCTION soft-leg proof: an incumbent at the known no-condition
+     * optimum must come back with a useful ≤1% certificate through the real production entry
+     * (`proveMaxDamageOptimality` → target-missing soft branch → `hybridUnionUpper`).
+     * v22 deliberately replaces the second CP-SAT oracle with a bounded DP after the main solve
+     * stalls; S4 currently returns ProvenWithin(0.343%), and may return ProvenOptimal again when
+     * that last no-condition residual closes.
+     *
+     * ```shell
+     * ./gradlew --stop
+     * WAKFU_S4_PROD_PROOF=1 WAKFU_TEST_MAX_HEAP=8g ./gradlew :autobuilder:cleanTest \
+     *   :autobuilder:test --tests '*MaxDamageSoftCertificateTest*production*' --no-daemon
+     * ```
+     */
     @Test
     fun `manual S4 production soft proof end-to-end`() {
         assumeTrue(System.getenv("WAKFU_S4_PROD_PROOF") == "1")
@@ -2031,10 +2093,13 @@ class MaxDamageSoftCertificateTest {
         // production acceptance floor. Shapes whose authority is a deadline-clipped CP leg
         // (cra80/cra140-class) only promise a DISPLAYABLE badge inside the proof deadline —
         // their exact closure is the open structural work.
+        // Honest post-soundness-wave contracts (2026-07-20): the pre-wave tighter values
+        // (s4 = 0.0, iop200 = 0.02) were partly the FRUIT of the MP-ramp under-count and the
+        // unproven crit-transport down-scaling — both fixed; these are the sound residuals.
         val maxGap =
             when (System.getenv("WAKFU_S4_SHAPE") ?: "s4") {
-                "s4" -> 0.0
-                "iop200-frontier" -> 0.02
+                "s4" -> 0.005
+                "iop200-frontier" -> 0.045
                 else -> 0.25
             }
         assertThat(certifiedGap)

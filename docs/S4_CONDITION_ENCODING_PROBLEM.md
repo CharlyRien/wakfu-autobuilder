@@ -1250,3 +1250,30 @@ the AP/MP-only badge class shares the same structural residual). The correction 
 tree (WAKFU_S4_SEC_DIM2, dormant, lock-proven inert when off) with two soundness hardenings that
 survive it: the secPos S⁺ tracking now clamps negative sub/skill lines to 0 (an S⁺ under-count
 was unsound in every mode) and `dominates` carries the secPos/secNeg monotonicity clauses.
+
+### Review-fix wave 2026-07-20 — three nested under-counts fixed; badges re-based to honest values
+
+The high-effort branch review (8 finder angles × adversarial verify) surfaced two CONFIRMED
+soundness holes; fixing them — and hardening the MP-ramp locks to production W pricing — exposed
+two more in the same crit-aware pricing family. All four are fixed; the certificate is sound and
+the E2E contracts are re-based to the HONEST residuals:
+
+1. **MP-headroom collapse × ramp** (executed −17.9% repro): the collapse merged high-MP states
+   down to the MP target while the Poids Plume ramp DI was read from the stored MP at collapse.
+   Fix: the MP dimension stays un-collapsed whenever a ramp exists.
+2. **Frontier-region coverage** (CONFIRMED structural): arm 3 pinned REAL sheet stats at the
+   CREDITED cell coordinates. Fix: `creditedStatLowerBounds` in the CP oracle (real + elided
+   per-item/per-sub debits — the exact crediting identity, hp% over-scaled from the skills API)
+   + δ-relaxed REAL targets for the hardConstraints door; pins stay cell-tight.
+3. **Crit reach under-modeling**: without a crit target, skill crit points and rune crit shards
+   were not modeled, so the transport's ccHigh did not upper-bound reachable crit. Fix: crit is
+   skill/rune-relevant whenever the collapse is crit-aware.
+4. **Crit-transport DOWN-scaling** (ratio < 1 for c < anchor): only sound if EVERY W term is
+   anchor-conforming — empirically refuted (a crit-3 build's real score exceeded the down-scaled
+   W by 1.4% on the hardened lock's toy shape). Fix: the ratio is floored at 1; production runs
+   at c = anchor (ratio 1) and never used the branch legitimately.
+
+**Honest badges after the wave** (CERTIFIER_VERSION 31): S4-245 ProvenWithin 0.343% (the
+pre-wave ProvenOptimal was partly the ramp under-count), IOP-200 4.02% (was 0.704%), enutrof125
+8.5% (was 2.02% — it benefited from the removed down-scaling). Full suite + hardened locks
+green. The generality matrix must be re-swept to re-base the remaining ProvenOptimal shapes.

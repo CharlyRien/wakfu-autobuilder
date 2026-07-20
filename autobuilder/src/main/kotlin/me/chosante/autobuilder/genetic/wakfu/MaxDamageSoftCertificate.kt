@@ -800,6 +800,8 @@ internal object MaxDamageSoftCertificate {
                                 critWeightAnchorPercent = critWeightAnchorPercent,
                                 diagnosticBindingCcBandLow = diagnosticBindingCcBandLow,
                                 stateDependentMpRamp = stateDependentMpRamp,
+                                secondaryNetDimension = secondaryNetDimension,
+                                secondaryNegBudgetDimension = secondaryNegBudgetDimension,
                                 elideImpliedConditionalMarker = elideImpliedConditionalMarker,
                                 secondarySupportPrice = secondarySupportPrice
                             )
@@ -849,6 +851,8 @@ internal object MaxDamageSoftCertificate {
                         critWeightAnchorPercent = critWeightAnchorPercent,
                         diagnosticBindingCcBandLow = diagnosticBindingCcBandLow,
                         stateDependentMpRamp = stateDependentMpRamp,
+                        secondaryNetDimension = secondaryNetDimension,
+                        secondaryNegBudgetDimension = secondaryNegBudgetDimension,
                         elideImpliedConditionalMarker = elideImpliedConditionalMarker,
                         secondarySupportPrice = secondarySupportPrice
                     ) ?: return null
@@ -1085,7 +1089,11 @@ internal object MaxDamageSoftCertificate {
                 Characteristic.CRITICAL_HIT,
                 Characteristic.HP
             ).map { axisChar ->
-                val matching = runes.filter { it.characteristic == axisChar && axisChar in targetByChar }
+                // Review fix (2026-07-20): like the skill stage, the CC axis must stay modeled
+                // whenever the collapse is crit-aware — the transport's ccHigh must upper-bound
+                // the crit REACHABLE via rune shards even without a crit target.
+                val axisRelevant = axisChar in targetByChar || (critAwareCollapse && axisChar == Characteristic.CRITICAL_HIT)
+                val matching = runes.filter { it.characteristic == axisChar && axisRelevant }
                 (
                     { type: ItemType, lvl: Int ->
                         if (params.useRunes && "noRunes" !in diag) matching.maxOfOrNull { it.valueOn(type, lvl) } ?: 0 else 0
@@ -1281,6 +1289,11 @@ internal object MaxDamageSoftCertificate {
             retainedMp: Int = cap(Characteristic.MOVEMENT_POINT),
         ) {
             if (!foldNegativeMaxMp || provenance || cap(Characteristic.MOVEMENT_POINT) <= 0) return
+            // Review fix (2026-07-20): with a state-dependent MP ramp the collapse read at
+            // fold time evaluates the ramp DI on the STORED MP — merging high-MP states down
+            // to the target under-credits every real build above it (executed counterexample:
+            // −17.9% vs a pinned CP-SAT optimum). The ramp needs the true MP dimension.
+            if (mpDiRamp != null) return
             val collapsed = HashMap<Long, Long>(states.size)
             for ((k, wv) in states) {
                 val nk = geo.withMp(k, minOf(geo.mp(k), retainedMp))
@@ -2190,6 +2203,13 @@ internal object MaxDamageSoftCertificate {
                                 c in randomStats ||
                                 c == Characteristic.MASTERY_CRITICAL ||
                                 c == Characteristic.DAMAGE_INFLICTED ||
+                                // Review fix (2026-07-20): the crit-aware transport scales W by the
+                                // band's ccHigh, which must UPPER-bound the reachable crit — even a
+                                // no-crit-target build can allocate crit SKILLS for the (400+c)
+                                // leverage, so crit stays a modeled skill dimension whenever the
+                                // collapse is crit-aware (the hardened ramp lock caught a 2.9%
+                                // under-count from the missing skill crit reach).
+                                (critAwareCollapse && c == Characteristic.CRITICAL_HIT) ||
                                 c in targetByChar ||
                                 (blockAtLeastMax > 0 && c == Characteristic.BLOCK_PERCENTAGE)
                         )
@@ -2412,7 +2432,17 @@ internal object MaxDamageSoftCertificate {
                                 } else {
                                     critMasteryNumerator to critMasteryDenominator
                                 }
-                            (cappedW * numerator + denominator - 1L) / denominator
+                            // Review fix (2026-07-20): the DOWN-scaling branch (c < anchor ⇒ ratio < 1)
+                            // is only sound if EVERY W term is anchor-conforming ((400+A)·M or 5A·K) —
+                            // empirically refuted by the hardened ramp lock (a crit-3 build's real
+                            // score exceeded the down-scaled W by 1.4%: W carries terms that do not
+                            // shrink with c). Never scale W below its anchor pricing; production
+                            // shapes run at c = anchor (ratio 1) and are unaffected.
+                            if (numerator >= denominator) {
+                                (cappedW * numerator + denominator - 1L) / denominator
+                            } else {
+                                cappedW
+                            }
                         }
                     val grawUb = wUpper.coerceIn(0L, DAMAGE_GRAW_MAX)
                     val perHit = ((100L + di) * grawUb).coerceAtMost(DAMAGE_SCORE_ABS_MAX)
@@ -2751,6 +2781,80 @@ internal object MaxDamageSoftCertificate {
 
         fun requested(stat: Characteristic): Long = profile.targets.getOrDefault(stat, 0L)
 
+        // Review fix (2026-07-20): the DP's cell coordinates are CREDITED reads — negative item
+        // stat lines are clamped at 0 (statOf) and negative sub AP/MP/CC/HP lines are dropped
+        // outside assume worlds — so a real build can sit BELOW its covering cell's coordinates
+        // and would escape both arm 1 (its state maps to the offender cell) and REAL-stat lower
+        // pins (the coverage hole the targetCellBounds doc warns about). The lower pins are
+        // therefore posted as CREDITED bounds (`creditedStatLowerBounds`: the CP oracle adds the
+        // elided per-item/per-sub debits back onto the sheet stat — the exact per-build crediting
+        // identity), keeping them as TIGHT as the cell coordinates while covering every build
+        // whose state maps into the cell. HP debits are over-scaled by the maximum reachable
+        // skill hp% multiplier (the DP applies hp% to CREDITED flats).
+        val skills = params.character.characterSkills
+        val maxSkillHpPct =
+            listOf(skills.intelligence, skills.strength, skills.agility, skills.luck, skills.major).sumOf { branch ->
+                val hpPctUnit =
+                    branch
+                        .getCharacteristics()
+                        .flatMap { sk ->
+                            if (sk is me.chosante.common.skills.SkillCharacteristic.PairedCharacteristic) listOf(sk.first, sk.second) else listOf(sk)
+                        }.filter { it.unitType == me.chosante.common.skills.UnitType.PERCENT && it.characteristic == Characteristic.HP }
+                        .maxOfOrNull { it.unitValue } ?: 0
+                branch.maxPointsToAssign * hpPctUnit
+            }
+        // The oracle's `hardConstraints` ALSO posts `actual ≥ target` on the REAL sheet stats from
+        // its targetStats (a second door for the same hole), and those targets shape the model
+        // (rune axes, domination). Keep them — but at the δ-RELAXED values, where δ is the maximum
+        // total debit the credits can elide for one build: the region becomes
+        // {real ≥ pin − δ} ∩ {credited ≥ pin}, which still contains every covered build while the
+        // credited pins carry the tightness.
+        val level = params.character.level
+
+        fun maxElidedDebit(stat: Characteristic): Long {
+            fun itemDebit(e: Equipment): Long = (-minOf(e.characteristics[stat] ?: 0, 0)).toLong()
+
+            fun slotMax(type: ItemType): Long = pool[type].orEmpty().maxOfOrNull(::itemDebit) ?: 0L
+            val ringDebits = pool[ItemType.RING].orEmpty().map(::itemDebit).sortedDescending()
+            val weaponDebit =
+                maxOf(
+                    slotMax(ItemType.TWO_HANDED_WEAPONS),
+                    slotMax(ItemType.ONE_HANDED_WEAPONS) + slotMax(ItemType.OFF_HAND_WEAPONS)
+                )
+            val itemDebits =
+                pool.keys
+                    .filter {
+                        it !in
+                            setOf(
+                                ItemType.RING,
+                                ItemType.ONE_HANDED_WEAPONS,
+                                ItemType.TWO_HANDED_WEAPONS,
+                                ItemType.OFF_HAND_WEAPONS
+                            )
+                    }.sumOf(::slotMax) +
+                    (ringDebits.getOrNull(0) ?: 0L) +
+                    (ringDebits.getOrNull(1) ?: 0L) +
+                    weaponDebit
+            val subDebits =
+                sublimations
+                    .filter { it.solverChoosable }
+                    .sumOf { sub ->
+                        sub.effects
+                            .filterIsInstance<SublimationEffect.StatEffect>()
+                            .filter { it.characteristic == stat }
+                            .sumOf { (-minOf(it.magnitudeAtLevel(level), 0)).toLong() } * sub.maxCopies.coerceAtLeast(1)
+                    }
+            val pctFactor = if (stat == Characteristic.HP) 100 + maxSkillHpPct else 100
+            return ((itemDebits + subDebits) * pctFactor + 99) / 100
+        }
+        val elidedByStat =
+            mapOf(
+                Characteristic.ACTION_POINT to maxElidedDebit(Characteristic.ACTION_POINT),
+                Characteristic.MOVEMENT_POINT to maxElidedDebit(Characteristic.MOVEMENT_POINT),
+                Characteristic.CRITICAL_HIT to maxElidedDebit(Characteristic.CRITICAL_HIT),
+                Characteristic.HP to maxElidedDebit(Characteristic.HP)
+            )
+
         val cellReads =
             offenders.map { offender ->
                 val cell = offender.key
@@ -2792,8 +2896,11 @@ internal object MaxDamageSoftCertificate {
                         if (cell.mp < requested(Characteristic.MOVEMENT_POINT)) put(Characteristic.MOVEMENT_POINT, cell.mp)
                         if (cell.cc < requested(Characteristic.CRITICAL_HIT)) put(Characteristic.CRITICAL_HIT, cell.cc)
                     }
+                // δ-relaxed REAL targets (coverage through the hardConstraints door, model shape
+                // preserved) + TIGHT credited pins (the actual region boundary).
+                val relaxedLower = lower.mapValues { (stat, value) -> (value - elidedByStat.getOrDefault(stat, 0L)).coerceAtLeast(0L) }
                 val regionTargets =
-                    lower.mapNotNull { (stat, value) -> value.takeIf { it > 0L }?.let { TargetStat(stat, it.toInt()) } }
+                    relaxedLower.mapNotNull { (stat, value) -> value.takeIf { it > 0L }?.let { TargetStat(stat, it.toInt()) } }
                 val oracleParams = params.copy(targetStats = TargetStats(regionTargets))
                 val oracle =
                     WakfuBuildSolver.timedMaxDamageProfileForTest(
@@ -2803,10 +2910,12 @@ internal object MaxDamageSoftCertificate {
                         sublimations = sublimations,
                         workers = workers,
                         seconds = secondsPerCell,
-                        applyDomination = lower.values.all { it > 0L },
+                        applyDomination = relaxedLower.values.all { it > 0L },
                         hardConstraints = true,
-                        statLowerBounds = lower,
-                        statUpperBounds = upper
+                        statLowerBounds = relaxedLower,
+                        statUpperBounds = upper,
+                        creditedStatLowerBounds = lower,
+                        creditedHpPctFactor = 100 + maxSkillHpPct
                     )
                 // UNKNOWN normally still carries a finite dual. Treat a missing/negative native
                 // sentinel as infinity: folding it to zero would make a timeout unsound.
@@ -2840,7 +2949,7 @@ internal object MaxDamageSoftCertificate {
         val wallMs: Long,
     )
 
-    private val unionMemo = java.util.concurrent.ConcurrentHashMap<String, SoftUnionUpper>()
+    private val unionMemo = java.util.concurrent.ConcurrentHashMap<List<Any>, SoftUnionUpper>()
 
     /** Mirrors [bound]'s cheap up-front shape gates so the orchestrator can refuse a shape BEFORE
      *  spending an oracle solve on it. Deep bails (geometry overflow, >6 cap subs, AP-headroom)
@@ -2899,19 +3008,22 @@ internal object MaxDamageSoftCertificate {
         onPhase: (String) -> Unit = {},
     ): SoftUnionUpper? {
         if (!supportsShape(params)) return null
-        val memoKey =
+        // Review fix (2026-07-20): the memo decides the badge, so the key must be EQUALS-checked
+        // (the sibling MaxDamageCertificateCache's collision-freedom standard) — a list of the
+        // actual values, never joined hashCodes: a 32-bit collision between two different
+        // requests would serve one request the other's upper and could mint a wrong badge.
+        val memoKey: List<Any> =
             listOf(
                 me.chosante.common.WakfuData.VERSION,
                 WakfuBuildSolver.CERTIFIER_VERSION,
-                params.hashCode(),
+                params,
                 pool.values
                     .flatten()
                     .map { it.equipmentId }
-                    .sorted()
-                    .hashCode(),
-                sublimations.map { it.name.fr }.sorted().hashCode(),
+                    .sorted(),
+                sublimations.map { it.name.fr }.sorted(),
                 runes.size
-            ).joinToString("|")
+            )
         unionMemo[memoKey]?.let { return it }
         val t0 = System.nanoTime()
 
