@@ -27,6 +27,32 @@ class SublimationSemanticsTest {
     private val fireWanted = setOf(Characteristic.MASTERY_ELEMENTARY_FIRE)
 
     @Test
+    fun `no relaxable static-conditional sub feeds the first-turn sheet`() {
+        // The conditional-world B&B relaxes build-static conditions via
+        // withRelaxedBuildStaticCondition (STATIC_CONDITIONAL → FLAT). A FLAT sub's
+        // start-of-combat effects join the FIRST-TURN sheet that exact `firstTurn` conditions
+        // read (buildStartOfCombatFlatSubTerms), so a relaxed sub carrying such an effect would
+        // let a MIXED node forbid combinations its exact subtree allows — breaking the
+        // mixed ≥ exact monotonicity the B&B prune relies on. Lock the data property the
+        // soundness argument assumes; if a future catalog regeneration trips this, model the
+        // cross-conditional feeding before shipping it.
+        val offenders =
+            WakfuBestBuildFinderAlgorithm.sublimations.filter { sub ->
+                sub.solverChoosable &&
+                    sub.kind == SublimationKind.STATIC_CONDITIONAL &&
+                    sub.condition?.type in SUPPORTED_SUB_CONDITIONS &&
+                    sub.effects.filterIsInstance<me.chosante.common.SublimationEffect.StatEffect>().any { eff ->
+                        !eff.appliesBeforeCombat && eff.characteristic in SECONDARY_MASTERY_CHARACTERISTICS
+                    }
+            }
+        assertThat(offenders)
+            .describedAs(
+                "a choosable STATIC_CONDITIONAL sub with start-of-combat secondary-mastery effects would " +
+                    "break the conditional-world B&B's mixed≥exact monotonicity when relaxed to FLAT"
+            ).isEmpty()
+    }
+
+    @Test
     fun `relaxing conditions preserves static conditional and conversion catalog entries`() {
         val originals =
             WakfuBestBuildFinderAlgorithm.sublimations.filter {
