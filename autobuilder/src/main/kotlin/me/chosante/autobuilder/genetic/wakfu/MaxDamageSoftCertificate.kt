@@ -90,6 +90,10 @@ internal object MaxDamageSoftCertificate {
     class WorldRead(
         val assume: Sublimation?,
         val arm: String,
+        // Null is the legacy unsplit read; false excludes the MP→DI ramp carrier, true requires
+        // it. Production's outer partition emits false for every ordinary world and one true
+        // cap-relaxed cover world.
+        val rampRequired: Boolean?,
         val foldedBound: Long,
         val coreBound: Long,
         val states: Int,
@@ -518,6 +522,9 @@ internal object MaxDamageSoftCertificate {
         // INTERNAL world-split recursion — never set by callers (MM certificate A#1 pattern).
         worldAssume: Sublimation? = null,
         worldDropCaps: Boolean = false,
+        // INTERNAL MP-ramp partition. Null = orchestrate/legacy, false = carrier excluded,
+        // true = carrier required in the single cap-relaxed ramp cover world.
+        rampWorldRequired: Boolean? = null,
         // INTERNAL structural-condition recursion.
         lightWeaponArm: String? = null,
         // WEIGHT ARM (§9.6, replaces the never-binding worldB fold): null = orchestrate. Every
@@ -651,6 +658,27 @@ internal object MaxDamageSoftCertificate {
             } else {
                 emptyList()
             }
+
+        val mpDiRampCandidates =
+            if (stateDependentMpRamp && params.useSublimations && "noSubs" !in diag) {
+                sublimations.mapNotNull { sub ->
+                    if (!sub.solverChoosable) return@mapNotNull null
+                    val ramp = sub.perStatStep ?: return@mapNotNull null
+                    if (ramp.source == Characteristic.MOVEMENT_POINT &&
+                        ramp.target == Characteristic.DAMAGE_INFLICTED &&
+                        WakfuBuildSolver.scenarioGateMatches(ramp.scenarioGate, params)
+                    ) {
+                        sub to ramp
+                    } else {
+                        null
+                    }
+                }
+            } else {
+                emptyList()
+            }
+        if (mpDiRampCandidates.size > 1) return null
+        val mpDiRamp = mpDiRampCandidates.singleOrNull()
+        if (rampWorldRequired == true && mpDiRamp == null) return null
         if (foldNegativeMaxMp &&
             sublimations.any { sub ->
                 sub.solverChoosable &&
@@ -658,7 +686,10 @@ internal object MaxDamageSoftCertificate {
                     sub.effects
                         .filterIsInstance<SublimationEffect.StatEffect>()
                         .any {
-                            it.characteristic == Characteristic.MAX_MOVEMENT_POINT &&
+                            (
+                                it.characteristic == Characteristic.MAX_MOVEMENT_POINT ||
+                                    (rampWorldRequired == true && it.characteristic == Characteristic.MOVEMENT_POINT)
+                            ) &&
                                 it.magnitudeAtLevel(level) < 0
                         }
             }
@@ -672,8 +703,10 @@ internal object MaxDamageSoftCertificate {
                     .sumOf { sub ->
                         sub.effects
                             .filterIsInstance<SublimationEffect.StatEffect>()
-                            .filter { it.characteristic == Characteristic.MAX_MOVEMENT_POINT }
-                            .sumOf { (-minOf(it.magnitudeAtLevel(level), 0)).coerceAtLeast(0) } * sub.maxCopies.coerceAtLeast(1)
+                            .filter {
+                                it.characteristic == Characteristic.MAX_MOVEMENT_POINT ||
+                                    (rampWorldRequired == true && it.characteristic == Characteristic.MOVEMENT_POINT)
+                            }.sumOf { (-minOf(it.magnitudeAtLevel(level), 0)).coerceAtLeast(0) } * sub.maxCopies.coerceAtLeast(1)
                     }
             } else {
                 0
@@ -682,14 +715,29 @@ internal object MaxDamageSoftCertificate {
             if (foldNegativeMaxMp) {
                 fun maxDebit(type: ItemType): Int =
                     pool[type].orEmpty().maxOfOrNull {
-                        (-minOf(it.characteristics[Characteristic.MAX_MOVEMENT_POINT] ?: 0, 0)).coerceAtLeast(0)
+                        val capDebit = -minOf(it.characteristics[Characteristic.MAX_MOVEMENT_POINT] ?: 0, 0)
+                        val flatDebit =
+                            if (rampWorldRequired == true) {
+                                -minOf(it.characteristics[Characteristic.MOVEMENT_POINT] ?: 0, 0)
+                            } else {
+                                0
+                            }
+                        (capDebit + flatDebit).coerceAtLeast(0)
                     } ?: 0
 
                 val ringDebits =
                     pool[ItemType.RING]
                         .orEmpty()
-                        .map { (-minOf(it.characteristics[Characteristic.MAX_MOVEMENT_POINT] ?: 0, 0)).coerceAtLeast(0) }
-                        .sortedDescending()
+                        .map {
+                            val capDebit = -minOf(it.characteristics[Characteristic.MAX_MOVEMENT_POINT] ?: 0, 0)
+                            val flatDebit =
+                                if (rampWorldRequired == true) {
+                                    -minOf(it.characteristics[Characteristic.MOVEMENT_POINT] ?: 0, 0)
+                                } else {
+                                    0
+                                }
+                            (capDebit + flatDebit).coerceAtLeast(0)
+                        }.sortedDescending()
                 val weaponDebit =
                     maxOf(
                         maxDebit(ItemType.TWO_HANDED_WEAPONS),
@@ -717,6 +765,7 @@ internal object MaxDamageSoftCertificate {
             data class WorldSpec(
                 val assume: Sublimation?,
                 val arm: String,
+                val rampRequired: Boolean?,
             )
 
             val arms =
@@ -727,14 +776,22 @@ internal object MaxDamageSoftCertificate {
                 }
             val specs =
                 if (diagnosticBasePlain) {
-                    listOf(WorldSpec(null, "plain"))
+                    listOf(WorldSpec(null, "plain", null))
                 } else {
                     // Base worlds keep the arm partition; each assume-world is priced ONCE with
                     // the "capFree" cover arm (every objective capper staged, no cap, no forcing)
                     // — a sound superset of its three arm reads at a third of the sweep cost
                     // (S4-245: the nine per-arm assume reads were 43 s of the 69 s coarse).
-                    arms.map { arm -> WorldSpec(null, arm) } +
-                        capSubs.map { assume -> WorldSpec(assume, "capFree") }
+                    val ordinaryRampMode = if (mpDiRamp != null) false else null
+                    arms.map { arm -> WorldSpec(null, arm, ordinaryRampMode) } +
+                        capSubs.map { assume -> WorldSpec(assume, "capFree", ordinaryRampMode) } +
+                        if (mpDiRamp != null) {
+                            // Exhaustive world split: all ordinary worlds exclude Poids Plume;
+                            // this ONE world requires it and relaxes every other cap condition.
+                            listOf(WorldSpec(null, "rampCover", true))
+                        } else {
+                            emptyList()
+                        }
                 }
             // Provenance is diagnostic only. Retaining every stage map in every world/arm made a
             // coarse path run exceed ten minutes. First price all worlds normally, then replay only
@@ -787,14 +844,15 @@ internal object MaxDamageSoftCertificate {
                                 ccSupportBand = ccSupportBand,
                                 coupleSecondaryItemNegative = coupleSecondaryItemNegative,
                                 netSecondaryItemBudget = netSecondaryItemBudget,
-                                exactNormalSubPacking = exactNormalSubPacking,
+                                exactNormalSubPacking = exactNormalSubPacking || spec.rampRequired == true,
                                 foldNegativeItemAp = foldNegativeItemAp,
-                                foldNegativeMaxMp = foldNegativeMaxMp,
+                                foldNegativeMaxMp = foldNegativeMaxMp || spec.rampRequired == true,
                                 splitLightWeaponCondition = splitLightWeaponCondition,
                                 requireConditionalSub = requireConditionalSub,
                                 diagnosticBasePlain = diagnosticBasePlain,
                                 worldAssume = spec.assume,
                                 worldDropCaps = spec.assume == null,
+                                rampWorldRequired = spec.rampRequired,
                                 worldArm = spec.arm,
                                 critAwareCollapse = critAwareCollapse,
                                 critWeightAnchorPercent = critWeightAnchorPercent,
@@ -838,14 +896,15 @@ internal object MaxDamageSoftCertificate {
                         ccSupportBand = ccSupportBand,
                         coupleSecondaryItemNegative = coupleSecondaryItemNegative,
                         netSecondaryItemBudget = netSecondaryItemBudget,
-                        exactNormalSubPacking = exactNormalSubPacking,
+                        exactNormalSubPacking = exactNormalSubPacking || bestSpec.rampRequired == true,
                         foldNegativeItemAp = foldNegativeItemAp,
-                        foldNegativeMaxMp = foldNegativeMaxMp,
+                        foldNegativeMaxMp = foldNegativeMaxMp || bestSpec.rampRequired == true,
                         splitLightWeaponCondition = splitLightWeaponCondition,
                         requireConditionalSub = requireConditionalSub,
                         diagnosticBasePlain = diagnosticBasePlain,
                         worldAssume = bestSpec.assume,
                         worldDropCaps = bestSpec.assume == null,
+                        rampWorldRequired = bestSpec.rampRequired,
                         worldArm = bestSpec.arm,
                         critAwareCollapse = critAwareCollapse,
                         critWeightAnchorPercent = critWeightAnchorPercent,
@@ -866,6 +925,7 @@ internal object MaxDamageSoftCertificate {
                     WorldRead(
                         spec.assume,
                         spec.arm,
+                        spec.rampRequired,
                         read.foldedBound,
                         read.coreBound,
                         read.states,
@@ -920,6 +980,7 @@ internal object MaxDamageSoftCertificate {
                     diagnosticBasePlain,
                     worldAssume,
                     worldDropCaps,
+                    rampWorldRequired,
                     arm,
                     worldArm,
                     critAwareCollapse,
@@ -960,12 +1021,12 @@ internal object MaxDamageSoftCertificate {
         // cover of all three arms of an assume-world (cap-ignored staging is sound, and with both
         // armZero* flags false every mastery line and conversion prices at its full sound
         // ceiling). Used to price assume-worlds once instead of three times.
-        val armCapFree = worldArm == "capFree"
+        val armCapFree = worldArm == "capFree" || worldArm == "rampCover"
         val secDimActive = secondaryNetDimension && armZeroSecondary
         // Correction mode requires the coupled per-item credits to exist (it reclaims from them).
         val secCorrActive = secondaryNegBudgetDimension && armZeroSecondary && coupleSecondaryItemNegative && !secondaryNetDimension
         val secTrackActive = secDimActive || secCorrActive
-        val armForcesConditional = armZeroSecondary || armZeroCritM
+        val armForcesConditional = armZeroSecondary || armZeroCritM || rampWorldRequired == true
         val secSupportPrice = (secondarySupportPrice ?: wMastery).coerceIn(0L, wMastery)
         val needsConditionalMarker =
             requireConditionalSub &&
@@ -979,26 +1040,6 @@ internal object MaxDamageSoftCertificate {
             } else {
                 0
             }
-
-        val mpDiRampCandidates =
-            if (stateDependentMpRamp && params.useSublimations && "noSubs" !in diag) {
-                sublimations.mapNotNull { sub ->
-                    if (!sub.solverChoosable) return@mapNotNull null
-                    val ramp = sub.perStatStep ?: return@mapNotNull null
-                    if (ramp.source == Characteristic.MOVEMENT_POINT &&
-                        ramp.target == Characteristic.DAMAGE_INFLICTED &&
-                        WakfuBuildSolver.scenarioGateMatches(ramp.scenarioGate, params)
-                    ) {
-                        sub to ramp
-                    } else {
-                        null
-                    }
-                }
-            } else {
-                emptyList()
-            }
-        if (mpDiRampCandidates.size > 1) return null
-        val mpDiRamp = mpDiRampCandidates.singleOrNull()
 
         val geo =
             Geometry(
@@ -1166,7 +1207,11 @@ internal object MaxDamageSoftCertificate {
                     d = statOf(e, Characteristic.DAMAGE_INFLICTED),
                     ap = itemAp(e),
                     mp =
-                        statOf(e, Characteristic.MOVEMENT_POINT) +
+                        if (rampWorldRequired == true && foldNegativeMaxMp) {
+                            e.characteristics[Characteristic.MOVEMENT_POINT] ?: 0
+                        } else {
+                            statOf(e, Characteristic.MOVEMENT_POINT)
+                        } +
                             if (foldNegativeMaxMp) minOf(e.characteristics[Characteristic.MAX_MOVEMENT_POINT] ?: 0, 0) else 0,
                     cc = statOf(e, Characteristic.CRITICAL_HIT),
                     hp = statOf(e, Characteristic.HP),
@@ -1291,12 +1336,15 @@ internal object MaxDamageSoftCertificate {
             if (!foldNegativeMaxMp || provenance || cap(Characteristic.MOVEMENT_POINT) <= 0) return
             // Review fix (2026-07-20): with a state-dependent MP ramp the collapse read at
             // fold time evaluates the ramp DI on the STORED MP — merging high-MP states down
-            // to the target under-credits every real build above it (executed counterexample:
-            // −17.9% vs a pinned CP-SAT optimum). The ramp needs the true MP dimension.
-            if (mpDiRamp != null) return
+            // to the TARGET under-credits every real build above it (executed counterexample:
+            // −17.9% vs a pinned CP-SAT optimum). Above the ramp's SATURATION point
+            // contribution() is constant, so merging there is bit-equivalent: retain up to
+            // max(target, saturation) — a full skip doubled the matrix walls for nothing.
+            val rampSaturationMp = mpDiRamp?.second?.let { it.threshold + ceilDiv(it.cap, it.perStep) } ?: 0
+            val keepMp = maxOf(retainedMp, rampSaturationMp)
             val collapsed = HashMap<Long, Long>(states.size)
             for ((k, wv) in states) {
-                val nk = geo.withMp(k, minOf(geo.mp(k), retainedMp))
+                val nk = geo.withMp(k, minOf(geo.mp(k), keepMp))
                 val current = collapsed[nk]
                 if (current == null || wv > current) collapsed[nk] = wv
             }
@@ -1416,7 +1464,16 @@ internal object MaxDamageSoftCertificate {
             ).sortedBy { slot ->
                 if (pool[slot].orEmpty().any {
                         (foldNegativeItemAp && itemAp(it) < 0) ||
-                            (foldNegativeMaxMp && (it.characteristics[Characteristic.MAX_MOVEMENT_POINT] ?: 0) < 0)
+                            (
+                                foldNegativeMaxMp &&
+                                    (
+                                        (it.characteristics[Characteristic.MAX_MOVEMENT_POINT] ?: 0) < 0 ||
+                                            (
+                                                rampWorldRequired == true &&
+                                                    (it.characteristics[Characteristic.MOVEMENT_POINT] ?: 0) < 0
+                                            )
+                                    )
+                            )
                     }
                 ) {
                     0
@@ -1813,6 +1870,8 @@ internal object MaxDamageSoftCertificate {
                 ) {
                     continue
                 }
+                val isMpRampCarrier = sub === mpDiRamp?.first
+                if (rampWorldRequired == false && isMpRampCarrier) continue
                 if ("noCondSubs" in diag && sub.condition != null) continue
                 val cond = sub.condition
                 val capsObjective =
@@ -1822,7 +1881,7 @@ internal object MaxDamageSoftCertificate {
                                 cond.type == SublimationConditionType.CRITICAL_MASTERY_AT_MOST
                         )
                 // AT_MOST cap subs never enter the stages — the world split handles them.
-                if (capStatOf(sub) != null && sub !== worldAssume) continue
+                if (capStatOf(sub) != null && sub !== worldAssume && rampWorldRequired != true) continue
                 // Objective-capping subs per ARM: plain excludes them; secZero stages sec-cappers
                 // AND critM cappers (cap-ignored — sound); critZero stages critM cappers only.
                 if (capsObjective) {
@@ -1866,6 +1925,17 @@ internal object MaxDamageSoftCertificate {
                                 }
                                 if (value < 0 && geo.assumeCcThresholdRaw >= 0 && eff.characteristic == Characteristic.CRITICAL_HIT) {
                                     opt = opt.copy(ccLowRaw = opt.ccLowRaw + value)
+                                }
+                                // Only the dedicated ramp world needs the REAL signed MP used by
+                                // contribution(). Armure lourde II is a plain -MP line rather than
+                                // MAX_MP; dropping it would recreate an unfunded Poids Plume ramp.
+                                if (value < 0 &&
+                                    rampWorldRequired == true &&
+                                    foldNegativeMaxMp &&
+                                    exactNormalSubPacking &&
+                                    eff.characteristic == Characteristic.MOVEMENT_POINT
+                                ) {
+                                    opt = opt.copy(mp = opt.mp + value)
                                 }
                                 continue
                             }
@@ -2341,7 +2411,14 @@ internal object MaxDamageSoftCertificate {
         )
 
         for ((k, wv) in states) {
-            if (needsConditionalMarker && geo.conditional(k) == 0 && !assumedOpt.conditional) continue
+            if (needsConditionalMarker &&
+                geo.conditional(k) == 0 &&
+                !assumedOpt.conditional &&
+                rampWorldRequired != true
+            ) {
+                continue
+            }
+            if (rampWorldRequired == true && geo.ramp(k) == 0) continue
             // ASSUME-world filters: the assumed cap sub is EPIC (needs an epic item) and the
             // condition must hold on the LOW-read dim.
             if (worldAssume != null) {
@@ -3301,7 +3378,10 @@ internal object MaxDamageSoftCertificate {
                     // weapon (both sound uppers); only contenders pay the fine seams below.
                     foldNegativeMaxMp = false,
                     splitLightWeaponCondition = false,
-                    requireConditionalSub = false
+                    requireConditionalSub = false,
+                    // Split away every no-ramp path cheaply; the one required-ramp cover world
+                    // overrides its own signed-MP/exact-normal settings inside the orchestrator.
+                    stateDependentMpRamp = true
                 ) ?: return null
             val pending = coarse.worldReads.sortedByDescending { it.foldedBound }
             if (pending.isEmpty()) return null
@@ -3392,7 +3472,8 @@ internal object MaxDamageSoftCertificate {
 
                 fun logRefine(r: Result?) =
                     logger.info {
-                        "soft-leg proof refine world=${armOverride ?: world.arm}/${world.assume?.name?.fr ?: "base"} di=$di " +
+                        "soft-leg proof refine world=${armOverride ?: world.arm}/${world.assume?.name?.fr ?: "base"} " +
+                            "ramp=${world.rampRequired ?: "legacy"} di=$di " +
                             "lambda=${lambdaOverride ?: supportLambda(world)} mu=${secondaryPrice ?: "-"} " +
                             "lightArm=${lightArm ?: "both"} bound=${r?.foldedBound} " +
                             "wallMs=${(System.nanoTime() - rt0) / 1_000_000}"
@@ -3415,6 +3496,7 @@ internal object MaxDamageSoftCertificate {
                     requireConditionalSub = true,
                     worldAssume = world.assume,
                     worldDropCaps = world.assume == null,
+                    rampWorldRequired = world.rampRequired,
                     lightWeaponArm = lightArm,
                     worldArm = armOverride ?: world.arm,
                     critAwareCollapse = true,

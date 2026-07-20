@@ -68,6 +68,14 @@ class MaxDamageSoftCertificateTest {
 
     private fun stateDependentMpRamp(): Boolean = System.getenv("WAKFU_S4_STATE_MP_RAMP") != "0"
 
+    private fun rampWorldRequired(): Boolean? =
+        when (System.getenv("WAKFU_S4_RAMP_WORLD")?.lowercase()) {
+            null, "", "legacy" -> null
+            "required", "1", "true" -> true
+            "excluded", "0", "false" -> false
+            else -> error("WAKFU_S4_RAMP_WORLD must be required|excluded|legacy")
+        }
+
     private fun elideImpliedConditionalMarker(): Boolean = System.getenv("WAKFU_S4_ELIDE_IMPLIED_COND") != "0"
 
     private fun skipMidTierForHighSecZero(): Boolean = System.getenv("WAKFU_S4_SKIP_MID_SECZERO") == "1"
@@ -1190,7 +1198,8 @@ class MaxDamageSoftCertificateTest {
                             // moving a single bound — the 19.4T→17.6T tightening seen in
                             // refinements comes from their finer seams (HP=1000, signed MP,
                             // light-weapon split), not from the conditional marker. Do not retry.
-                            requireConditionalSub = false
+                            requireConditionalSub = false,
+                            stateDependentMpRamp = stateDependentMpRamp()
                         )
                     ) { "adaptive coarse pass bailed" }
                 coarseStates = coarse.states
@@ -1228,6 +1237,7 @@ class MaxDamageSoftCertificateTest {
                             requireConditionalSub = requireConditionalSub(),
                             worldAssume = world.assume,
                             worldDropCaps = world.assume == null,
+                            rampWorldRequired = world.rampRequired,
                             worldArm = world.arm,
                             critAwareCollapse = critAwareCollapse(),
                             critWeightAnchorPercent = critWeightAnchor(),
@@ -1360,7 +1370,8 @@ class MaxDamageSoftCertificateTest {
                             requireConditionalSub = requireConditionalSub(),
                             diagnosticBasePlain = diagnostic,
                             critAwareCollapse = critAwareCollapse(),
-                            critWeightAnchorPercent = critWeightAnchor()
+                            critWeightAnchorPercent = critWeightAnchor(),
+                            stateDependentMpRamp = stateDependentMpRamp()
                         )
                     println(
                         "S4_PROTO_GRID profile=${gridProfile ?: "legacy"} di=$di hp=$hp cc=$cc " +
@@ -1419,6 +1430,7 @@ class MaxDamageSoftCertificateTest {
                         requireConditionalSub = requireConditionalSub(),
                         diagnosticBasePlain = diagnostic,
                         worldDropCaps = pathArm != null,
+                        rampWorldRequired = rampWorldRequired(),
                         lightWeaponArm = pathLightArm,
                         worldArm = pathArm,
                         critAwareCollapse = critAwareCollapse(),
