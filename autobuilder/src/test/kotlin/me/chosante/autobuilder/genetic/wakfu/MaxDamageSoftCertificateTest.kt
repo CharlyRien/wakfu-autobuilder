@@ -1947,10 +1947,57 @@ class MaxDamageSoftCertificateTest {
      *   :autobuilder:test --tests '*MaxDamageSoftCertificateTest*production*' --no-daemon
      * ```
      */
+
+    /**
+     * Hard-leg AP-cell ledger probe for NO-target shapes (`WAKFU_S4_HARD_LEDGER=1`, shape via
+     * `WAKFU_S4_SHAPE`, e.g. cra80-free). Positive soundness closure of the 2026-07-18 false
+     * alarm: the ledger's global ceiling must cover the PROVEN no-condition oracle optimum
+     * (the oracle solves the same pool/catalog restricted to condition-free subs — a subset of
+     * the ledger's coverage, so `maxCellObjective >= oracle` is a hard invariant).
+     */
+    @Test
+    fun `manual hard ledger covers the no-target oracle`() {
+        assumeTrue(System.getenv("WAKFU_S4_HARD_LEDGER") == "1")
+        val (clazz, level, targets) = shapePreset()
+        val pool =
+            WakfuBestBuildFinderAlgorithm.equipments
+                .filter { it.rarity <= Rarity.EPIC }
+                .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                .groupBy { it.itemType }
+        val p = mdParams(level, targets, clazz)
+        val oracle = solvedNoConditionOracle(p, pool)
+        val ledger =
+            WakfuBuildSolver.maxDamageCertificate(
+                params = p,
+                equipmentsByItemType = pool,
+                runes = WakfuBestBuildFinderAlgorithm.runes,
+                sublimations = WakfuBestBuildFinderAlgorithm.sublimations,
+                applyDomination = true,
+                incumbentObjective = oracle.objective
+            )
+        requireNotNull(ledger) { "the ledger bailed on a shape it is expected to certify" }
+        val cells =
+            ledger.cellObjectives.entries
+                .sortedBy { it.key }
+                .joinToString(" ") { "${it.key}=${it.value}" }
+        println("S4_HARD_LEDGER oracle=${oracle.objective} maxCell=${ledger.maxCellObjective} cells=[$cells]")
+        val maxCell = requireNotNull(ledger.maxCellObjective) { "a cell bailed — no sound global ceiling" }
+        assertThat(maxCell)
+            .describedAs("the AP-cell ledger's global ceiling must cover the proven no-condition optimum")
+            .isGreaterThanOrEqualTo(oracle.objective)
+    }
+
     @Test
     fun `manual S4 production soft proof end-to-end`() {
         assumeTrue(System.getenv("WAKFU_S4_PROD_PROOF") == "1")
         val (clazz, level, targets) = shapePreset()
+        // The empty-build routing trick below requires MISSING targets. On a NO-target shape
+        // (cra80-free) the empty build satisfies the (vacuous) targets, so the proof routes to
+        // the HARD AP-cell ledger with an INCONSISTENT incumbent pair — the oracle's proxy
+        // belongs to a ~12-AP build while the empty individual reads base 6 AP — and the ledger
+        // self-check rightly refuses (the 2026-07-18 "cell 6 bound=418880 < proxy=820040" false
+        // alarm). No-target shapes are covered by the hard-ledger probe test instead.
+        assumeTrue(targets.isNotEmpty())
         val pool =
             WakfuBestBuildFinderAlgorithm.equipments
                 .filter { it.rarity <= Rarity.EPIC }
