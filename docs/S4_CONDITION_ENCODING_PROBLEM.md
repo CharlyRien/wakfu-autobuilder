@@ -1277,3 +1277,42 @@ the E2E contracts are re-based to the HONEST residuals:
 pre-wave ProvenOptimal was partly the ramp under-count), IOP-200 4.02% (was 0.704%), enutrof125
 8.5% (was 2.02% — it benefited from the removed down-scaling). Full suite + hardened locks
 green. The generality matrix must be re-swept to re-base the remaining ProvenOptimal shapes.
+
+### HANDOFF — ramp/crit tightening campaign (written 2026-07-20, post-review-wave)
+
+**State.** The 2026-07-20 soundness wave (commit `686f60df` + the saturation-collapse follow-up)
+fixed four nested under-counts (MP-ramp collapse, frontier-region coverage, crit-reach modeling,
+crit-transport down-scaling). The certificate is SOUND (hardened locks + full suite green) but the
+honest badges regressed: S4-245 0.34%, osa225 1.6%, IOP-200 4.0%, iop215 5.1%, eca195/cra185/
+enutrof ~8%, iop110/panda170/xelor155 ~12-13%, feca65/sacrieur230/steamer240 ~15-16%
+(matrix table in the section above; cra50 + the B&B-closed cra80/cra-140 keep ProvenOptimal).
+E2E contracts re-based (s4 0.005, iop200 0.045, else 0.25). CERTIFIER_VERSION 31.
+
+**Dominant residual = the Poids Plume ramp credit.** `foldWith` reads
+`rampDi = contribution(geo.mp(k))` where `geo.mp(k)` is the CREDITED MP (positive parts only) —
+sound, but phantom high-credited-MP paths collect up to +24% DI they cannot really fund. The two
+tightening leads, in recommended order:
+
+1. **Ramp world-split (the cap-sub "world B" pattern, most promising).** Split the union:
+   main worlds with the ramp sub EXCLUDED (rampDi = 0 — removes the credit from every
+   non-ramp path), plus ONE dedicated world with the ramp sub REQUIRED where the MP dimension
+   is tracked exactly enough to price `contribution()` honestly (fold item/sub MP debits into
+   the dim — the `foldNegativeMaxMp` signed machinery already exists for MAX_MP riders; extend
+   it to plain −MP lines inside that world only). Cost: +1 world per ramp sub (there is one).
+   This mirrors the objective-capper world split that took the S2 MM bound from +21% to +9.87%.
+2. **Anchor-conformity partition of W (recovers the down-scaling legitimately).** The transport
+   floor-at-1 gave up all c<anchor tightening because W mixes anchor-scaled terms ((400+A)·M,
+   5A·K) with non-conforming ones (λ·cc support, μ credits, armConstantW). Split the state's W
+   into `wAnchor` + `wConst` (either a second accumulator per state — packing risk — or a sound
+   per-world constant bound on wConst), transport only wAnchor:
+   `bound = r·wAnchor + wConst` is sound for r < 1 once the classification is exact. This is
+   what the removed branch needed all along; it mainly helps low-crit-target shapes
+   (enutrof/xelor/sacrieur class).
+
+**Guard rails.** The hardened MP-ramp locks (`state dependent MP ramp is sound *`, now at
+production W pricing: critAwareCollapse=true, anchor 100) are the direct oracles — they caught
+all four under-counts; keep them green at every step. Fast protocol: 30-60s single-shape probes
+(WAKFU_S4_PROTO/PATH harness, prod-parity defaults) BEFORE any matrix sweep; the matrix
+(WAKFU_S4_PROOF_MATRIX=1) only at milestones. Bump CERTIFIER_VERSION on any arithmetic change.
+Do-not-retry: the P3 2-dim S⁺×negB family, the (λ,μ) grids, solver knobs, DD exactness — see the
+sections above.
