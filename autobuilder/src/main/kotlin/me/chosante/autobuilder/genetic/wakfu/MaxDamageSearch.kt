@@ -591,7 +591,10 @@ object MaxDamageSearch {
         if (cellBound == null || cellBound < incumbentProxy) {
             logger.error {
                 "Certificate self-check FAILED (badge suppressed): cell $incumbentAp bound=$cellBound < proxy=$incumbentProxy " +
-                    "— the certifier under-counted on live data. Solve is unaffected."
+                    "— the certifier under-counted on live data, OR the caller stamped a proxy that does not " +
+                    "belong to result.individual (production incumbents are always read off the solved " +
+                    "assignment; a fabricated result can pair a strong proxy with a weaker build's AP cell). " +
+                    "Solve is unaffected."
             }
             return MaxDamageProof.Unavailable
         }
