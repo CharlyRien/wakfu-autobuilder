@@ -1699,3 +1699,32 @@ badge shows first, then the per-carrier closure refines it in the background wit
   the blocker cover must force full subsets (a keep-others run is not in the provable class).
 - E2E lock: `WAKFU_S4_REFINE=1` runs the refinement after the fast badge, asserts it never
   loosens, and pins sacrieur230 to exactly ProvenOptimal.
+
+#### v36 refine sweep + prompt cancellation (2026-07-21)
+
+Refine sweep over the residual shapes (cold, sequential):
+
+| shape | fast badge | refined | refine wall |
+|---|---:|---:|---:|
+| sacrieur230 | +1.881% | **ProvenOptimal** | 19.6 min |
+| steamer240 | +1.887% | **ProvenOptimal** | 26.3 min |
+| panda170 | +8.159% | **ProvenOptimal** | 14.9 min |
+| feca65 | +6.996% | **ProvenOptimal** | 18.2 min |
+| osa225 | +1.562% | unchanged | 34.9 min |
+| iop215 | +1.588% | unchanged | 34.5 min |
+
+- **4/6 residual shapes close to ProvenOptimal** — including panda170 (the worst badge of the
+  whole matrix) and feca65. The two crit=100 shapes (osa225, iop215) resist: exactly the shapes
+  whose plain-CP could not even recover the incumbent in the truth table — their carrier worlds
+  need a next-level split (diagnose which carrier/blocker stays open before designing it).
+- feca65's first sweep entry died BETWEEN the closure logs and the verdict println with no
+  assertion in the XML — transient JVM death under ~2 h of accumulated sweep load (the known
+  EOF pattern); the clean re-run closed ProvenOptimal. Not a mechanism defect.
+- **Prompt cancellation shipped** (user: a search must never starve another): the profile solve
+  now takes `shouldContinue`, watched by a 500 ms daemon thread that calls `CpSolver.stopSearch()`
+  — a cancelled multi-minute proof/refine solve releases its workers within ~1 s instead of
+  running out its budget (up to 15 min before). Wired through the carrier worlds, the refinement
+  oracle anchor and the first-pass union oracle. Inert without cancellation (results bit-identical
+  — no CERTIFIER_VERSION bump); a cancellation-degraded read is never memoized (guards on both
+  memos). Locked by an always-on test: full sacrieur pool, 60 s budget, cancel at 2 s → returns
+  in 2.5 s.

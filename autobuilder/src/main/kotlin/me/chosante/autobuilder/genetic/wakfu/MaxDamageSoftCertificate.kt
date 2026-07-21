@@ -3176,7 +3176,8 @@ internal object MaxDamageSoftCertificate {
                     sublimations = sublimations.filter { it.condition == null },
                     workers = workers,
                     seconds = CARRIER_CLOSURE_ORACLE_SECONDS,
-                    applyDomination = true
+                    applyDomination = true,
+                    shouldContinue = shouldContinue
                 )
             } catch (e: Exception) {
                 logger.warn(e) { "per-carrier closure: the refinement oracle solve failed" }
@@ -3259,7 +3260,8 @@ internal object MaxDamageSoftCertificate {
                         workers = workers,
                         seconds = seconds,
                         applyDomination = true,
-                        requiredSublimationStateIds = requiredStateIds
+                        requiredSublimationStateIds = requiredStateIds,
+                        shouldContinue = shouldContinue
                     )
                 } catch (e: IllegalStateException) {
                     // A carrier the solver does not model at all cannot appear in any candidate
@@ -3321,6 +3323,9 @@ internal object MaxDamageSoftCertificate {
                 }
             }
         }
+        // A cancellation DURING the last solve yields a stopped (looser-but-sound) read — never
+        // memoize it as the full-budget answer; the cancelled caller discards the result anyway.
+        if (!shouldContinue()) return null
         return CarrierClosureUpper(conditionalUpper, (System.nanoTime() - t0) / 1_000_000)
             .also { carrierClosureMemo[memoKey] = it }
     }
@@ -3642,7 +3647,10 @@ internal object MaxDamageSoftCertificate {
                         sublimations = noConditionSubs,
                         workers = oracleWorkers,
                         seconds = oracleSeconds,
-                        applyDomination = true
+                        applyDomination = true,
+                        // A cancelled proof must release the oracle's 8 workers promptly too — the
+                        // stopped solve's dual stays sound, and the caller discards it anyway.
+                        shouldContinue = shouldContinue
                     )
                 }
             } else {
