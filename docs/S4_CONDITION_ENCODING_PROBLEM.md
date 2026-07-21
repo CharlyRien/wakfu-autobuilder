@@ -1670,3 +1670,32 @@ cold, `WAKFU_S4_CAPPER_ALL=1 WAKFU_S4_CAPPER_KEEP=` i.e. every condition exact):
   carriers ≤300 s each, sequential sweep ≈ 25 min — a production stage must gate on the DP's
   per-world looseness (run carrier CP only for carriers whose credit can still own the badge) and
   cache by CERTIFIER_VERSION.
+
+#### v36 — the per-carrier closure SHIPPED as silent refinement (2026-07-21)
+
+Production wiring (CERTIFIER_VERSION 35→36), per the user's integration decision: the fast DP
+badge shows first, then the per-carrier closure refines it in the background with a visible
+"Affinage de la preuve…" spinner on the badge.
+
+- **Engine**: `MaxDamageSoftCertificate.perCarrierClosureUpper` — full-exact solve per
+  solver-choosable conditional carrier (120 s each; a carrier the solver does not model = an
+  EMPTY world, skipped); unclosed carriers become *blockers*, closed by enumerating the non-empty
+  blocker SUBSETS (≤4 blockers ⇒ ≤15 runs; each subset FORCED via the new
+  `requiredSublimationStateIds` model seam, other blockers excluded — the fully concentrated form
+  that measures OPTIMAL where partial-keep runs stall: D-forced+E-kept sat at +11.4% while
+  {D}/{E}/{D∧E} all close). `noConditionOptimum` pays a 900 s oracle anchor when the fast pass's
+  240 s oracle only returned a dual (sacrieur's case). `MaxDamageSearch.refineSoftLegProof` +
+  `WakfuBestBuildFinderAlgorithm.refineMaxDamageOptimality` compose
+  `min(firstPassUpper, max(oracleOptimum, conditionalUpper))` with the same self-check discipline.
+  All memoized (keyed incl. CERTIFIER_VERSION).
+- **GUI**: `ProofState.ProvenWithin(refining=true)` renders the badge plus a spinner; the refined
+  verdict swaps in when the closure lands. New Tr keys (carrier-closure stage, refining label);
+  the previously-unmapped `capFreeResplit`/`oracleJoin` stage keys now narrate as "finalizing".
+- **Gate (cold)**: sacrieur230 E2E — fast badge +1.881% in 62.7 s, then
+  **`S4_PROD_REFINE verdict=ProvenOptimal` in 19.6 min**: refined upper = incumbent =
+  18 586 084 644 855 exactly (strict subsets: {D} 16 449G, {E} 17 713G, {D∧E} closed; conditional
+  side 18 386G < oracle). First production ProvenOptimal above the ≤140 band. Two earlier gate
+  iterations fixed: unmodeled-carrier worlds must be skipped-as-empty (not counted unbounded), and
+  the blocker cover must force full subsets (a keep-others run is not in the provable class).
+- E2E lock: `WAKFU_S4_REFINE=1` runs the refinement after the fast badge, asserts it never
+  loosens, and pins sacrieur230 to exactly ProvenOptimal.

@@ -1188,10 +1188,15 @@ class BuildSearchModel(
                     } else {
                         null
                     }
+                // Silent refinement (2026-07-21): a soft-leg ProvenWithin badge is shown immediately, then
+                // the per-carrier exact closure keeps running behind it — the badge carries `refining=true`
+                // so the stats panel renders a small "still proving" indicator (user request).
+                val refinable = proof is MaxDamageSearch.MaxDamageProof.ProvenWithin && upgrade == null
                 val state =
                     when (proof) {
                         MaxDamageSearch.MaxDamageProof.ProvenOptimal -> ProofState.ProvenOptimal
-                        is MaxDamageSearch.MaxDamageProof.ProvenWithin -> if (upgrade != null) ProofState.ProvenOptimal else ProofState.ProvenWithin(proof.fraction)
+                        is MaxDamageSearch.MaxDamageProof.ProvenWithin ->
+                            if (upgrade != null) ProofState.ProvenOptimal else ProofState.ProvenWithin(proof.fraction, refining = refinable)
                         MaxDamageSearch.MaxDamageProof.Unavailable -> ProofState.Unavailable
                     }
                 withContext(mainDispatcher) {
@@ -1210,6 +1215,33 @@ class BuildSearchModel(
                             } else {
                                 ui.copy(proofState = state)
                             }
+                    }
+                }
+                if (refinable) {
+                    val refined =
+                        try {
+                            WakfuBestBuildFinderAlgorithm.refineMaxDamageOptimality(params, result, { proofCancelled.get() })
+                        } catch (cancellation: CancellationException) {
+                            throw cancellation
+                        } catch (throwable: Throwable) {
+                            throwable.printStackTrace()
+                            null
+                        }
+                    withContext(mainDispatcher) {
+                        val shown = ui.proofState
+                        // Apply only while the refining badge this pass produced is still the one on screen.
+                        if (ui.phase == Phase.Done && ui.build == provenBuild && shown is ProofState.ProvenWithin && shown.refining) {
+                            ui =
+                                ui.copy(
+                                    proofState =
+                                        when (refined) {
+                                            MaxDamageSearch.MaxDamageProof.ProvenOptimal -> ProofState.ProvenOptimal
+                                            is MaxDamageSearch.MaxDamageProof.ProvenWithin ->
+                                                ProofState.ProvenWithin(minOf(shown.fraction, refined.fraction))
+                                            else -> shown.copy(refining = false)
+                                        }
+                                )
+                        }
                     }
                 }
             }

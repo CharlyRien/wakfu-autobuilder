@@ -200,8 +200,11 @@ object WakfuBuildSolver {
      * 21: intersects every finite-time child dual with its inherited parent dual. A child is a
      * subset of its parent, so this is an exact free tightening and prevents timeout noise from
      * making a deeper frontier bound worse than an already-known ancestor bound.
+     * 36: adds the per-carrier closure (silent refinement, journal 2026-07-21) — carrier-forced
+     * full-exact CP worlds + STRICT blocker set-cover composing with the proven no-condition
+     * oracle into an exact soft-leg upper; its memo is keyed by this version.
      */
-    const val CERTIFIER_VERSION: Int = 35
+    const val CERTIFIER_VERSION: Int = 36
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
@@ -2133,6 +2136,8 @@ object WakfuBuildSolver {
         // Research-only carrier-world seam: force one modeled sublimation while the caller chooses
         // which other conditions stay exact/relaxed in [sublimations].
         requiredSublimationStateId: Int? = null,
+        // Multi-carrier variant (per-carrier closure blocker subsets): every listed sub is forced.
+        requiredSublimationStateIds: Set<Int> = emptySet(),
         // Research-only exact-region seam. Bounds are posted on the resolved sheet stats and can
         // therefore be used to validate a DP-complement partition without changing the objective.
         statLowerBounds: Map<Characteristic, Long> = emptyMap(),
@@ -2174,7 +2179,7 @@ object WakfuBuildSolver {
             require(conditionalVars.isNotEmpty()) { "conditional partition requested with no modeled conditional sublimation" }
             built.model.addGreaterOrEqual(LinearExpr.sum(conditionalVars), 1L)
         }
-        requiredSublimationStateId?.let { stateId ->
+        (requiredSublimationStateIds + listOfNotNull(requiredSublimationStateId)).forEach { stateId ->
             val required =
                 built.subModel.subVars.entries
                     .singleOrNull { it.key.stateId == stateId }

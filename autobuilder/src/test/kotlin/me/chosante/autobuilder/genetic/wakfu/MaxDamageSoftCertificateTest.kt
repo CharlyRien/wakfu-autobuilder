@@ -2248,6 +2248,29 @@ class MaxDamageSoftCertificateTest {
         assertThat(proofWallMs)
             .describedAs("the proof phase must conclude within the product deadline (plus harness slack)")
             .isLessThanOrEqualTo(150_000L)
+        // WAKFU_S4_REFINE=1: exercise the SILENT-REFINEMENT pass (per-carrier closure, journal
+        // 2026-07-21) after the fast badge. Un-timed (minutes by design). Sacrieur230 is the
+        // measured composed-closure shape — its refined verdict must be EXACTLY ProvenOptimal.
+        if (System.getenv("WAKFU_S4_REFINE") == "1" && proof is MaxDamageSearch.MaxDamageProof.ProvenWithin) {
+            val refineT0 = System.nanoTime()
+            val refined = WakfuBestBuildFinderAlgorithm.refineMaxDamageOptimality(p, result)
+            val refineWallMs = (System.nanoTime() - refineT0) / 1_000_000
+            println("S4_PROD_REFINE verdict=$refined refineWallMs=$refineWallMs")
+            val refinedGap =
+                when (refined) {
+                    MaxDamageSearch.MaxDamageProof.ProvenOptimal -> 0.0
+                    is MaxDamageSearch.MaxDamageProof.ProvenWithin -> refined.fraction
+                    else -> certifiedGap // null/Unavailable = keep the first badge (still sound)
+                }
+            assertThat(refinedGap)
+                .describedAs("the refinement must never LOOSEN the badge")
+                .isLessThanOrEqualTo(certifiedGap)
+            if ((System.getenv("WAKFU_S4_SHAPE") ?: "s4") == "sacrieur230-apmp") {
+                assertThat(refined)
+                    .describedAs("sacrieur230's composed per-carrier closure is measured EXACT — the refined badge must be ProvenOptimal")
+                    .isEqualTo(MaxDamageSearch.MaxDamageProof.ProvenOptimal)
+            }
+        }
     }
 
     /**

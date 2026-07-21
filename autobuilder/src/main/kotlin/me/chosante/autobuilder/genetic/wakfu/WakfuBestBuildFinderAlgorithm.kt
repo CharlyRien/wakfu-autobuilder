@@ -347,6 +347,39 @@ object WakfuBestBuildFinderAlgorithm {
     }
 
     /**
+     * SILENT-REFINEMENT entry (journal 2026-07-21): after [proveMaxDamageOptimality] returned a soft-leg
+     * `ProvenWithin`, re-bound the conditional partition with the per-carrier exact closure and return the
+     * improved verdict — [MaxDamageSearch.MaxDamageProof.ProvenOptimal] when the refined union meets the
+     * incumbent. Null = refinement not applicable / cancelled / no improvement (keep the shown badge).
+     * Wall: minutes; meant to run async while the GUI shows the first badge plus a refining indicator.
+     */
+    fun refineMaxDamageOptimality(
+        params: WakfuBestBuildParams,
+        result: SolverResult<BuildCombination>,
+        isCancelled: () -> Boolean = { false },
+        onPhase: (String) -> Unit = {},
+    ): MaxDamageSearch.MaxDamageProof? {
+        if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return null
+        val equipmentsByItemType =
+            groupAndFilterEquipments(
+                excludedItems = params.excludedItems,
+                forcedItems = params.forcedItems,
+                maxRarity = params.maxRarity,
+                excludedRarities = params.excludedRarities,
+                character = params.character
+            )
+        return MaxDamageSearch.refineSoftLegProof(
+            params,
+            equipmentsByItemType,
+            runes,
+            activeSublimations(params),
+            result,
+            isCancelled = isCancelled,
+            onPhase = onPhase
+        )
+    }
+
+    /**
      * E8 fast-path (SOLVER_PERFORMANCE §7): when the finished search left a SUBOPTIMAL max-damage [result] — i.e.
      * [proveMaxDamageOptimality] returned [MaxDamageSearch.MaxDamageProof.ProvenWithin], so the certificate proves a
      * higher achievable damage than the incumbent reached — CONSTRUCT the proven-optimal build directly from the

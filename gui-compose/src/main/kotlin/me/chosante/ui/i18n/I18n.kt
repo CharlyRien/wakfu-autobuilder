@@ -292,6 +292,8 @@ enum class Tr(
     PROOF_STAGE_AFTER_SECONDARY("Auto-calibrating the proof for this request… (%s)", "Auto-calibration de la preuve pour cette requête… (%s)"),
     PROOF_STAGE_FINALIZING("Finalizing the certificate… (%s)", "Finalisation du certificat… (%s)"),
     PROOF_STAGE_CP_PROBE("Attempting a full CP-SAT proof… (%s)", "Tentative de preuve CP-SAT complète… (%s)"),
+    PROOF_STAGE_CARRIER_CLOSURE("Closing the proof world by world… (%s)", "Fermeture de la preuve monde par monde… (%s)"),
+    PROOF_REFINING("Refining the proof in the background…", "Affinage de la preuve en arrière-plan…"),
     PROVEN_WITHIN("Proven within %s%% of optimal", "Optimal prouvé à %s%% près"),
     PROOF_UNAVAILABLE_FORCED("Proof unavailable (forced runes/sublimations)", "Preuve indisponible (runes/sublimations imposées)"),
     MASTERY_SUMMARY("Mastery Summary", "Cumul maîtrises"),

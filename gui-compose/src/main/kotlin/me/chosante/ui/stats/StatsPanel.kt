@@ -228,13 +228,29 @@ private fun MatchHero(ui: UiState) {
                         )
                     // Not proven optimal, but the certificate BOUNDS the gap — more useful than the vague hint.
                     ui.proofState is ProofState.ProvenWithin && !ui.optimal -> {
+                        val within = ui.proofState as ProofState.ProvenWithin
                         // Locale.ROOT so an FR UI shows "2.0", not "2,0" (the %s in PROVEN_WITHIN keeps the point).
-                        val pct = String.format(java.util.Locale.ROOT, "%.1f", (ui.proofState as ProofState.ProvenWithin).fraction * 100)
+                        val pct = String.format(java.util.Locale.ROOT, "%.1f", within.fraction * 100)
                         Text(
                             text = tr(Tr.PROVEN_WITHIN).format(pct),
                             style = WTypography.labelSmall.copy(color = WColor.warning, textAlign = TextAlign.Center),
                             modifier = Modifier.padding(top = 2.dp)
                         )
+                        // The per-carrier silent refinement is still running behind the badge — keep a
+                        // visible "still proving" cue so a later badge upgrade never looks spontaneous.
+                        if (within.refining) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                modifier = Modifier.padding(top = 2.dp)
+                            ) {
+                                ProofSpinner(color = WColor.accent)
+                                Text(
+                                    text = tr(Tr.PROOF_REFINING),
+                                    style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center)
+                                )
+                            }
+                        }
                     }
                     // Certificate unavailable because of forced runes/subs — name the reason (honest, not "proven").
                     ui.proofState == ProofState.Unavailable &&
@@ -299,8 +315,9 @@ private fun ProofProgressIndicator(
                     "coarse" -> Tr.PROOF_STAGE_AFTER_COARSE
                     "primaryRefinement" -> Tr.PROOF_STAGE_AFTER_REFINE
                     "secondarySupportPass" -> Tr.PROOF_STAGE_AFTER_SECONDARY
-                    "lambdaAutoCalibration", "lambdaZeroPass" -> Tr.PROOF_STAGE_FINALIZING
+                    "lambdaAutoCalibration", "lambdaZeroPass", "capFreeResplit", "oracleJoin" -> Tr.PROOF_STAGE_FINALIZING
                     "plainProbe" -> Tr.PROOF_STAGE_CP_PROBE
+                    "carrierClosure", "carrierClosureStrict", "carrierClosureOracle" -> Tr.PROOF_STAGE_CARRIER_CLOSURE
                     else -> Tr.PROVING_OPTIMALITY
                 }
             else -> Tr.PROVING_OPTIMALITY
