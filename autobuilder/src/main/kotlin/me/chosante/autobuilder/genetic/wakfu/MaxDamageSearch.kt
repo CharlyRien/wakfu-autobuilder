@@ -724,7 +724,10 @@ object MaxDamageSearch {
         val workers = (Runtime.getRuntime().availableProcessors() - 2).coerceIn(4, 8)
         // The exact no-condition anchor: reuse the fast pass's proof when it closed; otherwise pay a
         // longer refinement oracle (sacrieur230's no-condition proof needs >240 s) — without it the
-        // composition has no exact floor and refinement cannot improve the badge.
+        // composition has no exact floor and refinement cannot improve the badge. It runs FIRST and
+        // ALONE at full workers: it is the closure's hard prerequisite (no proof ⇒ refinement is
+        // futile — fail fast), and running it beside the sweep was measured to starve BOTH (16
+        // threads: carriers that prove OPTIMAL alone returned 2-3x garbage duals — §9.11 again).
         val noConditionOptimum =
             if (union.noConditionProven) {
                 union.noConditionUpper

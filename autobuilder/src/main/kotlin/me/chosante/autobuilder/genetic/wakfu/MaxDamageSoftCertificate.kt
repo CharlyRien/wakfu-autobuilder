@@ -3284,6 +3284,12 @@ internal object MaxDamageSoftCertificate {
         onPhase("carrierClosure")
         var conditionalUpper = Long.MIN_VALUE
         val blockers = mutableListOf<Sublimation>()
+        // SEQUENTIAL at full workers, deliberately (measured NO-GO 2026-07-21, twice): splitting
+        // the sweep into 2 concurrent solves on half the workers turned OPTIMAL-in-120 s worlds
+        // into 2-3x garbage duals — even with nothing else running — because the CP-SAT portfolio
+        // needs its full subsolver set (§9.11's low-worker stall, only worse). Do not retry
+        // half-worker parallel carrier solves; the next wall lever is warm-starting the oracle
+        // anchor with the first-pass primal instead.
         for (carrier in carriers) {
             val upper = worldUpper(sublimations, setOf(carrier.stateId), CARRIER_CLOSURE_FULL_SECONDS) ?: return null
             logger.info {
