@@ -242,6 +242,61 @@ class MaxDamageSoftCertificateTest {
                         TargetStat(Characteristic.HP, 4000)
                     )
                 )
+            // The remaining generality-matrix shapes, mirrored from the matrix runner's
+            // frontier() rows so every matrix shape can also run as a single cold probe.
+            "cra185-full" ->
+                Triple(
+                    CharacterClass.CRA,
+                    185,
+                    listOf(
+                        TargetStat(Characteristic.ACTION_POINT, 14),
+                        TargetStat(Characteristic.MOVEMENT_POINT, 7),
+                        TargetStat(Characteristic.CRITICAL_HIT, 90),
+                        TargetStat(Characteristic.HP, 8000)
+                    )
+                )
+            "iop215-full" ->
+                Triple(
+                    CharacterClass.IOP,
+                    215,
+                    listOf(
+                        TargetStat(Characteristic.ACTION_POINT, 15),
+                        TargetStat(Characteristic.MOVEMENT_POINT, 8),
+                        TargetStat(Characteristic.CRITICAL_HIT, 100),
+                        TargetStat(Characteristic.HP, 11000)
+                    )
+                )
+            "eca195-full" ->
+                Triple(
+                    CharacterClass.ECAFLIP,
+                    195,
+                    listOf(
+                        TargetStat(Characteristic.ACTION_POINT, 15),
+                        TargetStat(Characteristic.MOVEMENT_POINT, 7),
+                        TargetStat(Characteristic.CRITICAL_HIT, 95),
+                        TargetStat(Characteristic.HP, 9000)
+                    )
+                )
+            "osa225-full" ->
+                Triple(
+                    CharacterClass.OSAMODAS,
+                    225,
+                    listOf(
+                        TargetStat(Characteristic.ACTION_POINT, 16),
+                        TargetStat(Characteristic.MOVEMENT_POINT, 8),
+                        TargetStat(Characteristic.CRITICAL_HIT, 100),
+                        TargetStat(Characteristic.HP, 11500)
+                    )
+                )
+            "steamer240-apmp" ->
+                Triple(
+                    CharacterClass.STEAMER,
+                    240,
+                    listOf(
+                        TargetStat(Characteristic.ACTION_POINT, 16),
+                        TargetStat(Characteristic.MOVEMENT_POINT, 8)
+                    )
+                )
             else -> error("unknown WAKFU_S4_SHAPE=$shape")
         }
 
@@ -840,19 +895,57 @@ class MaxDamageSoftCertificateTest {
         val p = mdParams(level, targets, clazz)
         val incumbent = System.getenv("WAKFU_S4_INCUMBENT")?.toLongOrNull() ?: Long.MIN_VALUE
         val seconds = System.getenv("WAKFU_S4_CP_SECONDS")?.toDoubleOrNull() ?: 120.0
+        // WAKFU_S4_CAPPER_ALL=1 sweeps EVERY solver-choosable conditional carrier (any supported
+        // condition type) — the full per-carrier closure evidence: exact-build space = no-condition
+        // builds (oracle authority) ∪ carrier worlds, so all carriers closing ≤ incumbent composes
+        // into an exact certificate.
         val cappers =
-            WakfuBestBuildFinderAlgorithm.sublimations.filter {
-                it.solverChoosable &&
-                    (
-                        it.condition?.type == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST ||
-                            it.condition?.type == SublimationConditionType.CRITICAL_MASTERY_AT_MOST
-                    )
+            if (System.getenv("WAKFU_S4_CAPPER_ALL") == "1") {
+                WakfuBestBuildFinderAlgorithm.sublimations.filter {
+                    it.solverChoosable && it.condition != null && it.condition?.type in SUPPORTED_SUB_CONDITIONS
+                }
+            } else {
+                WakfuBestBuildFinderAlgorithm.sublimations.filter {
+                    it.solverChoosable &&
+                        (
+                            it.condition?.type == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST ||
+                                it.condition?.type == SublimationConditionType.CRITICAL_MASTERY_AT_MOST
+                        )
+                }
             }
         assertThat(cappers).isNotEmpty
-        for (capper in cappers) {
+        // WAKFU_S4_CAPPER_ONLY=<fr-name substring> restricts the sweep to one carrier;
+        // WAKFU_S4_CAPPER_STRICT=1 EXCLUDES the other conditionals instead of relaxing them —
+        // a sound RESTRICTION, so any solution it finds is an exactly-feasible build (witness
+        // validation for a carrier optimum found under the relaxed model).
+        val only = System.getenv("WAKFU_S4_CAPPER_ONLY")
+        val strict = System.getenv("WAKFU_S4_CAPPER_STRICT") == "1"
+        // Pairwise world splitting: WAKFU_S4_CAPPER_DROP=<fr substring> EXCLUDES that sub from the
+        // catalog (the "carrier without it" half-world); WAKFU_S4_CAPPER_KEEP=<fr substring> keeps
+        // its condition EXACT instead of relaxing it (the "both conditions exact" half-world).
+        // max(the two bounds) is a sound upper of the whole carrier world.
+        val drop = System.getenv("WAKFU_S4_CAPPER_DROP")
+        val keep = System.getenv("WAKFU_S4_CAPPER_KEEP")
+        for (capper in cappers.filter { only == null || it.name.fr.contains(only) }) {
             val subs =
-                WakfuBestBuildFinderAlgorithm.sublimations.map {
-                    if (it.stateId == capper.stateId) it else it.withRelaxedBuildStaticCondition()
+                if (strict) {
+                    // STRICT + KEEP: the carrier plus the KEEP-matched conditionals (exact),
+                    // everything else conditional excluded — the pairwise world {carrier ∧ kept}.
+                    WakfuBestBuildFinderAlgorithm.sublimations.filter {
+                        it.stateId == capper.stateId ||
+                            it.condition == null ||
+                            (keep != null && it.name.fr.contains(keep))
+                    }
+                } else {
+                    WakfuBestBuildFinderAlgorithm.sublimations
+                        .filter { drop == null || !it.name.fr.contains(drop) || it.stateId == capper.stateId }
+                        .map {
+                            when {
+                                it.stateId == capper.stateId -> it
+                                keep != null && it.name.fr.contains(keep) -> it
+                                else -> it.withRelaxedBuildStaticCondition()
+                            }
+                        }
                 }
             val profile =
                 WakfuBuildSolver.timedMaxDamageProfileForTest(
@@ -866,9 +959,10 @@ class MaxDamageSoftCertificateTest {
                     requiredSublimationStateId = capper.stateId
                 )
             println(
-                "S4_CAPPER_CP capper=${capper.name.fr}(${capper.condition?.type}) status=${profile.status} " +
+                "S4_CAPPER_CP capper=${capper.name.fr}(${capper.condition?.type}) strict=$strict status=${profile.status} " +
                     "objective=${profile.objective} bound=${profile.bestBound} " +
-                    "closes=${incumbent != Long.MIN_VALUE && profile.bestBound <= incumbent}"
+                    "closes=${incumbent != Long.MIN_VALUE && profile.bestBound <= incumbent} " +
+                    "selectedSubIds=${profile.selectedSublimationStateIds.sorted()}"
             )
         }
     }
