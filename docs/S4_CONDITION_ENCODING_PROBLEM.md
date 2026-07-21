@@ -1728,3 +1728,33 @@ Refine sweep over the residual shapes (cold, sequential):
   — no CERTIFIER_VERSION bump); a cancellation-degraded read is never memoized (guards on both
   memos). Locked by an always-on test: full sacrieur pool, 60 s budget, cancel at 2 s → returns
   in 2.5 s.
+
+#### Refine-wall parallelization: DOUBLE NO-GO — half-worker carrier solves stall (2026-07-21)
+
+Two measured attempts to cut the 15-35 min refinement wall by parallelism, both dead:
+
+1. Concurrent anchor (8 workers) + 2-way sweep (4 workers each, 120 s): sacrieur's
+   OPTIMAL-in-120 s worlds returned 2-3× garbage duals (Constance 38.5T vs the sequential
+   15.8T), 13 blockers, subset stage skipped → no closure, wall unchanged.
+2. Anchor FIRST alone, then 2-way sweep alone (4 workers each, 180 s): same collapse (12
+   blockers, duals 24-47T). The failure is NOT machine oversubscription — 4-worker CP-SAT solves
+   on this model are qualitatively stalled because the portfolio loses its full subsolver set
+   (§9.11's low-worker stall, worse). **Do not retry half-worker parallel carrier solves.**
+
+Reverted to the shipped sequential full-worker sweep (the measured-good 19.6 min sacrieur
+closure), keeping one sound change: the oracle anchor runs FIRST with fail-fast (no anchor proof
+⇒ refinement is futile ⇒ return immediately instead of paying the sweep for nothing). The
+remaining wall levers, undesigned: warm-start the 900 s anchor with the first-pass oracle's
+primal (the parent-hint pattern that paid in the world B&B), and per-carrier relaxed pre-screens.
+
+#### osa225/iop215 (crit=100): no witness above the incumbent, and no carrier route (2026-07-21)
+
+The refine diagnosis on both crit=100 holdouts: ALL 15 carrier worlds are blockers (full-exact
+duals 2-3× the incumbent at 120 s; subset enumeration rightly refuses k=15). Carrier-forced
+concentration does not bite — the hardness is the high-level crit/HP coupling, not the sub
+reifications. Meanwhile the oracle PROVES and the DP union is already +1.56/1.59% tight. The
+decision probe (`WAKFU_S4_CAPPER_CUTOFF=1`: carrier forced + `objective ≥ incumbent+1`) closes
+only Inflexibilité-AP (INFEASIBLE) and finds NO conditional build above the incumbent in 15×120 s
+of primal search — strong (unproven) evidence the true optimum IS the incumbent and the residual
+is pure bound looseness. Closing these two needs a carrier × dimension-cell split (per AP cell /
+crit band — the hard-leg recipe): a designed campaign, not a tuning pass.
