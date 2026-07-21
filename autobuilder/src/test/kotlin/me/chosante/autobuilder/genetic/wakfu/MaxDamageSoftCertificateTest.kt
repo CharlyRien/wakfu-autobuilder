@@ -956,7 +956,12 @@ class MaxDamageSoftCertificateTest {
                     workers = 8,
                     seconds = seconds,
                     applyDomination = true,
-                    requiredSublimationStateId = capper.stateId
+                    requiredSublimationStateId = capper.stateId,
+                    // WAKFU_S4_CAPPER_CUTOFF=1 turns each carrier run into the DECISION problem
+                    // "does a build of this world EXCEED the incumbent?" — INFEASIBLE everywhere
+                    // proves the true optimum IS the incumbent; a FEASIBLE yields an exact witness.
+                    penalizedObjectiveCutoff =
+                        if (System.getenv("WAKFU_S4_CAPPER_CUTOFF") == "1" && incumbent != Long.MIN_VALUE) incumbent + 1 else null
                 )
             println(
                 "S4_CAPPER_CP capper=${capper.name.fr}(${capper.condition?.type}) strict=$strict status=${profile.status} " +
