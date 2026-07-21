@@ -1546,3 +1546,127 @@ arithmetic; refinement deadlines and accumulated thermal state still dominate ti
   (108.79 deterministic units) and is not retried; the multi-worker portfolio remains inherently
   variable. A tentative 130→120 two-node prognosis threshold was tested but did not participate in
   the winning Feca run, so it was reverted rather than promoted without evidence.
+
+### Progress journal — v35 COLD re-base + B&B-variance lead REFUTED (2026-07-21)
+
+Single-shape cold probes (idle machine, fresh daemon per shape, 60 s cooldowns) re-based the whole
+matrix at CERTIFIER_VERSION 35 (commit `81d8e43f`). The five shapes missing a `shapePreset` entry
+(cra185/iop215/eca195/osa225/steamer240) were added, mirrored bit-for-bit from the matrix runner's
+`frontier()` rows, so every matrix shape now runs as a single cold probe.
+
+| shape | cold v35 badge / wall | v33 matrix |
+|---|---:|---:|
+| cra50-apmp | **ProvenOptimal / 84.5 s** | +10.395% / 129.0 s |
+| iop110-full | +3.371% / 171.4 s (repro 291 s) | +4.957% / 226.6 s |
+| xelor155-apmp | +7.419% / 35.8 s | +6.344% / 60.1 s |
+| cra185-full | +3.313% / 129.1 s | +3.779% / 180.7 s |
+| iop215-full | +1.588% / 113.4 s | +1.588% / 118.0 s |
+| sacrieur230-apmp | +1.881% / 61.0 s | +1.923% / 149.7 s |
+| feca65-full | +6.996% / 91.2 s (×3 identical) | +13.993% / 162.2 s |
+| enutrof125-cchp | +6.209% / 76.1 s | +7.190% / 143.9 s |
+| panda170-apmp | +8.159% / 38.1 s | +8.159% / 66.3 s |
+| eca195-full | +3.929% / 220.5 s (repro 240 s) | +4.135% / 262.3 s |
+| osa225-full | +1.562% / 139.6 s | +1.562% / 166.1 s |
+| steamer240-apmp | +1.887% / 67.1 s | +1.915% / 103.9 s |
+
+- **The B&B-variance lead is REFUTED — do not retry a progress-conditioned two-node prognosis.**
+  Cold cra50 closes ProvenOptimal in 84.5 s *through the DP*, with the world tree bailing at two
+  nodes exactly as in the "bad" matrix run (root OPTIMAL det 179, +15.1% dual; child no-progress) —
+  the bail was the *correct* route and the matrix's +10.395% was load-starved DP refinement, not a
+  tree race. Cold feca65 is a *stable* +6.996% (three identical runs): its root is FEASIBLE at
+  **+70%** over the incumbent (reification wall), so the root bail is right and no tree can own its
+  badge — the journal's 7↔14% alternation was load, and the v33/v34 +13.99% readings were
+  load-starved too. The mechanical suspect (second-node det clip `max(131−rootDet, 10)` making the
+  bail quasi-automatic after a non-closing root) is real but *harmless*: on both shapes the DP is
+  the authority.
+- Honest wall picture: only eca195 (220–240 s) and iop110 (171–291 s) remain above two minutes
+  cold. Eca195's cost is DP fold volume at level 195 (no-condition DP 51 s + primaryRefinement
+  144 s, single passes 8–55 s; the secZero owner DI1 runs twice — `lightArm=both` 55 s then the
+  μ-support `noExpert` re-read 29 s for an identical bound). Iop110's extra wall is
+  capFreeResplit (+104 s) and oracleJoin (+63 s) on the slow repro.
+- **Campaign pivot (user, 2026-07-21): badge quality over wall time — win back ProvenOptimal.**
+  Post-soundness-wave badges are honest residuals (1.5–8.2%); the open question per shape is
+  whether the gap is *bound looseness* or *incumbent weakness*. Note the harness incumbent is the
+  NO-CONDITION oracle (`condition == null` subs only) while the union prices conditional subs —
+  part of a harness gap can be genuinely achievable damage (production incumbents include
+  choosable conditional subs, so production badges are at least as tight). The decisive
+  diagnostic — running now — is the unrestricted full-model CP-SAT solve (`WAKFU_S4_CP_PLAIN=1`,
+  every condition exactly modeled, 600 s) per near-closure shape (osa225, iop215, sacrieur230,
+  steamer240, panda170), classifying each gap so tightening effort lands where it can actually
+  close a badge.
+
+#### Truth table: the residual gaps are BOUND looseness, not incumbent weakness (2026-07-21)
+
+`WAKFU_S4_CP_PLAIN=1`, 600 s, 8 workers, full 232-sub catalog, cold sequential runs:
+
+| shape | no-condition incumbent | plain-CP primal @600 s | plain-CP dual @600 s |
+|---|---:|---:|---:|
+| sacrieur230-apmp | 18 586 084 644 855 | **identical to the incumbent** | +32.0% |
+| steamer240-apmp | 15 734 807 693 505 | **identical to the incumbent** | +33.3% |
+| panda170-apmp | 3 617 348 292 675 | **identical to the incumbent** | +20.8% |
+| osa225-full | 10 281 602 977 425 | 9 320 263 854 330 (not even recovered) | +150% |
+| iop215-full | 10 572 303 956 565 | 10 407 703 241 065 (not even recovered) | +135% |
+
+- No shape produced a conditional build above the no-condition optimum in 600 s: on the three
+  shapes where CP recovered the incumbent it landed on it EXACTLY. The residual badge gaps are
+  therefore (with high confidence, pending exact proof) **pure certificate looseness**.
+- The monolithic dual is confirmed hopeless at levels 170–240 (+20.8% at best after 600 s, vs the
+  DP union's 1.5–8.2%) — no direct-optimization route to ProvenOptimal above the ≤140 world-tree
+  band. Do not re-run plain full-model CP as a *proof* instrument at these levels.
+- Next measurement: the partition-exactness probe (`WAKFU_S4_CP_FULLCOND=1`,
+  `WAKFU_S4_CP_CUTOFF=<incumbent>`) — prove merely that no conditional-carrying build EXCEEDS the
+  incumbent (INFEASIBLE / bound ≤ cutoff), which composes with the no-condition oracle's exact
+  authority into full ProvenOptimal. Decision-problem duals routinely close where optimization
+  duals stall; measuring on the same five shapes.
+
+#### The FULLCOND decision probe fails too — but CARRIER-FORCED exact CP breaks the wall (2026-07-21)
+
+- `WAKFU_S4_CP_FULLCOND` (require ≥1 conditional + cutoff=incumbent, 600 s): all five shapes
+  UNKNOWN, bounds still +14–150% above the cutoff, millions of branches. Even the pure decision
+  problem is reification-walled monolithically. Do not retry monolithic conditional proofs (any
+  cutoff/decision framing) at levels 170–240.
+- **Per-carrier CP (`WAKFU_S4_CAPPER_CP`, carrier forced via `requiredSublimationStateId`) is the
+  instrument that works.** Sacrieur230, 120 s each, others relaxed: Inflexibilité II OPTIMAL
+  9 462G, Prétention III OPTIMAL 9 228G @600 s (its 120 s dual 18 911G was just slow), Neutralité
+  ≤14 402G, Ambition ≤16 154G — all ≤ incumbent 18 586G. Secret critique's relaxed world peaked at
+  18 820G (+1.26% ABOVE the incumbent) but its witness was NOT exactly feasible (it leaned on
+  other relaxed conditionals 6821/6931/7115); pairwise splits (±Prétention) didn't move it.
+- **Decisive run: the exact SC world — carrier forced, ALL conditions exact, nothing relaxed —
+  proves OPTIMAL 16 312 436 898 030 within 600 s and closes.** Same value as the
+  others-excluded strict run: alongside Secret critique the other conditionals contribute nothing
+  exact. Carrier concentration collapses the reification wall that defeats the monolith.
+- Composition theorem for the ProvenOptimal route above the ≤140 world-tree band: every exact
+  build either carries no conditional sub (the no-condition oracle's EXACT authority) or carries
+  some conditional carrier c (bounded by c's carrier-forced exact world). If every carrier world
+  proves ≤ incumbent, the certificate closes exactly at the incumbent; a carrier world proving
+  ABOVE it yields an exact witness (counterexample flow → raise the incumbent). Harness now
+  supports `WAKFU_S4_CAPPER_ALL=1` (sweep every solver-choosable supported-condition carrier),
+  `WAKFU_S4_CAPPER_KEEP`/`DROP`/`STRICT`/`ONLY`. Full-carrier sweep on sacrieur230 running.
+
+#### SACRIEUR230 TRUE OPTIMUM PROVEN = 18 586 084 644 855 — the composed per-carrier certificate (2026-07-21)
+
+The first proven optimum above the ≤140 world-tree band, assembled from measured pieces (all runs
+cold, `WAKFU_S4_CAPPER_ALL=1 WAKFU_S4_CAPPER_KEEP=` i.e. every condition exact):
+
+- **No-conditional builds:** the no-condition oracle proves OPTIMAL 18 586 084 644 855.
+- **13 of 15 carrier worlds** (carrier forced, every other conditional present and exact) close at
+  ≤300 s: 11 OPTIMAL (Inflexibilité-AP 5 166G, Constance 15 847G, Mesure 16 922G, Furie 16 260G,
+  Furie II 16 147G, Inflexibilité II 9 350G, Volonté de fer 16 449G, Mesure II 16 449G, Mesure III
+  17 569G, Secret critique 16 312G, Prétention III 11 170G-dual) + Neutralité III ≤15 850G and
+  Ambition III ≤14 723G as sound duals — all ≤ the incumbent.
+- **The two blockers close by set-cover:** Dénouement (CRIT_AT_LEAST) plateaus at +20% and Expert
+  des armes légères III (NO_OFFHAND_OR_TWO_HANDED) at +4.5% even at 900 s *with the other
+  reifications in the model* — but any build containing one of the other 13 carriers is already
+  covered by that carrier's closed world, so only conditional-sets ⊆ {D, E} remain:
+  `{D alone}` OPTIMAL 16 449G (STRICT ≤300 s), `{E alone}` OPTIMAL 17 713G (STRICT ≤300 s),
+  `{D ∧ E}` OPTIMAL 16 449G (STRICT+KEEP=Expert, the optimum does not even take Expert). All ≤
+  the incumbent. ⇒ every exact build is ≤ 18 586 084 644 855, and the oracle attains it. ∎
+- Lessons for the production wiring: (a) carrier-forced concentration beats the reification wall
+  *only when the carrier's condition prunes the space* (AT_MOST-style caps); AT_LEAST /
+  weapon-shape carriers stall and need the STRICT + pairwise set-cover instead; (b) the cover
+  argument needs no first-carrier ordering — a build is covered by ANY of its carriers' closed
+  worlds, so blockers only ever need their {alone} and {pairwise-with-other-blockers} strict
+  worlds; with k blockers that is 2^k − 1 strict solves, and k was 2 here; (c) budgets: closed
+  carriers ≤300 s each, sequential sweep ≈ 25 min — a production stage must gate on the DP's
+  per-world looseness (run carrier CP only for carriers whose credit can still own the badge) and
+  cache by CERTIFIER_VERSION.
