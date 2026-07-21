@@ -56,6 +56,8 @@ class MaxDamageSoftCertificateTest {
 
     private fun critWeightAnchor(): Int? = System.getenv("WAKFU_S4_CRIT_WEIGHT_ANCHOR")?.toIntOrNull() ?: 100
 
+    private fun anchorConstTransport(): Boolean = System.getenv("WAKFU_S4_ANCHOR_CONST") == "1"
+
     private fun coupleSecondaryItemNegative(): Boolean = System.getenv("WAKFU_S4_COUPLE_NEG_ITEMS") != "0"
 
     private fun netSecondaryItemBudget(): Boolean = System.getenv("WAKFU_S4_NET_NEG_ITEMS") != "0"
@@ -120,6 +122,15 @@ class MaxDamageSoftCertificateTest {
     private fun shapePreset(): Triple<CharacterClass, Int, List<TargetStat>> =
         when (val shape = System.getenv("WAKFU_S4_SHAPE")) {
             null, "", "s4" -> Triple(CharacterClass.CRA, 245, frontierTargets())
+            "cra50-apmp" ->
+                Triple(
+                    CharacterClass.CRA,
+                    50,
+                    listOf(
+                        TargetStat(Characteristic.ACTION_POINT, 10),
+                        TargetStat(Characteristic.MOVEMENT_POINT, 6)
+                    )
+                )
             "cra140-apmp" ->
                 Triple(
                     CharacterClass.CRA,
@@ -208,6 +219,15 @@ class MaxDamageSoftCertificateTest {
                     listOf(
                         TargetStat(Characteristic.ACTION_POINT, 14),
                         TargetStat(Characteristic.MOVEMENT_POINT, 7)
+                    )
+                )
+            "sacrieur230-apmp" ->
+                Triple(
+                    CharacterClass.SACRIEUR,
+                    230,
+                    listOf(
+                        TargetStat(Characteristic.ACTION_POINT, 16),
+                        TargetStat(Characteristic.MOVEMENT_POINT, 8)
                     )
                 )
             // The generality matrix's first hot spot (Unavailable in 225 s, B&B inconclusive).
@@ -356,7 +376,8 @@ class MaxDamageSoftCertificateTest {
                         // Same W pricing as the coupled read below — the legacy-vs-coupled
                         // comparison is only meaningful at identical crit pricing.
                         critAwareCollapse = true,
-                        critWeightAnchorPercent = 100
+                        critWeightAnchorPercent = 100,
+                        anchorConstTransport = anchorConstTransport()
                     )
                 )
             val coupled =
@@ -374,9 +395,13 @@ class MaxDamageSoftCertificateTest {
                         // the anchor's ~24% slack MASKED a real ramp under-count — the lock must pin
                         // the same W pricing production runs.
                         critAwareCollapse = true,
-                        critWeightAnchorPercent = 100
+                        critWeightAnchorPercent = 100,
+                        anchorConstTransport = anchorConstTransport()
                     )
                 )
+            if (anchorConstTransport()) {
+                println("S4_ANCHOR_LOCK incumbent=$incumbent legacy=${legacy.foldedBound} coupled=${coupled.foldedBound} binding=${coupled.bindingState}")
+            }
             assertThat(coupled.foldedBound)
                 .describedAs("the MP-coupled certificate must cover the exact CP-SAT optimum")
                 .isGreaterThanOrEqualTo(incumbent)
@@ -476,7 +501,8 @@ class MaxDamageSoftCertificateTest {
                             stateDependentMpRamp = true,
                             // Production parity (see the sibling lock): pin the crit-aware W pricing.
                             critAwareCollapse = true,
-                            critWeightAnchorPercent = 100
+                            critWeightAnchorPercent = 100,
+                            anchorConstTransport = anchorConstTransport()
                         )
                     )
                 assertThat(coupled.foldedBound)
@@ -686,6 +712,7 @@ class MaxDamageSoftCertificateTest {
                             foldNegativeMaxMp = true,
                             critAwareCollapse = true,
                             critWeightAnchorPercent = 100,
+                            anchorConstTransport = anchorConstTransport(),
                             stateDependentMpRamp = true
                         )
                     )
@@ -912,6 +939,7 @@ class MaxDamageSoftCertificateTest {
                                 worldArm = "secZero",
                                 critAwareCollapse = true,
                                 critWeightAnchorPercent = 100,
+                                anchorConstTransport = anchorConstTransport(),
                                 stateDependentMpRamp = true,
                                 elideImpliedConditionalMarker = true,
                                 secondarySupportPrice = mu,
@@ -1061,6 +1089,7 @@ class MaxDamageSoftCertificateTest {
                             requireConditionalSub = requireConditionalSub(),
                             critAwareCollapse = critAwareCollapse(),
                             critWeightAnchorPercent = critWeightAnchor(),
+                            anchorConstTransport = anchorConstTransport(),
                             stateDependentMpRamp = stateDependentMpRamp(),
                             elideImpliedConditionalMarker = elideImpliedConditionalMarker(),
                             secondarySupportPrice = secondarySupportPrice()
@@ -1118,6 +1147,7 @@ class MaxDamageSoftCertificateTest {
                         diagnosticBasePlain = diagnostic,
                         critAwareCollapse = critAwareCollapse(),
                         critWeightAnchorPercent = critWeightAnchor(),
+                        anchorConstTransport = anchorConstTransport(),
                         stateDependentMpRamp = stateDependentMpRamp(),
                         elideImpliedConditionalMarker = elideImpliedConditionalMarker()
                     )
@@ -1241,6 +1271,7 @@ class MaxDamageSoftCertificateTest {
                             worldArm = world.arm,
                             critAwareCollapse = critAwareCollapse(),
                             critWeightAnchorPercent = critWeightAnchor(),
+                            anchorConstTransport = anchorConstTransport(),
                             stateDependentMpRamp = stateDependentMpRamp(),
                             elideImpliedConditionalMarker = elideImpliedConditionalMarker()
                         )
@@ -1371,6 +1402,7 @@ class MaxDamageSoftCertificateTest {
                             diagnosticBasePlain = diagnostic,
                             critAwareCollapse = critAwareCollapse(),
                             critWeightAnchorPercent = critWeightAnchor(),
+                            anchorConstTransport = anchorConstTransport(),
                             stateDependentMpRamp = stateDependentMpRamp()
                         )
                     println(
@@ -1435,6 +1467,7 @@ class MaxDamageSoftCertificateTest {
                         worldArm = pathArm,
                         critAwareCollapse = critAwareCollapse(),
                         critWeightAnchorPercent = critWeightAnchor(),
+                        anchorConstTransport = anchorConstTransport(),
                         diagnosticBindingCcBandLow = System.getenv("WAKFU_S4_PATH_CC_BAND")?.toLongOrNull(),
                         stateDependentMpRamp = stateDependentMpRamp(),
                         elideImpliedConditionalMarker = elideImpliedConditionalMarker(),
@@ -1495,7 +1528,8 @@ class MaxDamageSoftCertificateTest {
                     requireConditionalSub = requireConditionalSub(),
                     diagnosticBasePlain = diagnostic,
                     critAwareCollapse = critAwareCollapse(),
-                    critWeightAnchorPercent = critWeightAnchor()
+                    critWeightAnchorPercent = critWeightAnchor(),
+                    anchorConstTransport = anchorConstTransport()
                 )
             println("S4_PROTO_ATTRIB arm=$arm bound=${armBound?.foldedBound ?: "bail"}")
         }

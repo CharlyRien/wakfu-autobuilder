@@ -1334,6 +1334,57 @@ sections above.
   `state dependent MP ramp is sound *` pass, including the executed incompatible-choice repro
   and 8 seeded pools containing negative item MP. Next: 30–60 s mono-shape probes, then the union
   and μ locks only if the tightening is useful; no proof matrix yet.
+- First S4-245 DI10/HP1000/CC20 probes (`noExpert`, λ=6000): the single fully relaxed
+  `rampCover` is **20.567467833000T** (~33 s), therefore unusably loose; forcing the same ramp
+  under the `plain` objective arm gives **17.979723778500T** (~22 s). Diagnosis: signed MP itself
+  tightens, but merging all objective/stat cappers into one cap-free cover destroys it. Next probe
+  separates the cap-stat relaxation from the objective arm before choosing the sound cover shape.
+- Fine probes: S4 `ramp/plain/noExpert` at DI1 is **17.762813128500T**, exactly the current honest
+  +0.343% residual (a real MP=8/ramp=24 family survives). IOP-200 is more promising:
+  `ramp/plain/noExpert` = **9.059016241600T** at DI1 (+1.68%), `ramp/secZero/noExpert`
+  at μ=250 = **8.971792605490T** (+0.704%), while excluding the ramp from secZero collapses it
+  to **8.004681412130T**. Thus the post-wave +4% IOP regression really contains unfunded ramp
+  borrowing on no-ramp paths, even though genuine ramp paths set a new ~1.7% floor.
+- Added a lazy sound re-split of `rampCover` into the existing `{plain,secZero,critZero}` objective
+  arms plus every stat-cap assume-world, all with the ramp required. The DI10 full partition is
+  **9.244175188430T** on IOP and costs 69 s; it is secZero-owned at DI10 but plain-owned at DI1.
+  The production queue therefore expands the scout into child candidates after DI10 and refines
+  only the current owner instead of replaying the whole partition at DI1.
+- Post-integration gates so far: compile/test-compile/ktlint GREEN; both hardened ramp locks GREEN;
+  μ∈{0,250,500} lock GREEN (3 seeds, exact always covered). The μ lock took 4m32 on this run,
+  materially slower than the historical 1m42, so wall measurements should be treated as a loaded/
+  thermally noisy machine until a clean E2E. Union lock remains the next soundness gate.
+- First production IOP E2E exposed the real authority: the post-wave no-condition DP+region stayed
+  at +4.019% and burned 131.6 s; the new conditional partition was already below it. Tightened the
+  high-level no-condition DP to HP1000 and λ=4000 for levels 175–224, and gated region CP to DP
+  gaps ≤1% (the +4%/+1.68% IOP reads cannot close and must not burn the 120 s region budget).
+  The second E2E reached **+1.683%** but still took 160.5 s.
+- Exact wall fix: in a ramp-REQUIRED world, Poids Plume is now removed from the normal-sub
+  knapsack and its one slot is reserved explicitly (`9` remaining normal subs). The ramp is known
+  present at collapse, so its state bit was redundant. This leaves every measured bound
+  bit-identical while shrinking the ramp DP: IOP full rampPartition DI10 69 s→42 s in the harness;
+  hardened ramp locks remain GREEN.
+- **IOP-200 production milestone GREEN:** incumbent `8.909052797060T`, final upper
+  **`9.059016241600T` = ProvenWithin 1.683%**, proof wall **99.887 s**. Stage walls:
+  no-condition 21.7 s, coarse 15.3 s, rampPartition DI10 30.7 s, ramp/secZero DI1 18.1 s,
+  ramp/plain DI1 10.2 s, no-ramp/secZero DI10 3.9 s. This improves the honest post-wave badge
+  4.019%→1.683% and returns below the two-minute product goal on this run.
+- S4 scale routing: HP1000 + region kept the correct +0.343% badge but cost 290.8 s. At level
+  ≥225 the no-condition leg now retains HP4000, and region CP only activates below 0.1% (at
+  S4 +0.343%, the conditional ramp/plain world owns the same upper, so refining no-condition
+  cannot alter the union). S4 then returned the same **17.762813128500T (+0.343095%)** in
+  120.940 s.
+- Final scout optimization: use HP4000 only for `rampPartition@DI10`, restoring HP2000 for child
+  DI1 reads. Dedicated probes are bit-identical on both S4 (`17.979723778500T`) and IOP
+  (`9.244175188430T`); harness walls fell 60→44 s and 42→29 s respectively. Final S4 E2E:
+  **ProvenWithin 0.343095% in 106.933 s** (no-condition 13.2 s, coarse 23.3 s, rampPartition
+  46.3 s, ramp/plain DI1 24.1 s). This is now honestly below two minutes.
+- Final repeat after promotion: IOP remains **+1.683% in 110.478 s** (loaded run) and S4 remains
+  **+0.343095% in 106.933 s**. Final union lock GREEN in 5m03; its seed uppers actually tighten
+  from `1.1555/3.8262/3.6844T` to `1.0348/3.4623/3.3449T`, all still above exact optima.
+  Full `:autobuilder:test` + `:autobuilder:ktlintCheck` GREEN in 5m17. The v32 ramp-split jalon is
+  therefore promoted locally; next step is the generality matrix, then the independent
+  `wAnchor/wConst` transport campaign for low-crit shapes.
 
 **⚠️ Matrix numbers above are LOAD-CONTAMINATED.** The two post-wave matrix sweeps (2026-07-20,
 after hours of continuous compile/test load) disagree by up to 13 points on the same shapes with
@@ -1342,3 +1393,156 @@ bails under thermal throttle): the deadline-clipped refinement pipeline makes ba
 wall-speed-dependent. FIRST task of the tightening campaign: re-base the honest badge table with
 ONE cold matrix run (idle machine), before touching anything — per the fast-locks-first
 directive, never conclude tightness from a loaded-machine sweep.
+
+- **v32 generality milestone (single uninterrupted run, 46m45):** all 12 shapes return an honest
+  badge (none unavailable), but only 3 certificate walls are below two minutes. Percentages/walls:
+
+  | shape | honest badge | certificate wall |
+  |---|---:|---:|
+  | cra50-apmp | +15.060% | 110.1 s |
+  | iop110-full | +11.897% | 287.4 s |
+  | xelor155-apmp | +13.190% | 175.7 s |
+  | cra185-full | +5.257% | 93.9 s |
+  | iop215-full | +1.588% | 105.1 s |
+  | sacrieur230-apmp | +16.122% | 229.5 s |
+  | feca65-full | +14.958% | 187.6 s |
+  | enutrof125-cchp | +11.329% | 353.8 s |
+  | panda170-apmp | +13.333% | 215.7 s |
+  | eca195-full | +4.879% | 126.5 s |
+  | osa225-full | +1.562% | 122.7 s |
+  | steamer240-apmp | +16.054% | 245.4 s |
+
+  Relative to the post-wave reference, the ramp partition materially helps high-level FULL
+  requests (cra185 ~8%→5.26%, iop215 5.1%→1.59%, eca195 ~8%→4.88%) and preserves osa225,
+  but AP/MP-only + low-level shapes stay near 12–16%. Enutrof's +11.33%/354 s is worse than its
+  ~8.5% reference because the deadline-clipped route reaches its useful passes very late; its
+  cap-free re-split alone costs ~150 s. This matrix therefore closes the v32 ramp milestone and
+  makes the next campaign unambiguous: recover safe c<100 transport via an anchor/constant split,
+  starting with a bounded Enutrof mono-shape probe. Do not launch another matrix before that probe
+  wins and the ramp/union/mu locks are green.
+
+### Progress journal — v33 anchor/constant crit transport (2026-07-20)
+
+- Implemented the handoff's second lead without a second per-state accumulator. At `c<A`, a
+  state's scalar support `H` is transported as
+  `ceil((r*H + (1-r)*Cmax))`, where `r=max((400+c)/(400+A), c/A)` and `Cmax` independently
+  bounds every non-anchor term. `Cmax` contains lambda's positive-CC support, every positive mu
+  budget credit (arm + one legal item layout), and a conservative fixed `(400+A)*100` seed guard.
+  At `c>=A` the historical whole-support up-scaling remains unchanged.
+- Lambda cannot be bounded from the old CC key once that key saturates at the target/100. With
+  v33 active, the existing seven-bit CC field retains headroom up to 240 raw CC (or bucket 127,
+  whichever is reached first); below the sentinel the state's UP-rounded CC is the tight lambda
+  ceiling, while a saturated/ASSUME state falls back to the global sum of one maximum per real DP
+  stage. No new packed-key field exists.
+- The first propagated implementation (lambda+mu only) was correctly REJECTED by the hardened
+  crit-3 ramp lock: `95200 < exact 96520`. Keeping the fixed +100 mastery/base-hit seed outside
+  the transport restores a sound conservative cushion; both hardened `state dependent MP ramp is
+  sound *` locks are GREEN after the guard. This is deliberately slightly looser than the pure
+  algebraic partition rather than risking another rounding/coupling under-count.
+- Enutrof-125 base/plain mono-world (`DI10/HP1000/CC20`, lambda=1500) improves from
+  `2.595912712500T` (+13.45%) to `2.466304012500T` (+7.79%) in ~10 s. This is the first direct
+  proof that the recovered c<100 transport is materially useful. The fixed guard costs little
+  against its ~1.2M W support.
+- Safety gates: mu lock GREEN for all 3 seeds x `{0,250,500}` (5m20, all nine values cover exact;
+  numerically identical to v32 because those fixtures target crit=100). Production enables the
+  new transport only when the explicit crit target is absent or below 100; target=100 keeps the
+  exact v32 state space and arithmetic. The final production union lock is GREEN (7m52): seed
+  uppers remain bit-identical `1.034786823125/3.462292318100/3.344928176660T`, above exact
+  `0.568852079565/2.276045688840/2.113135111800T`. The lock's longer wall is load/thermal noise,
+  not a v33 state-space cost on its target=100 fixtures.
+- First production Enutrof E2E: same incumbent `2.288092050000T`, badge improves from the v32
+  matrix's +11.329%/353.8 s to **+7.189542%/146.5 s**. The final owner is
+  `ramp/plain DI1 = 2.452595400000T`; the old 150 s cap-free re-split disappears.
+- Removed 27 s of proven-inert post-owner work: a secZero mu read runs only if it can beat the
+  best current non-secZero candidate, and fine alternate-lambda calibration runs only if its DI10
+  scout actually tightened that candidate. Skipping an intersection only retains a looser sound
+  upper. On Enutrof both stages fall from 18+9 s to ~1 ms, badge bit-identical.
+- The remaining wall variance was the <=140 conditional-world CP tree: Enutrof consumed its full
+  180 s (10 nodes, inconclusive) before the ~80 s DP. Levels 111..139 now cap that optional tree at
+  20 s (initially 30 s, but loaded runs returned `nodes=0` at that ceiling); its unfinished
+  frontier dual is itself sound and still intersects the DP. Historical
+  <=110 closures and the measured cra140 endpoint retain 180 s. Enutrof's first 30 s-gated run was
+  **ProvenWithin 7.189542% in 93.458 s**; the final 20 s version is bit-identical in **110.664 s**
+  on a loaded run (world tree 20.137 s, coarse elapsed 27.992 s). Compile, ktlint, hardened ramp
+  locks, mu lock and final union lock GREEN.
+- `CERTIFIER_VERSION` is 33. Next: full standard suite, then targeted xelor155/sacrieur230 probes
+  before any new generality matrix; do not infer matrix-wide wall gains from the Enutrof route.
+- Promotion gate complete: full `:autobuilder:test` + `:autobuilder:ktlintCheck` GREEN in 5m17,
+  exactly the v32 reference wall. v33 is therefore the current sound production milestone; the
+  next reads remain mono-shape probes, not a matrix.
+- Cap-free routing is now hierarchical only on the low-crit v33 path. The merged cap-free cover
+  stops at DI10, is split into its three objective arms, and only a surviving owner descends to
+  DI1; alternate-lambda and mu reads are likewise skipped unless their coarse upper can still win.
+  These are sound queue eliminations: a skipped child remains covered by its looser parent. The
+  target=100 path deliberately retains the complete v32 refinement order.
+- **Xelor-155 targeted E2E:** incumbent `3.067514241300T`; plain mono-world moves from
+  `3.540285253400T` to `3.270915723250T`. Production improves from v32
+  **+13.190% / 175.7 s** to **+6.344086% / 43.122 s**. A first overly lazy cap-free attempt
+  returned the weaker +9.606% and was rejected; the final hierarchical cover restores the exact
+  +6.344086% bound while avoiding all non-owner DI1 work.
+- **Sacrieur-230 targeted E2E:** incumbent `18.586084644855T`; plain mono-world moves from
+  `19.524457183140T` to `18.838420117335T`. Production improves from v32
+  **+16.122% / 229.5 s** to **+1.923349% / 142.959 s**. This is a large badge gain, although the
+  current loaded wall remains about 23 s above the two-minute product target.
+- The three intended low-crit probes all win materially without a soundness-lock regression:
+  Enutrof +11.329%→+7.190%, Xelor +13.190%→+6.344%, Sacrieur +16.122%→+1.923%. The next honest
+  milestone is one final standard-suite run after the routing constants, followed by a cold
+  generality matrix; avoid tuning conclusions from another thermally loaded matrix.
+- Final post-routing promotion gate: full `:autobuilder:test` + `:autobuilder:ktlintCheck` GREEN
+  in **5m25** (17 tasks, no failure/OOM). This supersedes the earlier pre-final-routing 5m17 run.
+
+#### v33 generality matrix milestone (cold isolated run, 40m44)
+
+The requested 12-shape production matrix completed GREEN with no unavailable badge. Compared with
+v32, ten badges tighten and the two explicit crit=100 shapes remain intentionally bit-identical.
+The whole Gradle run falls from 46m45 to 40m44, though individual wall times remain strongly
+shape/order/thermal dependent:
+
+| shape | v32 badge / wall | v33 badge / wall | badge delta |
+|---|---:|---:|---:|
+| cra50-apmp | +15.060% / 110.1 s | **+10.395% / 129.0 s** | -4.665 pt |
+| iop110-full | +11.897% / 287.4 s | **+4.957% / 226.6 s** | -6.940 pt |
+| xelor155-apmp | +13.190% / 175.7 s | **+6.344% / 60.1 s** | -6.846 pt |
+| cra185-full | +5.257% / 93.9 s | **+3.779% / 180.7 s** | -1.478 pt |
+| iop215-full | +1.588% / 105.1 s | **+1.588% / 118.0 s** | unchanged (crit=100) |
+| sacrieur230-apmp | +16.122% / 229.5 s | **+1.923% / 149.7 s** | -14.199 pt |
+| feca65-full | +14.958% / 187.6 s | **+13.993% / 162.2 s** | -0.965 pt |
+| enutrof125-cchp | +11.329% / 353.8 s | **+7.190% / 143.9 s** | -4.139 pt |
+| panda170-apmp | +13.333% / 215.7 s | **+8.159% / 66.3 s** | -5.174 pt |
+| eca195-full | +4.879% / 126.5 s | **+4.135% / 262.3 s** | -0.744 pt |
+| osa225-full | +1.562% / 122.7 s | **+1.562% / 166.1 s** | unchanged (crit=100) |
+| steamer240-apmp | +16.054% / 245.4 s | **+1.915% / 103.9 s** | -14.139 pt |
+
+Four certificate walls are now below two minutes (xelor155, iop215, panda170, steamer240), versus
+three in v32. Cra50 at 129 s is the nearest additional wall closure. Badge-wise the next dominant
+residuals are feca65 (+13.99%), cra50 (+10.40%), panda170 (+8.16%), enutrof125 (+7.19%), then
+xelor155 (+6.34%). Wall-wise eca195 (262 s), iop110 (227 s), cra185 (181 s), osa225 (166 s),
+feca65 (162 s) and sacrieur230 (150 s) remain above the product target. Because the two crit=100
+badges are unchanged while their walls moved, do not attribute wall regressions there to v33
+arithmetic; refinement deadlines and accumulated thermal state still dominate timing variance.
+
+### Progress journal — v34 strict optional-pass deadline (2026-07-20)
+
+- The v33 matrix exposed a routing bug in the nominal 110 s proof deadline. Once the deadline was
+  exhausted, `deadlineSecondsRemaining()` still forced a minimum 20 s budget, so late relaxed and
+  full-model CP probes could push an already-complete sound DP result far beyond the product wall.
+  Lambda-zero refinement was likewise allowed to start after the deadline.
+- Added a raw remaining-budget guard: relaxed CP, lambda-zero and plain full-model probes start only
+  when at least their 20 s minimum remains. Skipping them is sound because the already-computed DP,
+  oracle and world-tree uppers remain in the final union; it can only retain a looser badge.
+  `CERTIFIER_VERSION` is bumped 33→34 because this changes production orchestration/cache results.
+- Instrumented provenance on the late full-model probe and final union. Feca65 reproduced the v33
+  path at **193.948 s**: DP `551.160996750G`, oracle/incumbent `483.505255350G`, world-tree
+  `555.826909950G`; the 20 s plain probe returned the much looser `869.990663530G` and changed
+  nothing. The late relaxed and lambda-zero passes changed no owner either.
+- v34 Feca validations retain the exact **+13.992762%** badge and finish at **121.736 s** and
+  **119.853 s**, versus v33's 162.2 s matrix / 193.9 s loaded diagnostic. The latter is the first
+  Feca run inside the strict two-minute target. Remaining variance is upstream: its parallel
+  conditional-world B&B alternates between a 45 s one-node root bail and a 50–73 s two-node bail.
+- Cra50 independently demonstrated that the low-level world tree is still worth retaining: with
+  identical v33/v34 arithmetic it sometimes closes globally in **18.868 s / 5 nodes**
+  (ProvenOptimal), whereas the isolated matrix run bailed after 2 nodes and returned +10.395% in
+  129 s. The documented canonical 1-worker/interleave mode was already measured much slower
+  (108.79 deterministic units) and is not retried; the multi-worker portfolio remains inherently
+  variable. A tentative 130→120 two-node prognosis threshold was tested but did not participate in
+  the winning Feca run, so it was reverted rather than promoted without evidence.
