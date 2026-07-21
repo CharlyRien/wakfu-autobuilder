@@ -2138,6 +2138,11 @@ object WakfuBuildSolver {
         requiredSublimationStateId: Int? = null,
         // Multi-carrier variant (per-carrier closure blocker subsets): every listed sub is forced.
         requiredSublimationStateIds: Set<Int> = emptySet(),
+        // Cooperative cancellation: polled every 500 ms by a watcher thread that calls
+        // CpSolver.stopSearch() so a multi-minute proof solve stops within a second of the caller
+        // cancelling (a fresh search must never compete with an abandoned proof for CPU). The
+        // stopped solve returns its current status/dual — still sound, and the caller discards it.
+        shouldContinue: (() -> Boolean)? = null,
         // Research-only exact-region seam. Bounds are posted on the resolved sheet stats and can
         // therefore be used to validate a DP-complement partition without changing the objective.
         statLowerBounds: Map<Characteristic, Long> = emptyMap(),
@@ -2253,7 +2258,32 @@ object WakfuBuildSolver {
             solver.parameters.maxDeterministicTime = deterministicLimit
         }
         solver.parameters.maxTimeInSeconds = seconds
-        val status = solver.solve(built.model)
+        val stopWatcher =
+            shouldContinue?.let { cont ->
+                Thread {
+                    try {
+                        while (!Thread.currentThread().isInterrupted) {
+                            if (!cont()) {
+                                solver.stopSearch()
+                                return@Thread
+                            }
+                            Thread.sleep(500)
+                        }
+                    } catch (_: InterruptedException) {
+                        // Solve finished normally — nothing to stop.
+                    }
+                }.apply {
+                    isDaemon = true
+                    name = "wakfu-proof-stop-watcher"
+                    start()
+                }
+            }
+        val status =
+            try {
+                solver.solve(built.model)
+            } finally {
+                stopWatcher?.interrupt()
+            }
         if (System.getenv("WAKFU_MAX_DAMAGE_CERT_DEBUG") == "1" &&
             (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL || status == com.google.ortools.sat.CpSolverStatus.FEASIBLE)
         ) {

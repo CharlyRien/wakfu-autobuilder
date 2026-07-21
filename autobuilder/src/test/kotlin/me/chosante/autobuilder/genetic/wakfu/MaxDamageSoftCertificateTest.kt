@@ -1105,6 +1105,49 @@ class MaxDamageSoftCertificateTest {
         val noConditionOracleMemo = java.util.concurrent.ConcurrentHashMap<String, NoConditionOracle>()
     }
 
+    /**
+     * A cancelled proof must RELEASE its CPU promptly ("une recherche ne doit jamais en bloquer une
+     * autre", 2026-07-21): the stop-watcher thread polls `shouldContinue` every 500 ms and calls
+     * `CpSolver.stopSearch()`, so a multi-minute solve ends seconds after cancellation instead of
+     * running to its full budget. Full sacrieur-sized pool + 60 s budget, cancelled at 2 s — the
+     * whole call must return well under the budget (generous 30 s ceiling for model build + stop
+     * latency on a loaded machine).
+     */
+    @Test
+    fun `a cancelled proof solve stops within seconds not its full budget`() {
+        val level = 230
+        val pool =
+            WakfuBestBuildFinderAlgorithm.equipments
+                .filter { it.rarity <= Rarity.EPIC }
+                .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+                .groupBy { it.itemType }
+        val p =
+            mdParams(
+                level,
+                listOf(
+                    TargetStat(Characteristic.ACTION_POINT, 16),
+                    TargetStat(Characteristic.MOVEMENT_POINT, 8)
+                ),
+                CharacterClass.SACRIEUR
+            )
+        WakfuBuildSolver.warmUp()
+        val t0 = System.nanoTime()
+        WakfuBuildSolver.timedMaxDamageProfileForTest(
+            params = p,
+            equipmentsByItemType = pool,
+            runes = WakfuBestBuildFinderAlgorithm.runes,
+            sublimations = WakfuBestBuildFinderAlgorithm.sublimations,
+            workers = 2,
+            seconds = 60.0,
+            applyDomination = true,
+            shouldContinue = { (System.nanoTime() - t0) / 1_000_000 < 2_000L }
+        )
+        val wallMs = (System.nanoTime() - t0) / 1_000_000
+        assertThat(wallMs)
+            .describedAs("a solve cancelled at 2 s must stop promptly, not run its 60 s budget")
+            .isLessThan(30_000L)
+    }
+
     @Test
     fun `manual S4 prototype soundness lock on seeded pools`(): Unit =
         runBlocking {
