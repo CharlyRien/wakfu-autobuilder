@@ -75,9 +75,12 @@ sealed interface ProofState {
     /** The build is the PROVEN optimum (CP-SAT closed the gap, or the certificate did). */
     data object ProvenOptimal : ProofState
 
-    /** Not proven optimal, but the certificate bounds the gap: the true optimum is at most [fraction] above. */
+    /** Not proven optimal, but the certificate bounds the gap: the true optimum is at most [fraction] above.
+     *  [refining] = the per-carrier silent refinement is still running and may tighten this badge (or close
+     *  it to [ProvenOptimal]); the UI shows the badge plus a small progress indicator while it is true. */
     data class ProvenWithin(
         val fraction: Double,
+        val refining: Boolean = false,
     ) : ProofState
 
     /** No proof available (forced runes/sublimations, required-stat targets, or an un-proven boss). */

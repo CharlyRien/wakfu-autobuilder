@@ -3111,6 +3111,220 @@ internal object MaxDamageSoftCertificate {
 
     private val unionMemo = java.util.concurrent.ConcurrentHashMap<List<Any>, SoftUnionUpper>()
 
+    // ————— Per-carrier closure — the silent-refinement authority (journal 2026-07-21) —————
+    // Measured on sacrieur230: carrier-forced FULL-EXACT solves (every supported condition modeled,
+    // one sub forced) prove OPTIMAL in <=300 s at level 230 where the monolithic model (and even its
+    // cutoff DECISION form) stays reification-walled after 600 s. 13/15 carriers closed full-exact;
+    // the two whose condition does not prune the space (CRIT_AT_LEAST, NO_OFFHAND_OR_TWO_HANDED)
+    // closed via the STRICT set-cover below. Composition proved the shape's true optimum exactly.
+
+    /** Per-carrier budget for the full-exact attempt (sacrieur: 11/15 proved OPTIMAL well inside). */
+    private const val CARRIER_CLOSURE_FULL_SECONDS = 120.0
+
+    /** Budget for a blocker's STRICT run (no-condition subs + the blockers only — far smaller model). */
+    private const val CARRIER_CLOSURE_STRICT_SECONDS = 300.0
+
+    /** A sound upper bound on the CONDITIONAL partition (every build carrying >=1 conditional sub). */
+    internal class CarrierClosureUpper(
+        val conditionalUpper: Long,
+        val wallMs: Long,
+    )
+
+    private val carrierClosureMemo = java.util.concurrent.ConcurrentHashMap<List<Any>, CarrierClosureUpper>()
+
+    /** Budget for the refinement's own no-condition oracle anchor, paid only when the fast pass's
+     *  240 s oracle returned a dual instead of a proof (sacrieur230's oracle needs >240 s). */
+    private const val CARRIER_CLOSURE_ORACLE_SECONDS = 900.0
+
+    private val refineOracleMemo = java.util.concurrent.ConcurrentHashMap<List<Any>, Long>()
+
+    /**
+     * The EXACT no-condition optimum (CP-SAT `OPTIMAL` over the condition-free catalog), or null when
+     * the proof does not close within the refinement budget / on cancellation. The exact anchor the
+     * per-carrier composition needs when the fast pass's shorter oracle only produced a dual.
+     */
+    fun noConditionOptimum(
+        params: WakfuBestBuildParams,
+        pool: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        workers: Int,
+        shouldContinue: () -> Boolean = { true },
+    ): Long? {
+        if (!supportsShape(params)) return null
+        val memoKey: List<Any> =
+            listOf(
+                "refineOracle",
+                me.chosante.common.WakfuData.VERSION,
+                WakfuBuildSolver.CERTIFIER_VERSION,
+                params,
+                pool.values
+                    .flatten()
+                    .map { it.equipmentId }
+                    .sorted(),
+                sublimations.map { it.name.fr }.sorted(),
+                runes.size
+            )
+        refineOracleMemo[memoKey]?.let { return it }
+        if (!shouldContinue()) return null
+        val profile =
+            try {
+                WakfuBuildSolver.timedMaxDamageProfileForTest(
+                    params = params,
+                    equipmentsByItemType = pool,
+                    runes = runes,
+                    sublimations = sublimations.filter { it.condition == null },
+                    workers = workers,
+                    seconds = CARRIER_CLOSURE_ORACLE_SECONDS,
+                    applyDomination = true
+                )
+            } catch (e: Exception) {
+                logger.warn(e) { "per-carrier closure: the refinement oracle solve failed" }
+                return null
+            }
+        if (profile.status != "OPTIMAL") {
+            logger.info { "per-carrier closure: refinement oracle did not prove (status=${profile.status} bound=${profile.bestBound})" }
+            return null
+        }
+        return profile.objective.also { refineOracleMemo[memoKey] = it }
+    }
+
+    /**
+     * Sound upper bound on the penalized objective over every build that carries at least one
+     * conditional sublimation, by per-carrier composition:
+     *
+     *  1. **Full-exact carrier worlds.** For each solver-choosable conditional carrier `c`, solve
+     *     the FULL catalog (every condition exactly modeled) with `c` forced. Any build containing
+     *     `c` lies in that world, so its bound covers ALL builds containing `c` — a build is
+     *     covered by the world of ANY of its carriers, no ordering needed.
+     *  2. **STRICT set-cover for the blockers.** Carriers whose full-exact solve stays above
+     *     [incumbentObjective] within budget (conditions that do not prune the item space) leave
+     *     uncovered only the builds whose ENTIRE conditional set is blockers (any other carrier in
+     *     the build closes it via step 1). One run per blocker `b` — catalog restricted to
+     *     no-condition subs + the blockers, `b` forced — covers every such build containing `b`,
+     *     so the k blocker runs cover the whole residual class.
+     *
+     * Every ingredient is a sound upper on the builds it covers (OPTIMAL = exact; a dual bound is
+     * sound; INFEASIBLE = empty world), so the max over the cover is a sound conditional-partition
+     * upper. Returns null on an unsupported shape or cancellation — the caller keeps the DP badge.
+     * Wall: worst case ~(#carriers x 2 min + #blockers x 5 min); meant for the SILENT refinement
+     * that runs after the fast DP badge, never inside the proof-phase deadline.
+     */
+    fun perCarrierClosureUpper(
+        params: WakfuBestBuildParams,
+        pool: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        workers: Int,
+        incumbentObjective: Long,
+        shouldContinue: () -> Boolean = { true },
+        onPhase: (String) -> Unit = {},
+    ): CarrierClosureUpper? {
+        if (!supportsShape(params)) return null
+        val memoKey: List<Any> =
+            listOf(
+                "carrierClosure",
+                me.chosante.common.WakfuData.VERSION,
+                WakfuBuildSolver.CERTIFIER_VERSION,
+                params,
+                pool.values
+                    .flatten()
+                    .map { it.equipmentId }
+                    .sorted(),
+                sublimations.map { it.name.fr }.sorted(),
+                runes.size,
+                incumbentObjective
+            )
+        carrierClosureMemo[memoKey]?.let { return it }
+        val t0 = System.nanoTime()
+        // Unsupported-condition choosable subs are modeled ALWAYS-ON by the solver (a sound
+        // over-credit), so they participate as carriers too — the cover must span every
+        // conditional sub a build could take, not only the exactly-modeled condition types.
+        val carriers = sublimations.filter { it.solverChoosable && it.condition != null }
+        if (carriers.isEmpty()) return CarrierClosureUpper(Long.MIN_VALUE, 0L).also { carrierClosureMemo[memoKey] = it }
+
+        fun worldUpper(
+            subs: List<Sublimation>,
+            requiredStateIds: Set<Int>,
+            seconds: Double,
+        ): Long? {
+            if (!shouldContinue()) return null
+            val profile =
+                try {
+                    WakfuBuildSolver.timedMaxDamageProfileForTest(
+                        params = params,
+                        equipmentsByItemType = pool,
+                        runes = runes,
+                        sublimations = subs,
+                        workers = workers,
+                        seconds = seconds,
+                        applyDomination = true,
+                        requiredSublimationStateIds = requiredStateIds
+                    )
+                } catch (e: IllegalStateException) {
+                    // A carrier the solver does not model at all cannot appear in any candidate
+                    // build — its world is EMPTY over the certified space, not unbounded.
+                    if (e.message?.contains("is not modeled in this world") == true) return Long.MIN_VALUE
+                    logger.warn(e) { "per-carrier closure: world solve failed for subs $requiredStateIds — keeping the DP badge" }
+                    return Long.MAX_VALUE
+                } catch (e: Exception) {
+                    logger.warn(e) { "per-carrier closure: world solve failed for subs $requiredStateIds — keeping the DP badge" }
+                    return Long.MAX_VALUE
+                }
+            return when (profile.status) {
+                "INFEASIBLE" -> Long.MIN_VALUE
+                "OPTIMAL" -> profile.objective
+                // FEASIBLE/UNKNOWN: the (ceil-rounded) dual is a sound upper of the world.
+                else -> profile.bestBound
+            }
+        }
+
+        onPhase("carrierClosure")
+        var conditionalUpper = Long.MIN_VALUE
+        val blockers = mutableListOf<Sublimation>()
+        for (carrier in carriers) {
+            val upper = worldUpper(sublimations, setOf(carrier.stateId), CARRIER_CLOSURE_FULL_SECONDS) ?: return null
+            logger.info {
+                "per-carrier closure: full-exact carrier=${carrier.name.fr} upper=$upper " +
+                    "closes=${upper <= incumbentObjective}"
+            }
+            if (upper <= incumbentObjective) {
+                conditionalUpper = maxOf(conditionalUpper, upper)
+            } else {
+                blockers += carrier
+            }
+        }
+        if (blockers.isNotEmpty()) {
+            onPhase("carrierClosureStrict")
+            // The residual class after step 1 = builds whose conditional subs are ALL blockers
+            // (any other carrier in the build was covered by that carrier's closed full world).
+            // Enumerate the non-empty blocker SUBSETS: for subset S, force EVERY sub of S and
+            // exclude the other blockers — the fully concentrated form (only forced reifications
+            // remain), the class every sacrieur measurement closed OPTIMAL in <=300 s, where a
+            // single run keeping the other blockers free stalls (D-forced + E-kept: +11.4%).
+            // k blockers => 2^k − 1 runs; measured k=2, capped at 4 (beyond it keep the loose
+            // full-exact duals — sound, the badge just stays ProvenWithin).
+            if (blockers.size > 4) {
+                logger.info { "per-carrier closure: ${blockers.size} blockers — subset enumeration skipped, keeping their full-exact duals" }
+                conditionalUpper = Long.MAX_VALUE
+            } else {
+                val blockerIds = blockers.map { it.stateId }
+                for (mask in 1 until (1 shl blockers.size)) {
+                    val forced = blockerIds.filterIndexed { i, _ -> (mask shr i) and 1 == 1 }.toSet()
+                    val strictSubs = sublimations.filter { it.condition == null || it.stateId in forced }
+                    val upper = worldUpper(strictSubs, forced, CARRIER_CLOSURE_STRICT_SECONDS) ?: return null
+                    logger.info {
+                        "per-carrier closure: strict subset=${blockers.filter { it.stateId in forced }.joinToString("+") { it.name.fr }} " +
+                            "upper=$upper closes=${upper <= incumbentObjective}"
+                    }
+                    conditionalUpper = maxOf(conditionalUpper, upper)
+                }
+            }
+        }
+        return CarrierClosureUpper(conditionalUpper, (System.nanoTime() - t0) / 1_000_000)
+            .also { carrierClosureMemo[memoKey] = it }
+    }
+
     /** Mirrors [bound]'s cheap up-front shape gates so the orchestrator can refuse a shape BEFORE
      *  spending an oracle solve on it. Deep bails (geometry overflow, >6 cap subs, AP-headroom)
      *  still surface as a null [bound] — the orchestrator then returns null too. */
