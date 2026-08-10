@@ -12,7 +12,7 @@
 jvm = "25"
 # Kotlin: drives the kotlin-jvm / kotlin-serialization / compose-compiler plugins (they are released
 # in lockstep with the Kotlin version) across every module.
-kotlin = "2.4.0"
+kotlin = "2.4.10"
 # OR-Tools: the JVM lib (autobuilder) and the per-OS native artifacts (gui-compose packaging) share
 # this version, also read via libs.versions.ortools for the Conveyor machine configs.
 ortools = "9.15.6755"
@@ -20,7 +20,7 @@ coroutines = "1.11.0"
 fuel = "2.3.1"
 kotlinxSerialization = "1.11.0"
 assertj = "3.27.7"
-junit = "6.1.1"
+junit = "6.1.2"
 ktlint = "14.2.0"
 # Compose Multiplatform: `compose` drives the org.jetbrains.compose plugin and the per-OS Desktop
 # artifacts (they share that version). Material3 ships on a separate cadence, hence its own version.
