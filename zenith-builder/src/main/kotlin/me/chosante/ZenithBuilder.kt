@@ -76,7 +76,8 @@ internal fun sideAssignments(equipments: List<Equipment>): List<Pair<Equipment, 
  * (one copy per ≥3-socket item), and nothing here dedupes by shard id.
  *
  * [subShardId] maps a sublimation to the Zenith shard id actually socketed — the tier-resolved family
- * member (see [fetchSublimationLevelIds]); the default keeps the raw `zenithId` (family root, level 1).
+ * member (see [fetchSublimationLevelIds]); the default keeps the raw `zenithId`, which the extractor already
+ * sets to the credited (maxTier) family member.
  *
  * EPIC/RELIC subs live in the build's dedicated character slots on Zenith, not on an item: the UI posts
  * them with `side = 0, position = 0`, so the export does too (the server routes them by the shard's
@@ -101,7 +102,8 @@ internal fun plannedShards(
 /**
  * The tier-resolver for [plannedShards]: the family member of [Sublimation.zenithId] whose Zenith shard
  * level equals the sub's credited [Sublimation.maxTier]. Falls back to the raw id when the catalog is
- * unreachable or the family has no such member (then Zenith shows the tier-I shard, level 1).
+ * unreachable or the id is not a family root — both fine, since the raw id is already the maxTier member
+ * (verified live 2026-10-01: Ravage III / Poids Plume III read back at level 3).
  */
 private fun subShardIdResolver(levelIdsByRoot: Map<Int, Map<Int, Int>>): (Sublimation) -> Int = { sub -> levelIdsByRoot[sub.zenithId]?.get(sub.maxTier) ?: sub.zenithId }
 
