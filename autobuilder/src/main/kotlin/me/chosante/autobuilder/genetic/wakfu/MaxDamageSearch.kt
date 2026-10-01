@@ -493,11 +493,12 @@ object MaxDamageSearch {
      *    violation the badge is suppressed and the event logged (never a wrong "proven").
      *  - **Required-stat targets are supported** (they were previously skipped): the certificate bounds damage over
      *    ALL builds, so it certifies the incumbent when the incumbent FULLY meets every required target — then its
-     *    shortfall multiplier is the flat maximum and "max damage" ⟺ "max penalized objective". A build that
-     *    misses a target could out-score it on the penalized objective, so that case stays [MaxDamageProof.Unavailable].
+     *    shortfall multiplier is the flat maximum and "max damage" ⟺ "max penalized objective". A target-MISSING
+     *    incumbent (the soft unreachable-targets fallback) is handed to the dedicated soft certificate instead
+     *    ([proveSoftLegQuality], plan §9.20), which compares in penalized units end to end.
      *  - Skipped (→ [MaxDamageProof.Unavailable]) for forced runes, a survivability soft-floor (a per-build
-     *    multiplier the damage-only certificate does not model), an un-proven boss/multi-element request, a
-     *    target-missing incumbent, or a bailed certifier shape.
+     *    multiplier the damage-only certificate does not model), an un-proven boss/multi-element request, or a
+     *    bailed certifier shape.
      */
     fun proveOptimality(
         baseParams: WakfuBestBuildParams,
@@ -509,6 +510,8 @@ object MaxDamageSearch {
         // B8: polled once per certifier DP stage. When the caller cancels the proof (search restarted / window
         // closed) the certificate bails promptly and this returns Unavailable with nothing cached.
         isCancelled: () -> Boolean = { false },
+        // User-facing progress: stage keys from the soft-leg union, forwarded to the GUI narrator.
+        onPhase: (String) -> Unit = {},
     ): MaxDamageProof {
         // The item prefilter (multi-element mastery / resistance targets) is a top-N-per-stat HEURISTIC that can
         // prune the true optimum. When it fires, NEITHER of the two proof authorities is sound: CP-SAT's `OPTIMAL`
@@ -556,7 +559,11 @@ object MaxDamageSearch {
         // solver-vs-scorer percent-rounding divergence (HP is the only percent-affected required target) denying a
         // deserved badge when the scorer grid reads one point short of a target the solver provably met.
         if (!result.maxDamageHardConstraintsMet && !fullyMeetsRequiredTargets(baseParams, result.individual)) {
-            return MaxDamageProof.Unavailable
+            // SOFT-leg incumbent with UNMET required targets (the unreachable-targets fallback):
+            // the AP-cell damage ledger cannot certify it (penalized units), but the dedicated
+            // soft certificate can — the hybrid partition union of [MaxDamageSoftCertificate]
+            // (plan §9.20). It compares in PENALIZED objective units end to end.
+            return proveSoftLegQuality(baseParams, equipmentsByItemType, runes, sublimations, result, isCancelled, onPhase)
         }
 
         val ledger =
@@ -584,7 +591,10 @@ object MaxDamageSearch {
         if (cellBound == null || cellBound < incumbentProxy) {
             logger.error {
                 "Certificate self-check FAILED (badge suppressed): cell $incumbentAp bound=$cellBound < proxy=$incumbentProxy " +
-                    "— the certifier under-counted on live data. Solve is unaffected."
+                    "— the certifier under-counted on live data, OR the caller stamped a proxy that does not " +
+                    "belong to result.individual (production incumbents are always read off the solved " +
+                    "assignment; a fabricated result can pair a strong proxy with a weaker build's AP cell). " +
+                    "Solve is unaffected."
             }
             return MaxDamageProof.Unavailable
         }
@@ -594,6 +604,175 @@ object MaxDamageSearch {
             MaxDamageProof.ProvenOptimal
         } else {
             MaxDamageProof.ProvenWithin((maxCell.toDouble() / incumbentProxy.toDouble()) - 1.0)
+        }
+    }
+
+    /** Wall-clock budget for the soft-leg proof's no-condition CP-SAT oracle. The S4 reference shape
+     *  proves OPTIMAL in ~40-140 s on the real-parallel portfolio; on a timeout the dual bound stands
+     *  in (sound, looser — the badge degrades to "proven within X%", never to a wrong "optimal"). */
+    private const val SOFT_ORACLE_BUDGET_SECONDS = 240.0
+
+    /** Above this gap fraction a "proven within X%" badge is noise, not information — show nothing. */
+    private const val SOFT_PROOF_MAX_USEFUL_FRACTION = 0.25
+
+    /**
+     * §9.20 — the SOFT-leg (targets-unreachable fallback) proof. The incumbent's PENALIZED objective is
+     * compared against [MaxDamageSoftCertificate.hybridUnionUpper], a sound upper bound on the penalized
+     * objective over ALL builds (no-condition CP-SAT optimum ∪ conditional-only DP certificate).
+     *
+     * Self-check discipline: soundness guarantees `incumbent ≤ optimum ≤ upper`, so a strictly greater
+     * incumbent means the certificate under-counted on live data — badge suppressed and logged, mirroring
+     * the AP-cell ledger's self-check. Equality is the proven-optimal case (S4 closes exactly).
+     */
+    private fun proveSoftLegQuality(
+        baseParams: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        result: SolverResult<BuildCombination>,
+        isCancelled: () -> Boolean,
+        onPhase: (String) -> Unit = {},
+    ): MaxDamageProof {
+        // A greedy warm-start emission is not a solution of the model — its objective is not in
+        // solver units, so it is not comparable to the certificate.
+        if (result.greedyWarmStartEmission) return MaxDamageProof.Unavailable
+        val incumbent = result.maxDamageObjective ?: return MaxDamageProof.Unavailable
+        if (incumbent <= 0L) return MaxDamageProof.Unavailable
+        val union =
+            MaxDamageSoftCertificate.hybridUnionUpper(
+                baseParams,
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                // NOT [threads] (the heap-bound DP-world formula, often ~4): CP-SAT workers are
+                // memory-cheap and this solve needs the REAL parallel portfolio — §9.11 measured
+                // low-worker duals stalling ~2× above the optimum, which silently degrades an
+                // exact closure into "proven within ~4%". 8 workers prove the S4 shape in ~40 s.
+                oracleWorkers = (Runtime.getRuntime().availableProcessors() - 2).coerceIn(4, 8),
+                oracleSeconds = SOFT_ORACLE_BUDGET_SECONDS,
+                shouldContinue = { !isCancelled() },
+                incumbentObjective = incumbent,
+                onPhase = onPhase
+            ) ?: return MaxDamageProof.Unavailable
+        return when {
+            incumbent > union.upper -> {
+                logger.error {
+                    "Soft certificate self-check FAILED (badge suppressed): union upper=${union.upper} < " +
+                        "incumbent=$incumbent (noConditionUpper=${union.noConditionUpper}, " +
+                        "proven=${union.noConditionProven}) — the soft certifier under-counted on live data. " +
+                        "Solve is unaffected."
+                }
+                MaxDamageProof.Unavailable
+            }
+            incumbent == union.upper -> MaxDamageProof.ProvenOptimal
+            else -> {
+                val fraction = (union.upper.toDouble() / incumbent.toDouble()) - 1.0
+                // Badge-quality floor: the union is loose on some shapes (the §9.20 generality
+                // screen measured +46% at cra-140 vs EXACT at the S4 frontier). A "proven within
+                // 46%" badge carries no information — beyond 25% show honest absence instead.
+                if (fraction > SOFT_PROOF_MAX_USEFUL_FRACTION) MaxDamageProof.Unavailable else MaxDamageProof.ProvenWithin(fraction)
+            }
+        }
+    }
+
+    /**
+     * SILENT-REFINEMENT pass for a SOFT-leg `ProvenWithin` verdict (journal 2026-07-21): after the fast DP
+     * badge, the per-carrier closure ([MaxDamageSoftCertificate.perCarrierClosureUpper]) re-bounds the
+     * conditional partition with carrier-forced EXACT CP solves — the instrument that proved sacrieur230's
+     * true optimum where the monolithic model stays reification-walled. Combined with the no-condition
+     * oracle's `OPTIMAL` proof (already computed and memoized by the first pass), the refined union can
+     * close the badge to [MaxDamageProof.ProvenOptimal] outright.
+     *
+     * Returns the improved verdict, or null when refinement does not apply (hard-leg result, unsupported
+     * shape, oracle not proven, cancellation) or cannot improve the badge — the caller then keeps the
+     * first-pass verdict. Wall: minutes (meant to run visibly-but-silently after the badge is shown).
+     */
+    fun refineSoftLegProof(
+        baseParams: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        result: SolverResult<BuildCombination>,
+        isCancelled: () -> Boolean = { false },
+        onPhase: (String) -> Unit = {},
+    ): MaxDamageProof? {
+        // Mirror the [proveOptimality] shape gates — refinement only ever applies to the soft leg.
+        if (WakfuBuildSolver.needsItemPrefilter(baseParams.targetStats)) return null
+        if (result.isOptimal || result.maxDamageHeuristicPhases) return null
+        if (baseParams.forcedRunesByItem.isNotEmpty() || baseParams.forcedRunes.isNotEmpty()) return null
+        if (baseParams.damageScenario.survivabilityFloor && baseParams.damageScenario.minEffectiveHp > 0) return null
+        if (baseParams.damageScenario.candidateElements().size > 1) return null
+        if (result.maxDamageHardConstraintsMet || fullyMeetsRequiredTargets(baseParams, result.individual)) return null
+        if (result.greedyWarmStartEmission) return null
+        val incumbent = result.maxDamageObjective ?: return null
+        if (incumbent <= 0L) return null
+        // Reuse the first pass's union (proven or not) — never a second DP + oracle solve.
+        val union =
+            MaxDamageSoftCertificate.hybridUnionUpper(
+                baseParams,
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                oracleWorkers = (Runtime.getRuntime().availableProcessors() - 2).coerceIn(4, 8),
+                oracleSeconds = SOFT_ORACLE_BUDGET_SECONDS,
+                shouldContinue = { !isCancelled() },
+                incumbentObjective = incumbent,
+                onPhase = onPhase,
+                reuseFirstPass = true
+            ) ?: return null
+        if (incumbent > union.upper) return null // first-pass self-check already suppressed the badge
+        if (incumbent == union.upper) return MaxDamageProof.ProvenOptimal
+        val workers = (Runtime.getRuntime().availableProcessors() - 2).coerceIn(4, 8)
+        // The exact no-condition anchor: reuse the fast pass's proof when it closed; otherwise pay a
+        // longer refinement oracle (sacrieur230's no-condition proof needs >240 s) — without it the
+        // composition has no exact floor and refinement cannot improve the badge. It runs FIRST and
+        // ALONE at full workers: it is the closure's hard prerequisite (no proof ⇒ refinement is
+        // futile — fail fast), and running it beside the sweep was measured to starve BOTH (16
+        // threads: carriers that prove OPTIMAL alone returned 2-3x garbage duals — §9.11 again).
+        val noConditionOptimum =
+            if (union.noConditionProven) {
+                union.noConditionUpper
+            } else {
+                onPhase("carrierClosureOracle")
+                MaxDamageSoftCertificate.noConditionOptimum(
+                    baseParams,
+                    equipmentsByItemType,
+                    runes,
+                    sublimations,
+                    workers = workers,
+                    shouldContinue = { !isCancelled() }
+                ) ?: return null
+            }
+        val closure =
+            MaxDamageSoftCertificate.perCarrierClosureUpper(
+                baseParams,
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                workers = workers,
+                incumbentObjective = incumbent,
+                shouldContinue = { !isCancelled() },
+                onPhase = onPhase
+            ) ?: return null
+        // Both sides are sound uppers over all builds — intersecting keeps the tighter one.
+        val refinedUpper = minOf(union.upper, maxOf(noConditionOptimum, closure.conditionalUpper))
+        logger.info {
+            "soft-leg refine: incumbent=$incumbent firstPassUpper=${union.upper} " +
+                "noCondition=$noConditionOptimum conditional=${closure.conditionalUpper} refined=$refinedUpper"
+        }
+        return when {
+            incumbent > refinedUpper -> {
+                logger.error {
+                    "Soft refine self-check FAILED (refinement discarded): refined upper=$refinedUpper < " +
+                        "incumbent=$incumbent — the per-carrier closure under-counted on live data."
+                }
+                null
+            }
+            incumbent == refinedUpper -> MaxDamageProof.ProvenOptimal
+            else -> {
+                val fraction = (refinedUpper.toDouble() / incumbent.toDouble()) - 1.0
+                if (fraction > SOFT_PROOF_MAX_USEFUL_FRACTION) null else MaxDamageProof.ProvenWithin(fraction)
+            }
         }
     }
 
@@ -1051,6 +1230,7 @@ object MaxDamageCertificateCache {
                     searchDuration = Duration.ZERO,
                     stopWhenBuildMatch = false,
                     maxDamageApTarget = null,
+                    maxDamageMpPin = null,
                     solverWorkers = null
                 ),
             poolIds =
@@ -1077,8 +1257,8 @@ object MaxDamageCertificateCache {
      * verified against (see [MaxDamageCertificateDiskCache]). Every atom is length-prefixed (`<len>|<value>`) so
      * the encoding is prefix-free: distinct keys never collide. Sets/maps are sorted (their `equals` is
      * order-insensitive); lists keep order (their `equals` is not). It therefore distinguishes any two
-     * `equals`-unequal keys — a hit can only ever be for the exact same request. The four fields the [Key]
-     * already normalized away (search duration, stop-on-match, AP pin, worker count) are constant here and
+     * `equals`-unequal keys — a hit can only ever be for the exact same request. The five fields the [Key]
+     * already normalized away (search duration, stop-on-match, AP/MP pins, worker count) are constant here and
      * omitted. A tripwire test ([WakfuBuildSolverTest] `fingerprint covers every field`) fails if a field is
      * added to the fingerprinted graph without being encoded here.
      */

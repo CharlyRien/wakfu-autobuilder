@@ -30,6 +30,7 @@ import me.chosante.common.Rarity
 import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationConditionType
+import me.chosante.common.SublimationEffect
 import me.chosante.common.SublimationRarity
 import me.chosante.common.skills.Assignable
 import me.chosante.common.skills.CharacterSkills
@@ -179,9 +180,42 @@ object WakfuBuildSolver {
      * harvest as sorted-prefix budgets (`diPrefix` / `grawBudgetPrefix` + `budgetMax` split enumeration over the
      * free slots), exactly like the pre-existing pure-crit / pure-AP budgets; all-zero Raws (off-element DI subs
      * in a mono-element scenario) are dropped outright. Reachable value set identical (sorted-prefix selection
-     * is exact for a mono-axis family) ⇒ certified values unchanged; only the DP frontier shrinks.
+     * is exact for a mono-axis family) ⇒ certified values unchanged; only the DP frontier shrinks;
+     * 16: INDEXED FAST HARVEST default ON (campaign-2 C-0, plan §8.6) — the fast pass hands the harvest a
+     * packed `(state, AP-cell, crit-step)` coordinate list built during the DP sweep instead of re-scanning
+     * `all cells × all crit steps`. Same visiting order and predicates ⇒ ledger byte-identical (locked by
+     * [MaxDamageCertifierHarvestIndexTest]); fast tier −16%, total −9% serial. OFF seam:
+     * `WAKFU_MAX_DAMAGE_CERT_INDEXED_HARVEST=0`;
+     * 17: fixes the soft-proof conditions-stripped relaxation so STATIC_CONDITIONAL subs become
+     * FLAT instead of being filtered out. This restores the required upper-bound relation on
+     * conditional-carrying optima and invalidates every cached union computed by v16;
+     * 18: adds the bounded external conditional-world B&B ahead of the soft DP. Its exhaustive
+     * `{sub=0 | sub=1+exact-condition}` partitions either close at the incumbent or contribute a
+     * sound global frontier dual; every cached v17 soft union must therefore be recomputed;
+     * 19: confines that B&B to the measured level≤110 regime and makes its 180 s budget terminal
+     * (inconclusive returns the sound frontier upper instead of stacking the old DP/oracle budgets).
+     * OPTIMAL nodes also use their rounded exact objective, avoiding a +1 floating dual epsilon;
+     * 20: removes per-candidate pinned probe solves from conditional-world branching. They only
+     * improved the branch heuristic (not soundness) and consumed much of the real total budget;
+     * 21: intersects every finite-time child dual with its inherited parent dual. A child is a
+     * subset of its parent, so this is an exact free tightening and prevents timeout noise from
+     * making a deeper frontier bound worse than an already-known ancestor bound.
+     * 36: adds the per-carrier closure (silent refinement, journal 2026-07-21) — carrier-forced
+     * full-exact CP worlds + STRICT blocker set-cover composing with the proven no-condition
+     * oracle into an exact soft-leg upper; its memo is keyed by this version;
+     * 37: every soft-proof CP read goes through [MaxDamageTimedProfile.soundUpper] — an UNKNOWN /
+     * MODEL_INVALID solve without a real dual (stopped or timed out inside presolve: native bound 0)
+     * no longer reads as "world closed at 0"; cap-sub world splits bail on a non-EPIC cap sub;
+     * 38: most-masteries certificate under-count fixes (pre-release review 2026-10-01) — paired-skill
+     * halves credited (major MP), Armure lourde's MAX_MP debit ignored instead of lowering the MP cap,
+     * selected passives credited, MAX_ACTION_POINT folded into the assume-AP low read, start-of-combat
+     * lines kept out of the LOW dims but added (with ramps/passives) to the assume-world constants and
+     * world-B M-caps, block-only subs kept; hard-leg results compared in soft units. The max-damage
+     * soft certificate gets the same low-read fixes (signed AP + MAX_AP, start-of-combat lines out of
+     * the LOW dims, low-read/block-only subs kept), the outside-read constants (assume worlds, critZero
+     * arm), the Major AP point always staged, and a bail on secondary lines outside the first-turn read.
      */
-    const val CERTIFIER_VERSION: Int = 15
+    const val CERTIFIER_VERSION: Int = 38
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
@@ -218,7 +252,8 @@ object WakfuBuildSolver {
     // adding a bonus in [0, OVERSHOOT_SCALE) keeps the combined objective (~1e18) well under
     // Long.MAX/2 (~4.6e18) while guaranteeing one unit of primary always beats any overshoot bonus.
     // See [withOvershootTieBreaker].
-    private const val OVERSHOOT_SCALE = 10_000L
+    // Internal (not private) so the §8.2 S-A outer driver can fold interval bounds in the same units.
+    internal const val OVERSHOOT_SCALE = 10_000L
 
     // The GA scorers weight each target by a Double = (100 / target) * userDefinedWeight, which is
     // almost always < 1 for high targets (e.g. HP target 2000 -> 0.05). Truncating that to Long with
@@ -480,6 +515,35 @@ object WakfuBuildSolver {
         // soundness — an under-estimating U silently truncates the optimum, so the A/B harness locks
         // optimum equality against the un-cut baseline. Production always passes null.
         val mmMasteryScoreUpperBound: Long? = null,
+        // §8.2 S-A seam (test-only, most-masteries SOFT model): constrain the penalty bucket to this
+        // interval and REMOVE the penalty product from the searched model. Non-singleton (or
+        // [mmPenaltyBucketFoldedObjective] false): the objective is the bare core (mastery×DI) — the
+        // outer branch-and-bound driver combines its proven bound with the power table into a sound
+        // interval bound. Singleton + folded: the multiplier is a constant, so the exact penalized
+        // objective (incl. the overshoot tie-break) is linear — no product equality remains.
+        val mmPenaltyBucketInterval: IntRange? = null,
+        val mmPenaltyBucketFoldedObjective: Boolean = false,
+        // §8.2: reports the penalty geometry the driver needs for its bound math, at model build:
+        // (maxIndex, power-table values, totalExpectedScore).
+        val mmPenaltyGeometryProbe: ((Int, LongArray, Long) -> Unit)? = null,
+        // §8.2: after a bucket-interval sub-solve with a solution, reports the solution's (core, bucket)
+        // so the driver folds an exact incumbent (`core × power6(bucket) × OVERSHOOT_SCALE`, bonus ≥ 0
+        // dropped — still a valid achievable lower bound) without duplicating scorer arithmetic.
+        // Shared by §8.4 S-C, where the reported pair is (non-negative tier M, DI factor) instead.
+        val mmPenaltyBucketSolutionCapture: ((Long, Long) -> Unit)? = null,
+        // §8.4 S-C seam (test-only, mono-element most-masteries): constrain the DI FACTOR (100+DI,
+        // clamped) to this interval and remove the mastery×DI product from the searched model — see
+        // [StatBuilder.diAdjustedPerElementMasteryScore]. Same outer-driver contract as the bucket
+        // interval; the two axes are never set together (a composed tree is a later, gated step).
+        val mmDiFactorInterval: IntRange? = null,
+        val mmDiFactorFoldedObjective: Boolean = false,
+        // §8.5 S-D seams (test-only). Hard leg: required targets behind ASSUMPTION literals — weaker
+        // propagation than the plain constraints, but a proven INFEASIBLE yields a sufficient core,
+        // reported via the capture. Soft leg: the recycled no-good cut built from such a core
+        // (`sum(met_i for i in core) ≤ |core|−1`, logically implied — the optimum is unchanged).
+        val mmHardTargetsAsAssumptions: Boolean = false,
+        val mmInfeasibilityCoreCapture: ((Set<Characteristic>) -> Unit)? = null,
+        val mmSoftNoGoodCore: Set<Characteristic>? = null,
     )
 
     fun optimize(
@@ -589,7 +653,14 @@ object WakfuBuildSolver {
                             mmPlainPrimaryObjective = mmTwoStage,
                             mmOvershootEncoding = tuning?.mmOvershootEncoding ?: MmOvershootEncoding.CURRENT,
                             mmProductEncoding = tuning?.mmProductEncoding ?: MmProductEncoding.CURRENT,
-                            mmMasteryScoreUpperBound = tuning?.mmMasteryScoreUpperBound
+                            mmMasteryScoreUpperBound = tuning?.mmMasteryScoreUpperBound,
+                            mmPenaltyBucketInterval = tuning?.mmPenaltyBucketInterval,
+                            mmPenaltyBucketFoldedObjective = tuning?.mmPenaltyBucketFoldedObjective ?: false,
+                            mmPenaltyGeometryProbe = tuning?.mmPenaltyGeometryProbe,
+                            mmDiFactorInterval = tuning?.mmDiFactorInterval,
+                            mmDiFactorFoldedObjective = tuning?.mmDiFactorFoldedObjective ?: false,
+                            mmHardTargetsAsAssumptions = tuning?.mmHardTargetsAsAssumptions ?: false,
+                            mmSoftNoGoodCore = tuning?.mmSoftNoGoodCore
                         )
                     // C2: a hard-constraints model with a required target above its reachable ceiling is PROVABLY
                     // infeasible — skip the doomed CP-SAT solve entirely and emit nothing. The caller
@@ -618,6 +689,34 @@ object WakfuBuildSolver {
                     tuning?.assignmentHint?.let { hint ->
                         for (v in diagnosticVars(built)) hint[v.name]?.let { built.model.addHint(v, it) }
                     }
+                    // Backup certificate (§8.9bis): the emitted objective is certificate-comparable on
+                    // the MM SOFT leg only (penalized units = the certificate's foldedBound units). NOT on
+                    // the hard leg with required targets: its objective is the bare `core × 10⁴ + bonus`,
+                    // while the soft objective multiplies the core by power6(bucket) — ≈1e6 even when every
+                    // target is met — so comparing the two awarded "proven within ~1 000 000 %" badges
+                    // (pre-release review 2026-10-01, reproduced on dist+AP+MP+HP at level 200). The hard
+                    // leg is CONVERTED instead ([mmHardLegMultiplier] below), never stamped raw.
+                    val mmObjectiveComparable =
+                        params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+                            // (the model's exact fold predicate — a 0-valued required target still folds the objective)
+                            (!hardConstraints || params.targetStats.none { it.characteristic.isRequiredMostMasteriesTarget() }) &&
+                            // The measurement seams replace the searched objective — never comparable.
+                            tuning?.mmPenaltyBucketInterval == null &&
+                            tuning?.mmDiFactorInterval == null
+                    // ...but the hard leg IS convertible: every emission meets the targets, so the same
+                    // build's soft objective is `core × fullTargetsMultiplier × SCALE + bonus`. Not for the
+                    // P2b two-stage solve (its stage 1 searches the bare primary, no overshoot bonus).
+                    val mmHardLegMultiplier =
+                        if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+                            hardConstraints &&
+                            !mmTwoStage &&
+                            tuning?.mmPenaltyBucketInterval == null &&
+                            tuning?.mmDiFactorInterval == null
+                        ) {
+                            MostMasteriesCertificate.fullTargetsMultiplier(params)
+                        } else {
+                            null
+                        }
                     val outcome =
                         executeSolverAndEmitResults(
                             built.model,
@@ -631,7 +730,9 @@ object WakfuBuildSolver {
                             this@callbackFlow,
                             tuning,
                             onSolverReady = { solverHandle.set(it) },
-                            suppressBelowScore = warmScore
+                            suppressBelowScore = warmScore,
+                            mmObjectiveComparable = mmObjectiveComparable,
+                            mmHardLegMultiplier = mmHardLegMultiplier
                         )
                     // P2b stage 2: the primary is proven — pin it and maximize the overshoot in a short
                     // near-forced solve; its guaranteed final send (same primary ⇒ same score) replaces
@@ -672,7 +773,8 @@ object WakfuBuildSolver {
                             onSolverReady = { solverHandle.set(it) },
                             suppressBelowScore = warmScore,
                             finalIsOptimalOverride = outcome.status == com.google.ortools.sat.CpSolverStatus.OPTIMAL,
-                            maxWallSecondsOverride = 30.0
+                            maxWallSecondsOverride = 30.0,
+                            mmObjectiveOverride = if (mmObjectiveComparable) outcome.objectiveValue else null
                         )
                     }
                     onTermination?.invoke(outcome)
@@ -683,6 +785,36 @@ object WakfuBuildSolver {
                         solverHandle.get()?.let { solver ->
                             runCatching { diagnosticVars(built).associate { it.name to solver.value(it) } }
                                 .onSuccess(capture)
+                        }
+                    }
+                    // §8.5 S-D: on a proven-INFEASIBLE assumption-gated hard leg, extract the sufficient
+                    // assumption core and report the target characteristics it names.
+                    tuning?.mmInfeasibilityCoreCapture?.let { capture ->
+                        val literals = built.mmAssumptionLiterals
+                        val solver = solverHandle.get()
+                        if (literals != null &&
+                            solver != null &&
+                            outcome?.status == com.google.ortools.sat.CpSolverStatus.INFEASIBLE
+                        ) {
+                            runCatching {
+                                val coreIndices = solver.sufficientAssumptionsForInfeasibility().toSet()
+                                capture(literals.filterValues { it.index in coreIndices }.keys)
+                            }
+                        }
+                    }
+                    // §8.2 S-A: read the sub-solve solution's (core, bucket) off the finished solver.
+                    // Best-effort and solution-gated: an INFEASIBLE/emission-less solve skips the capture.
+                    tuning?.mmPenaltyBucketSolutionCapture?.let { capture ->
+                        val probeVars = built.mmPenaltyBucketProbeVars
+                        val solver = solverHandle.get()
+                        if (probeVars != null &&
+                            solver != null &&
+                            (
+                                outcome?.status == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                                    outcome?.status == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+                            )
+                        ) {
+                            runCatching { capture(solver.value(probeVars.first), solver.value(probeVars.second)) }
                         }
                     }
                     close()
@@ -747,6 +879,13 @@ object WakfuBuildSolver {
         // C7: the crit·diff AM-GM bound actually added as a constraint (null = the cut did not fire). See
         // [StatBuilder.critDiffJointCutBoundForTest] / [maxDamageCritDiffCutBoundForTest].
         val critDiffJointCutBoundForTest: Long? = null,
+        // §8.2 S-A only: (core, bucket) probe vars of a bucket-interval sub-model; null otherwise.
+        val mmPenaltyBucketProbeVars: Pair<IntVar, IntVar>? = null,
+        // §8.5 S-D only: the hard leg's assumption literals (target → literal); null otherwise.
+        val mmAssumptionLiterals: Map<Characteristic, com.google.ortools.sat.BoolVar>? = null,
+        // Test/research partition seam: resolved sheet-stat vars used by exact region oracles.
+        // Keeping them on BuiltModel avoids rebuilding a second StatBuilder after the objective.
+        val actualStatVars: Map<Characteristic, IntVar> = emptyMap(),
     )
 
     /**
@@ -829,6 +968,8 @@ object WakfuBuildSolver {
         // Hard-constraints-first max-damage solve: required targets become HARD `actual ≥ target` constraints
         // under a plain damage objective (no shortfall penalty). Threaded to [buildMaxDamageObjective].
         hardConstraints: Boolean = false,
+        // Build the AP/MP/CRIT/HP actual-stat vars (stat-bound pins + MaxDamageTimedProfile.actualStats).
+        trackActualStats: Boolean = false,
         // P2b two-stage lexicographic (most-masteries hard leg) — see [buildMostMasteriesObjective].
         mmPlainPrimaryObjective: Boolean = false,
         mmOvershootPinnedPrimary: Long? = null,
@@ -837,6 +978,16 @@ object WakfuBuildSolver {
         mmProductEncoding: MmProductEncoding = MmProductEncoding.CURRENT,
         // Measurement-only redundant dual cut on the MM core; see [SolverTuning.mmMasteryScoreUpperBound].
         mmMasteryScoreUpperBound: Long? = null,
+        // §8.2 S-A outer bucket B&B seam — see [SolverTuning.mmPenaltyBucketInterval].
+        mmPenaltyBucketInterval: IntRange? = null,
+        mmPenaltyBucketFoldedObjective: Boolean = false,
+        mmPenaltyGeometryProbe: ((Int, LongArray, Long) -> Unit)? = null,
+        // §8.4 S-C outer DI-factor seam — see [SolverTuning.mmDiFactorInterval].
+        mmDiFactorInterval: IntRange? = null,
+        mmDiFactorFoldedObjective: Boolean = false,
+        // §8.5 S-D seams — see [SolverTuning.mmHardTargetsAsAssumptions] / [SolverTuning.mmSoftNoGoodCore].
+        mmHardTargetsAsAssumptions: Boolean = false,
+        mmSoftNoGoodCore: Set<Characteristic>? = null,
         // Test seam: when true, the max-damage build also runs [certifyMaxPerHitAtAp] for every AP cell and
         // stores the resulting objectives in [BuiltModel.certifierObjectivesForTest] (single-element only).
         certifyAllApForTest: Boolean = false,
@@ -953,6 +1104,11 @@ object WakfuBuildSolver {
         var critDiffJointCutBound: Long? = null
         // C2: set by the max-damage hard-constraints branch when a required target exceeds its reachable ceiling.
         var maxDamageStaticallyInfeasible = false
+        // §8.2 S-A: (core, bucket) probe vars of a bucket-interval sub-model.
+        var mmPenaltyProbeVars: Pair<IntVar, IntVar>? = null
+        // §8.5 S-D: the hard leg's assumption literals (target → literal).
+        var mmAssumptionLits: Map<Characteristic, com.google.ortools.sat.BoolVar>? = null
+        var actualStatVars: Map<Characteristic, IntVar> = emptyMap()
         val objective =
             when (params.scoreComputationMode) {
                 ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT -> {
@@ -969,9 +1125,18 @@ object WakfuBuildSolver {
                             mmOvershootPinnedPrimary,
                             mmOvershootEncoding,
                             mmProductEncoding,
-                            mmMasteryScoreUpperBound
+                            mmMasteryScoreUpperBound,
+                            mmPenaltyBucketInterval,
+                            mmPenaltyBucketFoldedObjective,
+                            mmPenaltyGeometryProbe,
+                            mmDiFactorInterval,
+                            mmDiFactorFoldedObjective,
+                            mmHardTargetsAsAssumptions,
+                            mmSoftNoGoodCore
                         )
                     maxDamageStaticallyInfeasible = mm.staticallyInfeasible
+                    mmPenaltyProbeVars = mm.penaltyBucketProbeVars
+                    mmAssumptionLits = mm.assumptionLiterals
                     mm.objective
                 }
 
@@ -1028,9 +1193,19 @@ object WakfuBuildSolver {
                             certifyLedgerPrecomputedProv = certifyLedgerPrecomputedProv,
                             certifierCancelled = certifierCancelled
                         )
-                    val built = model.buildMaxDamageObjective(params, statBuilder, maxDamageObjectiveCutoff, hardConstraints)
+                    val built =
+                        model.buildMaxDamageObjective(
+                            params,
+                            statBuilder,
+                            maxDamageObjectiveCutoff,
+                            hardConstraints,
+                            mmPenaltyBucketInterval,
+                            mmPenaltyBucketFoldedObjective,
+                            mmPenaltyGeometryProbe
+                        )
                     maxDamageRawScore = built.rawScore
                     maxDamageStaticallyInfeasible = built.staticallyInfeasible
+                    mmPenaltyProbeVars = built.penaltyBucketProbeVars
                     maxDamageTracked = statBuilder.tracker.tracked()
                     certifierObjectives = statBuilder.certifierObjectivesForTest
                     certifierFastObjectives = statBuilder.certifierFastObjectivesForTest
@@ -1039,6 +1214,20 @@ object WakfuBuildSolver {
                     certifierExplain = statBuilder.certifierExplainForTest
                     certifierExplainItemIds = statBuilder.certifierExplainItemIds
                     critDiffJointCutBound = statBuilder.critDiffJointCutBoundForTest
+                    // Proof/research profiles only (stat-bound pins + reported actual stats): building
+                    // actualStat(HP) adds the pre-HP sum + %HP product chain to every PRODUCTION model
+                    // that has no HP target (pre-release review 2026-10-01 — main never paid it).
+                    actualStatVars =
+                        if (trackActualStats) {
+                            listOf(
+                                Characteristic.ACTION_POINT,
+                                Characteristic.MOVEMENT_POINT,
+                                Characteristic.CRITICAL_HIT,
+                                Characteristic.HP
+                            ).associateWith(statBuilder::actualStat)
+                        } else {
+                            emptyMap()
+                        }
                     built.objective
                 }
             }
@@ -1068,7 +1257,10 @@ object WakfuBuildSolver {
             certifierExplain,
             certifierExplainItemIds,
             maxDamageStaticallyInfeasible,
-            critDiffJointCutBound
+            critDiffJointCutBound,
+            mmPenaltyProbeVars,
+            mmAssumptionLits,
+            actualStatVars
         )
     }
 
@@ -1129,9 +1321,835 @@ object WakfuBuildSolver {
         val constraints: Int,
         val poolSize: Int,
         val experiment: MaxDamageExperimentConfig,
+        val selectedEquipmentIds: Set<Int>,
+        val selectedSublimationStateIds: Set<Int>,
+        val selectedSublimationCopies: Map<Int, Long>,
+        val actualStats: Map<Characteristic, Long>,
+        val rawObjective: Long,
     ) {
         val hasSolution: Boolean
             get() = objective != Long.MIN_VALUE
+
+        /**
+         * This solve as a SOUND upper bound of its model's optimum — the only way proof code may read it.
+         * OPTIMAL → the objective; FEASIBLE → the (ceiled) dual; UNKNOWN → the dual only when the native
+         * bound was actually set: a solve stopped or timed out inside presolve reports the proto default 0
+         * (or a negative sentinel), which read as a bound would "close" the world it should have left open
+         * (the 2026-07-18 MODEL_INVALID incident, see the B&B node guard); INFEASIBLE → [ifInfeasible]
+         * (MIN_VALUE where an empty world is meaningful, the MAX_VALUE default where emptiness contradicts a
+         * known feasible build); anything else (MODEL_INVALID…) → Long.MAX_VALUE.
+         */
+        fun soundUpper(ifInfeasible: Long = Long.MAX_VALUE): Long =
+            when (status) {
+                "OPTIMAL" -> objective
+                "FEASIBLE" -> bestBound.takeIf { it >= objective } ?: Long.MAX_VALUE
+                "UNKNOWN" -> bestBound.takeIf { it > 0L } ?: Long.MAX_VALUE
+                "INFEASIBLE" -> ifInfeasible
+                else -> Long.MAX_VALUE
+            }
+    }
+
+    /** One outer-approximation step of [conditionalRefinementProfileForTest]. */
+    internal data class ConditionalRefinementIteration(
+        val iteration: Int,
+        val status: String,
+        val objective: Long,
+        val bestBound: Long,
+        val relaxedConditionIds: Set<Int>,
+        val selectedSublimationStateIds: Set<Int>,
+        val newlyEnforcedConditionIds: Set<Int>,
+        val relaxedWallTimeSec: Double,
+        val exactValidationStatus: String,
+        val exactValidationWallTimeSec: Double,
+    )
+
+    /**
+     * Research-only structural encoding for build-static sublimations.
+     *
+     * Start with every choosable condition removed, solve that upper model to optimality, then pin
+     * its complete decision assignment in the exact model. If the exact model rejects it, restore
+     * the exact gates of every selected condition-bearing sub and rebuild. Each failed iteration
+     * activates at least one previously relaxed condition, so the loop converges in at most
+     * `conditional sub count + 1` solves. When the pinned assignment is exact-feasible, its relaxed
+     * objective is achievable in the exact model and equals the upper model's optimum: that is a
+     * proof of the exact global optimum.
+     *
+     * This deliberately lives behind a test seam until its behaviour on the full S4 shape is known.
+     */
+    internal fun conditionalRefinementProfileForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        workers: Int,
+        secondsPerIteration: Double,
+        maxIterations: Int,
+        applyDomination: Boolean,
+    ): Pair<Boolean, List<ConditionalRefinementIteration>> {
+        val conditionalIds =
+            sublimations
+                .asSequence()
+                .filter {
+                    it.solverChoosable &&
+                        it.condition?.type in SUPPORTED_SUB_CONDITIONS
+                }.mapTo(linkedSetOf()) { it.stateId }
+        val enforcedIds = linkedSetOf<Int>()
+        val iterations = arrayListOf<ConditionalRefinementIteration>()
+
+        repeat(maxIterations) { index ->
+            val mixedSubs =
+                sublimations.map { sub ->
+                    if (sub.stateId in enforcedIds) sub else sub.withRelaxedBuildStaticCondition()
+                }
+            val relaxedBuilt =
+                buildModel(
+                    params,
+                    equipmentsByItemType,
+                    runes,
+                    mixedSubs,
+                    applyDomination = applyDomination
+                )
+            val relaxedSolver = CpSolver()
+            relaxedSolver.parameters.linearizationLevel = 2
+            relaxedSolver.parameters.maxPresolveIterations = 3
+            relaxedSolver.parameters.numSearchWorkers = workers
+            relaxedSolver.parameters.randomSeed = 1
+            relaxedSolver.parameters.maxTimeInSeconds = secondsPerIteration
+            val relaxedStatus = relaxedSolver.solve(relaxedBuilt.model)
+            val relaxedHasSolution =
+                relaxedStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                    relaxedStatus == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+            require(relaxedHasSolution) { "conditional refinement upper solve $index has no solution: $relaxedStatus" }
+            val relaxedVars = diagnosticVars(relaxedBuilt)
+            val assignment = relaxedVars.associate { it.name to relaxedSolver.value(it) }
+            val selectedSubIds =
+                relaxedBuilt.subModel.subVars
+                    .filterValues { relaxedSolver.value(it) > 0L }
+                    .keys
+                    .mapTo(linkedSetOf()) { it.stateId }
+            if (relaxedStatus != com.google.ortools.sat.CpSolverStatus.OPTIMAL) {
+                iterations +=
+                    ConditionalRefinementIteration(
+                        iteration = index + 1,
+                        status = relaxedStatus.toString(),
+                        objective = kotlin.math.round(relaxedSolver.objectiveValue()).toLong(),
+                        bestBound = kotlin.math.ceil(relaxedSolver.bestObjectiveBound()).toLong(),
+                        relaxedConditionIds = conditionalIds - enforcedIds,
+                        selectedSublimationStateIds = selectedSubIds,
+                        newlyEnforcedConditionIds = emptySet(),
+                        relaxedWallTimeSec = relaxedSolver.wallTime(),
+                        exactValidationStatus = "NOT_RUN",
+                        exactValidationWallTimeSec = 0.0
+                    )
+                return false to iterations
+            }
+
+            // Domination is shape-dependent: the relaxed sub effects can retain a different
+            // item pool than the exact effects. Validate against models built on the already-
+            // selected relaxed pool so every decision name remains identical.
+            fun validatePinned(validationSubs: List<Sublimation>): Pair<com.google.ortools.sat.CpSolverStatus, CpSolver> {
+                val validationBuilt =
+                    buildModel(
+                        params,
+                        relaxedBuilt.allEquips.groupBy { it.itemType },
+                        runes,
+                        validationSubs,
+                        forceFullPool = true,
+                        applyDomination = false
+                    )
+                val validationVars = diagnosticVars(validationBuilt)
+                val validationNames = validationVars.mapTo(linkedSetOf()) { it.name }
+                require(validationNames == assignment.keys) {
+                    "relaxed/exact decision-variable drift: relaxedOnly=${assignment.keys - validationNames}, " +
+                        "exactOnly=${validationNames - assignment.keys}"
+                }
+                validationVars.forEach { validationBuilt.model.addEquality(it, assignment.getValue(it.name)) }
+                val validationSolver = CpSolver()
+                validationSolver.parameters.linearizationLevel = 2
+                validationSolver.parameters.maxPresolveIterations = 3
+                validationSolver.parameters.numSearchWorkers = 1
+                validationSolver.parameters.randomSeed = 1
+                validationSolver.parameters.maxTimeInSeconds = secondsPerIteration.coerceAtMost(30.0)
+                return validationSolver.solve(validationBuilt.model) to validationSolver
+            }
+
+            val (exactStatus, exactSolver) = validatePinned(sublimations)
+            val exactFeasible =
+                exactStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                    exactStatus == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+
+            val newlyEnforced =
+                if (exactFeasible) {
+                    emptySet()
+                } else {
+                    require(exactStatus == com.google.ortools.sat.CpSolverStatus.INFEASIBLE) {
+                        "conditional refinement validation is inconclusive: $exactStatus"
+                    }
+                    val candidates =
+                        selectedSubIds
+                            .asSequence()
+                            .filter { it in conditionalIds && it !in enforcedIds }
+                            .toCollection(linkedSetOf())
+                    require(candidates.isNotEmpty()) {
+                        "exact assignment is infeasible but no selected relaxed condition can explain it; " +
+                            "selected=$selectedSubIds enforced=$enforcedIds"
+                    }
+                    // Identify the actual offenders instead of reifying every selected condition.
+                    // Each probe restores ONE candidate on top of the already-enforced set while
+                    // all decisions are pinned, so presolve normally decides it immediately.
+                    // If no condition fails alone (an interaction), conservatively restore all.
+                    val individuallyViolated =
+                        candidates
+                            .asSequence()
+                            .filter { candidateId ->
+                                val probeSubs =
+                                    sublimations.map { sub ->
+                                        if (sub.stateId in enforcedIds || sub.stateId == candidateId) {
+                                            sub
+                                        } else {
+                                            sub.withRelaxedBuildStaticCondition()
+                                        }
+                                    }
+                                val (probeStatus, _) = validatePinned(probeSubs)
+                                require(
+                                    probeStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                                        probeStatus == com.google.ortools.sat.CpSolverStatus.FEASIBLE ||
+                                        probeStatus == com.google.ortools.sat.CpSolverStatus.INFEASIBLE
+                                ) { "single-condition validation is inconclusive for $candidateId: $probeStatus" }
+                                probeStatus == com.google.ortools.sat.CpSolverStatus.INFEASIBLE
+                            }.toCollection(linkedSetOf())
+                    individuallyViolated.ifEmpty { candidates }
+                }
+            iterations +=
+                ConditionalRefinementIteration(
+                    iteration = index + 1,
+                    status = relaxedStatus.toString(),
+                    objective = kotlin.math.round(relaxedSolver.objectiveValue()).toLong(),
+                    bestBound = kotlin.math.ceil(relaxedSolver.bestObjectiveBound()).toLong(),
+                    relaxedConditionIds = conditionalIds - enforcedIds,
+                    selectedSublimationStateIds = selectedSubIds,
+                    newlyEnforcedConditionIds = newlyEnforced,
+                    relaxedWallTimeSec = relaxedSolver.wallTime(),
+                    exactValidationStatus = exactStatus.toString(),
+                    exactValidationWallTimeSec = exactSolver.wallTime()
+                )
+            if (exactFeasible) {
+                require(exactSolver.objectiveValue().toLong() == relaxedSolver.objectiveValue().toLong()) {
+                    "exact-feasible assignment changed objective: relaxed=${relaxedSolver.objectiveValue()}, " +
+                        "exact=${exactSolver.objectiveValue()}"
+                }
+                return true to iterations
+            }
+            newlyEnforced.forEach { enforcedIds += it }
+        }
+        return false to iterations
+    }
+
+    internal data class ConditionalWorldBranchRead(
+        val node: Int,
+        val requiredConditionIds: Set<Int>,
+        val excludedConditionIds: Set<Int>,
+        val status: String,
+        val objective: Long,
+        val bestBound: Long,
+        val selectedSublimationStateIds: Set<Int>,
+        val branchedOnStateId: Int?,
+        val wallTimeSec: Double,
+        val deterministicTime: Double,
+        val disposition: String,
+    )
+
+    internal sealed interface ConditionalWorldProof {
+        val reads: List<ConditionalWorldBranchRead>
+
+        /** Every leaf has a sound dual at most [upper]. */
+        data class Proven(
+            val upper: Long,
+            override val reads: List<ConditionalWorldBranchRead>,
+        ) : ConditionalWorldProof
+
+        /** The bounded run stopped; [upper] still soundly covers every open leaf. */
+        data class Inconclusive(
+            val upper: Long,
+            override val reads: List<ConditionalWorldBranchRead>,
+        ) : ConditionalWorldProof
+
+        /** A completely pinned assignment is feasible in the exact model above the proposed incumbent. */
+        data class Counterexample(
+            val objective: Long,
+            override val reads: List<ConditionalWorldBranchRead>,
+        ) : ConditionalWorldProof
+    }
+
+    // A tree whose ROOT stayed FEASIBLE (dual within the bail band but unproven) gets this
+    // reduced budget: it sometimes closes (worth a chance) but often crawls to the full budget
+    // and pays the DP fall-through on top.
+    private const val UNPROVEN_ROOT_TREE_BUDGET_SECONDS = 75.0
+
+    // Two-node prognosis (§9.36, data-backed): the root alone cannot discriminate a crawling
+    // tree (enutrof and cra80 share a +14% root dual, but only cra80 closes) — the cumulative
+    // DETERMINISTIC cost of the root + its first child does (enutrof 142 vs cra80 70-118).
+    private const val TWO_NODE_DET_BAIL = 130.0
+
+    // Consecutive full-budget nodes contributing NOTHING (dual == inherited) mark a walled
+    // branch class (enutrof's `7115` chain produced four in a row) — terminate at this count.
+    private const val ZERO_PROGRESS_STALL_LIMIT = 2
+
+    /**
+     * Research-only external branch-and-bound over conditional-sub selection. For an invalid
+     * relaxed assignment using `s`, children `{s = 0}` and `{s = 1, condition(s) exact}` partition
+     * every exact build in the parent. A node is discarded as soon as its sound upper is at most
+     * [incumbentObjective], avoiding a monolithic model containing every indicator.
+     */
+    internal fun conditionalWorldBranchAndBound(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        incumbentObjective: Long,
+        workers: Int,
+        totalSeconds: Double,
+        maxSecondsPerNode: Double,
+        deterministicLimitPerNode: Double? = null,
+        interleave: Boolean = false,
+        maxNodes: Int,
+        applyDomination: Boolean,
+        requiredFirst: Boolean = false,
+        // Root prognosis (generality-matrix fix, 2026-07-18): when the ROOT node's dual exceeds
+        // incumbent × (1 + fraction), the reification wall makes closure hopeless in any bounded
+        // budget (iop110-full: root +142% vs cra80-ap10's +14% which closes) — bail after the
+        // single root solve so the caller can fall through to the DP union instead.
+        rootBailFraction: Double? = null,
+        shouldContinue: () -> Boolean = { true },
+    ): ConditionalWorldProof {
+        data class Node(
+            val enforced: Set<Int> = emptySet(),
+            val required: Set<Int> = emptySet(),
+            val excluded: Set<Int> = emptySet(),
+            val inheritedUpper: Long = Long.MAX_VALUE,
+            // Parent's mixed-solve assignment, used as a CP-SAT solution hint: child models share
+            // most of the structure, so the parent primal seeds a strong incumbent immediately.
+            // Hints may violate the child's fixes — CP-SAT repairs them; soundness is unaffected.
+            val hint: Map<String, Long>? = null,
+        )
+
+        val subByStateId = sublimations.associateBy { it.stateId }
+        val candidateConditionalIds =
+            sublimations
+                .asSequence()
+                .filter { it.solverChoosable && it.condition?.type in SUPPORTED_SUB_CONDITIONS }
+                .mapTo(linkedSetOf()) { it.stateId }
+        // Sibling nodes are independent CP solves and small models scale poorly past ~4 CP
+        // workers, so two concurrent nodes at workers/2 beat one node at full width. All mutable
+        // tree state below is guarded by [lock]; in-flight nodes stay part of the open frontier
+        // so a timeout that fires mid-solve still reports a sound inconclusive upper.
+        val lock = Object()
+        val queue = java.util.ArrayDeque<Node>()
+        queue.add(Node())
+        val inFlight = java.util.IdentityHashMap<Node, Unit>()
+        val reads = arrayListOf<ConditionalWorldBranchRead>()
+        val startedAt = System.nanoTime()
+        var deadline = startedAt + (totalSeconds.coerceAtLeast(0.0) * 1_000_000_000.0).toLong()
+        var closedUpper = Long.MIN_VALUE
+        var nodesTaken = 0
+        var terminal: ConditionalWorldProof? = null
+        var zeroProgressStreak = 0
+
+        fun secondsRemaining(): Double = ((deadline - System.nanoTime()).coerceAtLeast(0L) / 1_000_000_000.0)
+
+        // Callers must hold [lock].
+        fun frontierUpper(currentUpper: Long? = null): Long =
+            sequenceOf(currentUpper ?: Long.MIN_VALUE)
+                .plus(queue.asSequence().map { it.inheritedUpper })
+                .plus(inFlight.keys.asSequence().map { it.inheritedUpper })
+                .maxOrNull() ?: Long.MAX_VALUE
+
+        // Callers must hold [lock].
+        fun inconclusive(currentUpper: Long? = null): ConditionalWorldProof.Inconclusive =
+            ConditionalWorldProof.Inconclusive(
+                upper = maxOf(closedUpper, frontierUpper(currentUpper)),
+                reads = reads.toList()
+            )
+
+        fun soundIntegralUpper(value: Double): Long =
+            when {
+                value.isNaN() || value == Double.POSITIVE_INFINITY -> Long.MAX_VALUE
+                value == Double.NEGATIVE_INFINITY -> Long.MIN_VALUE
+                value >= Long.MAX_VALUE.toDouble() -> Long.MAX_VALUE
+                value <= Long.MIN_VALUE.toDouble() -> Long.MIN_VALUE
+                else -> kotlin.math.ceil(value).toLong()
+            }
+
+        // 2 node-workers × workers/2 CP threads. Measured at cra80-ap10 (2026-07-18): 4×2 was a
+        // REGRESSION (tree stopped closing — 2 CP threads cannot close the required-nodes that
+        // 4 threads prove in 8-14 s, and the machine is CPU-bound at 2×4 anyway).
+        val nodeWorkerCount = if (workers >= 4) 2 else 1
+        val cpWorkersPerNode = maxOf(1, workers / nodeWorkerCount)
+
+        fun configure(
+            solver: CpSolver,
+            seconds: Double,
+        ) {
+            solver.parameters.linearizationLevel = 2
+            solver.parameters.maxPresolveIterations = 3
+            solver.parameters.numSearchWorkers = cpWorkersPerNode
+            solver.parameters.randomSeed = 1
+            solver.parameters.maxTimeInSeconds = seconds
+            deterministicLimitPerNode?.let { solver.parameters.maxDeterministicTime = it }
+            solver.parameters.interleaveSearch = interleave
+        }
+
+        // Perf-only heuristic (soundness is independent of the choice): branch first on the
+        // relaxed credit with the largest rough max-damage marginal. This approximates one
+        // strong-branching decision without solving 2×candidate child probes.
+        fun branchImpact(stateId: Int): Long {
+            val sub = subByStateId.getValue(stateId)
+            val flatImpact =
+                sub.effects.filterIsInstance<SublimationEffect.StatEffect>().sumOf { effect ->
+                    val weight =
+                        when (effect.characteristic) {
+                            Characteristic.ACTION_POINT -> 100_000L
+                            Characteristic.MOVEMENT_POINT -> 50_000L
+                            Characteristic.RANGE -> 20_000L
+                            Characteristic.DAMAGE_INFLICTED -> 10_000L
+                            Characteristic.CRITICAL_HIT, Characteristic.BLOCK_PERCENTAGE -> 1_000L
+                            else -> 1L
+                        }
+                    kotlin.math.abs(effect.magnitudeAtLevel(params.character.level).toLong()) * weight
+                }
+            return flatImpact + (sub.conversion?.percent?.toLong() ?: 0L) * 1_000L
+        }
+
+        // A processed node's effect on the shared tree, applied atomically by the driver: the
+        // read id is assigned under [lock], children keep the serial pop order, and a terminal
+        // outcome (counterexample / inconclusive) wins over any concurrent sibling.
+        class NodeOutcome(
+            val read: ((Int) -> ConditionalWorldBranchRead)? = null,
+            val children: List<Node> = emptyList(),
+            val closedContribution: Long? = null,
+            val counterexample: Long? = null,
+            val inconclusiveUpper: Long? = null,
+            val isInconclusive: Boolean = false,
+        )
+
+        fun processNode(node: Node): NodeOutcome {
+            val mixedSubs =
+                sublimations.map { sub ->
+                    if (sub.stateId in node.enforced) sub else sub.withRelaxedBuildStaticCondition()
+                }
+            val built =
+                buildModel(
+                    params,
+                    equipmentsByItemType,
+                    runes,
+                    mixedSubs,
+                    // Sound outer-bound chain: exact-node optimum ≤ mixed-node optimum.
+                    // [dominationShape] pins every stat read by the conditions that remain exact,
+                    // so domination preserves the mixed optimum; stripped conditions need no pin.
+                    // Therefore mixed dominated optimum still upper-bounds the exact node.
+                    applyDomination = applyDomination
+                )
+
+            fun applyNodeFixes(target: BuiltModel) {
+                val varsById =
+                    target.subModel.subVars.entries
+                        .associate { it.key.stateId to it.value }
+                node.required.forEach { stateId -> target.model.addEquality(varsById.getValue(stateId), 1L) }
+                node.excluded.forEach { stateId -> target.model.addEquality(varsById.getValue(stateId), 0L) }
+            }
+            applyNodeFixes(built)
+            // NOTE (measured 2026-07-18): posting `objective ≤ inheritedUpper` on the mixed node
+            // is sound but SLOWER (161 s vs 140 s tree closure at cra80-ap10) — consistent with
+            // the §9.22 "objective caps in either direction" do-not-retry.
+            node.hint?.let { hint ->
+                val seen = HashSet<String>()
+                diagnosticVars(built).forEach { v ->
+                    if (seen.add(v.name)) hint[v.name]?.let { built.model.addHint(v, it) }
+                }
+            }
+            val solver = CpSolver()
+            // The ROOT node's read drives the route prognosis: give it headroom (production
+            // measured cra80's root closing at 11-13 s — a 15 s cap left no thermal margin and a
+            // loose FEASIBLE root dual triggered a FALSE bail).
+            val nodeBudget =
+                if (rootBailFraction != null && node.required.isEmpty() && node.excluded.isEmpty()) {
+                    maxOf(maxSecondsPerNode, 30.0)
+                } else {
+                    maxSecondsPerNode
+                }
+            configure(solver, minOf(nodeBudget, secondsRemaining()).coerceAtLeast(0.001))
+            // The prognosis-driving ROOT gets double the deterministic budget (its read decides
+            // the whole route); deterministic budgets are load-invariant where wall budgets went
+            // erratic under bench load.
+            if (rootBailFraction != null && node.required.isEmpty() && node.excluded.isEmpty()) {
+                deterministicLimitPerNode?.let { solver.parameters.maxDeterministicTime = it * 2 }
+            } else if (rootBailFraction != null && deterministicLimitPerNode != null) {
+                // The SECOND node only needs to answer the two-node prognosis: cap it at the
+                // remaining prognosis budget (a cheaper read that would trigger the bail anyway).
+                val rootDet = synchronized(lock) { if (reads.size == 1) reads.first().deterministicTime else null }
+                if (rootDet != null) {
+                    solver.parameters.maxDeterministicTime =
+                        minOf(deterministicLimitPerNode, (TWO_NODE_DET_BAIL - rootDet + 1.0).coerceAtLeast(10.0))
+                }
+            }
+            // A cancelled proof stops the node within a tick too (pre-release review: B&B nodes ran
+            // their full 45 s budget after a cancel). The stopped read is FEASIBLE/UNKNOWN — handled below.
+            val status = withStopWatcher(solver, shouldContinue) { solver.solve(built.model) }
+            // ONLY these three statuses carry usable information. Anything else (MODEL_INVALID,
+            // UNKNOWN with a garbage native bound, …) must end the tree inconclusively — routing
+            // it through the prune test once turned a MODEL_INVALID node's bound=0 into a fake
+            // closed contribution (caught by the production self-check, 2026-07-18).
+            val hasSolution =
+                status == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                    status == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+            if (!hasSolution && status != com.google.ortools.sat.CpSolverStatus.INFEASIBLE) {
+                return NodeOutcome(isInconclusive = true, inconclusiveUpper = node.inheritedUpper)
+            }
+            // The model objective is integral, but OR-Tools exposes both values as Double. A proof path must
+            // never floor a dual that happens to arrive as 100.999999999: ceil is the conservative integral
+            // upper bound. Conversely, a complete primal assignment has an integral objective, so round it.
+            val objective = if (hasSolution) kotlin.math.round(solver.objectiveValue()).toLong() else Long.MIN_VALUE
+            val solverUpper =
+                if (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL && hasSolution) {
+                    objective
+                } else {
+                    soundIntegralUpper(solver.bestObjectiveBound())
+                }
+            // The exact/mixed child feasible set is a subset of its parent world. A short child
+            // solve can expose a numerically WORSE dual than its already-solved parent, but the
+            // parent's bound remains valid for every descendant. Intersect them for free.
+            val upper = minOf(solverUpper, node.inheritedUpper)
+            val branchableIds =
+                built.subModel.subVars.keys
+                    .asSequence()
+                    .map { it.stateId }
+                    .filterTo(linkedSetOf()) { it in candidateConditionalIds }
+            val selectedIds =
+                if (hasSolution) {
+                    built.subModel.subVars
+                        .filterValues { solver.value(it) > 0L }
+                        .keys
+                        .mapTo(linkedSetOf()) { it.stateId }
+                } else {
+                    emptySet()
+                }
+
+            if (status == com.google.ortools.sat.CpSolverStatus.INFEASIBLE || upper <= incumbentObjective) {
+                return NodeOutcome(
+                    read = { id ->
+                        ConditionalWorldBranchRead(
+                            id,
+                            node.required,
+                            node.excluded,
+                            status.toString(),
+                            objective,
+                            upper,
+                            selectedIds,
+                            null,
+                            solver.wallTime(),
+                            deterministicTimeFrom(solver.responseStats()),
+                            "PRUNED"
+                        )
+                    },
+                    closedContribution = if (status != com.google.ortools.sat.CpSolverStatus.INFEASIBLE) upper else null
+                )
+            }
+            if (!hasSolution) {
+                return NodeOutcome(
+                    isInconclusive = true,
+                    inconclusiveUpper = if (upper == Long.MIN_VALUE) node.inheritedUpper else upper
+                )
+            }
+            val assignment = diagnosticVars(built).associate { it.name to solver.value(it) }
+
+            fun validatePinned(validationSubs: List<Sublimation>): Pair<com.google.ortools.sat.CpSolverStatus, Long> {
+                val validation =
+                    buildModel(
+                        params,
+                        built.allEquips.groupBy { it.itemType },
+                        runes,
+                        validationSubs,
+                        forceFullPool = true,
+                        applyDomination = false
+                    )
+                applyNodeFixes(validation)
+                val vars = diagnosticVars(validation)
+                require(vars.mapTo(linkedSetOf()) { it.name } == assignment.keys)
+                vars.forEach { validation.model.addEquality(it, assignment.getValue(it.name)) }
+                val validationSolver = CpSolver()
+                validationSolver.parameters.numSearchWorkers = 1
+                validationSolver.parameters.maxTimeInSeconds = minOf(10.0, secondsRemaining()).coerceAtLeast(0.001)
+                val validationStatus = validationSolver.solve(validation.model)
+                val validationHasSolution =
+                    validationStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                        validationStatus == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+                return validationStatus to
+                    if (validationHasSolution) {
+                        kotlin.math.round(validationSolver.objectiveValue()).toLong()
+                    } else {
+                        Long.MIN_VALUE
+                    }
+            }
+
+            val (exactStatus, exactObjective) = validatePinned(sublimations)
+            if (exactStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                exactStatus == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+            ) {
+                val remainingIds = branchableIds.filter { it !in node.enforced && it !in node.excluded }
+                val fallbackBranchId = remainingIds.maxByOrNull(::branchImpact)
+                val disposition =
+                    when {
+                        exactObjective > incumbentObjective -> "COUNTEREXAMPLE"
+                        fallbackBranchId != null -> "BRANCH_VALID"
+                        else -> "INCONCLUSIVE"
+                    }
+                val readBuilder = { id: Int ->
+                    ConditionalWorldBranchRead(
+                        id,
+                        node.required,
+                        node.excluded,
+                        status.toString(),
+                        objective,
+                        upper,
+                        selectedIds,
+                        fallbackBranchId,
+                        solver.wallTime(),
+                        deterministicTimeFrom(solver.responseStats()),
+                        disposition
+                    )
+                }
+                return when (disposition) {
+                    "BRANCH_VALID" -> {
+                        val branchId = requireNotNull(fallbackBranchId)
+                        val requiredChild =
+                            node.copy(
+                                enforced = node.enforced + branchId,
+                                required = node.required + branchId,
+                                inheritedUpper = upper,
+                                hint = assignment
+                            )
+                        val excludedChild =
+                            node.copy(excluded = node.excluded + branchId, inheritedUpper = upper, hint = assignment)
+                        NodeOutcome(
+                            read = readBuilder,
+                            children =
+                                if (requiredFirst) {
+                                    listOf(requiredChild, excludedChild)
+                                } else {
+                                    listOf(excludedChild, requiredChild)
+                                }
+                        )
+                    }
+                    "COUNTEREXAMPLE" -> NodeOutcome(read = readBuilder, counterexample = exactObjective)
+                    else -> NodeOutcome(read = readBuilder, isInconclusive = true, inconclusiveUpper = upper)
+                }
+            }
+            if (exactStatus != com.google.ortools.sat.CpSolverStatus.INFEASIBLE) {
+                return NodeOutcome(isInconclusive = true, inconclusiveUpper = upper)
+            }
+
+            val candidates =
+                selectedIds
+                    .asSequence()
+                    .filter { it in branchableIds && it !in node.enforced && it !in node.excluded }
+                    .toList()
+            if (candidates.isEmpty()) return NodeOutcome(isInconclusive = true, inconclusiveUpper = upper)
+            // Any selected conditional gives the exhaustive `{s=0 | s=1+exact-condition}` split.
+            // Earlier code rebuilt and solved one pinned model PER candidate merely to prefer an
+            // individually violated gate. That was soundness-neutral pseudo strong branching and
+            // consumed a large, unreported share of the total wall budget on full catalogs.
+            // k-ary SOS partition over the whole selected-conditional support: children
+            // {c1 required} ∪ {c1 excluded, c2 required} ∪ … ∪ {all k excluded}. Identical
+            // coverage to iterating the binary split, but the k independent required-children
+            // exist IMMEDIATELY — the binary chain kept the frontier 1-2 nodes wide, which
+            // starved the node-workers (measured 1.2× on 2 workers at cra80-ap10).
+            val ordered = candidates.sortedByDescending(::branchImpact)
+            val branchId = ordered.first()
+            val readBuilder = { id: Int ->
+                ConditionalWorldBranchRead(
+                    id,
+                    node.required,
+                    node.excluded,
+                    status.toString(),
+                    objective,
+                    upper,
+                    selectedIds,
+                    branchId,
+                    solver.wallTime(),
+                    deterministicTimeFrom(solver.responseStats()),
+                    "BRANCH"
+                )
+            }
+            val children = mutableListOf<Node>()
+            val runningExcluded = mutableSetOf<Int>()
+            for (candidate in ordered) {
+                children +=
+                    node.copy(
+                        enforced = node.enforced + candidate,
+                        required = node.required + candidate,
+                        excluded = node.excluded + runningExcluded,
+                        inheritedUpper = upper,
+                        hint = assignment
+                    )
+                runningExcluded += candidate
+            }
+            children += node.copy(excluded = node.excluded + runningExcluded, inheritedUpper = upper, hint = assignment)
+            if (!requiredFirst) children.reverse()
+            return NodeOutcome(read = readBuilder, children = children)
+        }
+
+        fun workerLoop() {
+            while (true) {
+                val node: Node? =
+                    synchronized(lock) {
+                        when {
+                            terminal != null -> return
+                            queue.isEmpty() && inFlight.isEmpty() -> return
+                            !shouldContinue() || secondsRemaining() <= 0.0 -> {
+                                terminal = inconclusive()
+                                return
+                            }
+                            queue.isEmpty() -> null
+                            nodesTaken >= maxNodes ->
+                                if (inFlight.isEmpty()) {
+                                    terminal = inconclusive()
+                                    return
+                                } else {
+                                    null
+                                }
+                            else -> {
+                                nodesTaken++
+                                queue.removeFirst().also { inFlight[it] = Unit }
+                            }
+                        }
+                    }
+                if (node == null) {
+                    Thread.sleep(5)
+                    continue
+                }
+                val outcome =
+                    try {
+                        processNode(node)
+                    } catch (t: Throwable) {
+                        synchronized(lock) {
+                            inFlight.remove(node)
+                            if (terminal == null) terminal = inconclusive(node.inheritedUpper)
+                        }
+                        throw t
+                    }
+                synchronized(lock) {
+                    inFlight.remove(node)
+                    outcome.read?.let { read ->
+                        val r = read(reads.size + 1)
+                        reads += r
+                        if (rootBailFraction != null && terminal == null) {
+                            // Two-node prognosis: nodes priced beyond any closable budget.
+                            if (reads.size == 2 && reads.sumOf { it.deterministicTime } > TWO_NODE_DET_BAIL) {
+                                terminal = inconclusive(reads.first().bestBound)
+                            }
+                            // Walled-branch class: FULL-budget reads contributing nothing. The
+                            // spent-budget condition keeps fast FEASIBLE reads of a closing tree
+                            // from counting.
+                            val spentBudget = deterministicLimitPerNode?.let { r.deterministicTime >= it * 0.9 } ?: (r.wallTimeSec >= maxSecondsPerNode * 0.9)
+                            zeroProgressStreak =
+                                if (r.status == "FEASIBLE" && r.bestBound >= node.inheritedUpper && spentBudget) zeroProgressStreak + 1 else 0
+                            if (zeroProgressStreak >= ZERO_PROGRESS_STALL_LIMIT && terminal == null) {
+                                terminal = inconclusive(r.bestBound)
+                            }
+                        }
+                    }
+                    // Root prognosis: a hopeless root dual means no bounded budget will close the
+                    // tree — end here (one node's cost) so the caller falls through to the DP.
+                    if (rootBailFraction != null && reads.size == 1 && terminal == null) {
+                        val root = reads.first()
+                        if (root.bestBound > incumbentObjective + (incumbentObjective.toDouble() * rootBailFraction).toLong()) {
+                            terminal = inconclusive(root.bestBound)
+                        } else if (root.status != "OPTIMAL") {
+                            // The root dual is within the band but the root itself did not CLOSE:
+                            // such trees sometimes finish (worth a chance) but often crawl
+                            // (enutrof125 burned the full 180 s then paid the DP anyway =
+                            // 324 s). Shrink the tree budget — proven-root trees (cra80/cra140)
+                            // keep the full one.
+                            deadline =
+                                minOf(
+                                    deadline,
+                                    System.nanoTime() + (UNPROVEN_ROOT_TREE_BUDGET_SECONDS * 1_000_000_000.0).toLong()
+                                )
+                        }
+                    }
+                    outcome.closedContribution?.let { closedUpper = maxOf(closedUpper, it) }
+                    when {
+                        outcome.counterexample != null -> {
+                            if (terminal == null) {
+                                terminal = ConditionalWorldProof.Counterexample(outcome.counterexample, reads.toList())
+                            }
+                        }
+                        outcome.isInconclusive -> {
+                            if (terminal == null) terminal = inconclusive(outcome.inconclusiveUpper)
+                        }
+                        else -> outcome.children.asReversed().forEach { queue.addFirst(it) }
+                    }
+                }
+            }
+        }
+
+        if (nodeWorkerCount == 1) {
+            workerLoop()
+        } else {
+            val pool =
+                java.util.concurrent.Executors
+                    .newFixedThreadPool(nodeWorkerCount - 1)
+            try {
+                val extras =
+                    (1 until nodeWorkerCount).map {
+                        pool.submit(java.util.concurrent.Callable { workerLoop() })
+                    }
+                workerLoop()
+                extras.forEach { it.get() }
+            } finally {
+                pool.shutdownNow()
+            }
+        }
+        synchronized(lock) {
+            terminal?.let { return it }
+            return if (queue.isEmpty() && inFlight.isEmpty()) {
+                ConditionalWorldProof.Proven(closedUpper, reads.toList())
+            } else {
+                inconclusive()
+            }
+        }
+    }
+
+    /** Compatibility seam for the manual S4 harness while the bounded engine graduates to production. */
+    internal fun conditionalWorldBranchAndBoundForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        incumbentObjective: Long,
+        workers: Int,
+        secondsPerNode: Double,
+        deterministicLimitPerNode: Double? = null,
+        interleave: Boolean = false,
+        maxNodes: Int,
+        applyDomination: Boolean,
+    ): Pair<Boolean, List<ConditionalWorldBranchRead>> {
+        val result =
+            conditionalWorldBranchAndBound(
+                params,
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                incumbentObjective,
+                workers,
+                totalSeconds = secondsPerNode * maxNodes,
+                maxSecondsPerNode = secondsPerNode,
+                deterministicLimitPerNode = deterministicLimitPerNode,
+                interleave = interleave,
+                maxNodes = maxNodes,
+                applyDomination = applyDomination
+            )
+        return (result is ConditionalWorldProof.Proven) to result.reads
     }
 
     internal fun timedMaxDamageProfileForTest(
@@ -1142,6 +2160,7 @@ object WakfuBuildSolver {
         workers: Int,
         seconds: Double,
         applyDomination: Boolean,
+        randomSeed: Int = 1,
         experiment: MaxDamageExperimentConfig = MaxDamageExperimentConfig.DEFAULT,
         maxPresolveIterations: Int = 3,
         linearizationLevel: Int = 2,
@@ -1153,6 +2172,10 @@ object WakfuBuildSolver {
         probingLevel: Int? = null,
         objectiveShaving: Boolean = false,
         searchBranching: Int? = null,
+        // Cut on the FINAL soft-penalized objective only. Keep separate from [objectiveCutoff],
+        // which is also threaded into perTurnDamageScore as a raw D·Graw cutoff and therefore has
+        // different units whenever required-target penalty folding is active.
+        penalizedObjectiveCutoff: Long? = null,
         objectiveCutoff: Long? = null,
         // Portfolio-composition research knobs (parameter-only, soundness-safe like the above).
         logSearch: Boolean = false,
@@ -1165,6 +2188,38 @@ object WakfuBuildSolver {
         // C4: screen the CONSTRAINED hard-leg shape (required targets as `actual ≥ target`, plain objective) — the
         // shape whose bilinear dual gap C6 targets — instead of the soft-penalty relaxation. Default false = today.
         hardConstraints: Boolean = false,
+        // Test-only partition oracle: require at least one modeled condition-bearing sublimation.
+        // Used to lock the certificate's complementary {no condition | some condition} split.
+        requireAnyConditionalSublimation: Boolean = false,
+        // Research-only carrier-world seam: force one modeled sublimation while the caller chooses
+        // which other conditions stay exact/relaxed in [sublimations].
+        requiredSublimationStateId: Int? = null,
+        // Multi-carrier variant (per-carrier closure blocker subsets): every listed sub is forced.
+        requiredSublimationStateIds: Set<Int> = emptySet(),
+        // Cooperative cancellation: polled every 500 ms by a watcher thread that calls
+        // CpSolver.stopSearch() so a multi-minute proof solve stops within a second of the caller
+        // cancelling (a fresh search must never compete with an abandoned proof for CPU). The
+        // stopped solve returns its current status/dual — still sound, and the caller discards it.
+        shouldContinue: (() -> Boolean)? = null,
+        // Research-only exact-region seam. Bounds are posted on the resolved sheet stats and can
+        // therefore be used to validate a DP-complement partition without changing the objective.
+        statLowerBounds: Map<Characteristic, Long> = emptyMap(),
+        statUpperBounds: Map<Characteristic, Long> = emptyMap(),
+        // Frontier-region coverage pins (review fix 2026-07-20). The soft certificate's DP cells
+        // are keyed by CREDITED stats (negative item lines clamped at 0, negative sub lines
+        // dropped), so covering "every build whose state maps into a cell" needs pins on the
+        // CREDITED value, not the real sheet stat: credited = real + Σ elided debits, an exact
+        // per-build identity, posted as `actualStat + Σ debit_e·x_e + Σ debit_s·s ≥ v`. The
+        // [creditedHpPctFactor] over-scales HP debits by the maximum hp% multiplier (the DP
+        // multiplies CREDITED flats, so the elided gap can exceed the raw debit — over-relaxing
+        // the debit side keeps the pin implied by coverage, i.e. sound).
+        creditedStatLowerBounds: Map<Characteristic, Long> = emptyMap(),
+        creditedHpPctFactor: Int = 100,
+        // Research-only provenance validator: pin the discrete equipment/sub assignment exposed
+        // by a certificate path, while leaving runes and skills free for the exact model to
+        // optimize. null means unpinned; an empty map/set deliberately pins every choice to zero.
+        pinnedEquipmentIds: Set<Int>? = null,
+        pinnedSublimationCopies: Map<Int, Int>? = null,
     ): MaxDamageTimedProfile {
         val built =
             buildModel(
@@ -1175,15 +2230,72 @@ object WakfuBuildSolver {
                 applyDomination = applyDomination,
                 maxDamageExperiment = experiment,
                 maxDamageObjectiveCutoff = objectiveCutoff,
-                hardConstraints = hardConstraints
+                hardConstraints = hardConstraints,
+                trackActualStats = true
             )
-        objectiveCutoff?.let { built.model.addGreaterOrEqual(built.objective, it) }
+        (penalizedObjectiveCutoff ?: objectiveCutoff)?.let { built.model.addGreaterOrEqual(built.objective, it) }
+        if (requireAnyConditionalSublimation) {
+            val conditionalVars =
+                built.subModel.subVars
+                    .filterKeys { it.condition != null }
+                    .values
+                    .toTypedArray()
+            require(conditionalVars.isNotEmpty()) { "conditional partition requested with no modeled conditional sublimation" }
+            built.model.addGreaterOrEqual(LinearExpr.sum(conditionalVars), 1L)
+        }
+        (requiredSublimationStateIds + listOfNotNull(requiredSublimationStateId)).forEach { stateId ->
+            val required =
+                built.subModel.subVars.entries
+                    .singleOrNull { it.key.stateId == stateId }
+                    ?.value
+                    ?: error("required sublimation $stateId is not modeled in this world")
+            built.model.addEquality(required, 1L)
+        }
+        statLowerBounds.forEach { (stat, lower) ->
+            built.model.addGreaterOrEqual(requireNotNull(built.actualStatVars[stat]) { "unsupported lower-bound stat $stat" }, lower)
+        }
+        statUpperBounds.forEach { (stat, upper) ->
+            built.model.addLessOrEqual(requireNotNull(built.actualStatVars[stat]) { "unsupported upper-bound stat $stat" }, upper)
+        }
+        creditedStatLowerBounds.forEach { (stat, lower) ->
+            val expr = LinearExpr.newBuilder()
+            expr.add(requireNotNull(built.actualStatVars[stat]) { "unsupported credited-bound stat $stat" })
+            val pctFactor = if (stat == Characteristic.HP) creditedHpPctFactor else 100
+            for ((equipment, equipVar) in built.equipVars) {
+                val raw = equipment.characteristics[stat] ?: 0
+                if (raw < 0) expr.addTerm(equipVar, ((-raw).toLong() * pctFactor + 99) / 100)
+            }
+            for ((sub, subVar) in built.subModel.subVars) {
+                val debit =
+                    sub.effects
+                        .filterIsInstance<me.chosante.common.SublimationEffect.StatEffect>()
+                        .filter { it.characteristic == stat && scenarioGateMatches(it.scenarioGate, params) }
+                        .sumOf { (-minOf(it.magnitudeAtLevel(built.subModel.characterLevel), 0)).toLong() }
+                if (debit > 0L) {
+                    val scaled = (debit * pctFactor + 99) / 100
+                    expr.addTerm(subVar, scaled)
+                    for (copyVar in built.subModel.copyVars[sub].orEmpty()) expr.addTerm(copyVar, scaled)
+                }
+            }
+            built.model.addGreaterOrEqual(expr, lower)
+        }
+        pinnedEquipmentIds?.let { selectedIds ->
+            built.equipVars.forEach { (equipment, variable) ->
+                built.model.addEquality(variable, if (equipment.equipmentId in selectedIds) 1L else 0L)
+            }
+        }
+        pinnedSublimationCopies?.let { selectedCopies ->
+            built.subModel.subVars.forEach { (sub, baseVariable) ->
+                val variables = (listOf(baseVariable) + built.subModel.copyVars[sub].orEmpty()).toTypedArray()
+                built.model.addEquality(LinearExpr.sum(variables), selectedCopies.getOrDefault(sub.stateId, 0).toLong())
+            }
+        }
         val solver = CpSolver()
         solver.parameters.logSearchProgress = logSearch
         solver.parameters.linearizationLevel = linearizationLevel
         solver.parameters.maxPresolveIterations = maxPresolveIterations
         solver.parameters.numSearchWorkers = workers
-        solver.parameters.randomSeed = 1
+        solver.parameters.randomSeed = randomSeed
         if (symmetryLevel != null) solver.parameters.symmetryLevel = symmetryLevel
         if (probingLevel != null) solver.parameters.cpModelProbingLevel = probingLevel
         if (objectiveShaving) solver.parameters.useObjectiveShavingSearch = true
@@ -1205,7 +2317,7 @@ object WakfuBuildSolver {
             solver.parameters.maxDeterministicTime = deterministicLimit
         }
         solver.parameters.maxTimeInSeconds = seconds
-        val status = solver.solve(built.model)
+        val status = withStopWatcher(solver, shouldContinue) { solver.solve(built.model) }
         if (System.getenv("WAKFU_MAX_DAMAGE_CERT_DEBUG") == "1" &&
             (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL || status == com.google.ortools.sat.CpSolverStatus.FEASIBLE)
         ) {
@@ -1226,8 +2338,11 @@ object WakfuBuildSolver {
         val stats = solver.responseStats()
         return MaxDamageTimedProfile(
             status = status.toString(),
-            objective = if (hasSolution) solver.objectiveValue().toLong() else Long.MIN_VALUE,
-            bestBound = solver.bestObjectiveBound().toLong(),
+            // Review fix (2026-07-20): a complete primal assignment has an integral objective —
+            // ROUND it; the dual arrives as a double and must be CEILED, never floored (these
+            // values are consumed as sound UPPER authorities by the soft-proof oracles).
+            objective = if (hasSolution) kotlin.math.round(solver.objectiveValue()).toLong() else Long.MIN_VALUE,
+            bestBound = kotlin.math.ceil(solver.bestObjectiveBound()).toLong(),
             objectiveCutoff = objectiveCutoff,
             wallTimeSec = solver.wallTime(),
             deterministicTime = deterministicTimeFrom(stats),
@@ -1239,7 +2354,43 @@ object WakfuBuildSolver {
             variables = proto.variablesCount,
             constraints = proto.constraintsCount,
             poolSize = built.allEquips.size,
-            experiment = experiment
+            experiment = experiment,
+            selectedEquipmentIds =
+                if (hasSolution) {
+                    built.equipVars
+                        .filterValues { solver.value(it) > 0L }
+                        .keys
+                        .mapTo(linkedSetOf()) { it.equipmentId }
+                } else {
+                    emptySet()
+                },
+            selectedSublimationStateIds =
+                if (hasSolution) {
+                    built.subModel.subVars
+                        .filterValues { solver.value(it) > 0L }
+                        .keys
+                        .mapTo(linkedSetOf()) { it.stateId }
+                } else {
+                    emptySet()
+                },
+            selectedSublimationCopies =
+                if (hasSolution) {
+                    built.subModel.subVars
+                        .mapNotNull { (sub, baseVariable) ->
+                            val copies =
+                                solver.value(baseVariable) +
+                                    built.subModel.copyVars[sub]
+                                        .orEmpty()
+                                        .sumOf(solver::value)
+                            sub.stateId.takeIf { copies > 0L }?.let { it to copies }
+                        }.toMap()
+                } else {
+                    emptyMap()
+                },
+            actualStats =
+                if (hasSolution) built.actualStatVars.mapValues { (_, variable) -> solver.value(variable) } else emptyMap(),
+            rawObjective =
+                if (hasSolution && built.maxDamageRawScore != null) solver.value(built.maxDamageRawScore) else Long.MIN_VALUE
         )
     }
 
@@ -1450,6 +2601,16 @@ object WakfuBuildSolver {
         precomputedExact: Map<Int, Long>? = null,
         precomputedProv: Map<Int, CellProvenance>? = null,
     ): CertLedger? {
+        // The ledger's AT_MOST windows read apConst/critConst, which fold the passives' flat stats,
+        // while the solver's pre-combat read excludes passives — a passive granting AP or crit would
+        // over-reject real carriers. None does today (they grant MP or block): bail if one appears
+        // (pre-release review 2026-10-01).
+        if (resolvedPassives(params).any { passive ->
+                passive.flatStats.keys.any { it.foldedToUsableStat() in setOf(Characteristic.ACTION_POINT, Characteristic.CRITICAL_HIT) }
+            }
+        ) {
+            return null
+        }
         val ledger =
             buildModel(
                 params,
@@ -2190,6 +3351,12 @@ object WakfuBuildSolver {
     private class MostMasteriesObjectiveVars(
         val objective: IntVar,
         val staticallyInfeasible: Boolean = false,
+        // §8.2 S-A only: the (core, bucket) vars of a bucket-interval sub-model, read on the solved
+        // assignment so the outer driver folds an exact incumbent without duplicating scorer arithmetic.
+        val penaltyBucketProbeVars: Pair<IntVar, IntVar>? = null,
+        // §8.5 S-D only: the hard leg's assumption literals (target → literal), read on a proven
+        // INFEASIBLE to extract the sufficient core.
+        val assumptionLiterals: Map<Characteristic, com.google.ortools.sat.BoolVar>? = null,
     )
 
     /**
@@ -2226,6 +3393,16 @@ object WakfuBuildSolver {
         mmOvershootEncoding: MmOvershootEncoding = MmOvershootEncoding.CURRENT,
         mmProductEncoding: MmProductEncoding = MmProductEncoding.CURRENT,
         mmMasteryScoreUpperBound: Long? = null,
+        // §8.2 S-A outer bucket B&B seam — see [SolverTuning.mmPenaltyBucketInterval].
+        mmPenaltyBucketInterval: IntRange? = null,
+        mmPenaltyBucketFoldedObjective: Boolean = false,
+        mmPenaltyGeometryProbe: ((Int, LongArray, Long) -> Unit)? = null,
+        // §8.4 S-C outer DI-factor seam — see [SolverTuning.mmDiFactorInterval].
+        mmDiFactorInterval: IntRange? = null,
+        mmDiFactorFoldedObjective: Boolean = false,
+        // §8.5 S-D seams — see [SolverTuning.mmHardTargetsAsAssumptions] / [SolverTuning.mmSoftNoGoodCore].
+        mmHardTargetsAsAssumptions: Boolean = false,
+        mmSoftNoGoodCore: Set<Characteristic>? = null,
     ): MostMasteriesObjectiveVars {
         val statBuilder =
             StatBuilder(
@@ -2252,7 +3429,13 @@ object WakfuBuildSolver {
         // the product-box bound below (was the loose MASTERY_SCORE_ABS_MAX), tightening the objective's McCormick
         // envelope on the required-target path.
         val (masteryScore, masteryScoreReach) =
-            statBuilder.diAdjustedPerElementMasteryScore(targetStats, targetCharacteristics, mmProductEncoding)
+            statBuilder.diAdjustedPerElementMasteryScore(
+                targetStats,
+                targetCharacteristics,
+                mmProductEncoding,
+                mmDiFactorInterval,
+                mmDiFactorFoldedObjective
+            )
 
         // Piste-4 A/B: a redundant `core ≤ U` dual cut from an EXTERNAL sound bound (the M3 DP prototype).
         // Redundant for any correct U, so the optimum is unchanged; the measurement question is whether
@@ -2267,13 +3450,23 @@ object WakfuBuildSolver {
         // tie-breaker keeps its exact secondary semantics — hard-leg ties still prefer overshoot,
         // either folded (single-stage) or via the P2b two-stage split.
         if (hardConstraints) {
-            val staticallyInfeasible = statBuilder.addRequiredTargetHardConstraints()
+            // §8.5 S-D: assumption-gated targets (measurement seam) vs the plain production constraints.
+            val assumptionLiterals: Map<Characteristic, com.google.ortools.sat.BoolVar>?
+            val staticallyInfeasible: Boolean
+            if (mmHardTargetsAsAssumptions) {
+                val (literals, static) = statBuilder.addRequiredTargetAssumptions()
+                assumptionLiterals = literals
+                staticallyInfeasible = static
+            } else {
+                assumptionLiterals = null
+                staticallyInfeasible = statBuilder.addRequiredTargetHardConstraints()
+            }
             if (requiredTargets.isEmpty()) {
-                return MostMasteriesObjectiveVars(masteryScore, staticallyInfeasible)
+                return MostMasteriesObjectiveVars(masteryScore, staticallyInfeasible, statBuilder.mmDiFactorProbeVars)
             }
             // P2b stage 1: prove the primary alone.
             if (mmPlainPrimaryObjective) {
-                return MostMasteriesObjectiveVars(masteryScore, staticallyInfeasible)
+                return MostMasteriesObjectiveVars(masteryScore, staticallyInfeasible, assumptionLiterals = assumptionLiterals)
             }
             val totalExpectedScore =
                 requiredTargets
@@ -2284,17 +3477,51 @@ object WakfuBuildSolver {
             // provably the same lexicographic optimum as the folded objective, without its domain.
             if (mmOvershootPinnedPrimary != null) {
                 addEquality(masteryScore, newConstant(mmOvershootPinnedPrimary))
-                return MostMasteriesObjectiveVars(overshoot, staticallyInfeasible)
+                return MostMasteriesObjectiveVars(overshoot, staticallyInfeasible, assumptionLiterals = assumptionLiterals)
             }
             return MostMasteriesObjectiveVars(
                 withOvershootTieBreaker(masteryScore, masteryScoreReach, overshoot, totalExpectedScore),
-                staticallyInfeasible
+                staticallyInfeasible,
+                assumptionLiterals = assumptionLiterals
             )
+        }
+
+        // §8.5 S-D: the recycled hard-leg infeasibility core as a logically-implied soft no-good.
+        if (mmSoftNoGoodCore != null) {
+            statBuilder.addInfeasibilityCoreNoGood(mmSoftNoGoodCore)
+        }
+
+        // §8.2 S-A: the outer driver owns the penalty axis — bucket-constrained sub-model, no
+        // product equality. Soft model with required targets only (the hard leg returned above).
+        if (mmPenaltyBucketInterval != null) {
+            val bucketCore =
+                constrainPenaltyBucketInterval(
+                    statBuilder,
+                    targetStats,
+                    masteryScore,
+                    masteryScoreReach,
+                    mmPenaltyBucketInterval,
+                    mmPenaltyBucketFoldedObjective,
+                    mmPenaltyGeometryProbe
+                )
+            if (bucketCore != null) {
+                if (!bucketCore.singletonFolded) {
+                    return MostMasteriesObjectiveVars(bucketCore.objective, penaltyBucketProbeVars = bucketCore.probeVars)
+                }
+                val overshoot =
+                    statBuilder.overshootScore(requiredTargets, bucketCore.totalExpectedScore, targetStats, MmOvershootEncoding.CURRENT)
+                return MostMasteriesObjectiveVars(
+                    withOvershootTieBreaker(bucketCore.objective, bucketCore.objectiveBound, overshoot, bucketCore.totalExpectedScore),
+                    penaltyBucketProbeVars = bucketCore.probeVars
+                )
+            }
         }
 
         val penalized = applyConstraintPenalty(params, statBuilder, masteryScore, masteryScoreReach)
         if (requiredTargets.isEmpty()) {
-            return MostMasteriesObjectiveVars(penalized.objective)
+            // §8.4 S-C: with no required target the penalty is a passthrough, so the S-C probe vars
+            // (tier, DI factor) ride the shared capture channel.
+            return MostMasteriesObjectiveVars(penalized.objective, penaltyBucketProbeVars = statBuilder.mmDiFactorProbeVars)
         }
 
         val totalExpectedScore =
@@ -2326,6 +3553,8 @@ object WakfuBuildSolver {
         // C2: true when a hard-constraints solve is PROVABLY infeasible (a required target exceeds its reachable
         // ceiling). Lets [optimize] skip the doomed CP-SAT solve. Always false outside the hard-constraints path.
         val staticallyInfeasible: Boolean = false,
+        // §8.2bis S-E only: the (core, bucket) vars of a bucket-interval sub-model (soft leg); null otherwise.
+        val penaltyBucketProbeVars: Pair<IntVar, IntVar>? = null,
     )
 
     /**
@@ -2349,11 +3578,16 @@ object WakfuBuildSolver {
         // INFEASIBLE (unreachable targets) it re-solves with the penalty (this flag false). See
         // [StatBuilder.addRequiredTargetHardConstraints].
         hardConstraints: Boolean = false,
+        // §8.2bis S-E: outer bucket B&B on the SOFT leg's penalty axis — see [SolverTuning.mmPenaltyBucketInterval].
+        penaltyBucketInterval: IntRange? = null,
+        penaltyBucketFoldedObjective: Boolean = false,
+        penaltyGeometryProbe: ((Int, LongArray, Long) -> Unit)? = null,
     ): MaxDamageObjectiveVars {
         statBuilder.applyOutOfCombatCaps()
         // External-loop AP probe: pin the build to exactly N AP so each breakpoint can be evaluated (used by the
         // debuff AP-window probes in MaxDamageSearch).
         params.maxDamageApTarget?.let { addEquality(statBuilder.actionPointVar(), newConstant(it.toLong())) }
+        params.maxDamageMpPin?.let { addEquality(statBuilder.movementPointVar(), newConstant(it.toLong())) }
         val damageScore = statBuilder.perTurnDamageScore(params.damageScenario, params.character.clazz, objectiveCutoff)
         // Survivability soft-floor (opt-in): gently tax the damage score when the build's effective-HP
         // proxy is below the floor, BEFORE the hard-target penalty. Folding it into the core score (rather
@@ -2378,6 +3612,29 @@ object WakfuBuildSolver {
         if (hardConstraints) {
             val staticallyInfeasible = statBuilder.addRequiredTargetHardConstraints()
             return MaxDamageObjectiveVars(rawScore = damageScore, objective = survivableScore, staticallyInfeasible = staticallyInfeasible)
+        }
+        // §8.2bis S-E: the outer driver owns the penalty axis — same decomposition as most-masteries
+        // S-A, minus the overshoot fold (max-damage has none). The core here is the survivable score,
+        // so an opted-in survivability floor stays INSIDE the sub-model (S-E removes only the
+        // required-target product).
+        if (penaltyBucketInterval != null) {
+            val bucketCore =
+                constrainPenaltyBucketInterval(
+                    statBuilder,
+                    params.targetStats,
+                    survivableScore,
+                    DAMAGE_PERTURN_ABS_MAX,
+                    penaltyBucketInterval,
+                    penaltyBucketFoldedObjective,
+                    penaltyGeometryProbe
+                )
+            if (bucketCore != null) {
+                return MaxDamageObjectiveVars(
+                    rawScore = damageScore,
+                    objective = bucketCore.objective,
+                    penaltyBucketProbeVars = bucketCore.probeVars
+                )
+            }
         }
         return MaxDamageObjectiveVars(
             rawScore = damageScore,
@@ -2479,6 +3736,72 @@ object WakfuBuildSolver {
         val objective: IntVar,
         val bound: Long,
     )
+
+    /** Result of [constrainPenaltyBucketInterval] — see its doc. */
+    private class BucketIntervalCore(
+        // The bare core (interval node) or the linear `core × power6(b)` (singleton folded node).
+        val objective: IntVar,
+        val objectiveBound: Long,
+        val singletonFolded: Boolean,
+        val totalExpectedScore: Long,
+        // (core, bucket) — read on the solved assignment by the outer driver's incumbent capture.
+        val probeVars: Pair<IntVar, IntVar>,
+    )
+
+    /**
+     * §8.2 S-A sub-model: the penalty bucket is CONSTRAINED to [interval] and the
+     * `core × multiplier` product is absent from the searched model. Mode-agnostic: the same
+     * required-target penalty axis wraps the most-masteries core AND the max-damage soft leg's
+     * survivable score (§8.2bis S-E), so both objective builders share this.
+     *
+     * - Interval node (or [foldedObjective] false): the objective is the bare core. The outer driver
+     *   turns its proven bound C into a sound interval bound: `C × power6(hi)` when `C ≥ 0`, else
+     *   `C × power6(lo)` (the power table is monotone non-decreasing, so a negative core is hurt
+     *   LEAST by the smallest multiplier).
+     * - Singleton node with [foldedObjective]: the multiplier is the constant `power6(b)`, so the
+     *   exact penalized objective is linear in the core — no product equality remains. The
+     *   most-masteries caller folds its overshoot tie-break on top; max-damage has none.
+     *
+     * The bucket chain (totalActualScore → maxVar → bucketedIndex) is byte-identical to
+     * [applyConstraintPenalty]'s, so bucket semantics cannot drift between the two models.
+     * Returns null when no required target exists (no penalty axis to decompose).
+     */
+    private fun CpModel.constrainPenaltyBucketInterval(
+        statBuilder: StatBuilder,
+        targetStats: TargetStats,
+        core: IntVar,
+        coreAbsMax: Long,
+        interval: IntRange,
+        foldedObjective: Boolean,
+        geometryProbe: ((Int, LongArray, Long) -> Unit)?,
+    ): BucketIntervalCore? {
+        val requiredTargets = targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }
+        if (requiredTargets.isEmpty()) return null
+        val totalExpectedScore =
+            requiredTargets
+                .sumOf { it.target.toLong() * targetStats.scaledWeight(it) }
+                .coerceAtLeast(1L)
+        val totalActualScore = statBuilder.totalActualScore(requiredTargets, totalExpectedScore, targetStats)
+        val totalActualScoreForPenalty = maxVar(totalActualScore, 1L, totalExpectedScore, "totalActualScoreForPenalty")
+        val (indexVar, maxIndex) = bucketedIndex(totalActualScoreForPenalty, totalExpectedScore)
+        val powerTable = buildPowerTable(maxIndex.toLong(), coreAbsMax)
+        geometryProbe?.invoke(maxIndex, powerTable.values, totalExpectedScore)
+
+        val lo = interval.first.coerceIn(0, maxIndex).toLong()
+        val hi = interval.last.coerceIn(0, maxIndex).toLong()
+        addGreaterOrEqual(indexVar, lo)
+        addLessOrEqual(indexVar, hi)
+
+        if (!foldedObjective || lo != hi) {
+            return BucketIntervalCore(core, coreAbsMax, false, totalExpectedScore, core to indexVar)
+        }
+
+        val constMultiplier = powerTable.values[lo.toInt()]
+        val foldedBound = safeMultiply(coreAbsMax, constMultiplier).coerceAtLeast(1L)
+        val folded = newIntVar(-foldedBound, foldedBound, "bucketFoldedScore")
+        addEquality(folded, LinearExpr.term(core, constMultiplier))
+        return BucketIntervalCore(folded, foldedBound, true, totalExpectedScore, core to indexVar)
+    }
 
     /**
      * Folds a lexicographic overshoot tie-breaker under [primaryObjective], returning
@@ -2607,6 +3930,17 @@ object WakfuBuildSolver {
         // P2b stage 2: cap this solve's PRODUCTION wall budget (the pinned-primary overshoot solve is
         // near-forced and must never eat the user's remaining duration). Null = the params duration.
         maxWallSecondsOverride: Double? = null,
+        // Backup certificate (§8.9bis): stamp [SolverResult.mostMasteriesObjective] on every emission —
+        // set by [optimize] iff the searched objective is certificate-comparable as is (the MM soft leg,
+        // in penalized units; or a request without required targets, where both legs coincide).
+        mmObjectiveComparable: Boolean = false,
+        // ...or convertible: the MM hard leg with required targets stamps its objective scaled into soft
+        // units by this multiplier ([MostMasteriesCertificate.fullTargetsMultiplier]).
+        mmHardLegMultiplier: Long? = null,
+        // P2b stage 2 (review fix 2026-07-20): the overshoot solve's own objective is NOT the MM
+        // primary — stamp the PINNED stage-1 primary instead so the final displayed emission keeps
+        // a certificate-comparable objective (else the backup badge gate reads null and never runs).
+        mmObjectiveOverride: Long? = null,
     ): SolveOutcome? {
         val solver = CpSolver()
         onSolverReady(solver)
@@ -2703,7 +4037,9 @@ object WakfuBuildSolver {
                             actualScore,
                             progress.coerceAtMost(100),
                             maxDamageObjective = if (maxDamage) objectiveValue().toLong() else null,
-                            maxDamageRawProxy = if (maxDamage) maxDamageRawScoreVar?.let { value(it) } else null
+                            maxDamageRawProxy = if (maxDamage) maxDamageRawScoreVar?.let { value(it) } else null,
+                            mostMasteriesObjective =
+                                mmStampedObjective(objectiveValue().toLong(), mmObjectiveComparable, mmHardLegMultiplier, mmObjectiveOverride)
                         )
                     )
                 }
@@ -2728,7 +4064,9 @@ object WakfuBuildSolver {
                             progressPercentage = 100,
                             isOptimal = finalIsOptimalOverride ?: (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL),
                             maxDamageObjective = if (maxDamage) solver.objectiveValue().toLong() else null,
-                            maxDamageRawProxy = if (maxDamage) maxDamageRawScoreVar?.let { solver.value(it) } else null
+                            maxDamageRawProxy = if (maxDamage) maxDamageRawScoreVar?.let { solver.value(it) } else null,
+                            mostMasteriesObjective =
+                                mmStampedObjective(solver.objectiveValue().toLong(), mmObjectiveComparable, mmHardLegMultiplier, mmObjectiveOverride)
                         )
                     )
                 }
@@ -2899,6 +4237,68 @@ object WakfuBuildSolver {
             fixed = fixed.mapValues { it.value.toList() },
             percent = percent.mapValues { it.value.toList() }
         )
+    }
+
+    /**
+     * The [SolverResult.mostMasteriesObjective] stamp: the raw objective when it is certificate-comparable
+     * as is; the MM hard leg's `core × SCALE + bonus` scaled into soft units (`core × multiplier × SCALE +
+     * bonus` — every hard-leg emission meets the targets, so that IS the same build's soft objective);
+     * else the P2b override (null for every other caller). An overflowing conversion stamps null (no
+     * badge) rather than a wrapped value.
+     */
+    private fun mmStampedObjective(
+        objective: Long,
+        comparable: Boolean,
+        hardLegMultiplier: Long?,
+        override: Long?,
+    ): Long? =
+        when {
+            comparable -> objective
+            hardLegMultiplier != null ->
+                runCatching {
+                    Math.addExact(
+                        Math.multiplyExact(Math.multiplyExact(Math.floorDiv(objective, OVERSHOOT_SCALE), hardLegMultiplier), OVERSHOOT_SCALE),
+                        Math.floorMod(objective, OVERSHOOT_SCALE)
+                    )
+                }.getOrNull()
+            else -> override
+        }
+
+    /**
+     * Runs [solve] under a daemon watcher that calls [CpSolver.stopSearch] every 500 ms once
+     * [shouldContinue] turns false — RE-ISSUED on every tick: OR-Tools' Java stopSearch() is a silent
+     * no-op until solve() has created its native wrapper, so a cancel landing while the model was still
+     * being handed over would otherwise be lost and the solve would run its full budget. Inert (no
+     * thread) when [shouldContinue] is null. A stopped solve returns FEASIBLE/UNKNOWN: callers must read
+     * it through the sound accessors ([MaxDamageTimedProfile.soundUpper], the B&B status guard).
+     */
+    private fun <T> withStopWatcher(
+        solver: CpSolver,
+        shouldContinue: (() -> Boolean)?,
+        solve: () -> T,
+    ): T {
+        val watcher =
+            shouldContinue?.let { cont ->
+                Thread {
+                    try {
+                        while (!Thread.currentThread().isInterrupted) {
+                            if (!cont()) solver.stopSearch()
+                            Thread.sleep(500)
+                        }
+                    } catch (_: InterruptedException) {
+                        // Solve finished — nothing left to stop.
+                    }
+                }.apply {
+                    isDaemon = true
+                    name = "wakfu-proof-stop-watcher"
+                    start()
+                }
+            }
+        try {
+            return solve()
+        } finally {
+            watcher?.interrupt()
+        }
     }
 
     internal fun Equipment.valueFor(char: Characteristic): Int {

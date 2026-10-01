@@ -762,8 +762,9 @@ HUPPERMAGE"""
                     useRunes = !noRunes,
                     forcedRunes = forcedRunes,
                     useSublimations = !noSublimations,
-                    forcedSublimations = forcedSublimations,
-                    excludedSublimations = excludedSublimations,
+                    // Pre-rename names ("Carnage II") from older scripts resolve to the current record.
+                    forcedSublimations = forcedSublimations.map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName),
+                    excludedSublimations = excludedSublimations.map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName),
                     forcedPassives = passives,
                     damageScenario = damageScenario
                 )

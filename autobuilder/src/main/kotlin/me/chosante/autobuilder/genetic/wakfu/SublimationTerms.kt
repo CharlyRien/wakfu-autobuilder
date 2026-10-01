@@ -20,6 +20,7 @@ import me.chosante.common.SublimationKind
 
 internal fun StatBuilder.buildSublimationTerms(): Map<Characteristic, List<Term>> {
     val map = mutableMapOf<Characteristic, MutableList<Term>>()
+    postConditionalSubBranchingStrategy()
     for ((sub, _) in subModel.subVars) {
         // Combat-conditional subs (only ever forced) reserve their slot/sockets but their
         // situational effects are not auto-credited to the build (could be penalties / unmet).
@@ -157,6 +158,32 @@ internal fun StatBuilder.buildPermanentSubTerms(): Map<Characteristic, List<Term
 }
 
 /**
+ * The START-OF-COMBAT contributions of unconditional FLAT subs (effects NOT flagged
+ * [SublimationEffect.appliesBeforeCombat]), grouped like [buildPermanentSubTerms]. Together with
+ * [StatBuilder.preCombatStat] they form the FIRST-TURN sheet that `firstTurn` conditions read
+ * (Neutralité's `secondary masteries ≤ 0` — see [SubConditionSpec.StatBound.firstTurn]).
+ * Restricted to `kind == FLAT` (condition-less) subs so the gate is the raw `subVar` and
+ * [reifyCondition] stays acyclic — a STATIC_CONDITIONAL sub's own start-of-combat effects are NOT
+ * summed (its applies-var would recurse; in-game a conditional sub never feeds its own condition,
+ * and cross-conditional feeding is not modeled — best-achievable, like the rest of the family).
+ */
+internal fun StatBuilder.buildStartOfCombatFlatSubTerms(): Map<Characteristic, List<Term>> {
+    val map = mutableMapOf<Characteristic, MutableList<Term>>()
+    for ((sub, subVar) in subModel.subVars) {
+        if (sub.kind != SublimationKind.FLAT) continue
+        for (effect in sub.effects.filterIsInstance<SublimationEffect.StatEffect>()) {
+            if (effect.appliesBeforeCombat) continue
+            if (!scenarioGateMatches(effect.scenarioGate, params)) continue
+            val magnitude = effect.magnitudeAtLevel(subModel.characterLevel).toLong()
+            val bucket = map.getOrPut(effect.characteristic.foldedToUsableStat()) { mutableListOf() }
+            bucket.add(Term(subVar, magnitude))
+            for (copyVar in subModel.copyVars[sub].orEmpty()) bucket.add(Term(copyVar, magnitude))
+        }
+    }
+    return map
+}
+
+/**
  * Boolean that gates a sub's contributions. For a solver-chosen STATIC_CONDITIONAL/CONVERSION sub
  * with a supported condition we constrain `subVar ≤ condHolds`, so the solver may only choose the
  * sub when it arranges the build to satisfy the condition (this is what makes it trade stats to
@@ -246,11 +273,13 @@ private fun StatBuilder.reifyStatBound(
     spec: SubConditionSpec.StatBound,
     tag: String,
 ): IntVar {
+    // firstTurn conditions read the FIRST-TURN sheet (pre-combat + start-of-combat FLAT subs).
+    val read: (Characteristic) -> IntVar = if (spec.firstTurn) ::firstTurnStat else ::preCombatStat
     val value =
         if (spec.stats.size == 1) {
-            preCombatStat(spec.stats.single())
+            read(spec.stats.single())
         } else {
-            model.sumVar("secMast_$tag", spec.stats.map { preCombatStat(it) }, -STAT_ABS_MAX, STAT_ABS_MAX)
+            model.sumVar("secMast_$tag", spec.stats.map { read(it) }, -STAT_ABS_MAX, STAT_ABS_MAX)
         }
     val n = spec.threshold.toLong()
     return when (spec.comparison) {
@@ -258,6 +287,33 @@ private fun StatBuilder.reifyStatBound(
         ConditionComparison.AT_LEAST -> reifyGe(value, n, tag)
         ConditionComparison.EXACT -> and(reifyLe(value, n, "${tag}_le"), reifyGe(value, n, "${tag}_ge"), tag)
     }
+}
+
+/**
+ * §9.22 — WORLD-SPLIT-BY-BRANCHING for the max-damage proof: a decision strategy telling the
+ * fixed-search subsolvers to decide the CONDITIONAL sub booleans FIRST, zero side first. The
+ * cra-140 profile showed the proof grinding millions of branches because the reified condition
+ * indicators float undecided through most of the tree; deciding them up front makes the all-zero
+ * subtree exactly the no-condition model (proven in ~4.5 s there) and gives every carrying
+ * subtree a FIXED condition instead of a floating indicator — the option-C world split of
+ * `docs/S4_CONDITION_ENCODING_PROBLEM.md`, executed natively by the search instead of by
+ * enumerating models. A pure search HINT: the feasible set, objective and portfolio composition
+ * are untouched (non-fixed-search workers ignore it), so soundness and the differential locks are
+ * unaffected by construction. Scoped to max-damage, the only mode with the proof wall.
+ */
+private fun StatBuilder.postConditionalSubBranchingStrategy() {
+    if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return
+    val conditionalSubVars =
+        subModel.subVars
+            .filterKeys { it.condition != null && it.condition?.type in SUPPORTED_SUB_CONDITIONS && it !in subModel.forced }
+            .values
+            .toTypedArray<IntVar>()
+    if (conditionalSubVars.isEmpty()) return
+    model.addDecisionStrategy(
+        conditionalSubVars,
+        com.google.ortools.sat.DecisionStrategyProto.VariableSelectionStrategy.CHOOSE_FIRST,
+        com.google.ortools.sat.DecisionStrategyProto.DomainReductionStrategy.SELECT_MIN_VALUE
+    )
 }
 
 /**
