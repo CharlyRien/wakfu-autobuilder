@@ -1223,10 +1223,10 @@
       "pt": "Assassinato"
     },
     "description": {
-      "fr": "Le Sram réduit les résistances de la cible pour la tuer. Si elle est encore en vie à la fin du tour, elle gagne des résistances pendant 1 tour.",
-      "en": "The Sram reduces the target's resistances in order to kill it. If it is still alive at end of turn, it gains resistances for 1 turn.",
-      "es": "El sram reduce las resistencias del objetivo para matarlo. El objetivo gana resistencias durante 1 turno si sigue con vida al final del turno.",
-      "pt": "O Sram reduz as resistências do alvo para matá-lo. Se o alvo ainda estiver vivo no fim do turno, ele ganha resistências durante 1 turno."
+      "fr": "Le Sram réduit les résistances de la cible pour la tuer. Si elle est encore en vie à la fin du tour, elle gagne des résistances pendant 1 tour. Ce sort peut être utilisé une seule fois par tour de table par équipe.",
+      "en": "The Sram reduces the target's resistances in order to kill it. If it is still alive at end of turn, it gains resistances for 1 turn. This spell can only be used once per round per team.",
+      "es": "El sram reduce las resistencias del objetivo para matarlo. El objetivo gana resistencias durante 1 turno si sigue con vida al final del turno. Este hechizo puede utilizarse una única vez por ronda y por equipo.",
+      "pt": "O Sram reduz as resistências do alvo para matá-lo. Se o alvo ainda estiver vivo no fim do turno, ele ganha resistências durante 1 turno. Este feitiço pode ser usado uma única vez por rodada e por equipe."
     }
   },
   {
@@ -3158,10 +3158,10 @@
       "pt": "Sangue por Sangue"
     },
     "description": {
-      "fr": "Inflige des dommages élevés, mais blesse aussi le lanceur.",
-      "en": "Inflicts high damage but also injures the caster.",
-      "es": "Inflige daños elevados, pero hiere también al lanzador.",
-      "pt": "Inflige danos elevados, mas também fere o lançador."
+      "fr": "Inflige des dommages élevés, mais le lanceur subit un retour de flamme.",
+      "en": "Inflicts higher damage, but the caster suffers a Flame Return.",
+      "es": "Inflige daños elevados, pero el lanzador sufre un Reavivar la Llama.",
+      "pt": "Inflige danos elevados, mas o lançador sofre um Retorno das Chamas."
     }
   },
   {
@@ -3173,25 +3173,25 @@
       "pt": "Gaiola de Sangue"
     },
     "description": {
-      "fr": "Retire des PM à la cible et lui applique un malus de soins reçus.",
-      "en": "Removes MP from the target and applies a penalty on healing received.",
-      "es": "Retira PM al objetivo y le aplica un malus de curas recibidas.",
-      "pt": "Retira PM do alvo e aplica uma penalidade de cura recebida."
+      "fr": "Retire des PM à la cible et lui applique un malus de dommages infligés. Si la cible est un allié, la cible est protégée des prochaines attaques.",
+      "en": "Removes MP from the target and applies a penalty on damage inflicted.",
+      "es": "Retira PM al objetivo y le aplica un malus de daños infligidos. Si el objetivo es un aliado, queda protegido de los próximos ataques.",
+      "pt": "Retira PM do alvo e aplica uma penalidade de danos infligidos. Se o alvo for um aliado, o alvo é protegido dos ataques seguintes."
     }
   },
   {
     "spellId": 5030,
     "name": {
-      "fr": "Furie sanguinaire",
-      "en": "Bloodthirsty Fury",
-      "es": "Furia Sanguinaria",
-      "pt": "Fúria Sanguinária"
+      "fr": "Attirance",
+      "en": "Attraction",
+      "es": "Atracción",
+      "pt": "Atração"
     },
     "description": {
-      "fr": "Vole la vie d'une cible.",
-      "en": "Steals health from a target.",
-      "es": "Roba la vida de un objetivo.",
-      "pt": "Rouba a vida de um alvo."
+      "fr": "Le Sacrieur attire une cible sur une grande distance et génère de l'armure. S'il est berserk, il inflige des dommages aux ennemis au lieu de générer de l'armure.",
+      "en": "Attracts a target towards the Sacrier from far away.",
+      "es": "El sacrógrito atrae a un objetivo en una gran distancia y genera armadura. Si está Berserker, inflige daños a los enemigos en lugar de generar armadura.",
+      "pt": "O Sacrier atrai um alvo a uma grande distância e gera Armadura. Em Berserk, ele inflige danos aos inimigos em vez de gerar Armadura."
     }
   },
   {
@@ -3218,10 +3218,10 @@
       "pt": "Punição"
     },
     "description": {
-      "fr": "Le lanceur atteint directement son potentiel de berserker maximum, en perdant tous les PV qu'il possède au-dessus de 20 %. Il inflige ensuite des dommages feu élevés.",
-      "en": "The caster instantly achieves their maximum berserker potential while losing all HP above 20%. Then they deal high Fire damage.",
-      "es": "El lanzador alcanza directamente su potencial máximo de berserker, perdiendo todos los PdV que posee por encima del 20%. Luego, inflige daños de fuego elevados.",
-      "pt": "O lançador atinge seu potencial máximo de Berserker, perdendo todos os PV que ele tem acima de 20%. Em seguida, ele inflige danos elevados de fogo."
+      "fr": "Le Sacrieur subit un retour de flamme élevé, puis inflige des dommages importants à la cible, augmentés par la quantité de retours de flamme subis.",
+      "en": "The Sacrier suffers a higher Flame Return and then inflicts major damage on the target, which is increased based on the number of Flame Returns suffered.",
+      "es": "El sacrógrito sufre un Reavivar la Llama fuerte y luego inflige daños importantes al objetivo, aumentados según los Reavivar la Llama sufridos.",
+      "pt": "O Sacrier sofre um Retorno das Chamas elevado, depois inflige danos maiores ao alvo, aumentados pela quantidade de turnos de chamas sofridos."
     }
   },
   {
@@ -3233,10 +3233,10 @@
       "pt": "Pé Rochoso"
     },
     "description": {
-      "fr": "Le Sacrieur inflige des dommages monocible, et gagne de l'Armure. L'Armure absorbe les prochaines attaques reçues.",
-      "en": "The Sacrier inflicts single-target damage and gains Armor. The Armor absorbs the next attacks received.",
-      "es": "El sacrógrito inflige daños de objetivo único y gana armadura. La armadura absorbe los próximos ataques recibidos.",
-      "pt": "O Sacrier inflige danos de alvo único e ganha armadura. A armadura absorve os próximos ataques recebidos."
+      "fr": "Si le Sacrieur n'a pas d'Armure, il en génère. Sinon, il inflige davantage de dommages en sacrifiant une partie de son Armure.",
+      "en": "If the Sacrier has no Armor, they generate some. Otherwise, the Sacrier inflicts more damage by sacrificing some of their Armor.",
+      "es": "Si el sacrógrito no tiene armadura, genera una. Si no, inflige más daños sacrificando una parte de su armadura.",
+      "pt": "Se o Sacrier não tiver Armadura, ele a gera. Caso contrário, ele inflige mais danos ao sacrificar uma parte de sua Armadura."
     }
   },
   {
@@ -3248,10 +3248,10 @@
       "pt": "Tempestade Espiritual"
     },
     "description": {
-      "fr": "Les adversaires dans la zone subissent des dommages, puis tous les combattants autour de la case ciblée sont repoussés.",
-      "en": "Opponents in the area of effect suffer damage, then all fighters around the targeted cell are pushed back.",
-      "es": "Los adversarios de la zona sufren daños y luego todos los luchadores de alrededor de la casilla objetivo son empujados.",
-      "pt": "Os adversários na zona sofrem danos e, em seguida, todos os combatentes ao redor da célula visada são afastados."
+      "fr": "Le Sacrieur inflige des dommages à la cible et subit un retour de flamme. Ce sort coûte moins cher pour chaque sort de déplacement utilisé dans le tour.",
+      "en": "The Sacrier inflicts damage on the target and suffers a Flame Return. This spell costs less for each movement spell used during the turn.",
+      "es": "El sacrógrito inflige daños al objetivo y sufre un Reavivar la Llama. Este hechizo cuesta menos por cada hechizo de desplazamiento utilizado en el turno.",
+      "pt": "O Sacrier inflige danos ao alvo e sofre um Retorno das Chamas. Esse feitiço custa mais barato a cada feitiço de deslocamento utilizado no turno."
     }
   },
   {
@@ -3278,10 +3278,10 @@
       "pt": "Estilhaçar"
     },
     "description": {
-      "fr": "Inflige des dommages monocible et crée une Armure dont la puissance dépend des PV manquants du Sacrieur. L'Armure absorbe les prochaines attaques reçues. Les dommages sont plus élevés si la cible possède de l'Armure.",
-      "en": "Inflicts single-target damage and creates an Armor whose power depends on the Sacrier's missing HP. The Armor absorbs the next attacks received. The damage inflicted is greater if the target has Armor.",
-      "es": "Inflige daños de objetivo único y crea una armadura cuyo poder depende de los PdV que le falten al sacrógrito. La armadura absorbe los próximos ataques recibidos. Los daños son más elevados si el objetivo posee armadura.",
-      "pt": "Causa danos de alvo único e cria uma armadura cuja potência depende dos PV perdidos pelo Sacrier. A armadura absorve os próximos ataques recebidos. Os danos serão mais elevados se o alvo tiver armadura."
+      "fr": "Inflige des dommages importants en plus de réduire les soins que reçoit la cible. Si le Sacrieur a suffisamment d'Armure, il la sacrifie pour augmenter considérablement les dommages infligés à la cible. Sinon, il génère de l'Armure.",
+      "en": "Inflicts major damage and reduces the healing that the target receives. If the Sacrier has enough Armor, they sacrifice it to significantly increase damage inflicted on the target. Otherwise, they generate Armor.",
+      "es": "Inflige daños importantes, además de reducir las curas que reciba el objetivo. Si el sacrógrito tiene suficiente armadura, la sacrifica para aumentar considerablemente los daños infligidos al objetivo. Si no, genera armadura.",
+      "pt": "Inflige danos maiores, além de reduzir a cura que o alvo recebe. Se o Sacrier tem Armadura suficiente, ele a sacrifica para aumentar consideravelmente os danos infligidos ao alvo. Caso contrário, ele gera Armadura."
     }
   },
   {
@@ -3293,10 +3293,10 @@
       "pt": "Colunatas"
     },
     "description": {
-      "fr": "Le Sacrieur frappe de toutes ses forces sur le sol, faisant ressortir des colonnes autour de la cible. Il inflige des dégâts et génère de l'Armure par adversaire touché : l'Armure absorbe les prochaines attaques reçues.",
-      "en": "The Sacrier smashes the ground with incredible force, making stone columns sprout up around the target. They inflict damage and generate Armor for each enemy hit; the Armor absorbs the next attacks received.",
-      "es": "El sacrógrito golpea con todas sus fuerzas el suelo, alzando columnas alrededor del objetivo. Inflige daños y genera armadura por adversario herido. Esta armadura absorbe los próximos ataques recibidos.",
-      "pt": "O Sacrier bate no chão com toda a força, fazendo com que surjam colunas em torno do alvo. Ele inflige danos e gera armadura por adversário atingido: a armadura absorve os próximos ataques recebidos."
+      "fr": "Le Sacrieur saute sur la case ciblée. En zone carrée autour du point d'arrivée, il inflige des dommages aux ennemis, octroie de l'armure aux alliés, et génère de l'armure sur lui-même pour chaque cible affectée.",
+      "en": "This area-of-effect spell is versatile; within a square-shaped area of effect, enemies suffer damage, and allies gain Armor. And for every ally or enemy target hit, the Sacrier gains Armor.",
+      "es": "El sacrógrito salta a la casilla objetivo. En zona cuadrada alrededor del punto de llegada, inflige daños a los enemigos, otorga armadura a los aliados y se genera armadura a sí mismo por cada objetivo afectado.",
+      "pt": "O Sacrier salta para a célula visada. Em uma zona quadrada ao redor do ponto de chegada, ele inflige danos aos inimigos, concede Armadura aos aliados e gera Armadura em si mesmo para cada alvo afetado."
     }
   },
   {
@@ -3308,10 +3308,10 @@
       "pt": "Aversão"
     },
     "description": {
-      "fr": "Inflige des dommages monocible à un ennemi. Ces dommages sont plus élevés si le Sacrieur est stabilisé.",
-      "en": "Inflicts single-target damage on an enemy. This damage is greater if the Sacrier is stabilized.",
-      "es": "Inflige daños de objetivo único a un enemigo. Estos daños son mayores si el sacrógrito está Estabilizado.",
-      "pt": "Causa danos de alvo único a um inimigo. Esses danos serão mais elevados se o Sacrier estiver estabilizado."
+      "fr": "Inflige des dommages à un ennemi. Ces dommages sont plus élevés si la cible a plus de % PV que le Sacrieur.",
+      "en": "Inflicts damage on an enemy. This damage is greater if the target has more % HP than the Sacrier.",
+      "es": "Inflige daños a un enemigo. Estos daños son mayores si el objetivo tiene más %PdV que el sacrógrito.",
+      "pt": "Inflige danos a um inimigo. Estes danos são mais elevados se o alvo tiver mais % de PV do que o Sacrier."
     }
   },
   {
@@ -3323,10 +3323,10 @@
       "pt": "Punho Tatuado"
     },
     "description": {
-      "fr": "Ce sort rapproche le lanceur de sa cible de quelques cases.",
-      "en": "This spell moves the caster a few cells closer to their target.",
-      "es": "Este hechizo acerca el lanzador a su objetivo unas casillas.",
-      "pt": "Este feitiço aproxima o lançador do alvo em algumas células."
+      "fr": "Le Sacrieur se rapproche de sa cible et subit un retour de flamme. Si la cible est un ennemi et que le Sacrieur l'atteint au corps-à-corps, il lui inflige des dommages.",
+      "en": "The Sacrier moves closer to their target and suffers a Flame Return. If the target is an enemy and the Sacrier ends up adjacent to them, the Sacrier inflicts damage on them.",
+      "es": "El sacrógrito se acerca a su objetivo y sufre un Reavivar la Llama. Si el objetivo es un enemigo y el sacrógrito lo alcanza en el cuerpo a cuerpo, le inflige daños.",
+      "pt": "O Sacrier se aproxima do alvo e sofre um Retorno das Chamas. Se o alvo for um inimigo e o Sacrier o alcançar no corpo a corpo, inflige danos a ele."
     }
   },
   {
@@ -3338,25 +3338,25 @@
       "pt": "Agressão"
     },
     "description": {
-      "fr": "Échange la place du lanceur avec celle de sa cible tout en lui infligeant quelques dégâts au passage.",
-      "en": "The caster switches places with their target, dealing some damage in the process.",
-      "es": "Intercambia la posición del lanzador por la de su objetivo y le inflige algunos daños.",
-      "pt": "Troca o lançador de lugar com o alvo, aproveitando para causar dano a ele."
+      "fr": "Le Sacrieur échange de position avec la cible, génère de l'armure, puis la cible est retournée vers le Sacrieur. En berserk, le sort inflige également des dommages aux ennemis au lieu de générer de l'armure.",
+      "en": "The caster switches places with their target and inflicts some damage on it.",
+      "es": "El sacrógrito intercambia posición con el objetivo, genera armadura y, luego, el objetivo vuelve hacia el sacrógrito. En Berserker, el hechizo inflige también daños a los enemigos en lugar de generar armadura.",
+      "pt": "O Sacrier troca de lugar com o alvo, gera Armadura, em seguida, o alvo é virado em direção ao Sacrier. Em Berserk, o feitiço também inflige danos aos inimigos em vez de gerar Armadura."
     }
   },
   {
     "spellId": 5041,
     "name": {
-      "fr": "Projection",
-      "en": "Projection",
-      "es": "Proyección",
-      "pt": "Projeção"
+      "fr": "Cinétose",
+      "en": "Motion Sickness",
+      "es": "Cinetosis",
+      "pt": "Cinetose"
     },
     "description": {
-      "fr": "Le Sacrieur utilise sa cible pour se projeter vers l'avant et bondir de l'autre côté.",
-      "en": "The Sacrier uses their target to dash forward and jump to the other side.",
-      "es": "El sacrógrito utiliza su objetivo para lanzarse hacia delante y saltar al otro lado.",
-      "pt": "O Sacrier usa seu alvo para se lançar para frente e saltar para o outro lado."
+      "fr": "Le Sacrieur applique un effet aux ennemis dans la zone ciblée, qui subissent des dommages lorsque le Sacrieur les déplace ensuite. En berserk, le sort inflige des dommages supplémentaires au lancement.",
+      "en": "This spell applies a state that triggers on the Sacrier's movement effects: When the Sacrier moves a target other than themself, damage is inflicted on the target. If the Sacrier is bearing the state, the Sacrier gains Armor and HP each time a target other than themself is moved.",
+      "es": "El sacrógrito aplica un efecto a los enemigos en la zona objetivo, que sufren daños cuando el sacrógrito los desplaza después. En Berserker, el hechizo inflige daños adicionales en el lanzamiento.",
+      "pt": "O Sacrier aplica um efeito aos inimigos na zona visada, os quais sofrem danos quando o Sacrier os desloca em seguida. Em Berserk, o feitiço inflige danos adicionais quando é lançado."
     }
   },
   {
@@ -3368,29 +3368,14 @@
       "pt": "Fulgurância"
     },
     "description": {
-      "fr": "Le Sacrieur inflige des dégâts à ses ennemis dans une grande zone, puis réapparaît de l'autre côté de la zone ciblée.",
-      "en": "The Sacrier inflicts damage on their enemies in a large area of effect then reappears on the other side of the targeted area.",
-      "es": "El sacrógrito inflige daños a los enemigos en una gran zona y luego reaparece al otro lado de la zona en cuestión.",
-      "pt": "O Sacrier inflige danos aos inimigos em uma grande zona e depois reaparece do outro lado da zona visada."
+      "fr": "Le Sacrieur saute sur la case ciblée et génère de l'armure. En berserk, il inflige des dommages autour de son point de départ au lieu de générer de l'armure.",
+      "en": "The Sacrier jumps onto the targeted cell and generates armor. In the Berserk state, the Sacrier inflicts damage around their starting point instead of generating armor.",
+      "es": "El sacrógrito salta a la casilla objetivo y genera armadura. En Berserker, inflige daños alrededor de su punto de partida en lugar de generar armadura.",
+      "pt": "O Sacrier salta para a célula visada e gera Armadura. Em Berserk, ele inflige danos ao redor de seu ponto de partida em vez de gerar Armadura."
     }
   },
   {
     "spellId": 5043,
-    "name": {
-      "fr": "Attirance",
-      "en": "Attraction",
-      "es": "Atracción",
-      "pt": "Atração"
-    },
-    "description": {
-      "fr": "Attire une cible vers le Sacrieur depuis une grande distance.",
-      "en": "Attracts a target towards the Sacrier from far away.",
-      "es": "Atrae un objetivo hacia el sacrógrito desde gran distancia.",
-      "pt": "Atrai um alvo em direção ao Sacrier a partir de uma grande distância."
-    }
-  },
-  {
-    "spellId": 5044,
     "name": {
       "fr": "Transposition",
       "en": "Transposition",
@@ -3405,7 +3390,7 @@
     }
   },
   {
-    "spellId": 5045,
+    "spellId": 5044,
     "name": {
       "fr": "Sacrifice",
       "en": "Sacrifice",
@@ -3413,14 +3398,14 @@
       "pt": "Sacrifício"
     },
     "description": {
-      "fr": "Le Sacrieur se sacrifie pour prendre les coups à la place de ses alliés. À chaque fois qu'un allié subit un sort infligeant des dégâts, le Sacrieur subit les dégâts puis échange de place avec l'allié.",
-      "en": "With a gesture of self-sacrifice, the Sacrier takes blows on behalf of allies. Each time an ally suffers a spell that inflicts damage, the Sacrier suffers the damage, then switches places with the ally.",
-      "es": "El sacrógrito se sacrifica para recibir los golpes en lugar de sus aliados. Cada vez que un aliado recibe un hechizo que cause daños, el sacrógrito recibe los daños y cambia su posición con el aliado.",
-      "pt": "O Sacrier se sacrifica levando os golpes no lugar de seus aliados. Toda vez que um aliado sofre um feitiço que inflige danos, o Sacrier sofre os danos e depois troca de lugar com o aliado."
+      "fr": "Le Sacrieur protège les alliés ciblés et gagne en résistance pendant l'effet. Lorsqu'un allié s'apprête à subir des dommages directs, le Sacrieur subit les dommages à sa place et échange de position avec.",
+      "en": "The Sacrier protects targeted allies and gains resistance during the effect. When an ally is about to suffer direct damage, the Sacrier suffers the damage instead and switches places with the ally.",
+      "es": "El sacrógrito protege a los aliados objetivo y gana resistencia durante el efecto. Cuando un aliado se dispone a sufrir daños directos, el sacrógrito los sufre en su lugar e intercambia posición con él.",
+      "pt": "O Sacrier protege os aliados visados e ganha resistência durante o efeito. Quando um aliado está prestes a sofrer danos diretos, o Sacrier sofre os danos no lugar dele, trocando de lugar com ele."
     }
   },
   {
-    "spellId": 5047,
+    "spellId": 5045,
     "name": {
       "fr": "Armure sanguine",
       "en": "Sanguine Armor",
@@ -3428,25 +3413,40 @@
       "pt": "Armadura Sanguínea"
     },
     "description": {
-      "fr": "Le Sacrieur crée, pour lui ou un allié, une Armure puissante qui absorbe les dégâts jusqu'à un certain seuil. De plus, pendant un tour, il augmente le Tacle pour garder les adversaires au contact et stabilise pour ne plus pouvoir être déplacé.",
-      "en": "The Sacrier creates, for themself or an ally, powerful Armor that absorbs damage up to a certain threshold. Also, for one turn, they increase Lock to keep enemies in close combat and stabilize them so they can't be moved.",
-      "es": "El sacrógrito crea para él o para un aliado una poderosa armadura que absorbe los daños hasta cierto umbral. Además, durante un turno, aumenta el placaje para mantener a los adversarios en el cuerpo a cuerpo y estabiliza para que no lo puedan desplazar.",
-      "pt": "O Sacrier cria, para ele ou para um aliado, uma armadura poderosa que absorve os danos até um determinado limite. Além disso, durante um turno, ele aumenta o bloqueio para manter os adversários em contato e se estabiliza para não poder mais ser deslocado."
+      "fr": "Le Sacrieur stabilise la cible, qui ne pourra plus être déplacée pendant un tour. En ciblant un allié ou lui-même, il génère une armure puissante et un gain de tacle élevé.",
+      "en": "The Sacrier stabilizes the target, which can no longer be moved for 1 turn. When targeting an ally or themself, the Sacrier generates powerful armor and higher Lock gain.",
+      "es": "El sacrógrito estabiliza al objetivo, que ya no podrá desplazarse durante un turno. Si el objetivo es un aliado o él mismo, genera una poderosa armadura y un aumento considerable de placaje.",
+      "pt": "O Sacrier estabiliza o alvo, que não poderá ser deslocado durante um turno. Ao visar um aliado ou a si mesmo, ele gera uma Armadura poderosa e um ganho de Bloqueio elevado."
+    }
+  },
+  {
+    "spellId": 5047,
+    "name": {
+      "fr": "Bain de sang",
+      "en": "Blood Bath",
+      "es": "Baño de Sangre",
+      "pt": "Banho de Sangue"
+    },
+    "description": {
+      "fr": "Le Sacrieur retire des résistances à la cible pendant 1 tour, mais cette dernière lui inflige plus de dommages.",
+      "en": "The Sacrier removes resistances from the target for 1 turn, but the target inflicts more damage on them.",
+      "es": "El sacrógrito retira resistencias al objetivo durante 1 turno, pero este le inflige más daños.",
+      "pt": "O Sacrier retira resistências do alvo durante 1 turno, o qual, por sua vez, inflige mais danos a ele."
     }
   },
   {
     "spellId": 7211,
     "name": {
-      "fr": "Entaille",
-      "en": "Gash",
-      "es": "Corte",
-      "pt": "Entalhe"
+      "fr": "Coagulation",
+      "en": "Coagulation",
+      "es": "Coagulación",
+      "pt": "Coagulação"
     },
     "description": {
-      "fr": "Le Sacrieur inflige à un allié, ou à lui-même, une partie de sa vie en dégâts pour augmenter les Dommages infligés au prochain sort. Entaille peut être très puissant en combinaison à Sacrifice pour se déplacer.",
-      "en": "The Sacrier inflicts part of their life as damage on an ally (or themself) to increase the damage inflicted next turn. Gash can be very powerful when combined with Sacrifice to move.",
-      "es": "El sacrógrito inflige a un aliado o a sí mismo daños por valor de una parte de su vida para aumentar los daños causados en el siguiente hechizo. Corte puede ser muy poderoso para desplazarse si se combina con Sacrificio.",
-      "pt": "O Sacrier inflige a um aliado ou a si mesmo uma parte de sua vida em danos para aumentar os danos infligidos no próximo feitiço. O Entalhe pode ser muito poderoso se combinado com Sacrifício para se deslocar."
+      "fr": "Pendant 2 tours, le Sacrieur augmente sa limite d'Armure. En fin de tour, il applique de l'Armure à lui et ses alliés à proximité en fonction de son Armure courante.",
+      "en": "For 2 turns, the Sacrier increases their Armor cap. At end of turn, the Sacrier applies Armor on themself and nearby allies based on the Sacrier's current Armor.",
+      "es": "Durante 2 turnos, el sacrógrito aumenta su límite de armadura. Al final del turno, aplica armadura a sí mismo y a sus aliados cercanos en función de su armadura actual.",
+      "pt": "Durante 2 turnos, o Sacrier aumenta o limite de armadura No fim do turno, ele aplica Armadura em si mesmo e em seus aliados próximos em função de sua Armadura atual."
     }
   },
   {
@@ -3458,10 +3458,10 @@
       "pt": "Transfusão Sanguínea"
     },
     "description": {
-      "fr": "Le Sacrieur transfère une partie de sa vie à un allié, puis échange de position avec. S'il se cible directement, il convertit une partie de son Armure en soin.",
-      "en": "The Sacrier transfers some of their health to an ally and then switches places with them. If they target themself, some of their Armor is converted to healing.",
-      "es": "El sacrógrito transfiere una parte de su vida a un aliado, después cambia de posición con él. Si lo lanza sobre sí mismo, convierte una parte de su armadura en curas.",
-      "pt": "O Sacrier transfere uma parte de sua vida a um aliado e, em seguida, troca de lugar com ele. Se ele visar a si mesmo diretamente, ele converte uma parte de sua armadura em cura."
+      "fr": "Le Sacrieur augmente les PV max des alliés en zone pour 2 tours. En plus, les cibles bénéficient d'une réduction de leur résistance soin.",
+      "en": "The Sacrier increases the max HP of allies in the area of effect for 2 turns. Targets' healing resistance is also reduced.",
+      "es": "El sacrógrito aumenta los PdV máx. de los aliados en zona durante 2 turnos. Además, los objetivos disfrutan de una reducción de su resistencia de cura.",
+      "pt": "O Sacrier aumenta os PV máx. dos aliados em zona durante 2 turnos. Além disso, os alvos recebem uma redução em Resistência à cura."
     }
   },
   {
@@ -3473,10 +3473,10 @@
       "pt": "Sopro Flamejante"
     },
     "description": {
-      "fr": "Le Pandawa souffle vers ses adversaires et leur inflige des dégâts de Feu ! De plus il leur retire des résistances si elles sont <b>Imbibées</b> !",
-      "en": "The Pandawa blows on his opponents and deals them Fire damage! What's more, he removes their resistances if they are <b>Dizzy!</b>",
-      "es": "¡El pandawa escupe hacia sus enemigos y les inflige daños de fuego! Además, les retira resistencias si están <b>achispados</b>.",
-      "pt": "O Pandawa sopra na direção de seus adversários e inflige danos de fogo! Além disso, ele retira as resistências se eles estiverem <b>Tontos</b>!"
+      "fr": "Inflige des dommages Feu aux ennemis et soigne les alliés en ligne. Le sort consomme l'Imbibé des cibles pour réduire les résistances des ennemis et augmenter les dommages des alliés.",
+      "en": "Inflicts Fire damage on enemies and heals allies in a straight line. The spell consumes the targets' Dizzy state to reduce enemies' resistances and increase allies' damage.",
+      "es": "Inflige daños de fuego a los enemigos y cura a los aliados en línea. El hechizo consume el Achispado de los objetivos para reducir las resistencias de los enemigos y aumentar los daños de los aliados.",
+      "pt": "Inflige danos de Fogo aos inimigos e cura os aliados em linha. O feitiço consome o estado Tonto dos alvos para reduzir as resistências dos inimigos e aumentar os danos dos aliados."
     }
   },
   {
@@ -3488,10 +3488,10 @@
       "pt": "Rodada Geral"
     },
     "description": {
-      "fr": "Tournée Générale permet au Pandawa d'infliger généreusement des dégâts Feu tout en s'enflammant. Lancés sur le Tonneau, celui-ci est détruit mais applique une grande quantité d'Imbibé autour de lui.",
-      "en": "Light My Fire allows the Pandawa to be really generous with his Fire damage, while becoming Flaming. Cast on a Barrel, the Barrel is destroyed but applies a large quantity of Dizzy around it.",
-      "es": "Ronda General permite al pandawa causar muchos daños de fuego y, al mismo tiempo, inflamarse. Al lanzarlo sobre el tonel, este se destruye pero aplica una gran cantidad de Achispado a su alrededor.",
-      "pt": "Rodada Geral permite que o Pandawa provoque danos generosos de fogo ao mesmo tempo que fica flamejante. Quando lançado no Barril, este é destruído, mas aplica uma grande quantidade de Tonto ao redor dele."
+      "fr": "Inflige des dommages Feu aux ennemis et soigne les alliés. Si la cible est Imbibé, les effets s'effectuent en croix de taille 1. Les cibles Imbibé dans la zone propagent à leur tour les effets.",
+      "en": "Inflicts Fire damage on enemies and heals allies. If the target is Dizzy, the effects apply in a 1-cell cross. Dizzy targets in the area of effect spread the effects in turn.",
+      "es": "Inflige daños de fuego a los enemigos y cura a los aliados. Si el objetivo tiene Achispado, los efectos se aplican en cruz de tamaño 1. Los objetivos achispados de la zona propagan a su vez los efectos.",
+      "pt": "Inflige danos de Fogo aos inimigos e cura os aliados. Se o alvo estiver Tonto, os efeitos são aplicados em cruz de tamanho 1. Os alvos Tontos na zona propagarão, por sua vez, os efeitos."
     }
   },
   {
@@ -3503,10 +3503,10 @@
       "pt": "Golpe Leitoso"
     },
     "description": {
-      "fr": "Le Pandawa échaude et inflige des dommages en zone sur ses ennemis, avant de se téléporter sur la case ciblée.",
-      "en": "The Pandawa scalds and inflicts damage on their enemies in an area of effect before teleporting to the targeted cell.",
-      "es": "El pandawa escalda e inflige daños en zona en sus enemigos, antes de teletransportarse a la casilla seleccionada.",
-      "pt": "O Pandawa escalda e inflige danos em zona a seus inimigos antes de se teletransportar para a célula visada."
+      "fr": "Inflige des dommages en zone sur ses ennemis, avant de se téléporter sur la case ciblée. Si le Pandawa est Ivre, la portée du sort est augmentée.",
+      "en": "Inflicts damage on their enemies in an area of effect before teleporting to the targeted cell. If the Pandawa is Merry, the spell's range is increased.",
+      "es": "Inflige daños en zona a sus enemigos y se teletransporta a la casilla objetivo. Si el pandawa tiene Ebrio, el alcance del hechizo aumenta.",
+      "pt": "Inflige danos em zona a seus inimigos antes de se teletransportar para a célula visada. Se o Pandawa estiver Embriagado, o alcance do feitiço aumenta."
     }
   },
   {
@@ -3518,10 +3518,10 @@
       "pt": "Frasco Explosivo"
     },
     "description": {
-      "fr": "Le Pandawa lance une flasque remplie de Lait de Bambou qui explose sur ses adversaires.",
-      "en": "The Pandawa chucks a flask of Bamboo Milk which explodes all over his enemies.",
-      "es": "El pandawa lanza un frasco lleno de leche de bambú que explota sobre el adversario.",
-      "pt": "O Pandawa lança um frasco cheio de Leite de Bambu que explode sobre seus adversários."
+      "fr": "Inflige des dommages Feu en zone. La zone d'effet est augmentée si le sort est lancé sur le tonneau. Si le Pandawa porte une cible, il la jette puis attire les cibles autour du tonneau en plus de leur infliger des dommages.",
+      "en": "Inflicts Fire damage in an area of effect. The area of effect is increased if the spell is cast on the barrel. If the Pandawa is carrying a target, the Pandawa throws the target and then attracts targets around the barrel and inflicts damage on them.",
+      "es": "Inflige daños de fuego en zona. La zona de efecto aumenta si el hechizo se lanza a un tonel. Si el pandawa porta a un objetivo, lo lanza y luego atrae a los objetivos de alrededor del tonel, además de infligirles daños.",
+      "pt": "Inflige danos de Fogo na zona. A zona de efeito aumenta se o feitiço for lançado no Barril. Se o Pandawa estiver carregando um alvo, ele o joga e, em seguida, atrai os alvos ao redor do Barril, além de infligir danos a eles."
     }
   },
   {
@@ -3533,10 +3533,10 @@
       "pt": "Puro Deleite"
     },
     "description": {
-      "fr": "Amateur de dégâts collatéraux, Toilaitage permet au Pandawa de nettoyer une grande zone. Si son Tonneau est dans la zone, il inflige plus de dommages.",
-      "en": "A big fan of collateral damage, Milking It lets the Pandawa clear a large area. If his Barrel is in the area, he inflicts even more damage.",
-      "es": "Especializado en daños colaterales, con Lactortazos el pandawa podrá barrer una gran zona. Si el tonel está en zona, inflige más daños.",
-      "pt": "Grande fã de danos colaterais, o Pandawa pode limpar uma grande zona com Puro Deleite. Se seu Barril estiver na zona, ele inflige ainda mais danos."
+      "fr": "Inflige des dommage Feu en zone et échaude les cibles. Un combattant échaudé subit davantage de dommages indirects. Le Pandawa consomme l'Imbibé des cibles pour infliger des dommages plus importants.",
+      "en": "Inflicts Fire damage in an area of effect and scalds targets. A Scalded fighter suffers more indirect damage. The Pandawa consumes the targets' Dizzy state to inflict greater damage.",
+      "es": "Inflige daños de fuego en zona y escalda a los objetivos. Un luchador escaldado sufre más daños indirectos. El pandawa consume el Achispado de los objetivos para infligir mayores daños.",
+      "pt": "Inflige danos deFogo em zona e escalda os alvos. Um combatente Escaldado sofre mais danos indiretos. O Pandawa consome o estado Tonto dos alvos para infligir danos maiores."
     }
   },
   {
@@ -3548,10 +3548,10 @@
       "pt": "Sopro Leitoso"
     },
     "description": {
-      "fr": "Le Pandawa souffle sur sa cible et lui inflige des dégâts d'Eau bien sentis. De plus, ce souffle imbibe la cible ! Si le Pandawa lance un allié avec ce sort, l'allié est soigné.",
-      "en": "The Pandawa blows on his target, inflicting a painful burst of Water-type damage. Moreover, the target will end up Dizzy! If the Pandawa throws an ally with this spell, the ally is healed.",
-      "es": "El pandawa sopla hacia sus adversarios y les causa fuertes daños de agua. Además, ¡este soplido achispa al objetivo! Si el pandawa lanza a un aliado con este hechizo, el aliado se cura.",
-      "pt": "O Pandawa sopra seu alvo e lhe inflige danos de Água consideráveis. Além disso, este sopro deixa o alvo tonto! Se o Pandawa lança um aliado com este feitiço, o aliado é curado."
+      "fr": "Inflige des dommages aux ennemis et soigne les alliés en ligne. Si le Pandawa est ivre, les cibles sont poussées de 1 case. Si le Pandawa jette une cible avec ce sort, il s'attire directement au contact de la cible.",
+      "en": "Inflicts damage on enemies and heals allies in a straight line. If the Pandawa is Merry, the targets are pushed back 1 cell. If the Pandawa throws a target with this spell, the Pandawa is attracted adjacent to the target directly.",
+      "es": "Inflige daños a los enemigos y cura a los aliados en línea. Si el pandawa está ebrio, los objetivos son empujados 1 casilla. Si el pandawa lanza a un objetivo con este hechizo, se atrae directamente al contacto con el objetivo.",
+      "pt": "Inflige danos aos inimigos e cura os aliados em linha. Se o Pandawa estiver Embriagado, os alvos são empurrados por 1 célula. Se o Pandawa atira um alvo com esse feitiço, ele é atraído diretamente ao entrar em contato com o alvo."
     }
   },
   {
@@ -3563,10 +3563,10 @@
       "pt": "Nuvem Leitosa"
     },
     "description": {
-      "fr": "Le Pandawa crée un Nuage Laiteux qui inflige des dégâts et imbibe les cibles ! Lancé sur le Tonneau, cela crée un Nuage de Lait qui soigne toutes les cibles présentes dessus à leur début de tour.",
-      "en": "The Pandawa creates a Splash of Milk which inflicts damage and makes targets Dizzy! Cast on the Barrel, this creates a Milk Cloud that heals all targets present on it at their start of turn.",
-      "es": "El pandawa crea una Nube Lechosa que causa daños y achispa a los objetivos. Si lo lanza sobre el tonel, crea una nube lechosa que cura a todos los objetivos presentes encima al principio de su turno.",
-      "pt": "O Pandawa cria uma Nuvem Leitosa que inflige danos e deixa os alvos tontos! Quando lançado no Barril, uma Nuvem de Leite se forma e cura todos os alvos que estiverem sobre ela no começo do turno deles."
+      "fr": "Inflige des dommages Eau et vole de la vie si la cible est Imbibé. Lancé sur le tonneau, le Pandawa soigne ses alliés à proximité et créé une zone de soin. Les alliés qui commencent leur tour dessus sont soignés.",
+      "en": "Inflicts Water damage and steals HP if the target is Dizzy. Cast on the barrel, the Pandawa heals nearby allies and creates a healing area of effect. Allies who start their turn in this area of effect are healed.",
+      "es": "Inflige daños de agua y roba vida si el objetivo tiene Achispado. Si se lanza al tonel, el pandawa cura a sus aliados cercanos y crea una zona de cura. Los aliados que empiezan su turno encima se curan.",
+      "pt": "Inflige danos de Água e rouba vida se o alvo estiver Tonto. Quando lançado no Barril, o Pandawa cura seus aliados próximos e cria uma zona de cura. Os aliados que começarem o turno em cima dela são curados."
     }
   },
   {
@@ -3578,10 +3578,10 @@
       "pt": "Tekileite"
     },
     "description": {
-      "fr": "Tekilait réalise un soin sur sa cible. Il permet également, si le Pandawa est aligné avec sa cible, de le pousser de deux cases.",
-      "en": "Bubble Trouble heals its target. If the Pandawa is in line with their target, it can also push the target two cells.",
-      "es": "Tequileche realiza una cura a su objetivo. Si el pandawa está alineado con su objetivo, también permite empujarlo dos casillas.",
-      "pt": "Tekileite cura o alvo. Se o Pandawa estiver alinhado com o alvo, também pode empurrá-lo por 2 células"
+      "fr": "Inflige des dommages Eau aux ennemis et soigne les alliés. Si le sort est lancé sur le tonneau, les effets sont appliqués en zone autour de ce dernier. À chaque lancé du sort dans le même tour, les effets sont rejoués sur les cibles précédentes.",
+      "en": "Inflicts Water damage on enemies and heals allies. If the spell is cast on the barrel, the effects are applied in an area of effect around the barrel. Each time the spell is cast in the same turn, the effects are replayed on the previous targets.",
+      "es": "Inflige daños de agua a los enemigos y cura a los aliados. Si el hechizo se lanza a un tonel, los efectos se aplican en zona alrededor de este. Con cada lanzamiento del hechizo en el mismo turno, los efectos se reproducen en los objetivos anteriores.",
+      "pt": "Inflige danos de Água aos inimigos e cura os aliados. Se o feitiço for lançado no Barril, os efeitos são aplicados em zona ao redor deste último. A cada lançamento do feitiço no mesmo turno, os efeitos se repetem nos alvos anteriores."
     }
   },
   {
@@ -3593,10 +3593,10 @@
       "pt": "Onda de Leite"
     },
     "description": {
-      "fr": "Créant une Vague de Lait, le Pandawa consomme l'Imbibé de son allié pour le soigner. Il peut aussi s'en servir pour faire des dégâts à un adversaire. Lancé sur le Tonneau, les dégâts passent en zone.",
-      "en": "Creating a Milk Wave, the Pandawa consumes their ally's Dizziness to heal them. They can also use it to inflict damage on an opponent. Cast on the Barrel, the damage becomes area damage.",
-      "es": "Al crear una ola de leche, el pandawa consume el estado Achispado de su aliado para curarlo. También puede usarlo para provocar daños a un adversario. Si lo lanza sobre el tonel, los daños son de zona.",
-      "pt": "Ao criar uma Onda de Leite, o Pandawa consome o estado Tonto de seu aliado para curá-lo. Ele também pode usá-la para infligir danos a um adversário. Quando lançado sobre o barril, os danos são transferidos para a zona de efeito."
+      "fr": "Inflige des dommages Eau aux ennemis et soigne les alliés. Si la cible est Imbibé, le Pandawa le consomme pour appliquer un bonus aux alliés ou un malus aux ennemis. En plus, les dommages et les soins sont augmentés.",
+      "en": "Inflicts Water damage on enemies and heals allies. If the target is Dizzy, the Pandawa consumes the state to apply a bonus on allies or a penalty on enemies. Damage and healing are also increased.",
+      "es": "Inflige daños de agua a los enemigos y cura a los aliados. Si el objetivo tiene Achispado, el pandawa lo consume para aplicar un bonus a los aliados o un malus a los enemigos. Además, se aumentan los daños y curas.",
+      "pt": "Inflige danos de Água aos inimigos e cura os aliados. Se o alvo estiver Tonto, o Pandawa consome esse estado para aplicar um bônus aos aliados ou uma penalidade aos inimigos. Além disso, os danos e as curas aumentam."
     }
   },
   {
@@ -3608,10 +3608,10 @@
       "pt": "Fonte de Leite"
     },
     "description": {
-      "fr": "Partageur, le Pandawa paie sa tournée, tout en blessant ses ennemis : si le sort est lancé sur le Tonneau, toutes les cibles seront irrésistiblement attirées vers lui !",
-      "en": "The playful Pandawa uses Milk Fountain to inflict damage on his enemies. If the spell is cast on the Barrel, all the targets will find themselves irresistibly attracted to it!",
-      "es": "El pandawa, generoso, paga una ronda y causa daños a sus enemigos. Si lanza el hechizo al tonel, ¡los objetivos serán atraídos irresistiblemente hacia él!",
-      "pt": "Generoso, o Pandawa paga uma rodada e causa danos em seus inimigos. Se o feitiço for lançado sobre o Barril, todos os alvos serão irresistivelmente atraídos por ele!"
+      "fr": "Inflige des dommages Eau aux ennemis en zone et donne des PM aux alliés. Si le sort est lancé sur un tonneau, la zone d'effet est augmentée et les cibles sont attirées vers ce dernier. Pour chaque cible touchée, le Pandawa gagne 1 PM.",
+      "en": "Inflicts Water damage on enemies in an area of effect and grants MP to allies. If the spell is cast on a barrel, the area of effect is increased, and targets are attracted toward the barrel. For each target hit, the Pandawa gains 1 MP.",
+      "es": "Inflige daños de agua a los enemigos en zona y da PM a los aliados. Si el hechizo se lanza a un tonel, la zona de efecto aumenta y los objetivos son atraídos hacia este. Por cada objetivo alcanzado, el pandawa gana 1 PM.",
+      "pt": "Inflige danos de Água aos inimigos em zona e concede PM aos aliados. Se o feitiço for lançado em um Barril, a zona de efeito aumenta e os alvos são atraídos para esse Barril. A cada alvo atingido, o Pandawa ganha 1 PM."
     }
   },
   {
@@ -3638,10 +3638,10 @@
       "pt": "Bêbambu"
     },
     "description": {
-      "fr": "Six Roses inflige de gros dégâts Terre, imbibe la cible et enflamme le Pandawa ! Si le Pandawa porte son Tonneau, il s'applique une Armure en fonction du niveau d'Imbibé de sa cible.",
-      "en": "Six Roses inflicts heavy Earth damage, makes the target Dizzy, and sets the Pandawa Flaming! If the Pandawa is carrying their Barrel, they increase their resistance based on how Dizzy the target is.",
-      "es": "Causa grandes daños de tierra y deja al objetivo en estado Achispado y al pandawa en estado Ardiente. Si el pandawa porta su tonel, aplica una armadura en función del nivel de Achispado de su objetivo.",
-      "pt": "Bêbambu inflige grandes danos de terra, deixa o alvo Tonto e deixa o Pandawa Flamejante! Se o Pandawa estiver carregando seu Barril, ele aplica a si mesmo uma armadura em função do nível de Tonto de seu alvo."
+      "fr": "Inflige des dommages Terre et donne de l'Armure au lanceur. Le Pandawa consomme l'Imbibé de la cible pour gagner des résistances et du tacle en plus. S'il porte son tonneau, le sort coûte 1 PA de moins. Plus le Pandawa a de PM restants, plus les effets du sort sont efficaces.",
+      "en": "Inflicts Earth damage and grants Armor to the caster. The Pandawa consumes the target's Dizzy state to gain resistances and Lock. If the Pandawa is carrying their barrel, the spell costs 1 AP less. The more MP the Pandawa has remaining, the more effective the spell's effects are.",
+      "es": "Inflige daños de tierra y da armadura al lanzador. El pandawa consume el Achispado del objetivo para ganar también resistencias y placaje. Si porta su tonel, el hechizo cuesta 1 PA menos. Cuantos más PM restantes tenga el pandawa, más eficaces son los efectos del hechizo.",
+      "pt": "Inflige danos de Terra e concede Armadura ao lançador. O Pandawa consome o estado Tonto do alvo para ganhar resistências e bloqueio a mais. Se ele estiver carregando o seu Barril, o feitiço custa 1 PA a menos. Quanto mais PM restantes o Pandawa tiver, mais eficazes serão os efeitos do feitiço."
     }
   },
   {
@@ -3653,10 +3653,10 @@
       "pt": "Golpe de Barril"
     },
     "description": {
-      "fr": "Le Pandawa inflige des dégâts et imbibe les cibles autour de lui. Si le Pandawa porte son Tonneau, il augmente son Tacle et ses résistances.",
-      "en": "The Pandawa inflicts damage and makes the surrounding targets dizzy. If the Pandawa is carrying their Barrel, they increase their Lock and resistances.",
-      "es": "El pandawa inflige daños y emborracha a los objetivos a su alrededor. Si el pandawa porta su tonel, aumenta su placaje y sus resistencias.",
-      "pt": "O Pandawa inflige danos e deixa tontos os alvos que estiverem ao redor dele. Se o Pandawa estiver carregando seu Barril, ele aumenta seu bloqueio e resistências."
+      "fr": "Le Pandawa échange de position avec son tonneau puis inflige des dommages Terre en zone et retire de l'esquive aux cibles Imbibé. Si le Pandawa porte son tonneau, le sort coûte 1 PA de moins.",
+      "en": "The Pandawa switches places with their barrel and then inflicts Earth damage in an area of effect and removes Dodge from Dizzy targets. If the Pandawa is carrying their barrel, the spell costs 1 AP less.",
+      "es": "El pandawa intercambia posición con su tonel y luego inflige daños de tierra en zona y retira esquiva a los objetivos con Achispado. Si el pandawa porta su tonel, el hechizo cuesta 1 PA menos.",
+      "pt": "O Pandawa troca de lugar com seu Barril e, em seguida, inflige danos de Terra em zona e retira Esquiva dos alvos Tontos. Se o Pandawa estiver carregando seu Barril, o feitiço custa 1 PA a menos."
     }
   },
   {
@@ -3668,10 +3668,10 @@
       "pt": "Ácido Lático"
     },
     "description": {
-      "fr": "Le Pandawa utilise son Tonneau pour faire des dégâts à distance et imbiber les cibles ! Si le Pandawa porte un personnage, il le lance en infligeant des dégâts et en retirant des PM dans la zone.",
-      "en": "The furious Pandawa uses his Barrel to inflict long-distance damage, making targets Dizzy in the process! If the Pandawa is carrying a character, he throws him, inflicting damage and removing MP in the area.",
-      "es": "El pandawa usa su tonel para causar daños a distancia y achispar a sus víctimas. Si el pandawa porta a un personaje, lo lanza para infligir daños y retirar PM en la zona.",
-      "pt": "O Pandawa usa seu Barril para provocar danos a distância e deixar seus alvos tontos! Se o Pandawa estiver carregando um personagem, ele o lança, infligindo danos e retirando PM na zona."
+      "fr": "Inflige des dommages Terre en zone. Si le Pandawa porte un combattant ou son tonneau, le sort coûte 1 PA de moins et le Pandawa jette la cible sur la case avant d'infliger des dommages.",
+      "en": "Inflicts Earth damage in an area of effect. If the Pandawa is carrying a fighter or their barrel, the spell costs 1 AP less, and the Pandawa throws the target onto the cell before inflicting damage.",
+      "es": "Inflige daños de tierra en zona. Si el pandawa porta a un luchador o su tonel, el hechizo cuesta 1 PA menos y el pandawa lanza al objetivo a la casilla antes de infligir daños.",
+      "pt": "Inflige danos de Terra em zona. Se o Pandawa estiver carregando um combatente ou o seu Barril, o feitiço custa 1 PA a menos e o Pandawa atira o alvo na célula antes de infligir danos."
     }
   },
   {
@@ -3683,10 +3683,10 @@
       "pt": "Barriltzkrieg"
     },
     "description": {
-      "fr": "Le Pandawa inflige des dégâts en zone. Ses cibles ennemies sont échaudées, et le lanceur du sort se téléporte à la position ciblée s'il portait son Tonneau.",
-      "en": "The Pandawa inflicts damage in an area of effect. The targeted enemies are scalded, and the spell caster teleports to the targeted position if they are carrying their Barrel.",
-      "es": "El pandawa inflige daños en zona. Sus objetivos enemigos resultan escaldados, y el lanzador del hechizo se teletransporta a la posición seleccionada si portaba su tonel.",
-      "pt": "O Pandawa inflige danos em zona. Seus alvos inimigos ficam Escaldados, e o lançador do feitiço se teletransporta para a posição visada se ele estiver carregando seu Barril."
+      "fr": "Inflige des dommages Terre en zone et consomme l'Imbibé des cibles pour regagner des PA. Si le Pandawa porte son tonneau il se téléporte sur la case ciblée et le sort coûte 2 PA de moins.",
+      "en": "Inflicts Earth damage in an area of effect and consumes the targets' Dizzy state to regain AP. If the Pandawa is carrying their barrel, they teleport to the targeted cell, and the spell costs 2 AP less.",
+      "es": "Inflige daños de tierra en zona y consume el Achispado de los objetivos para recobrar PA. Si el pandawa porta su tonel, se teletransporta a la casilla objetivo y el hechizo cuesta 2 PA menos.",
+      "pt": "Inflige danos de Terra em zona e consome o estado Tonto dos alvos para recuperar PA. Se o Pandawa estiver carregando seu Barril, ele se teletransporta para a célula visada e o feitiço custa 2 PA a menos."
     }
   },
   {
@@ -3713,25 +3713,25 @@
       "pt": "Éter"
     },
     "description": {
-      "fr": "La cible d'Ether devient stabilisée. Si la cible est un allié, celui-ci gagne des PM et devient intaclable. Si la cible est un adversaire, celui-ci ne peut plus tacler.",
-      "en": "The Ether target becomes stabilized. If the target is an ally, they gain MP and become Unlockable. If the target is an opponent, they can no longer lock.",
-      "es": "El objetivo de Éter se vuelve estabilizado. Al utilizarlo sobre un aliado, ganará PM y se volverá no placable. Al utilizarlo sobre un adversario, no podrá volver a placar.",
-      "pt": "O alvo de Éter fica estável. Se o alvo for um aliado, ele ganha PM e não pode ser bloqueado. Se for um adversário, fica impossibilitado de bloquear."
+      "fr": "La cible d'Ether devient stabilisée. Si la cible est un allié, celui-ci devient intaclable. Si la cible est un adversaire, celui-ci ne peut plus tacler.",
+      "en": "The target of Ether becomes stabilized. If the target is an ally, the ally becomes Unlockable. If the target is an opponent, the opponent can no longer lock.",
+      "es": "El objetivo de Éter se vuelve estabilizado. Si el objetivo es un aliado, este se vuelve No Placable. Al utilizarlo sobre un adversario, no podrá volver a placar.",
+      "pt": "O alvo de Éter fica Estabilizado. Se o alvo for um aliado, ele fica Imbloqueável. Se o alvo for um adversário, ele não poderá mais bloquear."
     }
   },
   {
     "spellId": 4720,
     "name": {
-      "fr": "Téléportono",
-      "en": "Barrelhop",
-      "es": "Toneportación",
-      "pt": "Teleportonel"
+      "fr": "Gueule de bois",
+      "en": "Worn-Out",
+      "es": "Resaca",
+      "pt": "Ressaca"
     },
     "description": {
-      "fr": "Le Pandawa ne supporte pas d'être éloigné de son Lait de Bambou. La nature fait bien les choses, puisque Téléportono permet justement au Pandawa de se téléporter à côté de lui.",
-      "en": "The Pandawa can't bear to be too far away from his Bamboo Milk. Thankfully, nature has ways of taking care of this, as Barrelhop allows the Pandawa to teleport, ending up right next to his Barrel.",
-      "es": "El pandawa no sabe vivir sin su leche de bambú. La naturaleza es sabia y por eso, con Toneportación, puede teletransportarse al lado de su tonel.",
-      "pt": "O Pandawa não suporta ficar longe do seu Leite de Bambu. A natureza é sábia, porque o Teleportonel permite justamente que o Pandawa se teletransporte para perto do seu barril."
+      "fr": "Lancé sur un allié, celui-ci sera soigné en début de tour pendant plusieurs tours. Lancé sur le tonneau, le Pandawa repousse toutes les cibles autour de celui-ci. Lancé sur soi-même, le Pandawa gagne de l'Armure et des résistances, mais perd l'état Ivre.",
+      "en": "Cast on an ally, the ally will be healed at the start of the turn for several turns. Cast on the barrel, the Pandawa repels all targets around the barrel. Cast on themself, the Pandawa gains Armor and resistances but loses the Merry state.",
+      "es": "Si se lanza a un aliado, este se curará al principio del turno durante varios turnos. Si se lanza al tonel, el pandawa repele a todos los objetivos de alrededor de este. Si se lo lanza a sí mismo, el pandawa gana armadura y resistencias, pero pierde el estado Ebrio.",
+      "pt": "Quando lançado em um aliado, ele será curado no começo do turno durante vários turnos. Quando lançado no Barril, o Pandawa empurra todos os alvos ao redor dele. Quando lançado em si mesmo, o Pandawa ganha Armadura e resistências, mas perde o estado Embriagado."
     }
   },
   {
@@ -3743,10 +3743,10 @@
       "pt": "Happy Hour"
     },
     "description": {
-      "fr": "Le Pandawa paie sa tournée et plonge ses cibles dans l'ivresse du combat. Lancé sur lui, il gagne une armure de mêlée. Sur ses alliés, un soin sur plusieurs tours. Sur le Tonneau, il repousse les cibles se trouvant autour.",
-      "en": "The Pandawa tricks any targets and makes them Merry. Cast on self, the Pandawa gains a melee armor. On allies, one heal over several turns. On the Barrel, pushes back any surrounding targets.",
-      "es": "El pandawa paga una ronda y sume a sus aliados en la embriaguez del combate. Si lo lanza sobre sí mismo, consigue una armadura de melé. Si lo lanza sobre sus aliados, consiguen una cura durante varios turnos. Si lo lanza sobre el tonel, empuja a los objetivos que lo rodean.",
-      "pt": "O Pandawa paga uma rodada e mergulha seus adversários na embriaguez do combate. Se for lançado sobre ele mesmo, ele ganha uma armadura de combate a curta distância. Sobre seus aliados, oferece uma cura em vários turnos. Sobre o Barril, ele empurra os alvos que estiverem ao seu redor."
+      "fr": "Permet au Pandawa de réduire le coût de ses sorts neutres. Lancé sur un tonneau, les alliés à proximité voient leur PA et leurs dommages augmenter pour 1 tour.",
+      "en": "Allows the Pandawa to reduce the cost of their neutral spells. Cast on a barrel, the AP and damage of nearby allies increase for 1 turn.",
+      "es": "Permite al pandawa reducir el coste de sus hechizos neutrales. Si se lanza a un tonel, los aliados cercanos aumentan sus PA y sus daños durante 1 turno.",
+      "pt": "Permite ao Pandawa reduzir o custo de seus feitiços neutros. Quando lançado em um Barril, os aliados próximos veem seus PA e danos aumentarem durante 1 turno."
     }
   },
   {
@@ -3758,25 +3758,25 @@
       "pt": "Sede"
     },
     "description": {
-      "fr": "Si le Pandawa porte son tonneau, il peut utiliser ce sort pour échanger de position avec un allié ou échauder un ennemi : il subira plus de dommages indirects, comme les poisons.",
-      "en": "If the Pandawa is carrying their barrel, they can use this spell to switch places with an ally or scald an enemy; the enemy will take more indirect damage, such as poison.",
-      "es": "Si el pandawa porta su tonel, puede utilizar este hechizo para intercambiar posición con un aliado o escaldar a un enemigo: sufrirá más daños indirectos, como pasa con los venenos.",
-      "pt": "Se o Pandawa estiver carregando seu Barril, ele pode usar este feitiço para trocar de lugar com um aliado ou escaldar um inimigo: ele sofrerá mais danos indiretos, como os venenos."
+      "fr": "Le Pandawa se rapproche du tonneau ciblé. Il est possible d'utiliser ce sort alors que le Pandawa porte un combattant.",
+      "en": "The Pandawa moves closer to the targeted barrel. This spell can be used while the Pandawa is carrying a fighter.",
+      "es": "El pandawa se acerca al tonel objetivo. Este hechizo puede utilizarse aunque el pandawa porte a un luchador.",
+      "pt": "O Pandawa se aproxima do Barril visado. É possível utilizar este feitiço enquanto o Pandawa estiver carregando um combatente."
     }
   },
   {
     "spellId": 6845,
     "name": {
-      "fr": "Ebriété",
-      "en": "Exhilaration",
-      "es": "Ebriedad",
-      "pt": "Sobriedade"
+      "fr": "Pandanlku",
+      "en": "Pandiniuras",
+      "es": "Pandenkulo",
+      "pt": "Pandanku"
     },
     "description": {
-      "fr": "Ebriété permet de s'appliquer Ivresse ou de l'entretenir, pratique lorsqu'il n'y a pas de tonneau à proximité ! Ce sort applique 5 niveaux d'imbibé s'il est lancé sur une autre cible que le Pandawa lui-même.",
-      "en": "Exhilaration applies or maintains Merriment, which comes in handy when there aren't any barrels nearby. This spell applies 5 levels of Dizzy if it is cast on a target other than the Pandawa themself.",
-      "es": "Ebriedad permite aplicarse o mantener Embriaguez, ¡lo que resulta práctico cuando no hay un tonel cerca! Este hechizo aplica 5 niveles de Achispado si se lanza a otro objetivo que no sea el pandawa mismo.",
-      "pt": "Sobriedade permite manter ou aplicar Embriaguez a si mesmo. Muito prático quando não há nenhum barril por perto! Este feitiço aplica 5 níveis de Tonto se for lançado em um alvo que não seja o próprio Pandawa."
+      "fr": "Permet de donner un bonus à un allié ou à soi-même pour 1 tour. Si le Pandawa est Ivre, il s'agit d'un bonus PM. Sinon, il s'agit d'un bonus de portée.",
+      "en": "Can be used to grant a bonus to an ally or self for 1 turn. If the Pandawa is Merry, it is an MP bonus. Otherwise, it is a Range bonus.",
+      "es": "Permite dar un bonus a un aliado o a sí mismo durante 1 turno. Si el pandawa tiene Ebrio, es un bonus de PM. Si no, es un bonus de alcance.",
+      "pt": "Permite conceder um bônus a um aliado ou a si mesmo durante 1 turno. Se o Pandawa estiver Embriagado, será um bônus de PM. Caso contrário, será um bônus de Alcance."
     }
   },
   {
@@ -3788,10 +3788,10 @@
       "pt": "Fogo Farpado"
     },
     "description": {
-      "fr": "Le Roublard peut lancer ce sort sur une bombe. De cette manière, les dommages sont répliqués au contact de sa bombe, et le Roublard gagne de la Poudre pour chaque cible touchée.",
-      "en": "The Rogue can cast this spell on a bomb. As a result, the damage is replicated adjacent to the bomb, and the Rogue gains Powder for each target hit.",
-      "es": "El tymador puede lanzar este hechizo sobre una bomba. Así, los daños se replican al contacto con su bomba y el tymador gana pólvora por cada objetivo alcanzado.",
-      "pt": "O Ladino usa um arame farpado mágico como chicote para roubar vida de um adversário ou curar e reforçar uma de suas bombas."
+      "fr": "Le Roublard inflige des dommages Feu en zone. S'il cible directement une bombe, la zone d'effet est augmentée et les cibles autour de la bombe sont attirées à son contact.",
+      "en": "The Rogue inflicts Fire damage in an area of effect. If they directly target a bomb, the area of effect is increased, and the targets around the bomb are attracted adjacent to it.",
+      "es": "El tymador inflige daños de fuego en zona. Si selecciona directamente una bomba, la zona de efecto aumenta y los objetivos alrededor de la bomba son atraídos hasta su contacto.",
+      "pt": "O Ladino inflige danos de Fogo na zona. Se ele visar diretamente uma bomba, a zona de efeito aumenta e os alvos ao redor dela são atraídos em contato com ele."
     }
   },
   {
@@ -3818,10 +3818,10 @@
       "pt": "Execução"
     },
     "description": {
-      "fr": "Si le Roublard tue sa cible ennemie avec ce sort, il gagne de la Poudre.",
-      "en": "If the Rogue kills their enemy target with this spell, they gain Powder.",
-      "es": "Si el tymador mata a su objetivo enemigo con este hechizo, gana pólvora.",
-      "pt": "Os danos deste tiro aumentam a cada explosão de bomba, permitindo uma boa execução, de acordo com a tradição."
+      "fr": "Retire des résistances élémentaires à la cible avant de lui infliger des dommages Feu. Si le Roublard tue la cible pendant son tour, il regagne de la Poudre et des PA.",
+      "en": "Removes elemental resistances from the target before inflicting Fire damage on it. If the Rogue kills the target during their turn, they regain Powder and AP.",
+      "es": "Retira resistencias elementales al objetivo y le inflige daños de fuego. Si el tymador mata al objetivo durante su turno, recobra polvo y PA.",
+      "pt": "Remove resistências elementares do alvo antes de lhe infligir danos de Fogo. Se o Ladino matar o alvo durante o seu turno, ele recupera Pólvora e PA."
     }
   },
   {
@@ -3848,10 +3848,10 @@
       "pt": "Tiro Penetrante"
     },
     "description": {
-      "fr": "Ce tir permet au Roublard de briser l'armure de sa cible puis d'infliger des dommages colossaux. Un sort très précieux contre, entre autres, ces petits malins de Fécas.",
-      "en": "This shot lets the Rogue break its target's Armor and then inflict colossal damage. This spell is very useful for attacks on cocky Fecas, and others of course.",
-      "es": "Con este tiro, el tymador puede destrozar la armadura de su objetivo e infligirle daños enormes. Un hechizo muy útil contra, entre otros, esos taimados fecas.",
-      "pt": "Este tiro permite que o Ladino quebre a armadura de seu alvo e depois inflija danos colossais se tiver muitos pontos de Wakfu. Um feitiço excelente contra, entre outros, aqueles espertinhos dos Fecas."
+      "fr": "Inflige des dommages importants en zone. Des dommages supplémentaires sont infligés sur l'Armure des cibles.",
+      "en": "Inflicts major damage in an area of effect. Additional damage is inflicted on the targets' Armor.",
+      "es": "Inflige daños importantes en zona. Se infligen daños adicionales en la armadura de los objetivos.",
+      "pt": "Inflige danos consideráveis em zona. Danos adicionais são infligidos na Armadura dos alvos."
     }
   },
   {
@@ -3878,10 +3878,10 @@
       "pt": "Mosquete"
     },
     "description": {
-      "fr": "Inflige des dommages et pousse la cible. Si le sort est lancé sur une bombe, les effets sont joués en croix autour d'elle.",
-      "en": "Inflicts damage and pushes the target. If the spell is cast on a bomb, the effects are applied in a cross around it.",
-      "es": "Inflige daños y empuja al objetivo. Si el hechizo se lanza sobre una bomba, los efectos se juegan en cruz a su alrededor.",
-      "pt": "\"Blam!!! Este certamente será o último barulho que ouvirão os cretinos que tentarem ficar no meu caminho\". \\n- Remington Smif"
+      "fr": "Inflige des dommages et pousse la cible. Si le sort est lancé en fuyard, les effets sont joués en cône.",
+      "en": "Inflicts damage and pushes the target. If the spell is cast in Runaway mode, the effects are applied in a cone.",
+      "es": "Inflige daños y empuja al objetivo. Si el hechizo se lanza con Huidizo, los efectos se aplican en cono.",
+      "pt": "Inflige danos e empurra o alvo. Se o feitiço for lançado no modo Escapista, os efeitos são lançados em cone."
     }
   },
   {
@@ -3893,10 +3893,10 @@
       "pt": "Bomba Paralisante"
     },
     "description": {
-      "fr": "Ce sort retire des PM aux cibles du Roublard en mode Fuyard, ou gagne des niveaux de Retour de dague en mode Fourbe. Si le sort est lancé sur une bombe, les effets sont joués en ligne.",
-      "en": "This spell removes MP from the Rogue's targets in Runaway mode, or gains levels of Dagger Return in Sneaky mode. If the spell is cast on a bomb, the effects are applied in a straight line.",
-      "es": "Este hechizo retira PM a los objetivos del tymador en modo Huidizo o hace ganar niveles de Vuelta de Daga en modo Ruin. Si el hechizo se lanza sobre una bomba, los efectos se juegan en línea.",
-      "pt": "Coloca uma bomba no campo de batalha para deixar os adversários paralisados de terror! Quando explode, ela inflige danos e retira pontos de movimento."
+      "fr": "Ce sort retire des PM à la cible du Roublard. Si le sort est lancé sur une bombe, les effets sont joués en ligne.",
+      "en": "This spell removes MP from the Rogue's target. If the spell is cast on a bomb, the effects are applied in a straight line.",
+      "es": "Este hechizo retira PM al objetivo del tymador. Si el hechizo se lanza sobre una bomba, los efectos se juegan en línea.",
+      "pt": "Este feitiço retira PM do alvo do Ladino. Se o feitiço for lançado em uma bomba, os efeitos são lançados em linha."
     }
   },
   {
@@ -3908,10 +3908,10 @@
       "pt": "Adaga Bumerangue"
     },
     "description": {
-      "fr": "En Fourbe, le Roublard inflige des dommages à sa cible et lui applique un état. En Fuyard, le Roublard fait des dommages en zone boomerang, et déclenche les états préalablement posés : il inflige ainsi des dommages en plus en croix autour de chaque cible concernée.",
-      "en": "In Sneaky mode, the Rogue inflicts damage on their target and applies a state. In Runaway mode, the Rogue does damage in a boomerang area of effect and triggers the previously applied states, inflicting extra damage in a cross around each target affected.",
-      "es": "En Ruin, el tymador inflige daños a su objetivo y le aplica un estado. En Huidizo, el tymador hace daños en zona bumerán y activa los estados puestos previamente: también inflige daños adicionales en cruz alrededor de cada objetivo afectado.",
-      "pt": "O Ladino usa sua adaga como bumerangue, atirando-a em seus adversários. Em golpe crítico, adiciona um tiro, infligindo bem mais danos que um golpe crítico clássico."
+      "fr": "En Fourbe, le Roublard inflige des dommages à sa cible et lui applique un niveau de retour de dague supplémentaire. En Fuyard, le Roublard fait des dommages en zone boomerang et applique un niveau de retour de dague aux cibles touchées au lieu de les déclencher.",
+      "en": "In Sneaky mode, the Rogue inflicts damage on their target and applies an additional level of Dagger Return. In Runaway mode, the Rogue inflicts damage in a boomerang area of effect and applies a level of Dagger Return on targets hit instead of triggering them.",
+      "es": "Con Ruin, el tymador inflige daños a su objetivo y le aplica un nivel de Vuelta de Daga adicional. Con Huidizo, el tymador causa daños en zona de bumerán y aplica un nivel de Vuelta de Daga a los objetivos alcanzados en vez de activarlos.",
+      "pt": "No modo Perfídia, o Ladino inflige danos ao seu alvo e aplica nele um nível de Retorno da Adaga adicional. No modo Escapista, o Ladino inflige danos em zona bumerangue e aplica um nível de Retorno da Adaga aos alvos atingidos em vez de os acionar."
     }
   },
   {
@@ -3938,10 +3938,10 @@
       "pt": "Golpe Rápido"
     },
     "description": {
-      "fr": "\"Il vaut mieux un petit coup rapide bien placé qu'un gros coup à côté.\"\\n- Katsumimi la Roublarde",
-      "en": "\"An accurate slap shot is better than any inaccurate slop shot.\"\\n- Katsumimi the Rogue",
-      "es": "\"Más vale un golpecito rápido bien dado que cien golpes al aire\".\\n—Katsumimi la tymadora",
-      "pt": "\"Mais vale um golpe rápido na mão que dois golpes certeiros voando.\"\\n- Katsumimi, a Ladina."
+      "fr": "Le Roublard inflige des dommages air et gagne 1 PM. Si le sort est lancé sur une bombe, celle-ci perd un niveau et le Roublard regagne 1 Poudre.",
+      "en": "The Rogue inflicts Air damage and gains 1 MP. If the spell is cast on a bomb, the bomb loses a level, and the Rogue regains 1 Powder.",
+      "es": "El tymador inflige daños de aire y gana 1 PM. Si el hechizo se lanza a una bomba, esta pierde un nivel y el tymador recobra 1 de Polvo.",
+      "pt": "O Ladino inflige danos de ar e ganha 1 PM. Se o feitiço for lançado em uma bomba, ela perde um nível e o Ladino recupera 1 Pólvora."
     }
   },
   {
@@ -3983,10 +3983,10 @@
       "pt": "Bomba Asfixiante"
     },
     "description": {
-      "fr": "Inflige des dommages air sur une ligne de 3 cases. Les cibles touchées sont téléportées plus loin.",
-      "en": "Inflicts Air damage in a 3-cell line. Affected targets are teleported farther.",
-      "es": "Inflige daños de aire en una línea de 3 casillas. Los objetivos alcanzados se teletransportan más lejos.",
-      "pt": "Coloca uma bomba no campo de batalha para não deixar seus adversários respirarem. Quando explode, ela inflige danos e retira pontos de Wakfu temporariamente."
+      "fr": "Inflige des dommages air à la cible. Les dommages sont augmentés après avoir fait exploser des bombes. Ce bonus dépend du niveau total des bombes explosées depuis la dernière utilisation.",
+      "en": "Inflicts Air damage on the target. Damage is increased after causing bombs to explode. This bonus is based on the total level of bombs that have exploded since the spell was last used.",
+      "es": "Inflige daños de aire al objetivo. Los daños aumentan después de explosionar bombas. Este bonus depende del nivel total de las bombas explosionadas desde la última utilización.",
+      "pt": "Inflige danos de Ar ao alvo. Os danos são aumentados após explodir as bombas. Esse bônus depende do nível total das bombas explodidas desde o último uso."
     }
   },
   {
@@ -3998,10 +3998,10 @@
       "pt": "Lâmina Longa"
     },
     "description": {
-      "fr": "Lorsqu'elle est entre de bonnes mains cette épée peut sembler magique. Si le Roublard est en Fourbe, il applique un état à la cible : à la fin du tour, s'il se situe à 6 cases ou plus, la cible subira des dommages en plus.",
-      "en": "In the right hands, this sword can seem magical. If the Rogue is in Sneaky mode, they apply a state to the target: at the end of the turn, if they're 6 or more cells away, the target will suffer extra damage.",
-      "es": "Si cae en buenas manos, esta espada puede parecer mágica. Si el tymador está en Ruin, aplica un estado al objetivo: al final del turno, si se sitúa a 6 casillas o más, el objetivo sufrirá daños adicionales.",
-      "pt": "Quando está em boas mãos, esta espada pode parecer mágica."
+      "fr": "En plus d'infliger des dommages air, le Roublard applique un état à la cible : au prochain changement de mode, elle subira des dommages en plus.",
+      "en": "In addition to inflicting Air damage, the Rogue applies an effect on the target: When the Rogue next changes modes, the target suffers additional damage.",
+      "es": "Además de infligir daños de aire, el tymador aplica un estado al objetivo: en el próximo cambio de modo, este sufrirá daños adicionales.",
+      "pt": "Além de infligir danos de Ar, o Ladino aplica um estado ao alvo: na próxima mudança de modo, o alvo sofrerá danos a mais."
     }
   },
   {
@@ -5498,10 +5498,10 @@
       "pt": "Borboletas Diurnas"
     },
     "description": {
-      "fr": "Il s'agit du sort \"Ailes de Scarafeuille\" qu'il a emprunté à la classe Osamodas. Il écarte les bras comme pour battre des ailes puis, en joignant les mains, concentre cette force sur sa cible, pour lui voler de la maîtrise air tout en lui infligeant des dégâts et la déplaçant.",
-      "en": "It's the \"Scaraleaf Wing\" spell, borrowed from the Osamodas class. They spread their arms as if to beat their wings, then they bring their hands together and focus this force on their target to steal Air Mastery from it, inflict damage on it, and move it.",
-      "es": "Se trata del hechizo Alas de Escarahoja, que ha tomado prestado de los osamodas. Extiende los brazos como si quisiera batir las alas y, a continuación, junta las manos y concentra esa fuerza en su objetivo para robarle dominio de aire al mismo tiempo que le inflige daños y lo desplaza.",
-      "pt": "Trata-se do feitiço \"Asa de Scarafolha\", emprestado da classe Osamodas. Ele abre os braços como se fosse bater asas e, ao juntar as mãos, concentra essa força em seu alvo para roubar domínio de ar, infligir danos e deslocá-lo."
+      "fr": "Inflige des dommages Air et déplace la cible en fonction des runes possédées par le lanceur.",
+      "en": "Inflicts Air damage and moves the target based on what runes the caster has.",
+      "es": "Inflige daños de aire y desplaza al objetivo en función de las runas que posea el lanzador.",
+      "pt": "Inflige danos de ar e move o alvo de acordo com as runas possuídas pelo lançador."
     }
   },
   {

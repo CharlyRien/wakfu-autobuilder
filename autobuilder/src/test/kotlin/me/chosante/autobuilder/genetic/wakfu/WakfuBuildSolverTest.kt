@@ -44,14 +44,14 @@ class WakfuBuildSolverTest {
         // deterministic and version-pinned (by BOTH WakfuData.VERSION and WakfuBuildSolver.CERTIFIER_VERSION).
         // A data bump regenerates the pool, or a certifier change reshapes the bound ⇒ the ledger shifts ⇒ the
         // nightly test fails loudly (naming this version vs the current one); re-bank intentionally.
-        const val LVL245_LEDGER_ORACLE_VERSION = "1.92.1.58" // re-banked under CERTIFIER_VERSION 12 (sub stacking)
+        const val LVL245_LEDGER_ORACLE_VERSION = "1.93.1.62" // re-banked for the 1.93 data bump (CERTIFIER_VERSION 38)
 
-        // A sound LOWER BOUND on the lvl-245 max-damage optimum: the FAST ledger's max must be ≥ this. It is the
-        // PRE-STACKING proven optimum (16,909,590, certified before cumulable sub stacking landed). Stacking only
-        // ADDS achievable value, so the true stacking optimum is HIGHER (bounded above by the fast max, 17,726,310)
-        // and this stays a valid — if now loose — floor. Re-proving the exact stacking optimum at 245 is the
-        // heavy nightly proof's job; here it only guards against a gross fast-tier under-count.
-        const val LVL245_PROVEN_OPTIMUM = 16_909_590L
+        // The lvl-245 max-damage optimum (runes + subs, full EPIC pool) PROVEN on the 1.93.1.62 data: the search
+        // (det 120) reached 17,659,080, the certificate bounded it within 0.31 %, and the E8 construct rescue
+        // delivered the proven optimum 17,713,860. The FAST ledger's max must stay ≥ it (a fast value below it
+        // would let the orchestrator eliminate the winning cell — a wrong "proven optimal" badge).
+        // (1.92.1.58 history: pre-stacking proven optimum 16,909,590.)
+        const val LVL245_PROVEN_OPTIMUM = 17_713_860L
 
         // The lvl-245 tier-1 FAST certificate ledger for the production shape (runes + subs, full EPIC pool):
         // AP cell → the sound per-cell upper bound the two-tier orchestrator uses to ELIMINATE cells. This is
@@ -63,29 +63,30 @@ class WakfuBuildSolverTest {
         // 16_909_590. History: every cell rose vs. the pre-stacking bank (cumulable subs now stack, adding value
         // at every AP); then every cell TIGHTENED slightly (−0.01–0.04 %) under CERTIFIER_VERSION 15 — the family
         // budgets price mono-axis subs at the harvest's EXACT per-c crit fold instead of the DP's segment-top
-        // fold, removing pure fast-tier slack (still ≥ the exact optimum, as the assertions below lock).
+        // fold, removing pure fast-tier slack (still ≥ the exact optimum, as the assertions below lock). The
+        // 1.93.1.62 data bump raised every cell ~0.3 % and opened AP cell 17 (17,323,520, below cell 16's max).
         // Re-bank from `WAKFU_MAX_DAMAGE_CERT_LEDGER=1 …_LEVEL=245 …_INCUMBENT=99999999999999` on the manual
         // `certifyLedger end-to-end` test (a huge incumbent eliminates every cell ⇒ pure fast tier, ~80 s).
         val LVL245_FAST_LEDGER_ORACLE =
             mapOf(
                 0 to 0L,
                 1 to 0L,
-                2 to 2_378_400L,
-                3 to 3_964_100L,
-                4 to 4_950_715L,
-                5 to 6_537_250L,
-                6 to 8_109_500L,
-                7 to 9_044_700L,
-                8 to 10_572_800L,
-                9 to 12_052_530L,
-                10 to 12_802_045L,
-                11 to 14_036_100L,
-                12 to 14_597_440L,
-                13 to 15_655_875L,
-                14 to 16_068_030L,
-                15 to 17_090_500L,
-                16 to 17_718_840L,
-                17 to 0L,
+                2 to 2_385_000L,
+                3 to 3_974_880L,
+                4 to 4_964_025L,
+                5 to 6_554_630L,
+                6 to 8_131_060L,
+                7 to 9_064_410L,
+                8 to 10_595_840L,
+                9 to 12_084_870L,
+                10 to 12_836_915L,
+                11 to 14_075_040L,
+                12 to 14_637_025L,
+                13 to 15_697_375L,
+                14 to 16_109_640L,
+                15 to 17_135_625L,
+                16 to 17_766_150L,
+                17 to 17_323_520L,
                 18 to 0L,
                 19 to 0L,
                 20 to 0L

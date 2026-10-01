@@ -3985,9 +3985,9 @@
     "breedId": 11,
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
-    "maxCastPerTarget": 2,
+    "maxCastPerTarget": 1,
     "cooldown": 0,
-    "wpCost": 0
+    "wpCost": 1
   },
   {
     "spellId": 5031,
@@ -4007,7 +4007,7 @@
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
     "cooldown": 2,
-    "wpCost": 3
+    "wpCost": 0
   },
   {
     "spellId": 5033,
@@ -4025,7 +4025,7 @@
     "breedId": 11,
     "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
-    "maxCastPerTarget": 0,
+    "maxCastPerTarget": 1,
     "cooldown": 0,
     "wpCost": 0
   },
@@ -4053,7 +4053,7 @@
     "spellId": 5037,
     "name": "Colonnades",
     "breedId": 11,
-    "maxCastPerTurn": 1,
+    "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
     "cooldown": 0,
@@ -4063,9 +4063,9 @@
     "spellId": 5038,
     "name": "Aversion",
     "breedId": 11,
-    "maxCastPerTurn": 0,
+    "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
-    "maxCastPerTarget": 2,
+    "maxCastPerTarget": 0,
     "cooldown": 0,
     "wpCost": 0
   },
@@ -4083,17 +4083,17 @@
     "spellId": 5040,
     "name": "Assaut",
     "breedId": 11,
-    "maxCastPerTurn": 0,
+    "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
     "cooldown": 0,
-    "wpCost": 1
+    "wpCost": 0
   },
   {
     "spellId": 5041,
     "name": "Projection",
     "breedId": 11,
-    "maxCastPerTurn": 3,
+    "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
     "cooldown": 0,
@@ -4103,11 +4103,11 @@
     "spellId": 5042,
     "name": "Fulgurance",
     "breedId": 11,
-    "maxCastPerTurn": 1,
+    "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
     "cooldown": 0,
-    "wpCost": 1
+    "wpCost": 0
   },
   {
     "spellId": 5043,
@@ -4116,27 +4116,27 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0,
-    "wpCost": 2
+    "cooldown": 2,
+    "wpCost": 1
   },
   {
     "spellId": 5044,
     "name": "Transposition",
     "breedId": 11,
-    "maxCastPerTurn": 0,
+    "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2,
-    "wpCost": 1
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 5045,
     "name": "Sacrifice",
     "breedId": 11,
-    "maxCastPerTurn": 1,
+    "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0,
+    "cooldown": 3,
     "wpCost": 0
   },
   {
@@ -4146,7 +4146,7 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3,
+    "cooldown": 2,
     "wpCost": 0
   },
   {
@@ -4253,21 +4253,21 @@
     "spellId": 7211,
     "name": "Entaille",
     "breedId": 11,
-    "maxCastPerTurn": 2,
+    "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0,
+    "cooldown": 3,
     "wpCost": 0
   },
   {
     "spellId": 7212,
     "name": "Transfert sanguin",
     "breedId": 11,
-    "maxCastPerTurn": 2,
+    "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
-    "maxCastPerTarget": 1,
-    "cooldown": 0,
-    "wpCost": 1
+    "maxCastPerTarget": 0,
+    "cooldown": 4,
+    "wpCost": 2
   },
   {
     "spellId": 7213,
@@ -4383,11 +4383,11 @@
     "spellId": 4703,
     "name": "Tournée Générale",
     "breedId": 12,
-    "maxCastPerTurn": 0,
+    "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
-    "maxCastPerTarget": 3,
+    "maxCastPerTarget": 0,
     "cooldown": 0,
-    "wpCost": 0
+    "wpCost": 1
   },
   {
     "spellId": 4704,
@@ -4433,9 +4433,9 @@
     "spellId": 4708,
     "name": "Nuage Laiteux",
     "breedId": 12,
-    "maxCastPerTurn": 3,
+    "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
-    "maxCastPerTarget": 0,
+    "maxCastPerTarget": 1,
     "cooldown": 0,
     "wpCost": 0
   },
@@ -4443,7 +4443,7 @@
     "spellId": 4709,
     "name": "Tekilait",
     "breedId": 12,
-    "maxCastPerTurn": 0,
+    "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 2,
     "cooldown": 0,
@@ -4463,19 +4463,19 @@
     "spellId": 4711,
     "name": "Fontaine de Laiqueur",
     "breedId": 12,
-    "maxCastPerTurn": 2,
+    "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
     "cooldown": 0,
-    "wpCost": 0
+    "wpCost": 1
   },
   {
     "spellId": 4712,
     "name": "Triple Karma Leet",
     "breedId": 12,
-    "maxCastPerTurn": 0,
+    "maxCastPerTurn": 3,
     "maxCastPerTurnIncr": 0,
-    "maxCastPerTarget": 3,
+    "maxCastPerTarget": 2,
     "cooldown": 0,
     "wpCost": 0
   },
@@ -4483,7 +4483,7 @@
     "spellId": 4713,
     "name": "Six Roses",
     "breedId": 12,
-    "maxCastPerTurn": 3,
+    "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
     "cooldown": 0,
@@ -4493,9 +4493,9 @@
     "spellId": 4714,
     "name": "Frappe Fût",
     "breedId": 12,
-    "maxCastPerTurn": 4,
+    "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
-    "maxCastPerTarget": 0,
+    "maxCastPerTarget": 1,
     "cooldown": 0,
     "wpCost": 0
   },
@@ -4513,7 +4513,7 @@
     "spellId": 4716,
     "name": "Blitzkriek",
     "breedId": 12,
-    "maxCastPerTurn": 2,
+    "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
     "cooldown": 0,
@@ -4543,20 +4543,20 @@
     "spellId": 4720,
     "name": "Téléportono",
     "breedId": 12,
-    "maxCastPerTurn": 0,
+    "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2,
+    "cooldown": 0,
     "wpCost": 1
   },
   {
     "spellId": 4721,
     "name": "Happy Hour",
     "breedId": 12,
-    "maxCastPerTurn": 1,
+    "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 0,
+    "cooldown": 3,
     "wpCost": 1
   },
   {
@@ -4630,8 +4630,8 @@
     "wpCost": 0
   },
   {
-    "spellId": 5150,
-    "name": "Buvette",
+    "spellId": 5151,
+    "name": "Pandémie",
     "breedId": 12,
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
@@ -4640,8 +4640,8 @@
     "wpCost": 0
   },
   {
-    "spellId": 5151,
-    "name": "Pandémie",
+    "spellId": 5152,
+    "name": null,
     "breedId": 12,
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
@@ -4653,11 +4653,11 @@
     "spellId": 6844,
     "name": "Soif",
     "breedId": 12,
-    "maxCastPerTurn": 0,
+    "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 2,
-    "wpCost": 1
+    "cooldown": 0,
+    "wpCost": 0
   },
   {
     "spellId": 6845,
@@ -4666,8 +4666,8 @@
     "maxCastPerTurn": 0,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
-    "cooldown": 3,
-    "wpCost": 1
+    "cooldown": 2,
+    "wpCost": 0
   },
   {
     "spellId": 6846,
@@ -4680,12 +4680,82 @@
     "wpCost": 0
   },
   {
+    "spellId": 8595,
+    "name": null,
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0,
+    "wpCost": 0
+  },
+  {
+    "spellId": 8596,
+    "name": null,
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0,
+    "wpCost": 0
+  },
+  {
+    "spellId": 8597,
+    "name": null,
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0,
+    "wpCost": 0
+  },
+  {
+    "spellId": 8598,
+    "name": null,
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0,
+    "wpCost": 0
+  },
+  {
+    "spellId": 8599,
+    "name": null,
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0,
+    "wpCost": 0
+  },
+  {
+    "spellId": 8600,
+    "name": null,
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0,
+    "wpCost": 0
+  },
+  {
+    "spellId": 8601,
+    "name": null,
+    "breedId": 12,
+    "maxCastPerTurn": 0,
+    "maxCastPerTurnIncr": 0,
+    "maxCastPerTarget": 0,
+    "cooldown": 0,
+    "wpCost": 0
+  },
+  {
     "spellId": 6463,
     "name": "Barbrûlé",
     "breedId": 13,
-    "maxCastPerTurn": 3,
+    "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
-    "maxCastPerTarget": 2,
+    "maxCastPerTarget": 0,
     "cooldown": 0,
     "wpCost": 0
   },
@@ -4713,7 +4783,7 @@
     "spellId": 6466,
     "name": "Croisement",
     "breedId": 13,
-    "maxCastPerTurn": 3,
+    "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
     "cooldown": 0,
@@ -4743,9 +4813,9 @@
     "spellId": 6469,
     "name": "Tromblon",
     "breedId": 13,
-    "maxCastPerTurn": 3,
+    "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
-    "maxCastPerTarget": 2,
+    "maxCastPerTarget": 0,
     "cooldown": 0,
     "wpCost": 0
   },
@@ -4753,7 +4823,7 @@
     "spellId": 6470,
     "name": "Balle plombante",
     "breedId": 13,
-    "maxCastPerTurn": 1,
+    "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
     "cooldown": 0,
@@ -4803,7 +4873,7 @@
     "spellId": 6475,
     "name": "Espingole",
     "breedId": 13,
-    "maxCastPerTurn": 1,
+    "maxCastPerTurn": 2,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
     "cooldown": 0,
@@ -4813,11 +4883,11 @@
     "spellId": 6476,
     "name": "Oblitération",
     "breedId": 13,
-    "maxCastPerTurn": 2,
+    "maxCastPerTurn": 1,
     "maxCastPerTurnIncr": 0,
     "maxCastPerTarget": 0,
     "cooldown": 0,
-    "wpCost": 0
+    "wpCost": 1
   },
   {
     "spellId": 6478,

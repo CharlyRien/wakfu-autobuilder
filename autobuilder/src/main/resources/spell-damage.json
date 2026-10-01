@@ -118,12 +118,12 @@
   },
   {
     "spellId": 766,
-    "base": 0.0,
-    "inc": 0.10204081632653061,
+    "base": 1.0,
+    "inc": 0.07999999821186066,
     "critBase": 0.0,
-    "critInc": 0.10204081632653061,
+    "critInc": 0.08163265306122448,
     "levelCap": 245,
-    "matched": false
+    "matched": true
   },
   {
     "spellId": 767,
@@ -568,12 +568,12 @@
   },
   {
     "spellId": 2044,
-    "base": 0.0,
-    "inc": 0.5673469387755102,
-    "critBase": 0.0,
-    "critInc": 0.710204081632653,
+    "base": 6.0,
+    "inc": 0.6600000262260437,
+    "critBase": 7.5,
+    "critInc": 0.824999988079071,
     "levelCap": 245,
-    "matched": false
+    "matched": true
   },
   {
     "spellId": 2045,
@@ -604,12 +604,12 @@
   },
   {
     "spellId": 2048,
-    "base": 0.0,
-    "inc": 0.5673469387755102,
-    "critBase": 0.0,
-    "critInc": 0.710204081632653,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
     "levelCap": 245,
-    "matched": false
+    "matched": true
   },
   {
     "spellId": 2049,
@@ -622,12 +622,12 @@
   },
   {
     "spellId": 2050,
-    "base": 0.0,
-    "inc": 0.20816326530612245,
-    "critBase": 0.0,
-    "critInc": 0.2571428571428571,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
     "levelCap": 245,
-    "matched": false
+    "matched": true
   },
   {
     "spellId": 2061,
@@ -685,39 +685,39 @@
   },
   {
     "spellId": 4579,
-    "base": 0.0,
-    "inc": 0.24489795918367346,
-    "critBase": 0.0,
-    "critInc": 0.31020408163265306,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
     "levelCap": 245,
-    "matched": false
+    "matched": true
   },
   {
     "spellId": 4581,
-    "base": 0.0,
-    "inc": 0.7183673469387755,
-    "critBase": 0.0,
-    "critInc": 0.8979591836734694,
+    "base": 5.0,
+    "inc": 0.6499999761581421,
+    "critBase": 6.25,
+    "critInc": 0.8125,
     "levelCap": 245,
-    "matched": false
+    "matched": true
   },
   {
     "spellId": 4583,
-    "base": 0.0,
-    "inc": 0.5346938775510204,
-    "critBase": 0.0,
-    "critInc": 0.6693877551020408,
+    "base": 4.0,
+    "inc": 0.5600000023841858,
+    "critBase": 5.0,
+    "critInc": 0.699999988079071,
     "levelCap": 245,
-    "matched": false
+    "matched": true
   },
   {
     "spellId": 4584,
-    "base": 0.0,
-    "inc": 0.24489795918367346,
-    "critBase": 0.0,
-    "critInc": 0.31020408163265306,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
     "levelCap": 245,
-    "matched": false
+    "matched": true
   },
   {
     "spellId": 4585,
@@ -739,84 +739,84 @@
   },
   {
     "spellId": 4587,
-    "base": 0.0,
-    "inc": 0.37142857142857144,
-    "critBase": 0.0,
-    "critInc": 0.46530612244897956,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
     "levelCap": 245,
-    "matched": false
+    "matched": true
   },
   {
     "spellId": 4588,
     "base": 2.0,
-    "inc": 0.23999999463558197,
+    "inc": 0.25999999046325684,
     "critBase": 2.5,
-    "critInc": 0.30000001192092896,
+    "critInc": 0.32499998807907104,
     "levelCap": 245,
     "matched": true
   },
   {
     "spellId": 4589,
-    "base": 0.0,
-    "inc": 0.5755102040816327,
-    "critBase": 0.0,
-    "critInc": 0.7183673469387755,
+    "base": 4.0,
+    "inc": 0.5199999809265137,
+    "critBase": 5.0,
+    "critInc": 0.6499999761581421,
     "levelCap": 245,
-    "matched": false
+    "matched": true
   },
   {
     "spellId": 4590,
-    "base": 0.0,
-    "inc": 0.2653061224489796,
-    "critBase": 0.0,
-    "critInc": 0.3346938775510204,
+    "base": 2.0,
+    "inc": 0.2800000011920929,
+    "critBase": 2.5,
+    "critInc": 0.3499999940395355,
     "levelCap": 245,
-    "matched": false
+    "matched": true
   },
   {
     "spellId": 4592,
-    "base": 0.0,
-    "inc": 0.5346938775510204,
-    "critBase": 0.0,
-    "critInc": 0.6693877551020408,
+    "base": 4.0,
+    "inc": 0.5600000023841858,
+    "critBase": 5.0,
+    "critInc": 0.699999988079071,
     "levelCap": 245,
-    "matched": false
+    "matched": true
   },
   {
     "spellId": 4593,
-    "base": 0.0,
-    "inc": 0.4,
-    "critBase": 0.0,
-    "critInc": 0.5020408163265306,
+    "base": 3.0,
+    "inc": 0.41999998688697815,
+    "critBase": 3.75,
+    "critInc": 0.5249999761581421,
     "levelCap": 245,
-    "matched": false
+    "matched": true
   },
   {
     "spellId": 4594,
-    "base": 0.0,
-    "inc": 0.5346938775510204,
-    "critBase": 0.0,
-    "critInc": 0.6693877551020408,
+    "base": 4.0,
+    "inc": 0.5600000023841858,
+    "critBase": 5.0,
+    "critInc": 0.699999988079071,
     "levelCap": 245,
-    "matched": false
+    "matched": true
   },
   {
     "spellId": 4595,
-    "base": 0.0,
-    "inc": 0.4,
-    "critBase": 0.0,
-    "critInc": 0.5020408163265306,
+    "base": 3.0,
+    "inc": 0.41999998688697815,
+    "critBase": 3.75,
+    "critInc": 0.5249999761581421,
     "levelCap": 245,
-    "matched": false
+    "matched": true
   },
   {
     "spellId": 4596,
-    "base": 0.0,
-    "inc": 0.33877551020408164,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
     "critBase": 0.0,
-    "critInc": 0.42448979591836733,
+    "critInc": 0.46530612244897956,
     "levelCap": 245,
-    "matched": false
+    "matched": true
   },
   {
     "spellId": 4668,
@@ -974,9 +974,9 @@
   {
     "spellId": 4703,
     "base": 3.0,
-    "inc": 0.38999998569488525,
+    "inc": 0.33000001311302185,
     "critBase": 3.75,
-    "critInc": 0.48750001192092896,
+    "critInc": 0.41749998927116394,
     "levelCap": 245,
     "matched": true
   },
@@ -992,18 +992,18 @@
   {
     "spellId": 4705,
     "base": 4.0,
-    "inc": 0.4399999976158142,
+    "inc": 0.47999998927116394,
     "critBase": 5.0,
-    "critInc": 0.550000011920929,
+    "critInc": 0.6000000238418579,
     "levelCap": 245,
     "matched": true
   },
   {
     "spellId": 4706,
     "base": 5.0,
-    "inc": 0.5249999761581421,
+    "inc": 0.550000011920929,
     "critBase": 6.25,
-    "critInc": 0.65625,
+    "critInc": 0.6875,
     "levelCap": 245,
     "matched": true
   },
@@ -1019,65 +1019,74 @@
   {
     "spellId": 4708,
     "base": 4.0,
-    "inc": 0.5199999809265137,
+    "inc": 0.5600000023841858,
     "critBase": 5.0,
-    "critInc": 0.6499999761581421,
+    "critInc": 0.699999988079071,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
+    "spellId": 4709,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
     "levelCap": 245,
     "matched": true
   },
   {
     "spellId": 4710,
-    "base": 8.0,
-    "inc": 1.0399999618530273,
-    "critBase": 10.0,
-    "critInc": 1.2999999523162842,
+    "base": 7.0,
+    "inc": 0.9800000190734863,
+    "critBase": 8.75,
+    "critInc": 1.225000023841858,
     "levelCap": 245,
     "matched": true
   },
   {
     "spellId": 4711,
     "base": 5.0,
-    "inc": 0.550000011920929,
+    "inc": 0.6000000238418579,
     "critBase": 6.25,
-    "critInc": 0.6875,
+    "critInc": 0.75,
     "levelCap": 245,
     "matched": true
   },
   {
     "spellId": 4712,
     "base": 2.0,
-    "inc": 0.25999999046325684,
+    "inc": 0.20000000298023224,
     "critBase": 2.5,
-    "critInc": 0.32499998807907104,
+    "critInc": 0.25,
     "levelCap": 245,
     "matched": true
   },
   {
     "spellId": 4713,
-    "base": 4.0,
-    "inc": 0.5199999809265137,
-    "critBase": 5.0,
-    "critInc": 0.6499999761581421,
+    "base": 0.0,
+    "inc": 0.49387755102040815,
+    "critBase": 0.0,
+    "critInc": 0.6204081632653061,
     "levelCap": 245,
-    "matched": true
+    "matched": false
   },
   {
     "spellId": 4714,
-    "base": 2.0,
-    "inc": 0.23999999463558197,
-    "critBase": 2.5,
-    "critInc": 0.30000001192092896,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
     "levelCap": 245,
     "matched": true
   },
   {
     "spellId": 4715,
-    "base": 4.0,
-    "inc": 0.4399999976158142,
-    "critBase": 5.0,
-    "critInc": 0.550000011920929,
+    "base": 0.0,
+    "inc": 0.4530612244897959,
+    "critBase": 0.0,
+    "critInc": 0.5673469387755102,
     "levelCap": 245,
-    "matched": true
+    "matched": false
   },
   {
     "spellId": 4716,
@@ -1190,9 +1199,9 @@
   {
     "spellId": 4785,
     "base": 3.0,
-    "inc": 0.38999998569488525,
+    "inc": 0.41999998688697815,
     "critBase": 3.75,
-    "critInc": 0.48750001192092896,
+    "critInc": 0.5249999761581421,
     "levelCap": 245,
     "matched": true
   },
@@ -1207,12 +1216,12 @@
   },
   {
     "spellId": 4787,
-    "base": 0.0,
-    "inc": 0.2653061224489796,
-    "critBase": 0.0,
-    "critInc": 0.3346938775510204,
+    "base": 2.0,
+    "inc": 0.2800000011920929,
+    "critBase": 2.5,
+    "critInc": 0.3499999940395355,
     "levelCap": 245,
-    "matched": false
+    "matched": true
   },
   {
     "spellId": 4788,
@@ -1370,9 +1379,9 @@
   {
     "spellId": 5028,
     "base": 3.0,
-    "inc": 0.47999998927116394,
+    "inc": 0.44999998807907104,
     "critBase": 3.75,
-    "critInc": 0.6000000238418579,
+    "critInc": 0.5625,
     "levelCap": 245,
     "matched": true
   },
@@ -1387,28 +1396,28 @@
   },
   {
     "spellId": 5030,
-    "base": 2.0,
-    "inc": 0.2800000011920929,
-    "critBase": 2.5,
-    "critInc": 0.3499999940395355,
+    "base": 3.0,
+    "inc": 0.33000001311302185,
+    "critBase": 3.75,
+    "critInc": 0.4124999940395355,
     "levelCap": 245,
     "matched": true
   },
   {
     "spellId": 5031,
-    "base": 5.0,
-    "inc": 0.6499999761581421,
-    "critBase": 6.25,
-    "critInc": 0.8125,
+    "base": 4.0,
+    "inc": 0.6000000238418579,
+    "critBase": 5.0,
+    "critInc": 0.75,
     "levelCap": 245,
     "matched": true
   },
   {
     "spellId": 5032,
-    "base": 6.0,
-    "inc": 0.7799999713897705,
-    "critBase": 7.5,
-    "critInc": 0.9750000238418579,
+    "base": 0.0,
+    "inc": 1.0,
+    "critBase": 0.0,
+    "critInc": 1.0,
     "levelCap": 245,
     "matched": true
   },
@@ -1423,10 +1432,10 @@
   },
   {
     "spellId": 5034,
-    "base": 3.0,
-    "inc": 0.38999998569488525,
-    "critBase": 3.75,
-    "critInc": 0.48750001192092896,
+    "base": 4.0,
+    "inc": 0.5199999809265137,
+    "critBase": 5.0,
+    "critInc": 0.6499999761581421,
     "levelCap": 245,
     "matched": true
   },
@@ -1441,37 +1450,37 @@
   },
   {
     "spellId": 5036,
-    "base": 4.0,
-    "inc": 0.47999998927116394,
-    "critBase": 5.0,
-    "critInc": 0.6000000238418579,
+    "base": 5.0,
+    "inc": 0.699999988079071,
+    "critBase": 6.25,
+    "critInc": 0.875,
     "levelCap": 245,
     "matched": true
   },
   {
     "spellId": 5037,
-    "base": 5.0,
-    "inc": 0.6499999761581421,
-    "critBase": 6.25,
-    "critInc": 0.8125,
+    "base": 4.0,
+    "inc": 0.5199999809265137,
+    "critBase": 5.0,
+    "critInc": 0.6499999761581421,
     "levelCap": 245,
     "matched": true
   },
   {
     "spellId": 5038,
-    "base": 4.0,
-    "inc": 0.47999998927116394,
-    "critBase": 5.0,
-    "critInc": 0.6000000238418579,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
     "levelCap": 245,
     "matched": true
   },
   {
     "spellId": 5039,
     "base": 2.0,
-    "inc": 0.25999999046325684,
+    "inc": 0.30000001192092896,
     "critBase": 2.5,
-    "critInc": 0.32499998807907104,
+    "critInc": 0.375,
     "levelCap": 245,
     "matched": true
   },
@@ -1486,19 +1495,19 @@
   },
   {
     "spellId": 5041,
-    "base": 2.0,
-    "inc": 0.25999999046325684,
-    "critBase": 2.5,
-    "critInc": 0.32499998807907104,
+    "base": 0.0,
+    "inc": 0.10204081632653061,
+    "critBase": 0.0,
+    "critInc": 0.12653061224489795,
     "levelCap": 245,
-    "matched": true
+    "matched": false
   },
   {
     "spellId": 5042,
-    "base": 4.0,
-    "inc": 0.47999998927116394,
-    "critBase": 5.0,
-    "critInc": 0.6000000238418579,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
     "levelCap": 245,
     "matched": true
   },
@@ -1513,15 +1522,6 @@
   },
   {
     "spellId": 5123,
-    "base": 0.0,
-    "inc": 0.004081632653061225,
-    "critBase": 0.0,
-    "critInc": 0.004081632653061225,
-    "levelCap": 245,
-    "matched": false
-  },
-  {
-    "spellId": 5194,
     "base": 0.0,
     "inc": 0.004081632653061225,
     "critBase": 0.0,
@@ -1863,20 +1863,11 @@
     "matched": false
   },
   {
-    "spellId": 6287,
-    "base": 0.0,
-    "inc": 0.31020408163265306,
-    "critBase": 0.0,
-    "critInc": 0.31020408163265306,
-    "levelCap": 245,
-    "matched": false
-  },
-  {
     "spellId": 6463,
-    "base": 2.0,
-    "inc": 0.23999999463558197,
-    "critBase": 2.5,
-    "critInc": 0.30000001192092896,
+    "base": 4.0,
+    "inc": 0.47999998927116394,
+    "critBase": 5.0,
+    "critInc": 0.6000000238418579,
     "levelCap": 245,
     "matched": true
   },
@@ -1891,33 +1882,24 @@
   },
   {
     "spellId": 6465,
-    "base": 4.0,
-    "inc": 0.5199999809265137,
-    "critBase": 5.0,
-    "critInc": 0.6499999761581421,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
     "levelCap": 245,
     "matched": true
   },
   {
     "spellId": 6466,
-    "base": 3.0,
-    "inc": 0.38999998569488525,
-    "critBase": 3.75,
-    "critInc": 0.48750001192092896,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
     "levelCap": 245,
     "matched": true
   },
   {
     "spellId": 6467,
-    "base": 4.0,
-    "inc": 0.5199999809265137,
-    "critBase": 5.0,
-    "critInc": 0.6499999761581421,
-    "levelCap": 245,
-    "matched": true
-  },
-  {
-    "spellId": 6468,
     "base": 3.0,
     "inc": 0.38999998569488525,
     "critBase": 3.75,
@@ -1926,20 +1908,29 @@
     "matched": true
   },
   {
+    "spellId": 6468,
+    "base": 2.0,
+    "inc": 0.25999999046325684,
+    "critBase": 2.5,
+    "critInc": 0.32499998807907104,
+    "levelCap": 245,
+    "matched": true
+  },
+  {
     "spellId": 6469,
-    "base": 4.0,
-    "inc": 0.47999998927116394,
-    "critBase": 5.0,
-    "critInc": 0.6000000238418579,
+    "base": 3.0,
+    "inc": 0.36000001430511475,
+    "critBase": 0.0,
+    "critInc": 0.46530612244897956,
     "levelCap": 245,
     "matched": true
   },
   {
     "spellId": 6470,
-    "base": 5.0,
-    "inc": 0.6499999761581421,
-    "critBase": 6.25,
-    "critInc": 0.8125,
+    "base": 4.0,
+    "inc": 0.5199999809265137,
+    "critBase": 5.0,
+    "critInc": 0.6499999761581421,
     "levelCap": 245,
     "matched": true
   },
@@ -1981,28 +1972,28 @@
   },
   {
     "spellId": 6475,
-    "base": 5.0,
-    "inc": 0.5,
-    "critBase": 6.25,
-    "critInc": 0.625,
+    "base": 4.0,
+    "inc": 0.4000000059604645,
+    "critBase": 5.0,
+    "critInc": 0.5,
     "levelCap": 245,
     "matched": true
   },
   {
     "spellId": 6476,
     "base": 4.0,
-    "inc": 0.5199999809265137,
+    "inc": 0.4399999976158142,
     "critBase": 5.0,
-    "critInc": 0.6499999761581421,
+    "critInc": 0.550000011920929,
     "levelCap": 245,
     "matched": true
   },
   {
     "spellId": 6478,
-    "base": 6.0,
-    "inc": 0.7799999713897705,
-    "critBase": 7.5,
-    "critInc": 0.9750000238418579,
+    "base": 5.0,
+    "inc": 0.6499999761581421,
+    "critBase": 6.25,
+    "critInc": 0.8125,
     "levelCap": 245,
     "matched": true
   },
@@ -2011,7 +2002,7 @@
     "base": 3.0,
     "inc": 0.36000001430511475,
     "critBase": 0.0,
-    "critInc": 0.37142857142857144,
+    "critInc": 0.46530612244897956,
     "levelCap": 245,
     "matched": true
   },
@@ -2323,12 +2314,12 @@
   },
   {
     "spellId": 7068,
-    "base": 0.0,
-    "inc": 0.5346938775510204,
-    "critBase": 0.0,
-    "critInc": 0.6693877551020408,
+    "base": 3.0,
+    "inc": 0.38999998569488525,
+    "critBase": 3.75,
+    "critInc": 0.48750001192092896,
     "levelCap": 245,
-    "matched": false
+    "matched": true
   },
   {
     "spellId": 7069,
@@ -2422,19 +2413,10 @@
   },
   {
     "spellId": 7080,
-    "base": 0.0,
-    "inc": 0.4,
-    "critBase": 0.0,
-    "critInc": 0.5020408163265306,
-    "levelCap": 245,
-    "matched": false
-  },
-  {
-    "spellId": 7095,
-    "base": 1.0,
-    "inc": 0.05000000074505806,
-    "critBase": 0.0,
-    "critInc": 0.053061224489795916,
+    "base": 4.0,
+    "inc": 0.5199999809265137,
+    "critBase": 5.0,
+    "critInc": 0.6499999761581421,
     "levelCap": 245,
     "matched": true
   },
@@ -2455,15 +2437,6 @@
     "critInc": 0.024489795918367346,
     "levelCap": 245,
     "matched": false
-  },
-  {
-    "spellId": 7211,
-    "base": 10.0,
-    "inc": 0.0,
-    "critBase": 0.0,
-    "critInc": 0.04081632653061224,
-    "levelCap": 245,
-    "matched": true
   },
   {
     "spellId": 7307,
