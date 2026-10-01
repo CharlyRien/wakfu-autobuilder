@@ -236,7 +236,7 @@
   },
   {
     "stateId": 6001,
-    "maxStackLevel": 4,
+    "maxStackLevel": 6,
     "cumulable": true
   },
   {
@@ -1016,7 +1016,7 @@
   },
   {
     "stateId": 8403,
-    "maxStackLevel": 4,
+    "maxStackLevel": 6,
     "cumulable": true
   },
   {
@@ -1148,5 +1148,25 @@
     "stateId": 9074,
     "maxStackLevel": 1,
     "cumulable": false
+  },
+  {
+    "stateId": 9369,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 9370,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 9372,
+    "maxStackLevel": 6,
+    "cumulable": true
+  },
+  {
+    "stateId": 9373,
+    "maxStackLevel": 6,
+    "cumulable": true
   }
 ]

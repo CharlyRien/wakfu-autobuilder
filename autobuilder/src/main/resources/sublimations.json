@@ -1142,7 +1142,7 @@
       1,
       2
     ],
-    "maxLevel": 4,
+    "maxLevel": 6,
     "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL"
   },
@@ -2099,7 +2099,7 @@
     "name": {
       "fr": "Loup solitaire III",
       "en": "Lone Wolf III",
-      "es": "Lobo solitario II",
+      "es": "Lobo solitario III",
       "pt": "Lobo Solitário III"
     },
     "rarity": "NORMAL",
@@ -4833,7 +4833,7 @@
       3,
       3
     ],
-    "maxLevel": 4,
+    "maxLevel": 6,
     "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL"
   },
@@ -5430,5 +5430,116 @@
       }
     ],
     "rawText": "If Critical Mastery ≤ 0 | +30% Critical Hit"
+  },
+  {
+    "stateId": 9369,
+    "zenithId": 33409,
+    "name": {
+      "fr": "Tout feu tout flamme II",
+      "en": "Fire and Flame II",
+      "es": "Puro Fuego II",
+      "pt": "Pegando Fogo II"
+    },
+    "rarity": "NORMAL",
+    "slotColorPattern": [
+      3,
+      2,
+      1
+    ],
+    "maxLevel": 6,
+    "maxTier": 2,
+    "kind": "COMBAT_CONDITIONAL",
+    "effects": [
+      {
+        "type": "flat",
+        "characteristic": "MOVEMENT_POINT",
+        "value": 1
+      }
+    ],
+    "rawText": "+1 MP"
+  },
+  {
+    "stateId": 9370,
+    "zenithId": 33407,
+    "name": {
+      "fr": "Fureur pourpre III",
+      "en": "Crimson Fury III",
+      "es": "Furor Púrpura III",
+      "pt": "Furor Púrpura III"
+    },
+    "rarity": "NORMAL",
+    "slotColorPattern": [
+      3,
+      1,
+      1
+    ],
+    "maxLevel": 6,
+    "maxTier": 3,
+    "kind": "FLAT",
+    "effects": [
+      {
+        "type": "flat",
+        "characteristic": "DAMAGE_INFLICTED",
+        "value": 12,
+        "scenarioGate": {
+          "ranged": true
+        }
+      }
+    ],
+    "rawText": "+12% Damage Inflicted (ranged)"
+  },
+  {
+    "stateId": 9372,
+    "zenithId": 33404,
+    "name": {
+      "fr": "Influence pourpre III",
+      "en": "Crimson Influence III",
+      "es": "Influencia Púrpura III",
+      "pt": "Influência Púrpura III"
+    },
+    "rarity": "NORMAL",
+    "slotColorPattern": [
+      2,
+      3,
+      3
+    ],
+    "maxLevel": 6,
+    "maxTier": 3,
+    "kind": "FLAT",
+    "effects": [
+      {
+        "type": "flat",
+        "characteristic": "CRITICAL_HIT",
+        "value": 15
+      }
+    ],
+    "rawText": "+15% Critical Hit"
+  },
+  {
+    "stateId": 9373,
+    "zenithId": 33399,
+    "name": {
+      "fr": "Force pourpre III",
+      "en": "Crimson Strength III",
+      "es": "Fuerza Púrpura III",
+      "pt": "Força Púrpura III"
+    },
+    "rarity": "NORMAL",
+    "slotColorPattern": [
+      2,
+      1,
+      2
+    ],
+    "maxLevel": 6,
+    "maxTier": 3,
+    "kind": "FLAT",
+    "effects": [
+      {
+        "type": "flat",
+        "characteristic": "DAMAGE_INFLICTED",
+        "value": 6
+      }
+    ],
+    "rawText": "+6% Damage Inflicted"
   }
 ]
