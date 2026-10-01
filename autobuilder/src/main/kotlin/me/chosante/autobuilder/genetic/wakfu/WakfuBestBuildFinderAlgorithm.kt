@@ -79,6 +79,29 @@ object WakfuBestBuildFinderAlgorithm {
     }
 
     /**
+     * Sublimation names written by 1.10.0 and earlier (saved builds, exports, CLI scripts) whose record was
+     * renamed when its identity moved to the CREDITED tier ("Carnage II" → "Carnage III", 115 records,
+     * July 2026). Lower-cased old FR/EN name → current French name; generated once from the two catalogs,
+     * minus old names that are a CURRENT name of another record (an exact current name always wins).
+     */
+    private val legacySublimationNames: Map<String, String> by lazy {
+        EmbeddedResources.decode<Map<String, String>>("sublimation-legacy-names.json").orEmpty()
+    }
+
+    /**
+     * A user-supplied sublimation name (French or English, any case) resolved against the current catalog:
+     * a current name is returned unchanged; a pre-rename one maps to its record's current French name, so
+     * forced/excluded sublimations saved before the rename keep working instead of being silently ignored
+     * (pre-release review 2026-10-01); anything else is returned as is (and reported by [validateRequest]
+     * consumers exactly as before).
+     */
+    fun canonicalSublimationName(name: String): String {
+        val key = name.trim().lowercase()
+        if (sublimations.any { it.name.fr.lowercase() == key || it.name.en.lowercase() == key }) return name
+        return legacySublimationNames[key] ?: name
+    }
+
+    /**
      * The embedded sublimations ([Sublimation]) for the current data version, or empty if the resource
      * is absent. The solver chooses among the [Sublimation.solverChoosable] subset and applies any the
      * user [WakfuBestBuildParams.forcedSublimations]; see AGENTS.md §5.
@@ -218,6 +241,101 @@ object WakfuBestBuildFinderAlgorithm {
             }
         }
 
+    // Quick/full proof tiers share one prepared pool per params instance (identity-keyed: the GUI
+    // passes the same object twice; a new search builds new params and naturally invalidates it).
+    private val mmProofPoolMemo =
+        java.util.concurrent.atomic
+            .AtomicReference<Pair<WakfuBestBuildParams, Map<ItemType, List<Equipment>>>?>(null)
+
+    /**
+     * The most-masteries QUALITY certificate (backup certifier, docs/MOST_MASTERIES_PERF_PLAN.md
+     * §8.9bis): a post-search, single-thread sound upper bound on the SOFT folded objective —
+     * "your build is provably within X% of the optimum". Meant for searches whose CP-SAT leg ended
+     * WITHOUT a proof (low-core machines / short budgets: the 1-worker proof takes 15-20 min where
+     * this DP answers in seconds). Rebuilds the same filtered+dominated pool the search used and
+     * compares [MostMasteriesCertificate]'s bound against the result's raw objective
+     * ([SolverResult.mostMasteriesObjective] — stamped only when the searched objective is
+     * certificate-comparable). Async-friendly (~15-60 s); call after the flow completes.
+     *
+     * SOUNDNESS: the bound never under-counts (locked by the tightness/fuzz harnesses), so
+     * [MostMasteriesProof.ProvenWithin.percent] is a GUARANTEE, not an estimate; every unsupported
+     * shape (elemental request, forced items/runes/subs, unsupported target, already-proven result,
+     * missing comparable objective) returns [MostMasteriesProof.Unavailable] — a bail hides the
+     * badge, it never fakes one.
+     */
+    fun proveMostMasteriesQuality(
+        params: WakfuBestBuildParams,
+        result: SolverResult<BuildCombination>,
+        // Two-tier: the QUICK tier (~15 s, ~1.3pt looser) for an instant badge; the full tier
+        // (~80 s) refines it in the background. Both sound.
+        quick: Boolean = false,
+        // Cooperative cancellation: checked once per DP stage — a superseded proof (new search
+        // started) aborts within a stage instead of pinning a core for up to ~80 s.
+        shouldContinue: () -> Boolean = { true },
+    ): MostMasteriesProof {
+        if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) return MostMasteriesProof.Unavailable
+        if (result.isOptimal) return MostMasteriesProof.ProvenOptimal // CP-SAT already certified it exactly.
+        val incumbent = result.mostMasteriesObjective ?: return MostMasteriesProof.Unavailable
+        if (incumbent <= 0) return MostMasteriesProof.Unavailable
+        // The GUI runs the two tiers back-to-back on the SAME params: memoize the (expensive)
+        // filtered + dominated pool so the full tier doesn't rebuild what the quick tier just
+        // computed (the identity-keyed domination memo always missed on a fresh map).
+        val subs = activeSublimations(params)
+        val pool =
+            mmProofPoolMemo.get()?.takeIf { it.first === params }?.second ?: run {
+                val equipmentsByItemType =
+                    groupAndFilterEquipments(
+                        excludedItems = params.excludedItems,
+                        forcedItems = params.forcedItems,
+                        maxRarity = params.maxRarity,
+                        excludedRarities = params.excludedRarities,
+                        character = params.character
+                    )
+                // The same domination pool the production solve searched: the bound then
+                // upper-bounds the exact optimum OF THAT SEARCH (domination is optimum-preserving).
+                val shape = dominationShape(params, subs) ?: return MostMasteriesProof.Unavailable
+                WakfuBuildSolver
+                    .filterDominatedPoolMemoizedForTest(equipmentsByItemType, shape)
+                    .also { mmProofPoolMemo.set(params to it) }
+            }
+        val bound =
+            MostMasteriesCertificate.bound(params, pool, runes, subs, blockGate = !quick, shouldContinue = shouldContinue)
+                ?: return MostMasteriesProof.Unavailable
+        // The model's exact fold predicate (no `target > 0` filter — a 0-valued required target still folds).
+        val hasRequiredTargets = params.targetStats.any { it.characteristic.isRequiredMostMasteriesTarget() }
+        val upper = if (hasRequiredTargets) bound.foldedBound else bound.coreBound
+        // Self-check (mandatory, mirrors the max-damage siblings): the certificate is a sound
+        // upper bound on a FEASIBLE incumbent, so a strictly greater incumbent can only mean
+        // the certifier under-counted on live data — suppress the badge and log loudly.
+        // Equality alone is the proven-optimal case.
+        if (incumbent > upper) {
+            logger.error {
+                "MM certificate self-check FAILED (badge suppressed): upper=$upper < incumbent=$incumbent " +
+                    "— the certifier under-counted on live data. Solve is unaffected."
+            }
+            return MostMasteriesProof.Unavailable
+        }
+        return if (incumbent == upper) {
+            MostMasteriesProof.ProvenOptimal
+        } else {
+            MostMasteriesProof.ProvenWithin(upper.toDouble() / incumbent - 1)
+        }
+    }
+
+    /** Verdict of [proveMostMasteriesQuality] — mirrors [MaxDamageSearch.MaxDamageProof]. */
+    sealed interface MostMasteriesProof {
+        /** The result provably IS the optimum (CP-SAT proof, or the incumbent reached the bound). */
+        data object ProvenOptimal : MostMasteriesProof
+
+        /** The result is provably within [percent] (e.g. 0.112 = 11.2%) of the optimum. */
+        data class ProvenWithin(
+            val percent: Double,
+        ) : MostMasteriesProof
+
+        /** Unsupported shape or missing comparable objective — no badge, never a fake one. */
+        data object Unavailable : MostMasteriesProof
+    }
+
     /**
      * Post-search optimality proof (P4) for a finished max-damage [result] of [params]. Rebuilds the SAME
      * filtered pool / runes / sublimations the search used and delegates to [MaxDamageSearch.proveOptimality].
@@ -225,12 +343,15 @@ object WakfuBestBuildFinderAlgorithm {
      * (a full exact tier-2 solve can take minutes). Returns [MaxDamageSearch.MaxDamageProof.Unavailable] for a
      * non-max-damage request.
      */
+
     fun proveMaxDamageOptimality(
         params: WakfuBestBuildParams,
         result: SolverResult<BuildCombination>,
         // B8: polled once per certifier DP stage so a cancelled proof (search restarted / window closed) stops
         // the ~minutes-per-cell exact pass promptly instead of running it to completion off-screen.
         isCancelled: () -> Boolean = { false },
+        // User-facing progress: soft-leg stage keys, forwarded to the GUI proof narrator.
+        onPhase: (String) -> Unit = {},
     ): MaxDamageSearch.MaxDamageProof {
         if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
             return MaxDamageSearch.MaxDamageProof.Unavailable
@@ -245,7 +366,40 @@ object WakfuBestBuildFinderAlgorithm {
             )
         // Pass the rune / sublimation catalogs exactly as [run] does (exclusions applied) — the model honours
         // useRunes / useSublimations internally, so the certificate sees the same availability the search did.
-        return MaxDamageSearch.proveOptimality(params, equipmentsByItemType, runes, activeSublimations(params), result, isCancelled = isCancelled)
+        return MaxDamageSearch.proveOptimality(params, equipmentsByItemType, runes, activeSublimations(params), result, isCancelled = isCancelled, onPhase = onPhase)
+    }
+
+    /**
+     * SILENT-REFINEMENT entry (journal 2026-07-21): after [proveMaxDamageOptimality] returned a soft-leg
+     * `ProvenWithin`, re-bound the conditional partition with the per-carrier exact closure and return the
+     * improved verdict — [MaxDamageSearch.MaxDamageProof.ProvenOptimal] when the refined union meets the
+     * incumbent. Null = refinement not applicable / cancelled / no improvement (keep the shown badge).
+     * Wall: minutes; meant to run async while the GUI shows the first badge plus a refining indicator.
+     */
+    fun refineMaxDamageOptimality(
+        params: WakfuBestBuildParams,
+        result: SolverResult<BuildCombination>,
+        isCancelled: () -> Boolean = { false },
+        onPhase: (String) -> Unit = {},
+    ): MaxDamageSearch.MaxDamageProof? {
+        if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return null
+        val equipmentsByItemType =
+            groupAndFilterEquipments(
+                excludedItems = params.excludedItems,
+                forcedItems = params.forcedItems,
+                maxRarity = params.maxRarity,
+                excludedRarities = params.excludedRarities,
+                character = params.character
+            )
+        return MaxDamageSearch.refineSoftLegProof(
+            params,
+            equipmentsByItemType,
+            runes,
+            activeSublimations(params),
+            result,
+            isCancelled = isCancelled,
+            onPhase = onPhase
+        )
     }
 
     /**
@@ -621,6 +775,9 @@ data class WakfuBestBuildParams(
     // AP, so the loop can probe each AP breakpoint (the CP-SAT objective alone can't see a breakpoint
     // that only pays off once resistance debuffs are sequenced). Ignored by the other modes.
     val maxDamageApTarget: Int? = null,
+    /** §9.22 (AP,MP)-cell probes: pin actual MP to this exact value (hard equality). Probe-internal,
+     *  like [maxDamageApTarget] — the soft certificate bails on pinned shapes. */
+    val maxDamageMpPin: Int? = null,
     // Overrides the production CP-SAT worker count (default = cores − 1). The max-damage loop sets this so
     // its **parallel** AP probes don't each spawn cores−1 native threads and oversubscribe the CPU. Null =
     // default. Ignored when a deterministic SolverTuning is supplied.

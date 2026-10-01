@@ -6,8 +6,10 @@ import me.chosante.autobuilder.domain.firesInMostMasteries
 import me.chosante.common.Characteristic
 import me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
 import me.chosante.common.ScenarioGate
+import me.chosante.common.Sublimation
 import me.chosante.common.SublimationCondition
 import me.chosante.common.SublimationConditionType
+import me.chosante.common.SublimationKind
 
 // SublimationSemantics — the SINGLE SOURCE OF TRUTH for the sublimation DECISION logic shared by the CP-SAT
 // objective (StatBuilder / SublimationTerms / SublimationModelBuilder / MaxDamageCertifier) and the scalar
@@ -19,6 +21,25 @@ import me.chosante.common.SublimationConditionType
 // A1 drift fault line): which static conditions are modelable, and whether a scenario gate fires for a request.
 // Anything that computes a magnitude (a condition's reified/scalar evaluation, a per-element strongest test)
 // stays in its own engine.
+
+/**
+ * Removes a solver-choosable build-static condition while preserving every selectable sub and
+ * effect. A [SublimationKind.STATIC_CONDITIONAL] with `condition = null` is not modelable, so it
+ * must become [SublimationKind.FLAT]; merely clearing the condition silently drops it from the
+ * relaxed model and can under-count the true optimum. Conversions remain conversions.
+ */
+internal fun Sublimation.withRelaxedBuildStaticCondition(): Sublimation {
+    val buildCondition = condition ?: return this
+    if (!solverChoosable || buildCondition.type !in SUPPORTED_SUB_CONDITIONS) return this
+    return when (kind) {
+        // Keep the original single-copy semantics. [Sublimation.maxCopies] also keys on
+        // `condition == null`; clearing only the condition could otherwise turn a future cumulable
+        // conditional sub into several relaxed copies, changing more than the condition gate.
+        SublimationKind.STATIC_CONDITIONAL -> copy(kind = SublimationKind.FLAT, cumulable = false, condition = null)
+        SublimationKind.CONVERSION, SublimationKind.FLAT -> copy(cumulable = false, condition = null)
+        SublimationKind.COMBAT_CONDITIONAL -> this
+    }
+}
 
 /**
  * The static-conditional sublimation [SublimationConditionType]s the solver can reify against build stats
@@ -113,11 +134,19 @@ internal enum class ConditionComparison {
  * they evaluate a spec (scalar ints vs a reified `IntVar`), never in WHAT a condition means. See [subConditionSpec].
  */
 internal sealed interface SubConditionSpec {
-    /** `sum(`[stats]`)` [comparison] [threshold], read on the build's PRE-COMBAT (character-sheet) stats. */
+    /**
+     * `sum(`[stats]`)` [comparison] [threshold]. Read on the build's PRE-COMBAT (character-sheet)
+     * stats by default; [firstTurn] conditions are instead checked by the game ON THE FIRST TURN,
+     * so they also see the START-OF-COMBAT contributions of unconditional FLAT subs (in-game
+     * verified 2026-07-14: Ravage's start-of-combat secondary masteries BREAK Neutralité's
+     * `secondary masteries ≤ 0`, while a start-of-combat +crit does NOT feed a CRIT_AT_MOST —
+     * condition timing is per-type, not global).
+     */
     data class StatBound(
         val stats: List<Characteristic>,
         val comparison: ConditionComparison,
         val threshold: Int,
+        val firstTurn: Boolean = false,
     ) : SubConditionSpec
 
     /** Holds iff the build equips no off-hand and no two-handed weapon — a slot-occupancy test, not a stat read. */
@@ -156,7 +185,7 @@ internal fun subConditionSpec(
         SublimationConditionType.DODGE_LT_PCT_OF_LEVEL ->
             SubConditionSpec.StatBound(listOf(Characteristic.DODGE), ConditionComparison.AT_MOST, (n * level) / 100 - 1)
         SublimationConditionType.SECONDARY_MASTERIES_AT_MOST ->
-            SubConditionSpec.StatBound(SECONDARY_MASTERY_CHARACTERISTICS.toList(), ConditionComparison.AT_MOST, n)
+            SubConditionSpec.StatBound(SECONDARY_MASTERY_CHARACTERISTICS.toList(), ConditionComparison.AT_MOST, n, firstTurn = true)
         SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED -> SubConditionSpec.NoOffhandOrTwoHanded
         else -> SubConditionSpec.AlwaysApplies // AP_ODD / WEAPON_TYPE_EQUIPPED / HIGHEST_* / OTHER — not solver-modeled
     }
