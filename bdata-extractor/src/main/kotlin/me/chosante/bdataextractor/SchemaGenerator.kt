@@ -101,12 +101,16 @@ class SchemaGenerator private constructor(
 
     /**
      * Monster (42) schema with the boss-mode fields renamed by their stable positions so [buildMonsters] can
-     * read them by name. The head (id..resistances) is stable; `gfx` is the 3rd-from-last field. Each renamed
-     * position is type-asserted, so a future head/tail drift fails loudly here rather than mislabeling a field.
+     * read them by name. The head (id..resistances) is stable; `gfx` sits two fields before the record's LAST
+     * string field (`…, gfx: I32, I32, Str`). It used to be pinned as the 3rd-from-last field, but client 1.93
+     * appended a field after that string and the fixed offset silently read a neighbour (gfx null for ~90% of
+     * monsters); anchoring on the string survives tail appends. Each renamed position is type-asserted, so a
+     * future head/tail drift fails loudly here rather than mislabeling a field.
      */
     fun monsterSchema(install: File): List<Field> {
         val raw = schemaFor(install, Tables.MONSTER)
-        val n = raw.size
+        val gfxIndex = raw.indexOfLast { it.type == FieldType.Str } - 2
+        require(gfxIndex >= 0) { "Monster schema drift: no trailing string field to anchor `gfx` on." }
         val names =
             mapOf(
                 0 to "id",
@@ -118,7 +122,7 @@ class SchemaGenerator private constructor(
                 40 to "base_water_resistance",
                 41 to "base_earth_resistance",
                 42 to "base_wind_resistance",
-                n - 3 to "gfx"
+                gfxIndex to "gfx"
             )
 
         fun assertType(
@@ -127,7 +131,7 @@ class SchemaGenerator private constructor(
         ) = require(i in raw.indices && raw[i].type == expected) {
             "Monster schema drift: field $i expected $expected but derived ${raw.getOrNull(i)?.type} — re-check the position map."
         }
-        listOf(0, 1, 6, 39, 40, 41, 42, n - 3).forEach { assertType(it, FieldType.I32) }
+        listOf(0, 1, 6, 39, 40, 41, 42, gfxIndex, gfxIndex + 1).forEach { assertType(it, FieldType.I32) }
         assertType(2, FieldType.I16)
         assertType(3, FieldType.I16)
         return raw.mapIndexed { i, f -> names[i]?.let { Field(it, f.type) } ?: f }
