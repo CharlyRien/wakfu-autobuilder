@@ -480,6 +480,10 @@ internal object MostMasteriesCertificate {
                 emptyList()
             }
         if (capSubs.size > 6) return null
+        // The world split relies on every cap sub being EPIC (one epic slot ⇒ a build carries at
+        // most one, so one assume-world per cap sub covers it). Bail on a NORMAL/RELIC cap sub (a
+        // future game-data refresh) rather than under-count.
+        if (capSubs.any { it.rarity != SublimationRarity.EPIC }) return null
         if (capSubs.isNotEmpty() && worldAssume == null && !worldDropCaps) {
             // Orchestrate the worlds SEQUENTIALLY: the peak memory stays that of a single DP (the
             // low-core/low-RAM machines this backup exists for cannot afford 4 concurrent state

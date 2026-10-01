@@ -650,6 +650,11 @@ internal object MaxDamageSoftCertificate {
                 emptyList()
             }
         if (capSubs.size > 6) return null
+        // The world split assumes every cap sub is EPIC: one epic slot makes them mutually
+        // exclusive (an assume-world drops the others) and the assume-world filter requires an
+        // epic item. A NORMAL/RELIC cap sub (a future game-data refresh) would break both silently
+        // — bail instead of under-counting.
+        if (capSubs.any { it.rarity != SublimationRarity.EPIC }) return null
 
         fun capsObjectiveType(sub: Sublimation): SublimationConditionType? =
             sub.condition?.type?.takeIf {
@@ -3078,10 +3083,10 @@ internal object MaxDamageSoftCertificate {
                         creditedHpPctFactor = 100 + maxSkillHpPct
                     )
                 // UNKNOWN normally still carries a finite dual. Treat a missing/negative native
-                // sentinel as infinity: folding it to zero would make a timeout unsound.
+                // sentinel as infinity: folding it to zero would make a timeout unsound. An
+                // INFEASIBLE region is empty — any finite raw value (0) upper-bounds it.
                 val rawUpper =
-                    (if (oracle.status == "OPTIMAL") oracle.objective else oracle.bestBound)
-                        .takeIf { it >= 0L } ?: Long.MAX_VALUE
+                    oracle.soundUpper(ifInfeasible = 0L).takeIf { it >= 0L } ?: Long.MAX_VALUE
                 FrontierRegionCellRead(
                     profile.folded(rawUpper, baseCredit),
                     hpComplementUpper,
@@ -3273,12 +3278,9 @@ internal object MaxDamageSoftCertificate {
                     logger.warn(e) { "per-carrier closure: world solve failed for subs $requiredStateIds — keeping the DP badge" }
                     return Long.MAX_VALUE
                 }
-            return when (profile.status) {
-                "INFEASIBLE" -> Long.MIN_VALUE
-                "OPTIMAL" -> profile.objective
-                // FEASIBLE/UNKNOWN: the (ceil-rounded) dual is a sound upper of the world.
-                else -> profile.bestBound
-            }
+            // INFEASIBLE = an empty world (e.g. an epic carrier with no host item) — it covers no
+            // build; UNKNOWN/MODEL_INVALID without a real dual stay OPEN (MAX), never "closed at 0".
+            return profile.soundUpper(ifInfeasible = Long.MIN_VALUE)
         }
 
         onPhase("carrierClosure")
@@ -3460,9 +3462,12 @@ internal object MaxDamageSoftCertificate {
                                 // Deadline-clipped like every other CP leg (feca65 measured the
                                 // LAZY relaxed read burning its fixed 45 s late in a long proof).
                                 seconds = minOf(RELAXED_PROBE_SECONDS, deadlineSecondsRemaining()),
-                                applyDomination = true
+                                applyDomination = true,
+                                shouldContinue = shouldContinue
                             )
-                        if (relaxed.status == "OPTIMAL") relaxed.objective else relaxed.bestBound
+                        // A relaxation of a model with a known feasible build is never empty:
+                        // INFEASIBLE (like UNKNOWN without a dual) stays inconclusive.
+                        relaxed.soundUpper()
                     } catch (e: Exception) {
                         logger.warn(e) { "soft-leg proof: the relaxed probe failed — continuing with the union" }
                         Long.MAX_VALUE
@@ -3676,8 +3681,9 @@ internal object MaxDamageSoftCertificate {
                 } else {
                     // The dual bound of the no-condition model is a sound upper for its partition
                     // even on a timeout (domination is exactness-preserving, so the reduced-model
-                    // dual still covers the full pool).
-                    profile.bestBound to false
+                    // dual still covers the full pool) — but only a REAL dual: an interrupted
+                    // presolve's unset bound must not read as "partition closed at 0".
+                    profile.soundUpper() to false
                 }
             } catch (e: Exception) {
                 logger.warn(e) { "soft-leg proof: the no-condition oracle solve failed — badge withheld" }
@@ -4217,11 +4223,13 @@ internal object MaxDamageSoftCertificate {
                                 sublimations = sublimations,
                                 workers = oracleWorkers,
                                 seconds = probeSeconds,
-                                applyDomination = true
+                                applyDomination = true,
+                                shouldContinue = shouldContinue
                             )
                         // OPTIMAL: objective == bestBound, the union collapses onto the true
-                        // optimum. Otherwise the dual still upper-bounds every build.
-                        probe.bestBound
+                        // optimum. Otherwise the dual still upper-bounds every build — when it is
+                        // a real dual (a probe stopped inside presolve must not zero the union).
+                        probe.soundUpper()
                     } catch (e: Exception) {
                         logger.warn(e) { "soft-leg proof: the full-model CP-SAT probe failed — keeping the DP bound" }
                         conditionalUpper
