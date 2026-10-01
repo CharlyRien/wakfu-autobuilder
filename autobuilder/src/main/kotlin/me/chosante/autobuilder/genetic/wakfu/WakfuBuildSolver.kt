@@ -202,9 +202,12 @@ object WakfuBuildSolver {
      * making a deeper frontier bound worse than an already-known ancestor bound.
      * 36: adds the per-carrier closure (silent refinement, journal 2026-07-21) — carrier-forced
      * full-exact CP worlds + STRICT blocker set-cover composing with the proven no-condition
-     * oracle into an exact soft-leg upper; its memo is keyed by this version.
+     * oracle into an exact soft-leg upper; its memo is keyed by this version;
+     * 37: every soft-proof CP read goes through [MaxDamageTimedProfile.soundUpper] — an UNKNOWN /
+     * MODEL_INVALID solve without a real dual (stopped or timed out inside presolve: native bound 0)
+     * no longer reads as "world closed at 0"; cap-sub world splits bail on a non-EPIC cap sub.
      */
-    const val CERTIFIER_VERSION: Int = 36
+    const val CERTIFIER_VERSION: Int = 37
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
@@ -679,13 +682,16 @@ object WakfuBuildSolver {
                         for (v in diagnosticVars(built)) hint[v.name]?.let { built.model.addHint(v, it) }
                     }
                     // Backup certificate (§8.9bis): the emitted objective is certificate-comparable on
-                    // the MM SOFT leg (penalized units = the certificate's foldedBound units) AND on the
-                    // HARD leg (review fix 2026-07-20): every hard-leg emission MEETS the required
-                    // targets, so its penalty terms are zero and the raw objective equals the penalized
-                    // soft objective — previously the hard leg stamped null and the backup badge never
-                    // ran on typical targeted requests, its own motivating scenario.
+                    // the MM SOFT leg only (penalized units = the certificate's foldedBound units). NOT on
+                    // the hard leg with required targets: its objective is the bare `core × 10⁴ + bonus`,
+                    // while the soft objective multiplies the core by power6(bucket) — ≈1e6 even when every
+                    // target is met — so comparing the two awarded "proven within ~1 000 000 %" badges
+                    // (pre-release review 2026-10-01, reproduced on dist+AP+MP+HP at level 200). Making
+                    // the hard leg comparable needs that unit conversion, not a raw stamp.
                     val mmObjectiveComparable =
                         params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+                            // (the model's exact fold predicate — a 0-valued required target still folds the objective)
+                            (!hardConstraints || params.targetStats.none { it.characteristic.isRequiredMostMasteriesTarget() }) &&
                             // The measurement seams replace the searched objective — never comparable.
                             tuning?.mmPenaltyBucketInterval == null &&
                             tuning?.mmDiFactorInterval == null
@@ -1291,6 +1297,24 @@ object WakfuBuildSolver {
     ) {
         val hasSolution: Boolean
             get() = objective != Long.MIN_VALUE
+
+        /**
+         * This solve as a SOUND upper bound of its model's optimum — the only way proof code may read it.
+         * OPTIMAL → the objective; FEASIBLE → the (ceiled) dual; UNKNOWN → the dual only when the native
+         * bound was actually set: a solve stopped or timed out inside presolve reports the proto default 0
+         * (or a negative sentinel), which read as a bound would "close" the world it should have left open
+         * (the 2026-07-18 MODEL_INVALID incident, see the B&B node guard); INFEASIBLE → [ifInfeasible]
+         * (MIN_VALUE where an empty world is meaningful, the MAX_VALUE default where emptiness contradicts a
+         * known feasible build); anything else (MODEL_INVALID…) → Long.MAX_VALUE.
+         */
+        fun soundUpper(ifInfeasible: Long = Long.MAX_VALUE): Long =
+            when (status) {
+                "OPTIMAL" -> objective
+                "FEASIBLE" -> bestBound.takeIf { it >= objective } ?: Long.MAX_VALUE
+                "UNKNOWN" -> bestBound.takeIf { it > 0L } ?: Long.MAX_VALUE
+                "INFEASIBLE" -> ifInfeasible
+                else -> Long.MAX_VALUE
+            }
     }
 
     /** One outer-approximation step of [conditionalRefinementProfileForTest]. */
@@ -2263,10 +2287,11 @@ object WakfuBuildSolver {
                 Thread {
                     try {
                         while (!Thread.currentThread().isInterrupted) {
-                            if (!cont()) {
-                                solver.stopSearch()
-                                return@Thread
-                            }
+                            // Re-issued on every tick once cancelled, never just once: OR-Tools' Java
+                            // CpSolver.stopSearch() is a silent no-op until solve() has created its
+                            // native wrapper, so a cancel landing while the model is still being built
+                            // would otherwise be lost and the solve would run its full budget.
+                            if (!cont()) solver.stopSearch()
                             Thread.sleep(500)
                         }
                     } catch (_: InterruptedException) {
