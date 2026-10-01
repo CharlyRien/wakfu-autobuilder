@@ -79,6 +79,29 @@ object WakfuBestBuildFinderAlgorithm {
     }
 
     /**
+     * Sublimation names written by 1.10.0 and earlier (saved builds, exports, CLI scripts) whose record was
+     * renamed when its identity moved to the CREDITED tier ("Carnage II" → "Carnage III", 115 records,
+     * July 2026). Lower-cased old FR/EN name → current French name; generated once from the two catalogs,
+     * minus old names that are a CURRENT name of another record (an exact current name always wins).
+     */
+    private val legacySublimationNames: Map<String, String> by lazy {
+        EmbeddedResources.decode<Map<String, String>>("sublimation-legacy-names.json").orEmpty()
+    }
+
+    /**
+     * A user-supplied sublimation name (French or English, any case) resolved against the current catalog:
+     * a current name is returned unchanged; a pre-rename one maps to its record's current French name, so
+     * forced/excluded sublimations saved before the rename keep working instead of being silently ignored
+     * (pre-release review 2026-10-01); anything else is returned as is (and reported by [validateRequest]
+     * consumers exactly as before).
+     */
+    fun canonicalSublimationName(name: String): String {
+        val key = name.trim().lowercase()
+        if (sublimations.any { it.name.fr.lowercase() == key || it.name.en.lowercase() == key }) return name
+        return legacySublimationNames[key] ?: name
+    }
+
+    /**
      * The embedded sublimations ([Sublimation]) for the current data version, or empty if the resource
      * is absent. The solver chooses among the [Sublimation.solverChoosable] subset and applies any the
      * user [WakfuBestBuildParams.forcedSublimations]; see AGENTS.md §5.

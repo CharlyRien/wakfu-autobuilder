@@ -33,4 +33,24 @@ class EmbeddedSublimationsDataTest {
             .describedAs("a NORMAL sublimation's displayed/exported identity must be its maxTier item")
             .isEmpty()
     }
+
+    /**
+     * Forced/excluded sublimations saved before the credited-tier rename ("Carnage II") must resolve to the
+     * renamed record instead of being silently ignored; current names (any case) and unknown names pass
+     * through untouched, and an old name that is now ANOTHER record's current name keeps its current meaning.
+     */
+    @Test
+    fun `pre-rename sublimation names resolve to the current records`() {
+        fun canonical(name: String) = WakfuBestBuildFinderAlgorithm.canonicalSublimationName(name)
+        assertThat(canonical("Carnage II")).isEqualTo("Carnage III")
+        assertThat(canonical("devastate ii")).describedAs("old English name, any case").isEqualTo("Ravage III")
+        assertThat(canonical("Ravage III")).isEqualTo("Ravage III")
+        assertThat(canonical("carnage iii")).describedAs("a current name is never rewritten").isEqualTo("carnage iii")
+        assertThat(canonical("Resolute II")).describedAs("now another record's current English name").isEqualTo("Resolute II")
+        assertThat(canonical("Pas une sublimation")).isEqualTo("Pas une sublimation")
+        val targets = WakfuBestBuildFinderAlgorithm.sublimations.map { it.name.fr }.toSet()
+        listOf("Carnage II", "Influence II", "Poids Plume I").forEach {
+            assertThat(canonical(it)).describedAs("$it maps onto an existing record").isIn(targets)
+        }
+    }
 }

@@ -51,7 +51,7 @@ import kotlin.math.ceil
  *    for Secret Critique — and its own credits (DI/CC/…) ride the state's fold.
  *  - BLOCK_AT_LEAST subs (Mesure) gate on an over-counted block dim (full tier only).
  *  - the MP→DI ramp (Poids Plume) defers to collapse at the state's own MP (ramp bit); the
- *    MAX_MP−1 rider (Armure lourde) pays the mpMinus bit.
+ *    MAX_MP−1 rider (Armure lourde) is a signed MP debit in the exact NORMAL pack, else ignored.
  *  - chunked parallel stage apply (bit-identical max-merge, ported from the MM certificate).
  *
  * Remaining OVER-counts (sound):
@@ -655,6 +655,31 @@ internal object MaxDamageSoftCertificate {
         // epic item. A NORMAL/RELIC cap sub (a future game-data refresh) would break both silently
         // — bail instead of under-counting.
         if (capSubs.any { it.rarity != SublimationRarity.EPIC }) return null
+        // The Neutralité-family budget caps (world B / secZero arm) assume every POSITIVE secondary
+        // line sits inside the condition's FIRST-TURN read (pre-combat + start-of-combat lines of
+        // unconditional FLAT subs). A line outside it — a conditional sub's start-of-combat
+        // mastery, a ramp into a secondary mastery — would be free mastery those caps never price.
+        // None exists in the catalogue today: bail rather than under-count if a data refresh adds
+        // one (review fix 2026-10-01).
+        if (params.useSublimations &&
+            sublimations.any { it.solverChoosable && it.condition?.type == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST } &&
+            sublimations.any { sub ->
+                sub.solverChoosable &&
+                    sub.effects.any { eff ->
+                        when (eff) {
+                            is SublimationEffect.StatEffect ->
+                                eff.characteristic in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS &&
+                                    eff.magnitudeAtLevel(level) > 0 &&
+                                    !eff.appliesBeforeCombat &&
+                                    !(sub.condition == null && sub.kind == me.chosante.common.SublimationKind.FLAT)
+                            is SublimationEffect.PerStatStep -> eff.target in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
+                            else -> false
+                        }
+                    }
+            }
+        ) {
+            return null
+        }
 
         fun capsObjectiveType(sub: Sublimation): SublimationConditionType? =
             sub.condition?.type?.takeIf {
@@ -1244,7 +1269,15 @@ internal object MaxDamageSoftCertificate {
                     epic = e.rarity == me.chosante.common.Rarity.EPIC,
                     relic = e.rarity == me.chosante.common.Rarity.RELIC,
                     block = if (blockAtLeastMax > 0) statOf(e, Characteristic.BLOCK_PERCENTAGE) else 0,
-                    apLow = if (geo.assumeApThreshold >= 0) itemAp(e) else 0,
+                    // LOW read = the solver's pre-combat `valueFor(AP)` = signed AP + MAX_ACTION_POINT
+                    // (review fix 2026-10-01: itemAp() drops the MAX_AP fold exactly in assume-AP
+                    // worlds and keeps only the positive AP part — both over-rejected real carriers).
+                    apLow =
+                        if (geo.assumeApThreshold >= 0) {
+                            (e.characteristics[Characteristic.ACTION_POINT] ?: 0) + (e.characteristics[Characteristic.MAX_ACTION_POINT] ?: 0)
+                        } else {
+                            0
+                        },
                     ccLowRaw = if (geo.assumeCcThresholdRaw >= 0) (e.characteristics[Characteristic.CRITICAL_HIT] ?: 0) else 0,
                     // Populated ONLY when the credit-cap dimension is active: a populated secPos
                     // splits stat-identical ring pairs / weapon combos at distinct(), which
@@ -1551,6 +1584,42 @@ internal object MaxDamageSoftCertificate {
             }
             return v
         }
+
+        // Upper bound of what [stat] gains OUTSIDE the pre-combat condition read: START-OF-COMBAT
+        // sub lines (Influence vitale III's +12 crit ×2, Ravage III's crit mastery) and ramps into
+        // [stat] (final sheet only; passives are bailed up front). Assume worlds credit their capped
+        // stat as `threshold + own` and the critZero arm its crit mastery as `t + own` — the final
+        // stat adds these on top (review fix 2026-10-01: both constants under-counted).
+        // [excludeEpics]: the assumed/arm epic holds the single epic-sub slot.
+        fun outsideReadMax(
+            stat: Characteristic,
+            exclude: Sublimation?,
+            excludeEpics: Boolean,
+        ): Long {
+            var v = 0L
+            for (sub in sublimations) {
+                if (!sub.solverChoosable || sub === exclude) continue
+                if (excludeEpics && sub.rarity == SublimationRarity.EPIC) continue
+                val copies = sub.maxCopies.coerceAtLeast(1).toLong()
+                for (eff in sub.effects) {
+                    when (eff) {
+                        is SublimationEffect.StatEffect ->
+                            if (eff.characteristic == stat &&
+                                !eff.appliesBeforeCombat &&
+                                WakfuBuildSolver.scenarioGateMatches(eff.scenarioGate, params)
+                            ) {
+                                v += maxOf(eff.magnitudeAtLevel(level), 0).toLong() * copies
+                            }
+                        is SublimationEffect.PerStatStep ->
+                            if (eff.target == stat && eff.source != stat) {
+                                v += maxOf(eff.contribution(reachableMax(eff.source)), 0).toLong() * copies
+                            }
+                        else -> {}
+                    }
+                }
+            }
+            return v
+        }
         // Saturation is sound as long as the raw coordinate retains enough room for every
         // negative rider that can still follow it. Positive MP beyond that line is equivalent for
         // the target fold, so the much looser all-sources reachableMax is neither needed nor useful
@@ -1835,7 +1904,12 @@ internal object MaxDamageSoftCertificate {
             if (armZeroCritM) {
                 objCapSubs
                     .filter { capsObjectiveType(it) == SublimationConditionType.CRITICAL_MASTERY_AT_MOST }
-                    .maxOf { (it.condition?.value ?: 0).toLong() + ownPositiveOf(it) { c -> c == Characteristic.MASTERY_CRITICAL } }
+                    .maxOf {
+                        (it.condition?.value ?: 0).toLong() +
+                            ownPositiveOf(it) { c -> c == Characteristic.MASTERY_CRITICAL } +
+                            // Start-of-combat crit mastery (Ravage III) lands outside the read.
+                            outsideReadMax(Characteristic.MASTERY_CRITICAL, exclude = it, excludeEpics = it.rarity == SublimationRarity.EPIC)
+                    }
             } else {
                 0L
             }
@@ -1982,7 +2056,11 @@ internal object MaxDamageSoftCertificate {
                                 if (value < 0 && eff.characteristic == Characteristic.DAMAGE_INFLICTED) {
                                     opt = opt.copy(d = opt.d + value)
                                 }
-                                if (value < 0 && geo.assumeApThreshold >= 0 && eff.characteristic == Characteristic.ACTION_POINT) {
+                                // MAX_ACTION_POINT folds into the pre-combat AP read (Carapace II's −1).
+                                if (value < 0 &&
+                                    geo.assumeApThreshold >= 0 &&
+                                    (eff.characteristic == Characteristic.ACTION_POINT || eff.characteristic == Characteristic.MAX_ACTION_POINT)
+                                ) {
                                     opt = opt.copy(apLow = opt.apLow + value)
                                 }
                                 if (value < 0 && geo.assumeCcThresholdRaw >= 0 && eff.characteristic == Characteristic.CRITICAL_HIT) {
@@ -2001,14 +2079,23 @@ internal object MaxDamageSoftCertificate {
                                 }
                                 continue
                             }
+                            // A positive line raises the pre-combat read only when permanent; start-of-
+                            // combat lines land after the read (review fix: they over-rejected carriers).
+                            val inPreCombatRead = eff.appliesBeforeCombat
                             opt =
                                 when (eff.characteristic) {
                                     Characteristic.DAMAGE_INFLICTED -> opt.copy(d = opt.d + value)
                                     Characteristic.ACTION_POINT ->
-                                        opt.copy(ap = opt.ap + value, apLow = opt.apLow + (if (geo.assumeApThreshold >= 0) value else 0))
+                                        opt.copy(
+                                            ap = opt.ap + value,
+                                            apLow = opt.apLow + (if (geo.assumeApThreshold >= 0 && inPreCombatRead) value else 0)
+                                        )
                                     Characteristic.MOVEMENT_POINT -> opt.copy(mp = opt.mp + value)
                                     Characteristic.CRITICAL_HIT ->
-                                        opt.copy(cc = opt.cc + value, ccLowRaw = opt.ccLowRaw + (if (geo.assumeCcThresholdRaw >= 0) value else 0))
+                                        opt.copy(
+                                            cc = opt.cc + value,
+                                            ccLowRaw = opt.ccLowRaw + (if (geo.assumeCcThresholdRaw >= 0 && inPreCombatRead) value else 0)
+                                        )
                                     Characteristic.HP -> opt.copy(hp = opt.hp + value)
                                     Characteristic.BLOCK_PERCENTAGE ->
                                         if (blockAtLeastMax > 0) opt.copy(block = opt.block + value) else opt.copy(w = opt.w + wOf(eff.characteristic, value))
@@ -2108,7 +2195,20 @@ internal object MaxDamageSoftCertificate {
                         (!opt.ramp || (exactNormalSubPacking && stateDependentMpRamp)) &&
                         opt.requiresBlockAtLeast == 0
                 if (opt.d < 0 && !(exactNormalSubPacking && entersNormalPacking)) opt = opt.copy(d = 0)
-                if (opt.w == 0L && opt.d == 0 && opt.ap == 0 && opt.mp == 0 && opt.cc == 0 && opt.hp == 0 && !opt.ramp && !opt.conditional) {
+                // Low-read-only (Carapace II's −1 MAX_AP) and block-only (Dérobade continue III)
+                // subs stay: they relax an AT_MOST read / feed an AT_LEAST gate (review fix).
+                if (opt.w == 0L &&
+                    opt.d == 0 &&
+                    opt.ap == 0 &&
+                    opt.mp == 0 &&
+                    opt.cc == 0 &&
+                    opt.hp == 0 &&
+                    opt.apLow == 0 &&
+                    opt.ccLowRaw == 0 &&
+                    opt.block == 0 &&
+                    !opt.ramp &&
+                    !opt.conditional
+                ) {
                     continue
                 }
                 repeat(sub.maxCopies.coerceAtLeast(1)) { subOpts += SubOpt(opt, sub.rarity) }
@@ -2324,7 +2424,10 @@ internal object MaxDamageSoftCertificate {
         // expanded into their two component credits: unlike MM, the elemental half feeds THIS core.
         if ("noSkills" !in diag) {
             val skills = params.character.characterSkills
-            for (branch in listOf(skills.intelligence, skills.strength, skills.agility, skills.luck, skills.major)) {
+            // Intelligence LAST: its %HP multiplies the whole flat HP, the Strength HP points included
+            // — applied before them it left them unscaled, an HP under-count (pre-release review
+            // 2026-10-01, caught by the banded review lock: %HP 50 + HP 48 reached 9 030 HP in CP-SAT).
+            for (branch in listOf(skills.strength, skills.agility, skills.luck, skills.major, skills.intelligence)) {
                 fun componentsOf(sk: me.chosante.common.skills.SkillCharacteristic): List<me.chosante.common.skills.SkillCharacteristic> =
                     if (sk is me.chosante.common.skills.SkillCharacteristic.PairedCharacteristic) listOf(sk.first, sk.second) else listOf(sk)
 
@@ -2335,6 +2438,10 @@ internal object MaxDamageSoftCertificate {
                                 c in randomStats ||
                                 c == Characteristic.MASTERY_CRITICAL ||
                                 c == Characteristic.DAMAGE_INFLICTED ||
+                                // AP always sets the throughput (spells per turn), target or not —
+                                // dropping the Major AP point under-counted AP-untargeted requests
+                                // by one throughput step (review fix 2026-10-01).
+                                c == Characteristic.ACTION_POINT ||
                                 // Review fix (2026-07-20): the crit-aware transport scales W by the
                                 // band's ccHigh, which must UPPER-bound the reachable crit — even a
                                 // no-crit-target build can allocate crit SKILLS for the (400+c)
@@ -2472,6 +2579,10 @@ internal object MaxDamageSoftCertificate {
             val bands: List<ScoredBand>,
         )
 
+        // Assume worlds: the condition read is ≤ threshold, the FINAL stat adds what lands outside
+        // it — once per world (see [outsideReadMax]).
+        val apOutsideRead = if (geo.assumeApThreshold >= 0) outsideReadMax(Characteristic.ACTION_POINT, worldAssume, excludeEpics = true) else 0L
+        val ccOutsideRead = if (geo.assumeCcThresholdRaw >= 0) outsideReadMax(Characteristic.CRITICAL_HIT, worldAssume, excludeEpics = true) else 0L
         for ((k, wv) in states) {
             if (needsConditionalMarker &&
                 geo.conditional(k) == 0 &&
@@ -2503,13 +2614,13 @@ internal object MaxDamageSoftCertificate {
                 val di = (geo.d(k).toLong() * diStep + assumedOpt.d + extra.d + rampDi).coerceAtMost(diCap.toLong())
                 val apRead =
                     if (geo.assumeApThreshold >= 0) {
-                        ((geo.assumeApThreshold + maxOf(assumedOpt.ap, 0)).toLong() + extra.ap)
+                        ((geo.assumeApThreshold + maxOf(assumedOpt.ap, 0)).toLong() + apOutsideRead + extra.ap)
                     } else {
                         geo.ap(k).toLong() + assumedOpt.ap + extra.ap
                     }
                 val ccRead =
                     if (geo.assumeCcThresholdRaw >= 0) {
-                        (assumeThreshold + maxOf(assumedOpt.cc, 0)).toLong() + extra.cc
+                        (assumeThreshold + maxOf(assumedOpt.cc, 0)).toLong() + ccOutsideRead + extra.cc
                     } else {
                         geo.cc(k).toLong() * ccStep + assumedOpt.cc + extra.cc
                     }
@@ -2678,7 +2789,14 @@ internal object MaxDamageSoftCertificate {
                 val bands = arrayListOf<ScoredBand>()
                 while (lo <= ccUpper) {
                     val hi = minOf(ccUpper, lo + ccSupportBand - 1L)
-                    val scored = scoreBand(support - ccSupportLambda * lo, hi, lo, hi)
+                    // The LAST band also covers every build ABOVE the fold cap (the crit target):
+                    // their target credit saturates at hi, but their crit leverage in W does not.
+                    // Transporting them at hi (= T) under-stated W by up to (400+T)/(400+C) unless
+                    // λ·r(T) ≥ the build's per-crit mastery value — not guaranteed (λ is fixed, M+K
+                    // grows with level). Transport at the state's own max crit instead (pre-release
+                    // review 2026-10-01); ccRead upper-bounds every represented build's crit.
+                    val transportHigh = if (hi == ccUpper && ccRead > ccUpper) ccRead else hi
+                    val scored = scoreBand(support - ccSupportLambda * lo, hi, lo, transportHigh)
                     bands += scored
                     maxCoreForFold = maxOf(maxCoreForFold, scored.core)
                     if (winner == null || scored.folded > winner.folded) winner = scored
@@ -2927,6 +3045,9 @@ internal object MaxDamageSoftCertificate {
         incumbent: Long,
         workers: Int,
         seconds: Double,
+        // A cancelled proof stops the region solves within a tick (their stopped reads stay sound
+        // through soundUpper; the cancelled caller discards them anyway).
+        shouldContinue: () -> Boolean = { true },
     ): FrontierRegionRead? {
         if (incumbent <= 0L) return null
         val offenders =
@@ -3114,7 +3235,23 @@ internal object MaxDamageSoftCertificate {
         val wallMs: Long,
     )
 
-    private val unionMemo = java.util.concurrent.ConcurrentHashMap<List<Any>, SoftUnionUpper>()
+    /**
+     * The soft-proof memos are process-wide and keyed by the request + the full pool id list (~150-200 KB
+     * per key at level 245): unbounded, they grew with every distinct request over a long GUI session
+     * (pre-release review 2026-10-01). A small synchronized LRU keeps the re-entry hits (refinement after
+     * first pass, the GUI's quick→full tiers, re-searching the same request) without the leak.
+     */
+    private fun <V> boundedMemo(capacity: Int = 16): MutableMap<List<Any>, V> =
+        java.util.Collections.synchronizedMap(
+            object : LinkedHashMap<List<Any>, V>(capacity * 2, 0.75f, true) {
+                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<List<Any>, V>?): Boolean = size > capacity
+            }
+        )
+
+    private val unionMemo = boundedMemo<SoftUnionUpper>()
+
+    /** Every completed (uncancelled) first-pass union, proven or not — reused by the refinement only. */
+    private val firstPassUnionMemo = boundedMemo<SoftUnionUpper>(4)
 
     // ————— Per-carrier closure — the silent-refinement authority (journal 2026-07-21) —————
     // Measured on sacrieur230: carrier-forced FULL-EXACT solves (every supported condition modeled,
@@ -3135,13 +3272,13 @@ internal object MaxDamageSoftCertificate {
         val wallMs: Long,
     )
 
-    private val carrierClosureMemo = java.util.concurrent.ConcurrentHashMap<List<Any>, CarrierClosureUpper>()
+    private val carrierClosureMemo = boundedMemo<CarrierClosureUpper>()
 
     /** Budget for the refinement's own no-condition oracle anchor, paid only when the fast pass's
      *  240 s oracle returned a dual instead of a proof (sacrieur230's oracle needs >240 s). */
     private const val CARRIER_CLOSURE_ORACLE_SECONDS = 900.0
 
-    private val refineOracleMemo = java.util.concurrent.ConcurrentHashMap<List<Any>, Long>()
+    private val refineOracleMemo = boundedMemo<Long>()
 
     /**
      * The EXACT no-condition optimum (CP-SAT `OPTIMAL` over the condition-free catalog), or null when
@@ -3393,6 +3530,71 @@ internal object MaxDamageSoftCertificate {
         // User-facing progress: invoked with the stage key each time a proof stage completes, so
         // the GUI can narrate the multi-minute soft proof (user request 2026-07-18).
         onPhase: (String) -> Unit = {},
+        // The silent refinement re-enters right after the first pass: reuse ITS union whatever it
+        // proved. [unionMemo] keeps only proven unions, so a dual-only first pass used to be
+        // recomputed in full (DP 1-3 min + the 240 s oracle) before the closure could start
+        // (pre-release review 2026-10-01). A first-pass union is a sound upper either way.
+        reuseFirstPass: Boolean = false,
+    ): SoftUnionUpper? {
+        val firstPassKey = unionMemoKey(params, pool, runes, sublimations)
+        if (reuseFirstPass) firstPassUnionMemo[firstPassKey]?.let { return it }
+        // Whatever path leaves the union (an early proof, a DP bail, cancellation), nothing joins the
+        // background no-condition oracle afterwards: release its workers then (review fix — a DP bail
+        // used to leave it running up to 240 s on 8 workers).
+        val oracleAbandoned =
+            java.util.concurrent.atomic
+                .AtomicBoolean(false)
+        try {
+            return hybridUnionUpperCompute(
+                params,
+                pool,
+                runes,
+                sublimations,
+                oracleWorkers,
+                oracleSeconds,
+                shouldContinue,
+                incumbentObjective,
+                onPhase,
+                oracleShouldContinue = { shouldContinue() && !oracleAbandoned.get() }
+            )?.also { if (shouldContinue()) firstPassUnionMemo[firstPassKey] = it }
+        } finally {
+            oracleAbandoned.set(true)
+        }
+    }
+
+    // Review fix (2026-07-20): the memo decides the badge, so the key must be EQUALS-checked
+    // (the sibling MaxDamageCertificateCache's collision-freedom standard) — a list of the
+    // actual values, never joined hashCodes: a 32-bit collision between two different
+    // requests would serve one request the other's upper and could mint a wrong badge.
+    private fun unionMemoKey(
+        params: WakfuBestBuildParams,
+        pool: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+    ): List<Any> =
+        listOf(
+            me.chosante.common.WakfuData.VERSION,
+            WakfuBuildSolver.CERTIFIER_VERSION,
+            params,
+            pool.values
+                .flatten()
+                .map { it.equipmentId }
+                .sorted(),
+            sublimations.map { it.name.fr }.sorted(),
+            runes.size
+        )
+
+    private fun hybridUnionUpperCompute(
+        params: WakfuBestBuildParams,
+        pool: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        oracleWorkers: Int,
+        oracleSeconds: Double,
+        shouldContinue: () -> Boolean,
+        incumbentObjective: Long,
+        onPhase: (String) -> Unit,
+        oracleShouldContinue: () -> Boolean,
     ): SoftUnionUpper? {
         if (!supportsShape(params)) return null
         // The anchor/constant split only adds information below A=100. Preserve the smaller v32
@@ -3401,22 +3603,7 @@ internal object MaxDamageSoftCertificate {
         val productionAnchorConstTransport =
             (params.targetStats.firstOrNull { it.characteristic == Characteristic.CRITICAL_HIT }?.target ?: 0) <
                 PROD_CRIT_WEIGHT_ANCHOR
-        // Review fix (2026-07-20): the memo decides the badge, so the key must be EQUALS-checked
-        // (the sibling MaxDamageCertificateCache's collision-freedom standard) — a list of the
-        // actual values, never joined hashCodes: a 32-bit collision between two different
-        // requests would serve one request the other's upper and could mint a wrong badge.
-        val memoKey: List<Any> =
-            listOf(
-                me.chosante.common.WakfuData.VERSION,
-                WakfuBuildSolver.CERTIFIER_VERSION,
-                params,
-                pool.values
-                    .flatten()
-                    .map { it.equipmentId }
-                    .sorted(),
-                sublimations.map { it.name.fr }.sorted(),
-                runes.size
-            )
+        val memoKey = unionMemoKey(params, pool, runes, sublimations)
         unionMemo[memoKey]?.let { return it }
         val t0 = System.nanoTime()
 
@@ -3629,7 +3816,8 @@ internal object MaxDamageSoftCertificate {
                                 dp,
                                 incumbentObjective,
                                 oracleWorkers,
-                                minOf(FRONTIER_REGION_TOTAL_SECONDS, oracleSeconds)
+                                minOf(FRONTIER_REGION_TOTAL_SECONDS, oracleSeconds),
+                                shouldContinue = shouldContinue
                             )
                         } catch (e: Exception) {
                             logger.warn(e) {
@@ -3660,8 +3848,9 @@ internal object MaxDamageSoftCertificate {
                         seconds = oracleSeconds,
                         applyDomination = true,
                         // A cancelled proof must release the oracle's 8 workers promptly too — the
-                        // stopped solve's dual stays sound, and the caller discards it anyway.
-                        shouldContinue = shouldContinue
+                        // stopped solve's dual stays sound, and the caller discards it anyway. So
+                        // must an ABANDONED one (a DP bail returning before the lazy join).
+                        shouldContinue = oracleShouldContinue
                     )
                 }
             } else {

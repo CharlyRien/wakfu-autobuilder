@@ -1641,8 +1641,16 @@ class BuildSearchModel(
                 excludedItems = entry.toExcludedChips(),
                 useSublimations = entry.request.useSublimations,
                 maxSublimationTier = entry.request.maxSublimationTier,
-                forcedSublimations = entry.request.forcedSublimations,
-                excludedSublimations = entry.request.excludedSublimations,
+                // Builds saved before the July 2026 sublimation rename ("Carnage II" → "Carnage III")
+                // keep their forced/excluded chips working under the current names.
+                forcedSublimations =
+                    entry.request.forcedSublimations
+                        .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)
+                        .distinct(),
+                excludedSublimations =
+                    entry.request.excludedSublimations
+                        .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)
+                        .distinct(),
                 excludedRarities = entry.request.excludedRarities,
                 forcedPassives = entry.request.forcedPassives,
                 forcedRunesByItem = entry.request.forcedRunesByItem,

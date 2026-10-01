@@ -51,6 +51,10 @@ internal data class DominationShape(
     val minimized: Set<Characteristic> = emptySet(),
 )
 
+/** The MAX_* riders folded into usable AP/MP/WP ([foldedToUsableStat]); pinned like the stats they fold into. */
+private val MAX_RIDER_STATS =
+    setOf(Characteristic.MAX_ACTION_POINT, Characteristic.MAX_MOVEMENT_POINT, Characteristic.MAX_WAKFU_POINTS)
+
 internal fun dominationShape(
     params: WakfuBestBuildParams,
     sublimations: List<Sublimation>,
@@ -126,6 +130,11 @@ internal fun dominationShape(
     pinned += Characteristic.ACTION_POINT
     pinned += Characteristic.MOVEMENT_POINT
     pinned += Characteristic.WAKFU_POINT
+    // ...and so are their MAX_* riders: the solver's usable AP/MP/WP is `valueFor` = raw + MAX_* (Les
+    // Affamées' −1 max AP, Issé Sceau's −2 max WP). Pinning only the raw line let an item with equal raw AP
+    // but a −1 MAX_AP evict one WITHOUT the debit — dropping a real +1 usable AP from the pool, so an
+    // "optimal" over the reduced pool could sit below the true optimum (pre-release review 2026-10-01).
+    pinned += MAX_RIDER_STATS
 
     if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
         return DominationShape(pinned)
@@ -140,6 +149,8 @@ internal fun dominationShape(
             add(Characteristic.ACTION_POINT)
             add(Characteristic.MOVEMENT_POINT)
             add(Characteristic.WAKFU_POINT)
+            // A pin is only enforced on compared stats (see [dominates]).
+            addAll(MAX_RIDER_STATS)
             add(Characteristic.CRITICAL_HIT)
             add(Characteristic.DAMAGE_INFLICTED)
             add(Characteristic.MASTERY_CRITICAL)
