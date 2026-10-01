@@ -2113,6 +2113,200 @@ class WakfuBuildSolverTest {
         }
 
     @Test
+    fun `external conditional world partition proves the exact optimum on an invalid relaxed carrier`() {
+        val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+        val pool =
+            listOf(
+                equipment(
+                    1,
+                    ItemType.BELT,
+                    "Fire",
+                    mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100)
+                ),
+                equipment(2, ItemType.CAPE, "EpicCarrier", emptyMap(), rarity = Rarity.EPIC),
+                equipment(3, ItemType.AMULET, "RelicCarrier", emptyMap(), rarity = Rarity.RELIC)
+            ).groupBy { it.itemType }
+        val impossible =
+            sublimation(
+                9901,
+                SublimationRarity.EPIC,
+                SublimationKind.STATIC_CONDITIONAL,
+                "ImpossibleCrit",
+                effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 50)),
+                // Base crit is 3: the relaxed root wants this large credit, the exact model rejects it.
+                condition = SublimationCondition(SublimationConditionType.CRIT_AT_MOST, 0)
+            )
+        val valid =
+            sublimation(
+                9902,
+                SublimationRarity.RELIC,
+                SublimationKind.STATIC_CONDITIONAL,
+                "ValidAp",
+                effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 10)),
+                condition = SublimationCondition(SublimationConditionType.AP_AT_MOST, 10)
+            )
+        val params = maxDamageParams(character)
+        val exact =
+            WakfuBuildSolver.timedMaxDamageProfileForTest(
+                params,
+                pool,
+                emptyList(),
+                listOf(impossible, valid),
+                workers = 1,
+                seconds = 10.0,
+                applyDomination = false
+            )
+        assertThat(exact.status).isEqualTo("OPTIMAL")
+
+        val proof =
+            WakfuBuildSolver.conditionalWorldBranchAndBound(
+                params,
+                pool,
+                emptyList(),
+                listOf(impossible, valid),
+                incumbentObjective = exact.objective,
+                workers = 1,
+                totalSeconds = 30.0,
+                maxSecondsPerNode = 10.0,
+                maxNodes = 10,
+                applyDomination = false
+            )
+        val reads = proof.reads
+
+        assertThat(proof).isInstanceOf(WakfuBuildSolver.ConditionalWorldProof.Proven::class.java)
+        assertThat(reads).anyMatch { it.disposition == "BRANCH" && it.branchedOnStateId == impossible.stateId }
+        assertThat(reads.filter { it.disposition == "PRUNED" }.maxOf { it.bestBound }).isLessThanOrEqualTo(exact.objective)
+
+        val exhausted =
+            WakfuBuildSolver.conditionalWorldBranchAndBound(
+                params,
+                pool,
+                emptyList(),
+                listOf(impossible, valid),
+                incumbentObjective = exact.objective,
+                workers = 1,
+                totalSeconds = 0.0,
+                maxSecondsPerNode = 10.0,
+                maxNodes = 10,
+                applyDomination = false
+            )
+        assertThat(exhausted).isInstanceOf(WakfuBuildSolver.ConditionalWorldProof.Inconclusive::class.java)
+        assertThat((exhausted as WakfuBuildSolver.ConditionalWorldProof.Inconclusive).upper).isEqualTo(Long.MAX_VALUE)
+    }
+
+    /**
+     * Seeded soundness campaign for the external condition partition. Each pool has three independent
+     * condition-vs-damage conflicts, so the relaxed root can combine credits that the exact model cannot.
+     * We check both sides of the certificate contract:
+     *
+     *  1. at the pinned exact optimum, the finite partition closes;
+     *  2. one objective unit below it, the same tree must find an exact counterexample and refuse proof.
+     *
+     * The second assertion is the critical false-proof lock: an under-counted node dual, a missing branch,
+     * or an unsafe partition can otherwise make the first assertion pass vacuously.
+     */
+    @Test
+    fun `conditional world partition is sound on seeded multi-node pools`() {
+        var totalBranches = 0
+        for (seed in 1..8) {
+            val rng = Random(0xC0D17L + seed)
+            val character = Character(CharacterClass.CRA, 1, 1, CharacterSkills(1))
+            var id = seed * 100
+
+            fun next(
+                type: ItemType,
+                name: String,
+                stats: Map<Characteristic, Int>,
+            ) = equipment(++id, type, "$name-$seed", stats, maxShardSlots = 3)
+
+            val pool =
+                listOf(
+                    next(ItemType.HELMET, "Anchor", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 250 + rng.nextInt(151))),
+                    next(
+                        ItemType.AMULET,
+                        "AP",
+                        mapOf(
+                            Characteristic.ACTION_POINT to 1,
+                            Characteristic.MASTERY_ELEMENTARY_FIRE to 40 + rng.nextInt(81)
+                        )
+                    ),
+                    next(ItemType.AMULET, "AP-free", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 180 + rng.nextInt(121))),
+                    next(
+                        ItemType.CAPE,
+                        "Crit",
+                        mapOf(
+                            Characteristic.CRITICAL_HIT to 15 + rng.nextInt(16),
+                            Characteristic.MASTERY_ELEMENTARY_FIRE to 40 + rng.nextInt(81)
+                        )
+                    ),
+                    next(ItemType.CAPE, "Crit-free", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 180 + rng.nextInt(121))),
+                    next(
+                        ItemType.BOOTS,
+                        "Secondary",
+                        mapOf(Characteristic.MASTERY_DISTANCE to 220 + rng.nextInt(181))
+                    ),
+                    next(ItemType.BOOTS, "Secondary-free", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 180 + rng.nextInt(121)))
+                ).groupBy { it.itemType }
+            val subs =
+                listOf(
+                    Triple(SublimationConditionType.AP_AT_MOST, 6, 25 + rng.nextInt(31)),
+                    Triple(SublimationConditionType.CRIT_AT_MOST, 3, 20 + rng.nextInt(31)),
+                    Triple(SublimationConditionType.SECONDARY_MASTERIES_AT_MOST, 0, 20 + rng.nextInt(31))
+                ).mapIndexed { index, (type, threshold, damageInflicted) ->
+                    sublimation(
+                        stateId = 20_000 + seed * 10 + index,
+                        rarity = SublimationRarity.NORMAL,
+                        kind = SublimationKind.STATIC_CONDITIONAL,
+                        name = "Conditional-$seed-$index",
+                        effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, damageInflicted)),
+                        condition = SublimationCondition(type, threshold)
+                    )
+                }
+            val params = maxDamageParams(character)
+            val exact =
+                WakfuBuildSolver.timedMaxDamageProfileForTest(
+                    params,
+                    pool,
+                    emptyList(),
+                    subs,
+                    workers = 1,
+                    seconds = 10.0,
+                    deterministicLimit = 6.0,
+                    applyDomination = false
+                )
+            assertThat(exact.status).describedAs("seed $seed exact oracle").isEqualTo("OPTIMAL")
+
+            fun partition(incumbent: Long) =
+                WakfuBuildSolver.conditionalWorldBranchAndBoundForTest(
+                    params,
+                    pool,
+                    emptyList(),
+                    subs,
+                    incumbentObjective = incumbent,
+                    workers = 1,
+                    secondsPerNode = 5.0,
+                    deterministicLimitPerNode = 4.0,
+                    interleave = true,
+                    maxNodes = 31,
+                    applyDomination = true
+                )
+
+            val (proven, proofReads) = partition(exact.objective)
+            assertThat(proven).describedAs("seed $seed must close at the exact optimum").isTrue()
+            assertThat(proofReads.filter { it.disposition == "PRUNED" })
+                .allMatch { it.bestBound <= exact.objective }
+            totalBranches += proofReads.count { it.disposition == "BRANCH" || it.disposition == "BRANCH_VALID" }
+
+            val (falseProof, counterexampleReads) = partition(exact.objective - 1L)
+            assertThat(falseProof).describedAs("seed $seed must reject an incumbent below optimum").isFalse()
+            assertThat(counterexampleReads)
+                .describedAs("seed $seed must exhibit the missed exact build")
+                .anyMatch { it.disposition == "COUNTEREXAMPLE" }
+        }
+        assertThat(totalBranches).describedAs("campaign must exercise real multi-node partitions").isGreaterThanOrEqualTo(8)
+    }
+
+    @Test
     fun `Devastate-style multi-secondary-mastery sub credits only the scenario's range-band mastery`(): Unit =
         runBlocking {
             // Devastate (5982): +15% of level to elemental + EVERY secondary mastery (here: both distance AND melee).
@@ -3634,6 +3828,42 @@ class WakfuBuildSolverTest {
     }
 
     /**
+     * MAX_* rider soundness lock (pre-release review 2026-10-01): usable AP is `valueFor` = raw AP +
+     * MAX_ACTION_POINT, so an item with equal raw AP but a −1 MAX_AP rider (Les Affamées) is NOT ≥ one
+     * without it. The raw-only AP pin let it evict the debit-free twin in EVERY mode — dropping a real
+     * +1 usable AP from the pool, so a CP-SAT "optimal" over the reduced pool could miss the optimum.
+     */
+    @Test
+    fun `domination pins MAX_AP riders so a debited twin cannot evict the debit-free item`() {
+        val debited =
+            equipment(
+                1,
+                ItemType.BOOTS,
+                "Debited",
+                mapOf(Characteristic.ACTION_POINT to 1, Characteristic.MAX_ACTION_POINT to -1, Characteristic.MASTERY_DISTANCE to 500)
+            )
+        val clean = equipment(2, ItemType.BOOTS, "Clean", mapOf(Characteristic.ACTION_POINT to 1, Characteristic.MASTERY_DISTANCE to 400))
+        for (mode in listOf(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT, ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE)) {
+            val params =
+                WakfuBestBuildParams(
+                    character = Character(CharacterClass.CRA, 200, 0, CharacterSkills(200)),
+                    targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999))),
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = mode
+                )
+            val shape = requireNotNull(dominationShape(params, emptyList())) { "$mode: domination gated off" }
+            val filtered = filterDominatedPool(mapOf(ItemType.BOOTS to listOf(debited, clean)), shape.pinned, shape.compared, shape.minimized)
+            assertThat(filtered.getValue(ItemType.BOOTS))
+                .describedAs("$mode: the −1 MAX_AP boots must not evict the debit-free twin (+1 usable AP)")
+                .containsExactlyInAnyOrder(debited, clean)
+        }
+    }
+
+    /**
      * C8(3) greedy warm-start locks. With [WakfuBuildSolver.SolverTuning.greedyWarmStart] on:
      *  1. the FIRST streamed result is the greedy build — valid, scored by the production scorer
      *     (matchPercentage == computeScore(individual)), delivered before any CP-SAT solution;
@@ -4415,7 +4645,8 @@ class WakfuBuildSolverTest {
             Frontier.statsEnabled = false
         }
         println(
-            "CERT_LEDGER lvl$level threads=$threads incumbent=$incumbent forceTier2All=$forceTier2All totalMs=$ms " +
+            "CERT_LEDGER lvl$level threads=$threads incumbent=$incumbent forceTier2All=$forceTier2All " +
+                "cstep=${CertifierTuning.fastCSegmentStepOverride ?: FAST_C_SEGMENT_STEP} totalMs=$ms " +
                 "tier2=${ledger.tier2Cells.toSortedSet()} bailed=${ledger.bailedCells.toSortedSet()} " +
                 "max=${ledger.maxCellObjective} cells=${ledger.cellObjectives.toSortedMap()}"
         )
@@ -6197,16 +6428,24 @@ class WakfuBuildSolverTest {
 
     @Test
     @Tag("slow")
-    fun `domination preserves the max-damage optimum on the full level-110 pool with sublimations`() {
-        // The smart-pinning guard — the case the default GUI search actually runs. With sublimations ON, the
-        // 9 dangerous conditional choosable subs pin AP/crit/dodge/range/secondaries, so domination can't flip
-        // any cap; it must still reach the SAME proven optimum as the full pool.
-        val tuning = WakfuBuildSolver.SolverTuning(maxDeterministicTime = 900.0)
+    fun `domination preserves the max-damage optimum on the full level-110 pool with the conditional sublimations`() {
+        // The smart-pinning guard. With sublimations ON, the dangerous conditional choosable subs pin
+        // AP/crit/crit-mastery/dodge/range/secondaries, so domination can't flip any cap; it must still reach the
+        // SAME proven optimum as the full pool. The catalog is narrowed to its conditional subs: they produce
+        // every pin, while the unconditional ones are pure value adds that never pin yet loosen the bound so much
+        // that the full-pool proof is out of reach (all 47 subs: not proven at det 600 even at level 90). Run on
+        // the deterministic protocol (1 worker + interleave) — the 8-worker portfolio's proof time is
+        // race-dependent and missed a 900 det budget on the 2-core CI runner. Measured: 155 / 183 det
+        // (1.92.1.58), 370 / 485 det (1.93.1.62); the cap keeps ~2.5× headroom over the larger one.
+        val tuning = WakfuBuildSolver.SolverTuning(numSearchWorkers = 1, interleaveSearch = true, maxDeterministicTime = 1200.0)
         val params =
             maxDamageShape(CharacterClass.CRA, 110, DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE))
                 .copy(useSublimations = true)
         val pool = fullEpicPool(110)
-        val subs = WakfuBestBuildFinderAlgorithm.sublimations
+        val subs = WakfuBestBuildFinderAlgorithm.sublimations.filter { it.solverChoosable && it.condition != null }
+        assertThat(dominationShape(params, subs)?.pinned)
+            .describedAs("the conditional subs alone produce every pin the full catalog does")
+            .isEqualTo(dominationShape(params, WakfuBestBuildFinderAlgorithm.sublimations)?.pinned)
         val full = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, sublimations = subs, applyDomination = false)
         val filtered = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, sublimations = subs, applyDomination = true)
         assertThat(full.isOptimal && filtered.isOptimal).describedAs("both prove OPTIMAL with subs on").isTrue()
@@ -8091,8 +8330,8 @@ class WakfuBuildSolverTest {
 
     /**
      * B5 injectivity lock: the disk fingerprint changes with EVERY ledger-affecting request field (missing one =
-     * two requests collide to one file = a wrong badge — the forbidden failure), and is unchanged by the four
-     * fields the cache key normalizes away (so duration / worker-count / AP-pin tweaks still hit).
+     * two requests collide to one file = a wrong badge — the forbidden failure), and is unchanged by the five
+     * fields the cache key normalizes away (so duration / worker-count / AP/MP-pin tweaks still hit).
      */
     @Test
     fun `certificate fingerprint changes with every ledger-affecting field and ignores the normalized ones`() {
@@ -8105,6 +8344,7 @@ class WakfuBuildSolverTest {
         assertThat(fp(base.copy(searchDuration = 999.seconds))).describedAs("duration is normalized away").isEqualTo(baseline)
         assertThat(fp(base.copy(stopWhenBuildMatch = !base.stopWhenBuildMatch))).describedAs("stop-on-match is normalized away").isEqualTo(baseline)
         assertThat(fp(base.copy(maxDamageApTarget = 12))).describedAs("AP pin is normalized away").isEqualTo(baseline)
+        assertThat(fp(base.copy(maxDamageMpPin = 7))).describedAs("MP pin is normalized away").isEqualTo(baseline)
         assertThat(fp(base.copy(solverWorkers = 3))).describedAs("worker count is normalized away").isEqualTo(baseline)
 
         // Every ledger-affecting field must change it.
@@ -8181,6 +8421,7 @@ class WakfuBuildSolverTest {
                 "forcedPassives",
                 "damageScenario",
                 "maxDamageApTarget",
+                "maxDamageMpPin",
                 "solverWorkers"
             )
         assertThat(instanceFieldNames(DamageScenario::class.java))

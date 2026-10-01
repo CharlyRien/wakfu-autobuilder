@@ -185,6 +185,11 @@ enum class Tr(
     SUBLIMATION_LEVEL_ALL("All tiers", "Tous paliers"),
     SUBLIMATION_LEVEL_UP_TO("≤ %d", "≤ %d"),
     SUBLIMATION_TIER_SHORT("T%d", "P%d"),
+
+    // Stacking at a glance: granted levels / stack cap — e.g. Carnage III = "3/6" (one shard
+    // grants 3 levels, the stack caps at 6). Lets a user spot autobuilder-vs-Zenith stacking
+    // discrepancies immediately.
+    SUBLIMATION_STACK_SHORT("%d/%d", "%d/%d"),
     SUBLIMATION_LEVEL_CAP_HINT(
         "The tier is the sublimation's I/II/III generation. Caps only solver-picked sublimations; forced ones can exceed it.",
         "Le palier est la génération I/II/III de la sublimation. Limite seulement les sublimations choisies par le solveur ; les imposées peuvent dépasser."
@@ -276,6 +281,19 @@ enum class Tr(
     // Max-damage certificate proof state (P4.4). The %s is the elapsed time ("2 min 10 s").
     PROVING_OPTIMALITY("Verifying optimality… (%s)", "Vérification de l'optimalité… (%s)"),
     PROOF_CONSTRUCTING("Building the proven optimal build… (%s)", "Construction du build optimal prouvé… (%s)"),
+
+    // Soft-proof stage narration (the engine reports which certificate stage just ran, phrased as
+    // what runs NEXT — the keys fire at stage completion).
+    PROOF_STAGE_WORLD_TREE("Exploring conditional-sublimation worlds… (%s)", "Exploration des mondes de sublimations conditionnelles… (%s)"),
+    PROOF_STAGE_AFTER_RELAXED("Computing certificate bounds… (%s)", "Calcul des bornes du certificat… (%s)"),
+    PROOF_STAGE_AFTER_NO_COND("Scanning conditional worlds… (%s)", "Balayage des mondes conditionnels… (%s)"),
+    PROOF_STAGE_AFTER_COARSE("Refining the binding worlds… (%s)", "Raffinement des mondes déterminants… (%s)"),
+    PROOF_STAGE_AFTER_REFINE("Pricing secondary-mastery conditions… (%s)", "Évaluation des conditions de maîtrise secondaire… (%s)"),
+    PROOF_STAGE_AFTER_SECONDARY("Auto-calibrating the proof for this request… (%s)", "Auto-calibration de la preuve pour cette requête… (%s)"),
+    PROOF_STAGE_FINALIZING("Finalizing the certificate… (%s)", "Finalisation du certificat… (%s)"),
+    PROOF_STAGE_CP_PROBE("Attempting a full CP-SAT proof… (%s)", "Tentative de preuve CP-SAT complète… (%s)"),
+    PROOF_STAGE_CARRIER_CLOSURE("Closing the proof world by world… (%s)", "Fermeture de la preuve monde par monde… (%s)"),
+    PROOF_REFINING("Refining the proof in the background…", "Affinage de la preuve en arrière-plan…"),
     PROVEN_WITHIN("Proven within %s%% of optimal", "Optimal prouvé à %s%% près"),
     PROOF_UNAVAILABLE_FORCED("Proof unavailable (forced runes/sublimations)", "Preuve indisponible (runes/sublimations imposées)"),
     MASTERY_SUMMARY("Mastery Summary", "Cumul maîtrises"),

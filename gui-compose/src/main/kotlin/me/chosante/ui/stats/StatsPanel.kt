@@ -228,13 +228,29 @@ private fun MatchHero(ui: UiState) {
                         )
                     // Not proven optimal, but the certificate BOUNDS the gap — more useful than the vague hint.
                     ui.proofState is ProofState.ProvenWithin && !ui.optimal -> {
+                        val within = ui.proofState as ProofState.ProvenWithin
                         // Locale.ROOT so an FR UI shows "2.0", not "2,0" (the %s in PROVEN_WITHIN keeps the point).
-                        val pct = String.format(java.util.Locale.ROOT, "%.1f", (ui.proofState as ProofState.ProvenWithin).fraction * 100)
+                        val pct = String.format(java.util.Locale.ROOT, "%.1f", within.fraction * 100)
                         Text(
                             text = tr(Tr.PROVEN_WITHIN).format(pct),
                             style = WTypography.labelSmall.copy(color = WColor.warning, textAlign = TextAlign.Center),
                             modifier = Modifier.padding(top = 2.dp)
                         )
+                        // The per-carrier silent refinement is still running behind the badge — keep a
+                        // visible "still proving" cue so a later badge upgrade never looks spontaneous.
+                        if (within.refining) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                modifier = Modifier.padding(top = 2.dp)
+                            ) {
+                                ProofSpinner(color = WColor.accent)
+                                Text(
+                                    text = tr(Tr.PROOF_REFINING),
+                                    style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center)
+                                )
+                            }
+                        }
                     }
                     // Certificate unavailable because of forced runes/subs — name the reason (honest, not "proven").
                     ui.proofState == ProofState.Unavailable &&
@@ -286,9 +302,25 @@ private fun ProofProgressIndicator(
     }
     val elapsedSeconds = (nowMs.value - progress.startedAtMs).coerceAtLeast(0L) / 1_000L
     val label =
-        when (progress.phase) {
-            ProofPhase.CERTIFYING -> Tr.PROVING_OPTIMALITY
-            ProofPhase.CONSTRUCTING -> Tr.PROOF_CONSTRUCTING
+        when {
+            progress.phase == ProofPhase.CONSTRUCTING -> Tr.PROOF_CONSTRUCTING
+            // Soft-proof stage narration: the engine reports the stage that just COMPLETED, so
+            // each key is phrased as what the proof does next. Unknown keys fall back to the
+            // generic label so new engine stages never break the UI.
+            progress.detailKey != null ->
+                when (progress.detailKey) {
+                    "worldTree" -> Tr.PROOF_STAGE_WORLD_TREE
+                    "relaxedProbe" -> Tr.PROOF_STAGE_AFTER_RELAXED
+                    "noConditionDp+region" -> Tr.PROOF_STAGE_AFTER_NO_COND
+                    "coarse" -> Tr.PROOF_STAGE_AFTER_COARSE
+                    "primaryRefinement" -> Tr.PROOF_STAGE_AFTER_REFINE
+                    "secondarySupportPass" -> Tr.PROOF_STAGE_AFTER_SECONDARY
+                    "lambdaAutoCalibration", "lambdaZeroPass", "capFreeResplit", "oracleJoin" -> Tr.PROOF_STAGE_FINALIZING
+                    "plainProbe" -> Tr.PROOF_STAGE_CP_PROBE
+                    "carrierClosure", "carrierClosureStrict", "carrierClosureOracle" -> Tr.PROOF_STAGE_CARRIER_CLOSURE
+                    else -> Tr.PROVING_OPTIMALITY
+                }
+            else -> Tr.PROVING_OPTIMALITY
         }
     Row(
         modifier = modifier,
@@ -1241,6 +1273,9 @@ private fun SublimationsResult(ui: UiState) {
                         Text(text = sub.name.let { if (ui.lang == me.chosante.ui.i18n.Lang.FR) it.fr else it.en }, style = WTypography.labelMedium.copy(color = WColor.text))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(text = sub.rarity.name, style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        me.chosante.ui.components
+                            .SublimationStackBadge(sub)
                     }
                     sublimationEffectText(sub, ui.lang).takeIf { it.isNotBlank() }?.let {
                         Text(text = it, style = WTypography.labelSmall.copy(color = WColor.muted))

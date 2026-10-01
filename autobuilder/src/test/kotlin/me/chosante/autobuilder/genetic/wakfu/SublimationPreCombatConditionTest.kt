@@ -139,6 +139,159 @@ class SublimationPreCombatConditionTest {
         assertThat(result).containsEntry(Characteristic.CRITICAL_HIT, 7)
     }
 
+    /** Ravage II (5982): FLAT, start-of-combat +masteries on EVERY secondary axis (here +3 distance/critical). */
+    private fun ravageII() =
+        Sublimation(
+            stateId = 5982,
+            name = I18nText("Ravage II", "Devastate II", "Estragos II", "Assolação II"),
+            rarity = SublimationRarity.NORMAL,
+            maxStackLevel = 4,
+            kind = SublimationKind.FLAT,
+            solverChoosable = true,
+            effects =
+                listOf(
+                    SublimationEffect.Flat(Characteristic.MASTERY_DISTANCE, 3),
+                    SublimationEffect.Flat(Characteristic.MASTERY_CRITICAL, 3)
+                )
+        )
+
+    /** Neutralité I (6931): "+24% damage if secondary masteries ≤ 0" — checked ON THE FIRST TURN in game. */
+    private fun neutraliteI() =
+        Sublimation(
+            stateId = 6931,
+            name = I18nText("Neutralité I", "Neutrality I", "Neutralidad I", "Neutralidade I"),
+            rarity = SublimationRarity.NORMAL,
+            maxStackLevel = 4,
+            kind = SublimationKind.STATIC_CONDITIONAL,
+            solverChoosable = true,
+            condition = SublimationCondition(SublimationConditionType.SECONDARY_MASTERIES_AT_MOST, value = 0),
+            effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 24))
+        )
+
+    @Test
+    fun `Ravage's start-of-combat secondary masteries DO break Neutralite (first-turn condition — the reported bug)`() {
+        // In-game (verified 2026-07-14, Xelor-20 build report): Neutralité's `secondary masteries ≤ 0` is
+        // checked on the FIRST TURN — after Ravage's start-of-combat masteries landed — so the pair is
+        // incoherent and Neutralité's +24% DI never fires. Unlike CRIT_AT_MOST (pre-combat read, see the
+        // SecDev test above), this condition must read the first-turn sheet.
+        val result = contributions(listOf(ravageII(), neutraliteI()), baseCrit = 0)
+        assertThat(result)
+            .describedAs("Neutralité must NOT be credited when Ravage raises first-turn secondary masteries above 0")
+            .doesNotContainKey(Characteristic.DAMAGE_INFLICTED)
+        assertThat(result)
+            .describedAs("Ravage's own masteries are still credited to the in-combat build")
+            .containsEntry(Characteristic.MASTERY_DISTANCE, 3)
+    }
+
+    @Test
+    fun `Neutralite alone applies at zero secondary masteries`() {
+        assertThat(contributions(listOf(neutraliteI()), baseCrit = 0))
+            .containsEntry(Characteristic.DAMAGE_INFLICTED, 24)
+    }
+
+    /**
+     * ENGINE-LEVEL lock of the same rule through the CP-SAT reify path (`firstTurnStat`): on a tiny
+     * deterministic pool where Ravage (start-of-combat +elemental AND +secondary masteries) and
+     * Neutralité (+24% DI iff first-turn secondary masteries ≤ 0) are both attractive, the solver
+     * must never return a build carrying BOTH — taking Ravage breaks Neutralité's first-turn check.
+     */
+    @Test
+    fun `solver never pairs Ravage-class start-of-combat secondaries with Neutralite (first-turn reify)`(): Unit =
+        kotlinx.coroutines.runBlocking {
+            fun item(
+                id: Int,
+                type: me.chosante.common.ItemType,
+                stats: Map<Characteristic, Int>,
+            ) = me.chosante.common.Equipment(
+                equipmentId = id,
+                guiId = id,
+                level = 200,
+                name = I18nText("item$id", "item$id", "", ""),
+                rarity = me.chosante.common.Rarity.LEGENDARY,
+                itemType = type,
+                characteristics = stats,
+                maxShardSlots = 3
+            )
+
+            val ravageLike =
+                Sublimation(
+                    stateId = 5982,
+                    name = I18nText("Ravage II", "Devastate II", "Estragos II", "Assolação II"),
+                    rarity = SublimationRarity.NORMAL,
+                    maxStackLevel = 4,
+                    kind = SublimationKind.FLAT,
+                    solverChoosable = true,
+                    effects =
+                        listOf(
+                            SublimationEffect.Flat(Characteristic.MASTERY_ELEMENTARY, 30),
+                            SublimationEffect.Flat(Characteristic.MASTERY_CRITICAL, 3)
+                        )
+                )
+            val neutralityLike =
+                Sublimation(
+                    stateId = 6931,
+                    name = I18nText("Neutralité I", "Neutrality I", "Neutralidad I", "Neutralidade I"),
+                    rarity = SublimationRarity.NORMAL,
+                    maxStackLevel = 4,
+                    kind = SublimationKind.STATIC_CONDITIONAL,
+                    solverChoosable = true,
+                    condition = SublimationCondition(SublimationConditionType.SECONDARY_MASTERIES_AT_MOST, value = 0),
+                    effects = listOf(SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 24))
+                )
+            val pool =
+                listOf(
+                    item(1, me.chosante.common.ItemType.HELMET, mapOf(Characteristic.MASTERY_ELEMENTARY to 100)),
+                    item(2, me.chosante.common.ItemType.CAPE, mapOf(Characteristic.MASTERY_ELEMENTARY to 80))
+                ).groupBy { it.itemType }
+            val p =
+                WakfuBestBuildParams(
+                    character =
+                        me.chosante.common.Character(
+                            me.chosante.common.CharacterClass.CRA,
+                            200,
+                            0,
+                            me.chosante.common.skills
+                                .CharacterSkills(200)
+                        ),
+                    targetStats =
+                        me.chosante.autobuilder.domain
+                            .TargetStats(
+                                listOf(
+                                    me.chosante.autobuilder.domain
+                                        .TargetStat(Characteristic.MASTERY_ELEMENTARY, 9999)
+                                )
+                            ),
+                    searchDuration = kotlin.time.Duration.parse("60s"),
+                    stopWhenBuildMatch = false,
+                    maxRarity = me.chosante.common.Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                    useRunes = false,
+                    useSublimations = true
+                )
+            val tuning =
+                WakfuBuildSolver.SolverTuning(
+                    numSearchWorkers = 1,
+                    randomSeed = 1,
+                    interleaveSearch = true,
+                    maxDeterministicTime = 60.0
+                )
+            var last: me.chosante.autobuilder.genetic.SolverResult<me.chosante.autobuilder.domain.BuildCombination>? = null
+            WakfuBuildSolver
+                .optimize(p, pool, emptyList(), listOf(ravageLike, neutralityLike), tuning, hardConstraints = false)
+                .collect { last = it }
+            val build = requireNotNull(last).individual
+            val chosen =
+                build.sublimations.values
+                    .flatten()
+                    .map { it.stateId }
+                    .toSet()
+            assertThat(chosen.containsAll(setOf(5982, 6931)))
+                .describedAs("Ravage (start-of-combat secondaries) and Neutralité (first-turn secMast ≤ 0) are mutually exclusive; solver chose $chosen")
+                .isFalse()
+        }
+
     @Test
     fun `a conditional sub's own crit does not feed its own condition (no circular activation)`() {
         // A CRIT_AT_MOST 50 sub that itself grants +10 (start-of-combat) crit. At 45 base crit it must apply:

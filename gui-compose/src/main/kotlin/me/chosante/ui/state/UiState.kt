@@ -57,6 +57,9 @@ data class ProofProgress(
     val startedAtMs: Long,
     val cellsDone: Int? = null,
     val cellsTotal: Int? = null,
+    // Engine stage key of the soft-leg proof (relaxedProbe, coarse, primaryRefinement, …) so the
+    // UI can narrate WHAT the multi-minute proof is doing. Null until the engine reports one.
+    val detailKey: String? = null,
 )
 
 /** Max-damage AP-cell certificate verdict for the finished build (P4.4). See [UiState.proofState]. */
@@ -72,9 +75,12 @@ sealed interface ProofState {
     /** The build is the PROVEN optimum (CP-SAT closed the gap, or the certificate did). */
     data object ProvenOptimal : ProofState
 
-    /** Not proven optimal, but the certificate bounds the gap: the true optimum is at most [fraction] above. */
+    /** Not proven optimal, but the certificate bounds the gap: the true optimum is at most [fraction] above.
+     *  [refining] = the per-carrier silent refinement is still running and may tighten this badge (or close
+     *  it to [ProvenOptimal]); the UI shows the badge plus a small progress indicator while it is true. */
     data class ProvenWithin(
         val fraction: Double,
+        val refining: Boolean = false,
     ) : ProofState
 
     /** No proof available (forced runes/sublimations, required-stat targets, or an un-proven boss). */
