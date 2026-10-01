@@ -465,6 +465,205 @@ class MaxDamageSoftCertificateTest {
                 .isLessThan(legacy.foldedBound)
         }
 
+    /**
+     * CI SOUNDNESS LOCK for the 2026-10-01 pre-release review of the soft DP — tiny pools where the
+     * fold used to UNDER-count the proven CP-SAT optimum (a too-tight "proven within X%" badge):
+     *  - ap-skill: the Major "Action Point" point was dropped when AP was not a target, although AP
+     *    always sets the throughput (guarded here; on this pool the old fold's slack masked the drop —
+     *    the three fixtures below each reproduce the old under-count);
+     *  - max-ap: the assume-AP low read ignored an item's −1 MAX_ACTION_POINT (real pre-combat AP 6);
+     *  - soc-crit: the assume-CC fold stopped at `threshold + own`, missing a start-of-combat +12
+     *    crit (which even fed the low read and rejected the carrier);
+     *  - soc-critm: the critZero arm's constant stopped at `t + own`, missing start-of-combat crit
+     *    mastery;
+     *  - crit-above-target (production crit-aware bands): the last band transported builds whose crit
+     *    exceeds the target at the TARGET's ratio, under-stating their crit leverage.
+     * Every fixture is checked under the default DP and under the production crit-aware band setup.
+     */
+    @Test
+    fun `soft certificate covers the pre-release review under-counts`(): Unit =
+        runBlocking {
+            fun item(
+                id: Int,
+                type: ItemType,
+                rarity: Rarity = Rarity.LEGENDARY,
+                stats: Map<Characteristic, Int>,
+            ) = me.chosante.common.Equipment(
+                equipmentId = id,
+                guiId = id,
+                level = 200,
+                name = me.chosante.common.I18nText("rev$id", "rev$id", "", ""),
+                rarity = rarity,
+                itemType = type,
+                characteristics = stats,
+                maxShardSlots = 3
+            )
+
+            fun sub(
+                stateId: Int,
+                rarity: me.chosante.common.SublimationRarity,
+                condition: me.chosante.common.SublimationCondition?,
+                vararg effects: me.chosante.common.SublimationEffect,
+            ) = me.chosante.common.Sublimation(
+                stateId = stateId,
+                name = me.chosante.common.I18nText("revsub$stateId", "revsub$stateId", "", ""),
+                rarity = rarity,
+                maxStackLevel = 1,
+                kind =
+                    if (condition == null) {
+                        me.chosante.common.SublimationKind.FLAT
+                    } else {
+                        me.chosante.common.SublimationKind.STATIC_CONDITIONAL
+                    },
+                solverChoosable = true,
+                condition = condition,
+                effects = effects.toList()
+            )
+
+            fun flat(
+                c: Characteristic,
+                v: Int,
+                beforeCombat: Boolean,
+            ) = me.chosante.common.SublimationEffect
+                .Flat(c, v, appliesBeforeCombat = beforeCombat)
+
+            data class Fixture(
+                val label: String,
+                val pool: Map<ItemType, List<me.chosante.common.Equipment>>,
+                val targets: List<TargetStat>,
+                val subs: List<me.chosante.common.Sublimation>,
+                val level: Int = 200,
+            )
+            val epic = me.chosante.common.SublimationRarity.EPIC
+            val normal = me.chosante.common.SublimationRarity.NORMAL
+            val fixtures =
+                listOf(
+                    Fixture(
+                        "ap-skill",
+                        listOf(item(991_101, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_ELEMENTARY to 400))).groupBy { it.itemType },
+                        listOf(TargetStat(Characteristic.MOVEMENT_POINT, 12), TargetStat(Characteristic.HP, 9000)),
+                        emptyList()
+                    ),
+                    Fixture(
+                        "max-ap",
+                        listOf(
+                            item(991_201, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_ELEMENTARY to 300)),
+                            item(
+                                991_202,
+                                ItemType.BOOTS,
+                                Rarity.EPIC,
+                                mapOf(Characteristic.MASTERY_ELEMENTARY to 500, Characteristic.ACTION_POINT to 1, Characteristic.MAX_ACTION_POINT to -1)
+                            ),
+                            item(991_203, ItemType.BOOTS, stats = mapOf(Characteristic.MASTERY_ELEMENTARY to 100, Characteristic.ACTION_POINT to 1))
+                        ).groupBy { it.itemType },
+                        listOf(TargetStat(Characteristic.HP, 9000)),
+                        listOf(
+                            sub(
+                                991_204,
+                                epic,
+                                me.chosante.common.SublimationCondition(SublimationConditionType.AP_AT_MOST, value = 6),
+                                flat(Characteristic.DAMAGE_INFLICTED, 15, false)
+                            )
+                        )
+                    ),
+                    Fixture(
+                        "soc-crit",
+                        listOf(
+                            item(991_301, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_ELEMENTARY to 300, Characteristic.CRITICAL_HIT to 5)),
+                            item(991_302, ItemType.CAPE, Rarity.EPIC, mapOf(Characteristic.MASTERY_ELEMENTARY to 200))
+                        ).groupBy { it.itemType },
+                        listOf(TargetStat(Characteristic.CRITICAL_HIT, 20)),
+                        listOf(
+                            sub(
+                                991_303,
+                                epic,
+                                me.chosante.common.SublimationCondition(SublimationConditionType.CRIT_AT_MOST, value = 10),
+                                flat(Characteristic.DAMAGE_INFLICTED, 20, false)
+                            ),
+                            sub(991_304, normal, null, flat(Characteristic.CRITICAL_HIT, 12, false))
+                        )
+                    ),
+                    Fixture(
+                        "soc-critm",
+                        listOf(
+                            item(991_401, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_ELEMENTARY to 300)),
+                            item(991_402, ItemType.CAPE, Rarity.EPIC, mapOf(Characteristic.MASTERY_ELEMENTARY to 200))
+                        ).groupBy { it.itemType },
+                        listOf(TargetStat(Characteristic.CRITICAL_HIT, 50)),
+                        listOf(
+                            sub(
+                                991_403,
+                                epic,
+                                me.chosante.common.SublimationCondition(SublimationConditionType.CRITICAL_MASTERY_AT_MOST, value = 0),
+                                flat(Characteristic.CRITICAL_HIT, 30, false)
+                            ),
+                            sub(991_404, normal, null, flat(Characteristic.MASTERY_CRITICAL, 300, false))
+                        )
+                    ),
+                    Fixture(
+                        "crit-above-target",
+                        listOf(
+                            item(991_501, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_ELEMENTARY to 3000, Characteristic.CRITICAL_HIT to 60)),
+                            item(991_502, ItemType.CAPE, stats = mapOf(Characteristic.MASTERY_CRITICAL to 800))
+                        ).groupBy { it.itemType },
+                        listOf(TargetStat(Characteristic.CRITICAL_HIT, 20)),
+                        emptyList(),
+                        level = 160
+                    )
+                )
+            val tuning =
+                WakfuBuildSolver.SolverTuning(
+                    numSearchWorkers = 1,
+                    randomSeed = 1,
+                    interleaveSearch = true,
+                    maxDeterministicTime = 60.0
+                )
+            val underCounts = mutableListOf<String>()
+            for (f in fixtures) {
+                val params = mdParams(f.level, f.targets).copy(useRunes = false)
+                var last: me.chosante.autobuilder.genetic.SolverResult<BuildCombination>? = null
+                WakfuBuildSolver
+                    .optimize(params, f.pool, emptyList(), f.subs, tuning, hardConstraints = false)
+                    .collect { last = it }
+                val exact = requireNotNull(last) { "${f.label}: the solve emitted nothing" }
+                assertThat(exact.isOptimal).describedAs("${f.label}: the tiny pool must be PROVEN").isTrue()
+                val optimum = requireNotNull(exact.maxDamageObjective)
+                val bound =
+                    requireNotNull(MaxDamageSoftCertificate.bound(params, f.pool, emptyList(), f.subs, blockGate = false)) {
+                        "${f.label}: the soft DP bailed on a supported shape"
+                    }
+                // The production no-condition pass's crit-aware band setup (λ per level band, 5-crit
+                // bands, anchor 100, anchor-constant transport below a 100-crit target).
+                val banded =
+                    requireNotNull(
+                        MaxDamageSoftCertificate.bound(
+                            params,
+                            f.pool,
+                            emptyList(),
+                            f.subs,
+                            blockGate = false,
+                            ccSupportLambda = 1500L,
+                            ccSupportBand = 5,
+                            coupleSecondaryItemNegative = true,
+                            netSecondaryItemBudget = true,
+                            exactNormalSubPacking = true,
+                            foldNegativeItemAp = true,
+                            foldNegativeMaxMp = true,
+                            critAwareCollapse = true,
+                            critWeightAnchorPercent = 100,
+                            anchorConstTransport = true,
+                            stateDependentMpRamp = true
+                        )
+                    ) { "${f.label}: the banded soft DP bailed on a supported shape" }
+                println("S4_REVIEW_LOCK ${f.label} optimum=$optimum bound=${bound.foldedBound} banded=${banded.foldedBound}")
+                if (bound.foldedBound < optimum) underCounts += "${f.label}: bound ${bound.foldedBound} < optimum $optimum"
+                if (banded.foldedBound < optimum) underCounts += "${f.label} (banded): bound ${banded.foldedBound} < optimum $optimum"
+            }
+            assertThat(underCounts)
+                .describedAs("SOUNDNESS — the soft DP must never under-count the CP-SAT optimum")
+                .isEmpty()
+        }
+
     @Test
     fun `state dependent MP ramp is sound on seeded item paths`(): Unit =
         runBlocking {

@@ -173,6 +173,299 @@ class MostMasteriesCertificateTest {
         }
 
     /**
+     * CI SOUNDNESS LOCK for the 2026-10-01 pre-release review — each fixture is a tiny pool where the
+     * certificate used to UNDER-count the proven CP-SAT soft optimum (a false badge):
+     *  - paired-MP: the Major "Movement Point and damage" point (+1 MP) was never credited;
+     *  - armure: Armure lourde's MAX_MP −1 lowered the MP CAP instead of debiting 1 MP;
+     *  - passive: a selected passive's flat +1 MP (Zobal "Regard masqué") was ignored;
+     *  - max-ap: the assume-AP low read ignored an item's MAX_ACTION_POINT −1 (real pre-combat AP = 6);
+     *  - soc-crit: the assume-CC fold stopped at `threshold + own`, missing a start-of-combat +12 crit
+     *    (and that +12 even fed the condition's low read, rejecting the carrier);
+     *  - soc-critm: world B's CRITICAL_MASTERY_AT_MOST cap ignored start-of-combat crit mastery;
+     *  - block-only: a block-only sub was dropped, so the BLOCK_AT_LEAST gate denied its carrier;
+     *  - hp-order: the Intelligence %HP was applied before the Strength HP points, leaving them
+     *    unscaled (CP-SAT reaches 9 030 HP with %HP 50 + HP 48 at level 200).
+     */
+    @Test
+    fun `certificate bound covers the pre-release review under-counts`(): Unit =
+        kotlinx.coroutines.runBlocking {
+            fun item(
+                id: Int,
+                type: ItemType,
+                rarity: Rarity = Rarity.LEGENDARY,
+                stats: Map<Characteristic, Int>,
+            ) = me.chosante.common.Equipment(
+                equipmentId = id,
+                guiId = id,
+                level = 200,
+                name = me.chosante.common.I18nText("item$id", "item$id", "", ""),
+                rarity = rarity,
+                itemType = type,
+                characteristics = stats,
+                maxShardSlots = 3
+            )
+
+            fun sub(
+                stateId: Int,
+                rarity: me.chosante.common.SublimationRarity,
+                condition: me.chosante.common.SublimationCondition?,
+                vararg effects: me.chosante.common.SublimationEffect,
+            ) = me.chosante.common.Sublimation(
+                stateId = stateId,
+                name = me.chosante.common.I18nText("sub$stateId", "sub$stateId", "", ""),
+                rarity = rarity,
+                maxStackLevel = 1,
+                kind =
+                    if (condition == null) {
+                        me.chosante.common.SublimationKind.FLAT
+                    } else {
+                        me.chosante.common.SublimationKind.STATIC_CONDITIONAL
+                    },
+                solverChoosable = true,
+                condition = condition,
+                effects = effects.toList()
+            )
+
+            fun flat(
+                c: Characteristic,
+                v: Int,
+                beforeCombat: Boolean,
+            ) = me.chosante.common.SublimationEffect
+                .Flat(c, v, appliesBeforeCombat = beforeCombat)
+
+            fun cond(
+                type: me.chosante.common.SublimationConditionType,
+                value: Int,
+            ) = me.chosante.common.SublimationCondition(type, value = value)
+
+            data class Fixture(
+                val label: String,
+                val pool: Map<ItemType, List<me.chosante.common.Equipment>>,
+                val targets: List<TargetStat>,
+                val subs: List<me.chosante.common.Sublimation>,
+                val clazz: CharacterClass = CharacterClass.CRA,
+                val passives: List<String> = emptyList(),
+            )
+            val epic = me.chosante.common.SublimationRarity.EPIC
+            val normal = me.chosante.common.SublimationRarity.NORMAL
+            val fixtures =
+                listOf(
+                    Fixture(
+                        "paired-MP",
+                        listOf(
+                            item(31, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_DISTANCE to 300)),
+                            item(32, ItemType.CAPE, stats = mapOf(Characteristic.MASTERY_DISTANCE to 200))
+                        ).groupBy { it.itemType },
+                        listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.MOVEMENT_POINT, 4)),
+                        emptyList()
+                    ),
+                    Fixture(
+                        "armure",
+                        listOf(
+                            item(41, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_DISTANCE to 300)),
+                            item(42, ItemType.BOOTS, stats = mapOf(Characteristic.MASTERY_DISTANCE to 100, Characteristic.MOVEMENT_POINT to 2)),
+                            item(43, ItemType.CAPE, stats = mapOf(Characteristic.MASTERY_DISTANCE to 200))
+                        ).groupBy { it.itemType },
+                        listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.MOVEMENT_POINT, 5)),
+                        listOf(
+                            sub(
+                                9101,
+                                normal,
+                                null,
+                                flat(Characteristic.MAX_MOVEMENT_POINT, -1, true),
+                                flat(Characteristic.DAMAGE_INFLICTED, 10, true)
+                            )
+                        )
+                    ),
+                    Fixture(
+                        "passive",
+                        listOf(
+                            item(51, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_DISTANCE to 300)),
+                            item(52, ItemType.CAPE, stats = mapOf(Characteristic.MASTERY_DISTANCE to 200))
+                        ).groupBy { it.itemType },
+                        listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.MOVEMENT_POINT, 5)),
+                        emptyList(),
+                        clazz = CharacterClass.ZOBAL,
+                        passives = listOf("Regard masqué")
+                    ),
+                    Fixture(
+                        "max-ap",
+                        listOf(
+                            item(61, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_DISTANCE to 300)),
+                            item(
+                                62,
+                                ItemType.BOOTS,
+                                Rarity.EPIC,
+                                mapOf(Characteristic.MASTERY_DISTANCE to 500, Characteristic.ACTION_POINT to 1, Characteristic.MAX_ACTION_POINT to -1)
+                            ),
+                            item(63, ItemType.BOOTS, stats = mapOf(Characteristic.MASTERY_DISTANCE to 400, Characteristic.ACTION_POINT to 1))
+                        ).groupBy { it.itemType },
+                        listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999)),
+                        listOf(
+                            sub(
+                                9102,
+                                epic,
+                                cond(me.chosante.common.SublimationConditionType.AP_AT_MOST, 6),
+                                flat(Characteristic.DAMAGE_INFLICTED, 15, false)
+                            )
+                        )
+                    ),
+                    Fixture(
+                        "soc-crit",
+                        listOf(
+                            item(71, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_DISTANCE to 300, Characteristic.CRITICAL_HIT to 5)),
+                            item(72, ItemType.CAPE, Rarity.EPIC, mapOf(Characteristic.MASTERY_DISTANCE to 200))
+                        ).groupBy { it.itemType },
+                        listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.CRITICAL_HIT, 20)),
+                        listOf(
+                            sub(
+                                9103,
+                                epic,
+                                cond(me.chosante.common.SublimationConditionType.CRIT_AT_MOST, 10),
+                                flat(Characteristic.DAMAGE_INFLICTED, 20, false)
+                            ),
+                            sub(9104, normal, null, flat(Characteristic.CRITICAL_HIT, 12, false))
+                        )
+                    ),
+                    Fixture(
+                        "soc-critm",
+                        listOf(
+                            item(81, ItemType.HELMET, stats = mapOf(Characteristic.HP to 100)),
+                            item(82, ItemType.CAPE, Rarity.EPIC, mapOf(Characteristic.HP to 50))
+                        ).groupBy { it.itemType },
+                        listOf(TargetStat(Characteristic.MASTERY_CRITICAL, 9999), TargetStat(Characteristic.CRITICAL_HIT, 50)),
+                        listOf(
+                            sub(
+                                9105,
+                                epic,
+                                cond(me.chosante.common.SublimationConditionType.CRITICAL_MASTERY_AT_MOST, 0),
+                                flat(Characteristic.CRITICAL_HIT, 30, false)
+                            ),
+                            sub(9106, normal, null, flat(Characteristic.MASTERY_CRITICAL, 36, false))
+                        )
+                    ),
+                    Fixture(
+                        "block-only",
+                        listOf(
+                            item(91, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_DISTANCE to 300, Characteristic.BLOCK_PERCENTAGE to 12)),
+                            item(92, ItemType.CAPE, Rarity.EPIC, mapOf(Characteristic.MASTERY_DISTANCE to 200))
+                        ).groupBy { it.itemType },
+                        listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999)),
+                        listOf(
+                            sub(
+                                9107,
+                                epic,
+                                // 40 = item 12 + the Luck "% Block" skill's 20 + the block-only sub's 9:
+                                // without the sub the gate cannot open (20 opened it through skills alone).
+                                cond(me.chosante.common.SublimationConditionType.BLOCK_AT_LEAST, 40),
+                                flat(Characteristic.DAMAGE_INFLICTED, 10, false)
+                            ),
+                            sub(9108, normal, null, flat(Characteristic.BLOCK_PERCENTAGE, 9, true))
+                        )
+                    ),
+                    Fixture(
+                        "hp-order",
+                        listOf(
+                            item(93, ItemType.HELMET, stats = mapOf(Characteristic.MASTERY_DISTANCE to 300)),
+                            item(94, ItemType.CAPE, stats = mapOf(Characteristic.MASTERY_DISTANCE to 200))
+                        ).groupBy { it.itemType },
+                        listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.HP, 9000)),
+                        emptyList()
+                    )
+                )
+            val tuning =
+                WakfuBuildSolver.SolverTuning(
+                    numSearchWorkers = 1,
+                    randomSeed = 1,
+                    interleaveSearch = true,
+                    maxDeterministicTime = 60.0
+                )
+            val underCounts = mutableListOf<String>()
+            for (f in fixtures) {
+                val p =
+                    WakfuBestBuildParams(
+                        character = Character(f.clazz, 200, 0, CharacterSkills(200)),
+                        targetStats = TargetStats(f.targets),
+                        searchDuration = 60.seconds,
+                        stopWhenBuildMatch = false,
+                        maxRarity = Rarity.EPIC,
+                        forcedItems = emptyList(),
+                        excludedItems = emptyList(),
+                        scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                        useRunes = false,
+                        useSublimations = true,
+                        forcedPassives = f.passives
+                    )
+                var last: me.chosante.autobuilder.genetic.SolverResult<me.chosante.autobuilder.domain.BuildCombination>? = null
+                WakfuBuildSolver
+                    .optimize(p, f.pool, emptyList(), f.subs, tuning, hardConstraints = false)
+                    .collect { last = it }
+                val final = requireNotNull(last) { "${f.label}: the soft solve emitted nothing" }
+                val incumbent = requireNotNull(final.mostMasteriesObjective) { "${f.label}: no comparable objective stamped" }
+                val bound =
+                    requireNotNull(
+                        MostMasteriesCertificate.bound(p, f.pool, emptyList(), f.subs)
+                    ) { "${f.label}: the certificate bailed on a supported shape" }
+                println("MM_CERT_REVIEW_LOCK ${f.label} incumbent=$incumbent bound=${bound.foldedBound} optimal=${final.isOptimal}")
+                assertThat(final.isOptimal).describedAs("${f.label}: the tiny pool must be PROVEN, so the lock compares to the optimum").isTrue()
+                // Collected, not thrown: one run names EVERY under-counting shape.
+                if (bound.foldedBound < incumbent) underCounts += "${f.label}: bound ${bound.foldedBound} < optimum $incumbent"
+            }
+            assertThat(underCounts)
+                .describedAs("SOUNDNESS — the certificate must never under-count the CP-SAT soft optimum")
+                .isEmpty()
+        }
+
+    /**
+     * The most-masteries HARD leg (targets enforced) emits `core × SCALE + bonus`; its stamp must be
+     * CONVERTED into the certificate's soft units (× the full-targets penalty multiplier, ≈1e6). The raw
+     * stamp produced "proven within ~1 074 318 %" badges (pre-release review 2026-10-01).
+     */
+    @Test
+    fun `hard-leg results are stamped in the certificate's soft units`(): Unit =
+        kotlinx.coroutines.runBlocking {
+            val pool =
+                listOf(
+                    me.chosante.common.Equipment(
+                        equipmentId = 1,
+                        guiId = 1,
+                        level = 200,
+                        name = me.chosante.common.I18nText("helmet", "helmet", "", ""),
+                        rarity = Rarity.LEGENDARY,
+                        itemType = ItemType.HELMET,
+                        characteristics = mapOf(Characteristic.MASTERY_DISTANCE to 300, Characteristic.MOVEMENT_POINT to 1),
+                        maxShardSlots = 0
+                    )
+                ).groupBy { it.itemType }
+            val p =
+                WakfuBestBuildParams(
+                    character = Character(CharacterClass.CRA, 200, 0, CharacterSkills(200)),
+                    targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.MOVEMENT_POINT, 4))),
+                    searchDuration = 60.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                    useRunes = false,
+                    useSublimations = false
+                )
+            val tuning = WakfuBuildSolver.SolverTuning(numSearchWorkers = 1, randomSeed = 1, interleaveSearch = true, maxDeterministicTime = 60.0)
+            var last: me.chosante.autobuilder.genetic.SolverResult<me.chosante.autobuilder.domain.BuildCombination>? = null
+            WakfuBuildSolver
+                .optimize(p, pool, emptyList(), emptyList(), tuning, hardConstraints = true)
+                .collect { last = it }
+            val final = requireNotNull(last) { "the hard leg emitted nothing" }
+            val incumbent = requireNotNull(final.mostMasteriesObjective) { "the hard leg must stamp a (converted) objective" }
+            val bound = requireNotNull(MostMasteriesCertificate.bound(p, pool, emptyList(), emptyList()))
+            println("MM_CERT_HARD_LEG incumbent=$incumbent bound=${bound.foldedBound}")
+            assertThat(bound.foldedBound).describedAs("soundness on the converted stamp").isGreaterThanOrEqualTo(incumbent)
+            assertThat(bound.foldedBound.toDouble() / incumbent)
+                .describedAs("same units: a one-item pool keeps the certificate near-tight (a raw stamp reads ~1e6×)")
+                .isLessThan(2.0)
+        }
+
+    /**
      * Design gate for the exact negative-mastery penalty (the measured 91% of the S3 residual):
      * the distribution of NEGATIVE penalized-mastery lines across the lvl-245 domination pool.
      * If one char dominates, a single signed state dim captures most of the penalty; a flat

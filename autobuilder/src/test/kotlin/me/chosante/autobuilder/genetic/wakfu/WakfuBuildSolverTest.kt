@@ -3828,6 +3828,42 @@ class WakfuBuildSolverTest {
     }
 
     /**
+     * MAX_* rider soundness lock (pre-release review 2026-10-01): usable AP is `valueFor` = raw AP +
+     * MAX_ACTION_POINT, so an item with equal raw AP but a −1 MAX_AP rider (Les Affamées) is NOT ≥ one
+     * without it. The raw-only AP pin let it evict the debit-free twin in EVERY mode — dropping a real
+     * +1 usable AP from the pool, so a CP-SAT "optimal" over the reduced pool could miss the optimum.
+     */
+    @Test
+    fun `domination pins MAX_AP riders so a debited twin cannot evict the debit-free item`() {
+        val debited =
+            equipment(
+                1,
+                ItemType.BOOTS,
+                "Debited",
+                mapOf(Characteristic.ACTION_POINT to 1, Characteristic.MAX_ACTION_POINT to -1, Characteristic.MASTERY_DISTANCE to 500)
+            )
+        val clean = equipment(2, ItemType.BOOTS, "Clean", mapOf(Characteristic.ACTION_POINT to 1, Characteristic.MASTERY_DISTANCE to 400))
+        for (mode in listOf(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT, ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE)) {
+            val params =
+                WakfuBestBuildParams(
+                    character = Character(CharacterClass.CRA, 200, 0, CharacterSkills(200)),
+                    targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999))),
+                    searchDuration = 5.seconds,
+                    stopWhenBuildMatch = false,
+                    maxRarity = Rarity.EPIC,
+                    forcedItems = emptyList(),
+                    excludedItems = emptyList(),
+                    scoreComputationMode = mode
+                )
+            val shape = requireNotNull(dominationShape(params, emptyList())) { "$mode: domination gated off" }
+            val filtered = filterDominatedPool(mapOf(ItemType.BOOTS to listOf(debited, clean)), shape.pinned, shape.compared, shape.minimized)
+            assertThat(filtered.getValue(ItemType.BOOTS))
+                .describedAs("$mode: the −1 MAX_AP boots must not evict the debit-free twin (+1 usable AP)")
+                .containsExactlyInAnyOrder(debited, clean)
+        }
+    }
+
+    /**
      * C8(3) greedy warm-start locks. With [WakfuBuildSolver.SolverTuning.greedyWarmStart] on:
      *  1. the FIRST streamed result is the greedy build — valid, scored by the production scorer
      *     (matchPercentage == computeScore(individual)), delivered before any CP-SAT solution;

@@ -8,7 +8,9 @@ import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationConditionType
 import me.chosante.common.SublimationEffect
+import me.chosante.common.SublimationKind
 import me.chosante.common.SublimationRarity
+import me.chosante.common.skills.SkillCharacteristic
 import java.math.BigInteger
 import kotlin.math.ceil
 
@@ -128,8 +130,9 @@ internal object MostMasteriesCertificate {
         // taking it TRUNCATES the dim to the threshold and pins its saturation there — the state
         // then pays the real target shortfall instead of enjoying the credit for free. Sound both
         // ways: a real build carrying the sub has its FINAL stat ≤ threshold (so its partial is
-        // too), and states not taking the sub are unchanged. [mpCapMinus] is the same idea for a
-        // negative MAX_MOVEMENT_POINT rider (Armure lourde).
+        // too), and states not taking the sub are unchanged. [mpCapMinus] (a lowered MP ceiling) is
+        // no longer set: Armure lourde's MAX_MP −1 is a flat debit in the solver, and modeling it as a
+        // ceiling under-counted (review fix 2026-10-01) — the debit is now simply ignored (sound).
         val capKind: Int = 0,
         val mpCapMinus: Int = 0,
         // Increment 8 — BLOCK tracking for AT_LEAST sub conditions (Mesure: +10 DI/+10 CC iff
@@ -270,6 +273,57 @@ internal object MostMasteriesCertificate {
         a: Int,
         b: Int,
     ): Int = (a + b - 1) / b
+
+    /** The solver's soft-penalty geometry (applyConstraintPenalty / bucketedIndex / buildPowerTable), mirrored. */
+    private class PenaltyGeometry(
+        val totalExpected: Long,
+        val bucketSize: Long,
+        val maxIndex: Int,
+        val powScale: BigInteger,
+    ) {
+        fun power6(index: Int): Long =
+            BigInteger
+                .valueOf(index.toLong())
+                .pow(6)
+                .divide(powScale)
+                .toLong()
+
+        /** The bucket a build meeting EVERY required target lands in (its per-stat clamps sum to totalExpected). */
+        val fullBucket: Int
+            get() = (totalExpected / bucketSize).toInt().coerceAtMost(maxIndex)
+    }
+
+    private fun penaltyGeometry(
+        params: WakfuBestBuildParams,
+        targets: List<me.chosante.autobuilder.domain.TargetStat>,
+    ): PenaltyGeometry {
+        val totalExpected =
+            targets
+                .sumOf { it.target.toLong() * params.targetStats.scaledWeight(it) }
+                .coerceAtLeast(1L)
+        val bucketSize =
+            if (totalExpected <= MAX_POWER_TABLE_INDEX) 1L else ceil(totalExpected.toDouble() / MAX_POWER_TABLE_INDEX).toLong()
+        val maxIndex = if (totalExpected <= MAX_POWER_TABLE_INDEX) totalExpected.toInt() else ((totalExpected + bucketSize - 1) / bucketSize).toInt()
+        val maxPow = BigInteger.valueOf(maxIndex.toLong()).pow(6)
+        val powScale =
+            if (maxPow > BigInteger.valueOf(MAX_PENALTY_MULTIPLIER)) maxPow.divide(BigInteger.valueOf(MAX_PENALTY_MULTIPLIER)) else BigInteger.ONE
+        return PenaltyGeometry(totalExpected, bucketSize, maxIndex, powScale)
+    }
+
+    /**
+     * The soft objective's penalty multiplier for a build MEETING every required target — the factor a
+     * most-masteries HARD-leg emission (`core × SCALE + bonus`, targets enforced) needs to land in this
+     * certificate's soft units (`core × power6(bucket) × SCALE + bonus`). The multiplier at full targets
+     * is ≈ MAX_PENALTY_MULTIPLIER, not 1: comparing the raw hard objective awarded "proven within
+     * ~1 000 000 %" badges (pre-release review 2026-10-01). Null without required targets — the two
+     * objectives coincide there.
+     */
+    fun fullTargetsMultiplier(params: WakfuBestBuildParams): Long? {
+        val targets = params.targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }
+        if (targets.isEmpty()) return null
+        val geometry = penaltyGeometry(params, targets)
+        return geometry.power6(geometry.fullBucket)
+    }
 
     /** One state transition, or null when the option is inapplicable/rejected in [k]. */
     private fun Geometry.applyOne(
@@ -458,6 +512,26 @@ internal object MostMasteriesCertificate {
 
         fun cap(char: Characteristic): Int = targetByChar[char]?.target ?: 0
 
+        // Pre-release review fix (2026-10-01): the selected passives' flat stats fold into the
+        // solver's FINAL stats (StatBuilder.prePercentTermsFor) but into NO condition read (pre-combat
+        // / first-turn reads stop at baseTermsFor) — ignoring them under-counted every passive-
+        // carrying request (Zobal "Regard masqué", Ouginak "Pistage": +1 MP). They are credited as a
+        // mandatory stage (dims), as constants in the assume-world folds, and as free value in the
+        // world-B M-caps. Flat passive stats are positive by extraction contract.
+        val passiveFlat: Map<Characteristic, Int> =
+            WakfuBuildSolver
+                .resolvedPassives(params)
+                .flatMap { it.flatStats.entries }
+                .groupBy({ it.key.foldedToUsableStat() }, { it.value })
+                .mapValues { (_, values) -> values.sum() }
+
+        fun passivePos(char: Characteristic): Int = maxOf(passiveFlat[char] ?: 0, 0)
+
+        // A PAIRED skill (Major "Movement Point and damage": +1 MP AND +20 elemental mastery for ONE
+        // point) carries a null characteristic of its own — its halves are what the solver credits
+        // (buildSkillTerms adds both). Expanding it is the review fix for the never-credited major MP.
+        fun skillComponents(sk: SkillCharacteristic): List<SkillCharacteristic> = if (sk is SkillCharacteristic.PairedCharacteristic) listOf(sk.first, sk.second) else listOf(sk)
+
         // Increment 4/5 pre-scan, redesigned by the 2026-07-14 review (A#1): the AT_MOST cap subs
         // (AP_AT_MOST/AP_EXACT/CRIT_AT_MOST — all EPIC, so a real build carries at most ONE). The
         // old in-state rejection accumulated per-option CEILs and could deny a real satisfying
@@ -635,8 +709,15 @@ internal object MostMasteriesCertificate {
                     relic = e.rarity == me.chosante.common.Rarity.RELIC,
                     block = if (blockAtLeastMax > 0) statOf(e, Characteristic.BLOCK_PERCENTAGE) else 0,
                     // LOW dims: per-item options are exact, so the SIGNED value (negative lines
-                    // included) is the tightest valid under-approximation.
-                    apLow = if (geo.assumeApThreshold >= 0) (e.characteristics[Characteristic.ACTION_POINT] ?: 0) else 0,
+                    // included) is the tightest valid under-approximation. The AP read is the
+                    // solver's pre-combat `valueFor(AP)` = AP + MAX_ACTION_POINT (review fix: raw AP
+                    // ignored the −1 MAX_AP of Les Affamées & co and over-rejected real carriers).
+                    apLow =
+                        if (geo.assumeApThreshold >= 0) {
+                            (e.characteristics[Characteristic.ACTION_POINT] ?: 0) + (e.characteristics[Characteristic.MAX_ACTION_POINT] ?: 0)
+                        } else {
+                            0
+                        },
                     ccLowRaw = if (geo.assumeCcThresholdRaw >= 0) (e.characteristics[Characteristic.CRITICAL_HIT] ?: 0) else 0,
                     src = if (wantSrc) e.name.fr else ""
                 )
@@ -803,7 +884,10 @@ internal object MostMasteriesCertificate {
         // world-B caps). Review fix (A#6): a build equips TWO rings, so the RING slot counts its
         // top-2 items; rune contributions are included too (both omissions UNDER-stated the max —
         // a latent under-count for every consumer that needs an upper bound).
-        fun reachableMax(stat: Characteristic): Int {
+        fun reachableMax(
+            stat: Characteristic,
+            depth: Int = 0,
+        ): Int {
             var v = baseValues[stat] ?: 0
             for ((slot, items) in pool) {
                 val vals = items.map { maxOf(it.characteristics[stat] ?: 0, 0) }.sortedDescending()
@@ -824,15 +908,61 @@ internal object MostMasteriesCertificate {
             for (branch in listOf(skills.intelligence, skills.strength, skills.agility, skills.luck, skills.major)) {
                 v += branch
                     .getCharacteristics()
+                    .flatMap(::skillComponents)
                     .filter { it.characteristic == stat && it.unitType == me.chosante.common.skills.UnitType.FIXED }
                     .maxOfOrNull { it.unitValue * minOf(branch.maxPointsToAssign, it.maxPointsAssignable) } ?: 0
             }
+            v += passivePos(stat)
             for (sub in sublimations) {
                 if (!sub.solverChoosable) continue
                 v += sub.effects
                     .filterIsInstance<SublimationEffect.StatEffect>()
                     .filter { it.characteristic == stat && WakfuBuildSolver.scenarioGateMatches(it.scenarioGate, params) }
                     .sumOf { maxOf(it.magnitudeAtLevel(level), 0) } * sub.maxCopies.coerceAtLeast(1)
+                // Ramps INTO this stat land in the final sheet too (priced at their source's own
+                // reachable max; the depth guard only stops a pathological ramp cycle).
+                if (depth < 2) {
+                    v += sub.effects
+                        .filterIsInstance<SublimationEffect.PerStatStep>()
+                        .filter { it.target == stat && it.source != stat }
+                        .sumOf { maxOf(it.contribution(reachableMax(it.source, depth + 1)), 0) } * sub.maxCopies.coerceAtLeast(1)
+                }
+            }
+            return v
+        }
+
+        // Upper bound of what [stat] gains OUTSIDE the pre-combat condition read: START-OF-COMBAT
+        // sub effects (Influence vitale III's +12 crit ×2, Ravage III's crit mastery…), ramps (final
+        // sheet only) and passives. An assume world credits its capped stat as a constant — the read is
+        // ≤ threshold, but the FINAL stat the target reads adds these on top (review fix: the constant
+        // used to stop at `threshold + own`, an under-count). [excludeEpics]: in an assume world the
+        // assumed cap sub holds the single epic slot, so no other epic sub can contribute.
+        fun outsideReadMax(
+            stat: Characteristic,
+            exclude: Sublimation?,
+            excludeEpics: Boolean,
+        ): Long {
+            var v = passivePos(stat).toLong()
+            for (sub in sublimations) {
+                if (!sub.solverChoosable || sub === exclude) continue
+                if (excludeEpics && sub.rarity == SublimationRarity.EPIC) continue
+                val copies = sub.maxCopies.coerceAtLeast(1).toLong()
+                for (eff in sub.effects) {
+                    when (eff) {
+                        is SublimationEffect.StatEffect ->
+                            if (eff.characteristic == stat &&
+                                !eff.appliesBeforeCombat &&
+                                WakfuBuildSolver.scenarioGateMatches(eff.scenarioGate, params)
+                            ) {
+                                v += maxOf(eff.magnitudeAtLevel(level), 0).toLong() * copies
+                            }
+                        is SublimationEffect.PerStatStep ->
+                            if (eff.target == stat && eff.source != stat) {
+                                v += maxOf(eff.contribution(reachableMax(eff.source)), 0).toLong() * copies
+                            }
+                        else -> {}
+                    }
+                }
             }
             return v
         }
@@ -871,23 +1001,46 @@ internal object MostMasteriesCertificate {
             }
             for (sub in sublimations) {
                 if (!sub.solverChoosable) continue
+                // The condition reads the FIRST-TURN sheet: pre-combat + the start-of-combat lines of
+                // UNCONDITIONAL FLAT subs (StatBuilder.firstTurnStat). Any other positive line (a
+                // conditional sub's start-of-combat mastery, a ramp) lands outside the read: it adds
+                // to M WITHOUT paying the budget (review fix — making it pay tightened the cap
+                // below reachable M). Negatives always relax the budget (permissive, sound).
+                val unconditionalFlat = sub.condition == null && sub.kind == SublimationKind.FLAT
                 var p = 0L
+                var pFree = 0L
                 var qn = 0L
-                for (eff in sub.effects.filterIsInstance<SublimationEffect.StatEffect>()) {
-                    if (eff.characteristic !in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS) continue
-                    if (!WakfuBuildSolver.scenarioGateMatches(eff.scenarioGate, params)) continue
-                    val x = eff.magnitudeAtLevel(level)
-                    if (eff.characteristic in requested && x > 0) p += x
-                    if (x < 0) qn += -x.toLong()
+                for (eff in sub.effects) {
+                    when (eff) {
+                        is SublimationEffect.StatEffect -> {
+                            if (eff.characteristic !in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS) continue
+                            if (!WakfuBuildSolver.scenarioGateMatches(eff.scenarioGate, params)) continue
+                            val x = eff.magnitudeAtLevel(level)
+                            val inRead = eff.appliesBeforeCombat || unconditionalFlat
+                            if (eff.characteristic in requested && x > 0) {
+                                if (inRead) p += x else pFree += x
+                            }
+                            if (x < 0) qn += -x.toLong()
+                        }
+                        is SublimationEffect.PerStatStep ->
+                            if (eff.target in requested && eff.source != eff.target) {
+                                pFree += maxOf(eff.contribution(reachableMax(eff.source)), 0).toLong()
+                            }
+                        else -> {}
+                    }
                 }
-                if (p == 0L && qn == 0L) continue
-                repeat(sub.maxCopies.coerceAtLeast(1)) { pickLists += listOf(0 to 0L, bucket(p - qn) to p) }
+                if (p == 0L && pFree == 0L && qn == 0L) continue
+                repeat(sub.maxCopies.coerceAtLeast(1)) { pickLists += listOf(0 to 0L, bucket(p - qn) to (p + pFree)) }
             }
+            // Passives sit outside every condition read: their requested mastery is always-on, free.
+            val passiveMastery = requested.sumOf { passivePos(it).toLong() }
+            if (passiveMastery > 0) pickLists += listOf(0 to passiveMastery)
             val skills = params.character.characterSkills
             for (branch in listOf(skills.intelligence, skills.strength, skills.agility, skills.luck, skills.major)) {
                 val v =
                     branch
                         .getCharacteristics()
+                        .flatMap(::skillComponents)
                         .filter { it.characteristic in requested && it.unitType == me.chosante.common.skills.UnitType.FIXED }
                         .maxOfOrNull { (it.unitValue * minOf(branch.maxPointsToAssign, it.maxPointsAssignable)).toLong() } ?: 0L
                 if (v > 0) pickLists += listOf(0 to 0L, bucket(v) to v)
@@ -971,20 +1124,20 @@ internal object MostMasteriesCertificate {
                         is SublimationEffect.StatEffect -> {
                             if (!WakfuBuildSolver.scenarioGateMatches(eff.scenarioGate, params)) continue
                             val value = eff.magnitudeAtLevel(level)
-                            // Increment 4: a negative MAX_MOVEMENT_POINT rider (Armure lourde) lowers
-                            // the MP ceiling of any real carrier — flagged so the state pays it.
-                            if (eff.characteristic == Characteristic.MAX_MOVEMENT_POINT &&
-                                value < 0 &&
-                                Characteristic.MOVEMENT_POINT in targetByChar
-                            ) {
-                                if (-value > 1) return null // 1-bit flag; a deeper cut would under-model
-                                opt = opt.copy(mpCapMinus = 1)
-                                continue
-                            }
+                            // A negative MAX_MOVEMENT_POINT rider (Armure lourde II) is a flat MP debit
+                            // in the solver (foldedToUsableStat). It used to LOWER the MP cap instead,
+                            // which under-credited carriers whose pre-sub MP overshoots the target by ≥ 1
+                            // (review fix 2026-10-01): ignoring the debit over-counts MP — sound.
+                            if (eff.characteristic == Characteristic.MAX_MOVEMENT_POINT && value < 0) continue
                             if (value <= 0) {
                                 // LOW dims (A#1): a NEGATIVE AP/CC line still lowers the real stat a
-                                // condition reads — feed it to the under-approximating dims.
-                                if (value < 0 && geo.assumeApThreshold >= 0 && eff.characteristic == Characteristic.ACTION_POINT) {
+                                // condition reads — feed it to the under-approximating dims (permissive
+                                // even when the line sits outside the read). MAX_ACTION_POINT folds into
+                                // the pre-combat AP read like on items (Carapace II's −1).
+                                if (value < 0 &&
+                                    geo.assumeApThreshold >= 0 &&
+                                    (eff.characteristic == Characteristic.ACTION_POINT || eff.characteristic == Characteristic.MAX_ACTION_POINT)
+                                ) {
                                     opt = opt.copy(apLow = opt.apLow + value)
                                 }
                                 if (value < 0 && geo.assumeCcThresholdRaw >= 0 && eff.characteristic == Characteristic.CRITICAL_HIT) {
@@ -992,15 +1145,25 @@ internal object MostMasteriesCertificate {
                                 }
                                 continue
                             }
+                            // A POSITIVE line raises a condition's pre-combat read only when it is
+                            // permanent (appliesBeforeCombat); start-of-combat lines land after the
+                            // read, so feeding them to a LOW dim over-rejected real carriers (review fix).
+                            val inPreCombatRead = eff.appliesBeforeCombat
                             opt =
                                 when {
                                     eff.characteristic in requested -> opt.copy(m = opt.m + value)
                                     eff.characteristic == Characteristic.DAMAGE_INFLICTED -> opt.copy(d = opt.d + value)
                                     eff.characteristic == Characteristic.ACTION_POINT ->
-                                        opt.copy(ap = opt.ap + value, apLow = opt.apLow + (if (geo.assumeApThreshold >= 0) value else 0))
+                                        opt.copy(
+                                            ap = opt.ap + value,
+                                            apLow = opt.apLow + (if (geo.assumeApThreshold >= 0 && inPreCombatRead) value else 0)
+                                        )
                                     eff.characteristic == Characteristic.MOVEMENT_POINT -> opt.copy(mp = opt.mp + value)
                                     eff.characteristic == Characteristic.CRITICAL_HIT ->
-                                        opt.copy(cc = opt.cc + value, ccLowRaw = opt.ccLowRaw + (if (geo.assumeCcThresholdRaw >= 0) value else 0))
+                                        opt.copy(
+                                            cc = opt.cc + value,
+                                            ccLowRaw = opt.ccLowRaw + (if (geo.assumeCcThresholdRaw >= 0 && inPreCombatRead) value else 0)
+                                        )
                                     eff.characteristic == Characteristic.HP -> opt.copy(hp = opt.hp + value)
                                     eff.characteristic == Characteristic.BLOCK_PERCENTAGE && blockAtLeastMax > 0 ->
                                         opt.copy(block = opt.block + value)
@@ -1047,7 +1210,12 @@ internal object MostMasteriesCertificate {
                         if (cond?.type == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST) {
                             secondaryBudgetCap(t)
                         } else {
-                            t + otherRequestedMasteriesMax()
+                            // The condition reads PRE-COMBAT crit mastery; M counts the final one,
+                            // which adds start-of-combat crit mastery (Ravage III), ramps and passives
+                            // on top of the read (review fix: `t + others` alone under-counted).
+                            t +
+                                outsideReadMax(Characteristic.MASTERY_CRITICAL, exclude = sub, excludeEpics = sub.rarity == SublimationRarity.EPIC) +
+                                otherRequestedMasteriesMax()
                         }
                     worldBSubs += Triple(mCap, opt, sub.rarity == SublimationRarity.EPIC)
                     continue
@@ -1058,7 +1226,8 @@ internal object MostMasteriesCertificate {
                     assumedOpt = opt
                     continue
                 }
-                if (opt.m == 0L && opt.d == 0 && opt.ap == 0 && opt.mp == 0 && opt.cc == 0 && opt.hp == 0 && !opt.ramp) continue
+                // Block-only subs (Dérobade continue III) stay: their block feeds the AT_LEAST gate.
+                if (opt.m == 0L && opt.d == 0 && opt.ap == 0 && opt.mp == 0 && opt.cc == 0 && opt.hp == 0 && opt.block == 0 && !opt.ramp) continue
                 repeat(sub.maxCopies.coerceAtLeast(1)) { subOpts += SubOpt(opt, sub.rarity) }
             }
 
@@ -1167,6 +1336,27 @@ internal object MostMasteriesCertificate {
             }
         }
 
+        // Selected passives (review fix 2026-10-01): an always-on stage BEFORE the skills — the
+        // solver's %HP skill scales the final HP, passives included. Outside every condition read, so
+        // they never feed the LOW dims (the assume-world folds add them as constants instead).
+        if (passiveFlat.isNotEmpty()) {
+            step(
+                "passives",
+                listOf(
+                    Opt(
+                        m = requested.sumOf { passivePos(it).toLong() },
+                        d = passivePos(Characteristic.DAMAGE_INFLICTED),
+                        ap = passivePos(Characteristic.ACTION_POINT),
+                        mp = passivePos(Characteristic.MOVEMENT_POINT),
+                        cc = passivePos(Characteristic.CRITICAL_HIT),
+                        hp = passivePos(Characteristic.HP),
+                        block = if (blockAtLeastMax > 0) passivePos(Characteristic.BLOCK_PERCENTAGE) else 0,
+                        src = if (wantSrc) "passives" else ""
+                    )
+                )
+            )
+        }
+
         // Skills — AFTER the subs stage, because the %HP skill multiplies the build's WHOLE HP
         // (base + items + subs); applying it earlier would under-count the subs' flat HP share.
         // Per-branch enumeration over the ≤5 objective/target-relevant skills; FIXED skills credit
@@ -1175,14 +1365,23 @@ internal object MostMasteriesCertificate {
         // else ceil-to-step (a partial step credited as full — over-count, sound).
         if ("noSkills" !in diag) {
             val skills = params.character.characterSkills
-            for (branch in listOf(skills.intelligence, skills.strength, skills.agility, skills.luck, skills.major)) {
-                val relevant =
-                    branch.getCharacteristics().filter { sk ->
-                        sk.characteristic in requested ||
-                            sk.characteristic == Characteristic.DAMAGE_INFLICTED ||
-                            sk.characteristic in targetByChar ||
-                            (blockAtLeastMax > 0 && sk.characteristic == Characteristic.BLOCK_PERCENTAGE)
-                    }
+
+            fun relevantChar(c: Characteristic?): Boolean =
+                c != null &&
+                    (
+                        c in requested ||
+                            c == Characteristic.DAMAGE_INFLICTED ||
+                            c in targetByChar ||
+                            (blockAtLeastMax > 0 && c == Characteristic.BLOCK_PERCENTAGE) ||
+                            // The tracked MP→DI ramp reads the MP dim even without an MP target.
+                            (mpDiRamp != null && c == Characteristic.MOVEMENT_POINT)
+                    )
+            // Intelligence LAST: its %HP multiplies the whole flat HP, the Strength HP points included
+            // — applied before them it left them unscaled, an HP under-count (pre-release review
+            // 2026-10-01, caught by the banded review lock: %HP 50 + HP 48 reached 9 030 HP in CP-SAT).
+            for (branch in listOf(skills.strength, skills.agility, skills.luck, skills.major, skills.intelligence)) {
+                // A paired skill is relevant when EITHER half is (one point buys both halves).
+                val relevant = branch.getCharacteristics().filter { sk -> skillComponents(sk).any { relevantChar(it.characteristic) } }
                 if (relevant.isEmpty()) continue
                 val budget = branch.maxPointsToAssign
                 // Step 1 (exact) everywhere: the ceil-to-step credit was a sound over-count kept
@@ -1190,12 +1389,17 @@ internal object MostMasteriesCertificate {
                 val step = 1
 
                 fun creditOf(
-                    sk: me.chosante.common.skills.SkillCharacteristic,
+                    sk: SkillCharacteristic,
                     pts: Int,
                 ): Opt {
-                    // Paired skills carry a null characteristic (elemental-only today — banked v1
-                    // fact); none feeds our axes, so they contribute nothing here.
-                    val skChar = sk.characteristic ?: return Opt(0L, 0)
+                    // A paired skill credits BOTH halves for the same points — the solver's
+                    // buildSkillTerms does (review fix: the "elemental-only" assumption was wrong,
+                    // Major "Movement Point and damage" carries +1 MP).
+                    if (sk is SkillCharacteristic.PairedCharacteristic) {
+                        return combineOpts(creditOf(sk.first, pts), creditOf(sk.second, pts))
+                    }
+                    // Irrelevant halves (elemental mastery, range, control) feed none of our axes.
+                    val skChar = sk.characteristic?.takeIf(::relevantChar) ?: return Opt(0L, 0)
                     // %HP scales the build's own HP — expressed multiplicatively on the HP dim (far
                     // tighter than a flat credit at the layer-independent reachable max, still sound).
                     if (sk.unitType == me.chosante.common.skills.UnitType.PERCENT && skChar == Characteristic.HP) {
@@ -1218,7 +1422,8 @@ internal object MostMasteriesCertificate {
                         skChar == Characteristic.CRITICAL_HIT ->
                             Opt(0L, 0, cc = v, ccLowRaw = if (geo.assumeCcThresholdRaw >= 0) v else 0, src = srcTag)
                         skChar == Characteristic.BLOCK_PERCENTAGE -> Opt(0L, 0, block = v, src = srcTag)
-                        else -> Opt(0L, 0, hp = v, src = srcTag)
+                        skChar == Characteristic.HP -> Opt(0L, 0, hp = v, src = srcTag)
+                        else -> Opt(0L, 0)
                     }
                 }
 
@@ -1245,28 +1450,16 @@ internal object MostMasteriesCertificate {
         epicRelicStages?.invoke()
         if (cancelled) return null
 
-        // Collapse: mirror applyConstraintPenalty/bucketedIndex/buildPowerTable arithmetic exactly.
-        val totalExpected =
-            targets
-                .sumOf { it.target.toLong() * params.targetStats.scaledWeight(it) }
-                .coerceAtLeast(1L)
-        val bucketSize =
-            if (totalExpected <= MAX_POWER_TABLE_INDEX) 1L else ceil(totalExpected.toDouble() / MAX_POWER_TABLE_INDEX).toLong()
-        val maxIndex = if (totalExpected <= MAX_POWER_TABLE_INDEX) totalExpected.toInt() else ((totalExpected + bucketSize - 1) / bucketSize).toInt()
-        val maxPow = BigInteger.valueOf(maxIndex.toLong()).pow(6)
-        val powScale =
-            if (maxPow > BigInteger.valueOf(MAX_PENALTY_MULTIPLIER)) maxPow.divide(BigInteger.valueOf(MAX_PENALTY_MULTIPLIER)) else BigInteger.ONE
+        // Collapse: mirror applyConstraintPenalty/bucketedIndex/buildPowerTable arithmetic exactly
+        // (shared with [fullTargetsMultiplier], so the hard-leg unit conversion can never drift).
+        val penalty = penaltyGeometry(params, targets)
+        val totalExpected = penalty.totalExpected
+        val bucketSize = penalty.bucketSize
+        val maxIndex = penalty.maxIndex
 
         // Precomputed like the solver's buildPowerTable: the collapse calls this once per state
         // (millions on the full tier) and per-call BigInteger pow/divide was measurable GC churn.
-        val powTable =
-            LongArray(maxIndex + 1) { i ->
-                BigInteger
-                    .valueOf(i.toLong())
-                    .pow(6)
-                    .divide(powScale)
-                    .toLong()
-            }
+        val powTable = LongArray(maxIndex + 1) { i -> penalty.power6(i) }
 
         fun power6(index: Int): Long = powTable[index]
 
@@ -1285,6 +1478,12 @@ internal object MostMasteriesCertificate {
                 val combined = members.map { it.second }.reduce { a, b -> combineOpts(a, b) }
                 mCap to combined
             }
+
+        // Assume worlds credit their capped stat as a constant: the condition read is ≤ threshold, and
+        // the FINAL stat the target reads adds what lands outside that read (start-of-combat lines,
+        // ramps, passives — see [outsideReadMax]). Computed once per world, not per state.
+        val apOutsideRead = if (geo.assumeApThreshold >= 0) outsideReadMax(Characteristic.ACTION_POINT, worldAssume, excludeEpics = true) else 0L
+        val ccOutsideRead = if (geo.assumeCcThresholdRaw >= 0) outsideReadMax(Characteristic.CRITICAL_HIT, worldAssume, excludeEpics = true) else 0L
 
         var bestCore = 0L
         var bestFolded = 0L
@@ -1324,13 +1523,13 @@ internal object MostMasteriesCertificate {
                 if (targets.isEmpty()) return core to core
                 val apRead =
                     if (geo.assumeApThreshold >= 0) {
-                        (geo.assumeApThreshold + maxOf(assumedOpt.ap, 0)).toLong() + extra.ap
+                        (geo.assumeApThreshold + maxOf(assumedOpt.ap, 0)).toLong() + apOutsideRead + extra.ap
                     } else {
                         geo.ap(k).toLong() + assumedOpt.ap + extra.ap
                     }
                 val ccRead =
                     if (geo.assumeCcThresholdRaw >= 0) {
-                        (assumeThreshold + maxOf(assumedOpt.cc, 0)).toLong() + extra.cc
+                        (assumeThreshold + maxOf(assumedOpt.cc, 0)).toLong() + ccOutsideRead + extra.cc
                     } else {
                         geo.cc(k).toLong() * ccStep + assumedOpt.cc + extra.cc
                     }

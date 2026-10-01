@@ -27,4 +27,14 @@ internal object EmbeddedResources {
             .getResourceAsStream(name)
             ?.readAllBytes()
             ?.let { json.decodeFromString<List<T>>(String(it)) }
+
+    /** Decode classpath resource [name] as a single `T` (e.g. a JSON object map), or null when absent. */
+    inline fun <reified T> decode(
+        name: String,
+        json: Json = Json,
+    ): T? =
+        EmbeddedResources::class.java.classLoader
+            .getResourceAsStream(name)
+            ?.readAllBytes()
+            ?.let { json.decodeFromString<T>(String(it)) }
 }

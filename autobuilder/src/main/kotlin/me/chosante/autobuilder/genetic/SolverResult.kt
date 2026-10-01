@@ -71,8 +71,9 @@ data class SolverResult<T>(
      * certificate ([me.chosante.autobuilder.genetic.wakfu.MostMasteriesCertificate]): the raw CP-SAT
      * objective of this build — the FOLDED soft value (core × penalty multiplier × overshoot fold)
      * on the soft leg, or the bare core when the request has no required target (the two models
-     * coincide there). `null` on the hard leg with required targets (plain objective, different
-     * units) and in the other modes. [WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality]
+     * coincide there). On the hard leg with required targets the plain `core × SCALE + bonus` is
+     * CONVERTED to those soft units (× the full-targets penalty multiplier — every hard-leg build meets
+     * the targets); `null` in the other modes. [WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality]
      * compares it against the certificate bound to award "proven within X%".
      */
     val mostMasteriesObjective: Long? = null,

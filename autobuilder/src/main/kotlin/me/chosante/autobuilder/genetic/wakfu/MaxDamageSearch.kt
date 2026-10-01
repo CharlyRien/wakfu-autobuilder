@@ -706,7 +706,7 @@ object MaxDamageSearch {
         if (result.greedyWarmStartEmission) return null
         val incumbent = result.maxDamageObjective ?: return null
         if (incumbent <= 0L) return null
-        // The first pass memoized its union — this re-entry is a cache hit, never a second oracle solve.
+        // Reuse the first pass's union (proven or not) — never a second DP + oracle solve.
         val union =
             MaxDamageSoftCertificate.hybridUnionUpper(
                 baseParams,
@@ -717,7 +717,8 @@ object MaxDamageSearch {
                 oracleSeconds = SOFT_ORACLE_BUDGET_SECONDS,
                 shouldContinue = { !isCancelled() },
                 incumbentObjective = incumbent,
-                onPhase = onPhase
+                onPhase = onPhase,
+                reuseFirstPass = true
             ) ?: return null
         if (incumbent > union.upper) return null // first-pass self-check already suppressed the badge
         if (incumbent == union.upper) return MaxDamageProof.ProvenOptimal

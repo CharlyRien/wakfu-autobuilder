@@ -205,9 +205,17 @@ object WakfuBuildSolver {
      * oracle into an exact soft-leg upper; its memo is keyed by this version;
      * 37: every soft-proof CP read goes through [MaxDamageTimedProfile.soundUpper] — an UNKNOWN /
      * MODEL_INVALID solve without a real dual (stopped or timed out inside presolve: native bound 0)
-     * no longer reads as "world closed at 0"; cap-sub world splits bail on a non-EPIC cap sub.
+     * no longer reads as "world closed at 0"; cap-sub world splits bail on a non-EPIC cap sub;
+     * 38: most-masteries certificate under-count fixes (pre-release review 2026-10-01) — paired-skill
+     * halves credited (major MP), Armure lourde's MAX_MP debit ignored instead of lowering the MP cap,
+     * selected passives credited, MAX_ACTION_POINT folded into the assume-AP low read, start-of-combat
+     * lines kept out of the LOW dims but added (with ramps/passives) to the assume-world constants and
+     * world-B M-caps, block-only subs kept; hard-leg results compared in soft units. The max-damage
+     * soft certificate gets the same low-read fixes (signed AP + MAX_AP, start-of-combat lines out of
+     * the LOW dims, low-read/block-only subs kept), the outside-read constants (assume worlds, critZero
+     * arm), the Major AP point always staged, and a bail on secondary lines outside the first-turn read.
      */
-    const val CERTIFIER_VERSION: Int = 37
+    const val CERTIFIER_VERSION: Int = 38
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
@@ -686,8 +694,8 @@ object WakfuBuildSolver {
                     // the hard leg with required targets: its objective is the bare `core × 10⁴ + bonus`,
                     // while the soft objective multiplies the core by power6(bucket) — ≈1e6 even when every
                     // target is met — so comparing the two awarded "proven within ~1 000 000 %" badges
-                    // (pre-release review 2026-10-01, reproduced on dist+AP+MP+HP at level 200). Making
-                    // the hard leg comparable needs that unit conversion, not a raw stamp.
+                    // (pre-release review 2026-10-01, reproduced on dist+AP+MP+HP at level 200). The hard
+                    // leg is CONVERTED instead ([mmHardLegMultiplier] below), never stamped raw.
                     val mmObjectiveComparable =
                         params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
                             // (the model's exact fold predicate — a 0-valued required target still folds the objective)
@@ -695,6 +703,20 @@ object WakfuBuildSolver {
                             // The measurement seams replace the searched objective — never comparable.
                             tuning?.mmPenaltyBucketInterval == null &&
                             tuning?.mmDiFactorInterval == null
+                    // ...but the hard leg IS convertible: every emission meets the targets, so the same
+                    // build's soft objective is `core × fullTargetsMultiplier × SCALE + bonus`. Not for the
+                    // P2b two-stage solve (its stage 1 searches the bare primary, no overshoot bonus).
+                    val mmHardLegMultiplier =
+                        if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+                            hardConstraints &&
+                            !mmTwoStage &&
+                            tuning?.mmPenaltyBucketInterval == null &&
+                            tuning?.mmDiFactorInterval == null
+                        ) {
+                            MostMasteriesCertificate.fullTargetsMultiplier(params)
+                        } else {
+                            null
+                        }
                     val outcome =
                         executeSolverAndEmitResults(
                             built.model,
@@ -709,7 +731,8 @@ object WakfuBuildSolver {
                             tuning,
                             onSolverReady = { solverHandle.set(it) },
                             suppressBelowScore = warmScore,
-                            mmObjectiveComparable = mmObjectiveComparable
+                            mmObjectiveComparable = mmObjectiveComparable,
+                            mmHardLegMultiplier = mmHardLegMultiplier
                         )
                     // P2b stage 2: the primary is proven — pin it and maximize the overshoot in a short
                     // near-forced solve; its guaranteed final send (same primary ⇒ same score) replaces
@@ -945,6 +968,8 @@ object WakfuBuildSolver {
         // Hard-constraints-first max-damage solve: required targets become HARD `actual ≥ target` constraints
         // under a plain damage objective (no shortfall penalty). Threaded to [buildMaxDamageObjective].
         hardConstraints: Boolean = false,
+        // Build the AP/MP/CRIT/HP actual-stat vars (stat-bound pins + MaxDamageTimedProfile.actualStats).
+        trackActualStats: Boolean = false,
         // P2b two-stage lexicographic (most-masteries hard leg) — see [buildMostMasteriesObjective].
         mmPlainPrimaryObjective: Boolean = false,
         mmOvershootPinnedPrimary: Long? = null,
@@ -1189,13 +1214,20 @@ object WakfuBuildSolver {
                     certifierExplain = statBuilder.certifierExplainForTest
                     certifierExplainItemIds = statBuilder.certifierExplainItemIds
                     critDiffJointCutBound = statBuilder.critDiffJointCutBoundForTest
+                    // Proof/research profiles only (stat-bound pins + reported actual stats): building
+                    // actualStat(HP) adds the pre-HP sum + %HP product chain to every PRODUCTION model
+                    // that has no HP target (pre-release review 2026-10-01 — main never paid it).
                     actualStatVars =
-                        listOf(
-                            Characteristic.ACTION_POINT,
-                            Characteristic.MOVEMENT_POINT,
-                            Characteristic.CRITICAL_HIT,
-                            Characteristic.HP
-                        ).associateWith(statBuilder::actualStat)
+                        if (trackActualStats) {
+                            listOf(
+                                Characteristic.ACTION_POINT,
+                                Characteristic.MOVEMENT_POINT,
+                                Characteristic.CRITICAL_HIT,
+                                Characteristic.HP
+                            ).associateWith(statBuilder::actualStat)
+                        } else {
+                            emptyMap()
+                        }
                     built.objective
                 }
             }
@@ -1760,7 +1792,9 @@ object WakfuBuildSolver {
                         minOf(deterministicLimitPerNode, (TWO_NODE_DET_BAIL - rootDet + 1.0).coerceAtLeast(10.0))
                 }
             }
-            val status = solver.solve(built.model)
+            // A cancelled proof stops the node within a tick too (pre-release review: B&B nodes ran
+            // their full 45 s budget after a cancel). The stopped read is FEASIBLE/UNKNOWN — handled below.
+            val status = withStopWatcher(solver, shouldContinue) { solver.solve(built.model) }
             // ONLY these three statuses carry usable information. Anything else (MODEL_INVALID,
             // UNKNOWN with a garbage native bound, …) must end the tree inconclusively — routing
             // it through the prune test once turned a MODEL_INVALID node's bound=0 into a fake
@@ -2196,7 +2230,8 @@ object WakfuBuildSolver {
                 applyDomination = applyDomination,
                 maxDamageExperiment = experiment,
                 maxDamageObjectiveCutoff = objectiveCutoff,
-                hardConstraints = hardConstraints
+                hardConstraints = hardConstraints,
+                trackActualStats = true
             )
         (penalizedObjectiveCutoff ?: objectiveCutoff)?.let { built.model.addGreaterOrEqual(built.objective, it) }
         if (requireAnyConditionalSublimation) {
@@ -2282,33 +2317,7 @@ object WakfuBuildSolver {
             solver.parameters.maxDeterministicTime = deterministicLimit
         }
         solver.parameters.maxTimeInSeconds = seconds
-        val stopWatcher =
-            shouldContinue?.let { cont ->
-                Thread {
-                    try {
-                        while (!Thread.currentThread().isInterrupted) {
-                            // Re-issued on every tick once cancelled, never just once: OR-Tools' Java
-                            // CpSolver.stopSearch() is a silent no-op until solve() has created its
-                            // native wrapper, so a cancel landing while the model is still being built
-                            // would otherwise be lost and the solve would run its full budget.
-                            if (!cont()) solver.stopSearch()
-                            Thread.sleep(500)
-                        }
-                    } catch (_: InterruptedException) {
-                        // Solve finished normally — nothing to stop.
-                    }
-                }.apply {
-                    isDaemon = true
-                    name = "wakfu-proof-stop-watcher"
-                    start()
-                }
-            }
-        val status =
-            try {
-                solver.solve(built.model)
-            } finally {
-                stopWatcher?.interrupt()
-            }
+        val status = withStopWatcher(solver, shouldContinue) { solver.solve(built.model) }
         if (System.getenv("WAKFU_MAX_DAMAGE_CERT_DEBUG") == "1" &&
             (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL || status == com.google.ortools.sat.CpSolverStatus.FEASIBLE)
         ) {
@@ -2592,6 +2601,16 @@ object WakfuBuildSolver {
         precomputedExact: Map<Int, Long>? = null,
         precomputedProv: Map<Int, CellProvenance>? = null,
     ): CertLedger? {
+        // The ledger's AT_MOST windows read apConst/critConst, which fold the passives' flat stats,
+        // while the solver's pre-combat read excludes passives — a passive granting AP or crit would
+        // over-reject real carriers. None does today (they grant MP or block): bail if one appears
+        // (pre-release review 2026-10-01).
+        if (resolvedPassives(params).any { passive ->
+                passive.flatStats.keys.any { it.foldedToUsableStat() in setOf(Characteristic.ACTION_POINT, Characteristic.CRITICAL_HIT) }
+            }
+        ) {
+            return null
+        }
         val ledger =
             buildModel(
                 params,
@@ -3912,9 +3931,12 @@ object WakfuBuildSolver {
         // near-forced and must never eat the user's remaining duration). Null = the params duration.
         maxWallSecondsOverride: Double? = null,
         // Backup certificate (§8.9bis): stamp [SolverResult.mostMasteriesObjective] on every emission —
-        // set by [optimize] iff the searched objective is certificate-comparable (MM soft leg in
-        // penalized units, or MM hard leg whose target-feasible emissions have zero penalties).
+        // set by [optimize] iff the searched objective is certificate-comparable as is (the MM soft leg,
+        // in penalized units; or a request without required targets, where both legs coincide).
         mmObjectiveComparable: Boolean = false,
+        // ...or convertible: the MM hard leg with required targets stamps its objective scaled into soft
+        // units by this multiplier ([MostMasteriesCertificate.fullTargetsMultiplier]).
+        mmHardLegMultiplier: Long? = null,
         // P2b stage 2 (review fix 2026-07-20): the overshoot solve's own objective is NOT the MM
         // primary — stamp the PINNED stage-1 primary instead so the final displayed emission keeps
         // a certificate-comparable objective (else the backup badge gate reads null and never runs).
@@ -4017,7 +4039,7 @@ object WakfuBuildSolver {
                             maxDamageObjective = if (maxDamage) objectiveValue().toLong() else null,
                             maxDamageRawProxy = if (maxDamage) maxDamageRawScoreVar?.let { value(it) } else null,
                             mostMasteriesObjective =
-                                if (mmObjectiveComparable) objectiveValue().toLong() else mmObjectiveOverride
+                                mmStampedObjective(objectiveValue().toLong(), mmObjectiveComparable, mmHardLegMultiplier, mmObjectiveOverride)
                         )
                     )
                 }
@@ -4044,7 +4066,7 @@ object WakfuBuildSolver {
                             maxDamageObjective = if (maxDamage) solver.objectiveValue().toLong() else null,
                             maxDamageRawProxy = if (maxDamage) maxDamageRawScoreVar?.let { solver.value(it) } else null,
                             mostMasteriesObjective =
-                                if (mmObjectiveComparable) solver.objectiveValue().toLong() else mmObjectiveOverride
+                                mmStampedObjective(solver.objectiveValue().toLong(), mmObjectiveComparable, mmHardLegMultiplier, mmObjectiveOverride)
                         )
                     )
                 }
@@ -4215,6 +4237,68 @@ object WakfuBuildSolver {
             fixed = fixed.mapValues { it.value.toList() },
             percent = percent.mapValues { it.value.toList() }
         )
+    }
+
+    /**
+     * The [SolverResult.mostMasteriesObjective] stamp: the raw objective when it is certificate-comparable
+     * as is; the MM hard leg's `core × SCALE + bonus` scaled into soft units (`core × multiplier × SCALE +
+     * bonus` — every hard-leg emission meets the targets, so that IS the same build's soft objective);
+     * else the P2b override (null for every other caller). An overflowing conversion stamps null (no
+     * badge) rather than a wrapped value.
+     */
+    private fun mmStampedObjective(
+        objective: Long,
+        comparable: Boolean,
+        hardLegMultiplier: Long?,
+        override: Long?,
+    ): Long? =
+        when {
+            comparable -> objective
+            hardLegMultiplier != null ->
+                runCatching {
+                    Math.addExact(
+                        Math.multiplyExact(Math.multiplyExact(Math.floorDiv(objective, OVERSHOOT_SCALE), hardLegMultiplier), OVERSHOOT_SCALE),
+                        Math.floorMod(objective, OVERSHOOT_SCALE)
+                    )
+                }.getOrNull()
+            else -> override
+        }
+
+    /**
+     * Runs [solve] under a daemon watcher that calls [CpSolver.stopSearch] every 500 ms once
+     * [shouldContinue] turns false — RE-ISSUED on every tick: OR-Tools' Java stopSearch() is a silent
+     * no-op until solve() has created its native wrapper, so a cancel landing while the model was still
+     * being handed over would otherwise be lost and the solve would run its full budget. Inert (no
+     * thread) when [shouldContinue] is null. A stopped solve returns FEASIBLE/UNKNOWN: callers must read
+     * it through the sound accessors ([MaxDamageTimedProfile.soundUpper], the B&B status guard).
+     */
+    private fun <T> withStopWatcher(
+        solver: CpSolver,
+        shouldContinue: (() -> Boolean)?,
+        solve: () -> T,
+    ): T {
+        val watcher =
+            shouldContinue?.let { cont ->
+                Thread {
+                    try {
+                        while (!Thread.currentThread().isInterrupted) {
+                            if (!cont()) solver.stopSearch()
+                            Thread.sleep(500)
+                        }
+                    } catch (_: InterruptedException) {
+                        // Solve finished — nothing left to stop.
+                    }
+                }.apply {
+                    isDaemon = true
+                    name = "wakfu-proof-stop-watcher"
+                    start()
+                }
+            }
+        try {
+            return solve()
+        } finally {
+            watcher?.interrupt()
+        }
     }
 
     internal fun Equipment.valueFor(char: Characteristic): Int {
