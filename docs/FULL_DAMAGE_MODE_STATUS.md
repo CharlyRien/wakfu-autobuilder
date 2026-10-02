@@ -163,6 +163,13 @@ La consigne décrivait le full-damage mode comme s'étalant sur des **branches d
 8. **Finalisation des tickets data #167** — pour la *précision* : ancrer les noms cast-limit/passifs, sourcer la
    table de niveau-requis des runes ; **valeurs de runes** encore WakForge (exception documentée, pas de source
    officielle).
+9. **Rangs des monstres ajoutés en 1.93** *(TODO, basse priorité)* — aucun n'a de rang dans
+   `monster-overlay.json`, donc aucun n'apparaît dans le sélecteur de boss. À vérifier en jeu avant de les
+   classer : **Ignemikhal** (`5918` niv. 170 « Boss d'intervention », 1 M PV ; `5916` niv. 1212 et `5917` niv. 1
+   « Extra Mont Zinit », probablement des phases scriptées ; la fiche `5888` niv. 245 à 60 M PV existait déjà en
+   1.92, sans rang), **Chef de Guerre Nuageux** (niv. 64, variante du boss Bouftou), **Capitaine du Chaos**
+   (niv. 65), **Vieil amnésique** (niv. 260, Ereboria), **Goultard** et **Ruel Stroud** (niv. 245, 22 k PV).
+   Repère : Aguabrial, de la famille « Extra Mont Zinit », est au rang 1.
 
 ---
 
