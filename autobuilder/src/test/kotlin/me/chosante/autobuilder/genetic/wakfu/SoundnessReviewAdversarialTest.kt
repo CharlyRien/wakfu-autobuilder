@@ -309,17 +309,19 @@ class SoundnessReviewAdversarialTest {
         }
 
     /**
-     * FINDING B-1 (pre-existing, same code in the v40 tree): when an MP→DI ramp sub is in the model (Poids Plume III —
-     * always, on the default catalog), `mpRampEnabled` gives every MP skill var its MP coefficient, and the skill-branch
-     * cells (`branchCells` / `branchCellsF` in MaxDamageCertifier) only keep PURE-MP vars on the mp axis
-     * (`it.m == 0L`) and only `mp == 0L` vars in the graw fill. The Major "Movement Point and damage" point is PAIRED
-     * (+1 MP AND +20 elemental mastery) ⇒ it lands in NEITHER list and is silently dropped: its +20 mastery and its +1 MP
-     * (the ramp's source) are lost. Level 175 (4 Major points: DI 10, Range+40, Control+40 and MP+20 at a cell that
-     * does not buy the AP point), items give MP 7 ⇒ the Major point lifts the ramp from 18 to 24 DI.
+     * FINDING B-1 (pre-existing since the v40 tree, FIXED in CERTIFIER_VERSION 49 — now a CI lock): when an MP→DI ramp
+     * sub is in the model (Poids Plume III — always, on the default catalog), `mpRampEnabled` gives every MP skill var
+     * its MP coefficient, and the skill-branch cells (`branchCells` / `branchCellsF` / the explain `skills:` options in
+     * MaxDamageCertifier) only kept PURE-MP vars on the mp axis (`it.m == 0L`) and only `mp == 0L` vars in the graw
+     * fill. The Major "Movement Point and damage" point is PAIRED (+1 MP AND +20 elemental mastery) ⇒ it landed in
+     * NEITHER list and was silently dropped: its +20 mastery and its +1 MP (the ramp's source) were lost. Level 175
+     * (4 Major points), items + base give MP 7 ⇒ the Major point lifts the ramp from 18 to 24 DI. Before v49: AP-6
+     * exact 900 990 / fast 903 120 vs CP-SAT 951 400, AP-7 exact 1 008 855 vs 1 047 015, ledger max 1 008 855 and a
+     * ProvenOptimal verdict on a 3.8 % sub-optimal build. Since v49 the paired var has its own split (`mpGrawSplits`)
+     * in every pass: both cells are tight (exact == CP-SAT) and that build reads ProvenWithin 3.78 %.
      */
     @Test
     fun `B1 paired Major MP point dropped from the certifier skill cells when an MP ramp sub is modeled`() {
-        assumeTrue(System.getenv("WAKFU_SOUNDNESS_REVIEW") == "1") // RED until the fix lands (see the KDoc)
         val poidsPlume = WakfuBestBuildFinderAlgorithm.sublimations.single { it.name.fr == "Poids Plume III" }
         val pool =
             listOf(
@@ -387,6 +389,12 @@ class SoundnessReviewAdversarialTest {
                 underCounts += "$label LEDGER max=${ledger.maxCellObjective} < free optimum ${truth.rawObjective}"
             }
         }
+        // The explain path (the E8 construct's provenance replay) must mirror the exact pass's skill cells: the winning
+        // AP-7 state spends the paired point, so its backtrack has to find that option instead of breaking.
+        val explain = WakfuBuildSolver.certifierExplainForTest(params, pool, emptyList(), listOf(poidsPlume), applyDomination = false, cell = 7)
+        println("REVIEW_B1_EXPLAIN ${explain.joinToString(" | ")}")
+        if (explain.any { "???" in it }) underCounts += "provenance backtrack broken: ${explain.filter { "???" in it }}"
+        if (explain.none { "mpGrawPts=1" in it }) underCounts += "provenance does not credit the paired Major MP point: $explain"
         // Badge-level consequence: the E8 construct accepts any build whose proxy reaches the (under-counted) ledger max
         // and flags it isOptimal — with a weak incumbent it may "prove" a build below the true optimum.
         val e8 =
@@ -707,7 +715,12 @@ class SoundnessReviewAdversarialTest {
         val subs: List<Sublimation>,
     )
 
-    private fun mdFuzzCase(seed: Long): MdCase {
+    // [forcePoidsPlume]: append Poids Plume III when the seed did not draw it (the B1 lock below) — after every RNG draw,
+    // so the pool, rows and other subs of a seed are unchanged.
+    private fun mdFuzzCase(
+        seed: Long,
+        forcePoidsPlume: Boolean = System.getenv("WAKFU_REVIEW_MD_FORCE_PP") == "1",
+    ): MdCase {
         val rng = java.util.Random(seed)
         val level = listOf(50, 110, 170, 230)[rng.nextInt(4)]
         val element = me.chosante.autobuilder.domain.SpellElement.entries[rng.nextInt(4)]
@@ -796,10 +809,11 @@ class SoundnessReviewAdversarialTest {
                     )
             }
         val noPp = System.getenv("WAKFU_REVIEW_MD_NO_PP") == "1"
-        val subs =
+        val drawn =
             (focus.shuffled(rng).take(3 + rng.nextInt(5)) + catalog.shuffled(rng).take(rng.nextInt(6)))
                 .distinct()
                 .filterNot { noPp && it.perStatStep?.source == Characteristic.MOVEMENT_POINT }
+        val subs = if (forcePoidsPlume) (drawn + catalog.single { it.name.fr == "Poids Plume III" }).distinct() else drawn
         val p =
             WakfuBestBuildParams(
                 character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
@@ -991,4 +1005,181 @@ class SoundnessReviewAdversarialTest {
             failures.forEach { println("MD_FUZZ_FAIL $it") }
             assertThat(failures).describedAs("SOUNDNESS — max-damage certifier under-counts").isEmpty()
         }
+
+    /**
+     * B1 CI LOCK (CERTIFIER_VERSION 49): the seeded max-damage fuzz above on a few fixed seeds WITH Poids Plume III forced
+     * into the sub set, so the MP→DI ramp is modeled and the paired Major "Movement Point and damage" point has a priced
+     * MP axis in every pass. Per AP cell: the exact / tier-1.5 / fast bounds upper-bound the pinned CP-SAT raw optimum
+     * (1 worker, fixed seed, interleaved search: deterministic) and stay ordered fast ≥ tier-1.5 ≥ exact; the
+     * production ledger at incumbent = the true optimum keeps its max ≥ it. Every seed under-counted on the v48 tree:
+     * md-seed9009 (level 230; AP-6–8, ledger max −1.8 %), md-seed9016 (230, the review's: AP-4 fast, AP-6 every pass,
+     * −2.2 %), md-seed12961 (110; AP-5–8, ledger −1.5 %) and md-seed1994 (170; AP-6–7, ledger −0.9 %). The first draw of
+     * consecutive seeds barely moves (`java.util.Random`), so 12961 / 1994 were picked for their level. Surveyed with
+     * v49: 60 consecutive seeds from 9000 (12 red on v48) plus 20 level-spread ones (3 red) all green; the review's
+     * other B1 pool, md-seed9072 (~35 s), stays on the manual fuzz. `WAKFU_REVIEW_MD_PP_SEEDS=a,b,…` replays any seeds.
+     */
+    @Test
+    fun `B1 lock - max-damage certifier fuzz with Poids Plume never under-counts a cell`() {
+        val seeds =
+            System
+                .getenv("WAKFU_REVIEW_MD_PP_SEEDS")
+                ?.split(',')
+                ?.mapNotNull { it.trim().toLongOrNull() }
+                ?: listOf(9009L, 9016L, 12961L, 1994L)
+        val failures = mutableListOf<String>()
+        var compared = 0
+        var rampCarried = 0
+        var notOptimal = 0
+        for (seed in seeds) {
+            val started = System.nanoTime()
+            val c = mdFuzzCase(seed, forcePoidsPlume = true)
+            val runes = if (c.params.useRunes) WakfuBestBuildFinderAlgorithm.runes else emptyList()
+            val poidsPlume = c.subs.single { it.name.fr == "Poids Plume III" }
+            // The certificate bounds raw damage over EVERY build of the same model: same rows (same rune fold), weight 0.
+            val truthParams =
+                c.params.copy(targetStats = TargetStats(c.params.targetStats.map { TargetStat(it.characteristic, it.target, userDefinedWeight = 0) }))
+            val (exact, fast, tier15) = WakfuBuildSolver.certifierExactFastTier15CellObjectivesForTest(c.params, c.pool, runes, c.subs, applyDomination = false)
+            val truthByAp = LinkedHashMap<Int, Long>()
+            for (ap in exact.keys.sorted()) {
+                val profile =
+                    WakfuBuildSolver.timedMaxDamageProfileForTest(
+                        truthParams.copy(maxDamageApTarget = ap),
+                        c.pool,
+                        runes,
+                        c.subs,
+                        workers = 1,
+                        seconds = 120.0,
+                        applyDomination = false,
+                        randomSeed = 1,
+                        interleave = true,
+                        deterministicLimit = 20.0
+                    )
+                if (!profile.hasSolution) continue
+                if (profile.status != "OPTIMAL") {
+                    notOptimal++
+                    println("B1_LOCK ${c.label} AP=$ap not proven (${profile.status}) — skipped")
+                    continue
+                }
+                truthByAp[ap] = profile.rawObjective
+                if (poidsPlume.stateId in profile.selectedSublimationStateIds) rampCarried++
+                val exactObj = exact[ap] ?: -1L
+                val tier15Obj = tier15[ap] ?: -1L
+                val fastObj = fast[ap] ?: -1L
+                for ((label, value) in listOf("exact" to exactObj, "tier-1.5" to tier15Obj, "fast" to fastObj)) {
+                    if (value < 0) continue
+                    compared++
+                    if (value < profile.rawObjective) failures += "${c.label} AP=$ap $label=$value < pinned raw optimum ${profile.rawObjective}"
+                }
+                if (exactObj >= 0 && tier15Obj >= 0 && tier15Obj < exactObj) failures += "${c.label} AP=$ap tier-1.5=$tier15Obj < exact=$exactObj"
+                if (tier15Obj >= 0 && fastObj >= 0 && fastObj < tier15Obj) failures += "${c.label} AP=$ap fast=$fastObj < tier-1.5=$tier15Obj"
+            }
+            val trueOptimum = truthByAp.values.maxOrNull()
+            if (trueOptimum != null) {
+                // The production read: eliminate on the fast tier, refine the survivors — what proveOptimality compares.
+                val ledger = WakfuBuildSolver.certifyLedgerForTest(c.params, c.pool, runes, c.subs, applyDomination = false, incumbentObjective = trueOptimum)
+                val max = ledger.maxCellObjective
+                if (max != null && max < trueOptimum) failures += "${c.label} LEDGER max=$max < true optimum $trueOptimum"
+            }
+            println(
+                "B1_LOCK ${c.label} level=${c.params.character.level} cells=${truthByAp.size} trueOpt=$trueOptimum " +
+                    "ms=${(System.nanoTime() - started) / 1_000_000}"
+            )
+        }
+        failures.forEach { println("B1_LOCK_FAIL $it") }
+        assertThat(failures).describedAs("SOUNDNESS — the certifier must never under-count a cell with an MP ramp modeled").isEmpty()
+        assertThat(notOptimal).describedAs("every reachable cell is proven OPTIMAL by the pinned solve (else it compares nothing)").isZero()
+        assertThat(compared).describedAs("certified cells compared against pinned CP-SAT").isGreaterThanOrEqualTo(10 * seeds.size)
+        assertThat(rampCarried).describedAs("pinned optima carrying Poids Plume III (the ramp the paired point feeds)").isGreaterThanOrEqualTo(2 * seeds.size)
+    }
+
+    /**
+     * v49 MP SATURATION CLAMP lock: after the skill stages the certifier rewrites every frontier point's MP as
+     * `min(mp, clamp)`, the clamp sitting where Poids Plume III is saturated whatever MP the staged transitions take
+     * later (`mpSaturationClamp` in MaxDamageCertifier). That must be value-EXACT: the fast / tier-1.5 / exact maps and
+     * both ledgers (forceTier2All, and the rescue shape at incumbent = max − 1 that runs tier-1.5 and the pruned exact
+     * tier) are IDENTICAL with the clamp on and off — bounds, tiers and winning provenance — the explain backtrack
+     * crosses the clamp stage, and the clamp actually rewrites frontiers (else this lock is vacuous). Fixtures: a micro
+     * pool whose MP gear overshoots the saturation (items up to +9 MP, Major point +1) with Vélocité II (+1 MP) and
+     * Armure lourde II (−1 max MP) moving the axis after the clamp, and the B1 fuzz seed 9009 with Poids Plume forced.
+     */
+    @Test
+    fun `B1 lock - the MP saturation clamp is value- and provenance-identical to the unclamped DP`() {
+        val catalog = WakfuBestBuildFinderAlgorithm.sublimations
+        val fire = Characteristic.MASTERY_ELEMENTARY_FIRE
+        val mp = Characteristic.MOVEMENT_POINT
+        val micro =
+            listOf(
+                item(11, ItemType.HELMET, stats = mapOf(fire to 900)),
+                item(12, ItemType.HELMET, stats = mapOf(fire to 500, mp to 2)),
+                item(13, ItemType.BOOTS, stats = mapOf(fire to 600, mp to 1)),
+                item(14, ItemType.BOOTS, stats = mapOf(fire to 300, mp to 3)),
+                item(15, ItemType.CAPE, stats = mapOf(fire to 700)),
+                item(16, ItemType.CAPE, stats = mapOf(fire to 350, mp to 2)),
+                item(17, ItemType.AMULET, stats = mapOf(fire to 800, Characteristic.ACTION_POINT to 1)),
+                item(18, ItemType.AMULET, stats = mapOf(fire to 400, mp to 2))
+            ).groupBy { it.itemType }
+        val microParams =
+            WakfuBestBuildParams(
+                character = Character(CharacterClass.CRA, 175, 0, CharacterSkills(175)),
+                targetStats = TargetStats(emptyList()),
+                searchDuration = 60.seconds,
+                stopWhenBuildMatch = false,
+                maxRarity = Rarity.EPIC,
+                forcedItems = emptyList(),
+                excludedItems = emptyList(),
+                scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                useRunes = false,
+                useSublimations = true,
+                damageScenario =
+                    me.chosante.autobuilder.domain.DamageScenario(
+                        element = me.chosante.autobuilder.domain.SpellElement.FIRE,
+                        rangeBand = me.chosante.autobuilder.domain.RangeBand.DISTANCE,
+                        orientation = me.chosante.autobuilder.domain.Orientation.FACE
+                    )
+            )
+        val microSubs = listOf("Poids Plume III", "Vélocité II", "Armure lourde II").map { n -> catalog.single { it.name.fr == n } }
+        val seeded = mdFuzzCase(9009L, forcePoidsPlume = true)
+        val fixtures = listOf(Triple(microParams, micro, microSubs), Triple(seeded.params, seeded.pool, seeded.subs))
+        try {
+            for ((i, fixture) in fixtures.withIndex()) {
+                val (params, pool, subs) = fixture
+                val runes = if (params.useRunes) WakfuBestBuildFinderAlgorithm.runes else emptyList()
+
+                fun certify(clamp: Boolean): Triple<Triple<Map<Int, Long>, Map<Int, Long>, Map<Int, Long>>, CertLedger, CertLedger?> {
+                    CertifierTuning.mpSaturationClampEnabled = clamp
+                    val maps = WakfuBuildSolver.certifierExactFastTier15CellObjectivesForTest(params, pool, runes, subs, applyDomination = false)
+                    val forced = WakfuBuildSolver.certifyLedgerForTest(params, pool, runes, subs, applyDomination = false, forceTier2All = true)
+                    val rescue =
+                        forced.maxCellObjective?.takeIf { it > 1L }?.let { max ->
+                            WakfuBuildSolver.certifyLedgerForTest(params, pool, runes, subs, applyDomination = false, incumbentObjective = max - 1)
+                        }
+                    return Triple(maps, forced, rescue)
+                }
+                val off = certify(clamp = false)
+                val rewritesBefore = CertifierTuning.mpClampRewritesForTest.get()
+                val on = certify(clamp = true)
+                // The micro pool overshoots the saturation by design: there the clamp must rewrite frontiers (non-vacuous).
+                if (i == 0) {
+                    assertThat(CertifierTuning.mpClampRewritesForTest.get() - rewritesBefore)
+                        .describedAs("the clamp rewrites frontiers on the micro pool (else this lock is vacuous)")
+                        .isGreaterThan(0L)
+                }
+                assertThat(on.first).describedAs("fixture $i: (exact, fast, tier-1.5) maps identical with the clamp").isEqualTo(off.first)
+                assertThat(on.second).describedAs("fixture $i: forceTier2All ledger identical with the clamp").isEqualTo(off.second)
+                assertThat(on.third).describedAs("fixture $i: rescue-shape ledger identical with the clamp").isEqualTo(off.third)
+                val argmax =
+                    on.second.cellObjectives.entries
+                        .filter { it.value >= 0 }
+                        .maxByOrNull { it.value }
+                        ?.key
+                if (argmax != null) {
+                    val explain = WakfuBuildSolver.certifierExplainForTest(params, pool, runes, subs, applyDomination = false, cell = argmax)
+                    println("B1_CLAMP fixture=$i argmax=$argmax ${explain.joinToString(" | ")}")
+                    assertThat(explain).describedAs("fixture $i: the provenance backtrack crosses the clamp").noneMatch { "???" in it }
+                }
+            }
+        } finally {
+            CertifierTuning.mpSaturationClampEnabled = true
+        }
+    }
 }
