@@ -171,6 +171,19 @@ internal object CertifierTuning {
     @Volatile
     var auxRelaxedCappedEnabled = true
 
+    /**
+     * CERTIFIER_VERSION 49 MP clamp (see `mpSaturationClamp` in [certifyMaxPerHitAtApPass]): after the skill stages, MP
+     * above the MP→DI ramps' saturation is collapsed. Value-exact by construction; on in production; the equality lock
+     * disables it to compare every certified value (and the provenance) against the unclamped DP.
+     */
+    @Volatile
+    var mpSaturationClampEnabled = true
+
+    /** Frontiers the MP clamp actually rewrote (thread-safe; tests read the delta). */
+    val mpClampRewritesForTest =
+        java.util.concurrent.atomic
+            .AtomicLong()
+
     /** How many times an [AuxFloor] had to run its capped split (thread-safe; tests read the delta). */
     val auxSplitComputedForTest =
         java.util.concurrent.atomic
@@ -348,6 +361,25 @@ internal class DenseDp(
         }
         slots[k] = f
     }
+}
+
+/**
+ * [fr] with every point's mp rewritten as `min(mp, clamp)` — the v49 MP saturation clamp (`mpSaturationClamp` in
+ * [certifyMaxPerHitAtApPass]). Returns [fr] itself when no point exceeds [clamp] (already a Pareto set, and no stage
+ * mutates the frontiers it reads), else a fresh frontier re-adding the clamped points, so the points that only
+ * differed in MP beyond the clamp now dominate each other.
+ */
+internal fun clampFrontierMp(
+    fr: Frontier,
+    clamp: Long,
+): Frontier {
+    var over = false
+    fr.forEachPoint { _, _, mp -> if (mp > clamp) over = true }
+    if (!over) return fr
+    CertifierTuning.mpClampRewritesForTest.incrementAndGet()
+    val out = Frontier()
+    fr.forEachPoint { di, graw, mp -> out.add(di, graw, minOf(mp, clamp)) }
+    return out
 }
 
 /**
@@ -2225,6 +2257,43 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             return Long.MAX_VALUE
         }
         if (infos.any { it.crit != 0 && it.ap != 0 }) return Long.MAX_VALUE
+        // The DI prefix credits a DI var by its DI alone, so one also carrying mastery / crit mastery / MP would lose
+        // that axis (the Major DI point is pure DI). An MP+graw var's graw is folded at the fast pass's segment-top
+        // crit, which is only ≥ its value at every crit of the segment for non-negative lines (the Major MP point is
+        // +20). Neither shape exists: bail if one appears.
+        if (infos.any { it.di != 0L && (it.m != 0L || it.critM != 0L || it.mp != 0L) }) return Long.MAX_VALUE
+        if (infos.any { it.mp != 0L && (it.m < 0L || it.critM < 0L) }) return Long.MAX_VALUE
+    }
+
+    // B1 (CERTIFIER_VERSION 49): a skill var carrying MP AND mastery / crit mastery for the SAME point — the paired Major
+    // "Movement Point and damage" (+1 MP and +20 elemental mastery). Its MP is a priced axis whenever an MP→DI ramp is
+    // modeled ([mpRampEnabled]: Poids Plume III, choosable by default), and there it fits neither list of the branch-cell
+    // builders below: the pure-MP list takes no mastery and the graw fill takes no MP. Before v49 it was silently
+    // DROPPED — its mastery and the MP it feeds into the ramp both lost, an under-count of every cell whose optimum spends
+    // the point (−5.3 % on the repro, and a wrong "proven optimal" badge). Every builder (fast / tier-1.5 [branchCellsF],
+    // exact [branchCells], the explain `skills:` options, which the provenance backtrack must find identical) now
+    // enumerates these vars on their own: each point taken rides the MP axis AND adds its graw. Without a ramp the MP
+    // coefficient is 0 and the var stays in the graw fill, as before.
+    fun isMpGrawVar(v: SkillVarInfo) = v.mp != 0L && (v.m != 0L || v.critM != 0L)
+
+    // Every point split over a branch's MP+graw vars, as `[points, mp, graw]`: each var at 0..cap, Σ points ≤ [budget],
+    // graw folded at [cFold] like the graw fill. Exhaustive because the two axes trade off (MP for the ramp vs graw from
+    // another var), so no greedy order is safe. Tiny on the real tree (the Major MP point, cap 1 ⇒ two splits); a branch
+    // without such a var gets the single empty split, so its cells are exactly the pre-v49 ones.
+    fun mpGrawSplits(
+        vars: List<SkillVarInfo>,
+        budget: Int,
+        cFold: Long,
+    ): List<LongArray> {
+        var splits = listOf(LongArray(3))
+        for (v in vars) {
+            val per = (400L + cFold) * v.m + 5L * cFold * v.critM
+            splits =
+                splits.flatMap { s ->
+                    (0..minOf(v.cap.toLong(), budget - s[0]).toInt()).map { k -> longArrayOf(s[0] + k, s[1] + k * v.mp, s[2] + k * per) }
+                }
+        }
+        return splits
     }
 
     fun raw(e: Equipment) =
@@ -2636,6 +2705,32 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             !isZeroRaw(r) &&
                 !(isBudgetEligible(sub) && isPureDi(r)) &&
                 !(isBudgetEligible(sub) && isPureGraw(r))
+        }
+
+    // MP SATURATION CLAMP (v49, value-exact). The frontier's mp axis is read by the MP→DI ramp stages ONLY, and a ramp
+    // saturates: contribution(mpFreeMax + mp) = min(cap, perStep·max(0, ·−threshold)) is constant from threshold +
+    // ⌈cap / perStep⌉ on. Between the skill stages and the ramps the axis moves only by the staged transitions' MP lines
+    // (Armure lourde II −1, Vélocité II +1; the ramps last), so a point whose mp is ≥ this clamp after the skills keeps
+    // every ramp saturated whatever it takes later — and so does the clamp value itself. Rewriting mp as
+    // min(mp, clamp) there changes no path's value, while points that differ only in MP beyond the ramps' reach (the
+    // paired Major MP point on an already-saturated item set) collapse instead of multiplying every later stage's
+    // frontier. Long.MAX_VALUE = no clamp (no ramp modeled, a degenerate ramp, or the A/B seam off).
+    val mpSaturationClamp: Long =
+        if (!mpRampEnabled || !CertifierTuning.mpSaturationClampEnabled) {
+            Long.MAX_VALUE
+        } else {
+            val ramps =
+                stagedTransitions.mapNotNull { (sub, _, _) ->
+                    sub.perStatStep?.takeIf { it.source == Characteristic.MOVEMENT_POINT && it.target == Characteristic.DAMAGE_INFLICTED }
+                }
+            if (ramps.isEmpty() || ramps.any { it.perStep <= 0 || it.cap <= 0 }) {
+                Long.MAX_VALUE
+            } else {
+                val saturatedFrom = ramps.maxOf { it.threshold.toLong() + Math.ceilDiv(it.cap, it.perStep) }
+                // Every staged MP debit taken at once (copies included) — the most the axis can fall before a ramp.
+                val laterDebit = stagedTransitions.sumOf { (_, r, mult) -> maxOf(0L, -r.mp) * mult }
+                saturatedFrom - mpFreeMax + laterDebit
+            }
         }
     val diBudgetSorted = diBudgetUnits.sortedDescending()
     val diPrefix =
@@ -3179,8 +3274,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             if (weaponRawsF.isNotEmpty()) stageStat("weapons") { applyCellsF(perCostF(weaponRawsF)) }
             if (ringRawsDeduped.isNotEmpty()) stageStat("rings") { applyCellsF(perCostF(ringRawsDeduped)) }
 
-            // Skills: per branch, enumerate the crit/ap/di/mp point split; the remaining points fill
-            // graw greedily by rate at the segment's fold crit — the exact pass's own shape (exact at
+            // Skills: per branch, enumerate the crit/ap/di/mp/MP+graw point split; the remaining points
+            // fill graw greedily by rate at the segment's fold crit — the exact pass's own shape (exact at
             // the fold point, ≥ any c in the segment).
             fun branchCellsF(
                 infos: List<SkillVarInfo>,
@@ -3192,6 +3287,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 val mpVars = infos.filter { it.mp > 0L && it.di == 0L && it.m == 0L && it.critM == 0L && it.crit == 0 && it.ap == 0 }.sortedByDescending { it.mp }
                 val mpCapTotal = mpVars.sumOf { it.cap }
                 val grawVars = infos.filter { it.di == 0L && it.crit == 0 && it.ap == 0 && it.mp == 0L }
+                // B1: the MP+graw vars (the Major MP point under a ramp) — their own exact split, see [mpGrawSplits].
+                val mpGrawSplitsF = mpGrawSplits(infos.filter { isMpGrawVar(it) }, pool, cEffHi)
 
                 fun fillGraw(points: Int): Long {
                     var rem = points
@@ -3236,7 +3333,11 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                                     if (leftMp <= 0) break
                                 }
                                 val ck = ((ap + apOff) * critDimF + (crit + critOff)) * 2 * 2
-                                cells.getOrPut(ck) { Frontier() }.add(di, fillGraw(rem0 - d - mpPts), mpv)
+                                for (x in mpGrawSplitsF) {
+                                    val fill = rem0 - d - mpPts - x[0].toInt()
+                                    if (fill < 0) continue
+                                    cells.getOrPut(ck) { Frontier() }.add(di, fillGraw(fill) + x[2], mpv + x[1])
+                                }
                             }
                         }
                     }
@@ -3245,6 +3346,18 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             }
             for ((pool, infos) in skillBranches) {
                 stageStat("skills") { applyCellsF(branchCellsF(infos, pool)) }
+            }
+            // v49: MP beyond the ramps' saturation collapses here (see [mpSaturationClamp]) — every value unchanged.
+            if (mpSaturationClamp != Long.MAX_VALUE) {
+                stageStat("mp-clamp") {
+                    ndF.clear()
+                    for (i in 0 until dpF.liveCount) {
+                        val k = dpF.liveKeys[i]
+                        val fr = dpF.slots[k] ?: continue
+                        ndF.put(k, clampFrontierMp(fr, mpSaturationClamp))
+                    }
+                    endStageF()
+                }
             }
 
             // Normal transition subs (j ∈ 0..mult each, n ≤ subCap; ap==crit==0). Ramps LAST, valued per
@@ -3873,7 +3986,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
 
         // Skill branches as pseudo-slots: enumerate the pool allocation between the single crit var
         // (→ crit dimension) and ap var (→ ap dimension), with the remaining points giving the best
-        // (di, graw) frontier — di vars on the frontier, mastery/critM filled greedily by graw-per-point.
+        // (di, graw, mp) frontier — di vars on the frontier, mastery/critM filled greedily by graw-per-point.
         // This solves the skill allocation jointly with items/subs under the real per-branch pool cap.
         fun branchCells(
             infos: List<SkillVarInfo>,
@@ -3882,14 +3995,16 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             val critVar = infos.firstOrNull { it.crit != 0 }
             val apVar = infos.firstOrNull { it.ap != 0 }
             val diVars = infos.filter { it.di != 0L }.sortedByDescending { it.di }
-            // Pure-MP skill points (the Movement Points major) ride the frontier's mp axis so an
-            // MP-sourced ramp only sees them when the pool actually spends the points.
+            // Pure-MP skill points ride the frontier's mp axis so an MP-sourced ramp only sees them when the
+            // pool actually spends the points. The Major "Movement Point and damage" point carries MP AND
+            // mastery: it is neither pure MP nor a graw-fill var, so it gets its own split below (B1).
             val mpVars =
                 infos
                     .filter { it.mp > 0L && it.di == 0L && it.m == 0L && it.critM == 0L && it.crit == 0 && it.ap == 0 }
                     .sortedByDescending { it.mp }
             val mpCapTotal = mpVars.sumOf { it.cap }
             val grawVars = infos.filter { it.di == 0L && it.crit == 0 && it.ap == 0 && it.mp == 0L }
+            val mpGrawSplitsX = mpGrawSplits(infos.filter { isMpGrawVar(it) }, pool, cEff.toLong())
 
             fun fillGraw(points: Int): Long {
                 var rem = points
@@ -3933,9 +4048,12 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                                 leftMp -= take
                                 if (leftMp <= 0) break
                             }
-                            val graw = fillGraw(rem0 - d - mpPts)
                             val ck = ((ap + apOff) * critDim + (crit + critOff)) * 2 * 2
-                            cells.getOrPut(ck) { Frontier() }.add(di, graw, mpv)
+                            for (x in mpGrawSplitsX) {
+                                val fill = rem0 - d - mpPts - x[0].toInt()
+                                if (fill < 0) continue
+                                cells.getOrPut(ck) { Frontier() }.add(di, fillGraw(fill) + x[2], mpv + x[1])
+                            }
                         }
                     }
                 }
@@ -3947,6 +4065,18 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         for ((bi, branch) in skillBranches.withIndex()) {
             applyCells(branchCells(branch.second, branch.first), apCeil + apOff, critItemHigh + critOff)
             snap("skills:$bi")
+        }
+        // v49: MP beyond the ramps' saturation collapses here (see [mpSaturationClamp]) — every value unchanged. Its own
+        // snapshot, so the provenance backtrack maps a clamped point back to its parent.
+        if (mpSaturationClamp != Long.MAX_VALUE) {
+            val nd = if (dp === bufA) bufB else bufA
+            nd.clear()
+            for (i in 0 until dp.liveCount) {
+                val k = dp.liveKeys[i]
+                nd.put(k, clampFrontierMp(dp.slots[k] ?: continue, mpSaturationClamp))
+            }
+            dp = nd
+            snap("mp-clamp")
         }
 
         // Normal transition subs: j ∈ 0..mult each, count ≤ subCap (state's n field). crit==0 (pure-crit
@@ -4372,6 +4502,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                                         it.mp > 0L && it.di == 0L && it.m == 0L && it.critM == 0L && it.crit == 0 && it.ap == 0
                                     }.sortedByDescending { it.mp }
                             val grawVars = infos.filter { it.di == 0L && it.crit == 0 && it.ap == 0 && it.mp == 0L }
+                            // Mirrors [branchCells]' MP+graw split exactly (B1) — else the backtrack finds no parent.
+                            val mpGrawSplitsE = mpGrawSplits(infos.filter { isMpGrawVar(it) }, pool, cEff.toLong())
 
                             fun fillG(points: Int): Long {
                                 var rem = points
@@ -4409,20 +4541,22 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                                                 leftMp -= take
                                                 if (leftMp <= 0) break
                                             }
-                                            res +=
-                                                Opt(
-                                                    "branch$bi cc=$ccPts ap=$apPts diPts=$d mpPts=$mpPts",
-                                                    apPts * (apVarI?.ap ?: 0),
-                                                    ccPts * (critVar?.crit ?: 0),
-                                                    0,
-                                                    0,
-                                                    0,
-                                                    di,
-                                                    fillG(
-                                                        rem0 - d - mpPts
-                                                    ),
-                                                    mpv
-                                                )
+                                            for (x in mpGrawSplitsE) {
+                                                val fill = rem0 - d - mpPts - x[0].toInt()
+                                                if (fill < 0) continue
+                                                res +=
+                                                    Opt(
+                                                        "branch$bi cc=$ccPts ap=$apPts diPts=$d mpPts=$mpPts" + (if (x[0] > 0L) " mpGrawPts=${x[0]}" else ""),
+                                                        apPts * (apVarI?.ap ?: 0),
+                                                        ccPts * (critVar?.crit ?: 0),
+                                                        0,
+                                                        0,
+                                                        0,
+                                                        di,
+                                                        fillG(fill) + x[2],
+                                                        mpv + x[1]
+                                                    )
+                                            }
                                         }
                                     }
                                 }
@@ -4461,6 +4595,19 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                     if (si == 0) break
                     val stageName = snaps[si].first
                     val prev = snaps[si - 1].second
+                    if (stageName == "mp-clamp") {
+                        // v49: the clamp keeps the state and maps (di, graw, mp) → (di, graw, min(mp, clamp)).
+                        val parent =
+                            prev[curKey]?.toArrays()?.firstOrNull {
+                                it[0] == curPt[0] && it[1] == curPt[1] && minOf(it[2], mpSaturationClamp) == curPt[2]
+                            }
+                        if (parent == null) {
+                            lines += "$stageName: ??? no unclamped parent point (provenance broken here)"
+                            break
+                        }
+                        curPt = parent.copyOf()
+                        continue
+                    }
                     var matched = false
                     val options = stageOptions(stageName)
                     outer@ for ((k0, fr0) in prev) {

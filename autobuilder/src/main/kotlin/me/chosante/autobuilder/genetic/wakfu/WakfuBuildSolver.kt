@@ -305,8 +305,19 @@ object WakfuBuildSolver {
      * split only runs when that bound exceeds the value it would floor — every certified value is the v44 value
      * (locked by the relaxed-vs-split equality test), at 3 instead of 8 eager aux passes; aux worlds also re-read the
      * thread count per world (a warm-up whose search ends midway fans out). Bumped per the standing rule.
+     * 49: max-damage AP-cell certifier under-count B1 (`docs/perf-review-backlog.md` §E) — with an MP→DI ramp sub
+     * modeled (Poids Plume III, choosable by default) the paired Major "Movement Point and damage" point (+1 MP AND +20
+     * elemental mastery) fit neither the pure-MP list nor the graw fill of the skill-branch cells and was DROPPED in the
+     * fast, tier-1.5, exact and explain passes — its mastery and the MP it feeds into the ramp lost (−5.3 % on a
+     * repro cell; a wrong ProvenOptimal on a 3.8 % sub-optimal build). MP+graw skill vars now get their own exact split
+     * (`mpGrawSplits`: each point rides the MP axis AND adds its graw) in all four, plus bails on the two var shapes no
+     * list could hold (a DI var carrying another value axis, a negative MP+graw line). Cells can only RISE (the
+     * zero-point split is the old cell): the lvl-245 fast ledger rose 0.3–3.4 % on AP 2–15, its max cell unchanged.
+     * The extra Pareto points cost the 245 warm-up ledger +41 %, so a value-exact MP saturation clamp follows the skill
+     * stages (`mpSaturationClamp`: MP past every ramp's saturation, later debits included, is rewritten to the clamp —
+     * no path changes value) and brings it back to the v48 time.
      */
-    const val CERTIFIER_VERSION: Int = 48
+    const val CERTIFIER_VERSION: Int = 49
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing

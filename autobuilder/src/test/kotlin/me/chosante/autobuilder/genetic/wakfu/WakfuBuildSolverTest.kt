@@ -44,7 +44,7 @@ class WakfuBuildSolverTest {
         // deterministic and version-pinned (by BOTH WakfuData.VERSION and WakfuBuildSolver.CERTIFIER_VERSION).
         // A data bump regenerates the pool, or a certifier change reshapes the bound ⇒ the ledger shifts ⇒ the
         // nightly test fails loudly (naming this version vs the current one); re-bank intentionally.
-        const val LVL245_LEDGER_ORACLE_VERSION = "1.93.1.62" // re-banked for the 1.93 data bump (CERTIFIER_VERSION 38)
+        const val LVL245_LEDGER_ORACLE_VERSION = "1.93.1.62" // banked for the 1.93 data bump (v38); re-banked for B1 (v49)
 
         // The lvl-245 max-damage optimum (runes + subs, full EPIC pool) PROVEN on the 1.93.1.62 data: the search
         // (det 120) reached 17,659,080, the certificate bounded it within 0.31 %, and the E8 construct rescue
@@ -65,26 +65,31 @@ class WakfuBuildSolverTest {
         // budgets price mono-axis subs at the harvest's EXACT per-c crit fold instead of the DP's segment-top
         // fold, removing pure fast-tier slack (still ≥ the exact optimum, as the assertions below lock). The
         // 1.93.1.62 data bump raised every cell ~0.3 % and opened AP cell 17 (17,323,520, below cell 16's max).
+        // CERTIFIER_VERSION 49 (B1) RAISED cells 2–15 by 0.30–3.44 % and left every other cell unchanged (max cell
+        // 16 included): the paired Major "Movement Point and damage" point was dropped from the skill cells whenever
+        // Poids Plume III was modeled — an under-count — and is now credited, so a cell can only rise (v48 bank:
+        // 2_385_000 / 3_974_880 / 4_964_025 / 6_554_630 / 8_131_060 / 9_064_410 / 10_595_840 / 12_084_870 /
+        // 12_836_915 / 14_075_040 / 14_637_025 / 15_697_375 / 16_109_640 / 17_135_625 for cells 2–15).
         // Re-bank from `WAKFU_MAX_DAMAGE_CERT_LEDGER=1 …_LEVEL=245 …_INCUMBENT=99999999999999` on the manual
         // `certifyLedger end-to-end` test (a huge incumbent eliminates every cell ⇒ pure fast tier, ~80 s).
         val LVL245_FAST_LEDGER_ORACLE =
             mapOf(
                 0 to 0L,
                 1 to 0L,
-                2 to 2_385_000L,
-                3 to 3_974_880L,
-                4 to 4_964_025L,
-                5 to 6_554_630L,
-                6 to 8_131_060L,
-                7 to 9_064_410L,
-                8 to 10_595_840L,
-                9 to 12_084_870L,
-                10 to 12_836_915L,
-                11 to 14_075_040L,
-                12 to 14_637_025L,
-                13 to 15_697_375L,
-                14 to 16_109_640L,
-                15 to 17_135_625L,
+                2 to 2_392_200L,
+                3 to 4_000_850L,
+                4 to 5_008_795L,
+                5 to 6_613_880L,
+                6 to 8_295_700L,
+                7 to 9_249_465L,
+                8 to 10_767_360L,
+                9 to 12_259_800L,
+                10 to 13_141_235L,
+                11 to 14_437_890L,
+                12 to 15_121_470L,
+                13 to 16_236_875L,
+                14 to 16_630_860L,
+                15 to 17_304_250L,
                 16 to 17_766_150L,
                 17 to 17_323_520L,
                 18 to 0L,
