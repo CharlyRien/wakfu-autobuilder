@@ -120,7 +120,7 @@ class BuildSearchModel(
         WakfuBestBuildFinderAlgorithm.proveMaxDamageOptimality(params, result, isCancelled, onPhase)
     },
     // Most-masteries backup certificate (plan §8.9bis): the "proven within X%" quality verdict for
-    // searches CP-SAT left un-proven. Its bound is computed in the search's tail (E10-for-MM, §8.18),
+    // searches CP-SAT left un-proven. Its bound is computed in the search's tail (E10-for-MM, §8.19),
     // so this is normally instant at search end; it waits for the in-flight bound (or computes it,
     // after a short budget) otherwise. Injectable for the same reason as [optimalityProver] (the real
     // DP takes seconds on the full pool).
@@ -1001,7 +1001,7 @@ class BuildSearchModel(
                             ) {
                                 // Backup quality certificate (§8.9bis): CP-SAT ended without a proof (short
                                 // budget / low-core machine) — bound the gap instead. Automatic; the bound
-                                // was computed in the search's tail (§8.18), so the verdict is usually
+                                // was computed in the search's tail (§8.19), so the verdict is usually
                                 // instant — else the same ProofState pipeline renders the phase ("Verifying
                                 // optimality…") until the bound lands, then the badge.
                                 launchMostMasteriesQualityProof(params, completedResult)
@@ -1039,7 +1039,7 @@ class BuildSearchModel(
      * Most-masteries backup quality certificate (plan §8.9bis): bounds how far the shown un-proven
      * build can be from the optimum ("proven within X%"). Runs automatically after a most-masteries
      * search whose CP-SAT leg ended non-OPTIMAL — the case of short budgets and low-core machines,
-     * where the 1-worker proof would take 15-20 min. ONE full-tier pass (§8.18): its incumbent-free
+     * where the 1-worker proof would take 15-20 min. ONE full-tier pass (§8.19): its incumbent-free
      * bound was computed in the search's tail, so the verdict usually lands at once; otherwise the
      * spinner phase shows until the bound does. Streams through the same
      * [UiState.proofState] pipeline as the max-damage proof; failures and unsupported shapes degrade

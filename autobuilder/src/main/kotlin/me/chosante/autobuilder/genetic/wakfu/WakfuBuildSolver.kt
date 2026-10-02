@@ -260,8 +260,22 @@ object WakfuBuildSolver {
      * 40: the most-masteries certificate prunes every stage's options to their exact Pareto front
      * (`paretoPrune`) and advances on primitive maps ([LongLongMaxMap]) — bound and core bit-identical (S2
      * full tier 85 s → 9 s, 4.6M → 45k states); bumped per the standing rule, like v16's indexed harvest.
+     * 41: most-masteries certificate T5 (MOST_MASTERIES_PERF_PLAN §8.18) — the 10-slot normal-sub knapsack is
+     * EXACT per subset (stats summed raw and rounded once in the DP instead of once per copy; DI signed, so a
+     * carried sub's negative rider pays; every other sub's DI is its NET, clamped at 0), plus two latent
+     * under-counts found on the way: the AP/MP dims saturated at the 16/8 out-of-combat cap although
+     * sublimations land above it (a target above the cap read one short), and a sub whose only tracked effect
+     * is a negative pre-combat AP (Carapace II's −1 MAX_AP) was dropped instead of relaxing the assume-AP read.
+     * 42: most-masteries certificate T1 — in the assume-CC worlds the start-of-combat crit of the subs a path
+     * actually carries rides a saturating state dim (`soc`, the exact normal packing included) instead of the
+     * budget-free `outsideReadMax(CRITICAL_HIT)` constant, which now keeps only passives, ramps and never-staged
+     * subs (world-B subs' crit rides their per-state `extra`, no longer double-counted).
+     * 43: most-masteries certificate T3 — the same DP pass is read twice at the collapse: the soft read, and a
+     * TARGETS-MET read (states whose over-counted reads meet every required target > 0, folded at the full-targets
+     * multiplier) that bounds the hard leg's feasible set; a result flagged
+     * [me.chosante.autobuilder.genetic.SolverResult.mostMasteriesHardConstraintsMet] is compared with the latter.
      */
-    const val CERTIFIER_VERSION: Int = 40
+    const val CERTIFIER_VERSION: Int = 43
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing

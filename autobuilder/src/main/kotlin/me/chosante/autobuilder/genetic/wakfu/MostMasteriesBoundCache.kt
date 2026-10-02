@@ -24,7 +24,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * E10-for-MM (docs/MOST_MASTERIES_PERF_PLAN.md §8.18): the most-masteries quality bound
+ * E10-for-MM (docs/MOST_MASTERIES_PERF_PLAN.md §8.19): the most-masteries quality bound
  * ([MostMasteriesCertificate.bound], full tier) is INCUMBENT-FREE — a pure function of the request and its dominated
  * pool — so it is computed in the TAIL of the search instead of after it, and the post-search badge
  * ([WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality]) only compares the result against it.
@@ -51,7 +51,7 @@ internal object MostMasteriesBoundCache {
     private val logger = KotlinLogging.logger {}
 
     /**
-     * The warm-up never starts in its search's first [WARMUP_EARLIEST]. Measured on the 4-core laptop profile (§8.18):
+     * The warm-up never starts in its search's first [WARMUP_EARLIEST]. Measured on the 4-core laptop profile (§8.19):
      * the bound beside the steep early phase measurably slows it — CP-SAT loses ~15% of its throughput while the
      * one-thread bound runs (race-free 1-worker protocol), and on S2 the incumbent reached ~60T after 32-40 s instead of
      * 17-20 s when the bound ran from the start.

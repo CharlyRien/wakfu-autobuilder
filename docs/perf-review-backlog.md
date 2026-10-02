@@ -1171,12 +1171,16 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     answers in ~55 s; the M3-v2 coarse-grid "low-core backup" is measured but not wired; — the certificate
     itself got ~7.5× faster on 2026-10-02 (exact stage-option pruning + primitive DP maps, CERTIFIER_VERSION
     40, `docs/MOST_MASTERIES_PERF_PLAN.md` §8.17: S2 full tier 66 s → 9 s, bit-identical), and the badge is now
-    ONE full-tier pass computed in the search's tail (§8.18, E10-for-MM: on the 4-core profile the S2 badge
+    ONE full-tier pass computed in the search's tail (§8.19, E10-for-MM: on the 4-core profile the S2 badge
     lands 0-2.5 s after a ≥ 45 s search instead of +10-12 s quick / +20-23 s full; ≤ 30 s budgets compute it on
     demand, +12-13 s; never in the search's first 30 s, where the bound measurably slowed CP-SAT);
-  - the MM certificate is looser since v38: S2 +29.56% / S3 +8.11% (was +9.87% / +6.77% at v37) — the
-    budget-free start-of-combat crit constant lifts the Mesure III assume world; see
-    `docs/MOST_MASTERIES_PERF_PLAN.md` §8.16 for the per-world attribution and the two leads;
+  - ~~the MM certificate is looser since v38: S2 +29.56% / S3 +8.11% (was +9.87% / +6.77% at v37) — the
+    budget-free start-of-combat crit constant lifts the Mesure III assume world~~ — TIGHTENED 2026-10-02
+    (CERTIFIER_VERSION 41 → 43, `docs/MOST_MASTERIES_PERF_PLAN.md` §8.18): exact normal-sub packing (T5), a
+    start-of-combat crit state dim in the assume-CC worlds (T1) and a targets-met read for hard-leg results (T3) take
+    S2 to **+18.25%** soft and a hard-leg result's badge from +42.08% to **+23.58%**, S3 to +6.77%; two latent v40
+    under-counts fixed on the way (AP/MP dims saturating at the out-of-combat caps, low-read-only subs dropped). The
+    S2 residual is the main world's (block gate / ramp slot measured null);
   - ~~the flat soft objective on wildly unreachable targets (empty build can win on 2–3 workers)~~ — FIXED
     2026-10-02: the power-table multiplier is floored at 1 (`penaltyMultiplier`, shared by the solver and both
     soft certificates; the re-scorers cap their factor at `MAX_PENALTY_MULTIPLIER`; the survivability floor's

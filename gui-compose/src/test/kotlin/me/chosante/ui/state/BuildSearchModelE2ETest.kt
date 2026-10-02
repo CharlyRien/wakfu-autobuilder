@@ -547,7 +547,7 @@ class BuildSearchModelE2ETest {
                 model.search()
                 awaitUntil { model.ui.proofState == ProofState.ProvenWithin(0.05) }
                 delay(200.milliseconds)
-                // §8.18: one full-tier pass (its bound computed in the search's tail) — no quick → full chain.
+                // §8.19: one full-tier pass (its bound computed in the search's tail) — no quick → full chain.
                 assertEquals(1, calls.get())
                 assertEquals(ProofState.ProvenWithin(0.05), model.ui.proofState)
             } finally {

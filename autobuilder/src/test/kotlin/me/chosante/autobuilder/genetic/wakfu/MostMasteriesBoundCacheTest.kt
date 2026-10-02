@@ -38,7 +38,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * E10-for-MM (docs/MOST_MASTERIES_PERF_PLAN.md §8.18): the most-masteries quality bound is memoized single-flight,
+ * E10-for-MM (docs/MOST_MASTERIES_PERF_PLAN.md §8.19): the most-masteries quality bound is memoized single-flight,
  * computed beside the search (in its tail — the tests start it at once) on one stage worker, joined by the post-search
  * proof, and cancelled whenever no proof will ask for it. Deterministic: a gated fake certificate
  * ([MostMasteriesBoundCache.certificateForTest]) drives timing and cancellation — no DP, no CP-SAT — except the
