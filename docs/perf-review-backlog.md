@@ -1224,15 +1224,16 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
   tier lands 0.9 % under the bound, and the fallback found nothing in det-300 either — most likely a loose bound) now
   gives up at the cap, 60.5 s instead of 269 s.
   No bound changed ⇒ `CERTIFIER_VERSION` untouched; locked by `E8ConstructGateTest`.
-- **⚠️ OPEN SOUNDNESS BUGS (found 2026-10-02 by the adversarial review of the v41–v44 wave; B1 ✅ FIXED in
-  CERTIFIER_VERSION 49, A1 still OPEN).** Both bugs are certificate UNDER-counts, so the affected badge ("proven
-  optimal" / "proven within X %") can be WRONG. Both already exist at v40, i.e. in the shipped 1.11. The review found
+- **SOUNDNESS BUGS A1 / B1 (found 2026-10-02 by the adversarial review of the v41–v44 wave; both ✅ FIXED: B1 in
+  CERTIFIER_VERSION 49, A1 in 50).** Both were certificate UNDER-counts, so the affected badge ("proven optimal" /
+  "proven within X %") could be WRONG. Both already existed at v40, i.e. in the shipped 1.11. The review found
   no under-count introduced by v41–v44 (MM: 358 cases; max-damage: 400 pools, 4 646 cell comparisons).
-  - Reproductions: `SoundnessReviewAdversarialTest`. A1's failing tests (each runs in under a second) are gated by
-    `WAKFU_SOUNDNESS_REVIEW=1` so the default suite stays green. After the fix, promote them to CI locks and bump
-    `CERTIFIER_VERSION` (B1's is a CI lock since v49).
+  - Reproductions: `SoundnessReviewAdversarialTest`. Every A1 and B1 repro is now a CI lock (B1 since v49, A1 since
+    v50).
   - The file also holds manual fuzzers: `WAKFU_REVIEW_MM_FUZZ`, `WAKFU_REVIEW_MD_FUZZ` and their case replays.
-  - **A1 — the assume worlds' LOW dims are floored at 0 after every stage.**
+  - **A1 — the assume worlds' LOW dims are floored at 0 after every stage.** ✅ **FIXED (2026-10-02, CERTIFIER_VERSION
+    50):** both certificates store the LOW dim with an offset (each stage's worst negative delta, field widened by the
+    key's 2 spare bits); the four repros are CI locks. See `MOST_MASTERIES_PERF_PLAN.md` §8.21.
     - Where: `MostMasteriesCertificate` (the `ccLowRaw` / AP-low transitions `.coerceIn(0, thr + 1)` and the clamped
       seed state), with a twin in `MaxDamageSoftCertificate`.
     - Why it under-counts: the real pre-combat crit read can go negative, because the solver only floors the
@@ -1259,7 +1260,22 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
       awarded ProvenOptimal to a build 3.8 % below the true optimum.
     - Fix: give vars carrying both MP and graw their own enumeration (MP on the MP axis plus their graw), or bail
       when such a var exists.
-  - Latent, with no catalog data affected today (fix with the above):
+  - Review follow-ups (2026-10-03: both fixes were adversarially reviewed, MERGE with nits; none is an under-count):
+    - Instrument only: the MM and MD-soft provenance replay (`provenance = true`, used by harnesses, never in
+      production) does not undo a stage's LOW-offset shift, so the backtrack breaks after the first stage whose
+      offset grew. Fix: record each stage's shift and use `curK = geo.shiftLow(pk, -shift)`.
+    - Latent: in MM, the world-B subs and the assumed cap sub never feed the LOW dim (they are credited at collapse
+      only). A negative CRIT / AP / MAX_AP line on one of them would reopen an A1-type over-rejection. None exists
+      today; a `requestShape` bail would close it.
+    - Test strength: the B1 clamp-equality lock does not guard the clamp's `laterDebit` term. A mutation dropping it
+      stays green, and CP-SAT cannot see the gap today because pre-sub MP is capped at 8. Add a fixture where items
+      alone exceed the saturation plus the debit and Armure lourde II is in a cell's optimum.
+    - Harness: the manual max-damage fuzz picks WATER for CRA about 25 % of the time; CRA has no water spell, so those
+      seeds silently bail.
+    - Cost (A1, measured): on the MD-soft S4 CRA-245 sweep the two crit-cap worlds grow from 87k to 334k states
+      (12 s → 24 s; the whole sweep 49.7 s → 54.9 s, same peak heap, same bounds). The production refinement of the
+      Mesure III world (DI10 without the 4× grid) was not measured; expect the same ~2.7× state growth there.
+  - Latent, with no catalog data affected today (still OPEN; neither fix touched them):
     - A FLAT sub's ramp into a secondary mastery would be subtracted as a read source in the max-damage world N.
     - An item's POSITIVE `MAX_ACTION_POINT` / `MAX_MOVEMENT_POINT` line would be under-counted by the MM certificate
       (`statOf(AP/MP)` ignores the MAX_* riders). Every such line in the data is −1 today, which is an over-count.

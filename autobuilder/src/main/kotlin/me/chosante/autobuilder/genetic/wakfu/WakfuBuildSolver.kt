@@ -316,8 +316,16 @@ object WakfuBuildSolver {
      * The extra Pareto points cost the 245 warm-up ledger +41 %, so a value-exact MP saturation clamp follows the skill
      * stages (`mpSaturationClamp`: MP past every ramp's saturation, later debits included, is rewritten to the clamp —
      * no path changes value) and brings it back to the v48 time.
+     * 50: A1 — the assume worlds' LOW dims (the capped crit / AP read of an AT_MOST cap sub:
+     * Constance, Mesure III, Inflexibilité) were floored at 0 after every stage, in the most-masteries certificate AND
+     * the max-damage soft twin. The real pre-combat read goes negative (a −10-crit ring staged first), so the floored dim
+     * rose above it and rejected the real carrier in its own world — an under-count (−15.4 % on the 3-item repro,
+     * −0.81 % on real level-245 items, −4.8 % on the soft twin). The dims are now stored with an OFFSET grown by each
+     * stage's worst negative delta (seed, items, knapsack and sub stages alike), so no transition floors them; the field
+     * takes the key's 2 spare bits @61 (AP 7 bits, raw CC 9 bits — the level-245 catalog needs 118 + 51 ≤ 511) and a
+     * world whose offset still outgrows it bails. Bounds only rise (S2 / S3 / GUI-default bit-identical).
      */
-    const val CERTIFIER_VERSION: Int = 49
+    const val CERTIFIER_VERSION: Int = 50
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
