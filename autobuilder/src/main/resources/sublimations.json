@@ -637,12 +637,12 @@
   },
   {
     "stateId": 5980,
-    "zenithId": 27111,
+    "zenithId": 28823,
     "name": {
-      "fr": "Ruine II",
-      "en": "Ruin II",
-      "es": "Ruina II",
-      "pt": "Ruína II"
+      "fr": "Ruine III",
+      "en": "Ruin III",
+      "es": "Ruina III",
+      "pt": "Ruína III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -656,12 +656,12 @@
   },
   {
     "stateId": 5981,
-    "zenithId": 27112,
+    "zenithId": 28825,
     "name": {
-      "fr": "Dévastation II",
-      "en": "Devastation II",
-      "es": "Devastación II",
-      "pt": "Devastação II"
+      "fr": "Dévastation III",
+      "en": "Devastation III",
+      "es": "Devastación III",
+      "pt": "Devastação III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -691,11 +691,11 @@
   },
   {
     "stateId": 5982,
-    "zenithId": 27113,
+    "zenithId": 28827,
     "name": {
-      "fr": "Ravage II",
-      "en": "Devastate II",
-      "es": "Estragos II",
+      "fr": "Ravage III",
+      "en": "Devastate III",
+      "es": "Estragos III",
       "pt": "Assolação II"
     },
     "rarity": "NORMAL",
@@ -764,12 +764,12 @@
   },
   {
     "stateId": 5983,
-    "zenithId": 27114,
+    "zenithId": 28829,
     "name": {
-      "fr": "Carnage II",
-      "en": "Carnage II",
-      "es": "Carnicería II",
-      "pt": "Carnificina II"
+      "fr": "Carnage III",
+      "en": "Carnage III",
+      "es": "Carnicería III",
+      "pt": "Carnificina III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -792,12 +792,12 @@
   },
   {
     "stateId": 5984,
-    "zenithId": 27115,
+    "zenithId": 28831,
     "name": {
-      "fr": "Cicatrisation II",
-      "en": "Healing II",
-      "es": "Cicatrización II",
-      "pt": "Cicatrização II"
+      "fr": "Cicatrisation III",
+      "en": "Healing III",
+      "es": "Cicatrización III",
+      "pt": "Cicatrização III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -811,12 +811,12 @@
   },
   {
     "stateId": 5985,
-    "zenithId": 27116,
+    "zenithId": 28833,
     "name": {
-      "fr": "Embuscade II",
-      "en": "Ambush II",
-      "es": "Emboscada II",
-      "pt": "Emboscada II"
+      "fr": "Embuscade III",
+      "en": "Ambush III",
+      "es": "Emboscada III",
+      "pt": "Emboscada III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -838,12 +838,12 @@
   },
   {
     "stateId": 5986,
-    "zenithId": 27117,
+    "zenithId": 28835,
     "name": {
-      "fr": "Dérobade II",
-      "en": "Escape II",
-      "es": "Escapatoria II",
-      "pt": "Evasão II"
+      "fr": "Dérobade III",
+      "en": "Escape III",
+      "es": "Escapatoria III",
+      "pt": "Evasão III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -942,12 +942,12 @@
   },
   {
     "stateId": 5990,
-    "zenithId": 27121,
+    "zenithId": 28837,
     "name": {
-      "fr": "Fermeté II",
-      "en": "Resolute II",
-      "es": "Firmeza II",
-      "pt": "Firmeza II"
+      "fr": "Fermeté III",
+      "en": "Resolute III",
+      "es": "Firmeza III",
+      "pt": "Firmeza III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -969,12 +969,12 @@
   },
   {
     "stateId": 5991,
-    "zenithId": 27122,
+    "zenithId": 28839,
     "name": {
-      "fr": "Légèreté II",
-      "en": "Lightness II",
-      "es": "Ligereza II",
-      "pt": "Leveza II"
+      "fr": "Légèreté III",
+      "en": "Lightness III",
+      "es": "Ligereza III",
+      "pt": "Leveza III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -996,12 +996,12 @@
   },
   {
     "stateId": 5992,
-    "zenithId": 27123,
+    "zenithId": 28841,
     "name": {
-      "fr": "Topologie II",
-      "en": "Topology II",
-      "es": "Topología II",
-      "pt": "Topologia II"
+      "fr": "Topologie III",
+      "en": "Topology III",
+      "es": "Topología III",
+      "pt": "Topologia III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -1142,18 +1142,18 @@
       1,
       2
     ],
-    "maxLevel": 4,
+    "maxLevel": 6,
     "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL"
   },
   {
     "stateId": 6002,
-    "zenithId": 27130,
+    "zenithId": 28844,
     "name": {
-      "fr": "Endurance II",
-      "en": "Endurance II",
-      "es": "Aguante II",
-      "pt": "Resistência II"
+      "fr": "Endurance III",
+      "en": "Endurance III",
+      "es": "Aguante III",
+      "pt": "Resistência III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -1167,12 +1167,12 @@
   },
   {
     "stateId": 6004,
-    "zenithId": 27131,
+    "zenithId": 28846,
     "name": {
-      "fr": "Ecailles de lune II",
-      "en": "Moon Scales II",
-      "es": "Fragmentos de luna II",
-      "pt": "Escamas de Lua II"
+      "fr": "Ecailles de lune III",
+      "en": "Moon Scales III",
+      "es": "Fragmentos de luna III",
+      "pt": "Escamas de Lua III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -1300,12 +1300,12 @@
   },
   {
     "stateId": 6009,
-    "zenithId": 27136,
+    "zenithId": 28850,
     "name": {
-      "fr": "Critique Berserk II",
-      "en": "Berserk Critical II",
-      "es": "Crítico berserker II",
-      "pt": "Crítico Berserk II"
+      "fr": "Critique Berserk III",
+      "en": "Berserk Critical III",
+      "es": "Crítico berserker III",
+      "pt": "Crítico Berserk III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -1391,12 +1391,12 @@
   },
   {
     "stateId": 6012,
-    "zenithId": 27139,
+    "zenithId": 28853,
     "name": {
-      "fr": "Tacle Berserk II",
-      "en": "Berserk Lock II",
-      "es": "Placaje berserker II",
-      "pt": "Bloqueio Berserk II"
+      "fr": "Tacle Berserk III",
+      "en": "Berserk Lock III",
+      "es": "Placaje berserker III",
+      "pt": "Bloqueio Berserk III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -1479,12 +1479,12 @@
   },
   {
     "stateId": 6016,
-    "zenithId": 27142,
+    "zenithId": 28855,
     "name": {
-      "fr": "Embuscade écartée II",
-      "en": "Distant Ambush II",
-      "es": "Emboscada alejada II",
-      "pt": "Emboscada Afastada II"
+      "fr": "Embuscade écartée III",
+      "en": "Distant Ambush III",
+      "es": "Emboscada alejada III",
+      "pt": "Emboscada Afastada III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -1506,12 +1506,12 @@
   },
   {
     "stateId": 6017,
-    "zenithId": 27143,
+    "zenithId": 28857,
     "name": {
-      "fr": "Epines II",
-      "en": "Spines II",
-      "es": "Espinas II",
-      "pt": "Espinhos II"
+      "fr": "Epines III",
+      "en": "Spines III",
+      "es": "Espinas III",
+      "pt": "Espinhos III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -1525,12 +1525,12 @@
   },
   {
     "stateId": 6018,
-    "zenithId": 27144,
+    "zenithId": 28859,
     "name": {
-      "fr": "Esquive Berserk II",
-      "en": "Berserk Dodge II",
-      "es": "Esquiva berserker II",
-      "pt": "Esquiva Berserk II"
+      "fr": "Esquive Berserk III",
+      "en": "Berserk Dodge III",
+      "es": "Esquiva berserker III",
+      "pt": "Esquiva Berserk III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -1556,12 +1556,12 @@
   },
   {
     "stateId": 6019,
-    "zenithId": 27145,
+    "zenithId": 28861,
     "name": {
-      "fr": "Barrière Distance II",
-      "en": "Distance Barrier II",
-      "es": "Barrera a distancia II",
-      "pt": "Barreira a Distância II"
+      "fr": "Barrière Distance III",
+      "en": "Distance Barrier III",
+      "es": "Barrera a distancia III",
+      "pt": "Barreira a Distância III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -1575,12 +1575,12 @@
   },
   {
     "stateId": 6020,
-    "zenithId": 27146,
+    "zenithId": 28863,
     "name": {
-      "fr": "Barrière Mêlée II",
-      "en": "Melee Barrier II",
-      "es": "Barrera en melé II",
-      "pt": "Barreira Curta Distância II"
+      "fr": "Barrière Mêlée III",
+      "en": "Melee Barrier III",
+      "es": "Barrera en melé III",
+      "pt": "Barreira Curta Distância III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -1625,12 +1625,12 @@
   },
   {
     "stateId": 6022,
-    "zenithId": 27148,
+    "zenithId": 28865,
     "name": {
-      "fr": "Opiniâtreté II",
-      "en": "Obstinacy II",
-      "es": "Terquedad II",
-      "pt": "Insistência II"
+      "fr": "Opiniâtreté III",
+      "en": "Resolute II",
+      "es": "Firmeza II",
+      "pt": "Firmeza II"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -1679,12 +1679,12 @@
   },
   {
     "stateId": 6024,
-    "zenithId": 27150,
+    "zenithId": 28868,
     "name": {
-      "fr": "Parade Berserk II",
-      "en": "Berserk Block II",
-      "es": "Anticipación berserker II",
-      "pt": "Parada Berserk II"
+      "fr": "Parade Berserk III",
+      "en": "Berserk Block III",
+      "es": "Anticipación berserker III",
+      "pt": "Parada Berserk III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -1710,12 +1710,12 @@
   },
   {
     "stateId": 6025,
-    "zenithId": 27151,
+    "zenithId": 28870,
     "name": {
-      "fr": "Puits de Vitalité II",
-      "en": "Vitality Well II",
-      "es": "Pozo de vitalidad II",
-      "pt": "Poço de Vitalidade II"
+      "fr": "Puits de Vitalité III",
+      "en": "Vitality Well III",
+      "es": "Pozo de vitalidad III",
+      "pt": "Poço de Vitalidade III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -1729,12 +1729,12 @@
   },
   {
     "stateId": 6026,
-    "zenithId": 27152,
+    "zenithId": 28872,
     "name": {
-      "fr": "Influence II",
-      "en": "Influence II",
-      "es": "Influjo II",
-      "pt": "Influência II"
+      "fr": "Influence III",
+      "en": "Influence III",
+      "es": "Influjo III",
+      "pt": "Influência III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -1785,12 +1785,12 @@
   },
   {
     "stateId": 6029,
-    "zenithId": 27154,
+    "zenithId": 28874,
     "name": {
-      "fr": "Muraille II",
-      "en": "Wall II",
-      "es": "Muralla II",
-      "pt": "Muralha II"
+      "fr": "Muraille III",
+      "en": "Wall III",
+      "es": "Muralla III",
+      "pt": "Muralha III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -1842,12 +1842,12 @@
   },
   {
     "stateId": 6032,
-    "zenithId": 27157,
+    "zenithId": 28877,
     "name": {
-      "fr": "Prospérité II",
-      "en": "Prosperity II",
-      "es": "Prosperidad II",
-      "pt": "Prosperidade II"
+      "fr": "Prospérité III",
+      "en": "Prosperity III",
+      "es": "Prosperidad III",
+      "pt": "Prosperidade III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -1915,12 +1915,12 @@
   },
   {
     "stateId": 6036,
-    "zenithId": 27160,
+    "zenithId": 28879,
     "name": {
-      "fr": "Longueur II",
-      "en": "Length II",
-      "es": "Longitud II",
-      "pt": "Extensão II"
+      "fr": "Longueur III",
+      "en": "Length III",
+      "es": "Longitud III",
+      "pt": "Extensão III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -1970,12 +1970,12 @@
   },
   {
     "stateId": 6038,
-    "zenithId": 27162,
+    "zenithId": 28881,
     "name": {
-      "fr": "Enveloppe rocheuse II",
-      "en": "Rocky Envelope II",
-      "es": "Envoltorio rocoso II",
-      "pt": "Invólucro Rochoso II"
+      "fr": "Enveloppe rocheuse III",
+      "en": "Rocky Envelope III",
+      "es": "Envoltorio rocoso III",
+      "pt": "Invólucro Rochoso III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -1989,12 +1989,12 @@
   },
   {
     "stateId": 6039,
-    "zenithId": 27163,
+    "zenithId": 28883,
     "name": {
-      "fr": "Influence lente II",
-      "en": "Slow Influence II",
-      "es": "Influjo lento II",
-      "pt": "Influência Lenta II"
+      "fr": "Influence lente III",
+      "en": "Slow Influence III",
+      "es": "Influjo lento III",
+      "pt": "Influência Lenta III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2008,12 +2008,12 @@
   },
   {
     "stateId": 6041,
-    "zenithId": 27164,
+    "zenithId": 28885,
     "name": {
-      "fr": "Expert des Coups critiques II",
-      "en": "Critical Hit Expert II",
-      "es": "Experto en golpes críticos II",
-      "pt": "Especialista em Golpes Críticos II"
+      "fr": "Expert des Coups critiques III",
+      "en": "Critical Hit Expert III",
+      "es": "Experto en golpes críticos III",
+      "pt": "Especialista em Golpes Críticos III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2027,12 +2027,12 @@
   },
   {
     "stateId": 6042,
-    "zenithId": 27125,
+    "zenithId": 28887,
     "name": {
-      "fr": "Stupéfaction II",
-      "en": "Stupefaction II",
-      "es": "Estupefacción II",
-      "pt": "Espanto II"
+      "fr": "Stupéfaction III",
+      "en": "Stupefaction III",
+      "es": "Estupefacción III",
+      "pt": "Espanto III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2095,12 +2095,12 @@
   },
   {
     "stateId": 6329,
-    "zenithId": 27958,
+    "zenithId": 28890,
     "name": {
-      "fr": "Loup solitaire II",
-      "en": "Lone Wolf II",
-      "es": "Lobo solitario II",
-      "pt": "Lobo Solitário II"
+      "fr": "Loup solitaire III",
+      "en": "Lone Wolf III",
+      "es": "Lobo solitario III",
+      "pt": "Lobo Solitário III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2141,12 +2141,12 @@
   },
   {
     "stateId": 6331,
-    "zenithId": 27960,
+    "zenithId": 28892,
     "name": {
-      "fr": "Tolérance II",
-      "en": "Tolerance II",
-      "es": "Tolerancia II",
-      "pt": "Tolerância II"
+      "fr": "Tolérance III",
+      "en": "Tolerance III",
+      "es": "Tolerancia III",
+      "pt": "Tolerância III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2359,12 +2359,12 @@
   },
   {
     "stateId": 6812,
-    "zenithId": 28799,
+    "zenithId": 28895,
     "name": {
-      "fr": "Puissance brute II",
-      "en": "Raw Power II",
-      "es": "Potencia bruta II",
-      "pt": "Potência Bruta II"
+      "fr": "Puissance brute III",
+      "en": "Raw Power III",
+      "es": "Potencia bruta III",
+      "pt": "Potência Bruta III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2432,12 +2432,12 @@
   },
   {
     "stateId": 6815,
-    "zenithId": 28802,
+    "zenithId": 28899,
     "name": {
-      "fr": "Wakfu Berserk II",
-      "en": "Berserk Wakfu II",
-      "es": "Wakfu berserker II",
-      "pt": "Wakfu Berserk II"
+      "fr": "Wakfu Berserk III",
+      "en": "Berserk Wakfu III",
+      "es": "Wakfu berserker III",
+      "pt": "Wakfu Berserk III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2459,12 +2459,12 @@
   },
   {
     "stateId": 6816,
-    "zenithId": 28803,
+    "zenithId": 28901,
     "name": {
-      "fr": "Arme empoisonnée II",
-      "en": "Poisoned Weapon II",
-      "es": "Arma envenenada II",
-      "pt": "Arma Envenenada II"
+      "fr": "Arme empoisonnée III",
+      "en": "Poisoned Weapon III",
+      "es": "Arma envenenada III",
+      "pt": "Arma Envenenada III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2486,12 +2486,12 @@
   },
   {
     "stateId": 6817,
-    "zenithId": 28804,
+    "zenithId": 28903,
     "name": {
-      "fr": "Vol de Tacle II",
-      "en": "Lock Steal II",
-      "es": "Robo de placaje II",
-      "pt": "Roubo de Bloqueio II"
+      "fr": "Vol de Tacle III",
+      "en": "Lock Steal III",
+      "es": "Robo de placaje III",
+      "pt": "Roubo de Bloqueio III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2513,12 +2513,12 @@
   },
   {
     "stateId": 6818,
-    "zenithId": 28805,
+    "zenithId": 28905,
     "name": {
-      "fr": "Vol d'Esquive II",
-      "en": "Dodge Steal II",
-      "es": "Robo de esquiva II",
-      "pt": "Roubo de Esquiva II"
+      "fr": "Vol d'Esquive III",
+      "en": "Dodge Steal III",
+      "es": "Robo de esquiva III",
+      "pt": "Roubo de Esquiva III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2540,12 +2540,12 @@
   },
   {
     "stateId": 6819,
-    "zenithId": 28806,
+    "zenithId": 28907,
     "name": {
-      "fr": "Contre-attaque II",
-      "en": "Counterattack II",
-      "es": "Contraataque II",
-      "pt": "Contra-Ataque II"
+      "fr": "Contre-attaque III",
+      "en": "Counterattack III",
+      "es": "Contraataque III",
+      "pt": "Contra-Ataque III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2559,12 +2559,12 @@
   },
   {
     "stateId": 6821,
-    "zenithId": 28807,
+    "zenithId": 28909,
     "name": {
-      "fr": "Expert des armes légères II",
-      "en": "Light Weapons Expert II",
-      "es": "Experto en armas ligeras II",
-      "pt": "Especialista em Armas Leves II"
+      "fr": "Expert des armes légères III",
+      "en": "Light Weapons Expert III",
+      "es": "Experto en armas ligeras III",
+      "pt": "Especialista em Armas Leves III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2590,12 +2590,12 @@
   },
   {
     "stateId": 6822,
-    "zenithId": 28808,
+    "zenithId": 28911,
     "name": {
-      "fr": "Arcanes II",
-      "en": "Arcana II",
-      "es": "Arcanos II",
-      "pt": "Arcanos II"
+      "fr": "Arcanes III",
+      "en": "Arcana III",
+      "es": "Arcanos III",
+      "pt": "Arcanos III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2609,12 +2609,12 @@
   },
   {
     "stateId": 6823,
-    "zenithId": 28809,
+    "zenithId": 28913,
     "name": {
-      "fr": "Relations sociales II",
-      "en": "Social Relations II",
-      "es": "Relaciones sociales II",
-      "pt": "Relações Sociais II"
+      "fr": "Relations sociales III",
+      "en": "Social Relations III",
+      "es": "Relaciones sociales III",
+      "pt": "Relações Sociais III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2658,12 +2658,12 @@
   },
   {
     "stateId": 6825,
-    "zenithId": 28811,
+    "zenithId": 28916,
     "name": {
-      "fr": "Destruction II",
-      "en": "Destruction II",
-      "es": "Destrucción II",
-      "pt": "Destruição II"
+      "fr": "Destruction III",
+      "en": "Destruction III",
+      "es": "Destrucción III",
+      "pt": "Destruição III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2697,12 +2697,12 @@
   },
   {
     "stateId": 6826,
-    "zenithId": 28812,
+    "zenithId": 28918,
     "name": {
-      "fr": "Être sensible II",
-      "en": "Sensitivity II",
-      "es": "Ser sensible II",
-      "pt": "Sensibilidade II"
+      "fr": "Être sensible III",
+      "en": "Sensitivity III",
+      "es": "Ser sensible III",
+      "pt": "Sensibilidade III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2724,12 +2724,12 @@
   },
   {
     "stateId": 6827,
-    "zenithId": 28813,
+    "zenithId": 28920,
     "name": {
-      "fr": "Longueur d'armure II",
-      "en": "Armor Length II",
-      "es": "Longitud de armadura II",
-      "pt": "Extensão da Armadura II"
+      "fr": "Longueur d'armure III",
+      "en": "Armor Length III",
+      "es": "Longitud de armadura III",
+      "pt": "Extensão da Armadura III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2743,12 +2743,12 @@
   },
   {
     "stateId": 6828,
-    "zenithId": 28814,
+    "zenithId": 28922,
     "name": {
-      "fr": "Altruisme II",
-      "en": "Altruism II",
-      "es": "Altruismo II",
-      "pt": "Altruísmo II"
+      "fr": "Altruisme III",
+      "en": "Altruism III",
+      "es": "Altruismo III",
+      "pt": "Altruísmo III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2770,12 +2770,12 @@
   },
   {
     "stateId": 6829,
-    "zenithId": 28815,
+    "zenithId": 28924,
     "name": {
-      "fr": "Manie II",
-      "en": "Mania II",
-      "es": "Manía II",
-      "pt": "Mania II"
+      "fr": "Manie III",
+      "en": "Mania III",
+      "es": "Manía III",
+      "pt": "Mania III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2789,12 +2789,12 @@
   },
   {
     "stateId": 6830,
-    "zenithId": 28816,
+    "zenithId": 28926,
     "name": {
-      "fr": "Nature II",
-      "en": "Nature II",
-      "es": "Naturaleza II",
-      "pt": "Natureza II"
+      "fr": "Nature III",
+      "en": "Nature III",
+      "es": "Naturaleza III",
+      "pt": "Natureza III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2816,12 +2816,12 @@
   },
   {
     "stateId": 6831,
-    "zenithId": 28817,
+    "zenithId": 28928,
     "name": {
-      "fr": "Dernier souffle II",
-      "en": "Last Breath II",
-      "es": "Último aliento II",
-      "pt": "Último Suspiro II"
+      "fr": "Dernier souffle III",
+      "en": "Last Breath III",
+      "es": "Último aliento III",
+      "pt": "Último Suspiro III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2843,12 +2843,12 @@
   },
   {
     "stateId": 6832,
-    "zenithId": 28818,
+    "zenithId": 28930,
     "name": {
-      "fr": "Main forte II",
-      "en": "Strong Hand II",
-      "es": "Mano aliada II",
-      "pt": "Mãozinha II"
+      "fr": "Main forte III",
+      "en": "Strong Hand III",
+      "es": "Mano aliada III",
+      "pt": "Mãozinha III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2862,12 +2862,12 @@
   },
   {
     "stateId": 6833,
-    "zenithId": 28819,
+    "zenithId": 28932,
     "name": {
-      "fr": "Pied ferme II",
-      "en": "Firm Foot II",
-      "es": "Pie firme II",
-      "pt": "Pé Firme II"
+      "fr": "Pied ferme III",
+      "en": "Firm Foot III",
+      "es": "Pie firme III",
+      "pt": "Pé Firme III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2900,12 +2900,12 @@
   },
   {
     "stateId": 6842,
-    "zenithId": 28942,
+    "zenithId": 28944,
     "name": {
-      "fr": "Courage I",
-      "en": "Courage I",
-      "es": "Coraje I",
-      "pt": "Coragem I"
+      "fr": "Courage III",
+      "en": "Courage III",
+      "es": "Coraje III",
+      "pt": "Coragem III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2919,12 +2919,12 @@
   },
   {
     "stateId": 6926,
-    "zenithId": 28988,
+    "zenithId": 28990,
     "name": {
-      "fr": "Revigoration I",
-      "en": "Reinvigoration I",
-      "es": "Revigorización I",
-      "pt": "Revigorada I"
+      "fr": "Revigoration III",
+      "en": "Reinvigoration III",
+      "es": "Revigorización III",
+      "pt": "Revigorada III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2938,12 +2938,12 @@
   },
   {
     "stateId": 6927,
-    "zenithId": 28991,
+    "zenithId": 28993,
     "name": {
-      "fr": "Précaution I",
-      "en": "Precaution I",
-      "es": "Precaución I",
-      "pt": "Precaução I"
+      "fr": "Précaution III",
+      "en": "Precaution III",
+      "es": "Precaución III",
+      "pt": "Precaução III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2957,12 +2957,12 @@
   },
   {
     "stateId": 6928,
-    "zenithId": 28994,
+    "zenithId": 28995,
     "name": {
-      "fr": "Critique technique I",
-      "en": "Technical Critical I",
-      "es": "Crítico técnico I",
-      "pt": "Crítico Técnico I"
+      "fr": "Critique technique II",
+      "en": "Technical Critical II",
+      "es": "Crítico técnico II",
+      "pt": "Crítico Técnico II"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -2984,12 +2984,12 @@
   },
   {
     "stateId": 6929,
-    "zenithId": 28996,
+    "zenithId": 28997,
     "name": {
-      "fr": "Parade offensive I",
-      "en": "Offensive Block I",
-      "es": "Anticipación ofensiva I",
-      "pt": "Parada Ofensiva I"
+      "fr": "Parade offensive II",
+      "en": "Offensive Block II",
+      "es": "Anticipación ofensiva II",
+      "pt": "Parada Ofensiva II"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3016,12 +3016,12 @@
   },
   {
     "stateId": 6930,
-    "zenithId": 28998,
+    "zenithId": 29000,
     "name": {
-      "fr": "Critique tactique I",
-      "en": "Tactical Critical I",
-      "es": "Crítico táctico I",
-      "pt": "Crítico Estratégico I"
+      "fr": "Critique tactique III",
+      "en": "Tactical Critical III",
+      "es": "Crítico táctico III",
+      "pt": "Crítico Estratégico III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3051,12 +3051,12 @@
   },
   {
     "stateId": 6931,
-    "zenithId": 29001,
+    "zenithId": 29003,
     "name": {
-      "fr": "Neutralité I",
-      "en": "Neutrality I",
-      "es": "Neutralidad I",
-      "pt": "Neutralidade I"
+      "fr": "Neutralité III",
+      "en": "Neutrality III",
+      "es": "Neutralidad III",
+      "pt": "Neutralidade III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3083,12 +3083,12 @@
   },
   {
     "stateId": 6932,
-    "zenithId": 29004,
+    "zenithId": 29005,
     "name": {
-      "fr": "Abandon I",
-      "en": "Abandon I",
-      "es": "Abandono I",
-      "pt": "Abandono I"
+      "fr": "Abandon II",
+      "en": "Abandon II",
+      "es": "Abandono II",
+      "pt": "Abandono II"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3119,12 +3119,12 @@
   },
   {
     "stateId": 6933,
-    "zenithId": 29007,
+    "zenithId": 29009,
     "name": {
-      "fr": "Prétention I",
-      "en": "Pretension I",
-      "es": "Pretensión I",
-      "pt": "Pretensão I"
+      "fr": "Prétention III",
+      "en": "Pretension III",
+      "es": "Pretensión III",
+      "pt": "Pretensão III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3151,12 +3151,12 @@
   },
   {
     "stateId": 7075,
-    "zenithId": 29499,
+    "zenithId": 29500,
     "name": {
-      "fr": "Combat rapproché I",
-      "en": "Brawling I",
-      "es": "Combate Cercano I",
-      "pt": "Combate Aproximado I"
+      "fr": "Combat rapproché II",
+      "en": "Brawling II",
+      "es": "Combate Cercano II",
+      "pt": "Combate Aproximado II"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3192,12 +3192,12 @@
   },
   {
     "stateId": 7076,
-    "zenithId": 29497,
+    "zenithId": 29498,
     "name": {
-      "fr": "Carapace I",
-      "en": "Carapace I",
-      "es": "Caparazón I",
-      "pt": "Carapaça I"
+      "fr": "Carapace II",
+      "en": "Carapace II",
+      "es": "Caparazón II",
+      "pt": "Carapaça II"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3227,12 +3227,12 @@
   },
   {
     "stateId": 7077,
-    "zenithId": 29495,
+    "zenithId": 29496,
     "name": {
-      "fr": "Armure lourde I",
-      "en": "Heavy Armor I",
-      "es": "Armadura Pesada I",
-      "pt": "Armadura Pesada I"
+      "fr": "Armure lourde II",
+      "en": "Heavy Armor II",
+      "es": "Armadura Pesada II",
+      "pt": "Armadura Pesada II"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3262,12 +3262,12 @@
   },
   {
     "stateId": 7078,
-    "zenithId": 29507,
+    "zenithId": 29509,
     "name": {
-      "fr": "Temporisation I",
-      "en": "Delay I",
-      "es": "Temporización I",
-      "pt": "Temporização I"
+      "fr": "Temporisation III",
+      "en": "Delay III",
+      "es": "Temporización III",
+      "pt": "Temporização III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3289,12 +3289,12 @@
   },
   {
     "stateId": 7079,
-    "zenithId": 29504,
+    "zenithId": 29506,
     "name": {
-      "fr": "Préparation critique I",
-      "en": "Critical Preparation I",
-      "es": "Preparación Crítica I",
-      "pt": "Preparação Crítica I"
+      "fr": "Préparation critique III",
+      "en": "Critical Preparation III",
+      "es": "Preparación Crítica III",
+      "pt": "Preparação Crítica III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3308,12 +3308,12 @@
   },
   {
     "stateId": 7081,
-    "zenithId": 29510,
+    "zenithId": 29512,
     "name": {
-      "fr": "Verrouillage I",
-      "en": "Locking I",
-      "es": "Bloqueo I",
-      "pt": "Trancamento I"
+      "fr": "Verrouillage III",
+      "en": "Locking III",
+      "es": "Bloqueo III",
+      "pt": "Trancamento III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3335,12 +3335,12 @@
   },
   {
     "stateId": 7088,
-    "zenithId": 29513,
+    "zenithId": 29515,
     "name": {
-      "fr": "Poids Plume I",
-      "en": "Featherweight I",
-      "es": "Peso Pluma I",
-      "pt": "Peso-pena I"
+      "fr": "Poids Plume III",
+      "en": "Featherweight III",
+      "es": "Peso Pluma III",
+      "pt": "Peso-pena III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3366,12 +3366,12 @@
   },
   {
     "stateId": 7115,
-    "zenithId": 29591,
+    "zenithId": 29593,
     "name": {
-      "fr": "Ambition I",
-      "en": "Ambition I",
-      "es": "Ambición I",
-      "pt": "Ambição I"
+      "fr": "Ambition III",
+      "en": "Ambition III",
+      "es": "Ambición III",
+      "pt": "Ambição III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3537,12 +3537,12 @@
   },
   {
     "stateId": 7711,
-    "zenithId": 30737,
+    "zenithId": 30739,
     "name": {
-      "fr": "Art du cachement I",
-      "en": "Art of Concealment I",
-      "es": "Arte del Escondite I",
-      "pt": "Arte do Escondimento I"
+      "fr": "Art du cachement III",
+      "en": "Art of Concealment III",
+      "es": "Arte del Escondite III",
+      "pt": "Arte do Escondimento III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3564,12 +3564,12 @@
   },
   {
     "stateId": 7712,
-    "zenithId": 30740,
+    "zenithId": 30742,
     "name": {
-      "fr": "Folie I",
-      "en": "Madness I",
-      "es": "Locura I",
-      "pt": "Loucura I"
+      "fr": "Folie III",
+      "en": "Madness III",
+      "es": "Locura III",
+      "pt": "Loucura III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3591,12 +3591,12 @@
   },
   {
     "stateId": 7713,
-    "zenithId": 30743,
+    "zenithId": 30745,
     "name": {
-      "fr": "Tabass'Carapace I",
-      "en": "Bashell I",
-      "es": "Caparagolpiza I",
-      "pt": "Soca-Carapaça I"
+      "fr": "Tabass'Carapace III",
+      "en": "Bashell III",
+      "es": "Caparagolpiza III",
+      "pt": "Soca-Carapaça III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3618,12 +3618,12 @@
   },
   {
     "stateId": 7714,
-    "zenithId": 30746,
+    "zenithId": 30748,
     "name": {
-      "fr": "Témérité I",
-      "en": "Recklessness I",
-      "es": "Temeridad I",
-      "pt": "Temeridade I"
+      "fr": "Témérité III",
+      "en": "Recklessness III",
+      "es": "Temeridad III",
+      "pt": "Temeridade III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3637,12 +3637,12 @@
   },
   {
     "stateId": 7717,
-    "zenithId": 30749,
+    "zenithId": 30751,
     "name": {
-      "fr": "Folie Vampirique I",
-      "en": "Vampiric Madness I",
-      "es": "Palabra Vampírica I",
-      "pt": "Loucura Vampírica I"
+      "fr": "Folie Vampirique III",
+      "en": "Vampiric Madness III",
+      "es": "Locura Vampírica III",
+      "pt": "Loucura Vampírica III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3656,12 +3656,12 @@
   },
   {
     "stateId": 7719,
-    "zenithId": 30752,
+    "zenithId": 30754,
     "name": {
-      "fr": "Accumulation I",
-      "en": "Accumulation I",
-      "es": "Acumulación I",
-      "pt": "Acumulação I"
+      "fr": "Accumulation III",
+      "en": "Accumulation III",
+      "es": "Acumulación III",
+      "pt": "Acumulação III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3675,12 +3675,12 @@
   },
   {
     "stateId": 7722,
-    "zenithId": 30763,
+    "zenithId": 30765,
     "name": {
-      "fr": "Conservation I",
-      "en": "Conservation I",
-      "es": "Conservación I",
-      "pt": "Conservação I"
+      "fr": "Conservation III",
+      "en": "Conservation III",
+      "es": "Conservación III",
+      "pt": "Conservação III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3694,12 +3694,12 @@
   },
   {
     "stateId": 7853,
-    "zenithId": 30946,
+    "zenithId": 30948,
     "name": {
-      "fr": "Carapace sanguine I",
-      "en": "Blood Carapace I",
-      "es": "Caparazón Sanguinario I",
-      "pt": "Carapaça Sanguínea I"
+      "fr": "Carapace sanguine III",
+      "en": "Blood Carapace III",
+      "es": "Caparazón Sanguinario III",
+      "pt": "Carapaça Sanguínea III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3732,12 +3732,12 @@
   },
   {
     "stateId": 7856,
-    "zenithId": 30949,
+    "zenithId": 30951,
     "name": {
-      "fr": "Profit I",
-      "en": "Profit I",
-      "es": "Provecho I",
-      "pt": "Proveito I"
+      "fr": "Profit III",
+      "en": "Profit III",
+      "es": "Provecho III",
+      "pt": "Proveito III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3751,12 +3751,12 @@
   },
   {
     "stateId": 7859,
-    "zenithId": 30953,
+    "zenithId": 30955,
     "name": {
-      "fr": "Force légère I",
-      "en": "Light Strength I",
-      "es": "Fuerza Ligera I",
-      "pt": "Força Branda I"
+      "fr": "Force légère III",
+      "en": "Light Strength III",
+      "es": "Fuerza Ligera III",
+      "pt": "Força Branda III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3832,12 +3832,12 @@
   },
   {
     "stateId": 7862,
-    "zenithId": 30957,
+    "zenithId": 30959,
     "name": {
-      "fr": "Influence vitale I",
-      "en": "Vital Influence I",
-      "es": "Influjo Vital I",
-      "pt": "Influência Vital I"
+      "fr": "Influence vitale III",
+      "en": "Vital Influence III",
+      "es": "Influjo Vital III",
+      "pt": "Influência Vital III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3860,12 +3860,12 @@
   },
   {
     "stateId": 7863,
-    "zenithId": 30973,
+    "zenithId": 30975,
     "name": {
-      "fr": "Influence paradoxale I",
-      "en": "Paradoxical Influence I",
-      "es": "Influjo Paradójico I",
-      "pt": "Influência Paradoxal I"
+      "fr": "Influence paradoxale III",
+      "en": "Paradoxical Influence III",
+      "es": "Influjo Paradójico III",
+      "pt": "Influência Paradoxal III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3879,12 +3879,12 @@
   },
   {
     "stateId": 7864,
-    "zenithId": 30961,
+    "zenithId": 30963,
     "name": {
-      "fr": "Evasion I",
-      "en": "Evasion I",
-      "es": "Evasión I",
-      "pt": "Evasão I"
+      "fr": "Evasion III",
+      "en": "Evasion III",
+      "es": "Evasión III",
+      "pt": "Evasão III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3907,12 +3907,12 @@
   },
   {
     "stateId": 7865,
-    "zenithId": 30967,
+    "zenithId": 30969,
     "name": {
-      "fr": "Interception I",
-      "en": "Interception I",
-      "es": "Interceptación I",
-      "pt": "Interceptação I"
+      "fr": "Interception III",
+      "en": "Interception III",
+      "es": "Interceptación III",
+      "pt": "Interceptação III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3935,12 +3935,12 @@
   },
   {
     "stateId": 7867,
-    "zenithId": 30964,
+    "zenithId": 30966,
     "name": {
-      "fr": "Fuite I",
-      "en": "Flee I",
-      "es": "Huida I",
-      "pt": "Fuga I"
+      "fr": "Fuite III",
+      "en": "Flee III",
+      "es": "Huida III",
+      "pt": "Fuga III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -3962,12 +3962,12 @@
   },
   {
     "stateId": 7868,
-    "zenithId": 30970,
+    "zenithId": 30972,
     "name": {
-      "fr": "Interposition I",
-      "en": "Interposition I",
-      "es": "Interposición I",
-      "pt": "Interposição I"
+      "fr": "Interposition III",
+      "en": "Interposition III",
+      "es": "Interposición III",
+      "pt": "Interposição III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4203,12 +4203,12 @@
   },
   {
     "stateId": 8131,
-    "zenithId": 31369,
+    "zenithId": 31706,
     "name": {
-      "fr": "Allocentrisme I",
-      "en": "Allocentrism I",
-      "es": "Alocentrismo I",
-      "pt": "Alocentrismo I"
+      "fr": "Allocentrisme III",
+      "en": "Allocentrism III",
+      "es": "Alocentrismo III",
+      "pt": "Alocentrismo III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4222,12 +4222,12 @@
   },
   {
     "stateId": 8132,
-    "zenithId": 31371,
+    "zenithId": 31373,
     "name": {
-      "fr": "Apprêt I",
-      "en": "Embellishment I",
-      "es": "Adrezo I",
-      "pt": "Enfeite I"
+      "fr": "Apprêt III",
+      "en": "Embellishment III",
+      "es": "Adrezo III",
+      "pt": "Enfeite III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4484,12 +4484,12 @@
   },
   {
     "stateId": 8386,
-    "zenithId": 31615,
+    "zenithId": 31617,
     "name": {
-      "fr": "Volonté directe I",
-      "en": "Direct Force of Will I",
-      "es": "Voluntad directa I",
-      "pt": "Vontade Direta I"
+      "fr": "Volonté directe III",
+      "en": "Direct Force of Will III",
+      "es": "Voluntad directa III",
+      "pt": "Vontade Direta III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4511,12 +4511,12 @@
   },
   {
     "stateId": 8387,
-    "zenithId": 31618,
+    "zenithId": 31620,
     "name": {
-      "fr": "Volonté indirecte I",
-      "en": "Indirect Force of Will I",
-      "es": "Voluntad indirecta I",
-      "pt": "Vontade Indireta I"
+      "fr": "Volonté indirecte III",
+      "en": "Indirect Force of Will III",
+      "es": "Voluntad indirecta III",
+      "pt": "Vontade Indireta III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4538,12 +4538,12 @@
   },
   {
     "stateId": 8388,
-    "zenithId": 31621,
+    "zenithId": 31623,
     "name": {
-      "fr": "Acribie I",
-      "en": "Scrupulosity I",
-      "es": "Acribia I",
-      "pt": "Acribia I"
+      "fr": "Acribie III",
+      "en": "Scrupulosity III",
+      "es": "Acribia III",
+      "pt": "Acribia III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4565,12 +4565,12 @@
   },
   {
     "stateId": 8389,
-    "zenithId": 31624,
+    "zenithId": 31626,
     "name": {
-      "fr": "Vision intermédiaire I",
-      "en": "Intermediate Vision I",
-      "es": "Visión intermedia I",
-      "pt": "Visão Intermediária I"
+      "fr": "Vision intermédiaire III",
+      "en": "Intermediate Vision III",
+      "es": "Visión intermedia III",
+      "pt": "Visão Intermediária III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4592,12 +4592,12 @@
   },
   {
     "stateId": 8390,
-    "zenithId": 31627,
+    "zenithId": 31629,
     "name": {
-      "fr": "Dérobade continue I",
-      "en": "Constant Evasion I",
-      "es": "Escapatoria continua I",
-      "pt": "Evasão Contínua I"
+      "fr": "Dérobade continue III",
+      "en": "Constant Evasion III",
+      "es": "Escapatoria continua III",
+      "pt": "Evasão Contínua III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4621,12 +4621,12 @@
   },
   {
     "stateId": 8391,
-    "zenithId": 31630,
+    "zenithId": 31632,
     "name": {
-      "fr": "Bouclier critique I",
-      "en": "Critical Shield I",
-      "es": "Escudo crítico I",
-      "pt": "Escudo Crítico I"
+      "fr": "Bouclier critique III",
+      "en": "Critical Shield III",
+      "es": "Escudo crítico III",
+      "pt": "Escudo Crítico III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4669,12 +4669,12 @@
   },
   {
     "stateId": 8393,
-    "zenithId": 31633,
+    "zenithId": 31635,
     "name": {
-      "fr": "Bouclier dorsal I",
-      "en": "Rear Shield I",
-      "es": "Escudo dorsal I",
-      "pt": "Escudo Dorsal I"
+      "fr": "Bouclier dorsal III",
+      "en": "Rear Shield III",
+      "es": "Escudo dorsal III",
+      "pt": "Escudo Dorsal III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4698,12 +4698,12 @@
   },
   {
     "stateId": 8394,
-    "zenithId": 31637,
+    "zenithId": 31709,
     "name": {
-      "fr": "Propagation I",
-      "en": "Propagation I",
-      "es": "Propagación I",
-      "pt": "Propagação I"
+      "fr": "Propagation III",
+      "en": "Propagation III",
+      "es": "Propagación III",
+      "pt": "Propagação III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4717,12 +4717,12 @@
   },
   {
     "stateId": 8395,
-    "zenithId": 31639,
+    "zenithId": 31641,
     "name": {
-      "fr": "Valeur ajoutée I",
-      "en": "Added Value I",
-      "es": "Valor añadido I",
-      "pt": "Valor Adicionado I"
+      "fr": "Valeur ajoutée III",
+      "en": "Added Value III",
+      "es": "Valor añadido III",
+      "pt": "Valor Adicionado III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4736,12 +4736,12 @@
   },
   {
     "stateId": 8398,
-    "zenithId": 31642,
+    "zenithId": 31644,
     "name": {
-      "fr": "Sanguinolence I",
-      "en": "Blood Stains I",
-      "es": "Sanguinolencia I",
-      "pt": "Sanguinolência I"
+      "fr": "Sanguinolence III",
+      "en": "Blood Stains III",
+      "es": "Sanguinolencia III",
+      "pt": "Sanguinolência III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4755,12 +4755,12 @@
   },
   {
     "stateId": 8399,
-    "zenithId": 31657,
+    "zenithId": 31659,
     "name": {
-      "fr": "Représailles I",
-      "en": "Reprisal I",
-      "es": "Represalias I",
-      "pt": "Represália I"
+      "fr": "Représailles III",
+      "en": "Reprisal III",
+      "es": "Represalias III",
+      "pt": "Represália III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4782,12 +4782,12 @@
   },
   {
     "stateId": 8400,
-    "zenithId": 31660,
+    "zenithId": 31662,
     "name": {
-      "fr": "Coque I",
-      "en": "Shell I",
-      "es": "Cáscara I",
-      "pt": "Casco I"
+      "fr": "Coque III",
+      "en": "Shell III",
+      "es": "Cáscara III",
+      "pt": "Casco III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4801,12 +4801,12 @@
   },
   {
     "stateId": 8402,
-    "zenithId": 31663,
+    "zenithId": 31664,
     "name": {
-      "fr": "Rupture violente I",
-      "en": "Violent Rupture I",
-      "es": "Ruptura violenta I",
-      "pt": "Ruptura Violenta I"
+      "fr": "Rupture violente II",
+      "en": "Violent Rupture II",
+      "es": "Ruptura violenta II",
+      "pt": "Ruptura Violenta II"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4833,7 +4833,7 @@
       3,
       3
     ],
-    "maxLevel": 4,
+    "maxLevel": 6,
     "maxTier": 2,
     "kind": "COMBAT_CONDITIONAL"
   },
@@ -4888,12 +4888,12 @@
   },
   {
     "stateId": 8493,
-    "zenithId": 31710,
+    "zenithId": 31712,
     "name": {
-      "fr": "Balance critique I",
-      "en": "Critical Scale I",
-      "es": "Balanza crítica I",
-      "pt": "Equilíbrio Crítico I"
+      "fr": "Balance critique III",
+      "en": "Critical Scale III",
+      "es": "Balanza crítica III",
+      "pt": "Equilíbrio Crítico III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4915,12 +4915,12 @@
   },
   {
     "stateId": 8494,
-    "zenithId": 31713,
+    "zenithId": 31715,
     "name": {
-      "fr": "Consolation critique I",
-      "en": "Critical Consolation I",
-      "es": "Consuelo crítico I",
-      "pt": "Consolação Crítica I"
+      "fr": "Consolation critique III",
+      "en": "Critical Consolation III",
+      "es": "Consuelo crítico III",
+      "pt": "Consolação Crítica III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4934,12 +4934,12 @@
   },
   {
     "stateId": 8496,
-    "zenithId": 31716,
+    "zenithId": 31718,
     "name": {
-      "fr": "Dernière armure I",
-      "en": "Last Armor I",
-      "es": "Última armadura I",
-      "pt": "Última Armadura I"
+      "fr": "Dernière armure III",
+      "en": "Last Armor III",
+      "es": "Última armadura III",
+      "pt": "Última Armadura III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4953,12 +4953,12 @@
   },
   {
     "stateId": 8497,
-    "zenithId": 31719,
+    "zenithId": 31721,
     "name": {
-      "fr": "Dernier soin I",
-      "en": "Last Heal I",
-      "es": "Última cura I",
-      "pt": "Última Cura I"
+      "fr": "Dernier soin III",
+      "en": "Last Heal III",
+      "es": "Última cura III",
+      "pt": "Última Cura III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4972,12 +4972,12 @@
   },
   {
     "stateId": 8498,
-    "zenithId": 31722,
+    "zenithId": 31724,
     "name": {
-      "fr": "Dernières résistances I",
-      "en": "Last Resistance I",
-      "es": "Últimas resistencias I",
-      "pt": "Últimas Resistências I"
+      "fr": "Dernières résistances III",
+      "en": "Last Resistance III",
+      "es": "Últimas resistencias III",
+      "pt": "Últimas Resistências III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -4999,12 +4999,12 @@
   },
   {
     "stateId": 8499,
-    "zenithId": 31725,
+    "zenithId": 31727,
     "name": {
-      "fr": "Brûlure secondaire I",
-      "en": "Secondary Burn I",
-      "es": "Quemadura secundaria I",
-      "pt": "Queimadura Secundária I"
+      "fr": "Brûlure secondaire III",
+      "en": "Secondary Burn III",
+      "es": "Quemadura secundaria III",
+      "pt": "Queimadura Secundária III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -5018,12 +5018,12 @@
   },
   {
     "stateId": 8502,
-    "zenithId": 31728,
+    "zenithId": 31730,
     "name": {
-      "fr": "Gel secondaire I",
-      "en": "Secondary Freezing I",
-      "es": "Congelación secundaria I",
-      "pt": "Congelamento Secundário I"
+      "fr": "Gel secondaire III",
+      "en": "Secondary Freezing III",
+      "es": "Congelación secundaria III",
+      "pt": "Congelamento Secundário III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -5037,12 +5037,12 @@
   },
   {
     "stateId": 8505,
-    "zenithId": 31731,
+    "zenithId": 31733,
     "name": {
-      "fr": "Tellurisme secondaire I",
-      "en": "Secondary Earthbound I",
-      "es": "Telurismo secundario I",
-      "pt": "Telurismo Secundário I"
+      "fr": "Tellurisme secondaire III",
+      "en": "Secondary Earthbound III",
+      "es": "Telurismo secundario III",
+      "pt": "Telurismo Secundário III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -5056,12 +5056,12 @@
   },
   {
     "stateId": 8508,
-    "zenithId": 31734,
+    "zenithId": 31736,
     "name": {
-      "fr": "Ventilation secondaire I",
-      "en": "Secondary Ventilation I",
-      "es": "Ventilación secundaria I",
-      "pt": "Ventilação Secundária I"
+      "fr": "Ventilation secondaire III",
+      "en": "Secondary Ventilation III",
+      "es": "Ventilación secundaria III",
+      "pt": "Ventilação Secundária III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -5075,12 +5075,12 @@
   },
   {
     "stateId": 8518,
-    "zenithId": 31645,
+    "zenithId": 31647,
     "name": {
-      "fr": "Brûlure I",
-      "en": "Burn I",
-      "es": "Quemadura I",
-      "pt": "Queimadura I"
+      "fr": "Brûlure III",
+      "en": "Burn III",
+      "es": "Quemadura III",
+      "pt": "Queimadura III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -5106,12 +5106,12 @@
   },
   {
     "stateId": 8519,
-    "zenithId": 31648,
+    "zenithId": 31650,
     "name": {
-      "fr": "Gel I",
-      "en": "Freezing I",
-      "es": "Congelación I",
-      "pt": "Congelamento I"
+      "fr": "Gel III",
+      "en": "Freezing III",
+      "es": "Congelación III",
+      "pt": "Congelamento III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -5137,12 +5137,12 @@
   },
   {
     "stateId": 8520,
-    "zenithId": 31651,
+    "zenithId": 31653,
     "name": {
-      "fr": "Tellurisme I",
-      "en": "Earthbound I",
-      "es": "Telurismo I",
-      "pt": "Telurismo I"
+      "fr": "Tellurisme III",
+      "en": "Earthbound III",
+      "es": "Telurismo III",
+      "pt": "Telurismo III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -5168,12 +5168,12 @@
   },
   {
     "stateId": 8521,
-    "zenithId": 31654,
+    "zenithId": 31656,
     "name": {
-      "fr": "Ventilation I",
-      "en": "Ventilation I",
-      "es": "Ventilación I",
-      "pt": "Ventilação I"
+      "fr": "Ventilation III",
+      "en": "Ventilation III",
+      "es": "Ventilación III",
+      "pt": "Ventilação III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -5199,12 +5199,12 @@
   },
   {
     "stateId": 9060,
-    "zenithId": 32627,
+    "zenithId": 32629,
     "name": {
-      "fr": "Apprêt secondaire I",
-      "en": "Secondary Embellishment I",
-      "es": "Adrezo secundario I",
-      "pt": "Preparo Secundário I"
+      "fr": "Apprêt secondaire III",
+      "en": "Secondary Embellishment III",
+      "es": "Adrezo secundario III",
+      "pt": "Preparo Secundário III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -5226,12 +5226,12 @@
   },
   {
     "stateId": 9062,
-    "zenithId": 32630,
+    "zenithId": 32632,
     "name": {
-      "fr": "Élan I",
-      "en": "Surge I",
-      "es": "Bote I",
-      "pt": "Impulsão I"
+      "fr": "Élan III",
+      "en": "Surge III",
+      "es": "Bote III",
+      "pt": "Impulsão III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -5245,12 +5245,12 @@
   },
   {
     "stateId": 9064,
-    "zenithId": 32633,
+    "zenithId": 32635,
     "name": {
-      "fr": "Jugement I",
-      "en": "Judgment I",
-      "es": "Juicio I",
-      "pt": "Sentença I"
+      "fr": "Jugement III",
+      "en": "Judgment III",
+      "es": "Juicio III",
+      "pt": "Sentença III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -5272,12 +5272,12 @@
   },
   {
     "stateId": 9066,
-    "zenithId": 32636,
+    "zenithId": 32638,
     "name": {
-      "fr": "Diagnostic I",
-      "en": "Diagnosis I",
-      "es": "Diagnóstico I",
-      "pt": "Diagnóstico I"
+      "fr": "Diagnostic III",
+      "en": "Diagnosis III",
+      "es": "Diagnóstico III",
+      "pt": "Diagnóstico III"
     },
     "rarity": "NORMAL",
     "slotColorPattern": [
@@ -5430,5 +5430,116 @@
       }
     ],
     "rawText": "If Critical Mastery ≤ 0 | +30% Critical Hit"
+  },
+  {
+    "stateId": 9369,
+    "zenithId": 33409,
+    "name": {
+      "fr": "Tout feu tout flamme II",
+      "en": "Fire and Flame II",
+      "es": "Puro Fuego II",
+      "pt": "Pegando Fogo II"
+    },
+    "rarity": "NORMAL",
+    "slotColorPattern": [
+      3,
+      2,
+      1
+    ],
+    "maxLevel": 6,
+    "maxTier": 2,
+    "kind": "COMBAT_CONDITIONAL",
+    "effects": [
+      {
+        "type": "flat",
+        "characteristic": "MOVEMENT_POINT",
+        "value": 1
+      }
+    ],
+    "rawText": "+1 MP"
+  },
+  {
+    "stateId": 9370,
+    "zenithId": 33407,
+    "name": {
+      "fr": "Fureur pourpre III",
+      "en": "Crimson Fury III",
+      "es": "Furor Púrpura III",
+      "pt": "Furor Púrpura III"
+    },
+    "rarity": "NORMAL",
+    "slotColorPattern": [
+      3,
+      1,
+      1
+    ],
+    "maxLevel": 6,
+    "maxTier": 3,
+    "kind": "FLAT",
+    "effects": [
+      {
+        "type": "flat",
+        "characteristic": "DAMAGE_INFLICTED",
+        "value": 12,
+        "scenarioGate": {
+          "ranged": true
+        }
+      }
+    ],
+    "rawText": "+12% Damage Inflicted (ranged)"
+  },
+  {
+    "stateId": 9372,
+    "zenithId": 33404,
+    "name": {
+      "fr": "Influence pourpre III",
+      "en": "Crimson Influence III",
+      "es": "Influencia Púrpura III",
+      "pt": "Influência Púrpura III"
+    },
+    "rarity": "NORMAL",
+    "slotColorPattern": [
+      2,
+      3,
+      3
+    ],
+    "maxLevel": 6,
+    "maxTier": 3,
+    "kind": "FLAT",
+    "effects": [
+      {
+        "type": "flat",
+        "characteristic": "CRITICAL_HIT",
+        "value": 15
+      }
+    ],
+    "rawText": "+15% Critical Hit"
+  },
+  {
+    "stateId": 9373,
+    "zenithId": 33399,
+    "name": {
+      "fr": "Force pourpre III",
+      "en": "Crimson Strength III",
+      "es": "Fuerza Púrpura III",
+      "pt": "Força Púrpura III"
+    },
+    "rarity": "NORMAL",
+    "slotColorPattern": [
+      2,
+      1,
+      2
+    ],
+    "maxLevel": 6,
+    "maxTier": 3,
+    "kind": "FLAT",
+    "effects": [
+      {
+        "type": "flat",
+        "characteristic": "DAMAGE_INFLICTED",
+        "value": 6
+      }
+    ],
+    "rawText": "+6% Damage Inflicted"
   }
 ]

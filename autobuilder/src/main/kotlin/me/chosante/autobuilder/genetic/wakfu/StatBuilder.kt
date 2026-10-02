@@ -189,6 +189,10 @@ internal class StatBuilder(
     // Test seam (see [certifyLedgerForTest]): the two-tier certificate ledger (P3.2 orchestrator).
     var certifierLedgerForTest: CertLedger? = null
 
+    // §8.4 S-C seam: the (non-negative mastery tier, DI factor) vars of a factor-interval sub-model
+    // (see [diAdjustedPerElementMasteryScore]); read on the solved assignment by the outer driver.
+    var mmDiFactorProbeVars: Pair<IntVar, IntVar>? = null
+
     // Test seam (see [certifyExplainCell]): the backtracked composition of the winning certificate state.
     val certifierExplainForTest = mutableListOf<String>()
 
@@ -842,6 +846,7 @@ internal class StatBuilder(
     private val prePercentCache = mutableMapOf<Characteristic, IntVar>()
     private val preSubCache = mutableMapOf<Characteristic, IntVar>()
     private val preCombatCache = mutableMapOf<Characteristic, IntVar>()
+    private val firstTurnCache = mutableMapOf<Characteristic, IntVar>()
 
     // Per-solve memo for the (scenario-pure) max-damage pre-mastery term list. damagePreMasteryTerms is
     // called ~3× per perHitDamageScore (once via damagePreMastery, twice via damageMasteryCriticalReach)
@@ -861,6 +866,13 @@ internal class StatBuilder(
     // condition), so referencing it from [reifyCondition] never recurses through [appliesVar]. Built BEFORE
     // [subTermsByStat] because that map's init reifies conditions, which read [preCombatStat] → this map.
     internal val permanentSubTermsByStat: Map<Characteristic, List<Term>> = buildPermanentSubTerms()
+
+    // The START-OF-COMBAT contributions of unconditional FLAT subs — the extra layer a FIRST-TURN
+    // condition sees on top of [preCombatStat] (Neutralité's `secondary masteries ≤ 0` is checked by
+    // the game on the first turn, AFTER start-of-combat effects like Ravage's masteries landed —
+    // in-game verified 2026-07-14). Same subVar gating as [permanentSubTermsByStat] (FLAT ⇒ no
+    // condition), so [firstTurnStat] stays acyclic from [reifyCondition].
+    internal val startOfCombatFlatSubTermsByStat: Map<Characteristic, List<Term>> = buildStartOfCombatFlatSubTerms()
 
     // Per-element DI sub contributions (Brûlure/Gel/Tellurisme/Ventilation) routed by their OWN element's
     // mastery, in most-masteries mode only — kept OUT of the global DAMAGE_INFLICTED so a "+12% fire damage"
@@ -1207,6 +1219,13 @@ internal class StatBuilder(
         targetStats: TargetStats,
         targetCharacteristics: Set<Characteristic>,
         productEncoding: MmProductEncoding = MmProductEncoding.CURRENT,
+        // §8.4 S-C seam (test-only, mono-element BRANCH A only): constrain the DI factor to this
+        // interval and REMOVE the mastery×DI product from the searched model. Interval node (or
+        // folded false): the score is the bare non-negative tier M — the driver folds `⌊C × dHi/100⌋`
+        // as the sound node bound. Singleton + folded: `⌊M × d/100⌋` with d constant — a fixed-divisor
+        // division, no variable product. Multi-element requests ignore the seam (plan §8.4).
+        diFactorInterval: IntRange? = null,
+        diFactorFoldedObjective: Boolean = false,
     ): Pair<IntVar, Long> {
         val nonElementaries =
             targetStats
@@ -1320,6 +1339,23 @@ internal class StatBuilder(
                 } else {
                     tSumNaive("mmDiFactor", listOf(Term(globalDi, 1L)), 100L, 100L - DAMAGE_DI_FLOOR, 100L + DAMAGE_DI_MAX)
                 }
+            // §8.4 S-C: the outer driver owns the DI axis — factor-constrained sub-model, no product.
+            if (diFactorInterval != null) {
+                val lo = diFactorInterval.first.toLong().coerceAtLeast(100L - DAMAGE_DI_FLOOR)
+                val hi = diFactorInterval.last.toLong().coerceAtMost(100L + DAMAGE_DI_MAX)
+                model.addGreaterOrEqual(factor, lo)
+                model.addLessOrEqual(factor, hi)
+                val nonNeg = model.clampVar(nonElemNeg, 0L, MASTERY_SCORE_ABS_MAX, "mmNN_scNode")
+                mmDiFactorProbeVars = nonNeg to factor
+                if (diFactorFoldedObjective && lo == hi) {
+                    val singletonHi = WakfuBuildSolver.clampedProductQuotient(nonElemReachMax, hi, 100L, MASTERY_SCORE_ABS_MAX).coerceAtLeast(1L)
+                    val scaled = model.newIntVar(0L, singletonHi, "mmScSingleton")
+                    model.addDivisionEquality(scaled, LinearExpr.term(nonNeg, hi), model.newConstant(100L))
+                    return scaled to singletonHi
+                }
+                return nonNeg to nonElemReachMax.coerceIn(1L, MASTERY_SCORE_ABS_MAX)
+            }
+
             val coreHi = WakfuBuildSolver.clampedProductQuotient(nonElemReachMax, diFactorMax, 100L, MASTERY_SCORE_ABS_MAX).coerceAtLeast(1L)
             return model.clampVar(diProduct(nonElemNeg, factor, nonElemReachMax, "global"), 0L, coreHi, "mmCoreHi") to coreHi
         }
@@ -1393,6 +1429,8 @@ internal class StatBuilder(
 
     // The build's resolved Action Points variable (base + gear + skills), for the external-loop AP probe.
     fun actionPointVar(): IntVar = actualStat(Characteristic.ACTION_POINT)
+
+    fun movementPointVar(): IntVar = actualStat(Characteristic.MOVEMENT_POINT)
 
     /**
      * Monotonic **effective-HP proxy** for the survivability soft-floor (Lot 5):
@@ -1849,6 +1887,52 @@ internal class StatBuilder(
     }
 
     /**
+     * §8.5 S-D variant of [addRequiredTargetHardConstraints]: each target's `actual ≥ target` is
+     * gated behind an ASSUMPTION literal, so a proven-INFEASIBLE hard leg can return a sufficient
+     * assumption core — the subset of targets that already cannot be met together. Reification is
+     * weaker propagation than the plain constraints, so this is a measurement seam, never the
+     * production hard leg. Returns (target characteristic → literal, staticallyInfeasible).
+     */
+    internal fun addRequiredTargetAssumptions(): Pair<Map<Characteristic, com.google.ortools.sat.BoolVar>, Boolean> {
+        val requiredTargets = params.targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() && it.target > 0 }
+        val literals = LinkedHashMap<Characteristic, com.google.ortools.sat.BoolVar>()
+        var staticallyInfeasible = false
+        for (targetStat in requiredTargets) {
+            val actual = requiredActualStat(targetStat.characteristic)
+            if (targetStat.target > tracker.of(actual).last) staticallyInfeasible = true
+            val literal = model.newBoolVar("assume_${targetStat.characteristic.name}")
+            model.addGreaterOrEqual(actual, targetStat.target.toLong()).onlyEnforceIf(literal)
+            model.addAssumption(literal)
+            literals[targetStat.characteristic] = literal
+        }
+        return literals to staticallyInfeasible
+    }
+
+    /**
+     * §8.5 S-D: the recycled no-good on the SOFT model. [core] is a hard-leg sufficient
+     * infeasibility core, so "every target in the core is met" is impossible for any real build —
+     * `sum(meetsTarget_i for i in core) ≤ |core| − 1` is logically implied and cuts only the proven
+     * impossible corner. `meetsTarget_i` is EXACT (reified both ways), so the cut never excludes a
+     * feasible assignment.
+     */
+    internal fun addInfeasibilityCoreNoGood(core: Set<Characteristic>) {
+        val coreTargets =
+            params.targetStats.filter {
+                it.characteristic.isRequiredMostMasteriesTarget() && it.target > 0 && it.characteristic in core
+            }
+        if (coreTargets.isEmpty()) return
+        val meets =
+            coreTargets.map { targetStat ->
+                val actual = requiredActualStat(targetStat.characteristic)
+                val met = model.newBoolVar("met_${targetStat.characteristic.name}")
+                model.addGreaterOrEqual(actual, targetStat.target.toLong()).onlyEnforceIf(met)
+                model.addLessOrEqual(actual, targetStat.target.toLong() - 1L).onlyEnforceIf(met.not())
+                met
+            }
+        model.addLessOrEqual(LinearExpr.sum(meets.toTypedArray()), (meets.size - 1).toLong())
+    }
+
+    /**
      * Builds, for each requested element, an [IntVar] equal to that element's own stat plus the
      * generic "+all elements" stat ([genericCharacteristic]), with random-element lines greedily
      * assigned and percent skills applied — mirroring `computeCharacteristicsValues`. Works for
@@ -2154,6 +2238,22 @@ internal class StatBuilder(
             val (terms, base) = baseTermsFor(char)
             terms.addAll(permanentSubTermsByStat[char].orEmpty())
             tSum("preCombat_${char.name}", terms, base, reachableSumDomain(terms, base), -STAT_ABS_MAX, STAT_ABS_MAX)
+        }
+
+    /**
+     * FIRST-TURN value of [char]: [preCombatStat] + the start-of-combat contributions of
+     * unconditional FLAT subs ([startOfCombatFlatSubTermsByStat]). This is what a
+     * [SubConditionSpec.StatBound.firstTurn] condition reads — the game checks those on the first
+     * turn, after start-of-combat sub effects landed (Ravage × Neutralité). Conditional subs' own
+     * start-of-combat effects stay excluded (acyclicity; a sub never feeds its own condition).
+     */
+    internal fun firstTurnStat(char: Characteristic): IntVar =
+        firstTurnCache.getOrPut(char) {
+            val socTerms = startOfCombatFlatSubTermsByStat[char].orEmpty()
+            if (socTerms.isEmpty()) return@getOrPut preCombatStat(char)
+            val terms = mutableListOf(Term(preCombatStat(char), 1L))
+            terms.addAll(socTerms)
+            tSum("firstTurn_${char.name}", terms, 0L, reachableSumDomain(terms, 0L), -STAT_ABS_MAX, STAT_ABS_MAX)
         }
 
     /** Constant flat-stat contributions of the selected passives (see [resolvedPassives]). */

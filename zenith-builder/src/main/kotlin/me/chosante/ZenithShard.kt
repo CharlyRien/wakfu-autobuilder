@@ -83,9 +83,11 @@ internal suspend fun whitenShard(
  * On Zenith every sublimation generation (I/II/III) is its OWN shard id whose intrinsic `level` (1/2/3)
  * is what the build accumulates — the `/shard/add` `level` parameter is ignored for sublimations
  * (verified against the live API). Our [me.chosante.common.Sublimation] is a per-FAMILY record whose
- * `zenithId` is the family root (tier I) and whose effects are valued at `maxTier`, so the export must
- * socket the family member whose level equals `maxTier` — e.g. Ambition (root 29591) at maxTier 3
- * sockets 29593 ("Ambition III", level 3), not the root (which Zenith shows as level 1).
+ * effects are valued at `maxTier`; since the 2026-07-14 extractor fix its `zenithId` (and name) IS the
+ * `maxTier` family member's shard — first-CDN-row-wins used to point at an arbitrary tier, which made
+ * this resolver's silent fallback socket a lower tier than the credited one. The resolver now merely
+ * re-anchors ids that happen to be family roots; a non-root id misses the map and falls through raw,
+ * which is already the correct shard.
  */
 internal suspend fun fetchSublimationLevelIds(): Map<Int, Map<Int, Int>> {
     val (_, _, catalog) =

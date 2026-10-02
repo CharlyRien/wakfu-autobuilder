@@ -713,6 +713,7 @@ private fun SublimationResultRow(
                 text = tr(Tr.SUBLIMATION_TIER_SHORT).format(sub.nameTier),
                 style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
             )
+            SublimationStackBadge(sub)
         }
         sublimationEffectText(sub, lang).takeIf { it.isNotBlank() }?.let { effect ->
             Text(

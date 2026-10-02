@@ -1066,10 +1066,10 @@
     "level": 193,
     "hp": 20000,
     "family": {
-      "fr": "Extra Île de Moon",
-      "en": "Extra Moon Island",
-      "es": "Extra isla de Moon",
-      "pt": "Ilha de Moon Extra"
+      "fr": "Crocodailles",
+      "en": "Crocodyls",
+      "es": "Cocodrails",
+      "pt": "Crocodyls"
     },
     "rank": 2,
     "gfx": 181103972,
@@ -1090,10 +1090,10 @@
     "level": 193,
     "hp": 20350,
     "family": {
-      "fr": "Extra Île de Moon",
-      "en": "Extra Moon Island",
-      "es": "Extra isla de Moon",
-      "pt": "Ilha de Moon Extra"
+      "fr": "Kannibouls",
+      "en": "Kanniballs",
+      "es": "Kaníbolas",
+      "pt": "Kanibolas"
     },
     "rank": 2,
     "gfx": 179403868,
@@ -1114,10 +1114,10 @@
     "level": 193,
     "hp": 5193,
     "family": {
-      "fr": "Extra Île de Moon",
-      "en": "Extra Moon Island",
-      "es": "Extra isla de Moon",
-      "pt": "Ilha de Moon Extra"
+      "fr": "Tropikokos",
+      "en": "Tropikokos",
+      "es": "Tropikokos",
+      "pt": "Tropikokos"
     },
     "rank": 2,
     "gfx": 179403867,
@@ -3034,10 +3034,10 @@
     "level": 193,
     "hp": 36000,
     "family": {
-      "fr": "Extra Île de Moon",
-      "en": "Extra Moon Island",
-      "es": "Extra isla de Moon",
-      "pt": "Ilha de Moon Extra"
+      "fr": "Kannibouls",
+      "en": "Kanniballs",
+      "es": "Kaníbolas",
+      "pt": "Kanibolas"
     },
     "rank": 1,
     "gfx": 179403879,
@@ -3346,10 +3346,10 @@
     "level": 178,
     "hp": 32000,
     "family": {
-      "fr": "Extra Xélots",
-      "en": "Extra Xelots",
-      "es": "Extra xelots",
-      "pt": "Extra Xelots"
+      "fr": "Xélots",
+      "en": "Xelots",
+      "es": "Xelots",
+      "pt": "Xelots"
     },
     "rank": 1,
     "gfx": 169303398,
@@ -4366,10 +4366,10 @@
     "level": 95,
     "hp": 6666,
     "family": {
-      "fr": "Extra Goule",
-      "en": "Extra Ghoul",
-      "es": "Extra ghul",
-      "pt": "Carniçais Extras"
+      "fr": "Goules",
+      "en": "Ghouls",
+      "es": "Ghuls",
+      "pt": "Carniçais"
     },
     "rank": 1,
     "gfx": 140501836,
@@ -5503,6 +5503,29 @@
     "source": "bdata"
   },
   {
+    "id": 5916,
+    "name": {
+      "fr": "Ignemikhal",
+      "en": "Ignemikhal",
+      "es": "Ignemikhal",
+      "pt": "Ignemikhal"
+    },
+    "level": 1212,
+    "hp": 60000000,
+    "family": {
+      "fr": "Extra Mont Zinit",
+      "en": "Mount Zinit Extra",
+      "es": "Extra Monte Zinit",
+      "pt": "Extra Monte Zinit"
+    },
+    "gfx": 1116505888,
+    "fireResistance": 67,
+    "waterResistance": 67,
+    "earthResistance": 67,
+    "airResistance": 67,
+    "source": "bdata"
+  },
+  {
     "id": 3605,
     "name": {
       "fr": "Serre d'Acier",
@@ -5773,6 +5796,29 @@
     "source": "bdata"
   },
   {
+    "id": 3586,
+    "name": {
+      "fr": "Corbeau Noir",
+      "en": "Black Crow",
+      "es": "Cuervo Negro",
+      "pt": "Corvo Negro"
+    },
+    "level": 630,
+    "hp": 8000,
+    "family": {
+      "fr": "Landes de Kelba",
+      "en": "Lands of Kelba",
+      "es": "Landas de Kelba",
+      "pt": "Estepes de Kelba"
+    },
+    "gfx": 101101151,
+    "fireResistance": 284,
+    "waterResistance": 284,
+    "earthResistance": 284,
+    "airResistance": 284,
+    "source": "bdata"
+  },
+  {
     "id": 5370,
     "name": {
       "fr": "Corbeau Noir",
@@ -5839,29 +5885,6 @@
     "waterResistance": 122,
     "earthResistance": 122,
     "airResistance": 122,
-    "source": "bdata"
-  },
-  {
-    "id": 3586,
-    "name": {
-      "fr": "Corbeau Noir",
-      "en": "Black Crow",
-      "es": "Cuervo Negro",
-      "pt": "Corvo Negro"
-    },
-    "level": 630,
-    "hp": 8000,
-    "family": {
-      "fr": "Landes de Kelba",
-      "en": "Lands of Kelba",
-      "es": "Landas de Kelba",
-      "pt": "Estepes de Kelba"
-    },
-    "gfx": 101101151,
-    "fireResistance": 284,
-    "waterResistance": 284,
-    "earthResistance": 284,
-    "airResistance": 284,
     "source": "bdata"
   },
   {
@@ -6097,6 +6120,29 @@
     "waterResistance": 500,
     "earthResistance": 600,
     "airResistance": 550,
+    "source": "bdata"
+  },
+  {
+    "id": 5904,
+    "name": {
+      "fr": "Vieil amnésique",
+      "en": "Old Amnesiac",
+      "es": "Viejo amnésico",
+      "pt": "Velho Amnésico"
+    },
+    "level": 260,
+    "hp": 22000,
+    "family": {
+      "fr": "Ereboria",
+      "en": "Ereboria",
+      "es": "Ereboria",
+      "pt": "Ereboria"
+    },
+    "gfx": 30,
+    "fireResistance": 700,
+    "waterResistance": 700,
+    "earthResistance": 700,
+    "airResistance": 700,
     "source": "bdata"
   },
   {
@@ -6742,6 +6788,40 @@
     "source": "bdata"
   },
   {
+    "id": 5894,
+    "name": {
+      "fr": "Ruel Stroud",
+      "en": "Fluffy Gobball",
+      "es": "Jalató nuboso",
+      "pt": "Papatudo Nebuloso"
+    },
+    "level": 245,
+    "hp": 22000,
+    "gfx": 192404573,
+    "fireResistance": 700,
+    "waterResistance": 700,
+    "earthResistance": 700,
+    "airResistance": 700,
+    "source": "bdata"
+  },
+  {
+    "id": 5892,
+    "name": {
+      "fr": "Goultard",
+      "en": "Fluffy War Chief",
+      "es": "Jefe de guerra nuboso",
+      "pt": "Chefe de Guerra Nebuloso"
+    },
+    "level": 245,
+    "hp": 22000,
+    "gfx": 192404688,
+    "fireResistance": 600,
+    "waterResistance": 600,
+    "earthResistance": 600,
+    "airResistance": 600,
+    "source": "bdata"
+  },
+  {
     "id": 3792,
     "name": {
       "fr": "Bloc Steamer",
@@ -6877,7 +6957,7 @@
     },
     "level": 245,
     "hp": 60000000,
-    "gfx": 1115405888,
+    "gfx": 1116505888,
     "fireResistance": 700,
     "waterResistance": 700,
     "earthResistance": 700,
@@ -7143,29 +7223,6 @@
     "source": "bdata"
   },
   {
-    "id": 5664,
-    "name": {
-      "fr": "Nox",
-      "en": "Nox",
-      "es": "Nox",
-      "pt": "Nox"
-    },
-    "level": 245,
-    "hp": 99999999,
-    "family": {
-      "fr": "Nox",
-      "en": "Nox",
-      "es": "Nox",
-      "pt": "Nox"
-    },
-    "gfx": 1115005718,
-    "fireResistance": 600,
-    "waterResistance": 600,
-    "earthResistance": 600,
-    "airResistance": 600,
-    "source": "bdata"
-  },
-  {
     "id": 5807,
     "name": {
       "fr": "Nox",
@@ -7209,6 +7266,29 @@
     "waterResistance": 400,
     "earthResistance": 400,
     "airResistance": 400,
+    "source": "bdata"
+  },
+  {
+    "id": 5664,
+    "name": {
+      "fr": "Nox",
+      "en": "Nox",
+      "es": "Nox",
+      "pt": "Nox"
+    },
+    "level": 245,
+    "hp": 99999999,
+    "family": {
+      "fr": "Nox",
+      "en": "Nox",
+      "es": "Nox",
+      "pt": "Nox"
+    },
+    "gfx": 1115005718,
+    "fireResistance": 600,
+    "waterResistance": 600,
+    "earthResistance": 600,
+    "airResistance": 600,
     "source": "bdata"
   },
   {
@@ -7377,6 +7457,23 @@
       "pt": "Mímikos"
     },
     "gfx": 101100834,
+    "fireResistance": 0,
+    "waterResistance": 0,
+    "earthResistance": 0,
+    "airResistance": 0,
+    "source": "bdata"
+  },
+  {
+    "id": 5900,
+    "name": {
+      "fr": "Sacrieur",
+      "en": "Sacrier",
+      "es": "Sacrógrito",
+      "pt": "Sacrier"
+    },
+    "level": 245,
+    "hp": 1,
+    "gfx": 40,
     "fireResistance": 0,
     "waterResistance": 0,
     "earthResistance": 0,
@@ -13063,29 +13160,6 @@
     "source": "bdata"
   },
   {
-    "id": 5164,
-    "name": {
-      "fr": "Comte Harebourg",
-      "en": "Count Harebourg",
-      "es": "Conde Kontatrás",
-      "pt": "Conde Traspafrent"
-    },
-    "level": 200,
-    "hp": 140000,
-    "family": {
-      "fr": "Extra Royaume Sadida",
-      "en": "Sadida Kingdom Extra",
-      "es": "Extra Reino Sadida",
-      "pt": "Extra Reino Sadida"
-    },
-    "gfx": 104702383,
-    "fireResistance": 160,
-    "waterResistance": 160,
-    "earthResistance": 160,
-    "airResistance": 160,
-    "source": "bdata"
-  },
-  {
     "id": 2788,
     "name": {
       "fr": "Comte Harebourg",
@@ -13152,6 +13226,29 @@
     "waterResistance": 375,
     "earthResistance": 375,
     "airResistance": 375,
+    "source": "bdata"
+  },
+  {
+    "id": 5164,
+    "name": {
+      "fr": "Comte Harebourg",
+      "en": "Count Harebourg",
+      "es": "Conde Kontatrás",
+      "pt": "Conde Traspafrent"
+    },
+    "level": 200,
+    "hp": 140000,
+    "family": {
+      "fr": "Extra Royaume Sadida",
+      "en": "Sadida Kingdom Extra",
+      "es": "Extra Reino Sadida",
+      "pt": "Extra Reino Sadida"
+    },
+    "gfx": 104702383,
+    "fireResistance": 160,
+    "waterResistance": 160,
+    "earthResistance": 160,
+    "airResistance": 160,
     "source": "bdata"
   },
   {
@@ -15470,23 +15567,6 @@
     "source": "bdata"
   },
   {
-    "id": 4273,
-    "name": {
-      "fr": "Otomaï",
-      "en": "Otomai",
-      "es": "Otomai",
-      "pt": "Otomai"
-    },
-    "level": 200,
-    "hp": 5000,
-    "gfx": 181404009,
-    "fireResistance": 0,
-    "waterResistance": 0,
-    "earthResistance": 0,
-    "airResistance": 0,
-    "source": "bdata"
-  },
-  {
     "id": 5272,
     "name": {
       "fr": "Otomaï",
@@ -15496,6 +15576,23 @@
     },
     "level": 200,
     "hp": 145,
+    "gfx": 181404009,
+    "fireResistance": 0,
+    "waterResistance": 0,
+    "earthResistance": 0,
+    "airResistance": 0,
+    "source": "bdata"
+  },
+  {
+    "id": 4273,
+    "name": {
+      "fr": "Otomaï",
+      "en": "Otomai",
+      "es": "Otomai",
+      "pt": "Otomai"
+    },
+    "level": 200,
+    "hp": 5000,
     "gfx": 181404009,
     "fireResistance": 0,
     "waterResistance": 0,
@@ -18704,29 +18801,6 @@
     "source": "bdata"
   },
   {
-    "id": 5071,
-    "name": {
-      "fr": "Phéromane",
-      "en": "Pheromaniac",
-      "es": "Feramona",
-      "pt": "Feroman"
-    },
-    "level": 183,
-    "hp": 7844,
-    "family": {
-      "fr": "Quêtes Environnementales de la Pandalousie",
-      "en": "Environmental Quests in Pandalucia",
-      "es": "Misiones automáticas de Pandalucía",
-      "pt": "Missões Ambientais da Pandaluzia"
-    },
-    "gfx": 179403861,
-    "fireResistance": 351,
-    "waterResistance": 433,
-    "earthResistance": 269,
-    "airResistance": 351,
-    "source": "bdata"
-  },
-  {
     "id": 3861,
     "name": {
       "fr": "Phéromane",
@@ -18741,6 +18815,29 @@
       "en": "Kannivores",
       "es": "Kanívoras",
       "pt": "Kanívoros"
+    },
+    "gfx": 179403861,
+    "fireResistance": 351,
+    "waterResistance": 433,
+    "earthResistance": 269,
+    "airResistance": 351,
+    "source": "bdata"
+  },
+  {
+    "id": 5071,
+    "name": {
+      "fr": "Phéromane",
+      "en": "Pheromaniac",
+      "es": "Feramona",
+      "pt": "Feroman"
+    },
+    "level": 183,
+    "hp": 7844,
+    "family": {
+      "fr": "Quêtes Environnementales de la Pandalousie",
+      "en": "Environmental Quests in Pandalucia",
+      "es": "Misiones automáticas de Pandalucía",
+      "pt": "Missões Ambientais da Pandaluzia"
     },
     "gfx": 179403861,
     "fireResistance": 351,
@@ -19043,29 +19140,6 @@
     "source": "bdata"
   },
   {
-    "id": 5070,
-    "name": {
-      "fr": "Tropiliane",
-      "en": "Tropilian",
-      "es": "Tropiliana",
-      "pt": "Tropiliana"
-    },
-    "level": 179,
-    "hp": 6118,
-    "family": {
-      "fr": "Quêtes Environnementales de la Pandalousie",
-      "en": "Environmental Quests in Pandalucia",
-      "es": "Misiones automáticas de Pandalucía",
-      "pt": "Missões Ambientais da Pandaluzia"
-    },
-    "gfx": 179403863,
-    "fireResistance": 213,
-    "waterResistance": 294,
-    "earthResistance": 294,
-    "airResistance": 423,
-    "source": "bdata"
-  },
-  {
     "id": 3863,
     "name": {
       "fr": "Tropiliane",
@@ -19080,6 +19154,29 @@
       "en": "Kannivores",
       "es": "Kanívoras",
       "pt": "Kanívoros"
+    },
+    "gfx": 179403863,
+    "fireResistance": 213,
+    "waterResistance": 294,
+    "earthResistance": 294,
+    "airResistance": 423,
+    "source": "bdata"
+  },
+  {
+    "id": 5070,
+    "name": {
+      "fr": "Tropiliane",
+      "en": "Tropilian",
+      "es": "Tropiliana",
+      "pt": "Tropiliana"
+    },
+    "level": 179,
+    "hp": 6118,
+    "family": {
+      "fr": "Quêtes Environnementales de la Pandalousie",
+      "en": "Environmental Quests in Pandalucia",
+      "es": "Misiones automáticas de Pandalucía",
+      "pt": "Missões Ambientais da Pandaluzia"
     },
     "gfx": 179403863,
     "fireResistance": 213,
@@ -19970,6 +20067,29 @@
     "waterResistance": 0,
     "earthResistance": 0,
     "airResistance": 0,
+    "source": "bdata"
+  },
+  {
+    "id": 5918,
+    "name": {
+      "fr": "Ignemikhal",
+      "en": "Ignemikhal",
+      "es": "Ignemikhal",
+      "pt": "Ignemikhal"
+    },
+    "level": 170,
+    "hp": 1000000,
+    "family": {
+      "fr": "Boss d'intervention",
+      "en": "Intervening Boss",
+      "es": "Jefe de intervención",
+      "pt": "Chefe de intervenção"
+    },
+    "gfx": 1116505888,
+    "fireResistance": 67,
+    "waterResistance": 67,
+    "earthResistance": 67,
+    "airResistance": 67,
     "source": "bdata"
   },
   {
@@ -23698,29 +23818,6 @@
     "source": "bdata"
   },
   {
-    "id": 5800,
-    "name": {
-      "fr": "Néo-Chêne Mou",
-      "en": "Neo Soft Oak",
-      "es": "Neorroble Blando",
-      "pt": "Neo-Carvalho Mole"
-    },
-    "level": 148,
-    "hp": 5000,
-    "family": {
-      "fr": "Néo-Boss",
-      "en": "Neo Bosses",
-      "es": "Neojefe",
-      "pt": "Neo-Chefe"
-    },
-    "gfx": 1115705800,
-    "fireResistance": 687,
-    "waterResistance": 605,
-    "earthResistance": 605,
-    "airResistance": 524,
-    "source": "bdata"
-  },
-  {
     "id": 5802,
     "name": {
       "fr": "Néo-Chêne Mou",
@@ -23740,6 +23837,29 @@
     "fireResistance": 687,
     "waterResistance": 524,
     "earthResistance": 687,
+    "airResistance": 524,
+    "source": "bdata"
+  },
+  {
+    "id": 5800,
+    "name": {
+      "fr": "Néo-Chêne Mou",
+      "en": "Neo Soft Oak",
+      "es": "Neorroble Blando",
+      "pt": "Neo-Carvalho Mole"
+    },
+    "level": 148,
+    "hp": 5000,
+    "family": {
+      "fr": "Néo-Boss",
+      "en": "Neo Bosses",
+      "es": "Neojefe",
+      "pt": "Neo-Chefe"
+    },
+    "gfx": 1115705800,
+    "fireResistance": 687,
+    "waterResistance": 605,
+    "earthResistance": 605,
     "airResistance": 524,
     "source": "bdata"
   },
@@ -28189,7 +28309,7 @@
     "source": "bdata"
   },
   {
-    "id": 4925,
+    "id": 5032,
     "name": {
       "fr": "Taure Massif",
       "en": "Massive Taur",
@@ -28212,7 +28332,7 @@
     "source": "bdata"
   },
   {
-    "id": 5032,
+    "id": 4925,
     "name": {
       "fr": "Taure Massif",
       "en": "Massive Taur",
@@ -30972,29 +31092,6 @@
     "source": "bdata"
   },
   {
-    "id": 2491,
-    "name": {
-      "fr": "Chacha Chuchoté",
-      "en": "Whispered Bow Meow",
-      "es": "Miaumiau susurrado",
-      "pt": "Miaw sussurrado"
-    },
-    "level": 110,
-    "hp": 1570,
-    "family": {
-      "fr": "Extra Chachas",
-      "en": "Extra Bow Meows",
-      "es": "Extra miaumiaus",
-      "pt": "Miaws Extras"
-    },
-    "gfx": 117601209,
-    "fireResistance": 137,
-    "waterResistance": 137,
-    "earthResistance": 374,
-    "airResistance": 62,
-    "source": "bdata"
-  },
-  {
     "id": 2490,
     "name": {
       "fr": "Chacha Chuchoté",
@@ -31011,6 +31108,29 @@
       "pt": "Miaws Extras"
     },
     "gfx": 108900833,
+    "fireResistance": 137,
+    "waterResistance": 137,
+    "earthResistance": 374,
+    "airResistance": 62,
+    "source": "bdata"
+  },
+  {
+    "id": 2491,
+    "name": {
+      "fr": "Chacha Chuchoté",
+      "en": "Whispered Bow Meow",
+      "es": "Miaumiau susurrado",
+      "pt": "Miaw sussurrado"
+    },
+    "level": 110,
+    "hp": 1570,
+    "family": {
+      "fr": "Extra Chachas",
+      "en": "Extra Bow Meows",
+      "es": "Extra miaumiaus",
+      "pt": "Miaws Extras"
+    },
+    "gfx": 117601209,
     "fireResistance": 137,
     "waterResistance": 137,
     "earthResistance": 374,
@@ -31340,29 +31460,6 @@
     "source": "bdata"
   },
   {
-    "id": 4496,
-    "name": {
-      "fr": "Âme du Passé",
-      "en": "Soul from the Past",
-      "es": "Alma del pasado",
-      "pt": "Alma do Passado"
-    },
-    "level": 108,
-    "hp": 2144,
-    "family": {
-      "fr": "Quêtes Environnementales de Frigost",
-      "en": "Environmental Quests in Frigost",
-      "es": "Misiones automáticas de Frigost",
-      "pt": "Missões Ambientais de Frigost"
-    },
-    "gfx": 73,
-    "fireResistance": 152,
-    "waterResistance": 260,
-    "earthResistance": 69,
-    "airResistance": 152,
-    "source": "bdata"
-  },
-  {
     "id": 4493,
     "name": {
       "fr": "Âme du Passé",
@@ -31383,6 +31480,29 @@
     "waterResistance": 195,
     "earthResistance": 195,
     "airResistance": 195,
+    "source": "bdata"
+  },
+  {
+    "id": 4494,
+    "name": {
+      "fr": "Âme du Passé",
+      "en": "Soul from the Past",
+      "es": "Alma del pasado",
+      "pt": "Alma do Passado"
+    },
+    "level": 108,
+    "hp": 2080,
+    "family": {
+      "fr": "Quêtes Environnementales de Frigost",
+      "en": "Environmental Quests in Frigost",
+      "es": "Misiones automáticas de Frigost",
+      "pt": "Missões Ambientais de Frigost"
+    },
+    "gfx": 93,
+    "fireResistance": 210,
+    "waterResistance": 210,
+    "earthResistance": 210,
+    "airResistance": 210,
     "source": "bdata"
   },
   {
@@ -31409,7 +31529,7 @@
     "source": "bdata"
   },
   {
-    "id": 4494,
+    "id": 4496,
     "name": {
       "fr": "Âme du Passé",
       "en": "Soul from the Past",
@@ -31417,18 +31537,18 @@
       "pt": "Alma do Passado"
     },
     "level": 108,
-    "hp": 2080,
+    "hp": 2144,
     "family": {
       "fr": "Quêtes Environnementales de Frigost",
       "en": "Environmental Quests in Frigost",
       "es": "Misiones automáticas de Frigost",
       "pt": "Missões Ambientais de Frigost"
     },
-    "gfx": 93,
-    "fireResistance": 210,
-    "waterResistance": 210,
-    "earthResistance": 210,
-    "airResistance": 210,
+    "gfx": 73,
+    "fireResistance": 152,
+    "waterResistance": 260,
+    "earthResistance": 69,
+    "airResistance": 152,
     "source": "bdata"
   },
   {
@@ -34443,29 +34563,6 @@
     "source": "bdata"
   },
   {
-    "id": 5836,
-    "name": {
-      "fr": "Néo-Esprit Rôdeur",
-      "en": "Neo Prowling Spirit",
-      "es": "Neoespíritu merodeador",
-      "pt": "Neo-Espírito Vagante"
-    },
-    "level": 100,
-    "hp": 2300,
-    "family": {
-      "fr": "Néo-QE",
-      "en": "Neo EQ",
-      "es": "Neo MA",
-      "pt": "Neo-MA"
-    },
-    "gfx": 1115705815,
-    "fireResistance": 210,
-    "waterResistance": 210,
-    "earthResistance": 210,
-    "airResistance": 210,
-    "source": "bdata"
-  },
-  {
     "id": 5851,
     "name": {
       "fr": "Néo-Esprit Rôdeur",
@@ -34486,6 +34583,29 @@
     "waterResistance": 0,
     "earthResistance": 0,
     "airResistance": 0,
+    "source": "bdata"
+  },
+  {
+    "id": 5836,
+    "name": {
+      "fr": "Néo-Esprit Rôdeur",
+      "en": "Neo Prowling Spirit",
+      "es": "Neoespíritu merodeador",
+      "pt": "Neo-Espírito Vagante"
+    },
+    "level": 100,
+    "hp": 2300,
+    "family": {
+      "fr": "Néo-QE",
+      "en": "Neo EQ",
+      "es": "Neo MA",
+      "pt": "Neo-MA"
+    },
+    "gfx": 1115705815,
+    "fireResistance": 210,
+    "waterResistance": 210,
+    "earthResistance": 210,
+    "airResistance": 210,
     "source": "bdata"
   },
   {
@@ -36015,29 +36135,6 @@
     "source": "bdata"
   },
   {
-    "id": 4487,
-    "name": {
-      "fr": "Touriste Surfeuse",
-      "en": "Surfer Tourist",
-      "es": "Turista surfera",
-      "pt": "Turista Surfista"
-    },
-    "level": 95,
-    "hp": 1472,
-    "family": {
-      "fr": "Quêtes Environnementales de Bilbyza",
-      "en": "Environmental Quests in Bilbiza",
-      "es": "Misiones automáticas de Bilbyza",
-      "pt": "Missões Ambientais de Bilbyza"
-    },
-    "gfx": 91,
-    "fireResistance": 40,
-    "waterResistance": 110,
-    "earthResistance": 110,
-    "airResistance": 190,
-    "source": "bdata"
-  },
-  {
     "id": 4490,
     "name": {
       "fr": "Touriste Surfeur",
@@ -36054,6 +36151,29 @@
       "pt": "Missões Ambientais de Bilbyza"
     },
     "gfx": 90,
+    "fireResistance": 40,
+    "waterResistance": 110,
+    "earthResistance": 110,
+    "airResistance": 190,
+    "source": "bdata"
+  },
+  {
+    "id": 4487,
+    "name": {
+      "fr": "Touriste Surfeuse",
+      "en": "Surfer Tourist",
+      "es": "Turista surfera",
+      "pt": "Turista Surfista"
+    },
+    "level": 95,
+    "hp": 1472,
+    "family": {
+      "fr": "Quêtes Environnementales de Bilbyza",
+      "en": "Environmental Quests in Bilbiza",
+      "es": "Misiones automáticas de Bilbyza",
+      "pt": "Missões Ambientais de Bilbyza"
+    },
+    "gfx": 91,
     "fireResistance": 40,
     "waterResistance": 110,
     "earthResistance": 110,
@@ -36636,29 +36756,6 @@
     "source": "bdata"
   },
   {
-    "id": 4488,
-    "name": {
-      "fr": "Touriste Infirmière",
-      "en": "Nurse Tourist",
-      "es": "Turista enfermera",
-      "pt": "Turista Enfermeira"
-    },
-    "level": 93,
-    "hp": 1552,
-    "family": {
-      "fr": "Quêtes Environnementales de Bilbyza",
-      "en": "Environmental Quests in Bilbiza",
-      "es": "Misiones automáticas de Bilbyza",
-      "pt": "Missões Ambientais de Bilbyza"
-    },
-    "gfx": 71,
-    "fireResistance": 135,
-    "waterResistance": 215,
-    "earthResistance": 54,
-    "airResistance": 135,
-    "source": "bdata"
-  },
-  {
     "id": 4491,
     "name": {
       "fr": "Touriste Infirmier",
@@ -36675,6 +36772,29 @@
       "pt": "Missões Ambientais de Bilbyza"
     },
     "gfx": 70,
+    "fireResistance": 135,
+    "waterResistance": 215,
+    "earthResistance": 54,
+    "airResistance": 135,
+    "source": "bdata"
+  },
+  {
+    "id": 4488,
+    "name": {
+      "fr": "Touriste Infirmière",
+      "en": "Nurse Tourist",
+      "es": "Turista enfermera",
+      "pt": "Turista Enfermeira"
+    },
+    "level": 93,
+    "hp": 1552,
+    "family": {
+      "fr": "Quêtes Environnementales de Bilbyza",
+      "en": "Environmental Quests in Bilbiza",
+      "es": "Misiones automáticas de Bilbyza",
+      "pt": "Missões Ambientais de Bilbyza"
+    },
+    "gfx": 71,
     "fireResistance": 135,
     "waterResistance": 215,
     "earthResistance": 54,
@@ -38630,29 +38750,6 @@
     "source": "bdata"
   },
   {
-    "id": 4872,
-    "name": {
-      "fr": "Titanoeuf",
-      "en": "Gigantegg",
-      "es": "Titanohuevo",
-      "pt": "Gigantovo"
-    },
-    "level": 80,
-    "hp": 2000,
-    "family": {
-      "fr": "Truches",
-      "en": "Striches",
-      "es": "Pestruces",
-      "pt": "Truzes"
-    },
-    "gfx": 128802292,
-    "fireResistance": -200,
-    "waterResistance": -200,
-    "earthResistance": -200,
-    "airResistance": -200,
-    "source": "bdata"
-  },
-  {
     "id": 5874,
     "name": {
       "fr": "Titanoeuf",
@@ -38692,6 +38789,29 @@
       "pt": "Truzes"
     },
     "gfx": 128801455,
+    "fireResistance": -200,
+    "waterResistance": -200,
+    "earthResistance": -200,
+    "airResistance": -200,
+    "source": "bdata"
+  },
+  {
+    "id": 4872,
+    "name": {
+      "fr": "Titanoeuf",
+      "en": "Gigantegg",
+      "es": "Titanohuevo",
+      "pt": "Gigantovo"
+    },
+    "level": 80,
+    "hp": 2000,
+    "family": {
+      "fr": "Truches",
+      "en": "Striches",
+      "es": "Pestruces",
+      "pt": "Truzes"
+    },
+    "gfx": 128802292,
     "fireResistance": -200,
     "waterResistance": -200,
     "earthResistance": -200,
@@ -41771,23 +41891,6 @@
     "source": "bdata"
   },
   {
-    "id": 5882,
-    "name": {
-      "fr": "Marcassinet",
-      "en": "Young Wild Sow",
-      "es": "Jabatillo",
-      "pt": "Kid Porquito"
-    },
-    "level": 68,
-    "hp": 797,
-    "gfx": 100700052,
-    "fireResistance": 59,
-    "waterResistance": -22,
-    "earthResistance": 59,
-    "airResistance": 138,
-    "source": "bdata"
-  },
-  {
     "id": 4760,
     "name": {
       "fr": "Marcassinet",
@@ -41893,6 +41996,23 @@
     "waterResistance": 50,
     "earthResistance": 50,
     "airResistance": 50,
+    "source": "bdata"
+  },
+  {
+    "id": 5914,
+    "name": {
+      "fr": "Capitaine du Chaos",
+      "en": "Chaos Captain",
+      "es": "Capitán del Caos",
+      "pt": "Capitão do Caos"
+    },
+    "level": 65,
+    "hp": 950,
+    "gfx": 131,
+    "fireResistance": 140,
+    "waterResistance": 45,
+    "earthResistance": 45,
+    "airResistance": 140,
     "source": "bdata"
   },
   {
@@ -42418,26 +42538,88 @@
     "source": "bdata"
   },
   {
-    "id": 2809,
+    "id": 5896,
     "name": {
-      "fr": "Excarné en colère",
-      "en": "Angry Excarnate",
-      "es": "Excarnado enfadado",
-      "pt": "Escarnado Furioso"
+      "fr": "Boufette Nuageuse",
+      "en": "Fluffy Black Gobbly",
+      "es": "Jalatín negro nuboso",
+      "pt": "Paparneiro Negro Fofinho"
     },
-    "level": 63,
-    "hp": 600,
-    "family": {
-      "fr": "Quêtes Environnementales du Domaine Sauvage",
-      "en": "Environmental Quests in the Wild Estate",
-      "es": "Misiones automáticas de las Tierras Salvajes",
-      "pt": "Missões Ambientais do Domínio Selvagem"
+    "level": 64,
+    "hp": 900,
+    "gfx": 100201832,
+    "fireResistance": 200,
+    "waterResistance": 200,
+    "earthResistance": 200,
+    "airResistance": 200,
+    "source": "bdata"
+  },
+  {
+    "id": 5899,
+    "name": {
+      "fr": "Boufton Noir Nuageux",
+      "en": "Fluffy Black Gobbly",
+      "es": "Jalatín negro nuboso",
+      "pt": "Paparneiro Negro Fofinho"
     },
-    "gfx": 172,
-    "fireResistance": 73,
-    "waterResistance": 73,
-    "earthResistance": 73,
-    "airResistance": 73,
+    "level": 64,
+    "hp": 900,
+    "gfx": 100201835,
+    "fireResistance": 180,
+    "waterResistance": 140,
+    "earthResistance": 140,
+    "airResistance": 230,
+    "source": "bdata"
+  },
+  {
+    "id": 5897,
+    "name": {
+      "fr": "Bouftou Nuageux",
+      "en": "Fluffy Gobball",
+      "es": "Jalató nuboso",
+      "pt": "Papatudo Nebuloso"
+    },
+    "level": 64,
+    "hp": 950,
+    "gfx": 100201833,
+    "fireResistance": 150,
+    "waterResistance": 150,
+    "earthResistance": 150,
+    "airResistance": 150,
+    "source": "bdata"
+  },
+  {
+    "id": 5895,
+    "name": {
+      "fr": "Chef de Guerre Nuageux",
+      "en": "Fluffy White Gobbly",
+      "es": "Jalatín blanco nuboso",
+      "pt": "Paparneiro Branco Fofinho"
+    },
+    "level": 64,
+    "hp": 1200,
+    "gfx": 100201831,
+    "fireResistance": 200,
+    "waterResistance": 200,
+    "earthResistance": 200,
+    "airResistance": 200,
+    "source": "bdata"
+  },
+  {
+    "id": 5898,
+    "name": {
+      "fr": "Boufton Blanc Nuageux",
+      "en": "Fluffy White Gobbly",
+      "es": "Jalatín blanco nuboso",
+      "pt": "Paparneiro Branco Fofinho"
+    },
+    "level": 64,
+    "hp": 800,
+    "gfx": 100201834,
+    "fireResistance": 100,
+    "waterResistance": 100,
+    "earthResistance": 100,
+    "airResistance": 100,
     "source": "bdata"
   },
   {
@@ -42461,6 +42643,29 @@
     "waterResistance": 71,
     "earthResistance": 71,
     "airResistance": 71,
+    "source": "bdata"
+  },
+  {
+    "id": 2809,
+    "name": {
+      "fr": "Excarné en colère",
+      "en": "Angry Excarnate",
+      "es": "Excarnado enfadado",
+      "pt": "Escarnado Furioso"
+    },
+    "level": 63,
+    "hp": 600,
+    "family": {
+      "fr": "Quêtes Environnementales du Domaine Sauvage",
+      "en": "Environmental Quests in the Wild Estate",
+      "es": "Misiones automáticas de las Tierras Salvajes",
+      "pt": "Missões Ambientais do Domínio Selvagem"
+    },
+    "gfx": 172,
+    "fireResistance": 73,
+    "waterResistance": 73,
+    "earthResistance": 73,
+    "airResistance": 73,
     "source": "bdata"
   },
   {
@@ -42757,6 +42962,23 @@
     "source": "bdata"
   },
   {
+    "id": 5912,
+    "name": {
+      "fr": "Etoile de l'île inconnue",
+      "en": "Unknown Island Starfish",
+      "es": "Estrella de la isla desconocida",
+      "pt": "Estrela da Ilha Desconhecida"
+    },
+    "level": 62,
+    "hp": 715,
+    "gfx": 146802159,
+    "fireResistance": 60,
+    "waterResistance": 160,
+    "earthResistance": 30,
+    "airResistance": 60,
+    "source": "bdata"
+  },
+  {
     "id": 2773,
     "name": {
       "fr": "Cybwork",
@@ -42834,6 +43056,23 @@
     "waterResistance": 0,
     "earthResistance": 0,
     "airResistance": 0,
+    "source": "bdata"
+  },
+  {
+    "id": 5913,
+    "name": {
+      "fr": "Quartier-maître du Chaos",
+      "en": "Chaos Quartermaster",
+      "es": "Cabo del Caos",
+      "pt": "Quartel-mestre do Caos"
+    },
+    "level": 60,
+    "hp": 820,
+    "gfx": 120,
+    "fireResistance": 140,
+    "waterResistance": 40,
+    "earthResistance": 140,
+    "airResistance": 40,
     "source": "bdata"
   },
   {
@@ -43474,7 +43713,7 @@
     "source": "bdata"
   },
   {
-    "id": 2824,
+    "id": 2771,
     "name": {
       "fr": "Bomber Bwork",
       "en": "Bwork Bomber",
@@ -43482,7 +43721,7 @@
       "pt": "Bombardeiro Bwork"
     },
     "level": 57,
-    "hp": 565,
+    "hp": 765,
     "family": {
       "fr": "Bworks",
       "en": "Bworks",
@@ -43497,7 +43736,7 @@
     "source": "bdata"
   },
   {
-    "id": 2771,
+    "id": 2824,
     "name": {
       "fr": "Bomber Bwork",
       "en": "Bwork Bomber",
@@ -43505,7 +43744,7 @@
       "pt": "Bombardeiro Bwork"
     },
     "level": 57,
-    "hp": 765,
+    "hp": 565,
     "family": {
       "fr": "Bworks",
       "en": "Bworks",
@@ -45332,57 +45571,6 @@
       "es": "Muuugresa",
       "pt": "Mugrr"
     },
-    "gfx": 121801221,
-    "fireResistance": 123,
-    "waterResistance": 80,
-    "earthResistance": 166,
-    "airResistance": 123,
-    "source": "bdata"
-  },
-  {
-    "id": 5859,
-    "name": {
-      "fr": "Moogrr 1",
-      "en": "Moogrr 1",
-      "es": "Muuugresa 1",
-      "pt": "Mugrr 1"
-    },
-    "level": 48,
-    "hp": 312,
-    "gfx": 121801221,
-    "fireResistance": 123,
-    "waterResistance": 80,
-    "earthResistance": 166,
-    "airResistance": 123,
-    "source": "bdata"
-  },
-  {
-    "id": 5861,
-    "name": {
-      "fr": "Moogrr 2",
-      "en": "Moogrr 2",
-      "es": "Muuugresa 2",
-      "pt": "Mugrr 2"
-    },
-    "level": 48,
-    "hp": 312,
-    "gfx": 121801221,
-    "fireResistance": 123,
-    "waterResistance": 80,
-    "earthResistance": 166,
-    "airResistance": 123,
-    "source": "bdata"
-  },
-  {
-    "id": 5862,
-    "name": {
-      "fr": "Moogrr 3",
-      "en": "Moogrr 3",
-      "es": "Muuugresa 3",
-      "pt": "Mugrr 3"
-    },
-    "level": 48,
-    "hp": 312,
     "gfx": 121801221,
     "fireResistance": 123,
     "waterResistance": 80,
@@ -48723,7 +48911,7 @@
     "source": "bdata"
   },
   {
-    "id": 3225,
+    "id": 3173,
     "name": {
       "fr": "Dragodinde Sauvage",
       "en": "Wild Dragoturkey",
@@ -48731,7 +48919,7 @@
       "pt": "Dragoperu Selvagem"
     },
     "level": 30,
-    "hp": 50,
+    "hp": 50000,
     "family": {
       "fr": "Dragodindes",
       "en": "Dragoturkeys",
@@ -48746,7 +48934,7 @@
     "source": "bdata"
   },
   {
-    "id": 3173,
+    "id": 3225,
     "name": {
       "fr": "Dragodinde Sauvage",
       "en": "Wild Dragoturkey",
@@ -48754,7 +48942,7 @@
       "pt": "Dragoperu Selvagem"
     },
     "level": 30,
-    "hp": 50000,
+    "hp": 50,
     "family": {
       "fr": "Dragodindes",
       "en": "Dragoturkeys",
@@ -50411,29 +50599,6 @@
     "source": "bdata"
   },
   {
-    "id": 4090,
-    "name": {
-      "fr": "Pilleur du Culte d'Ogrest",
-      "en": "Ogrest's Cult Raider",
-      "es": "Saqueador del Culto de Ogrest",
-      "pt": "Saqueador do Culto de Ogrest"
-    },
-    "level": 18,
-    "hp": 61,
-    "family": {
-      "fr": "Quêtes Environnementales d'Astrub",
-      "en": "Environmental Quests of Astrub",
-      "es": "Misiones automáticas de Astrub",
-      "pt": "Missões Ambientais de Astrub"
-    },
-    "gfx": 40,
-    "fireResistance": 220,
-    "waterResistance": 160,
-    "earthResistance": 100,
-    "airResistance": 280,
-    "source": "bdata"
-  },
-  {
     "id": 4091,
     "name": {
       "fr": "Pilleuse du Culte d'Ogrest",
@@ -50450,6 +50615,29 @@
       "pt": "Missões Ambientais de Astrub"
     },
     "gfx": 41,
+    "fireResistance": 220,
+    "waterResistance": 160,
+    "earthResistance": 100,
+    "airResistance": 280,
+    "source": "bdata"
+  },
+  {
+    "id": 4090,
+    "name": {
+      "fr": "Pilleur du Culte d'Ogrest",
+      "en": "Ogrest's Cult Raider",
+      "es": "Saqueador del Culto de Ogrest",
+      "pt": "Saqueador do Culto de Ogrest"
+    },
+    "level": 18,
+    "hp": 61,
+    "family": {
+      "fr": "Quêtes Environnementales d'Astrub",
+      "en": "Environmental Quests of Astrub",
+      "es": "Misiones automáticas de Astrub",
+      "pt": "Missões Ambientais de Astrub"
+    },
+    "gfx": 40,
     "fireResistance": 220,
     "waterResistance": 160,
     "earthResistance": 100,
@@ -54348,6 +54536,23 @@
     "source": "bdata"
   },
   {
+    "id": 5901,
+    "name": {
+      "fr": "Bambou",
+      "en": "Bamboo",
+      "es": "Bambú",
+      "pt": "Bambu"
+    },
+    "level": 1,
+    "hp": 1,
+    "gfx": 100503794,
+    "fireResistance": 0,
+    "waterResistance": 0,
+    "earthResistance": 0,
+    "airResistance": 0,
+    "source": "bdata"
+  },
+  {
     "id": 3794,
     "name": {
       "fr": "Tonneau",
@@ -54503,6 +54708,29 @@
   },
   {
     "id": 5412,
+    "name": {
+      "fr": "Encre Noire",
+      "en": "Black Ink",
+      "es": "Tinta Negra",
+      "pt": "Tinta Preta"
+    },
+    "level": 1,
+    "hp": 100,
+    "family": {
+      "fr": "Ereboria",
+      "en": "Ereboria",
+      "es": "Ereboria",
+      "pt": "Ereboria"
+    },
+    "gfx": 1110805412,
+    "fireResistance": 0,
+    "waterResistance": 0,
+    "earthResistance": 0,
+    "airResistance": 0,
+    "source": "bdata"
+  },
+  {
+    "id": 5905,
     "name": {
       "fr": "Encre Noire",
       "en": "Black Ink",
@@ -55153,7 +55381,7 @@
     "source": "bdata"
   },
   {
-    "id": 5315,
+    "id": 5314,
     "name": {
       "fr": "Capt'chat",
       "en": "Cap'n Atcha",
@@ -55170,7 +55398,7 @@
     "source": "bdata"
   },
   {
-    "id": 5314,
+    "id": 5315,
     "name": {
       "fr": "Capt'chat",
       "en": "Cap'n Atcha",
@@ -56961,6 +57189,29 @@
     "source": "bdata"
   },
   {
+    "id": 5917,
+    "name": {
+      "fr": "Ignemikhal",
+      "en": "Ignemikhal",
+      "es": "Ignemikhal",
+      "pt": "Ignemikhal"
+    },
+    "level": 1,
+    "hp": 1,
+    "family": {
+      "fr": "Extra Mont Zinit",
+      "en": "Mount Zinit Extra",
+      "es": "Extra Monte Zinit",
+      "pt": "Extra Monte Zinit"
+    },
+    "gfx": 1116505888,
+    "fireResistance": 0,
+    "waterResistance": 0,
+    "earthResistance": 0,
+    "airResistance": 0,
+    "source": "bdata"
+  },
+  {
     "id": 1499,
     "name": {
       "fr": "Image",
@@ -57216,6 +57467,23 @@
     "source": "bdata"
   },
   {
+    "id": 5087,
+    "name": {
+      "fr": "Habitant",
+      "en": "Inhabitant",
+      "es": "Habitante",
+      "pt": "Habitante"
+    },
+    "level": 1,
+    "hp": 1,
+    "gfx": 120,
+    "fireResistance": 0,
+    "waterResistance": 0,
+    "earthResistance": 0,
+    "airResistance": 0,
+    "source": "bdata"
+  },
+  {
     "id": 5089,
     "name": {
       "fr": "Habitant",
@@ -57243,23 +57511,6 @@
     "level": 1,
     "hp": 1,
     "gfx": 121,
-    "fireResistance": 0,
-    "waterResistance": 0,
-    "earthResistance": 0,
-    "airResistance": 0,
-    "source": "bdata"
-  },
-  {
-    "id": 5087,
-    "name": {
-      "fr": "Habitant",
-      "en": "Inhabitant",
-      "es": "Habitante",
-      "pt": "Habitante"
-    },
-    "level": 1,
-    "hp": 1,
-    "gfx": 120,
     "fireResistance": 0,
     "waterResistance": 0,
     "earthResistance": 0,
@@ -58781,29 +59032,6 @@
     "source": "bdata"
   },
   {
-    "id": 4959,
-    "name": {
-      "fr": "Noxine",
-      "en": "Noxine",
-      "es": "Noxina",
-      "pt": "Noxina"
-    },
-    "level": 1,
-    "hp": 1,
-    "family": {
-      "fr": "Quêtes Environnementales d'Amakna",
-      "en": "Environmental Quests in Amakna",
-      "es": "Misiones automáticas de Amakna",
-      "pt": "Missões Ambientais de Amakna"
-    },
-    "gfx": 189504394,
-    "fireResistance": 0,
-    "waterResistance": 0,
-    "earthResistance": 0,
-    "airResistance": 0,
-    "source": "bdata"
-  },
-  {
     "id": 5765,
     "name": {
       "fr": "Noxine",
@@ -58844,6 +59072,29 @@
     "source": "bdata"
   },
   {
+    "id": 4959,
+    "name": {
+      "fr": "Noxine",
+      "en": "Noxine",
+      "es": "Noxina",
+      "pt": "Noxina"
+    },
+    "level": 1,
+    "hp": 1,
+    "family": {
+      "fr": "Quêtes Environnementales d'Amakna",
+      "en": "Environmental Quests in Amakna",
+      "es": "Misiones automáticas de Amakna",
+      "pt": "Missões Ambientais de Amakna"
+    },
+    "gfx": 189504394,
+    "fireResistance": 0,
+    "waterResistance": 0,
+    "earthResistance": 0,
+    "airResistance": 0,
+    "source": "bdata"
+  },
+  {
     "id": 4539,
     "name": {
       "fr": "Larme d'Ogrest",
@@ -58860,6 +59111,29 @@
       "pt": "Ogrest"
     },
     "gfx": 143604539,
+    "fireResistance": 0,
+    "waterResistance": 0,
+    "earthResistance": 0,
+    "airResistance": 0,
+    "source": "bdata"
+  },
+  {
+    "id": 5907,
+    "name": {
+      "fr": "Spectre du vieil amnésique",
+      "en": "Old Amnesiac's Ghost",
+      "es": "Espectro del viejo amnésico",
+      "pt": "Espectro do Velho Amnésico"
+    },
+    "level": 1,
+    "hp": 1,
+    "family": {
+      "fr": "Extra Mont Zinit",
+      "en": "Mount Zinit Extra",
+      "es": "Extra Monte Zinit",
+      "pt": "Extra Monte Zinit"
+    },
+    "gfx": 30,
     "fireResistance": 0,
     "waterResistance": 0,
     "earthResistance": 0,
@@ -61071,6 +61345,29 @@
     "source": "bdata"
   },
   {
+    "id": 5903,
+    "name": {
+      "fr": "Individu étrange",
+      "en": "Strange Individual",
+      "es": "Individuo extraño",
+      "pt": "Indivíduo Estranho"
+    },
+    "level": 1,
+    "hp": 1,
+    "family": {
+      "fr": "Ereboria",
+      "en": "Ereboria",
+      "es": "Ereboria",
+      "pt": "Ereboria"
+    },
+    "gfx": 30,
+    "fireResistance": 0,
+    "waterResistance": 0,
+    "earthResistance": 0,
+    "airResistance": 0,
+    "source": "bdata"
+  },
+  {
     "id": 1592,
     "name": {
       "fr": "Garde de Sufokia",
@@ -62455,6 +62752,29 @@
       "pt": "Amakna"
     },
     "gfx": 1300027,
+    "fireResistance": 0,
+    "waterResistance": 0,
+    "earthResistance": 0,
+    "airResistance": 0,
+    "source": "bdata"
+  },
+  {
+    "id": 5902,
+    "name": {
+      "fr": "Xitébaflardro",
+      "en": "Xineigyhnu",
+      "es": "Xitebaflanedro",
+      "pt": "Xitebaflanedro"
+    },
+    "level": 1,
+    "hp": 1,
+    "family": {
+      "fr": "Ereboria",
+      "en": "Ereboria",
+      "es": "Ereboria",
+      "pt": "Ereboria"
+    },
+    "gfx": 1300059,
     "fireResistance": 0,
     "waterResistance": 0,
     "earthResistance": 0,

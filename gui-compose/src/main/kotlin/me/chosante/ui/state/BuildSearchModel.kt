@@ -69,7 +69,7 @@ import kotlin.time.Duration.Companion.seconds
 
 private typealias BuildFinder = (WakfuBestBuildParams) -> Flow<SolverResult<BuildCombination>>
 private typealias ZenithBuilder = suspend (ZenithInputParameters) -> String
-private typealias OptimalityProver = (WakfuBestBuildParams, SolverResult<BuildCombination>, () -> Boolean) -> MaxDamageSearch.MaxDamageProof
+private typealias OptimalityProver = (WakfuBestBuildParams, SolverResult<BuildCombination>, () -> Boolean, (String) -> Unit) -> MaxDamageSearch.MaxDamageProof
 
 /** The four specific elemental masteries, mutually exclusive with the aggregate "all elements". */
 private val ELEMENTAL_MASTERY_ELEMENTS =
@@ -116,7 +116,14 @@ class BuildSearchModel(
     private val buildFinder: BuildFinder = { WakfuBestBuildFinderAlgorithm.run(it) },
     // Post-search certificate optimality proof (P4.4). Injectable so tests drive proofState deterministically
     // without a real (minutes-long) exact solve.
-    private val optimalityProver: OptimalityProver = { params, result, isCancelled -> WakfuBestBuildFinderAlgorithm.proveMaxDamageOptimality(params, result, isCancelled) },
+    private val optimalityProver: OptimalityProver = { params, result, isCancelled, onPhase ->
+        WakfuBestBuildFinderAlgorithm.proveMaxDamageOptimality(params, result, isCancelled, onPhase)
+    },
+    // Most-masteries backup certificate (plan §8.9bis): the post-search "proven within X%" quality
+    // bound for searches CP-SAT left un-proven. Injectable for the same reason as [optimalityProver]
+    // (the real DP takes ~15-60 s on the full pool).
+    private val mmQualityProver: (WakfuBestBuildParams, SolverResult<BuildCombination>, Boolean, () -> Boolean) -> WakfuBestBuildFinderAlgorithm.MostMasteriesProof =
+        { params, result, quick, shouldContinue -> WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality(params, result, quick, shouldContinue) },
     private val zenithBuilder: ZenithBuilder = { it.createZenithBuild() },
     private val openBrowser: (String) -> Unit = { link -> Desktop.getDesktop().browse(URI(link)) },
     private val copyToClipboard: (String) -> Unit = { link -> Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(link), null) },
@@ -173,9 +180,11 @@ class BuildSearchModel(
     private var proofJob: Job? = null
 
     // B8: cancelling [proofJob] only stops the coroutine, not the blocking certifier DP running inside it (which
-    // can hold a core for minutes). This flag — set at every proof-cancel site, polled once per certifier DP
-    // stage — makes the DP bail promptly. AtomicBoolean because the parallel exact tier polls it off pool threads.
-    private val proofCancelled =
+    // can hold a core for minutes). This flag — set by [cancelProof], polled once per certifier DP stage — makes
+    // the DP bail promptly. AtomicBoolean because the parallel exact tier polls it off pool threads. ONE FLAG PER
+    // PROOF LAUNCH: each launch installs a fresh one and its provers capture that instance, so a quick follow-up
+    // search can never un-cancel a superseded proof that hasn't polled its flag yet.
+    private var proofCancelled =
         java.util.concurrent.atomic
             .AtomicBoolean(false)
 
@@ -336,7 +345,9 @@ class BuildSearchModel(
                 else -> ui.targets
             }
         // Switching mode invalidates any completed result: a build/match/rotation found under the old mode
-        // would be reinterpreted under the new mode's display rules. Clear it so the UI returns to Idle.
+        // would be reinterpreted under the new mode's display rules. Clear it so the UI returns to Idle —
+        // and stop its proof/refinement, which would otherwise keep CP-SAT busy for a build nobody sees.
+        cancelProof()
         ui =
             ui.copy(
                 mode = mode,
@@ -345,6 +356,7 @@ class BuildSearchModel(
                 progress = 0,
                 match = java.math.BigDecimal.ZERO,
                 optimal = false,
+                proofState = ProofState.Idle,
                 build = null,
                 achieved = emptyMap(),
                 spellRotation = null,
@@ -371,6 +383,7 @@ class BuildSearchModel(
      * which also forces max-damage. Clears any stale result computed under the previous scenario.
      */
     fun pickBoss(monster: Monster) {
+        cancelProof() // the cleared build's proof/refinement has nothing left to display
         ui =
             ui.copy(
                 selectedBoss = monster,
@@ -383,6 +396,7 @@ class BuildSearchModel(
                 progress = 0,
                 match = java.math.BigDecimal.ZERO,
                 optimal = false,
+                proofState = ProofState.Idle,
                 build = null,
                 achieved = emptyMap(),
                 spellRotation = null,
@@ -766,9 +780,6 @@ class BuildSearchModel(
     }
 
     fun search() {
-        job?.cancel()
-        proofCancelled.set(true) // B8: stop the certifier DP inside the job, not just the coroutine
-        proofJob?.cancel()
         val snapshot = ui
         val character = Character(snapshot.clazz, snapshot.level, snapshot.minLevel)
         val targetStats = snapshot.toTargetStats()
@@ -810,9 +821,13 @@ class BuildSearchModel(
         // (UiState.requestErrors) instead of throwing on the first and burying it in the results-panel banner.
         val requestProblems = WakfuBestBuildFinderAlgorithm.validateRequest(params)
         if (requestProblems.isNotEmpty()) {
+            // A rejected request leaves the shown build — and its running proof/refinement — untouched:
+            // cancelling before this check stranded the badge spinner forever on the old build.
             ui = snapshot.copy(requestErrors = requestProblems)
             return
         }
+        job?.cancel()
+        cancelProof()
 
         ui =
             snapshot.copy(
@@ -969,6 +984,16 @@ class BuildSearchModel(
                             // CP-SAT left un-closed (badge flips to proven even when `optimal` was false).
                             if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE && completedResult != null) {
                                 launchOptimalityProof(params, completedResult, character, damageScenario)
+                            } else if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+                                completedResult != null &&
+                                !completedResult.isOptimal &&
+                                completedResult.mostMasteriesObjective != null
+                            ) {
+                                // Backup quality certificate (§8.9bis): CP-SAT ended without a proof (short
+                                // budget / low-core machine) — bound the gap instead. Automatic and cheap
+                                // (~15-60 s single-thread); the same ProofState pipeline renders the phase
+                                // ("Verifying optimality…") and the "proven within X%" badge.
+                                launchMostMasteriesQualityProof(params, completedResult)
                             }
                         } else if (ui.phase == Phase.Searching) {
                             ui =
@@ -1000,6 +1025,87 @@ class BuildSearchModel(
     }
 
     /**
+     * Most-masteries backup quality certificate (plan §8.9bis): bounds how far the shown un-proven
+     * build can be from the optimum ("proven within X%"). Runs automatically after a most-masteries
+     * search whose CP-SAT leg ended non-OPTIMAL — the case of short budgets and low-core machines,
+     * where the 1-worker proof would take 15-20 min while this single-thread DP answers in ~15-60 s.
+     * Streams through the same [UiState.proofState] pipeline as the max-damage proof (spinner phase,
+     * then the badge); failures and unsupported shapes degrade to [ProofState.Unavailable] — never a
+     * wrong badge. No cancellation hook: the DP is short; a superseding search simply wins the
+     * [ui.build] identity check below.
+     */
+    private fun launchMostMasteriesQualityProof(
+        params: WakfuBestBuildParams,
+        result: SolverResult<BuildCombination>,
+    ) {
+        val provenBuild = result.individual
+        val proofStartMs = clock()
+        // B8 wiring (review finding): the certificate DP polls this per stage — a new search flips
+        // it and the superseded proof aborts within a stage instead of pinning a core for ~80 s.
+        val cancelled = newProofCancelFlag()
+        proofJob =
+            scope.launch(Dispatchers.Default) {
+                withContext(mainDispatcher) {
+                    if (ui.phase == Phase.Done && ui.build == provenBuild && ui.proofState == ProofState.Idle) {
+                        ui = ui.copy(proofState = ProofState.Proving(ProofProgress(phase = ProofPhase.CERTIFYING, startedAtMs = proofStartMs)))
+                    }
+                }
+
+                fun toState(proof: WakfuBestBuildFinderAlgorithm.MostMasteriesProof): ProofState =
+                    when (proof) {
+                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenOptimal -> ProofState.ProvenOptimal
+                        is WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin -> ProofState.ProvenWithin(proof.percent)
+                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable -> ProofState.Unavailable
+                    }
+
+                suspend fun publish(
+                    state: ProofState,
+                    allowUpgradeFrom: Boolean,
+                ) {
+                    withContext(mainDispatcher) {
+                        if (ui.phase == Phase.Done &&
+                            ui.build == provenBuild &&
+                            (
+                                ui.proofState is ProofState.Proving ||
+                                    ui.proofState == ProofState.Idle ||
+                                    (allowUpgradeFrom && ui.proofState is ProofState.ProvenWithin)
+                            )
+                        ) {
+                            ui = ui.copy(proofState = state)
+                        }
+                    }
+                }
+
+                fun prove(quick: Boolean): WakfuBestBuildFinderAlgorithm.MostMasteriesProof =
+                    try {
+                        mmQualityProver(params, result, quick) { !cancelled.get() }
+                    } catch (cancellation: CancellationException) {
+                        throw cancellation
+                    } catch (throwable: Throwable) {
+                        throwable.printStackTrace()
+                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable
+                    }
+
+                // Two-tier: the QUICK bound (~15 s) puts a badge up fast; the FULL bound (~80 s)
+                // then silently tightens it (or flips to proven-optimal). Both tiers are sound, so
+                // showing the quick one first never over-promises.
+                val quickProof = prove(quick = true)
+                publish(toState(quickProof), allowUpgradeFrom = false)
+                if (quickProof is WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin) {
+                    val fullProof = prove(quick = false)
+                    // Only ever UPGRADE: a full-tier failure/Unavailable never erases the quick badge.
+                    val better =
+                        when (fullProof) {
+                            WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenOptimal -> true
+                            is WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin -> fullProof.percent < quickProof.percent
+                            WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable -> false
+                        }
+                    if (better) publish(toState(fullProof), allowUpgradeFrom = true)
+                }
+            }
+    }
+
+    /**
      * Computes the AP-cell certificate optimality proof (P4.4) off the UI thread and streams the verdict into
      * [UiState.proofState]. The certificate solve is a blocking call that can take minutes, so it runs in its
      * own [proofJob]; the result is only applied while the shown build is still the one it was proving (a new
@@ -1012,7 +1118,7 @@ class BuildSearchModel(
         damageScenario: DamageScenario,
     ) {
         val provenBuild = result.individual
-        proofCancelled.set(false)
+        val cancelled = newProofCancelFlag()
         val proofStartMs = clock()
 
         // The proof-progress callback (v1): phase transitions observed HERE feed it; a later per-cell hook
@@ -1021,7 +1127,10 @@ class BuildSearchModel(
             withContext(mainDispatcher) {
                 // Only while the shown build is still the one being proven, and never resurrect a badge a
                 // cancel/load already reset (proofState must still be Proving — or Idle for the first report).
-                if (ui.phase == Phase.Done &&
+                // The cancel-flag check matters because builds compare by VALUE: a saved copy of this very
+                // build, reloaded after a cancel, must not be picked up by a late report of the dead proof.
+                if (!cancelled.get() &&
+                    ui.phase == Phase.Done &&
                     ui.build == provenBuild &&
                     (ui.proofState is ProofState.Proving || ui.proofState == ProofState.Idle)
                 ) {
@@ -1031,10 +1140,19 @@ class BuildSearchModel(
         }
         proofJob =
             scope.launch(Dispatchers.Default) {
+                val proofScope = this
                 reportProofProgress(ProofProgress(phase = ProofPhase.CERTIFYING, startedAtMs = proofStartMs))
                 val proof =
                     try {
-                        optimalityProver(params, result) { proofCancelled.get() }
+                        optimalityProver(params, result, { cancelled.get() }) { stageKey ->
+                            // The engine reports from a worker thread; hop to the UI state safely — as a CHILD of
+                            // this proof job, so cancelling the proof also drops its in-flight stage reports.
+                            proofScope.launch {
+                                reportProofProgress(
+                                    ProofProgress(phase = ProofPhase.CERTIFYING, startedAtMs = proofStartMs, detailKey = stageKey)
+                                )
+                            }
+                        }
                     } catch (cancellation: CancellationException) {
                         throw cancellation
                     } catch (throwable: Throwable) {
@@ -1083,14 +1201,20 @@ class BuildSearchModel(
                     } else {
                         null
                     }
+                // Silent refinement (2026-07-21): a soft-leg ProvenWithin badge is shown immediately, then
+                // the per-carrier exact closure keeps running behind it — the badge carries `refining=true`
+                // so the stats panel renders a small "still proving" indicator (user request).
+                val refinable = proof is MaxDamageSearch.MaxDamageProof.ProvenWithin && upgrade == null
                 val state =
                     when (proof) {
                         MaxDamageSearch.MaxDamageProof.ProvenOptimal -> ProofState.ProvenOptimal
-                        is MaxDamageSearch.MaxDamageProof.ProvenWithin -> if (upgrade != null) ProofState.ProvenOptimal else ProofState.ProvenWithin(proof.fraction)
+                        is MaxDamageSearch.MaxDamageProof.ProvenWithin ->
+                            if (upgrade != null) ProofState.ProvenOptimal else ProofState.ProvenWithin(proof.fraction, refining = refinable)
                         MaxDamageSearch.MaxDamageProof.Unavailable -> ProofState.Unavailable
                     }
-                withContext(mainDispatcher) {
-                    if (ui.phase == Phase.Done && ui.build == provenBuild) {
+                val badgeShown =
+                    withContext(mainDispatcher) {
+                        if (ui.phase != Phase.Done || ui.build != provenBuild) return@withContext false
                         ui =
                             if (upgrade != null) {
                                 ui.copy(
@@ -1105,6 +1229,35 @@ class BuildSearchModel(
                             } else {
                                 ui.copy(proofState = state)
                             }
+                        true
+                    }
+                // Refine only behind a refining badge that actually landed: a minutes-long CP-SAT pass whose
+                // result nothing can display would just pin the CPU.
+                if (refinable && badgeShown) {
+                    val refined =
+                        try {
+                            WakfuBestBuildFinderAlgorithm.refineMaxDamageOptimality(params, result, { cancelled.get() })
+                        } catch (cancellation: CancellationException) {
+                            throw cancellation
+                        } catch (throwable: Throwable) {
+                            throwable.printStackTrace()
+                            null
+                        }
+                    withContext(mainDispatcher) {
+                        val shown = ui.proofState
+                        // Apply only while the refining badge this pass produced is still the one on screen.
+                        if (ui.phase == Phase.Done && ui.build == provenBuild && shown is ProofState.ProvenWithin && shown.refining) {
+                            ui =
+                                ui.copy(
+                                    proofState =
+                                        when (refined) {
+                                            MaxDamageSearch.MaxDamageProof.ProvenOptimal -> ProofState.ProvenOptimal
+                                            is MaxDamageSearch.MaxDamageProof.ProvenWithin ->
+                                                ProofState.ProvenWithin(minOf(shown.fraction, refined.fraction))
+                                            else -> shown.copy(refining = false)
+                                        }
+                                )
+                        }
                     }
                 }
             }
@@ -1123,10 +1276,31 @@ class BuildSearchModel(
     fun cancel() {
         job?.cancel()
         job = null
-        proofCancelled.set(true) // B8: stop the certifier DP inside the job, not just the coroutine
+        cancelProof()
+        ui = ui.copy(phase = Phase.Idle, progress = 0, proofState = ProofState.Idle)
+    }
+
+    /**
+     * Stops the running optimality proof / refinement: the coroutine AND (B8) the blocking certifier DP and
+     * CP-SAT solves inside it, which poll that launch's own cancel flag. Call it wherever the proven build
+     * stops being the one on screen.
+     */
+    private fun cancelProof() {
+        proofCancelled.set(true)
         proofJob?.cancel()
         proofJob = null
-        ui = ui.copy(phase = Phase.Idle, progress = 0, proofState = ProofState.Idle)
+    }
+
+    /**
+     * Installs (and returns) a fresh cancel flag for a new proof launch — see [proofCancelled]. A proof still
+     * running at this point is superseded, so it is cancelled first: once its flag is replaced nothing could
+     * reach it any more.
+     */
+    private fun newProofCancelFlag(): java.util.concurrent.atomic.AtomicBoolean {
+        cancelProof()
+        return java.util.concurrent.atomic
+            .AtomicBoolean(false)
+            .also { proofCancelled = it }
     }
 
     /** View the currently displayed build through max-damage damage/rotation cards without re-running the solver. */
@@ -1134,8 +1308,7 @@ class BuildSearchModel(
         val snapshot = ui
         val build = snapshot.build ?: return
         job?.cancel()
-        proofCancelled.set(true)
-        proofJob?.cancel()
+        cancelProof()
         val character = Character(snapshot.clazz, snapshot.level, snapshot.minLevel).copy(characterSkills = build.characterSkills)
         val damageScenario = snapshot.currentDamageScenario()
         ui =
@@ -1438,8 +1611,7 @@ class BuildSearchModel(
         // certificate (its stored CP-SAT `optimal` flag is restored below). Without this, a running proof could
         // leave "Proving optimality…" stuck, or a prior ProvenOptimal could paint a green badge on this build
         // that the certificate never saw (proofState is reset to Idle in the copy below).
-        proofCancelled.set(true) // B8: stop the certifier DP inside the job, not just the coroutine
-        proofJob?.cancel()
+        cancelProof()
         val loadedBuild = entry.toBuildCombination()
         // Recompute the spell rotation for a loaded max-damage build (else the Rotation card would show a
         // rotation left over from a prior search, or nothing). Cheap — no solver, just one rotation DP.
@@ -1469,8 +1641,16 @@ class BuildSearchModel(
                 excludedItems = entry.toExcludedChips(),
                 useSublimations = entry.request.useSublimations,
                 maxSublimationTier = entry.request.maxSublimationTier,
-                forcedSublimations = entry.request.forcedSublimations,
-                excludedSublimations = entry.request.excludedSublimations,
+                // Builds saved before the July 2026 sublimation rename ("Carnage II" → "Carnage III")
+                // keep their forced/excluded chips working under the current names.
+                forcedSublimations =
+                    entry.request.forcedSublimations
+                        .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)
+                        .distinct(),
+                excludedSublimations =
+                    entry.request.excludedSublimations
+                        .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)
+                        .distinct(),
                 excludedRarities = entry.request.excludedRarities,
                 forcedPassives = entry.request.forcedPassives,
                 forcedRunesByItem = entry.request.forcedRunesByItem,
@@ -1577,6 +1757,7 @@ class BuildSearchModel(
      */
     fun newBuild() {
         job?.cancel()
+        cancelProof()
         ui = UiState(lang = ui.lang, savedBuilds = ui.savedBuilds, screen = Screen.Builder)
     }
 

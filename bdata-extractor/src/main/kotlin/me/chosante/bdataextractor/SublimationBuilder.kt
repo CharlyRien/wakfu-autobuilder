@@ -54,6 +54,10 @@ private val SUB_ACTION_OVERRIDE: Map<Int, Pair<Characteristic, Int>> =
 
 private const val ACTION_APPLY_STATE = 304 // applies another state — a combat mechanic, never solver-clean
 
+// The berserk state's per-sub wrapper (client 1.93): runs its children at the SUB's level (params mirror the
+// 999 level wrapper). Structural for a relocated berserk branch only — its children carry the real bonus.
+private const val ACTION_BERSERK_SUB_GROUP = 844
+
 /**
  * Actions for clean PERMANENT build stats Ankama ships that our [Characteristic] model has no entry for — so we
  * can't credit them, but they are NOT combat scripts, so they must NOT force the whole sublimation to
@@ -262,6 +266,24 @@ fun buildSublimations(
         return SublimationEffect.BestElementConcentration(damageInflictedBonus = d, masteryPenaltyPercent = p) to consumed
     }
 
+    // Client 1.93 moved the Berserk family's bonuses into a dedicated BERSERK STATE (applied while HP < 50%):
+    // each such sub's own tree is now a dead `False` root, and the berserk state holds one `HasState(<sub>)`
+    // branch per sub carrying the real bonus. Being in that state IS the berserk scenario, so a relocated branch
+    // decodes as the sub's effects with a berserk gate (same semantics as the 1.92 HP<50% criterion).
+    val berserkBranchesBySub: Map<Int, List<Int>> =
+        stateById[BERSERK_STATE_ID]
+            ?.let { berserk -> strictSubtree(intList(berserk["effect_ids"])) }
+            ?.mapNotNull { eid ->
+                val crit = (byEffectId.getValue(eid)["effect_criterion"] as String).trim()
+                RE_HAS_STATE
+                    .matchEntire(crit)
+                    ?.groupValues
+                    ?.get(1)
+                    ?.toIntOrNull()
+                    ?.let { sid -> sid to eid }
+            }?.groupBy({ it.first }, { it.second })
+            .orEmpty()
+
     return meta.sortedBy { it.stateId }.map { m ->
         val state = stateById[m.stateId]
         // `maxStackLevel` (State table 67 `max_level`) is the theoretical formula range, NOT the value cap — kept only
@@ -274,7 +296,17 @@ fun buildSublimations(
         // NOTE: do NOT clamp this by `maxLevel-1` — WakForge's per-level tables show a CONSTANT (level-1) value
         // for low-`maxLevel` subs, which is a WakForge display bug, not the real scaling; trusting it over-clamps.
         val maxTier = m.maxTier.coerceAtLeast(1)
-        val subtree = state?.let { strictSubtree(intList(it["effect_ids"])) } ?: emptyList()
+        val ownRoots = state?.let { intList(it["effect_ids"]) }.orEmpty()
+        val ownTreeDead =
+            ownRoots.isNotEmpty() &&
+                ownRoots.all { root ->
+                    byEffectId[root]?.let { parseCriterion(it["effect_criterion"] as String).any { a -> a is CritAtom.FalseGate } } == true
+                }
+        val relocatedBerserk = berserkBranchesBySub[m.stateId]?.takeIf { ownTreeDead }
+        // A relocated berserk sub: its effects are the berserk state's `HasState(<sub>)` branch, berserk-gated and
+        // never permanent (the state lands mid-combat).
+        val forcedBerserk = relocatedBerserk != null
+        val subtree = strictSubtree(relocatedBerserk ?: ownRoots)
         val subtreeSet = subtree.toHashSet()
 
         // Structured decodes → a dedicated field ([perStatStep] / [conversion] / [bestElementConcentration]) instead
@@ -315,7 +347,7 @@ fun buildSublimations(
 
         // Ancestor-chain (own + parent groups, within the subtree) scenario gates for a given effect.
         fun gatesFor(startId: Int): ScenarioGate? {
-            var berserk = false
+            var berserk = forcedBerserk
             var ranged = false
             var minLevel: Int? = null
             var orientation: String? = null
@@ -438,7 +470,7 @@ fun buildSublimations(
             // Triggers/scripts on a STRUCTURAL group are its execution machinery (a conditional group fires its
             // children via `triggers_not_related_to_executions`), NOT a combat proc — only flag them on a value
             // effect, where they mean "this stat procs on an in-combat event".
-            val structural = a in STRUCTURAL_ACTIONS
+            val structural = a in STRUCTURAL_ACTIONS || (forcedBerserk && a == ACTION_BERSERK_SUB_GROUP)
             if (!structural && TRIGGER_KEYS.any { (e[it] as List<*>).isNotEmpty() }) {
                 dirty = true
                 combatSignal = true
@@ -468,7 +500,8 @@ fun buildSublimations(
             // gate (applied in the merge below) keeps conditional / combat-conditional subs out of "permanent":
             // their effects apply only at / during combat, after any condition is read.
             val permanentHere =
-                (e["duration_base"] as Int) < 1 &&
+                !forcedBerserk &&
+                    (e["duration_base"] as Int) < 1 &&
                     !(e["ends_at_end_of_turn"] as Boolean) &&
                     !hasTriggeredAncestor(eid)
 
@@ -497,7 +530,7 @@ fun buildSublimations(
 
             when {
                 duplicateValueBranch -> Unit // identical (action,params) branch already counted once — collapse
-                a in STRUCTURAL_ACTIONS -> Unit // structural group; criteria already harvested above
+                structural -> Unit // structural group; criteria already harvested above
                 a == ACTION_APPLY_STATE -> {
                     dirty = true
                     combatSignal = true
@@ -757,6 +790,14 @@ private val RE_AP_ODD = Regex("""GetCharac\("AP",\s*"\w+"\)\s*%\s*2\)?\s*==\s*1"
 private val RE_DODGE_LT_LEVEL = Regex("""GetCharac\("DODGE",\s*"\w+"\)\s*<\s*GetLevel""")
 private val RE_MIN_LEVEL = Regex("""GetLevel\("\w+"\)\s*>=\s*(\d+)""")
 private val RE_BERSERK = Regex("""GetCharacInPct\("HP",\s*"\w+"\)\s*<\s*50""")
+
+/**
+ * The berserk STATE (State table 67) introduced by client 1.93: applied while the character is below 50% HP,
+ * it carries the Berserk family's bonuses (`HasState(<sub>)` branches) and gates Furie's damage. Pinned by id —
+ * a future renumbering makes the Berserk subs lose their effects, which `SublimationReproductionTest` catches.
+ */
+private const val BERSERK_STATE_ID = 9315
+private val RE_HAS_STATE = Regex("HasState\\((\\d+)\\)")
 private val RE_TOTAL_HP_PCT = Regex("""GetTotalHpInPercent\("\w+"\)\s*(>=|>|<=|<)\s*(\d+)""")
 private val RE_CMP = Regex("""GetCharac(?:Max)?\("(\w+)",\s*"\w+"\)\s*(<=|>=|==)\s*(-?\d+)""")
 
@@ -919,6 +960,10 @@ private fun classifyAtom(atom: String): CritAtom {
         return type?.let { CritAtom.Cond(SublimationCondition(it, value = n)) } ?: CritAtom.Unknown
     }
 
+    // Client 1.93's berserk STATE (HP < 50%) gates Furie's damage directly: `HasState(<berserk state>)`.
+    RE_HAS_STATE.matchEntire(atom)?.let { m ->
+        if (m.groupValues[1].toIntOrNull() == BERSERK_STATE_ID) return CritAtom.Gate(berserk = true)
+    }
     // Recognized-but-irrelevant guards.
     if (atom.startsWith("not HasState") ||
         atom.contains("IsTriggeringEffectCritical") ||

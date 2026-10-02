@@ -2759,7 +2759,7 @@
     ],
     "hasConditionalEffects": false,
     "hasStateEffects": true,
-    "hasScriptedEffects": true,
+    "hasScriptedEffects": false,
     "hasTriggeredEffects": true,
     "fullyDeclarative": false
   },
@@ -3190,7 +3190,7 @@
     "appliedStateIds": [],
     "hasConditionalEffects": false,
     "hasStateEffects": false,
-    "hasScriptedEffects": true,
+    "hasScriptedEffects": false,
     "hasTriggeredEffects": true,
     "fullyDeclarative": false
   },
@@ -3874,7 +3874,7 @@
     "appliedStateIds": [],
     "hasConditionalEffects": false,
     "hasStateEffects": false,
-    "hasScriptedEffects": true,
+    "hasScriptedEffects": false,
     "hasTriggeredEffects": true,
     "fullyDeclarative": false
   },
@@ -3936,7 +3936,7 @@
     ],
     "hasConditionalEffects": false,
     "hasStateEffects": true,
-    "hasScriptedEffects": true,
+    "hasScriptedEffects": false,
     "hasTriggeredEffects": true,
     "fullyDeclarative": false
   },
@@ -5828,7 +5828,7 @@
     "appliedStateIds": [],
     "hasConditionalEffects": true,
     "hasStateEffects": false,
-    "hasScriptedEffects": true,
+    "hasScriptedEffects": false,
     "hasTriggeredEffects": true,
     "fullyDeclarative": false
   },
@@ -6325,7 +6325,7 @@
     "appliedStateIds": [],
     "hasConditionalEffects": false,
     "hasStateEffects": false,
-    "hasScriptedEffects": true,
+    "hasScriptedEffects": false,
     "hasTriggeredEffects": true,
     "fullyDeclarative": false
   },
@@ -6341,10 +6341,10 @@
     "class": "SACRIEUR",
     "gfxId": 5050,
     "description": {
-      "fr": "Tant que le Sacrieur n'a pas utilisé de PM pour se déplacer, il se soigne en utilisant ses sorts de déplacement.",
-      "en": "As long as the Sacrier hasn't used MP to move, they heal themself using movement spells.",
-      "es": "Mientras el sacrógrito no haya utilizado PM para desplazarse, se curará al utilizar sus hechizos de desplazamiento.",
-      "pt": "Enquanto o Sacrier não tiver usado PM para se deslocar, ele pode se curar utilizando seus feitiços de deslocamento."
+      "fr": "Tant que le Sacrieur n'a pas utilisé de PM pour se déplacer, il se soigne en déplaçant des cibles avec ses sorts.",
+      "en": "As long as the Sacrier has not used MP to move, they heal themself by using their spells to move targets.",
+      "es": "Mientras el sacrógrito no haya utilizado PM para desplazarse, se cura al desplazar a objetivos con sus hechizos.",
+      "pt": "Enquanto o Sacrier não tiver usado PM para se deslocar, ele pode se curar deslocando alvos com seus feitiços."
     },
     "effectIds": [
       353795,
@@ -6383,10 +6383,10 @@
     "class": "SACRIEUR",
     "gfxId": 5051,
     "description": {
-      "fr": "Le Sacrieur gagne en PV mais perd en portée, se concentrant sur le jeu en mêlée.",
-      "en": "The Sacrier gains HP but loses Range, focusing on melee combat.",
-      "es": "El sacrógrito gana PdV, pero pierde AL, para un juego más en melé.",
-      "pt": "O Sacrier ganha PV e perde alcance, concentrando-se no combate a curta distância."
+      "fr": "Le Sacrieur gagne en PV mais ne peut plus lancer Coeur sanguin tous les tours.",
+      "en": "The Sacrier gains HP but can no longer cast Hot-Blooded Heart every turn.",
+      "es": "El sacrógrito gana PdV, pero ya no puede lanzar Corazón Sanguíneo cada turno.",
+      "pt": "O Sacrier ganha em PV, mas não não pode mais lançar Coração Sanguíneo em todos os turnos."
     },
     "effectIds": [
       316633
@@ -6398,7 +6398,7 @@
     ],
     "hasConditionalEffects": false,
     "hasStateEffects": true,
-    "hasScriptedEffects": true,
+    "hasScriptedEffects": false,
     "hasTriggeredEffects": true,
     "fullyDeclarative": false
   },
@@ -6455,30 +6455,7 @@
       353190,
       353198
     ],
-    "declaredEffects": [
-      {
-        "actionId": 193,
-        "kind": "stat",
-        "characteristic": "WAKFU_POINT",
-        "base": 1,
-        "inc": 0,
-        "conditional": false,
-        "criterion": null,
-        "durationBase": 0,
-        "permanent": false
-      },
-      {
-        "actionId": 193,
-        "kind": "stat",
-        "characteristic": "WAKFU_POINT",
-        "base": 1,
-        "inc": 0,
-        "conditional": false,
-        "criterion": null,
-        "durationBase": 0,
-        "permanent": false
-      }
-    ],
+    "declaredEffects": [],
     "flatBuildStats": {},
     "appliedStateIds": [],
     "hasConditionalEffects": false,
@@ -6499,21 +6476,45 @@
     "class": "SACRIEUR",
     "gfxId": 5194,
     "description": {
-      "fr": "En échange d'un PW, le Sacrieur peut fortement augmenter son Esquive ou son Tacle grâce à ses châtiments.",
-      "en": "In exchange for one WP, the Sacrier can greatly increase their Dodge or Lock using their punishments.",
-      "es": "A cambio de un PW, el sacrógrito puede aumentar considerablemente su esquiva y su placaje mediante sus castigos.",
-      "pt": "Em troca de um PW, o Sacrier pode aumentar bastante sua esquiva ou seu bloqueio graças aos castigos."
+      "fr": "Le Sacrieur peut fortement augmenter son Esquive ou son Tacle grâce à son statut de Berserk.",
+      "en": "The Sacrier can greatly increase their Dodge or Lock while in the Berserk state.",
+      "es": "El sacrógrito puede aumentar considerablemente su esquiva o su placaje gracias al estado Berserker.",
+      "pt": "O Sacrier pode aumentar bastante sua Esquiva ou seu Bloqueio graças ao seu estado Berserk."
     },
     "effectIds": [
-      353352
+      353352,
+      418271
     ],
-    "declaredEffects": [],
+    "declaredEffects": [
+      {
+        "actionId": 173,
+        "kind": "stat",
+        "characteristic": "LOCK",
+        "base": 0,
+        "inc": 1,
+        "conditional": false,
+        "criterion": null,
+        "durationBase": -1,
+        "permanent": true
+      },
+      {
+        "actionId": 161,
+        "kind": "stat",
+        "characteristic": "RANGE",
+        "base": -1,
+        "inc": 0,
+        "conditional": false,
+        "criterion": null,
+        "durationBase": -1,
+        "permanent": true
+      }
+    ],
     "flatBuildStats": {},
     "appliedStateIds": [],
     "hasConditionalEffects": false,
     "hasStateEffects": false,
-    "hasScriptedEffects": false,
-    "hasTriggeredEffects": false,
+    "hasScriptedEffects": true,
+    "hasTriggeredEffects": true,
     "fullyDeclarative": false
   },
   {
@@ -6566,8 +6567,8 @@
         "characteristic": "MOVEMENT_POINT",
         "base": 1,
         "inc": 0,
-        "conditional": false,
-        "criterion": null,
+        "conditional": true,
+        "criterion": "not HasState(7886, 3)",
         "durationBase": 1,
         "permanent": false
       }
@@ -6576,9 +6577,9 @@
     "appliedStateIds": [
       7886
     ],
-    "hasConditionalEffects": false,
+    "hasConditionalEffects": true,
     "hasStateEffects": true,
-    "hasScriptedEffects": true,
+    "hasScriptedEffects": false,
     "hasTriggeredEffects": true,
     "fullyDeclarative": false
   },
@@ -6625,86 +6626,21 @@
     "class": "SACRIEUR",
     "gfxId": 7208,
     "description": {
-      "fr": "Le Sacrieur remplace le coût en PW de ses sorts de déplacement par un coût en PA. S'il déplace un ennemi avec un sort, ce dernier subira des dommages directs. En contrepartie, si le Sacrieur se déplace lui-même avec un sort, il subit un retour de flamme.",
-      "en": "The Sacrier replaces the WP cost of their movement spells with an AP cost. If the Sacrier uses a spell to move an enemy, the enemy will suffer direct damage. However, if the Sacrier uses a spell to move themself, they suffer a flame return.",
-      "es": "El sacrógrito remplaza el coste en PW de sus hechizos de desplazamiento por un coste en PA. Si desplaza a un enemigo con un hechizo, este sufrirá daños directos. A cambio, si el sacrógrito se desplaza a sí mismo con un hechizo, sufre un Reavivar la Llama.",
-      "pt": "O Sacrier substitui o custo em PW dos feitiços de deslocamento por um custo em PA. Se ele desloca um inimigo com um feitiço, o inimigo sofrerá danos diretos. Em contrapartida, se é o Sacrier que se desloca com um feitiço, ele sofre um Retorno das Chamas."
+      "fr": "Si le Sacrieur se déplace lui-même avec un sort, il subit un retour de flamme.",
+      "en": "If the Sacrier uses a spell to move themself, they suffer a Flame Return.",
+      "es": "Si el sacrógrito se desplaza a sí mismo con un hechizo, sufre Reavivar la Llama.",
+      "pt": "Se o Sacrier se desloca com um feitiço, ele sofre um Retorno das Chamas."
     },
     "effectIds": [
       353322
     ],
-    "declaredEffects": [
-      {
-        "actionId": 1,
-        "kind": "damage",
-        "characteristic": null,
-        "base": 0,
-        "inc": 1,
-        "conditional": false,
-        "criterion": null,
-        "durationBase": 0,
-        "permanent": false
-      },
-      {
-        "actionId": 1083,
-        "kind": "damage",
-        "characteristic": null,
-        "base": 0,
-        "inc": 1,
-        "conditional": true,
-        "criterion": "GetTeamId(\"caster\") <> GetTeamId(\"target\")",
-        "durationBase": 0,
-        "permanent": false
-      },
-      {
-        "actionId": 1,
-        "kind": "damage",
-        "characteristic": null,
-        "base": 0,
-        "inc": 1,
-        "conditional": false,
-        "criterion": null,
-        "durationBase": 0,
-        "permanent": false
-      },
-      {
-        "actionId": 1,
-        "kind": "damage",
-        "characteristic": null,
-        "base": 0,
-        "inc": 1,
-        "conditional": false,
-        "criterion": null,
-        "durationBase": 0,
-        "permanent": false
-      },
-      {
-        "actionId": 1083,
-        "kind": "damage",
-        "characteristic": null,
-        "base": 0,
-        "inc": 1,
-        "conditional": true,
-        "criterion": "GetTeamId(\"caster\") <> GetTeamId(\"target\")\r\nand (GetActiveSpellId() == 5035 or GetActiveSpellId() == 5034 or GetActiveSpellId() == 5623)",
-        "durationBase": 0,
-        "permanent": false
-      },
-      {
-        "actionId": 1083,
-        "kind": "damage",
-        "characteristic": null,
-        "base": 0,
-        "inc": 1,
-        "conditional": true,
-        "criterion": "GetTeamId(\"caster\") <> GetTeamId(\"target\")\r\nand GetActiveSpellId() <> 5035\r\nand GetActiveSpellId() <> 5034\r\nand GetActiveSpellId() <> 5623",
-        "durationBase": 0,
-        "permanent": false
-      }
-    ],
+    "declaredEffects": [],
     "flatBuildStats": {},
-    "appliedStateIds": [],
-    "hasConditionalEffects": true,
-    "hasStateEffects": false,
+    "appliedStateIds": [
+      7903
+    ],
+    "hasConditionalEffects": false,
+    "hasStateEffects": true,
     "hasScriptedEffects": true,
     "hasTriggeredEffects": true,
     "fullyDeclarative": false
@@ -6721,10 +6657,10 @@
     "class": "SACRIEUR",
     "gfxId": 5195,
     "description": {
-      "fr": "Ce passif offre au Sacrieur un meilleur contrôle de ses PV : en infligeant des dommages à une cible, il en vole une partie si elle possède plus de % PV que le Sacrieur. Si ce dernier possède plus de % PV que sa cible, il s'inflige un retour de flamme.",
-      "en": "This passive gives the Sacrier more control over their HP. When the Sacrier inflicts damage on a target, they steal some if the target's % of HP is higher than the Sacrier's. If the Sacrier's % of HP is higher than their target's, the Sacrier inflicts a flame return on themself.",
-      "es": "Este pasivo ofrece al sacrógrito un mejor control de sus PdV: cuando causa daños a un objetivo, roba una parte de estos si el objetivo tiene más % de PdV que el sacrógrito. Si este último tiene más % de PdV que su objetivo, se inflige un Reavivar la Llama.",
-      "pt": "Este passivo dá ao Sacrier um melhor controle de seus PV: ao infligir danos a um alvo, ele rouba uma parte se o alvo tiver mais % de PV que o Sacrier. Se o Sacrier tiver mais % de PV que o alvo, ele inflige a si mesmo um Retorno das Chamas."
+      "fr": "Le Sacrieur convertit une partie des dommages qu'il inflige aux cibles qui ont plus de PV que lui en Armure. En revanche, si la cible a moins de PV, il subit lui-même une partie des dommages qu'il inflige.",
+      "en": "The Sacrier converts part of the damage they inflict on targets that have more HP than the Sacrier to Armor. However, if the target has less HP, the Sacrier themself suffers part of the damage they inflict.",
+      "es": "El sacrógrito convierte una parte de los daños que inflige a los objetivos que tienen más PdV que él en armadura. Por el contrario, si el objetivo tiene menos PdV, sufre una parte de los daños que inflige.",
+      "pt": "O Sacrier converte uma parte dos danos que inflige aos alvos com mais PV que ele em armadura. Por outro lado, se o alvo possuir menos PV, ele próprio sofre uma parte dos danos que infligir."
     },
     "effectIds": [
       353572
@@ -6747,28 +6683,6 @@
         "characteristic": null,
         "base": 0,
         "inc": 0.15,
-        "conditional": false,
-        "criterion": null,
-        "durationBase": 0,
-        "permanent": false
-      },
-      {
-        "actionId": 24,
-        "kind": "heal",
-        "characteristic": null,
-        "base": 0,
-        "inc": 2.5,
-        "conditional": false,
-        "criterion": null,
-        "durationBase": 0,
-        "permanent": false
-      },
-      {
-        "actionId": 24,
-        "kind": "heal",
-        "characteristic": null,
-        "base": 0,
-        "inc": 0.25,
         "conditional": false,
         "criterion": null,
         "durationBase": 0,
@@ -6866,16 +6780,32 @@
     "class": "SACRIEUR",
     "gfxId": 7215,
     "description": {
-      "fr": "Ce passif augmente la portée des sorts de déplacement du Sacrieur. En contrepartie, les gains d'Armure sont réduits de moitié si le Sacrieur n'est pas au contact d'un autre combattant.",
-      "en": "This passive increases the range of the Sacrier's movement spells. In exchange, Armor gains are reduced by half if the Sacrier is not adjacent to another fighter.",
-      "es": "Este pasivo aumenta el alcance de los hechizos de desplazamiento del sacrógrito. A cambio, las ganancias de armadura se reducen a la mitad si el sacrógrito no está en contacto con otro luchador.",
-      "pt": "Este passivo aumenta o alcance dos feitiços de deslocamento do Sacrier. Em contrapartida, os ganhos de armadura serão reduzidos pela metade se o Sacrier não estiver em contato com outro combatente."
+      "fr": "Ce passif augmente la portée du Sacrieur. En contrepartie, les gains d'Armure sont annulés si le Sacrieur n'est pas au contact d'un autre combattant.",
+      "en": "This passive increases the range of the sacrier. In exchange, Armor gains are reduced by 100% if the Sacrier is not adjacent to another fighter.",
+      "es": "Este pasivo aumenta el alcance del sacrógrito. A cambio, las ganancias de armadura se reducen a 0 si el sacrógrito no está en contacto con otro luchador.",
+      "pt": "Este passivo aumenta o alcance do Sacrier. Em contrapartida, os ganhos de armadura serão reduzidos pela 0 se o Sacrier não estiver em contato com outro combatente."
     },
     "effectIds": [
-      353425
+      353425,
+      417468,
+      417469
     ],
-    "declaredEffects": [],
-    "flatBuildStats": {},
+    "declaredEffects": [
+      {
+        "actionId": 160,
+        "kind": "stat",
+        "characteristic": "RANGE",
+        "base": 2,
+        "inc": 0,
+        "conditional": false,
+        "criterion": null,
+        "durationBase": -1,
+        "permanent": true
+      }
+    ],
+    "flatBuildStats": {
+      "RANGE": 2
+    },
     "appliedStateIds": [],
     "hasConditionalEffects": false,
     "hasStateEffects": false,
@@ -6895,39 +6825,15 @@
     "class": "SACRIEUR",
     "gfxId": 7216,
     "description": {
-      "fr": "Le Sacrieur transforme ses retours de flamme en Armure. En contrepartie, s'il lui reste de l'Armure au début de son tour, il la subit.",
-      "en": "The Sacrier turns their flame returns into Armor. However, if they have Armor left when their turn starts, they suffer it as damage.",
-      "es": "El sacrógrito transforma sus Reavivar la Llama en armadura. A cambio, si al principio de su turno le queda armadura, la sufre.",
-      "pt": "O Sacrier transforma seus Retornos das Chamas em armadura. Em contrapartida, se sobrar armadura no início de seu turno, ele sofre danos equivalentes à quantidade de armadura."
+      "fr": "Permet de débloquer le sort Armure brûlante à la place de Martyr. Avec l'armure brûlante, tous les retours de flamme sont convertis en Armure, mais le Sacrieur subit son Armure en retour de flammes au début de son tour.",
+      "en": "Unlocks the Burning Armor spell instead of Martyr. With Burning Armor, all Flame Returns are converted to Armor, but the Sacrier suffers their Armor as Flame Returns at the start of their turn.",
+      "es": "Permite desbloquear el hechizo Armadura Ardiente en lugar de Mártir. Con Armadura Ardiente, todos los Reavivar la Llama se convierten en armadura, pero el sacrógrito sufre su armadura en Reavivar la Llama al principio de su turno.",
+      "pt": "Permite desbloquear o feitiço Armadura Ardente no lugar de Mártir. Com Armadura Ardente, todos os Retornos das Chamas são convertidos em armadura, mas o Sacrier sofre sua armadura em Retorno das Chamas no começo de seu turno."
     },
     "effectIds": [
-      353367,
-      353371
+      417456
     ],
-    "declaredEffects": [
-      {
-        "actionId": 1,
-        "kind": "damage",
-        "characteristic": null,
-        "base": 0,
-        "inc": 10,
-        "conditional": false,
-        "criterion": null,
-        "durationBase": 0,
-        "permanent": false
-      },
-      {
-        "actionId": 1,
-        "kind": "damage",
-        "characteristic": null,
-        "base": 0,
-        "inc": 1,
-        "conditional": false,
-        "criterion": null,
-        "durationBase": 0,
-        "permanent": false
-      }
-    ],
+    "declaredEffects": [],
     "flatBuildStats": {},
     "appliedStateIds": [],
     "hasConditionalEffects": false,
@@ -6957,22 +6863,11 @@
       353411,
       353414
     ],
-    "declaredEffects": [
-      {
-        "actionId": 1,
-        "kind": "damage",
-        "characteristic": null,
-        "base": 0,
-        "inc": 5,
-        "conditional": false,
-        "criterion": null,
-        "durationBase": 0,
-        "permanent": false
-      }
-    ],
+    "declaredEffects": [],
     "flatBuildStats": {},
     "appliedStateIds": [
-      3231
+      3231,
+      7903
     ],
     "hasConditionalEffects": false,
     "hasStateEffects": true,
@@ -6992,10 +6887,10 @@
     "class": "SACRIEUR",
     "gfxId": 7218,
     "description": {
-      "fr": "Sous l'influence du Châtiment osé, la maîtrise mêlée et la maîtrise distance du Sacrieur s'ajoutent pour augmenter ses dommages et sa polyvalence en contrepartie de sa portée.",
-      "en": "Under the influence of Bold Punishment, the Sacrier's melee mastery and distance mastery are added together to increase their damage and versatility, in exchange for their range.",
-      "es": "Bajo la influencia de Castigo Osado, el dominio de melé y el dominio de distancia del sacrógrito se unen para aumentar sus daños y su polivalencia, a cambio de su alcance.",
-      "pt": "Sob influência do Castigo Ousado, o domínio de curta distância e o domínio de distância do Sacrier são adicionados para aumentar seus danos e sua polivalência, em detrimento de seu alcance."
+      "fr": "En berserk, la maîtrise mêlée et la maîtrise distance du Sacrieur s'ajoutent pour augmenter ses dommages et sa polyvalence en contrepartie de sa portée.",
+      "en": "In Berserk mode, the Sacrier's Melee Mastery and Distance Mastery are added together to increase their damage and versatility, in exchange for their range.",
+      "es": "Bajo Berserker, el dominio de melé y el dominio de distancia del sacrógrito se suman para aumentar sus daños y su polivalencia, a cambio de su alcance.",
+      "pt": "Em Berserk, o domínio de curta distância e o domínio de distância do Sacrier são adicionados para aumentar seus danos e sua polivalência, em detrimento de seu alcance."
     },
     "effectIds": [
       353437
@@ -7168,10 +7063,10 @@
     "class": "SACRIEUR",
     "gfxId": 7224,
     "description": {
-      "fr": "Le Sacrieur s'enflamme s'il finit au contact d'un ennemi. Si aucun ennemi n'est à son contact au début de son tour, il subit un retour de flamme équivalent à l'Enflammé.",
-      "en": "The Sacrier catches fire if they end their turn adjacent to an enemy. If no enemies are adjacent to the Sacrier when they start a turn, the Sacrier suffers a flame return equivalent to Flaming.",
-      "es": "El sacrógrito se vuelve Ardiente si termina en contacto con un enemigo. Si ningún enemigo está en contacto con él al principio de su turno, sufre un Reavivar la Llama equivalente al Ardiente.",
-      "pt": "O Sacrier fica flamejante se terminar em contato com um inimigo. Se ele não estiver em contato com nenhum inimigo no início de seu turno, ele sofre um Retorno das Chamas equivalente a Flamejante."
+      "fr": "Le Sacrieur s'enflamme s'il finit au contact d'un ennemi. Si aucun ennemi n'est à son contact au début de son tour en étant immolé, il subit un retour de flamme.",
+      "en": "The Sacrier catches fire if they end their turn adjacent to an enemy. If no enemies are adjacent to the Sacrier when they start their turn while immolated, the Sacrier suffers a Flame Return.",
+      "es": "El sacrógrito se vuelve Ardiente si termina en contacto con un enemigo. Si ningún enemigo está en contacto con él al principio de su turno estando inmolado, sufre un Reavivar la Llama.",
+      "pt": "O Sacrier fica flamejante se terminar em contato com um inimigo. Se ele não estiver em contato com nenhum inimigo no início de seu turno e estiver imolado, ele sofre um Retorno das Chamas."
     },
     "effectIds": [
       353439
@@ -7184,7 +7079,7 @@
     ],
     "hasConditionalEffects": false,
     "hasStateEffects": true,
-    "hasScriptedEffects": true,
+    "hasScriptedEffects": false,
     "hasTriggeredEffects": true,
     "fullyDeclarative": false
   },
@@ -7200,16 +7095,32 @@
     "class": "SACRIEUR",
     "gfxId": 5054,
     "description": {
-      "fr": "Ce passif augmente la portée des sorts de déplacement du Sacrieur. En contrepartie, les soins reçus sont réduits de moitié si le Sacrieur est au contact d'un autre combattant.",
-      "en": "This passive increases the range of the Sacrier's movement spells. In exchange, healing received is reduced by half if the Sacrier is adjacent to another fighter.",
-      "es": "Este pasivo aumenta el alcance de los hechizos de desplazamiento del sacrógrito. A cambio, las curas recibidas se reducen a la mitad si el sacrógrito está en contacto con otro luchador.",
-      "pt": "Este passivo aumenta o alcance dos feitiços de deslocamento do Sacrier. Em contrapartida, as curas recebidas serão reduzidas pela metade se o Sacrier estiver em contato com outro combatente."
+      "fr": "Ce passif augmente la portée du Sacrieur. En contrepartie, les soins reçus sont annulés si le Sacrieur est au contact d'un autre combattant.",
+      "en": "This passive increases the Sacrier's range. In exchange, healing received is canceled if the Sacrier is adjacent to another fighter.",
+      "es": "Este pasivo aumenta el alcance del sacrógrito. A cambio, las curas recibidas se anulan si el sacrógrito está en contacto con otro luchador.",
+      "pt": "Este passivo aumenta o alcance do Sacrier. Em contrapartida, as curas recebidas serão anuladas se o Sacrier estiver em contato com outro combatente."
     },
     "effectIds": [
-      401711
+      401711,
+      417471,
+      417472
     ],
-    "declaredEffects": [],
-    "flatBuildStats": {},
+    "declaredEffects": [
+      {
+        "actionId": 160,
+        "kind": "stat",
+        "characteristic": "RANGE",
+        "base": 2,
+        "inc": 0,
+        "conditional": false,
+        "criterion": null,
+        "durationBase": -1,
+        "permanent": true
+      }
+    ],
+    "flatBuildStats": {
+      "RANGE": 2
+    },
     "appliedStateIds": [],
     "hasConditionalEffects": false,
     "hasStateEffects": false,
@@ -7229,23 +7140,20 @@
     "class": "PANDAWA",
     "gfxId": 7987,
     "description": {
-      "fr": "Sa maîtrise dans la confection de Cocktails permet au Pandawa d'améliorer ses soins en contre-partie de ses dégâts.\\nLes sorts Souffle Enflammé et Tekilait soignent désormais les alliés.",
-      "en": "The Pandawa's mastery of Cocktail mixology means they can improve healing in exchange for damage.\\nThe spells Flaming Burp and Bubble Trouble now heal allies.",
-      "es": "Su dominio en la elaboración de cócteles permite al pandawa mejorar sus curas en detrimento de sus daños.\\nLos hechizos Escupe Fuegos y Tequileche curarán a los aliados.",
-      "pt": "A maestria do Pandawa para fazer coquetéis torna-o capaz de melhorar a cura em troca de dano.\\nOs feitiços Sopro Flamejante e Tekileite agora curam aliados."
+      "fr": "Le Pandawa ne gagne plus de dommages en Ivre mais gagne un bonus aux soins réalisés à la place.",
+      "en": "The Pandawa no longer gains damage while Merry but gains a heals performed bonus instead.",
+      "es": "El pandawa ya no gana daños en Ebrio, sino un bonus a las curas realizadas.",
+      "pt": "O Pandawa não recebe mais danos no estado Embriagado, mas ganha bônus nas curas realizadas."
     },
     "effectIds": [
-      178113,
-      178114,
-      160562,
-      160563
+      417572
     ],
     "declaredEffects": [],
     "flatBuildStats": {},
     "appliedStateIds": [],
     "hasConditionalEffects": false,
     "hasStateEffects": false,
-    "hasScriptedEffects": true,
+    "hasScriptedEffects": false,
     "hasTriggeredEffects": false,
     "fullyDeclarative": false
   },
@@ -7261,46 +7169,21 @@
     "class": "PANDAWA",
     "gfxId": 2212,
     "description": {
-      "fr": "Maître de son Ivresse, le Pandawa gagne des bonus temporaires à chaque changement d'état. Il régénère son Wakfu et ses points de vie en consommant Imbibé sur des cibles grâce aux sorts prévus à cet effet.",
-      "en": "Master of his own Merriment, the Pandawa earns temporary bonuses for each change of state. The Pandawa regenerates Wakfu and Health Points by consuming Dizzy from targets using appropriate spells.",
-      "es": "Gracias a su maestría de la embriaguez, el pandawa gana bonus temporales cada vez que cambia de estado. Regenera su wakfu y sus puntos de vida consumiendo el estado Achispado que tengan los objetivos mediante los hechizos correspondientes.",
-      "pt": "Mestre de sua Embriaguez, o Pandawa ganha bônus temporários a cada mudança de estado. O Pandawa regenera Wakfu e PV ao consumir o estado Tonto dos alvos que estiverem usando os feitiços apropriados."
+      "fr": "Le Pandawa peut utiliser le sort Ebriété tous les tours. En contrepartie, le sort coûte plus cher à lancer et possède moins de portée.",
+      "en": "The Pandawa can use the Exhilaration spell on every turn. However, the spell costs more to cast and has less Range.",
+      "es": "El pandawa puede utilizar el hechizo Ebriedad todos los turnos. Como contrapartida, el hechizo es más caro de lanzar y tiene menos alcance.",
+      "pt": "O Pandawa pode usar o feitiço Sobriedade em todos os turnos. Por outro lado, o feitiço custa mais caro para lançar e possui menor alcance."
     },
     "effectIds": [
-      147405,
-      147406,
-      159885
+      417625
     ],
-    "declaredEffects": [
-      {
-        "actionId": 193,
-        "kind": "stat",
-        "characteristic": "WAKFU_POINT",
-        "base": 1,
-        "inc": 0,
-        "conditional": true,
-        "criterion": "GetCharacteristic(\"WP\", \"target\") < GetCharacteristicMax(\"WP\", \"target\")",
-        "durationBase": 0,
-        "permanent": false
-      },
-      {
-        "actionId": 193,
-        "kind": "stat",
-        "characteristic": "WAKFU_POINT",
-        "base": 2,
-        "inc": 0,
-        "conditional": true,
-        "criterion": "GetCharacteristic(\"WP\", \"target\") < GetCharacteristicMax(\"WP\", \"target\")",
-        "durationBase": 0,
-        "permanent": false
-      }
-    ],
+    "declaredEffects": [],
     "flatBuildStats": {},
     "appliedStateIds": [],
-    "hasConditionalEffects": true,
+    "hasConditionalEffects": false,
     "hasStateEffects": false,
-    "hasScriptedEffects": true,
-    "hasTriggeredEffects": true,
+    "hasScriptedEffects": false,
+    "hasTriggeredEffects": false,
     "fullyDeclarative": false
   },
   {
@@ -7315,20 +7198,19 @@
     "class": "PANDAWA",
     "gfxId": 2213,
     "description": {
-      "fr": "Tonneau sans Fond augmente la contenance du Tonneau. Instinctivement, le Pandawa porte son Tonneau en fin de tour et se soigne en buvant quelques litres.",
-      "en": "Bottomless Barrel increases the Barrel's capacity. The Pandawa instinctively takes the Barrel at the end of the turn and heals by drinking several liters.",
-      "es": "Aumenta la capacidad del tonel. Instintivamente, el pandawa porta su tonel al final de turno y se cura bebiendo unos litros.",
-      "pt": "O Barril sem Fundo aumenta a capacidade do barril. O Pandawa pega o barril por instinto ao final do turno e se cura bebendo vários litros do líquido que está dentro dele."
+      "fr": "Si le Pandawa finit son tour à côté d'un de ses tonneaux, il le porte et boit dedans pour devenir Ivre automatiquement. Il conserve son orientation initiale.",
+      "en": "If the Pandawa ends their turn next to one of their barrels, they carry it and drink from it to become automatically Merry. They retain their initial orientation.",
+      "es": "Si el pandawa termina su turno al lado de uno de sus toneles, lo porta y bebe de él para volverse Ebrio automáticamente. Mantiene su orientación inicial.",
+      "pt": "Se o Pandawa termina seu turno ao lado de um dos seus barris, ele o carrega e bebe seu conteúdo para ficar Embriagado automaticamente. Sua orientação inicial é mantida."
     },
     "effectIds": [
-      146127,
-      159881,
-      145707
+      417574
     ],
     "declaredEffects": [],
     "flatBuildStats": {},
     "appliedStateIds": [
-      6776
+      6776,
+      9355
     ],
     "hasConditionalEffects": false,
     "hasStateEffects": true,
@@ -7348,21 +7230,22 @@
     "class": "PANDAWA",
     "gfxId": 2214,
     "description": {
-      "fr": "Ce passif peut réduire le coût en PA du sort Chamrak lorsque le Tonneau est porté.",
-      "en": "This passive can reduce the AP cost of the Chamrak spell when the Barrel is carried.",
-      "es": "Este pasivo puede reducir el coste en PA del hechizo Chamrak cuando se porta el tonel.",
-      "pt": "Esta habilidade passiva pode reduzir o custo em PA do feitiço Chamrak quando o Barril estiver sendo carregado."
+      "fr": "À la fin du tour du Pandawa, le tonneau explose et imbibe les cibles autour de lui. Il n'explose pas s'il est porté par le Pandawa.",
+      "en": "At the end of the Pandawa's turn, the barrel explodes and makes targets around it Dizzy. It does not explode if carried by the Pandawa.",
+      "es": "Al final del turno del pandawa, el tonel explota y achispa a los objetivos a su alrededor. No explota si el pandawa lo porta.",
+      "pt": "No fim do turno do Pandawa, o barril explode e deixa os alvos ao redor dele no estado Tonto. O barril não explode se estiver sendo carregado pelo Pandawa."
     },
     "effectIds": [
-      168796,
-      291115,
-      145700
+      418034,
+      418035
     ],
     "declaredEffects": [],
     "flatBuildStats": {},
-    "appliedStateIds": [],
-    "hasConditionalEffects": false,
-    "hasStateEffects": false,
+    "appliedStateIds": [
+      6107
+    ],
+    "hasConditionalEffects": true,
+    "hasStateEffects": true,
     "hasScriptedEffects": true,
     "hasTriggeredEffects": true,
     "fullyDeclarative": false
@@ -7379,26 +7262,21 @@
     "class": "PANDAWA",
     "gfxId": 2211,
     "description": {
-      "fr": "Chaque fois qu'il consomme de l'Imbibé sur sa cible, le Pandawa gagne des dégâts pour son prochain sort. De plus, ce passif permet d'imbiber les cibles autour du Tonneau à chaque début de tour du Pandawa.",
-      "en": "Each time Dizzy is consumed from a target, the Pandawa's next spell gains increased damage. In addition, this passive puts all targets round the Barrel in the Dizzy state at the start of each of the Pandawa's turns.",
-      "es": "Cada vez que consume Achispado al lanzarlo sobre el objetivo, el pandawa aumenta sus daños en el próximo hechizo. Además, este pasivo permite achispar a los objetivos en torno al Tonel en cada inicio de turno del pandawa.",
-      "pt": "Toda vez que o estado Tonto for consumido de um alvo, o feitiço seguinte do Pandawa ganhará mais dano. Esta habilidade passiva coloca todos os alvos ao redor do barril no estado Tonto no início de cada um dos turnos do Pandawa."
+      "fr": "Le Pandawa imbibe ses tonneaux quand il les invoque, ce qui permet de déclencher des effets supplémentaires dessus. Par contre, le tonneau est détruit lorsqu'il perd l'état Imbibé.",
+      "en": "The Pandawa makes their barrels Dizzy when they are summoned, which lets the Pandawa trigger additional effects on them. However, the barrel is destroyed when the Pandawa loses the Dizzy state.",
+      "es": "El pandawa achispa a sus toneles cuando los invoca, lo que permite activar efectos adicionales en ellos. Sin embargo, el tonel se destruye cuando pierde el estado Achispado.",
+      "pt": "O Pandawa aplica o estado Tonto nos barris ao invocá-los, o que permite acionar efeitos adicionais neles. No entanto, o barril é destruído ao perder o estado Tonto."
     },
     "effectIds": [
-      146139,
-      159754,
       162932
     ],
     "declaredEffects": [],
     "flatBuildStats": {},
-    "appliedStateIds": [
-      3316,
-      3462
-    ],
-    "hasConditionalEffects": true,
-    "hasStateEffects": true,
-    "hasScriptedEffects": true,
-    "hasTriggeredEffects": true,
+    "appliedStateIds": [],
+    "hasConditionalEffects": false,
+    "hasStateEffects": false,
+    "hasScriptedEffects": false,
+    "hasTriggeredEffects": false,
     "fullyDeclarative": false
   },
   {
@@ -7413,22 +7291,20 @@
     "class": "PANDAWA",
     "gfxId": 5148,
     "description": {
-      "fr": "Le Pandawa profite de bonus qui augmentent son Esquive ou son Tacle selon qu'il est Ivre ou qu'il a la Gueule de Bois.\\nLe passif réduit également le coût du sort Ether.",
-      "en": "The Pandawa gains a bonus that increases Dodge or Lock depending on whether they are Merry or Worn-Out.\\nThis passive also reduces the cost of Ether.",
-      "es": "El pandawa disfruta de bonus que aumentan su esquiva y su placaje según esté en estado Ebrio o en estado Resaca.\\nEste pasivo también reduce el coste del hechizo Éter.",
-      "pt": "Dependendo de seu estado (Embriagado ou de Ressaca), o Pandawa ganha um bônus que aumenta esquiva ou bloqueio.\\nEsta habilidade passiva também reduz o custo do Éter."
+      "fr": "Le Pandawa profite d'un bonus d'esquive lorsqu'il est Ivre, en contrepartie d'un malus de tacle.",
+      "en": "The Pandawa gains a Dodge bonus while Merry but also a Lock penalty in return.",
+      "es": "El pandawa recibe un bonus de esquiva cuando está Ebrio, como contrapartida de un malus de placaje.",
+      "pt": "O Pandawa conta com um bônus de esquiva quando está Embriagado, em troca de uma penalidade de bloqueio."
     },
     "effectIds": [
-      159941,
-      159942,
-      159949
+      418030
     ],
     "declaredEffects": [],
     "flatBuildStats": {},
     "appliedStateIds": [],
     "hasConditionalEffects": false,
     "hasStateEffects": false,
-    "hasScriptedEffects": true,
+    "hasScriptedEffects": false,
     "hasTriggeredEffects": false,
     "fullyDeclarative": false
   },
@@ -7444,61 +7320,19 @@
     "class": "PANDAWA",
     "gfxId": 5149,
     "description": {
-      "fr": "Grâce à ses connaissances sur les laits de Bambou, le Pandawa peut empoisonner ses ennemis à l'aide d'une recette ancestrale dont seuls les vrais Pandawas ont le secret. En prenant de tels risques, le Pandawa perd la faculté à soigner efficacement ses alliés.",
-      "en": "With intimate knowledge of Bamboo Milk, the Pandawa can poison enemies using a recipe handed down from Pandawa to Pandawa over countless generations. But with taking such risks, the Pandawa loses the ability to effectively heal allies.",
-      "es": "Gracias a sus conocimientos en leche de bambú, el pandawa puede envenenar a sus enemigos mediante una receta ancestral que solo los verdaderos pandawas conocen. Aunque también asume el riesgo de perder su facultad de curar con eficacia a sus aliados.",
-      "pt": "Por conhecer profundamente o Leite de Bambu, o Pandawa consegue envenenar inimigos usando uma receita que é passada de geração a geração há muitos anos. Mas, ao correr esse risco, o Pandawa perde a habilidade de curar aliados."
+      "fr": "En fin de tour, le Pandawa transforme l'Imbibé de ses ennemis en poison qui leur infligera des dommages en début de tour.",
+      "en": "At end of turn, the Pandawa transforms their enemies' Dizzy state into a poison that inflicts damage on them at start of turn.",
+      "es": "Al final del turno, el pandawa transforma el estado Achispado de sus enemigos en un veneno que les infligirá daños al principio del turno.",
+      "pt": "No fim do turno, o Pandawa transforma o estado Tonto dos inimigos em veneno, que infligirá danos a eles no começo do turno."
     },
     "effectIds": [
-      178112,
-      168719,
-      160511
-    ],
-    "declaredEffects": [
-      {
-        "actionId": 90,
-        "kind": "stat",
-        "characteristic": "RESISTANCE_ELEMENTARY",
-        "base": -50,
-        "inc": 0,
-        "conditional": false,
-        "criterion": null,
-        "durationBase": -1,
-        "permanent": true
-      }
-    ],
-    "flatBuildStats": {},
-    "appliedStateIds": [],
-    "hasConditionalEffects": false,
-    "hasStateEffects": false,
-    "hasScriptedEffects": true,
-    "hasTriggeredEffects": false,
-    "fullyDeclarative": false
-  },
-  {
-    "spellId": 5150,
-    "name": {
-      "fr": "Buvette",
-      "en": "Refreshment",
-      "es": "Tabernita",
-      "pt": "Refresco"
-    },
-    "breedId": 12,
-    "class": "PANDAWA",
-    "gfxId": 5150,
-    "description": {
-      "fr": "Ce soir, c'est la fête, tous à la buvette ! En début de tour du Pandawa, tous les alliés présents autour du Tonneau gagnent des Dégâts Finaux.",
-      "en": "Party tonight, everyone grab a refreshment! At the start of Pandawa's turn, all the allies around the Barrel gain Final Damage.",
-      "es": "¡Esta noche vamos todos a la tabernita a celebrar! Al inicio del turno del pandawa, todos los aliados presentes alrededor del tonel ganan daños finales.",
-      "pt": "Esta noite, com vento fresco, todos tomam refresco! No começo do turno do Pandawa, todos os aliados que estão perto do Barril ganham danos finais."
-    },
-    "effectIds": [
-      159926
+      418055,
+      418057
     ],
     "declaredEffects": [],
     "flatBuildStats": {},
     "appliedStateIds": [
-      3686
+      3690
     ],
     "hasConditionalEffects": true,
     "hasStateEffects": true,
@@ -7518,15 +7352,14 @@
     "class": "PANDAWA",
     "gfxId": 5151,
     "description": {
-      "fr": "Un Pandawa sachant porter son Tonneau est un bon Pandawa. C'est pourquoi, avec ce passif, il gagne en robustesse quand il porte son Tonneau.",
-      "en": "A Pandawa that can handle his Barrel is a good Pandawa. That's why, with this passive skill, Pandawa gains Robustness when carrying his Barrel.",
-      "es": "Un pandawa que sabe llevar su tonel es un buen pandawa. Esto es porque, con este pasivo, gana en fortaleza cuando carga con su tonel.",
-      "pt": "Um Pandawa que sabe carregar seu barril é um bom Pandawa. Por isso, esta habilidade passiva lhe dá robustez quando ele carrega seu Barril."
+      "fr": "Les ennemis imbibés par le Pandawa lui infligent moins de dommages. En contrepartie, le Pandawa ne bénéficie plus du bonus de dommages sur les ennemis imbibés.",
+      "en": "Enemies made Dizzy by the Pandawa inflict less damage on the Pandawa. However, the Pandawa no longer gains the damage bonus on Dizzy enemies.",
+      "es": "Los enemigos achispados por el pandawa le infligen menos daños. Sin embargo, el pandawa ya no disfruta del bonus de daños a los enemigos achispados.",
+      "pt": "Os inimigos no estado Tonto pela ação do Pandawa infligem menos danos a ele. Por outro lado, o Pandawa não terá mais os bônus de danos sobre os inimigos Tontos."
     },
     "effectIds": [
-      178111,
-      168795,
-      168735
+      418031,
+      418032
     ],
     "declaredEffects": [],
     "flatBuildStats": {},
@@ -7535,6 +7368,35 @@
     "hasStateEffects": false,
     "hasScriptedEffects": true,
     "hasTriggeredEffects": true,
+    "fullyDeclarative": false
+  },
+  {
+    "spellId": 5152,
+    "name": {
+      "fr": "Fût Et",
+      "en": "Tunslucent",
+      "es": "Barrilisto",
+      "pt": "Barrilhante"
+    },
+    "breedId": 12,
+    "class": "PANDAWA",
+    "gfxId": 2211,
+    "description": {
+      "fr": "Les tonneaux du Pandawa sont transparents : ils ne bloquent pas la ligne de vue.",
+      "en": "The Pandawa's barrels are transparent, so they do not block line of sight.",
+      "es": "Los toneles del pandawa son transparentes: no bloquean la línea de visión.",
+      "pt": "Os barris do Pandawa são transparentes: eles não bloqueiam a linha de visão."
+    },
+    "effectIds": [
+      417584
+    ],
+    "declaredEffects": [],
+    "flatBuildStats": {},
+    "appliedStateIds": [],
+    "hasConditionalEffects": false,
+    "hasStateEffects": false,
+    "hasScriptedEffects": false,
+    "hasTriggeredEffects": false,
     "fullyDeclarative": false
   },
   {
@@ -7549,14 +7411,72 @@
     "class": "PANDAWA",
     "gfxId": 2215,
     "description": {
-      "fr": "Ce passif augmente la capacité à imbiber du Pandawa, pour bénéficier de meilleurs effets de préparation. Avec un tel passif, la fête sera très humide !",
-      "en": "This passive increases the Pandawa's ability to become dizzy to take advantage of better preparation effects. With a passive like this, the party's going to be wild!",
-      "es": "Este pasivo aumenta la capacidad de achispar del pandawa, lo que le aporta mejores efectos de preparación. Con un pasivo así, ¡la fiesta será más refrescante!",
-      "pt": "Este passivo aumenta a capacidade que o Pandawa tem de deixar Tonto, para obter melhores efeitos de preparação. Com um passivo assim, a festa vai ser animada!"
+      "fr": "Lorsque le Pandawa est ivre, il possède davantage de portée sur ses sorts neutres en contrepartie de ne plus pouvoir jeter des cibles loin.",
+      "en": "When the Pandawa is Merry, they gain more Range for their neutral spells, but they can no longer throw targets far away.",
+      "es": "Cuando el pandawa está Ebrio, sus hechizos neutrales poseen más alcance, pero no puede lanzar objetivos lejos.",
+      "pt": "Quando o Pandawa está Embriagado, ele possui mais alcance sobre os feitiços neutros, mas não pode jogar os alvos para longe."
     },
     "effectIds": [
-      290557,
-      290620
+      417639
+    ],
+    "declaredEffects": [],
+    "flatBuildStats": {},
+    "appliedStateIds": [],
+    "hasConditionalEffects": false,
+    "hasStateEffects": false,
+    "hasScriptedEffects": false,
+    "hasTriggeredEffects": false,
+    "fullyDeclarative": false
+  },
+  {
+    "spellId": 8595,
+    "name": {
+      "fr": "Marcher droit",
+      "en": "Straight Through",
+      "es": "Paso Firme",
+      "pt": "Marcha Reta"
+    },
+    "breedId": 12,
+    "class": "PANDAWA",
+    "gfxId": 5352,
+    "description": {
+      "fr": "Le Pandawa peut lancer le sort Téléportono à travers les obstacles, mais seulement en ligne.",
+      "en": "The Pandawa can cast the Barrelhop spell through obstacles but only in a straight line.",
+      "es": "El pandawa puede lanzar el hechizo Toneportación a través de los obstáculos, pero solo en línea.",
+      "pt": "O Pandawa pode lançar o feitiço Teleportonel através dos obstáculos, mas apenas em linha reta."
+    },
+    "effectIds": [
+      418040
+    ],
+    "declaredEffects": [],
+    "flatBuildStats": {},
+    "appliedStateIds": [],
+    "hasConditionalEffects": false,
+    "hasStateEffects": false,
+    "hasScriptedEffects": false,
+    "hasTriggeredEffects": false,
+    "fullyDeclarative": false
+  },
+  {
+    "spellId": 8596,
+    "name": {
+      "fr": "Tunnel vision",
+      "en": "Tunnel Vision",
+      "es": "Túnel Visión",
+      "pt": "Visão Engarrafada"
+    },
+    "breedId": 12,
+    "class": "PANDAWA",
+    "gfxId": 1821,
+    "description": {
+      "fr": "Lorsque le Pandawa est Ivre, il subit moins de dommages en mêlée mais en subit davantage à distance.",
+      "en": "When the Pandawa is Merry, they suffer less melee damage but suffer more ranged damage.",
+      "es": "Cuando el pandawa está Ebrio, sufre menos daños en melé, pero sufre más a distancia.",
+      "pt": "Quando o Pandawa está Embriagado, ele sofre menos danos a curta distância, mas sofre mais danos a distância."
+    },
+    "effectIds": [
+      418041,
+      418042
     ],
     "declaredEffects": [],
     "flatBuildStats": {},
@@ -7564,7 +7484,153 @@
     "hasConditionalEffects": false,
     "hasStateEffects": false,
     "hasScriptedEffects": true,
+    "hasTriggeredEffects": true,
+    "fullyDeclarative": false
+  },
+  {
+    "spellId": 8597,
+    "name": {
+      "fr": "Fermentation lactique",
+      "en": "Lactic Fermentation",
+      "es": "Fermentación Láctica",
+      "pt": "Fermentação Lática"
+    },
+    "breedId": 12,
+    "class": "PANDAWA",
+    "gfxId": 7053,
+    "description": {
+      "fr": "Le tonneau protège le Pandawa en fin de tour en lui donnant de l'Armure s'il le porte. Par contre, en subissant des dommages directs de dos en portant son tonneau, le Pandawa perd son Armure.",
+      "en": "If it is being carried, the barrel protects the Pandawa at end of turn by granting them Armor. However, the Pandawa loses their Armor if they suffer direct damage from behind while carrying their barrel.",
+      "es": "Si lo porta, el tonel protege al pandawa al final del turno dándole armadura. Sin embargo, al sufrir daños directos por la espalda portando el tonel, el pandawa pierde su armadura.",
+      "pt": "O barril protege o Pandawa, se ele o estiver carregando, ao conceder Armadura no fim do turno. No entanto, ao sofrer danos diretos de costas, ele perde sua Armadura."
+    },
+    "effectIds": [
+      418045,
+      418046,
+      418048
+    ],
+    "declaredEffects": [],
+    "flatBuildStats": {},
+    "appliedStateIds": [],
+    "hasConditionalEffects": false,
+    "hasStateEffects": false,
+    "hasScriptedEffects": true,
+    "hasTriggeredEffects": true,
+    "fullyDeclarative": false
+  },
+  {
+    "spellId": 8598,
+    "name": {
+      "fr": "Goutte de trop",
+      "en": "One Too Many",
+      "es": "La Gota que Colma el Vaso",
+      "pt": "Gota em Excesso"
+    },
+    "breedId": 12,
+    "class": "PANDAWA",
+    "gfxId": 957,
+    "description": null,
+    "effectIds": [
+      418050
+    ],
+    "declaredEffects": [],
+    "flatBuildStats": {},
+    "appliedStateIds": [],
+    "hasConditionalEffects": false,
+    "hasStateEffects": false,
+    "hasScriptedEffects": false,
     "hasTriggeredEffects": false,
+    "fullyDeclarative": false
+  },
+  {
+    "spellId": 8599,
+    "name": {
+      "fr": "Cyanooze",
+      "en": "Purified Chalice",
+      "es": "Cianótico",
+      "pt": "Cianura"
+    },
+    "breedId": 12,
+    "class": "PANDAWA",
+    "gfxId": 5149,
+    "description": {
+      "fr": "En fin de tour, le Pandawa transforme l'Imbibé de ses alliés en état qui les soignera en début de tour.",
+      "en": "At end of turn, the Pandawa transforms their allies' Dizzy state into a state that heals them at start of turn.",
+      "es": "Al final del turno, el pandawa transforma el estado Achispado de sus aliados en un estado que los curará al principio del turno.",
+      "pt": "No fim do turno, o Pandawa transforma o estado Tonto dos aliados no estado que os curará no começo do turno."
+    },
+    "effectIds": [
+      418064,
+      418065
+    ],
+    "declaredEffects": [],
+    "flatBuildStats": {},
+    "appliedStateIds": [
+      9366
+    ],
+    "hasConditionalEffects": true,
+    "hasStateEffects": true,
+    "hasScriptedEffects": false,
+    "hasTriggeredEffects": true,
+    "fullyDeclarative": false
+  },
+  {
+    "spellId": 8600,
+    "name": {
+      "fr": "Pandapéro",
+      "en": "Pandaperitif",
+      "es": "Pandaperitivo",
+      "pt": "Pandaritivo"
+    },
+    "breedId": 12,
+    "class": "PANDAWA",
+    "gfxId": 5150,
+    "description": {
+      "fr": "Lorsque le Pandawa jette son tonneau, les cibles autour sont directement Imbibé. En contrepartie, la zone de déclenchement des tonneaux est restreinte.",
+      "en": "When the Pandawa throws their barrel, targets around it become instantly Dizzy. However, the barrels' triggering area is smaller.",
+      "es": "Cuando el pandawa lanza su tonel, los objetivos de alrededor se vuelven achispados. Sin embargo, la zona de activación de los toneles se restringe.",
+      "pt": "Quando o Pandawa joga o barril, os alvos ao redor assumem imediatamente o estado Tonto. Por outro lado, a zona de ativação dos barris fica restrita."
+    },
+    "effectIds": [
+      418426
+    ],
+    "declaredEffects": [],
+    "flatBuildStats": {},
+    "appliedStateIds": [],
+    "hasConditionalEffects": false,
+    "hasStateEffects": false,
+    "hasScriptedEffects": false,
+    "hasTriggeredEffects": false,
+    "fullyDeclarative": false
+  },
+  {
+    "spellId": 8601,
+    "name": {
+      "fr": "Dernier verre",
+      "en": "One for the Road",
+      "es": "La Última",
+      "pt": "Último Gole"
+    },
+    "breedId": 12,
+    "class": "PANDAWA",
+    "gfxId": 7093,
+    "description": {
+      "fr": "Si le Pandawa finit son tour aligné à son tonneau, il est attiré de 4 cases vers le tonneau.",
+      "en": "If the Pandawa ends their turn aligned with their barrel, they are attracted 4 cells toward the barrel.",
+      "es": "Si el pandawa termina su turno alineado con su tonel, es atraído 4 casillas hacia él.",
+      "pt": "Se o Pandawa termina seu turno alinhado ao seu barril, ele é atraído por 4 células em direção ao barril."
+    },
+    "effectIds": [
+      418467,
+      418468
+    ],
+    "declaredEffects": [],
+    "flatBuildStats": {},
+    "appliedStateIds": [],
+    "hasConditionalEffects": false,
+    "hasStateEffects": false,
+    "hasScriptedEffects": true,
+    "hasTriggeredEffects": true,
     "fullyDeclarative": false
   },
   {
@@ -7637,10 +7703,10 @@
     "class": "ROUBLARD",
     "gfxId": 4311,
     "description": {
-      "fr": "Le Roublard gagne 1 PA quand une bombe explose, mais ses bombes ne possèdent qu'un seul point de vie.",
-      "en": "The Rogue gains 1 AP when a bomb explodes, but their bombs only have a single health point.",
-      "es": "El tymador gana 1 PA cuando una bomba explota, pero sus bombas solo poseen un punto de vida.",
-      "pt": "Aumenta os combos que as bombas obtêm naturalmente por turno e o máximo de combo que elas podem possuir."
+      "fr": "Les bombes du Roublard survivent à un coup fatal avec 1 PV. Lors d'une explosion, le Roublard regagne des PW seulement si les bombes ont un niveau élevé.",
+      "en": "The Rogue's bombs survive a fatal blow at 1 HP. During an explosion, the Rogue regains WP only if the bombs are high level.",
+      "es": "Las bombas del tymador sobreviven a un golpe mortal con 1 PdV. En una explosión, el tymador recobra PW solo si las bombas tienen un nivel alto.",
+      "pt": "As bombas do Ladino sobrevivem a um golpe fatal com 1 PV. Durante uma explosão, o Ladino recupera PW apenas se as bombas tiverem um nível elevado."
     },
     "effectIds": [
       367942
@@ -7729,13 +7795,14 @@
     "class": "ROUBLARD",
     "gfxId": 7064,
     "description": {
-      "fr": "Le Roublard ne peut plus changer de mode avec Ruse, mais il change automatiquement de mode lorsqu'il n'a plus de Poudre.",
-      "en": "The Rogue can no longer change modes with Ruse, but changes modes automatically when they run out of Powder.",
-      "es": "El tymador ya no puede cambiar de modo con Ardid, pero cambia automáticamente de modo cuando no le queda pólvora.",
-      "pt": "Desbloqueia uma versão mais potente de Detonação, para infligir cada vez mais danos. O feitiço também pode servir para aumentar os danos de um aliado."
+      "fr": "Lorsque le Roublard utilise le sort Ruse pour échanger de position avec l'une de ses bombes, celle dernière ne gagne pas de niveau, mais le sort ne coûte pas de PA.",
+      "en": "When the Rogue uses the Ruse spell to switch places with one of their bombs, the bomb doesn't level up, but the spell doesn't cost any AP.",
+      "es": "Cuando el tymador utiliza el hechizo Ardid para intercambiar posición con una de sus bombas, esta no gana ningún nivel, pero el hechizo no cuesta PA.",
+      "pt": "Quando o Ladino utiliza o feitiço Astúcia para trocar de lugar com uma de suas bombas, esta não ganha níveis, mas o feitiço não custa nenhum PA."
     },
     "effectIds": [
-      368152
+      368152,
+      416644
     ],
     "declaredEffects": [],
     "flatBuildStats": {},
@@ -7762,10 +7829,10 @@
     "class": "ROUBLARD",
     "gfxId": 5123,
     "description": {
-      "fr": "Les sorts élémentaires du Roublard en Fuyard sont à portée fixe, mais génèrent des Lames rouillées. Ces Lames rouillées sont consommées en Fourbe pour appliquer un poison cumulable sur une cible.",
-      "en": "The Rogue's elemental spells in Runaway mode have fixed range, but generate Rusty Blades. These Rusty Blades are consumed in Sneaky mode to apply a stackable poison on a target.",
-      "es": "Los hechizos elementales del tymador en Huidizo son de alcance fijo, pero generan hojas oxidadas. Estas hojas oxidadas se consumen en Ruin para aplicar un veneno acumulable en un objetivo.",
-      "pt": "Certos Ladinos preferem manter a distância, pois já atravessaram relacionamentos complicados. Este passivo lhes permite ganhar alcance e transformar o terreno em um campo minado de longe."
+      "fr": "Les sorts élémentaires du Roublard sont à portée fixe, mais génèrent des Lames rouillées en Fuyard. Ces Lames rouillées sont consommées en Fourbe pour appliquer un poison cumulable sur une cible.",
+      "en": "The Rogue's elemental spells have fixed range but generate Rusty Blades in Runaway mode. These Rusty Blades are consumed in Sneaky mode to apply a stackable poison on a target.",
+      "es": "Los hechizos elementales del tymador son de alcance fijo, pero generan hojas oxidadas bajo Huidizo. Estas hojas oxidadas se consumen en Ruin para aplicar un veneno acumulable en un objetivo.",
+      "pt": "Os feitiços elementares do Ladino têm o alcance fixo, mas geram Lâminas Enferrujadas em Escapista. Estas Lâminas Enferrujadas são consumidas em Perfídia para aplicar um veneno acumulável em um alvo."
     },
     "effectIds": [
       371745
@@ -7791,13 +7858,14 @@
     "class": "ROUBLARD",
     "gfxId": 5050,
     "description": {
-      "fr": "En étant Fourbe, le Roublard consomme sa Poudre pour gagner de l'Armure.",
-      "en": "In Sneaky mode, the Rogue consumes their Powder to gain Armor.",
-      "es": "En Ruin, el tymador consume su pólvora para ganar armadura.",
-      "pt": "Outros Ladinos preferem estabelecer relacionamentos estreitos com suas vítimas. Por isso, este passivo oferece Esquiva para se aproximar melhor delas, armadura para se proteger e Lâmina Longa para finalidades mais... fatais."
+      "fr": "Les dommages des retour de dague sont doublés mais le Roublard possède moins de Poudre pour invoquer des bombes.",
+      "en": "Dagger Return damage is doubled, but the Rogue has less Powder to summon bombs.",
+      "es": "Los daños de las vueltas de daga se duplican, pero el tymador tiene menos Polvo para invocar bombas.",
+      "pt": "Os danos de Retorno da Adaga são dobrados, mas o Ladino possui menos Pólvora para invocar bombas."
     },
     "effectIds": [
-      367961
+      367961,
+      418379
     ],
     "declaredEffects": [],
     "flatBuildStats": {},
@@ -7881,10 +7949,10 @@
     "class": "ROUBLARD",
     "gfxId": 2332,
     "description": {
-      "fr": "Le Roublard infligera des dommages supplémentaires sur son prochain sort élémentaire après avoir changé de mode. La connexion est perdue si le Roublard utilise ses PM pour se déplacer. En contrepartie, Ruse ne peut plus être utilisé pour échanger de position avec un autre combattant.",
-      "en": "The Rogue will inflict additional damage on their next elemental spell after changing modes. The connection is lost if the Rogue uses their MP to move. In exchange, Ruse can no longer be used to switch places with another fighter.",
-      "es": "El tymador infligirá daños adicionales en su próximo hechizo elemental tras haber cambiado de modo. Se pierde la conexión si el tymador utiliza sus PM para desplazarse. En cambio, Ardid ya no se puede utilizar para intercambiar de posición con otro luchador.",
-      "pt": "O Ladino infligirá danos adicionais em seu próximo feitiço elementar após ter trocado de modo. A conexão se perde se o Ladino utiliza seus PM para se deslocar. Por outro lado, Astúcia não pode mais ser utilizada para trocar de posição com outro combatente."
+      "fr": "Le Roublard infligera des dommages supplémentaires sur son prochain sort élémentaire après avoir changé de mode. En contrepartie, Ruse possède une portée réduite.",
+      "en": "The Rogue will inflict additional damage on their next elemental spell after changing modes. In exchange, Ruse can no longer be used to switch places with another fighter.",
+      "es": "El tymador infligirá daños adicionales en su próximo hechizo elemental tras haber cambiado de modo. Como compensación, se reduce el alcance de Ardid.",
+      "pt": "O Ladino infligirá danos adicionais em seu próximo feitiço elementar após ter trocado de modo. Em contrapartida, Astúcia terá um Alcance reduzido."
     },
     "effectIds": [
       371569
@@ -7910,10 +7978,10 @@
     "class": "ROUBLARD",
     "gfxId": 4300,
     "description": {
-      "fr": "La réserve de Poudre du Roublard est plus grande, mais ses bombes n'évoluent plus naturellement.",
-      "en": "The Rogue's Powder reserves are larger, but their bombs no longer evolve naturally.",
-      "es": "La reserva de pólvora del tymador es mayor, pero sus bombas ya no evolucionan naturalmente.",
-      "pt": "A reserva de Pólvora do Ladino é maior, mas suas bombas não evoluem mais naturalmente."
+      "fr": "La réserve de Poudre du Roublard est plus grande, mais les retours de dague deviennent ne font plus leurs dommages en zone.",
+      "en": "The Rogue's Powder reserves are larger, but Dagger Returns no longer inflict damage in an area of effect.",
+      "es": "La reserva de Polvo del tymador es mayor, pero las vueltas de daga ya no aplican daños en zona.",
+      "pt": "A reserva de Pólvora do Ladino é maior, mas os Retornos da Adaga não causam mais danos em zona."
     },
     "effectIds": [
       371656
@@ -7930,19 +7998,19 @@
   {
     "spellId": 7064,
     "name": {
-      "fr": "Dynamite",
-      "en": "Dynamite",
-      "es": "Dinamita",
-      "pt": "Dinamite"
+      "fr": "Kaboom",
+      "en": "Kaboom",
+      "es": "Kabúm",
+      "pt": "Kaboom"
     },
     "breedId": 13,
     "class": "ROUBLARD",
     "gfxId": 6485,
     "description": {
-      "fr": "Le Roublard peut lancer Dynamite sur d'autres combattants. S'il le lance sur un allié, il partage le gain de dommages avec lui. S'il le lance sur un ennemi, il le rend vulnérable aux explosions.",
-      "en": "The Rogue can cast Dynamite on other fighters. If they cast it on an ally, they share the damage increase with that ally. Casting it on an enemy makes the enemy vulnerable to explosions.",
-      "es": "El tymador puede lanzar Dinamita sobre otros luchadores. Si lo lanza sobre un aliado, comparte la ganancia de daños con él. Si lo lanza sobre un enemigo, lo vuelve vulnerable a las explosiones.",
-      "pt": "O Ladino pode lançar Dinamite em outros combatentes. Se lançar em um aliado, ele compartilha os ganhos de danos com ele. Se lançar em um inimigo, ele o torna vulnerável às explosões."
+      "fr": "Le Roublard peut lancer Dynamite sur d'autres combattants. S'il le lance sur un allié, il lui octroie un bonus de dommages. S'il le lance sur un ennemi, il le rend vulnérable aux explosions.",
+      "en": "The Rogue can cast Dynamite on other fighters. Casting it on an ally grants a damage bonus to the ally. Casting it on an enemy makes the enemy vulnerable to explosions.",
+      "es": "El tymador puede lanzar Dinamita sobre otros luchadores. Si lo lanza a un aliado, le otorga un bonus de daños. Si lo lanza sobre un enemigo, lo vuelve vulnerable a las explosiones.",
+      "pt": "O Ladino pode lançar Dinamite em outros combatentes. Se o lançar em um aliado, ele lhe concede um bônus de danos. Se lançar em um inimigo, ele o torna vulnerável às explosões."
     },
     "effectIds": [
       371667
@@ -8088,10 +8156,10 @@
     "class": "ROUBLARD",
     "gfxId": 2335,
     "description": {
-      "fr": "Le Roublard regagne des PA en déplaçant ses bombes, mais les bombes déplacées perdent 1 niveau. Le Roublard peut regagner 6 PA maximum par tour.",
-      "en": "The Rogue regains AP by moving their bombs, but the bombs lose 1 level after being moved. The Rogue can regain up to 6 AP per turn.",
-      "es": "El tymador recupera PA desplazando sus bombas, pero las bombas desplazadas pierden 1 nivel. El tymador puede recuperar 6 PA como máximo por turno.",
-      "pt": "O Ladino recupera PA deslocando suas bombas, mas as bombas deslocadas perdem 1 nível. O Ladino pode recuperar 6 PA máx. por turno."
+      "fr": "Le Roublard regagne des PA en déplaçant ses bombes, mais les bombes déplacées perdent 1 niveau. Le Roublard peut regagner 3 PA maximum par tour.",
+      "en": "The Rogue regains AP by moving their bombs, but the bombs lose 1 level after being moved. The Rogue can regain up to 3 AP per turn.",
+      "es": "El tymador recupera PA desplazando sus bombas, pero las bombas desplazadas pierden 1 nivel. El tymador puede recuperar 3 PA como máximo por turno.",
+      "pt": "O Ladino recupera PA deslocando suas bombas, mas as bombas deslocadas perdem 1 nível. O Ladino pode recuperar 3 PA máx. por turno."
     },
     "effectIds": [
       367874
@@ -8117,10 +8185,10 @@
     "class": "ROUBLARD",
     "gfxId": 5192,
     "description": {
-      "fr": "Le Roublard gagne des PM en invoquant des bombes. En contrepartie, Ruse possède maintenant une ligne de vue.",
-      "en": "The Rogue gains MP by summoning bombs. In exchange, Ruse now has a line of sight.",
-      "es": "El tymador gana PM invocando bombas. En cambio, Ardid ahora tiene una línea de visión.",
-      "pt": "O Ladino ganha PM invocando bombas. Por outro lado, Astúcia agora possui linha de visão."
+      "fr": "Le Roublard gagne de l'Armure en posant une bombe au lieu d'un PM.",
+      "en": "The Rogue gains Armor instead of 1 MP when placing a bomb.",
+      "es": "Al poner una bomba, el tymador gana armadura en vez de 1 PM.",
+      "pt": "O Ladino ganha Armadura ao lançar uma bomba em vez de PM."
     },
     "effectIds": [
       367887
@@ -8146,10 +8214,10 @@
     "class": "ROUBLARD",
     "gfxId": 7063,
     "description": {
-      "fr": "Au lieu de poser directement des bombes, le Roublard pose des glyphes. Au début du prochain tour, ces glyphes se transforment en bombe si la cellule est toujours libre. Les bombes invoquées ainsi gagnent directement des niveaux.",
-      "en": "Instead of directly placing bombs, the Rogue places glyphs. At the start of the next turn, these glyphs turn into bombs if the cell is still free. The bombs summoned in this way level up directly.",
-      "es": "En lugar de poner directamente bombas, los tymadores ponen glifos. Al principio del próximo turno, estos glifos se transforman en bomba si la casilla sigue estando libre. Las bombas invocadas así ganan niveles directamente.",
-      "pt": "Em vez de colocar bombas diretamente, o Ladino coloca glifos. No início do próximo turno, esses glifos se transformam em bombas se a célula ainda estiver livre. As bombas invocadas dessa maneira ganham níveis diretamente."
+      "fr": "En fourbe, au lieu de poser directement des bombes, le Roublard pose des glyphes. Au début du prochain tour, ces glyphes se transforment en bombe si la cellule est toujours libre. Les bombes invoquées ainsi gagnent directement un niveau.",
+      "en": "Instead of directly placing bombs, the Rogue places glyphs. At the start of the next turn, these glyphs turn into bombs if the cell is still free. The bombs summoned in this way level up directly by one level.",
+      "es": "Bajo Ruin, en lugar de poner directamente bombas, los tymadores ponen glifos. Al principio del próximo turno, estos glifos se transforman en bomba si la casilla sigue estando libre. Las bombas invocadas así ganan directamente un nivel.",
+      "pt": "No modo Perfídia, em vez de colocar bombas diretamente, o Ladino coloca glifos. No início do próximo turno, esses glifos se transformam em bombas se a célula ainda estiver livre. As bombas invocadas desta forma ganham um nível diretamente."
     },
     "effectIds": [
       367658
@@ -8218,7 +8286,7 @@
     ],
     "hasConditionalEffects": false,
     "hasStateEffects": true,
-    "hasScriptedEffects": true,
+    "hasScriptedEffects": false,
     "hasTriggeredEffects": true,
     "fullyDeclarative": false
   },
@@ -9683,9 +9751,9 @@
     "appliedStateIds": [],
     "hasConditionalEffects": false,
     "hasStateEffects": false,
-    "hasScriptedEffects": true,
+    "hasScriptedEffects": false,
     "hasTriggeredEffects": false,
-    "fullyDeclarative": false
+    "fullyDeclarative": true
   },
   {
     "spellId": 6925,
@@ -9798,7 +9866,7 @@
     ],
     "hasConditionalEffects": true,
     "hasStateEffects": true,
-    "hasScriptedEffects": true,
+    "hasScriptedEffects": false,
     "hasTriggeredEffects": true,
     "fullyDeclarative": false
   },
@@ -10174,7 +10242,7 @@
     "appliedStateIds": [],
     "hasConditionalEffects": false,
     "hasStateEffects": false,
-    "hasScriptedEffects": true,
+    "hasScriptedEffects": false,
     "hasTriggeredEffects": true,
     "fullyDeclarative": false
   },
@@ -11111,10 +11179,10 @@
     "class": "HUPPERMAGE",
     "gfxId": 5579,
     "description": {
-      "fr": "Les runes de l'Huppermage sont éphémères et disparaissent en fin de tour, lui permettant de gérer ses runes différemment.",
-      "en": "The Huppermage's Runes are ephemeral and will disappear at end of turn, allowing them to manage their runes differently.",
-      "es": "Las runas del hipermago son efímeras y desaparecen al final del turno, permitiéndole gestionar sus runas de otra manera.",
-      "pt": "As runas do Huppermago são efêmeras e desaparecem no fim do turno, permitindo que ele gere suas runas de outra maneira."
+      "fr": "La dernière rune générée de l'Huppermage débloque tous les sorts manquants de son élément, mais les runes sont éphémères et disparaissent en fin de tour.",
+      "en": "The last rune generated by the Huppermage unlocks all missing spells in its element, but the runes are ephemeral and disappear at the end of the turn.",
+      "es": "La última runa generada del hipermago desbloquea todos los hechizos de su elemento que falten, pero las runas son efímeras y desaparecen cuando acaba el turno.",
+      "pt": "A última runa gerada do Huppermago desbloqueia todos os feitiços faltantes de seu elemento, mas as runas são efêmeras e desaparecem no final do turno."
     },
     "effectIds": [
       349503
@@ -11321,10 +11389,10 @@
     "class": "HUPPERMAGE",
     "gfxId": 5585,
     "description": {
-      "fr": "D'une sereine efficacité, c'est en canalysant le pouvoir des éléments pour le relâcher sous forme de lumière, que vous créez des sorts aux effets éblouissants.",
-      "en": "With serene efficiency, you catalyze the power of the elements and release them in the form of energy to create spells with astonishing effects.",
-      "es": "Con una efectividad serena, permite crear hechizos con efectos deslumbrantes mediante la canalización del poder de los elementos para liberarlos en forma de luz.",
-      "pt": "Com uma serena eficácia, você catalisa o poder dos elementos e o libera sob forma de luz para criar feitiços de efeitos surpreendentes."
+      "fr": "L'Huppermage gagne beaucoup d'Abondance en consommant un Feu-Follet, mais il peut utiliser son Abondance seulement quand elle est à son niveau maximum.",
+      "en": "The Huppermage gains a lot of Abundance by consuming a Will-o'-the-Wisp, but they can only use Abundance when it is at maximum level.",
+      "es": "El hipermago gana mucho de Abundancia consumiendo un fuego fatuo, pero puede utilizar Abundancia solo cuando este hechizo se encuentra en su nivel máximo.",
+      "pt": "O Huppermago ganha muita Abundância ao consumir um Fogo-Fátuo, mas ele só pode usar sua Abundância quando ela estiver em seu nível máximo."
     },
     "effectIds": [
       349344
@@ -11427,21 +11495,28 @@
     "class": "HUPPERMAGE",
     "gfxId": 5588,
     "description": {
-      "fr": "L'Huppermage sacrifie une partie de la puissance du Coeur de Lumière pour pouvoir le lancer plusieurs fois dans le même tour.",
-      "en": "The Huppermage sacrifices some of the Heart of Light's power so they can cast it several times on the same turn.",
-      "es": "El hipermago sacrifica una parte de la potencia del corazón de luz para poder lanzarlo varias veces en el mismo turno.",
-      "pt": "O Huppermago sacrifica uma parte da potência do Coração de Luz para poder lançá-lo várias vezes no mesmo turno."
+      "fr": "L'Huppermage peut changer l'élément de son Coeur de lumière de manière automatique mais la rune liée à l'élément du Coeur actif n'est plus immuable.",
+      "en": "The Huppermage can automatically change their Heart of Light element, but the rune linked to the active Heart element is no longer immutable.",
+      "es": "El hipermago puede cambiar el elemento de Corazón de Luz de forma automática, pero la runa vinculada al elemento del corazón activo deja de ser inmutable.",
+      "pt": "O Huppermago pode mudar o elemento de seu Coração de Luz de maneira automática, mas a runa ligada ao elemento do Coração ativo não é mais imutável."
     },
     "effectIds": [
-      350534
+      350534,
+      416480
     ],
     "declaredEffects": [],
     "flatBuildStats": {},
-    "appliedStateIds": [],
-    "hasConditionalEffects": false,
-    "hasStateEffects": false,
-    "hasScriptedEffects": false,
-    "hasTriggeredEffects": false,
+    "appliedStateIds": [
+      4121,
+      7768,
+      7769,
+      7770,
+      7771
+    ],
+    "hasConditionalEffects": true,
+    "hasStateEffects": true,
+    "hasScriptedEffects": true,
+    "hasTriggeredEffects": true,
     "fullyDeclarative": false
   },
   {
@@ -11574,10 +11649,10 @@
     "class": "HUPPERMAGE",
     "gfxId": 5581,
     "description": {
-      "fr": "L'Huppermage régénère de la BQ lorsqu'il génère des Runes. En contrepartie, les sorts élémentaires infligent moins de dommages.",
-      "en": "The Huppermage regenerates QB when generating Runes. However, elemental spells inflict less damage.",
-      "es": "El hipermago regenera BC cuando genera runas. Como contrapartida, los hechizos elementales infligen menos daños.",
-      "pt": "O Huppermago regenera BQ quando gera runas. Em contrapartida, os feitiços elementares infligem menos danos."
+      "fr": "Le sort Cycle élémentaire change de fonctionnement si l'Huppermage possède déjà sa dernière rune générée : il consomme sa rune pour obtenir les 3 autres, mais le sort ne peut plus être relancé pendant 2 tours.",
+      "en": "The Elemental Cycle spell works differently if the Huppermage already has their last rune generated: This rune is consumed to obtain the 3 others, but the spell can no longer be cast for 2 turns.",
+      "es": "El hechizo Ciclo Elemental cambia de funcionamiento si el hipermago ya cuenta con su última runa generada: consume su runa para obtener las otras tres, pero el hechizo no puede lanzarse hasta que no pasen 2 turnos.",
+      "pt": "O feitiço Ciclo Elementar muda de funcionamento se o Huppermago já possuir sua última runa gerada: ele consome sua runa para obter as outras 3, mas o feitiço não pode mais ser lançado por 2 turnos."
     },
     "effectIds": [
       349287
@@ -11587,8 +11662,8 @@
     "appliedStateIds": [],
     "hasConditionalEffects": false,
     "hasStateEffects": false,
-    "hasScriptedEffects": true,
-    "hasTriggeredEffects": true,
+    "hasScriptedEffects": false,
+    "hasTriggeredEffects": false,
     "fullyDeclarative": false
   },
   {

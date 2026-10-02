@@ -39,6 +39,7 @@ import me.chosante.common.skills.CharacterSkills
 import me.chosante.ui.history.HistoryRepository
 import me.chosante.ui.i18n.Lang
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -448,7 +449,7 @@ class BuildSearchModelE2ETest {
                     )
                 },
                 // Prove instantly so proofState reaches ProvenOptimal without a real (minutes-long) solve.
-                optimalityProver = { _, _, _ -> MaxDamageSearch.MaxDamageProof.ProvenOptimal },
+                optimalityProver = { _, _, _, _ -> MaxDamageSearch.MaxDamageProof.ProvenOptimal },
                 zenithBuilder = { "" },
                 mainDispatcher = Dispatchers.Unconfined,
                 ioDispatcher = Dispatchers.Unconfined,
@@ -472,6 +473,102 @@ class BuildSearchModelE2ETest {
         } finally {
             scope.cancel()
         }
+    }
+
+    @Test
+    fun `a rejected search leaves the shown build's running proof alive`(): Unit =
+        runBlocking {
+            val release = java.util.concurrent.CountDownLatch(1)
+            val cancelPoll =
+                java.util.concurrent.atomic
+                    .AtomicReference<() -> Boolean>()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val model = blockingProofModel(scope, release, cancelPoll)
+            try {
+                model.setMode(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE)
+                model.setDuration("1")
+                model.search()
+                awaitUntil { model.ui.proofState is ProofState.Proving && cancelPoll.get() != null }
+
+                // Min level above level: the request is rejected up front, before any search starts.
+                model.setLevel("110")
+                model.setMinLevel("200")
+                model.search()
+                assertTrue(model.ui.requestErrors.isNotEmpty(), "the invalid request must be rejected")
+                assertTrue(model.ui.proofState is ProofState.Proving, "the shown build keeps its proof spinner")
+                assertFalse(cancelPoll.get()(), "a rejected request must not cancel the shown build's proof")
+
+                release.countDown()
+                awaitUntil { model.ui.proofState == ProofState.ProvenOptimal }
+            } finally {
+                release.countDown()
+                scope.cancel()
+            }
+        }
+
+    @Test
+    fun `switching mode stops the running proof`(): Unit =
+        runBlocking {
+            val release = java.util.concurrent.CountDownLatch(1)
+            val cancelPoll =
+                java.util.concurrent.atomic
+                    .AtomicReference<() -> Boolean>()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val model = blockingProofModel(scope, release, cancelPoll)
+            try {
+                model.setMode(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE)
+                model.setDuration("1")
+                model.search()
+                awaitUntil { model.ui.proofState is ProofState.Proving && cancelPoll.get() != null }
+
+                model.setMode(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT)
+                assertEquals(ProofState.Idle, model.ui.proofState)
+                assertTrue(cancelPoll.get()(), "the cleared build's proof must see its cancel flag (its CP-SAT work stops)")
+            } finally {
+                release.countDown()
+                scope.cancel()
+            }
+        }
+
+    /**
+     * A max-damage model whose search instantly yields one build and whose optimality proof BLOCKS until
+     * [release] opens — so a test can act while the proof is running. [cancelPoll] receives the proof's
+     * cancel poll (true once the GUI cancelled it).
+     */
+    private fun blockingProofModel(
+        scope: CoroutineScope,
+        release: java.util.concurrent.CountDownLatch,
+        cancelPoll: java.util.concurrent.atomic.AtomicReference<() -> Boolean>,
+    ): BuildSearchModel {
+        val fakeBuild = BuildCombination(equipments = emptyList(), characterSkills = CharacterSkills(110))
+        return BuildSearchModel(
+            scope = scope,
+            buildFinder = {
+                flowOf(
+                    SolverResult(
+                        individual = fakeBuild,
+                        matchPercentage = BigDecimal("1000"),
+                        progressPercentage = 100,
+                        isOptimal = false,
+                        maxDamageObjective = 5_000L
+                    )
+                )
+            },
+            optimalityProver = { _, _, isCancelled, _ ->
+                cancelPoll.set(isCancelled)
+                release.await(25, java.util.concurrent.TimeUnit.SECONDS)
+                MaxDamageSearch.MaxDamageProof.ProvenOptimal
+            },
+            zenithBuilder = { "" },
+            mainDispatcher = Dispatchers.Unconfined,
+            ioDispatcher = Dispatchers.Unconfined,
+            libraryPreferences = LibraryPreferences(null),
+            historyRepository =
+                HistoryRepository(
+                    baseDir = Files.createTempDirectory("wakfu-test-history"),
+                    ioDispatcher = Dispatchers.Unconfined
+                )
+        )
     }
 
     private fun historyEntry(
