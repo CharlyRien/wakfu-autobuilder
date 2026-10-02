@@ -1252,7 +1252,10 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
         4 560 exact / tier-1.5 / fast comparisons and three ledgers per pool (forceTier2All, plus the incumbent path
         at 100 % and 90 % of the optimum); the E8 construct built 5 proven builds, none below the optimum. **No
         under-count at any level.** Per level, the forceTier2All ledger max sat a median 9.0–11.8 % above the true
-        optimum.
+        optimum. Sensitivity check: the first 100 of these pools on the v48 tree (before the B1 fix; same cases, same
+        CP-SAT optima) flag 11 pools, 74 failures including 2 ledger maxima under the optimum. By level that is 5 / 21
+        certified pools at 110, 4 / 17 at 170 and 2 / 21 at 230, but 0 / 17 at 50: the survey catches B1 at 110–230,
+        while at 50 it checks the certifier without hitting the B1 shape.
       - Most-masteries, `WAKFU_REVIEW_MIX_SEED=1 WAKFU_REVIEW_MM_FUZZ=400` (mm-mix7000–7399): levels 110 / 200 / 245
         = 113 / 198 / 89 cases, no bail; 399 soft and 199 targets-met reads compared against an OPTIMAL pinned CP-SAT
         leg. 227 cases had the A1 shape (a negative item crit line and a CRIT_AT_MOST sub drawn). **One under-count,
@@ -1260,7 +1263,8 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
         soft AND the targets-met read. Its −8-crit chest plate is staged before the +11-crit boots: the real
         pre-combat crit is 6 ≤ 10, but the floored LOW dim reads 11, so the Constance world rejects the carrier. The
         replay's `noNegItemCc` variant is clean, and the A1 fix (branch `fix/a1-low-dims-offset`, CERTIFIER_VERSION
-        50) bounds it at 60 339 999 (`lowRead=6 lowOff=8`). Replay: `WAKFU_REVIEW_MIX_SEED=1
+        50) bounds it at 60 339 999 (`lowRead=6 lowOff=8`). With that fix merged over this one, the same 400 cases are
+        all clean (399 soft / 199 targets-met comparisons). Replay: `WAKFU_REVIEW_MIX_SEED=1
         WAKFU_REVIEW_MM_CASES=7104`; a candidate seed for the A1 locks once that fix lands.
   - **A1 — the assume worlds' LOW dims are floored at 0 after every stage.**
     - Where: `MostMasteriesCertificate` (the `ccLowRaw` / AP-low transitions `.coerceIn(0, thr + 1)` and the clamped
