@@ -897,7 +897,8 @@ Wired end-to-end (maintainer UX choice: AUTOMATIC + phase display):
 - **GUI**: automatic trigger after a most-masteries search whose CP-SAT leg ended non-OPTIMAL,
   through the EXISTING ProofState pipeline — the user sees "Vérification de l'optimalité… (Xs)"
   then "Optimal prouvé à X% près" (or the proven-optimal headline if the incumbent reaches the
-  bound). No new UI surface needed.
+  bound). No new UI surface needed. (Since §8.18 the bound is computed BESIDE the search, so the
+  spinner phase is usually skipped: the verdict lands when the search ends.)
 - **Locks**: CI soundness fuzz (3 seeded pools, bound ≥ pinned CP-SAT soft optimum — also locks the
   stamping end-to-end); full autobuilder suite + gui-compose suite green.
 
@@ -1131,7 +1132,8 @@ at ~+10% on S2-class folded shapes; only the item-space search itself (CP-SAT) c
 mile — which is the §8 decomposition verdict re-derived from the dual side.**
 
 **Operating point stands as shipped**: two-tier badge (+11.2% quick / +9.87% full) as the
-low-core backup; prod multi-worker CP-SAT proves S2 in 199 s. Campaign artifacts kept:
+low-core backup; prod multi-worker CP-SAT proves S2 in 199 s. (Superseded 2026-10-02: one full-tier
+pass computed beside the search, §8.18.) Campaign artifacts kept:
 `MostMasteriesRestrictedDD`(+Test) — a validated sound-primal beam (useful if a node-incumbent
 consumer ever appears) — and the certificate's `optionVeto` seam (harness-only). The only
 remaining never-proves workload stays S4 (max-damage soft, 4.18× — needs a D·Graw certificate,
@@ -1194,7 +1196,61 @@ From the perf next-steps pass (P2 + P1). Bound and core are bit-identical; only 
   both tiers vs the unpruned DP; `WAKFU_MM_PRUNE_LOCK_SEEDS=8` = the 64-case screen it shipped with, all
   identical) and `LongLongMaxMapTest`.
 - Follow-up: the full tier now costs about what the quick tier does, so the GUI's two-tier badge
-  (quick first, full refine) could become one full pass started during the search.
+  (quick first, full refine) could become one full pass started during the search — DONE, §8.18.
+
+### 8.18 SHIPPED (2026-10-02, orchestration only — bounds bit-identical, no CERTIFIER_VERSION bump): one-pass badge computed in the search's tail (E10-for-MM)
+
+§8.17 made the full tier cost what the quick tier did, so the quick → full chain is gone: production computes
+ONE full-tier bound. It is incumbent-free, so — like max-damage's E10 — it is computed during the search and the
+post-search proof only compares.
+
+- **Wiring.** `WakfuBestBuildFinderAlgorithm.run` wraps the most-masteries flow in
+  `MostMasteriesBoundCache.withSearchTimeWarmup`: memo keyed on the request (search-only fields normalized, data +
+  certifier versions; a bail is memoized too); single-flight (the post-search proof waits for the in-flight
+  compute, or starts one on demand and cancels it if it gives up); the DP stage advance on ONE thread while a
+  most-masteries search runs, all chunk workers once none does (`bound(parallelism)` → `LongLongMaxMap.advance
+  (workers)`, bit-identical at any count); only for requests `MostMasteriesCertificate.supportsRequest` accepts;
+  superseded by any new search (any mode); cancelled when the search ends OPTIMAL, without a comparable objective,
+  or is cancelled. API: `mostMasteriesQualityBound` (compute) + `compareMostMasteriesQuality` (pure compare — the one
+  line a hard-leg read switches), composed by `proveMostMasteriesQuality(params, result, shouldContinue)` (GUI one
+  pass; the CLI now prints the most-masteries verdict too).
+- **Measured on the 4-core laptop profile** (`-XX:ActiveProcessorCount=4 -Xmx3g`, M5; S2 = lvl-245 CRA distance +
+  AP16/MP8/CC100/HP12000, runes + subs, EPIC; harness `MostMasteriesBadgeOverlapTest`, `WAKFU_MM_OVERLAP=1`):
+  - the bound alone: full tier **9.2 s** at 3 stage workers, **12.3 s** at 1, bit-identical (87 747 187 749 999; the
+    quick tier reads the same value on S2 in 8.3 s — the binding Mesure III world always runs the quick grid); pool +
+    domination 0.8 s.
+  - interference, race-free (1-worker deterministic hard leg, det 15, identical trajectory and objective): 22.4 /
+    22.5 s alone, 25.5 / 26.4 s beside a 1-thread bound loop (**−15% CP-SAT throughput**), 27.3 / 30.1 s beside a
+    3-worker loop (−22..34%) ⇒ one stage worker while the search runs.
+  - the production search (3 workers, 40 s budget) with the bound from its START: both bound-free runs followed one
+    trajectory (44.6T at 10 s, 59.4-60.1T at 20 s); all six runs with a bound running from the start (warm-up,
+    1-thread loop, 3-worker loop) sat below both at every 10-25 s checkpoint (24.8-33.5T at 10 s, 46.7-55.9T at
+    20 s), reaching ~57-60T only at 22-40 s. Final objectives stayed within race noise (61.3 / 60.3T vs 59.4 / 60.2T)
+    but the early anytime curve was clearly worse ⇒ **never in the search's first 30 s**.
+- **Shipped schedule**: start at `max(30 s, budget − 30 s)` into the search (`warmupStartDelay`; none when the
+  budget is ≤ 30 s — the proof then computes it on demand, all workers). At the GUI default (120 s) it starts at
+  90 s: S2 proves OPTIMAL at ~83 s there on 4 cores (§E0), so it never runs.
+- **Badge delay after search end, S2** (4-core profile). BEFORE — the old quick → full chain, whatever the budget
+  (6 runs at 40 / 45 / 75 s): quick badge **+10.3 to +12.3 s**, full badge **+19.6 to +23.3 s**. AFTER, per budget
+  (warm-up start in brackets):
+
+  | budget | after (one pass) | notes |
+  |---|---|---|
+  | 30 s (none) | +12.2 / +13.1 s | the proof computes the bound on demand (all workers) |
+  | 45 s (30 s) | **+0.9 / +2.5 s** | the bound finishes just after the search |
+  | 55 s (30 s) | **0 ms** | bound done at 51.9 s (rep 1: CP-SAT proved OPTIMAL at 52.4 s instead) |
+  | 75 s (45 s) | — | CP-SAT proved OPTIMAL at 53.4 / 49.5 s; warm-up cancelled after 8.4 / 4.5 s |
+  | 40 s (from the start — NOT shipped) | 0 ms | bound done at ~20 s, but the early phase slowed (above) |
+
+  Final objectives with the shipped schedule stay within race noise: at 45 s OFF 60.36 / 61.33T vs ON 60.08 /
+  61.17T, while the two arms — identical code until 30 s — already differed by up to ±1.5T at 30 s.
+
+- Locks: `MostMasteriesBoundCacheTest` (memo/single-flight, give-up cancel, replaced dying flight, bail memo,
+  throttle 1 → all workers, proof joins the warm-up, OPTIMAL / non-comparable / mid-flight cancel, same-request
+  adoption vs supersede, ineligible shapes, the schedule, delayed start, `supportsRequest` ↔ `bound` parity, compare
+  arithmetic, end-to-end one-item pool vs the direct certificate), `LongLongMaxMapTest` (every worker count gives
+  the identical map) and three `BuildSearchModelE2ETest` cases (one pass, a superseded proof never lands, no proof
+  for a CP-SAT-proven result).
 
 ## 9. CAMPAIGN — the S4 D·Graw certificate (max-damage soft leg; maintainer GO 2026-07-14)
 

@@ -173,6 +173,19 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
   `WakfuData.VERSION`. The full campaign log lives in `docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md`; the plan +
   execution log in `docs/CERTIFICATE_PROD_PLAN.md`.
 
+### The most-masteries quality badge ("proven within X%")
+A most-masteries search that ends without a CP-SAT proof (short budget, low-core machine) still gets a
+badge from `MostMasteriesCertificate.bound`, a sound DP upper bound on the soft folded objective
+(`WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality` = the memoized bound + the pure
+`compareMostMasteriesQuality`). The bound is **incumbent-free**, so `WakfuBestBuildFinderAlgorithm.run`
+computes it in the search's TAIL (E10-for-MM, `MostMasteriesBoundCache`): one full-tier pass started 30 s
+before the budget ends but never in the search's first 30 s (beside the steep early phase it measurably
+slowed CP-SAT), on one DP thread while CP-SAT owns the cores (all chunk workers once the search ends),
+memoized single-flight per request, superseded by any new search and cancelled when the search proves
+OPTIMAL — so the badge is normally ready the moment the search ends (shorter budgets compute it post-search).
+The DP thread count is a pure work knob (identical bound); orchestration changes never bump
+`CERTIFIER_VERSION`. Measurements: `docs/MOST_MASTERIES_PERF_PLAN.md` §8.17–§8.18.
+
 ---
 
 ## 5. Data pipeline
