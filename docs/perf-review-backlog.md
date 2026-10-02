@@ -1168,9 +1168,17 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
   - max-damage shapes that still need minutes to reach ProvenOptimal after the soft-leg refinement
     (sacrieur 230: 19.6 min), and the shapes that stay at a "proven within X%" badge;
   - most-masteries on low core counts: the 1-worker proof takes 15–20 min where the certificate's full tier
-    answers in ~55 s; the M3-v2 coarse-grid "low-core backup" is measured but not wired;
-  - the flat soft objective on wildly unreachable targets (empty build can win on 2–3 workers) — a correctness
-    fix first, tracked separately.
+    answers in ~55 s; the M3-v2 coarse-grid "low-core backup" is measured but not wired; — the certificate
+    itself got ~7.5× faster on 2026-10-02 (exact stage-option pruning + primitive DP maps, CERTIFIER_VERSION
+    40, `docs/MOST_MASTERIES_PERF_PLAN.md` §8.17: S2 full tier 66 s → 9 s, bit-identical);
+  - the MM certificate is looser since v38: S2 +29.56% / S3 +8.11% (was +9.87% / +6.77% at v37) — the
+    budget-free start-of-combat crit constant lifts the Mesure III assume world; see
+    `docs/MOST_MASTERIES_PERF_PLAN.md` §8.16 for the per-world attribution and the two leads;
+  - ~~the flat soft objective on wildly unreachable targets (empty build can win on 2–3 workers)~~ — FIXED
+    2026-10-02: the power-table multiplier is floored at 1 (`penaltyMultiplier`, shared by the solver and both
+    soft certificates; the re-scorers cap their factor at `MAX_PENALTY_MULTIPLIER`; the survivability floor's
+    gentle table had the same defect and got the same floor), CERTIFIER_VERSION 39, locked by
+    `SoftPenaltyFloorTest`. Full-pool MM S2/S3 certificate bounds measured bit-identical before/after.
 
 ---
 

@@ -57,6 +57,9 @@ tasks.test {
     // Manual measurement harnesses only (e.g. the M3-v2 DP at fine grids): lets a local run raise
     // the test-worker heap without touching CI (unset ⇒ Gradle's default).
     System.getenv("WAKFU_TEST_MAX_HEAP")?.let { maxHeapSize = it }
+    // Manual measurement harnesses only: extra test-JVM args, e.g. "-XX:ActiveProcessorCount=4" to mimic
+    // a 4-core laptop or a JFR recording. Unset ⇒ nothing changes.
+    System.getenv("WAKFU_TEST_JVM_ARGS")?.let { extra -> jvmArgs(extra.split(' ').filter { it.isNotBlank() }) }
 }
 
 tasks.register<Test>("slowTest") {

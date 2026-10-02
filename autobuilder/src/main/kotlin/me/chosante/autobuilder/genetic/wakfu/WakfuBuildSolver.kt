@@ -258,8 +258,11 @@ object WakfuBuildSolver {
      * below ~10%) now price `core × 1` instead of 0 — the soft objective was flat there, so the empty build
      * tied the optimum. Entries already ≥ 1 are unchanged (bounds outside that region are bit-identical),
      * but every cached soft bound/union priced those states at 0 — an under-count against the new objective.
+     * 40: the most-masteries certificate prunes every stage's options to their exact Pareto front
+     * (`paretoPrune`) and advances on primitive maps ([LongLongMaxMap]) — bound and core bit-identical (S2
+     * full tier 85 s → 9 s, 4.6M → 45k states); bumped per the standing rule, like v16's indexed harvest.
      */
-    const val CERTIFIER_VERSION: Int = 39
+    const val CERTIFIER_VERSION: Int = 40
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing

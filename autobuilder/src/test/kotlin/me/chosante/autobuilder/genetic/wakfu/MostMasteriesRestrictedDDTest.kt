@@ -25,8 +25,10 @@ import kotlin.time.Duration.Companion.seconds
  * ```
  */
 class MostMasteriesRestrictedDDTest {
-    private val s2Optimum = 67_295_807_882_856L
-    private val s3Optimum = 10_985L
+    // Re-banked 2026-10-02 on data 1.93.1.62 (production portfolio, both OPTIMAL — S2 in 106 s, S3 in
+    // 16 s); the 1.92.1.58 optima were 67_295_807_882_856 / 10_985.
+    private val s2Optimum = 67_728_953_322_880L
+    private val s3Optimum = 10_993L
 
     @Test
     fun `manual P&B-1 restricted DD beam on S2 and S3`() {

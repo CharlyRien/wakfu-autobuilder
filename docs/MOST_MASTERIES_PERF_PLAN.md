@@ -1137,6 +1137,65 @@ consumer ever appears) — and the certificate's `optionVeto` seam (harness-only
 remaining never-proves workload stays S4 (max-damage soft, 4.18× — needs a D·Graw certificate,
 a different construct, priced separately).
 
+### 8.16 Re-baseline (2026-10-02): 1.93 optima re-banked; the v38 soundness wave loosened S2 to +29.6%
+
+The +9.87% / +6.77% quoted above (and the §8.1.1 optima) had gone stale. Re-measured with the M3-v2
+harness (`manual M3-v2 tightness on S2 and S3`, full tier, `WAKFU_TEST_MAX_HEAP=6g`) on archived
+snapshots of each commit, and the optima re-proven with the campaign-2 baseline matrix on the
+production portfolio (`WAKFU_MM_C2_PROD=1`, OPTIMAL in 106 s for S2, 16 s for S3):
+
+| code | data | S2 optimum | S2 bound | S2 gap | S3 optimum | S3 bound | S3 gap |
+|---|---|---|---|---|---|---|---|
+| v37 (`ef822b80`) | 1.92.1.58 | 67 295 807 882 856 | 73 934 594 729 999 | +9.87% | 10 985 | 11 729 | +6.77% |
+| v38 (`f12c888d`) | 1.92.1.58 | (same) | 87 682 584 629 999 | +30.29% | (same) | 11 876 | +8.11% |
+| v39 (penalty floor) | 1.93.1.62 | **67 728 953 322 880** | 87 747 187 749 999 | **+29.56%** | **10 993** | 11 885 | **+8.11%** |
+
+- The 1.93 data is negligible (bound +0.07%, optimum +0.64%); v39's penalty floor is bit-identical
+  (measured). The whole move is the v38 pre-release soundness wave (`f12c888d`) on identical data.
+  Soundness holds on the re-banked optima (bound ≥ optimum on both shapes).
+- Per world (`bound(worldDropCaps = true)` + one `worldAssume` per cap sub), v37 → v38: main
+  73.93T → 84.93T (+14.9%; binding state M 6 164 → 6 621, DI 20 → 30), Inflexibilité 60.71T →
+  65.60T, Constance 20.09T → 46.88T, **Mesure III 38.88T → 87.68T — now the binding world**.
+- Mesure III (EPIC, crit ≤ 50) is lifted by the assume-world `outsideReadMax(CRITICAL_HIT)`
+  constant: the start-of-combat crit of EVERY choosable normal sub at max copies (Ambition III +15,
+  Influence vitale III +12 ×2, Ravage secondaire II +3) is credited on every state, regardless of
+  the 10-sub budget — the CC credit climbs from 50 to ~92 of the 100 target. Real builds can do it
+  (the S2 optimum carries Influence vitale III ×2 + Ravage secondaire II), but not for free.
+- The main world's DI +10 is consistent with Mesure's BLOCK ≥ 40 gate (+10 DI), opened in v38 only
+  because block-only subs (Dérobade continue III) are now kept — and the S2 optimum carries Mesure +
+  Dérobade continue III ×2, so part of the +14.9% is v37 under-crediting a real build.
+- User impact: when CP-SAT has not proven the result itself, the MM "proven within X%" badge on
+  S2-like shapes reads ~30% instead of ~10%.
+- Leads (not started): (1) price the start-of-combat crit lines INSIDE the DP (sub options feeding
+  a final-crit dim that never enters the LOW read) instead of a budget-free constant — caps the
+  Mesure III world's lead (at most −3.2pt, down to the main world's +26.2% on 1.92); (2) bisect the
+  main world's +14.9% across `f12c888d`'s individual credits (paired MP, Armure lourde debit,
+  block-only subs, start-of-combat LOW-dim exclusion) to separate honest credits from avoidable slack.
+
+### 8.17 SHIPPED (2026-10-02, CERTIFIER_VERSION 40): exact stage-option pruning + primitive DP maps
+
+From the perf next-steps pass (P2 + P1). Bound and core are bit-identical; only the work changes.
+
+- **P2 — `paretoPrune`**: every stage's option list (across a slot's items, a branch's skill allocations,
+  the sub knapsack's outputs) is cut to its exact Pareto front under `Opt.dominates` before the advance.
+  Exact because a dominating option has identical flags and yields a successor that is ≥ on every
+  over-counted dim, ≤ on the assume-world LOW dims and ≥ on M, and every later transition and the
+  collapse fold are monotone in that order. Measured per-stage cuts (S2 main world, quick tier):
+  item slots ~3-4k → 46-83 options, skills-Strength 1 722 → 41, normal-sub knapsack 223 → 5. The
+  ring-pair list (> 200k options, pruned per pair already) is skipped.
+- **P1 — `LongLongMaxMap`**: the stage advance max-merges into a primitive open-addressing map instead of
+  boxed `HashMap<Long, Long>` sweeps (no boxed key per transition, ~32 B vs ~72 B per entry, no chain
+  degradation on colliding packed keys); states stay a `HashMap` between stages for the collapse/provenance.
+- Production path, 10 cores, same JVM protocol as §8.16: **S2 full tier 66.4 s → 8.8 s, 4 597 924 →
+  45 214 states**; S3 2.0 s → 1.6 s, 11 904 → 2 368 states; bounds unchanged (87 747 187 749 999 /
+  11 885). The probe pass measured quick tier 35.6 s → 7.9 s and, on a 4-core profile (3 GB heap), the
+  GUI's quick → full chain 207 s → 19 s.
+- Locks: `stage-option pruning is bit-identical on seeded random pools` (CI, 4 seeds × 4 target shapes ×
+  both tiers vs the unpruned DP; `WAKFU_MM_PRUNE_LOCK_SEEDS=8` = the 64-case screen it shipped with, all
+  identical) and `LongLongMaxMapTest`.
+- Follow-up: the full tier now costs about what the quick tier does, so the GUI's two-tier badge
+  (quick first, full refine) could become one full pass started during the search.
+
 ## 9. CAMPAIGN — the S4 D·Graw certificate (max-damage soft leg; maintainer GO 2026-07-14)
 
 **Context for resumption.** After the review-fix wave (`902fa393..f97cef60`) the MM certificate is
