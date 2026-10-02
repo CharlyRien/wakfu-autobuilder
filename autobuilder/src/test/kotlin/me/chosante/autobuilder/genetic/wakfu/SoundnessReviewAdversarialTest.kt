@@ -456,8 +456,33 @@ class SoundnessReviewAdversarialTest {
         }
 
     // ------------------------------------------------------------------------------------------------------------
+    // SEED MIXING for both manual fuzzers (opt-in):  WAKFU_REVIEW_MIX_SEED=1
+    // A fuzz case draws its level FIRST, `java.util.Random(seed).nextInt(4)`. With a power-of-two bound that is the top
+    // 2 bits of the first next(31), which consecutive seeds barely move — runs of up to ~2 000 seeds share a level: md
+    // seeds 8704–10239 ALL draw level 230 (so the review's "400 pools from seed 9000" covered one level), mm seeds
+    // 7000–7399 only 110 / 200, never 245. The knob seeds the Random with `SplittableRandom(seed).nextLong()`
+    // (SplitMix64) instead, so a run of consecutive seeds covers every level (md 9000–9399: 50/110/170/230 =
+    // 120/95/86/99).
+    // OFF by default: the seed → case mapping the CI locks and the docs pin (md-seed9009 / 9016 / 12961 / 1994 / 9072,
+    // mm-seed7089 …) is unchanged, and the locks' own seeds ignore the knob. A mixed case is labelled md-mix<seed> /
+    // mm-mix<seed>; replay it with the knob set (WAKFU_REVIEW_MM_CASES, WAKFU_REVIEW_MD_CASES and
+    // WAKFU_REVIEW_MD_PP_SEEDS honour it). The fuzz lines print each case's level, the summaries a level histogram.
+    // ------------------------------------------------------------------------------------------------------------
+
+    private fun fuzzRandom(
+        seed: Long,
+        mixSeed: Boolean,
+    ) = java.util.Random(if (mixSeed) java.util.SplittableRandom(seed).nextLong() else seed)
+
+    private fun fuzzLabel(
+        prefix: String,
+        seed: Long,
+        mixSeed: Boolean,
+    ) = if (mixSeed) "$prefix-mix$seed" else "$prefix-seed$seed"
+
+    // ------------------------------------------------------------------------------------------------------------
     // MM FUZZ (manual): seeded random pools × real choosable subs × random targets; pinned CP-SAT soft + hard legs
-    //   WAKFU_REVIEW_MM_FUZZ=<cases> [WAKFU_REVIEW_MM_SEED0=<seed>] [WAKFU_REVIEW_MM_NO_NEG_CC=1]
+    //   WAKFU_REVIEW_MM_FUZZ=<cases> [WAKFU_REVIEW_MM_SEED0=<seed>] [WAKFU_REVIEW_MM_NO_NEG_CC=1] [WAKFU_REVIEW_MIX_SEED=1]
     // ------------------------------------------------------------------------------------------------------------
 
     private val mmRequestable =
@@ -482,8 +507,9 @@ class SoundnessReviewAdversarialTest {
     private fun mmFuzzCase(
         seed: Long,
         noNegCc: Boolean,
+        mixSeed: Boolean = System.getenv("WAKFU_REVIEW_MIX_SEED") == "1",
     ): MmCase {
-        val rng = java.util.Random(seed)
+        val rng = fuzzRandom(seed, mixSeed)
         val level = listOf(110, 200, 200, 245)[rng.nextInt(4)]
         val requested = (0 until 1 + rng.nextInt(2)).map { mmRequestable[rng.nextInt(mmRequestable.size)] }.distinct()
         val targets = mutableListOf<TargetStat>()
@@ -581,7 +607,7 @@ class SoundnessReviewAdversarialTest {
             mmParams(targets, level = level, useRunes = rng.nextInt(3) == 0)
         val negCc = items.any { (it.characteristics[Characteristic.CRITICAL_HIT] ?: 0) < 0 }
         val critCap = subs.any { it.condition?.type == me.chosante.common.SublimationConditionType.CRIT_AT_MOST }
-        return MmCase("mm-seed$seed", p, items.groupBy { it.itemType }, subs, negCc && critCap)
+        return MmCase(fuzzLabel("mm", seed, mixSeed), p, items.groupBy { it.itemType }, subs, negCc && critCap)
     }
 
     @Test
@@ -597,13 +623,16 @@ class SoundnessReviewAdversarialTest {
             var hardCompared = 0
             var bails = 0
             var notOptimal = 0
+            val levels = java.util.TreeMap<Int, Int>()
             for (i in 0 until cases) {
                 val c = mmFuzzCase(seed0 + i, noNegCc)
+                val tag = "${c.label} level=${c.params.character.level}"
+                levels.merge(c.params.character.level, 1, Int::plus)
                 val runes = if (c.params.useRunes) WakfuBestBuildFinderAlgorithm.runes else emptyList()
                 val bound = MostMasteriesCertificate.bound(c.params, c.pool, runes, c.subs)
                 if (bound == null) {
                     bails++
-                    println("MM_FUZZ ${c.label} BAIL")
+                    println("MM_FUZZ $tag BAIL")
                     continue
                 }
                 val hasReq = c.params.targetStats.any { it.characteristic.isRequiredMostMasteriesTarget() }
@@ -617,7 +646,7 @@ class SoundnessReviewAdversarialTest {
                     softCompared++
                     if (softUpper < softInc) {
                         failures +=
-                            "${c.label} SOFT bound=$softUpper < optimum=$softInc (${"%.2f".format((softInc.toDouble() / softUpper - 1) * 100)}%) " +
+                            "$tag SOFT bound=$softUpper < optimum=$softInc (${"%.2f".format((softInc.toDouble() / softUpper - 1) * 100)}%) " +
                             "negCcCritCap=${c.negCcWithCritCap} targets=${c.params.targetStats.map { "${it.characteristic}=${it.target}" }} " +
                             "subs=${softLast?.individual?.sublimations?.values?.flatten()?.map { it.name.fr }} binding=${bound.bindingState}"
                     }
@@ -635,16 +664,19 @@ class SoundnessReviewAdversarialTest {
                         val hardUpper = bound.comparableUpper(hardLeg = true, hasRequiredTargets = true)
                         if (hardUpper < hardInc) {
                             failures +=
-                                "${c.label} HARD bound=$hardUpper < optimum=$hardInc negCcCritCap=${c.negCcWithCritCap} " +
+                                "$tag HARD bound=$hardUpper < optimum=$hardInc negCcCritCap=${c.negCcWithCritCap} " +
                                 "targets=${c.params.targetStats.map { "${it.characteristic}=${it.target}" }} " +
                                 "subs=${hardLast?.individual?.sublimations?.values?.flatten()?.map { it.name.fr }} hardBinding=${bound.hardBindingState}"
                         }
                     }
                 }
-                if (bound.hardFoldedBound > bound.foldedBound) failures += "${c.label} INVARIANT hard ${bound.hardFoldedBound} > soft ${bound.foldedBound}"
-                println("MM_FUZZ ${c.label} softUpper=$softUpper softInc=$softInc status=${softOutcome?.status} hard=${bound.hardFoldedBound} negCcCritCap=${c.negCcWithCritCap}")
+                if (bound.hardFoldedBound > bound.foldedBound) failures += "$tag INVARIANT hard ${bound.hardFoldedBound} > soft ${bound.foldedBound}"
+                println("MM_FUZZ $tag softUpper=$softUpper softInc=$softInc status=${softOutcome?.status} hard=${bound.hardFoldedBound} negCcCritCap=${c.negCcWithCritCap}")
             }
-            println("MM_FUZZ_SUMMARY cases=$cases softCompared=$softCompared hardCompared=$hardCompared bails=$bails notOptimal=$notOptimal failures=${failures.size}")
+            println(
+                "MM_FUZZ_SUMMARY cases=$cases levels=$levels softCompared=$softCompared hardCompared=$hardCompared bails=$bails notOptimal=$notOptimal " +
+                    "failures=${failures.size}"
+            )
             failures.forEach { println("MM_FUZZ_FAIL $it") }
             assertThat(failures).describedAs("SOUNDNESS — MM certificate under-counts").isEmpty()
         }
@@ -652,7 +684,7 @@ class SoundnessReviewAdversarialTest {
     /**
      * Replays MM fuzz cases (comma-separated seeds) with diagnostics: the pinned optimum's items / subs / crit lines,
      * the certificate reads, and the SAME case with every negative item crit line removed (`noNegCc`) — a failure that
-     * disappears there is the A1 LOW-dim floor.  WAKFU_REVIEW_MM_CASES=7089[,…]
+     * disappears there is the A1 LOW-dim floor.  WAKFU_REVIEW_MM_CASES=7089[,…] [WAKFU_REVIEW_MIX_SEED=1 for mm-mix cases]
      */
     @Test
     fun `manual MM fuzz case replay`(): Unit =
@@ -684,7 +716,7 @@ class SoundnessReviewAdversarialTest {
                         val upper = bound?.comparableUpper(hard, hasReq)
                         val optimum = r?.mostMasteriesObjective
                         println(
-                            "MM_REPLAY seed=$seed $variant hard=$hard status=${outcome?.status} optimum=$optimum upper=$upper " +
+                            "MM_REPLAY ${c.label} $variant hard=$hard status=${outcome?.status} optimum=$optimum upper=$upper " +
                                 "undercount=${upper != null && optimum != null && upper < optimum} " +
                                 "targets=${c.params.targetStats.map { "${it.characteristic}=${it.target}" }} level=${c.params.character.level} runes=${c.params.useRunes}"
                         )
@@ -705,7 +737,8 @@ class SoundnessReviewAdversarialTest {
     // MAX-DAMAGE FUZZ (manual): seeded random pools × REAL choosable subs (Neutralité family, Mesure, Ravage…) × rune
     // rows (general fold) × scenarios. Per AP cell: exact / tier-1.5 / fast ≥ pinned CP-SAT raw optimum; ledger max ≥
     // true optimum (forceTier2All AND the incumbent path); E8 construct never returns a sub-optimal "proven" build.
-    //   WAKFU_REVIEW_MD_FUZZ=<cases> [WAKFU_REVIEW_MD_SEED0=<seed>] [WAKFU_REVIEW_MD_E8=1]
+    //   WAKFU_REVIEW_MD_FUZZ=<cases> [WAKFU_REVIEW_MD_SEED0=<seed>] [WAKFU_REVIEW_MD_E8=1] [WAKFU_REVIEW_MD_FORCE_PP=1]
+    //   [WAKFU_REVIEW_MIX_SEED=1]
     // ------------------------------------------------------------------------------------------------------------
 
     private class MdCase(
@@ -716,12 +749,13 @@ class SoundnessReviewAdversarialTest {
     )
 
     // [forcePoidsPlume]: append Poids Plume III when the seed did not draw it (the B1 lock below) — after every RNG draw,
-    // so the pool, rows and other subs of a seed are unchanged.
+    // so the pool, rows and other subs of a seed are unchanged. [mixSeed]: see SEED MIXING above.
     private fun mdFuzzCase(
         seed: Long,
         forcePoidsPlume: Boolean = System.getenv("WAKFU_REVIEW_MD_FORCE_PP") == "1",
+        mixSeed: Boolean = System.getenv("WAKFU_REVIEW_MIX_SEED") == "1",
     ): MdCase {
-        val rng = java.util.Random(seed)
+        val rng = fuzzRandom(seed, mixSeed)
         val level = listOf(50, 110, 170, 230)[rng.nextInt(4)]
         val element = me.chosante.autobuilder.domain.SpellElement.entries[rng.nextInt(4)]
         val range = if (rng.nextBoolean()) me.chosante.autobuilder.domain.RangeBand.DISTANCE else me.chosante.autobuilder.domain.RangeBand.MELEE
@@ -828,12 +862,12 @@ class SoundnessReviewAdversarialTest {
                 useSublimations = true,
                 damageScenario = scenario
             )
-        return MdCase("md-seed$seed", p, items.groupBy { it.itemType }, subs)
+        return MdCase(fuzzLabel("md", seed, mixSeed), p, items.groupBy { it.itemType }, subs)
     }
 
     /**
      * Replays max-damage fuzz cases with ablations to localize an under-count:
-     *   WAKFU_REVIEW_MD_CASES=9072[,…] [WAKFU_REVIEW_MD_CELLS=7,9]
+     *   WAKFU_REVIEW_MD_CASES=9072[,…] [WAKFU_REVIEW_MD_CELLS=7,9] [WAKFU_REVIEW_MD_FORCE_PP=1] [WAKFU_REVIEW_MIX_SEED=1 for md-mix cases]
      */
     @Test
     fun `manual max-damage fuzz case replay`(): Unit =
@@ -849,7 +883,7 @@ class SoundnessReviewAdversarialTest {
                 val c = mdFuzzCase(seed)
                 val runes = if (c.params.useRunes) WakfuBestBuildFinderAlgorithm.runes else emptyList()
                 println(
-                    "MD_REPLAY seed=$seed level=${c.params.character.level} scenario=${c.params.damageScenario} rows=${c.params.targetStats.map {
+                    "MD_REPLAY ${c.label} level=${c.params.character.level} scenario=${c.params.damageScenario} rows=${c.params.targetStats.map {
                         "${it.characteristic}=${it.target}"
                     }} runes=${c.params.useRunes}"
                 )
@@ -923,8 +957,17 @@ class SoundnessReviewAdversarialTest {
             var notOptimalCells = 0
             var e8Built = 0
             var droppedFamilyCarried = 0
+            var mpRampCarried = 0
+            val levels = java.util.TreeMap<Int, Int>()
             for (i in 0 until cases) {
                 val c = mdFuzzCase(seed0 + i)
+                val tag = "${c.label} level=${c.params.character.level}"
+                levels.merge(c.params.character.level, 1, Int::plus)
+                val mpRampSubs =
+                    c.subs
+                        .filter { it.perStatStep?.source == Characteristic.MOVEMENT_POINT }
+                        .map { it.stateId }
+                        .toSet()
                 val runes = if (c.params.useRunes) WakfuBestBuildFinderAlgorithm.runes else emptyList()
                 val truthParams =
                     c.params.copy(targetStats = TargetStats(c.params.targetStats.map { TargetStat(it.characteristic, it.target, userDefinedWeight = 0) }))
@@ -932,7 +975,7 @@ class SoundnessReviewAdversarialTest {
                     WakfuBuildSolver.certifierExactFastTier15CellObjectivesForTest(c.params, c.pool, runes, c.subs, applyDomination = false)
                 if (exact.values.none { it >= 0 } && fast.values.none { it >= 0 }) {
                     bailedPools++
-                    println("MD_FUZZ ${c.label} BAIL rows=${c.params.targetStats.map { "${it.characteristic}=${it.target}" }} subs=${c.subs.map { it.name.fr }}")
+                    println("MD_FUZZ $tag BAIL rows=${c.params.targetStats.map { "${it.characteristic}=${it.target}" }} subs=${c.subs.map { it.name.fr }}")
                     continue
                 }
                 val truthByAp = LinkedHashMap<Int, Long>()
@@ -956,12 +999,13 @@ class SoundnessReviewAdversarialTest {
                     truthByAp[ap] = profile.rawObjective
                     val carriedNames = c.subs.filter { it.stateId in profile.selectedSublimationStateIds }.map { it.name.fr }
                     if (carriedNames.any { it in setOf("Neutralité III", "Ambition III", "Prétention III", "Inflexibilité II", "Mesure") }) droppedFamilyCarried++
+                    if (profile.selectedSublimationStateIds.any { it in mpRampSubs }) mpRampCarried++
                     for ((label, value) in listOf("exact" to exact[ap], "tier15" to tier15[ap], "fast" to fast[ap])) {
                         if (value == null || value < 0) continue
                         cellsCompared++
                         if (value < profile.rawObjective) {
                             failures +=
-                                "${c.label} AP=$ap $label=$value < raw optimum ${profile.rawObjective} " +
+                                "$tag AP=$ap $label=$value < raw optimum ${profile.rawObjective} " +
                                 "(${"%.2f".format((profile.rawObjective.toDouble() / value - 1) * 100)}%) carried=$carriedNames " +
                                 "rows=${c.params.targetStats.map { "${it.characteristic}=${it.target}" }} runes=${c.params.useRunes} scenario=${c.params.damageScenario}"
                         }
@@ -971,13 +1015,13 @@ class SoundnessReviewAdversarialTest {
                 val ledger = WakfuBuildSolver.certifyLedgerForTest(c.params, c.pool, runes, c.subs, applyDomination = false, forceTier2All = true)
                 ledger.maxCellObjective?.let { max ->
                     ledgers++
-                    if (max < trueOptimum) failures += "${c.label} LEDGER(forceTier2All) max=$max < true optimum $trueOptimum"
+                    if (max < trueOptimum) failures += "$tag LEDGER(forceTier2All) max=$max < true optimum $trueOptimum"
                 }
                 for (frac in listOf(1.0, 0.9)) {
                     val inc = (trueOptimum * frac).toLong()
                     val l2 = WakfuBuildSolver.certifyLedgerForTest(c.params, c.pool, runes, c.subs, applyDomination = false, incumbentObjective = inc)
                     l2.maxCellObjective?.let { max ->
-                        if (max < trueOptimum) failures += "${c.label} LEDGER(incumbent=$inc) max=$max < true optimum $trueOptimum"
+                        if (max < trueOptimum) failures += "$tag LEDGER(incumbent=$inc) max=$max < true optimum $trueOptimum"
                     }
                 }
                 if (withE8 && isFreeMaxDamageShape(c.params.targetStats)) {
@@ -993,14 +1037,15 @@ class SoundnessReviewAdversarialTest {
                     if (built != null) {
                         e8Built++
                         val proxy = built.maxDamageRawProxy ?: built.maxDamageObjective ?: Long.MIN_VALUE
-                        if (proxy < trueOptimum) failures += "${c.label} E8 'proven optimal' proxy=$proxy < true optimum $trueOptimum"
+                        if (proxy < trueOptimum) failures += "$tag E8 'proven optimal' proxy=$proxy < true optimum $trueOptimum"
                     }
                 }
-                println("MD_FUZZ ${c.label} trueOpt=$trueOptimum ledgerMax=${ledger.maxCellObjective} cells=${truthByAp.size}")
+                println("MD_FUZZ $tag trueOpt=$trueOptimum ledgerMax=${ledger.maxCellObjective} cells=${truthByAp.size}")
             }
             println(
-                "MD_FUZZ_SUMMARY cases=$cases cellsCompared=$cellsCompared ledgers=$ledgers bailedPools=$bailedPools notOptimalCells=$notOptimalCells " +
-                    "e8Built=$e8Built droppedFamilyCarried=$droppedFamilyCarried failures=${failures.size}"
+                "MD_FUZZ_SUMMARY cases=$cases levels=$levels cellsCompared=$cellsCompared ledgers=$ledgers bailedPools=$bailedPools " +
+                    "notOptimalCells=$notOptimalCells e8Built=$e8Built droppedFamilyCarried=$droppedFamilyCarried mpRampCarried=$mpRampCarried " +
+                    "failures=${failures.size}"
             )
             failures.forEach { println("MD_FUZZ_FAIL $it") }
             assertThat(failures).describedAs("SOUNDNESS — max-damage certifier under-counts").isEmpty()
@@ -1016,23 +1061,25 @@ class SoundnessReviewAdversarialTest {
      * −2.2 %), md-seed12961 (110; AP-5–8, ledger −1.5 %) and md-seed1994 (170; AP-6–7, ledger −0.9 %). The first draw of
      * consecutive seeds barely moves (`java.util.Random`), so 12961 / 1994 were picked for their level. Surveyed with
      * v49: 60 consecutive seeds from 9000 (12 red on v48) plus 20 level-spread ones (3 red) all green; the review's
-     * other B1 pool, md-seed9072 (~35 s), stays on the manual fuzz. `WAKFU_REVIEW_MD_PP_SEEDS=a,b,…` replays any seeds.
+     * other B1 pool, md-seed9072 (~35 s), stays on the manual fuzz. `WAKFU_REVIEW_MD_PP_SEEDS=a,b,…` replays any seeds
+     * (md-mix ones with WAKFU_REVIEW_MIX_SEED=1; the pinned seeds always use the default mapping).
      */
     @Test
     fun `B1 lock - max-damage certifier fuzz with Poids Plume never under-counts a cell`() {
-        val seeds =
+        val replay =
             System
                 .getenv("WAKFU_REVIEW_MD_PP_SEEDS")
                 ?.split(',')
                 ?.mapNotNull { it.trim().toLongOrNull() }
-                ?: listOf(9009L, 9016L, 12961L, 1994L)
+        val seeds = replay ?: listOf(9009L, 9016L, 12961L, 1994L)
+        val mixSeed = replay != null && System.getenv("WAKFU_REVIEW_MIX_SEED") == "1"
         val failures = mutableListOf<String>()
         var compared = 0
         var rampCarried = 0
         var notOptimal = 0
         for (seed in seeds) {
             val started = System.nanoTime()
-            val c = mdFuzzCase(seed, forcePoidsPlume = true)
+            val c = mdFuzzCase(seed, forcePoidsPlume = true, mixSeed = mixSeed)
             val runes = if (c.params.useRunes) WakfuBestBuildFinderAlgorithm.runes else emptyList()
             val poidsPlume = c.subs.single { it.name.fr == "Poids Plume III" }
             // The certificate bounds raw damage over EVERY build of the same model: same rows (same rune fold), weight 0.
@@ -1138,7 +1185,7 @@ class SoundnessReviewAdversarialTest {
                     )
             )
         val microSubs = listOf("Poids Plume III", "Vélocité II", "Armure lourde II").map { n -> catalog.single { it.name.fr == n } }
-        val seeded = mdFuzzCase(9009L, forcePoidsPlume = true)
+        val seeded = mdFuzzCase(9009L, forcePoidsPlume = true, mixSeed = false)
         val fixtures = listOf(Triple(microParams, micro, microSubs), Triple(seeded.params, seeded.pool, seeded.subs))
         try {
             for ((i, fixture) in fixtures.withIndex()) {

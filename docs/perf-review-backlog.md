@@ -1227,11 +1227,41 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
 - **⚠️ OPEN SOUNDNESS BUGS (found 2026-10-02 by the adversarial review of the v41–v44 wave; B1 ✅ FIXED in
   CERTIFIER_VERSION 49, A1 still OPEN).** Both bugs are certificate UNDER-counts, so the affected badge ("proven
   optimal" / "proven within X %") can be WRONG. Both already exist at v40, i.e. in the shipped 1.11. The review found
-  no under-count introduced by v41–v44 (MM: 358 cases; max-damage: 400 pools, 4 646 cell comparisons).
+  no under-count introduced by v41–v44 (MM: 358 cases; max-damage: 400 pools, 4 646 cell comparisons) — on few
+  levels, though: those 400 max-damage pools (seeds 9000–9399) were ALL level 230, and the MM generator draws only
+  110 / 200 for seeds 7000–7399. See the level-spread survey below.
   - Reproductions: `SoundnessReviewAdversarialTest`. A1's failing tests (each runs in under a second) are gated by
     `WAKFU_SOUNDNESS_REVIEW=1` so the default suite stays green. After the fix, promote them to CI locks and bump
     `CERTIFIER_VERSION` (B1's is a CI lock since v49).
   - The file also holds manual fuzzers: `WAKFU_REVIEW_MM_FUZZ`, `WAKFU_REVIEW_MD_FUZZ` and their case replays.
+    - **Level coverage: `WAKFU_REVIEW_MIX_SEED=1` (2026-10-02).** Both generators draw the level FIRST, as
+      `java.util.Random(seed).nextInt(4)`. A power-of-two bound reads the top bits of the first draw, and consecutive
+      seeds barely move those: runs of up to ~2 000 seeds share a level (md seeds 8704–10239 are all level 230; mm
+      seeds 7000–7399 never draw 245). The opt-in knob seeds both generators through
+      `SplittableRandom(seed).nextLong()` instead; the cases are labelled `md-mix<seed>` / `mm-mix<seed>`, and the
+      replays (`WAKFU_REVIEW_MD_CASES`, `WAKFU_REVIEW_MM_CASES`, `WAKFU_REVIEW_MD_PP_SEEDS`) honour it. It is OFF by
+      default, so every pinned seed keeps its case (the B1 locks' 9009 / 9016 / 12961 / 1994, md-seed9072,
+      mm-seed7089 …): 412 case digests over md 9000–9099 + the pinned seeds and mm 7000–7099 are identical before and
+      after. The locks' own seeds ignore the knob. Fuzz lines now print each case's level; summaries print a level
+      histogram (and, for max-damage, the cells whose optimum carries an MP ramp sub).
+    - **Level-spread survey (2026-10-02, CERTIFIER_VERSION 49 with the B1 fix, data 1.93.1.62; one-core JVMs).**
+      - Max-damage, `WAKFU_REVIEW_MIX_SEED=1 WAKFU_REVIEW_MD_FORCE_PP=1 WAKFU_REVIEW_MD_E8=1
+        WAKFU_REVIEW_MD_FUZZ=400` (md-mix9000–9399): levels 50 / 110 / 170 / 230 = 120 / 95 / 86 / 99 pools, 97 of
+        them bailed (sound; 35 / 20 / 19 / 23). The 303 certified pools gave 1 824 pinned CP-SAT cells, all proven
+        OPTIMAL (479 / 472 / 429 / 444), 933 of them with an optimum carrying Poids Plume III — the B1 shape. That is
+        4 560 exact / tier-1.5 / fast comparisons and three ledgers per pool (forceTier2All, plus the incumbent path
+        at 100 % and 90 % of the optimum); the E8 construct built 5 proven builds, none below the optimum. **No
+        under-count at any level.** Per level, the forceTier2All ledger max sat a median 9.0–11.8 % above the true
+        optimum.
+      - Most-masteries, `WAKFU_REVIEW_MIX_SEED=1 WAKFU_REVIEW_MM_FUZZ=400` (mm-mix7000–7399): levels 110 / 200 / 245
+        = 113 / 198 / 89 cases, no bail; 399 soft and 199 targets-met reads compared against an OPTIMAL pinned CP-SAT
+        leg. 227 cases had the A1 shape (a negative item crit line and a CRIT_AT_MOST sub drawn). **One under-count,
+        and it is A1:** mm-mix7104 (level 200, carries Constance) reads 60 169 999 < 60 330 000 (−0.27 %) on the
+        soft AND the targets-met read. Its −8-crit chest plate is staged before the +11-crit boots: the real
+        pre-combat crit is 6 ≤ 10, but the floored LOW dim reads 11, so the Constance world rejects the carrier. The
+        replay's `noNegItemCc` variant is clean, and the A1 fix (branch `fix/a1-low-dims-offset`, CERTIFIER_VERSION
+        50) bounds it at 60 339 999 (`lowRead=6 lowOff=8`). Replay: `WAKFU_REVIEW_MIX_SEED=1
+        WAKFU_REVIEW_MM_CASES=7104`; a candidate seed for the A1 locks once that fix lands.
   - **A1 — the assume worlds' LOW dims are floored at 0 after every stage.**
     - Where: `MostMasteriesCertificate` (the `ccLowRaw` / AP-low transitions `.coerceIn(0, thr + 1)` and the clamped
       seed state), with a twin in `MaxDamageSoftCertificate`.
