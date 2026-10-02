@@ -187,6 +187,10 @@ internal class StatBuilder(
     // where an aux world bails; empty when the shape has no aux world) — already folded into the maps above.
     val certifierAuxObjectivesForTest = linkedMapOf<Int, Long>()
 
+    // Test seam (v47, see [certifyForTest]): per AP cell, the RELAXED capped aux world's objective and the max over the
+    // exact capped split it stands for (same scaling, -1 where a world bails); empty without a relaxed world.
+    val certifierAuxRelaxedVsSplitForTest = linkedMapOf<Int, Pair<Long, Long>>()
+
     // Test seam (B7, see [certifyForTest]): the TIER-1.5 sharpened fast pass's AP cell → objective (sound upper
     // bound, -1 where it bails). The `fast ≥ tier1.5 ≥ exact` lock asserts it sits between the two.
     val certifierTier15ObjectivesForTest = linkedMapOf<Int, Long>()
@@ -1760,11 +1764,11 @@ internal class StatBuilder(
     }
 
     /**
-     * The certifier's AUX-world floors (CERTIFIER_VERSION 44, see `certifierAuxFloor`), keyed by (scenario, cell
-     * count): the per-cell fast-tier bound of the worlds the normal certifier worlds deliberately drop. An EMPTY array
+     * The certifier's AUX-world floors (CERTIFIER_VERSION 44 / 47, see `certifierAuxFloor`), keyed by (scenario, cell
+     * count): the per-cell fast-tier bound of the worlds the normal certifier worlds deliberately drop. A null value
      * records "no aux world for this shape". Guarded by its own monitor (computed once, read from worker threads).
      */
-    internal val certifierAuxFloorCache = HashMap<Pair<DamageScenario, Int>, LongArray>()
+    internal val certifierAuxFloorCache = HashMap<Pair<DamageScenario, Int>, AuxFloor?>()
 
     private fun computeDamagePreMasteryTerms(scenario: DamageScenario): LinearTermSum? {
         val directStats = scenarioMasteryStats(scenario).distinct()

@@ -452,7 +452,9 @@ duplicated here) — the short version of where it landed:
   an HP / resistance / dodge row switches the model to the general single-type rune fold, which the certifier now
   mirrors (non-damage runes = zero-delta options) instead of bailing every cell; and the two sub families the pools
   used to DROP unguarded (the Neutralité family, the EPIC block sub Mesure — an under-count when the optimum carries
-  one) are covered by fast-tier AUX worlds.
+  one) are covered by fast-tier AUX worlds. Since CERTIFIER_VERSION 48 (P5.4b) one relaxed world stands for the six
+  secondary-capped ones (their exact split runs only when it could move a value) and the aux floor is applied once
+  at the end of the ledger, computed beside the normal worlds — same certified values, the flagship early stop kept.
 - **The one law — never under-count** (a wrong badge). Every pass is a sound upper bound, exact on most
   shapes, loose on some; locks assert `≥`, not `==`. The P6.1 fuzz lock caught a real pre-existing
   under-count in the **below-AP-constant** (negative-AP charging) exact DP — now walled off by a bail so

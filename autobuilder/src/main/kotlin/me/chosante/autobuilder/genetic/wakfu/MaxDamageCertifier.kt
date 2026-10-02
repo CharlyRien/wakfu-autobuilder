@@ -163,6 +163,19 @@ internal object CertifierTuning {
     @Volatile
     var tier15SegmentSkipEnabled = true
 
+    /**
+     * CERTIFIER_VERSION 48 aux schedule ([certifierAuxPlan]): bound the secondary-capped aux worlds by ONE relaxed world
+     * and run their exact split only when that bound could move a cell. On in production; the equality lock disables
+     * it to compare every certified value against the always-split v44 schedule.
+     */
+    @Volatile
+    var auxRelaxedCappedEnabled = true
+
+    /** How many times an [AuxFloor] had to run its capped split (thread-safe; tests read the delta). */
+    val auxSplitComputedForTest =
+        java.util.concurrent.atomic
+            .AtomicLong()
+
     /** Total step-1 segments skipped by tier-1.5 across all passes (thread-safe; tests reset + assert > 0). */
     val tier15SegmentsSkippedForTest =
         java.util.concurrent.atomic
@@ -353,6 +366,8 @@ internal fun StatBuilder.certifyMaxPerHitAtAp(
     // Two-tier speed: tier-1.5's per-(world-index) per-crit-step harvest rows for THIS cell (indices align
     // with [certifierWorlds]; null row / null array ⇒ that world's exact c-loop runs unpruned).
     ubByWorld: Array<LongArray?>? = null,
+    // False ⇒ the NORMAL worlds only: the caller ([certifyLedger], v48) applies the aux floor itself, at the end.
+    applyAux: Boolean = true,
 ): Long {
     // The world split (conversion / Critical-Secret / weapon-axis) lives in [certifierWorlds] — the
     // single source of truth shared with the fast pass, the parallel exact tier and the provenance
@@ -383,7 +398,7 @@ internal fun StatBuilder.certifyMaxPerHitAtAp(
         }
     }
     // v44: the builds the normal worlds drop are bounded by the aux worlds' fast tier ([certifierAuxFloor]).
-    val floored = floorAux(best, certifierAuxFloor(scenario, apTarget + 1), apTarget)
+    val floored = if (applyAux) floorAux(best, certifierAuxFloor(scenario, apTarget + 1), apTarget, threads = 1) else best
     if (floored == Long.MAX_VALUE) return Long.MAX_VALUE
     provOut?.let {
         it[0] = bestWorld
@@ -395,7 +410,8 @@ internal fun StatBuilder.certifyMaxPerHitAtAp(
 /**
  * One certifier "world": a force-taken CONVERSION / CRITICAL_SECRET split and a weapon-axis
  * restriction. See [certifyMaxPerHitAtAp] for what each split covers. [secondaryCapped] / [assumed]
- * only ever appear on the AUX worlds of [certifierAuxWorlds] (CERTIFIER_VERSION 44).
+ * only ever appear on the AUX worlds of [certifierAuxWorlds] (CERTIFIER_VERSION 44); [weaponsRelaxed] /
+ * [freeCredit] only on the RELAXED capped aux world of [certifierAuxPlan] (CERTIFIER_VERSION 48).
  */
 internal class CertWorld(
     val conv: Sublimation?,
@@ -404,6 +420,8 @@ internal class CertWorld(
     val wr: Boolean,
     val secondaryCapped: Boolean = false,
     val assumed: Sublimation? = null,
+    val weaponsRelaxed: Boolean = false,
+    val freeCredit: List<Sublimation> = emptyList(),
 )
 
 /**
@@ -516,30 +534,164 @@ internal fun StatBuilder.certifierAuxWorlds(scenario: DamageScenario): List<Cert
 }
 
 /**
- * The aux worlds' ([certifierAuxWorlds]) FAST-tier per-cell upper bound in raw maxPerHit units — computed ONCE per
- * (scenario, cell count) and cached on this StatBuilder. Every certificate tier floors its per-cell value at it
- * (fast: max with the normal worlds; tier-1.5 / exact: max with their own normal-world value), so a build the normal
- * worlds drop is always covered, while the aux worlds never pay the tier-1.5 / exact passes. Null ⇒ the shape has no
- * aux world (no floor). An entry of `Long.MAX_VALUE` ⇒ an aux world bailed (the whole shape bails, like any world).
- * The cell count is canonicalized to the rotation-AP table size so every tier shares one compute.
+ * CERTIFIER_VERSION 48 — the aux-world SCHEDULE. The exact aux worlds ([certifierAuxWorlds]) run as extra fast passes,
+ * serially while a search runs. The SECONDARY-CAPPED ones (N, N×C, N×M × the weapon split — 6 of the 8 on the default
+ * catalog) sit far below the normal worlds on real shapes (~30 % at levels 110 / 245), so ONE relaxed world
+ * ([relaxedCapped]) bounds them all: the secondary-capped valuation, the weapon split relaxed (the NO_OFFHAND subs
+ * allowed AND a free weapon slot), the specials those worlds force (Critical Secret, the block sub) credited as free
+ * constants with no slot, Critical Secret kept out of the budget exactly as in N. Every DP path of every capped world
+ * exists in it with a ≥ value, so `capped split ≤ relaxed` per cell, and [AuxFloor.floor] only runs the split
+ * ([cappedSplit]) when the relaxed bound could raise a value. [eager] keeps the block-assumed M worlds exact: they sit
+ * within a few % of the normal worlds, where a relaxation would bind.
+ */
+internal class AuxPlan(
+    val eager: List<CertWorld>,
+    val relaxedCapped: CertWorld?,
+    val cappedSplit: List<CertWorld>,
+)
+
+internal fun StatBuilder.certifierAuxPlan(scenario: DamageScenario): AuxPlan? {
+    val exact = certifierAuxWorlds(scenario) ?: return null
+    val capped = exact.filter { it.secondaryCapped }
+    if (capped.isEmpty() || !CertifierTuning.auxRelaxedCappedEnabled) return AuxPlan(exact, null, emptyList())
+    val f = certifierWorldFacts(scenario) ?: return null
+    // The specials the capped worlds force-take: Critical Secret (N×C) and the block sub (N×M).
+    val freeCredit = (capped.mapNotNull { it.cs } + capped.mapNotNull { it.assumed }).distinct()
+    // A FORCED special is already credited (or inert) through the forced machinery — keep the exact split there.
+    if (freeCredit.any { it in subModel.forced }) return AuxPlan(exact, null, emptyList())
+    val relaxed =
+        CertWorld(
+            null,
+            null,
+            f.critSecretSub,
+            wr = false,
+            secondaryCapped = true,
+            weaponsRelaxed = f.weaponWorlds.size > 1,
+            freeCredit = freeCredit
+        )
+    return AuxPlan(exact.filterNot { it.secondaryCapped }, relaxed, capped)
+}
+
+/**
+ * The aux worlds' FAST-tier per-cell floor (raw maxPerHit units), built once per (scenario, cell count) by
+ * [certifierAuxFloor] and cached on the StatBuilder. [floor] returns EXACTLY the CERTIFIER_VERSION 44 floor —
+ * `max(value, every exact aux world)` — but runs the capped split only when the relaxed bound exceeds the value it
+ * would floor: below it, `split ≤ relaxed ≤ value` leaves the value unchanged. `Long.MAX_VALUE` stays a bail on every
+ * side (a bailed relaxed world simply defers every cell to the split).
+ */
+internal class AuxFloor(
+    private val eager: LongArray?,
+    private val relaxed: LongArray?,
+    private val computeSplit: ((Int) -> LongArray)?,
+) {
+    private var splitValues: LongArray? = null
+
+    fun floor(
+        value: Long,
+        cell: Int,
+        threads: Int,
+    ): Long {
+        if (value == Long.MAX_VALUE) return value
+        var v = value
+        if (eager != null) {
+            val e = eager.getOrElse(cell) { Long.MAX_VALUE }
+            if (e == Long.MAX_VALUE) return Long.MAX_VALUE
+            v = maxOf(v, e)
+        }
+        if (relaxed != null && relaxed.getOrElse(cell) { Long.MAX_VALUE } > v) {
+            val s = split(threads).getOrElse(cell) { Long.MAX_VALUE }
+            if (s == Long.MAX_VALUE) return Long.MAX_VALUE
+            v = maxOf(v, s)
+        }
+        return v
+    }
+
+    /** The capped split's per-cell max — computed at most once, on first need (thread-safe). */
+    private fun split(threads: Int): LongArray =
+        synchronized(this) {
+            splitValues ?: checkNotNull(computeSplit)(threads).also {
+                splitValues = it
+                CertifierTuning.auxSplitComputedForTest.incrementAndGet()
+            }
+        }
+
+    /** Test / diagnostics: the exact aux floor alone (eager worlds + the capped split), forcing the split. */
+    internal fun exactForTest(threads: Int): LongArray {
+        val s = if (relaxed != null) split(threads) else null
+        val size = maxOf(eager?.size ?: 0, s?.size ?: 0)
+        return LongArray(size) { a ->
+            val e = eager?.getOrElse(a) { Long.MAX_VALUE } ?: 0L
+            val sv = s?.getOrElse(a) { Long.MAX_VALUE } ?: 0L
+            if (e == Long.MAX_VALUE || sv == Long.MAX_VALUE) Long.MAX_VALUE else maxOf(e, sv)
+        }
+    }
+
+    /** Test: the relaxed capped world's values and the capped split's (forcing it); null without a relaxed world. */
+    internal fun relaxedVsSplitForTest(threads: Int): Pair<LongArray, LongArray>? = relaxed?.let { it to split(threads) }
+}
+
+/**
+ * Runs [worlds] through [run] (one world's fast pass, null ⇒ it bailed): the first alone when [warmFirst] (it may populate
+ * lazy caches the others read), then — re-reading [threads] before every world, so a warm-up whose search ends midway
+ * fans out at once — serially or as one parallel batch. A bail short-circuits the serial path (the caller bails).
+ */
+private fun runAuxWorlds(
+    worlds: List<CertWorld>,
+    threads: () -> Int,
+    warmFirst: Boolean,
+    run: (CertWorld) -> LongArray?,
+): List<LongArray?> {
+    val outs = ArrayList<LongArray?>(worlds.size)
+    var next = 0
+    if (warmFirst && worlds.isNotEmpty()) {
+        outs += run(worlds[0])
+        next = 1
+    }
+    while (next < worlds.size && outs.none { it == null }) {
+        val t = threads()
+        if (t <= 1) {
+            outs += run(worlds[next])
+            next++
+        } else {
+            val remaining = worlds.subList(next, worlds.size)
+            val pool = Executors.newFixedThreadPool(min(t, remaining.size))
+            try {
+                outs += pool.invokeAll(remaining.map { w -> Callable { run(w) } }).map { it.get() }
+            } finally {
+                pool.shutdown()
+            }
+            next = worlds.size
+        }
+    }
+    while (outs.size < worlds.size) outs += null
+    return outs
+}
+
+/**
+ * The aux floor ([AuxFloor]) of this shape — computed ONCE per (scenario, cell count) and cached on this StatBuilder.
+ * Every certificate tier floors its per-cell value at it (fast: max with the normal worlds; tier-1.5 / exact: max with
+ * their own normal-world value), so a build the normal worlds drop is always covered, while the aux worlds never pay
+ * the tier-1.5 / exact passes. Null ⇒ the shape has no aux world. An unsupported aux shape ⇒ a floor that bails every
+ * cell (the whole shape bails, like any world). [threads] is re-read before every world (see [runAuxWorlds]). The cell
+ * count is canonicalized to the rotation-AP table size so every tier shares one compute.
  */
 internal fun StatBuilder.certifierAuxFloor(
     scenario: DamageScenario,
     cellCount: Int,
-    threads: Int = 1,
-): LongArray? {
+    threads: () -> Int = { 1 },
+): AuxFloor? {
     val cells = maxOf(cellCount, MAX_ROTATION_AP.toInt() + 1)
     val key = scenario to cells
     synchronized(certifierAuxFloorCache) {
-        certifierAuxFloorCache[key]?.let { return it.takeIf { arr -> arr.isNotEmpty() } }
-        val aux = certifierAuxWorlds(scenario)
-        val floor: LongArray =
+        if (key in certifierAuxFloorCache) return certifierAuxFloorCache[key]
+        val plan = certifierAuxPlan(scenario)
+        val floor: AuxFloor? =
             when {
-                aux == null -> LongArray(cells) { Long.MAX_VALUE }
-                aux.isEmpty() -> LongArray(0)
+                plan == null -> AuxFloor(LongArray(cells) { Long.MAX_VALUE }, null, null)
+                plan.eager.isEmpty() && plan.relaxedCapped == null -> null
                 else -> {
                     // Warm the category cache single-threaded before any parallel world reads it.
-                    if (aux.any { it.secondaryCapped }) damageMasteryCategories(scenario)
+                    if (plan.relaxedCapped != null || plan.eager.any { it.secondaryCapped }) damageMasteryCategories(scenario)
 
                     fun runAux(w: CertWorld): LongArray? {
                         val out = LongArray(cells) { 0L }
@@ -553,53 +705,41 @@ internal fun StatBuilder.certifierAuxFloor(
                                 weaponsRestricted = w.wr,
                                 secondaryCapped = w.secondaryCapped,
                                 assumedSub = w.assumed,
+                                weaponsRelaxed = w.weaponsRelaxed,
+                                freeCreditSubs = w.freeCredit,
                                 fastAllCellsOut = out,
                                 fastCellCount = cells,
                                 fastCSegmentStep = CertifierTuning.fastCSegmentStepOverride ?: FAST_C_SEGMENT_STEP
                             )
                         return if (r == Long.MAX_VALUE) null else out
                     }
-                    // The first aux world runs alone (it may populate lazy caches the others read).
-                    val outs = ArrayList<LongArray?>(aux.size)
-                    outs += runAux(aux[0])
-                    if (outs[0] != null && aux.size > 1) {
-                        if (threads <= 1) {
-                            for (w in aux.drop(1)) {
-                                val o = runAux(w)
-                                outs += o
-                                if (o == null) break
-                            }
-                        } else {
-                            val pool = Executors.newFixedThreadPool(min(threads, aux.size - 1))
-                            try {
-                                outs += pool.invokeAll(aux.drop(1).map { w -> Callable { runAux(w) } }).map { it.get() }
-                            } finally {
-                                pool.shutdown()
-                            }
-                        }
-                    }
-                    if (outs.any { it == null }) {
-                        LongArray(cells) { Long.MAX_VALUE }
+
+                    fun maxOrBail(outs: List<LongArray?>): LongArray =
+                        if (outs.any { it == null }) LongArray(cells) { Long.MAX_VALUE } else LongArray(cells) { a -> outs.maxOf { it!![a] } }
+                    val eagerWorlds = plan.eager + listOfNotNull(plan.relaxedCapped)
+                    val outs = runAuxWorlds(eagerWorlds, threads, warmFirst = true, run = ::runAux)
+                    val eagerFloor = if (plan.eager.isEmpty()) null else maxOrBail(outs.take(plan.eager.size))
+                    if (plan.relaxedCapped == null) {
+                        AuxFloor(eagerFloor, null, null)
                     } else {
-                        LongArray(cells) { a -> outs.maxOf { it!![a] } }
+                        // A bailed relaxed world defers every cell to the exact split (all-MAX ⇒ always "could matter").
+                        val relaxedFloor = outs.last() ?: LongArray(cells) { Long.MAX_VALUE }
+                        AuxFloor(eagerFloor, relaxedFloor) { t -> maxOrBail(runAuxWorlds(plan.cappedSplit, { t }, warmFirst = false, run = ::runAux)) }
                     }
                 }
             }
         certifierAuxFloorCache[key] = floor
-        return floor.takeIf { it.isNotEmpty() }
+        return floor
     }
 }
 
-/** Floors a per-cell raw value at the aux bound (`Long.MAX_VALUE` stays a bail on either side). */
+/** Floors a per-cell raw value at the aux bound ([AuxFloor.floor]; `Long.MAX_VALUE` stays a bail on either side). */
 internal fun floorAux(
     value: Long,
-    floor: LongArray?,
+    floor: AuxFloor?,
     cell: Int,
-): Long {
-    if (floor == null || value == Long.MAX_VALUE) return value
-    val f = if (cell in floor.indices) floor[cell] else Long.MAX_VALUE
-    return if (f == Long.MAX_VALUE) Long.MAX_VALUE else maxOf(value, f)
-}
+    threads: Int,
+): Long = floor?.floor(value, cell, threads) ?: value
 
 /** The shape facts shared by [certifierWorlds] and [certifierAuxWorlds]; null ⇒ the shape-level bail. */
 private class CertWorldFacts(
@@ -691,6 +831,11 @@ internal fun StatBuilder.certifyAllCellsFast(
     // while the search owns the cores, but a short search ends mid-pass — without re-reading, the
     // remaining worlds stayed serial and the proof trailed the search by the whole single-threaded pass.
     threadsProvider: (() -> Int)? = null,
+    // False ⇒ the NORMAL worlds only: the caller ([certifyLedger], v48) applies the aux floor itself, at the end.
+    applyAux: Boolean = true,
+    // Called once world[0] has run alone (the shared lazy caches are warm, every later pass only reads them) — the
+    // ledger (v48) starts its aux pass there, beside the remaining normal worlds.
+    afterWarm: (() -> Unit)? = null,
 ): LongArray {
     if (cellCount <= 0) return LongArray(0)
     val bailed = LongArray(cellCount) { Long.MAX_VALUE }
@@ -750,6 +895,7 @@ internal fun StatBuilder.certifyAllCellsFast(
     // switch changes nothing but wall clock.
     val worldOuts = ArrayList<LongArray?>(worlds.size)
     worldOuts += (runWorld(0, worlds[0]) ?: return bailed)
+    afterWarm?.invoke()
     var nextWorld = 1
     while (nextWorld < worlds.size) {
         val t = currentThreads()
@@ -776,11 +922,12 @@ internal fun StatBuilder.certifyAllCellsFast(
     for (out in worldOuts) {
         for (a in 0 until cellCount) result[a] = maxOf(result[a], out!![a])
     }
+    if (!applyAux) return result
     // v44: fold in the aux worlds (the builds the normal worlds drop) — computed here once, after world[0]
     // warmed the shared caches, and reused by every later tier as its per-cell floor.
-    val auxFloor = certifierAuxFloor(scenario, cellCount, currentThreads())
+    val auxFloor = certifierAuxFloor(scenario, cellCount) { currentThreads() }
     for (a in 0 until cellCount) {
-        result[a] = floorAux(result[a], auxFloor, a)
+        result[a] = floorAux(result[a], auxFloor, a, currentThreads())
         if (result[a] == Long.MAX_VALUE) return bailed
     }
     return result
@@ -805,6 +952,8 @@ internal fun StatBuilder.exactForCells(
     // Two-tier speed: tier-1.5's FREE per-(cell, world-index) per-crit-step rows ([Tier15Result.perCByCell])
     // — each world's exact c-loop prunes against its own row. Missing cell/world ⇒ that loop runs unpruned.
     ubByWorldCell: Map<Int, Array<LongArray?>>? = null,
+    // False ⇒ the NORMAL worlds only: the caller ([certifyLedger], v48) applies the aux floor itself, at the end.
+    applyAux: Boolean = true,
 ): Map<Int, Long> {
     if (cells.isEmpty()) return emptyMap()
     val worlds = if (threads <= 1) null else certifierWorlds(scenario)
@@ -813,7 +962,7 @@ internal fun StatBuilder.exactForCells(
         val out = LinkedHashMap<Int, Long>()
         for (a in cells) {
             val pv = if (provOut != null) IntArray(2) { -1 } else null
-            val v = certifyMaxPerHitAtAp(scenario, a, provOut = pv, ubByWorld = ubByWorldCell?.get(a))
+            val v = certifyMaxPerHitAtAp(scenario, a, provOut = pv, ubByWorld = ubByWorldCell?.get(a), applyAux = applyAux)
             out[a] = v
             if (provOut != null && pv != null && v != Long.MAX_VALUE && pv[0] >= 0) provOut[a] = CellProvenance(pv[0], pv[1])
         }
@@ -876,9 +1025,10 @@ internal fun StatBuilder.exactForCells(
         }
     }
     for (a in bailedCells) out[a] = Long.MAX_VALUE
+    if (!applyAux) return out
     // v44: the aux worlds' fast bound floors every cell (the serial path's certifyMaxPerHitAtAp does the same).
-    val auxFloor = certifierAuxFloor(scenario, (cells.maxOrNull() ?: 0) + 1, threads)
-    for (a in cells) out[a] = floorAux(out.getValue(a), auxFloor, a)
+    val auxFloor = certifierAuxFloor(scenario, (cells.maxOrNull() ?: 0) + 1) { threads }
+    for (a in cells) out[a] = floorAux(out.getValue(a), auxFloor, a, threads)
     return out
 }
 
@@ -906,6 +1056,8 @@ internal fun StatBuilder.certifyCellsTier15(
     // recorded bound stays sound (the step-8 value carries), only the DP count changes. Null ⇒ no skip.
     skipUbByWorld: Array<Array<LongArray>?>? = null,
     skipBelowRawByCell: Map<Int, Long>? = null,
+    // False ⇒ the NORMAL worlds only: the caller ([certifyLedger], v48) applies the aux floor itself, at the end.
+    applyAux: Boolean = true,
 ): Tier15Result {
     if (cells.isEmpty()) return Tier15Result(emptyMap(), emptyMap())
     val worlds = certifierWorlds(scenario) ?: return Tier15Result(cells.associateWith { Long.MAX_VALUE }, emptyMap())
@@ -942,7 +1094,7 @@ internal fun StatBuilder.certifyCellsTier15(
     val perCByCell = LinkedHashMap<Int, Array<LongArray?>>()
     // v44: the aux worlds' fast bound floors every cell's tier-1.5 value (fast ≥ tier-1.5 ≥ exact still holds:
     // all three share the same floor). The per-(cell, world) c-rows stay normal-world only.
-    val auxFloor = certifierAuxFloor(scenario, (cells.maxOrNull() ?: 0) + 1, threads)
+    val auxFloor = if (applyAux) certifierAuxFloor(scenario, (cells.maxOrNull() ?: 0) + 1) { threads } else null
     if (threads <= 1) {
         val out = LinkedHashMap<Int, Long>()
         for (a in cells) {
@@ -958,7 +1110,7 @@ internal fun StatBuilder.certifyCellsTier15(
                 rows[wi] = row
                 best = maxOf(best, v)
             }
-            out[a] = if (bail) Long.MAX_VALUE else floorAux(best, auxFloor, a)
+            out[a] = if (bail) Long.MAX_VALUE else floorAux(best, auxFloor, a, threads)
             if (!bail) perCByCell[a] = rows
         }
         return Tier15Result(out, perCByCell)
@@ -987,7 +1139,7 @@ internal fun StatBuilder.certifyCellsTier15(
         perCByCell.getOrPut(a) { arrayOfNulls(worlds.size) }[wi] = vr.second
     }
     for (a in bailedCells) out[a] = Long.MAX_VALUE
-    for (a in cells) out[a] = floorAux(out.getValue(a), auxFloor, a)
+    for (a in cells) out[a] = floorAux(out.getValue(a), auxFloor, a, threads)
     return Tier15Result(out, perCByCell)
 }
 
@@ -1066,6 +1218,27 @@ internal fun StatBuilder.certifyLedger(
     // bound anywhere ⇒ every cell bailed, maxCellObjective null. (B6: reused from cache when supplied.)
     val fastObj: LongArray
     val bailed: Set<Int>
+    // v48: the AUX floor (the builds the normal worlds drop, [certifierAuxFloor]) only lifts FINAL per-cell values, so
+    // no elimination / refinement decision below reads it: it is applied once, at the end, to every value this run
+    // computes (a cell it lifts over the incumbent was only ever refined in vain). On a fresh fast pass it starts on its
+    // OWN thread as soon as world[0] has warmed the shared caches (every later pass only reads them), beside the
+    // remaining normal worlds and the refinement instead of serializing behind them: while both run, the search-time
+    // warm-up holds two certifier threads instead of one (each aux pass re-reads the FAST thread count).
+    var auxPrefetch: java.util.concurrent.Future<AuxFloor?>? = null
+
+    fun startAuxPrefetch() {
+        if (auxPrefetch != null) return
+        damageMasteryCategories(scenario) // warm the shared memo single-threaded before the aux thread reads it
+        val executor = Executors.newSingleThreadExecutor()
+        try {
+            auxPrefetch = executor.submit(Callable { certifierAuxFloor(scenario, cellCount) { tierThreads(CertTier.FAST) } })
+        } finally {
+            executor.shutdown()
+        }
+    }
+    // The RAW normal-world fast bounds computed in THIS run (null on the B6 path, whose cached values already carry the
+    // aux floor) — floored at the aux bound once, at the end (see below).
+    var freshFastRaw: LongArray? = null
     if (precomputedFast != null && precomputedBailed != null) {
         bailed = precomputedBailed
         if (bailed.isNotEmpty()) return CertLedger(emptyMap(), bailed, emptySet(), null)
@@ -1077,13 +1250,20 @@ internal fun StatBuilder.certifyLedger(
                 cellCount,
                 tierThreads(CertTier.FAST),
                 perCellCByWorldOut = tier15SkipUbByWorld,
-                threadsProvider = { tierThreads(CertTier.FAST) }
+                threadsProvider = { tierThreads(CertTier.FAST) },
+                applyAux = false,
+                afterWarm = ::startAuxPrefetch
             )
         bailed = (0 until cellCount).filter { fast[it] == Long.MAX_VALUE }.toSet()
         if (bailed.isNotEmpty()) return CertLedger(emptyMap(), bailed, emptySet(), null)
         fastObj = LongArray(cellCount) { scale(it, fast[it]) }
+        freshFastRaw = fast
+        startAuxPrefetch() // no-op unless world[0] never ran
     }
     if (timingEnabled) timeFastDoneMs = System.currentTimeMillis() - timeStart
+    // The RAW tier-1.5 / exact values computed in THIS run (cached confirms already carry the aux floor).
+    val tier15FreshRaw = LinkedHashMap<Int, Long>()
+    val exactFreshRaw = LinkedHashMap<Int, Long>()
     // Resolve the LIVE incumbent now — after the tier-1 fast DP, right before elimination. The warm-up path
     // launches this ledger on the search's FIRST streamed result, but by this point (minutes in) the search
     // has finished and its FINAL incumbent is far stronger: using it eliminates more cells and sharpens every
@@ -1093,9 +1273,6 @@ internal fun StatBuilder.certifyLedger(
     val incumbentObjective =
         certifierIncumbentProvider?.invoke()?.let { live -> maxOf(live, incumbentObjectiveIn ?: live) }
             ?: incumbentObjectiveIn
-    // B4: the raw incumbent-independent fast array (keyed by cell), exposed for the session cache so a re-search
-    // with a different incumbent can recompute the elimination boundary without re-running the fast DP.
-    val fastObjectives = (0 until cellCount).associateWith { fastObj[it] }
     // B4: survivors whose EXACT pass bailed (still sound — they keep fast). Cached so the reconstruction can keep
     // them at fast rather than treating them as not-yet-computed (which would force a needless recompute).
     val exactBailed = linkedSetOf<Int>()
@@ -1174,25 +1351,36 @@ internal fun StatBuilder.certifyLedger(
                     continue
                 }
                 if (cachedT15 == null) {
-                    val one = certifyCellsTier15(scenario, listOf(a), tierThreads(CertTier.TIER15), skipUbByWorld = tier15SkipUbByWorld, skipBelowRawByCell = skipBelowRawByCell)
+                    val one =
+                        certifyCellsTier15(
+                            scenario,
+                            listOf(a),
+                            tierThreads(CertTier.TIER15),
+                            skipUbByWorld = tier15SkipUbByWorld,
+                            skipBelowRawByCell = skipBelowRawByCell,
+                            applyAux = false
+                        )
                     one.perCByCell[a]?.let { perCAccum[a] = it }
                     val raw = one.values[a] ?: Long.MAX_VALUE
                     if (raw != Long.MAX_VALUE) {
                         val obj = scale(a, raw)
                         tier15Obj[a] = obj
+                        tier15FreshRaw[a] = raw
                         if (obj <= incumbentObjective) continue
                     }
                 } else {
                     tier15Obj[a] = cachedT15 // over-incumbent cached tier-1.5 ⇒ straight to exact
                 }
                 // Not cleared: confirm exactly NOW; a confirmed over-incumbent cell ends the cascade.
-                val mph = exactForCells(scenario, listOf(a), tierThreads(CertTier.EXACT), provOut = provByCell, ubByWorldCell = perCAccum).getValue(a)
+                val mph =
+                    exactForCells(scenario, listOf(a), tierThreads(CertTier.EXACT), provOut = provByCell, ubByWorldCell = perCAccum, applyAux = false).getValue(a)
                 if (mph == Long.MAX_VALUE) {
                     exactBailed += a
                     continue
                 }
                 val obj = scale(a, mph)
                 exactObj[a] = obj
+                exactFreshRaw[a] = mph
                 if (obj > incumbentObjective) break // remaining survivors keep their sound fast bounds
             }
             // [values] deliberately empty: the cascade already folded cleared cells into [tier15Obj] and
@@ -1218,7 +1406,15 @@ internal fun StatBuilder.certifyLedger(
                 }
                 undecided += a
             }
-            tier15 = certifyCellsTier15(scenario, undecided, tierThreads(CertTier.TIER15), skipUbByWorld = tier15SkipUbByWorld, skipBelowRawByCell = skipBelowRawByCell)
+            tier15 =
+                certifyCellsTier15(
+                    scenario,
+                    undecided,
+                    tierThreads(CertTier.TIER15),
+                    skipUbByWorld = tier15SkipUbByWorld,
+                    skipBelowRawByCell = skipBelowRawByCell,
+                    applyAux = false
+                )
             if (timingEnabled) timeTier15DoneMs = System.currentTimeMillis() - timeStart
             val tier15Raw = tier15.values
             for (a in undecided) {
@@ -1226,6 +1422,7 @@ internal fun StatBuilder.certifyLedger(
                 if (raw != Long.MAX_VALUE) {
                     val obj = scale(a, raw)
                     tier15Obj[a] = obj
+                    tier15FreshRaw[a] = raw
                     if (obj <= incumbentObjective) continue // cleared by tier-1.5 ⇒ no exact needed
                 }
                 stillSurviving += a // tier-1.5 could not clear it (or bailed) ⇒ confirm exactly
@@ -1247,27 +1444,74 @@ internal fun StatBuilder.certifyLedger(
         for (a in stillSurviving) {
             // Two-tier speed: tier-1.5's per-(cell, world) per-crit-step rows prune this exact pass's
             // c-loop for FREE (the step-1 DP already ran above) — value/provenance byte-identical.
-            val mph = exactForCells(scenario, listOf(a), tierThreads(CertTier.EXACT), provOut = provByCell, ubByWorldCell = tier15.perCByCell).getValue(a)
+            val mph =
+                exactForCells(scenario, listOf(a), tierThreads(CertTier.EXACT), provOut = provByCell, ubByWorldCell = tier15.perCByCell, applyAux = false).getValue(a)
             if (mph == Long.MAX_VALUE) {
                 exactBailed += a
                 continue // exact bailed ⇒ keep tier-1.5/fast (still sound), not a tier-2 confirm
             }
             val obj = scale(a, mph)
             exactObj[a] = obj
+            exactFreshRaw[a] = mph
             if (obj > incumbentObjective) break
         }
     } else {
         // Oracle / forceTier2All path: no tier-1.5 ran, so no free per-c bounds — the exact loops run
         // unpruned (a per-(cell, world) bound recompute was MEASURED to cost more than it saves).
-        val exactRaw = exactForCells(scenario, survivors, tierThreads(CertTier.EXACT), provOut = provByCell)
-        for ((a, mph) in exactRaw) if (mph == Long.MAX_VALUE) exactBailed += a else exactObj[a] = scale(a, mph)
+        val exactRaw = exactForCells(scenario, survivors, tierThreads(CertTier.EXACT), provOut = provByCell, applyAux = false)
+        for ((a, mph) in exactRaw) {
+            if (mph == Long.MAX_VALUE) {
+                exactBailed += a
+            } else {
+                exactObj[a] = scale(a, mph)
+                exactFreshRaw[a] = mph
+            }
+        }
     }
+
+    // v48: floor every value computed in THIS run at the aux bound — exactly the per-tier floor v44 applied inside each
+    // pass (`max(value, aux)`, a bail on either side) — so every reported value is unchanged; only its timing moved.
+    // An aux bail on a FAST value bails the whole shape (as the v44 fast pass did); on a tier-1.5 / exact value it
+    // drops that tier's confirm for the cell (as a bailed pass did), which keeps its next sound bound.
+    val timeAuxWaitStart = if (timingEnabled) System.currentTimeMillis() else 0L
+    val freshFast = freshFastRaw
+    if (freshFast != null || tier15FreshRaw.isNotEmpty() || exactFreshRaw.isNotEmpty()) {
+        val auxThreads = tierThreads(CertTier.FAST)
+        val prefetch = auxPrefetch
+        val aux = if (prefetch != null) prefetch.get() else certifierAuxFloor(scenario, cellCount) { tierThreads(CertTier.FAST) }
+        if (aux != null) {
+            if (freshFast != null) {
+                for (a in 0 until cellCount) {
+                    val floored = floorAux(freshFast[a], aux, a, auxThreads)
+                    if (floored == Long.MAX_VALUE) return CertLedger(emptyMap(), (0 until cellCount).toSet(), emptySet(), null)
+                    fastObj[a] = scale(a, floored)
+                }
+            }
+            for ((a, raw) in tier15FreshRaw) {
+                val floored = floorAux(raw, aux, a, auxThreads)
+                if (floored == Long.MAX_VALUE) tier15Obj.remove(a) else tier15Obj[a] = scale(a, floored)
+            }
+            for ((a, raw) in exactFreshRaw) {
+                val floored = floorAux(raw, aux, a, auxThreads)
+                if (floored == Long.MAX_VALUE) {
+                    exactObj.remove(a)
+                    exactBailed += a
+                } else {
+                    exactObj[a] = scale(a, floored)
+                }
+            }
+        }
+    }
+    val timeAuxWaitMs = if (timingEnabled) System.currentTimeMillis() - timeAuxWaitStart else 0L
+    // B4: the incumbent-independent fast array (keyed by cell, aux floor included), exposed for the session cache so a
+    // re-search with a different incumbent can recompute the elimination boundary without re-running the fast DP.
+    val fastObjectives = (0 until cellCount).associateWith { fastObj[it] }
 
     if (timingEnabled) {
         val total = System.currentTimeMillis() - timeStart
         System.err.println(
             "CERT_TIMING fastMs=$timeFastDoneMs tier15Ms=${(timeTier15DoneMs - timeFastDoneMs).coerceAtLeast(0)} " +
-                "exactMs=${(total - maxOf(timeTier15DoneMs, timeFastDoneMs)).coerceAtLeast(0)} totalMs=$total " +
+                "exactMs=${(total - maxOf(timeTier15DoneMs, timeFastDoneMs) - timeAuxWaitMs).coerceAtLeast(0)} auxWaitMs=$timeAuxWaitMs totalMs=$total " +
                 "survivors=${survivors.size} exactCells=${exactObj.size}"
         )
     }
@@ -1391,6 +1635,13 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // condition assumed satisfiable — credited through the forced-sub constants exactly like an unconditional
     // forced sub (its DI → the DI constant, its start-of-combat crit → the free forced crit).
     assumedSub: Sublimation? = null,
+    // v48 RELAXED capped aux world ([certifierAuxPlan]) only. [weaponsRelaxed]: the NO_OFFHAND_OR_TWO_HANDED subs are
+    // allowed AND the weapon slot stays free — the union of both weapon worlds (an over-count). [freeCreditSubs]: subs
+    // credited like an unconditional forced sub (DI / mastery / crit-mastery constants, start-of-combat crit) WITHOUT
+    // any slot or rarity occupancy, their condition assumed satisfiable — only ever an over-count; the pass bails on
+    // any shape where the credit could LOWER a value (a negative line, permanent crit or AP, a ramp, a conversion).
+    weaponsRelaxed: Boolean = false,
+    freeCreditSubs: List<Sublimation> = emptyList(),
     // PROVENANCE (diagnostics): when [explainC] is set, only that crit-step runs, the frontier is
     // snapshotted after every DP stage, and the winning point is backtracked to the concrete
     // item/sub/skill choices that compose it — appended to [explainOut]. [winningCOut] (size ≥ 1)
@@ -1774,7 +2025,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             }
             cond.type == SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED -> {
                 if (cr != 0L || ap != 0L) return Long.MAX_VALUE
-                if (weaponsRestricted) {
+                if (weaponsRestricted || weaponsRelaxed) {
                     forcedDiConst += di
                     forcedMConst += m
                     forcedCmConst += cm
@@ -1785,6 +2036,24 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 forcedCondCredits += sub to Raw(di.coerceAtLeast(0L), m.coerceAtLeast(0L), cm.coerceAtLeast(0L), 0, 0, 0, 0)
             }
         }
+    }
+    // v48 relaxed aux world: the free credits (see [freeCreditSubs]). A sub here is never also forced or kept (the
+    // caller excludes it from the pools), and only its NON-NEGATIVE value lines and start-of-combat crit are added —
+    // raising di / m / critM and the in-combat crit only raises the bound, while start-of-combat crit never reaches a
+    // pre-combat condition window. Anything that could lower a value or move an AP cell bails.
+    for (sub in freeCreditSubs) {
+        if (sub in forcedSubs || sub.kind == SublimationKind.CONVERSION || sub.kind == SublimationKind.COMBAT_CONDITIONAL || sub.perStatStep != null) {
+            return Long.MAX_VALUE
+        }
+        val di = diS[sub] ?: 0L
+        val m = mS[sub] ?: 0L
+        val cm = cmS[sub] ?: 0L
+        val cr = crS[sub] ?: 0L
+        if (di < 0L || m < 0L || cm < 0L || cr < 0L || permCritOf(sub) != 0L || (apS[sub] ?: 0L) != 0L || permApOf(sub) != 0L) return Long.MAX_VALUE
+        forcedDiConst += di
+        forcedMConst += m
+        forcedCmConst += cm
+        forcedStartCritTotal += cr
     }
     val forcedCondDiTotal = forcedCondCredits.sumOf { it.second.di }
     val forcedCondMTotal = forcedCondCredits.sumOf { it.second.m }
@@ -2253,7 +2522,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 sub !in forcedSubs &&
                     !structurallyDropped(sub) &&
                     sub.stateId !in ablatedIds &&
-                    (weaponsRestricted || sub.condition?.type != SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED)
+                    (weaponsRestricted || weaponsRelaxed || sub.condition?.type != SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED)
             }
             // STACKING: a cumulable NORMAL sub can be socketed up to [Sublimation.maxCopies] times, its value scaling
             // exactly k× (the FLOOR maxCopies keeps every copy full — constant marginal). Model each copy as an
