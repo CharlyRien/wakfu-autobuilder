@@ -14,13 +14,13 @@ import me.chosante.common.Rarity
 import me.chosante.common.Sublimation
 import me.chosante.common.skills.CharacterSkills
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
 import kotlin.time.Duration.Companion.seconds
 
 /**
  * Adversarial soundness review (2026-10-02) of the most-masteries certificate v41–v43 and the max-damage AP-cell
- * certifier v44. Deterministic counterexamples (CI-runnable) + env-gated fuzz harnesses.
+ * certifier v44. Deterministic counterexamples (CI-runnable) + env-gated fuzz harnesses. The B1 and A1 repros are CI
+ * locks since their fixes (CERTIFIER_VERSION 49 and 50).
  */
 class SoundnessReviewAdversarialTest {
     private val tuning =
@@ -81,11 +81,11 @@ class SoundnessReviewAdversarialTest {
      * crit NEGATIVE (3 − 10 = −7; the solver only floors the PRE-SUB sheet at −9) while the dim stops at 0; a later +12
      * crit amulet then reads 12 > 10 in the dim although the real read is 5 ≤ 10. The CRIT_AT_MOST-10 carrier
      * (Constance, +20 DI) is REJECTED in its own world ⇒ the bound under-counts the optimum.
+     * FIXED in CERTIFIER_VERSION 50 (the LOW dims are stored with an offset, never floored) — now a CI lock (3 102 → 3 666).
      */
     @Test
     fun `A1 low crit dim floored at zero rejects a real Constance carrier`(): Unit =
         kotlinx.coroutines.runBlocking {
-            assumeTrue(System.getenv("WAKFU_SOUNDNESS_REVIEW") == "1") // RED until the fix lands (see the KDoc)
             val constance = WakfuBestBuildFinderAlgorithm.sublimations.single { it.name.fr == "Constance" }
             val pool =
                 listOf(
@@ -120,11 +120,11 @@ class SoundnessReviewAdversarialTest {
     /**
      * Same shape on the REAL sublimation catalog with Mesure III excluded (or capped out by maxSublimationTier ≤ 2):
      * Constance is then the only CRIT_AT_MOST +20 DI sub, so no other world covers the rejected carrier.
+     * FIXED in CERTIFIER_VERSION 50 — CI lock.
      */
     @Test
     fun `A1 on the real catalog without Mesure III`(): Unit =
         kotlinx.coroutines.runBlocking {
-            assumeTrue(System.getenv("WAKFU_SOUNDNESS_REVIEW") == "1") // RED until the fix lands (see the KDoc)
             val pool =
                 listOf(
                     item(1, ItemType.RING, stats = mapOf(Characteristic.MASTERY_DISTANCE to 1000, Characteristic.CRITICAL_HIT to -10)),
@@ -167,12 +167,12 @@ class SoundnessReviewAdversarialTest {
      * Constance build stages its −10 in the FIRST (rings) stage. Real catalog sublimations, Mesure III excluded by the
      * user. Measured 2026-10-02: CP-SAT optimum 73 778 222 000 909 (both legs OPTIMAL, carries Constance + Tyra 'neau +
      * Le Yannarc / Sir Comte Flex / Emblème de l'horloger II: pre-combat crit 3 − 10 + 15 = 8) vs certificate 73 180 020
-     * 209 999 on the soft AND the targets-met read (−0.81%).
+     * 209 999 on the soft AND the targets-met read (−0.81%). FIXED in CERTIFIER_VERSION 50 (now 76 809 111 129 999,
+     * +4.1%) — CI lock.
      */
     @Test
     fun `A1 on real level-245 items with Tyra neau`(): Unit =
         kotlinx.coroutines.runBlocking {
-            assumeTrue(System.getenv("WAKFU_SOUNDNESS_REVIEW") == "1") // RED until the fix lands (see the KDoc)
             val ids =
                 setOf(32087, 29529, 29083, 32565, 32084, 29176, 30180, 29064, 32510, 30319, 32177, 32504, 32545, 32092, 32485, 29635, 32614)
             val pool = WakfuBestBuildFinderAlgorithm.equipments.filter { it.equipmentId in ids }.groupBy { it.itemType }
@@ -212,12 +212,11 @@ class SoundnessReviewAdversarialTest {
      * A1's twin in the MAX-DAMAGE SOFT certificate (a clone of the MM stage DP: `MaxDamageSoftCertificate.applyOne`
      * clamps the assume-CC LOW dim with the same `coerceIn(0, threshold + 1)`). Same pool shape, fire damage, a
      * trivially-met HP target so the soft fold is the full-targets multiplier. Checks the plain and the production
-     * ("banded") settings against the pinned soft CP-SAT optimum.
+     * ("banded") settings against the pinned soft CP-SAT optimum. FIXED in CERTIFIER_VERSION 50 — CI lock.
      */
     @Test
     fun `A1 twin in the max-damage soft certificate`(): Unit =
         kotlinx.coroutines.runBlocking {
-            assumeTrue(System.getenv("WAKFU_SOUNDNESS_REVIEW") == "1") // RED until the fix lands (see the KDoc)
             val constance = WakfuBestBuildFinderAlgorithm.sublimations.single { it.name.fr == "Constance" }
             val pool =
                 listOf(
