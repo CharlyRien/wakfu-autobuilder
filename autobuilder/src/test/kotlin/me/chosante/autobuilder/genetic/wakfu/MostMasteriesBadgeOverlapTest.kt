@@ -23,7 +23,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * docs/MOST_MASTERIES_PERF_PLAN.md §8.18 — E10-for-MM measurement harness (manual, env-gated). On the S2 frontier
+ * docs/MOST_MASTERIES_PERF_PLAN.md §8.19 — E10-for-MM measurement harness (manual, env-gated). On the S2 frontier
  * request (lvl-245 CRA, distance mastery + AP16/MP8/CC100/HP12000, runes + subs, max rarity EPIC — CP-SAT does not
  * prove it within a short budget on a 4-core laptop) it measures:
  *

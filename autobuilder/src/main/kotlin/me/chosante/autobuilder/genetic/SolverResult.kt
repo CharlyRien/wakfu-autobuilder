@@ -77,4 +77,15 @@ data class SolverResult<T>(
      * compares it against the certificate bound to award "proven within X%".
      */
     val mostMasteriesObjective: Long? = null,
+    /**
+     * Most-masteries only: true when this build was produced by the **hard-constraints leg** of
+     * [me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm.mostMasteriesHardThenSoft] — every
+     * required target > 0 enforced as `actual ≥ target`, so the build meets them in the solver's exact arithmetic
+     * and an `isOptimal` means "optimal among targets-met builds". The quality certificate then compares
+     * [mostMasteriesObjective] against its TARGETS-MET read (`MostMasteriesCertificate.Result.hardFoldedBound`)
+     * instead of the soft read, which also bounds the target-missing builds the hard leg never returns. Mirrors
+     * [maxDamageHardConstraintsMet]; `false` on soft-fallback results, on the greedy warm-start emission and in the
+     * other modes.
+     */
+    val mostMasteriesHardConstraintsMet: Boolean = false,
 )

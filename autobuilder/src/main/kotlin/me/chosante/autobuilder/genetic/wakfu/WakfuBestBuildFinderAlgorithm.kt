@@ -218,7 +218,9 @@ object WakfuBestBuildFinderAlgorithm {
                     onTermination = { termination = it }
                 ).collect { result ->
                     if (result.progressPercentage == 100) hardSolved = true
-                    emit(result)
+                    // Hard-leg provenance (plan §8.18, T3): the quality certificate compares such a build with its
+                    // targets-met read. Never on the greedy warm start, which precedes the solve.
+                    emit(if (result.greedyWarmStartEmission) result else result.copy(mostMasteriesHardConstraintsMet = true))
                 }
             if (!hardSolved) {
                 // The REAL solver status distinguishes the two no-build cases: proven INFEASIBLE = the
@@ -255,7 +257,7 @@ object WakfuBestBuildFinderAlgorithm {
      * short budgets: the 1-worker proof takes 15-20 min where this DP answers in seconds).
      *
      * The convenience entry (GUI, CLI, tests): [mostMasteriesQualityBound] — the full-tier bound,
-     * memoized single-flight and normally already computed in the search's tail (E10-for-MM, §8.18:
+     * memoized single-flight and normally already computed in the search's tail (E10-for-MM, §8.19:
      * instant at search end; else the in-flight compute is awaited, or computed here after a budget
      * too short for a warm-up) — then [compareMostMasteriesQuality] against the result's raw objective
      * ([SolverResult.mostMasteriesObjective] — stamped only when the searched objective is
@@ -313,7 +315,9 @@ object WakfuBestBuildFinderAlgorithm {
         if (incumbent <= 0) return MostMasteriesProof.Unavailable
         // The model's exact fold predicate (no `target > 0` filter — a 0-valued required target still folds).
         val hasRequiredTargets = params.targetStats.any { it.characteristic.isRequiredMostMasteriesTarget() }
-        val upper = if (hasRequiredTargets) bound.foldedBound else bound.coreBound
+        // T3 (plan §8.18): a HARD-leg result is optimal among the targets-met builds — it is compared with the
+        // certificate's targets-met read; the soft read also bounds target-missing builds the hard leg never returns.
+        val upper = bound.comparableUpper(result.mostMasteriesHardConstraintsMet, hasRequiredTargets)
         // Self-check (mandatory, mirrors the max-damage siblings): the certificate is a sound
         // upper bound on a FEASIBLE incumbent, so a strictly greater incumbent can only mean
         // the certifier under-counted on live data — suppress the badge and log loudly.
