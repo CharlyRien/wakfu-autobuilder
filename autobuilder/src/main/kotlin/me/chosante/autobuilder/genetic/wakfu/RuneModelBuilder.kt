@@ -244,7 +244,16 @@ internal fun CpModel.createRuneModel(
             if (any) addGreaterOrEqual(countExpr.build(), count.toLong())
         }
     }
-    return RuneModel(runeByCharacteristic, runeVars, singleTypePerItem, runeTypeByVar, coefficientByVar, extraTerms, suppressedBy)
+    return RuneModel(
+        runeByCharacteristic,
+        runeVars,
+        singleTypePerItem,
+        runeTypeByVar,
+        coefficientByVar,
+        extraTerms,
+        suppressedBy,
+        maxDamageChoiceCollapse = maxDamageRuneChoiceCollapse
+    )
 }
 
 /**
