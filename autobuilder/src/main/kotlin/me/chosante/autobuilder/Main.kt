@@ -96,6 +96,7 @@ import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_EARTH
 import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_FIRE
 import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_WATER
 import me.chosante.common.Characteristic.RESISTANCE_ELEMENTARY_WIND
+import me.chosante.common.Characteristic.WAKFU_POINT
 import me.chosante.common.Characteristic.WILLPOWER
 import me.chosante.common.Characteristic.WISDOM
 import me.chosante.common.Equipment
@@ -126,7 +127,7 @@ private val additionalHelpOnStats =
         |-> x:y | x being the number wanted, y the weight of the statistic you want to put (default is 1)
     """.trimMargin()
 
-private class WakfuAutobuild :
+internal class WakfuAutobuild :
     CliktCommand(
         name = "Wakfu Autobuilder version: $VERSION"
     ) {
@@ -264,7 +265,7 @@ HUPPERMAGE"""
         names = arrayOf("--wp", "--wakfu-point", "--pw"),
         help = "Number of wakfu points wanted. $additionalHelpOnStats"
     ).splitPair(delimiter = ":")
-        .toTargetStat(MOVEMENT_POINT)
+        .toTargetStat(WAKFU_POINT)
 
     private val masteryElementWanted: TargetStat? by option(
         names = arrayOf("--mastery-elementary", "--maitrise-elementaire"),
@@ -636,6 +637,48 @@ HUPPERMAGE"""
                 "the optimal build is unchanged. Default 1."
     ).double().default(1.0).check("Difficulty multiplier must be > 0") { it > 0.0 }
 
+    /** The stat options as the engine receives them — internal so the CLI option tests can parse without searching. */
+    internal fun requestedTargetStats(): TargetStats =
+        TargetStats(
+            listOfNotNull(
+                paWanted,
+                pmWanted,
+                hpWanted,
+                pwWanted,
+                criticalHitWanted,
+                rangeWanted,
+                masteryElementWanted,
+                masteryBackWanted,
+                controlWanted,
+                masteryEarthWanted,
+                masteryFireWanted,
+                masteryWaterWanted,
+                masteryWindWanted,
+                masteryMeleeWanted,
+                masteryBerserkWanted,
+                masteryHealingWanted,
+                masteryBackWanted,
+                masteryCriticalWanted,
+                masteryDistanceWanted,
+                resistanceCriticalWanted,
+                resistanceBackWanted,
+                resistanceElementaryWanted,
+                resistanceElementaryFireWanted,
+                resistanceElementaryWaterWanted,
+                resistanceElementaryEarthWanted,
+                resistanceElementaryWindWanted,
+                wisdomWanted,
+                lockWanted,
+                dodgeWanted,
+                prospectionWanted,
+                initiativeWanted,
+                willpowerWanted,
+                receivedArmorPercentageWanted,
+                blockPercentageWanted,
+                armorGivenPercentageWanted
+            )
+        )
+
     override fun run() {
         // Contradictory level bounds (min above max) match no normal item — the engine's level
         // filter keeps items with min <= itemLevel <= max — so the solver would silently fall back
@@ -654,46 +697,7 @@ HUPPERMAGE"""
         val targetBoss = boss?.let { resolveBoss(it) }
         val mode = if (targetBoss != null) ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE else computationMode
         val character = Character(characterClass ?: CharacterClass.UNKNOWN, maxLevelWanted, minLevelWanted)
-        val targetStats =
-            TargetStats(
-                listOfNotNull(
-                    paWanted,
-                    pmWanted,
-                    hpWanted,
-                    pwWanted,
-                    criticalHitWanted,
-                    rangeWanted,
-                    masteryElementWanted,
-                    masteryBackWanted,
-                    controlWanted,
-                    masteryEarthWanted,
-                    masteryFireWanted,
-                    masteryWaterWanted,
-                    masteryWindWanted,
-                    masteryMeleeWanted,
-                    masteryBerserkWanted,
-                    masteryHealingWanted,
-                    masteryBackWanted,
-                    masteryCriticalWanted,
-                    masteryDistanceWanted,
-                    resistanceCriticalWanted,
-                    resistanceBackWanted,
-                    resistanceElementaryWanted,
-                    resistanceElementaryFireWanted,
-                    resistanceElementaryWaterWanted,
-                    resistanceElementaryEarthWanted,
-                    resistanceElementaryWindWanted,
-                    wisdomWanted,
-                    lockWanted,
-                    dodgeWanted,
-                    prospectionWanted,
-                    initiativeWanted,
-                    willpowerWanted,
-                    receivedArmorPercentageWanted,
-                    blockPercentageWanted,
-                    armorGivenPercentageWanted
-                )
-            )
+        val targetStats = requestedTargetStats()
         // Max-damage mode optimizes the attack scenario, so target stats are optional there (they only
         // act as hard AP/MP/range/… constraints); every other mode needs at least one target.
         if (targetStats.isEmpty() && mode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
