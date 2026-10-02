@@ -28,7 +28,8 @@ import kotlin.math.ceil
  * with `damage = ⌊throughput[AP] · ⌊D·Graw / PERHIT_DOWNSCALE⌋ · resFactor / FINAL_DOWNSCALE⌋`,
  * `D = 100 + clamp(DI)`, `Graw = 400·M + crit·(M + 5·K)` — the exact chain of
  * [perTurnDamageScore] / [perHitDamageScore], wrapped by the exact [applyConstraintPenalty]
- * power-6 fold (max-damage has NO overshoot tie-break, so no ×SCALE term).
+ * power-6 fold (max-damage has NO overshoot tie-break, so no ×SCALE term). `power6` is the solver's
+ * own [penaltyMultiplier], floor at 1 included.
  *
  * ARCHITECTURE: a clone of [MostMasteriesCertificate]'s stage DP (same packed key, same dims,
  * same target fold, same world split) with the CORE swapped. The value tracked per state is the
@@ -129,13 +130,10 @@ internal object MaxDamageSoftCertificate {
                 weights.getOrDefault(Characteristic.CRITICAL_HIT, 0L) * cell.cc +
                 weights.getOrDefault(Characteristic.HP, 0L) * cell.hp
 
+        // The solver's own multiplier (floored at 1), shared — never re-derived here.
         fun multiplier(totalCredit: Long): Long {
             val bucket = (totalCredit.coerceIn(1L, totalExpected) / bucketSize).toInt().coerceAtMost(maxIndex)
-            return BigInteger
-                .valueOf(bucket.toLong())
-                .pow(6)
-                .divide(powScale)
-                .toLong()
+            return penaltyMultiplier(bucket.toLong(), powScale)
         }
 
         fun folded(
@@ -2536,17 +2534,8 @@ internal object MaxDamageSoftCertificate {
         val bucketSize =
             if (totalExpected <= MAX_POWER_TABLE_INDEX) 1L else ceil(totalExpected.toDouble() / MAX_POWER_TABLE_INDEX).toLong()
         val maxIndex = if (totalExpected <= MAX_POWER_TABLE_INDEX) totalExpected.toInt() else ((totalExpected + bucketSize - 1) / bucketSize).toInt()
-        val maxPow = BigInteger.valueOf(maxIndex.toLong()).pow(6)
-        val powScale =
-            if (maxPow > BigInteger.valueOf(MAX_PENALTY_MULTIPLIER)) maxPow.divide(BigInteger.valueOf(MAX_PENALTY_MULTIPLIER)) else BigInteger.ONE
-        val powTable =
-            LongArray(maxIndex + 1) { i ->
-                BigInteger
-                    .valueOf(i.toLong())
-                    .pow(6)
-                    .divide(powScale)
-                    .toLong()
-            }
+        val powScale = penaltyPowScale(maxIndex.toLong())
+        val powTable = LongArray(maxIndex + 1) { i -> penaltyMultiplier(i.toLong(), powScale) }
 
         fun weight(char: Characteristic): Long = targetByChar[char]?.let { params.targetStats.scaledWeight(it) } ?: 0L
 
