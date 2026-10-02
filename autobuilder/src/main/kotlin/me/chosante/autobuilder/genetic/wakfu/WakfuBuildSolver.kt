@@ -11,7 +11,6 @@ import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
@@ -277,6 +276,15 @@ object WakfuBuildSolver {
     // fast path misses the bound — before the fallback existed those shapes produced NO construction at
     // all — so a generous budget trades bounded extra latency (async, badge-only path) for reliability.
     private const val E8_FALLBACK_DETERMINISTIC_BUDGET = 300.0
+
+    // ...and its WALL-CLOCK cap (model build included). The det budget alone is no bound on a user's wait: it
+    // measured ~265 s of single-thread CPU when it FAILS (2026-10 perf pass, probe P4, 4-core profile, level 110: fast
+    // tier short, fallback exhausted → null after 269 s) — and the GUI keeps its "proven within X%" badge up with a "still
+    // proving" cue for the whole attempt. Every measured construct SUCCESS comes from the fast
+    // tier (level 245: 2.7 s), so the fallback only has to cover the "bound reachable, but not by the provenance items"
+    // shape, which is a first-solution feasibility search; a minute is generous for that and bounds a futile attempt
+    // to ~1/4 of the former wait. On expiry the rescue gives up (null) and the caller keeps the incumbent — sound.
+    internal const val E8_FALLBACK_WALL_CAP_SECONDS = 60.0
 
     // FAST tier-1 certifier (P2): crit-grid step for the per-segment 3-D passes. Each segment folds point
     // graw at its top crit, so the fold looseness on the critM slice is bounded by ~step/c — smaller = tighter
@@ -718,6 +726,10 @@ object WakfuBuildSolver {
                         close()
                         return@launch
                     }
+                    // The model build above is blocking and cannot be cancelled mid-way. A flow torn down meanwhile
+                    // (the E8 construct's wall cap / a superseded proof) found no solver to stop in `awaitClose` and
+                    // has no consumer left — never start the native solve for it, or it would run out its whole budget.
+                    if (!isActive) return@launch
                     // E8 fallback floor — see the parameter doc. rawScore is always populated in max-damage
                     // mode; a null (another mode) simply ignores the floor, and E8 never calls those modes.
                     if (maxDamageRawFloor != null) {
@@ -2750,6 +2762,9 @@ object WakfuBuildSolver {
         sublimations: List<Sublimation> = emptyList(),
         applyDomination: Boolean = false,
         cell: Int,
+        // Polled once per certifier DP stage (B8): a cancelled scan bails with NO ids, which the E8 caller reads
+        // as "no provenance" — it checks its own cancel flag right after, so the construct stops instead of falling back.
+        isCancelled: () -> Boolean = { false },
     ): List<Int> =
         buildModel(
             params,
@@ -2757,7 +2772,8 @@ object WakfuBuildSolver {
             runes,
             sublimations,
             applyDomination = applyDomination,
-            certifyExplainCellForTest = cell
+            certifyExplainCellForTest = cell,
+            certifierCancelled = isCancelled
         ).certifierExplainItemIds
 
     /**
@@ -2773,6 +2789,7 @@ object WakfuBuildSolver {
         applyDomination: Boolean = false,
         cell: Int,
         provenance: CellProvenance,
+        isCancelled: () -> Boolean = { false },
     ): List<Int> =
         buildModel(
             params,
@@ -2781,7 +2798,8 @@ object WakfuBuildSolver {
             sublimations,
             applyDomination = applyDomination,
             certifyExplainCellForTest = cell,
-            certifyExplainProvenanceForTest = provenance
+            certifyExplainProvenanceForTest = provenance,
+            certifierCancelled = isCancelled
         ).certifierExplainItemIds
 
     /**
@@ -2799,7 +2817,14 @@ object WakfuBuildSolver {
      * returned ONLY when a re-solved raw proxy REACHES that bound (`proxy ≥ cellBound`) — which certifies the build
      * IS the global optimum. Returns null when neither tier can (a loose bound, an invalid build) ⇒ the caller
      * keeps the incumbent, so best-effort construction is safe (a miss only costs the badge, never correctness).
-     * Free single-element max-damage only (the DP-provable shape).
+     * Free single-element max-damage only (the DP-provable shape): a request whose rows constrain the problem
+     * (a required AP / MP / range / HP… target) is refused, but a MAXIMIZED-mastery row — which max-damage
+     * ignores — is not (see [isFreeMaxDamageShape]).
+     *
+     * BOUNDED + CANCELLABLE: [isCancelled] is polled between the steps and while a re-solve runs (the native solve
+     * is stopped through the flow's teardown), so a superseded search / proof abandons the rescue at once; and the
+     * full-pool fallback — the only open-ended step — gives up after [fallbackWallCapSeconds] of wall clock. Either
+     * way the answer is null (keep the incumbent), never a wrong "proven".
      */
     internal suspend fun dpConstructProvenOptimum(
         params: WakfuBestBuildParams,
@@ -2811,9 +2836,13 @@ object WakfuBuildSolver {
         // cache round-trip — a cascaded PARTIAL entry cannot always be reconstructed for this incumbent,
         // and recomputing it here would pay the full tier-1.5 batch the cascade exists to avoid.
         precomputedLedger: CertLedger? = null,
+        isCancelled: () -> Boolean = { false },
+        fallbackWallCapSeconds: Double = E8_FALLBACK_WALL_CAP_SECONDS,
     ): SolverResult<BuildCombination>? {
         if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return null
-        if (params.targetStats.any { it.target > 0 }) return null // free shapes only — the DP can't model targets
+        // Free shapes only — the DP can't model required targets. A maximized-mastery row is not a constraint.
+        if (!isFreeMaxDamageShape(params.targetStats)) return null
+        if (isCancelled()) return null
         val ledger =
             if (precomputedLedger != null) {
                 precomputedLedger
@@ -2830,7 +2859,8 @@ object WakfuBuildSolver {
                     applyDomination = true,
                     incumbentObjective = incumbentObjective,
                     threads = certifierDefaultThreads(),
-                    cascadeTier15 = true
+                    cascadeTier15 = true,
+                    isCancelled = isCancelled
                 ) ?: return null
             } else {
                 // Standalone (no incumbent, e.g. the manual proof test): force EVERY cell to the exact tier so any
@@ -2863,13 +2893,15 @@ object WakfuBuildSolver {
                     sublimations,
                     applyDomination = true,
                     incumbentObjective = incumbentObjective,
-                    threads = certifierDefaultThreads()
+                    threads = certifierDefaultThreads(),
+                    isCancelled = isCancelled
                 ) ?: return null
             argmax =
                 constructLedger.cellObjectives.entries
                     .filter { it.value >= 0 }
                     .maxByOrNull { it.value } ?: return null
         }
+        if (isCancelled()) return null
         val cell = argmax.key
         val bound = argmax.value
         // E8 item A: recover the argmax cell's winning items as typed equipmentIds (no fragile `slot:`-string parse).
@@ -2886,10 +2918,21 @@ object WakfuBuildSolver {
                         sublimations,
                         applyDomination = true,
                         cell = cell,
-                        provenance = prov
+                        provenance = prov,
+                        isCancelled = isCancelled
                     )
-                } ?: certifierExplainItemIdsForTest(params, equipmentsByItemType, runes, sublimations, applyDomination = true, cell = cell)
+                } ?: certifierExplainItemIdsForTest(
+                    params,
+                    equipmentsByItemType,
+                    runes,
+                    sublimations,
+                    applyDomination = true,
+                    cell = cell,
+                    isCancelled = isCancelled
+                )
             ).toSet()
+        // A cancelled explain bailed with no ids — stop here instead of falling through to the full-pool fallback.
+        if (isCancelled()) return null
         val debug = System.getenv("WAKFU_E8_DEBUG") == "1"
         // FAST path: re-solve the pool restricted to the provenance items — ~seconds, and reaches the bound on
         // most shapes (measured: free lvl-110 / lvl-245 construct in one tiny re-solve).
@@ -2902,13 +2945,17 @@ object WakfuBuildSolver {
                 if (restricted.isEmpty()) {
                     null
                 } else {
-                    optimize(params.copy(maxDamageApTarget = cell), restricted, runes, sublimations, SolverTuning(maxDeterministicTime = 120.0))
-                        .toList()
-                        .maxByOrNull { it.matchPercentage }
+                    // Cancellable, not wall-capped: the tiny restricted pool answers in seconds, its own det-120 budget bounds it.
+                    collectWithinBudget(
+                        optimize(params.copy(maxDamageApTarget = cell), restricted, runes, sublimations, SolverTuning(maxDeterministicTime = 120.0)),
+                        budgetMillis = null,
+                        isCancelled = isCancelled
+                    ).items.maxByOrNull { it.matchPercentage }
                 }
             } else {
                 null
             }
+        if (isCancelled()) return null
         // For a FREE shape objective == raw proxy (no penalty); maxDamageObjective is always populated, the raw
         // proxy only when its var survives — so fall back. Both are the ledger-comparable scaled units.
         val fastProxy = fast?.let { it.maxDamageRawProxy ?: it.maxDamageObjective }
@@ -2922,20 +2969,31 @@ object WakfuBuildSolver {
         // part the timed search couldn't close), stopped at the first solution, under the canonical deterministic
         // protocol (1 worker + interleave) so the construction is machine-reproducible. A loose (unreachable)
         // bound comes back INFEASIBLE ⇒ empty flow ⇒ null — the caller keeps the incumbent, soundness untouched.
-        val fallback =
-            optimize(
-                params.copy(maxDamageApTarget = cell),
-                equipmentsByItemType,
-                runes,
-                sublimations,
-                SolverTuning(
-                    numSearchWorkers = 1,
-                    interleaveSearch = true,
-                    maxDeterministicTime = E8_FALLBACK_DETERMINISTIC_BUDGET,
-                    stopAtFirstSolution = true
+        // Open-ended otherwise (the bound can be loose yet not provably unreachable), hence the wall-clock cap
+        // [fallbackWallCapSeconds] and the cooperative cancel: on either, the solve is stopped and the rescue gives up.
+        val fallbackRun =
+            collectWithinBudget(
+                optimize(
+                    params.copy(maxDamageApTarget = cell),
+                    equipmentsByItemType,
+                    runes,
+                    sublimations,
+                    SolverTuning(
+                        numSearchWorkers = 1,
+                        interleaveSearch = true,
+                        maxDeterministicTime = E8_FALLBACK_DETERMINISTIC_BUDGET,
+                        stopAtFirstSolution = true
+                    ),
+                    maxDamageRawFloor = bound
                 ),
-                maxDamageRawFloor = bound
-            ).toList().maxByOrNull { it.matchPercentage } ?: return null
+                budgetMillis = (fallbackWallCapSeconds * 1000.0).toLong(),
+                isCancelled = isCancelled
+            )
+        if (fallbackRun.end == CollectEnd.TIMED_OUT) {
+            logger.info { "E8 construct: the full-pool fallback gave up after ${fallbackWallCapSeconds}s (cell=$cell bound=$bound) — keeping the incumbent." }
+        }
+        if (fallbackRun.end == CollectEnd.CANCELLED || isCancelled()) return null
+        val fallback = fallbackRun.items.maxByOrNull { it.matchPercentage } ?: return null
         val proxy = fallback.maxDamageRawProxy ?: fallback.maxDamageObjective ?: return null
         if (debug) System.err.println("E8_DBG fallback cell=$cell bound=$bound proxy=$proxy valid=${fallback.individual.isValid()}")
         return if (proxy >= bound && fallback.individual.isValid()) fallback.copy(isOptimal = true) else null

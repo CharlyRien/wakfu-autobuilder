@@ -1182,6 +1182,20 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     soft certificates; the re-scorers cap their factor at `MAX_PENALTY_MULTIPLIER`; the survivability floor's
     gentle table had the same defect and got the same floor), CERTIFIER_VERSION 39, locked by
     `SoftPenaltyFloorTest`. Full-pool MM S2/S3 certificate bounds measured bit-identical before/after.
+- **E8 construct gate (max-damage rescue)** ✅ DONE (2026-10-02) — `dpConstructProvenOptimum` no longer refuses a
+  MAXIMIZED-mastery row (the GUI's default "distance mastery 1", the CLI's `--mastery-distance`: max-damage ignores
+  it, so the problem and the certificate ledger are exactly the free one): the gate is now `isFreeMaxDamageShape` —
+  refuse only a non-zero row that is not a maximized mastery, or a multi-element-prefilter shape. The rescue is also
+  bounded now: its full-pool fallback is wall-capped at 60 s (`E8_FALLBACK_WALL_CAP_SECONDS`) and every step is
+  cancellable (`isCancelled`: the GUI passes its proof-cancel flag, the search warm-up its own), the native solve
+  stopping through the flow teardown; `optimize()` also no longer starts the solve of a flow torn down during its
+  model build. The GUI publishes the "proven within X %" badge (with the "still proving" cue) AT ONCE on a ProvenWithin
+  verdict and runs the construct / silent refinement behind it, instead of a spinner hiding the badge for the whole
+  attempt. Measured on the production path (4-core profile, `-Xmx3g`, GUI-default request incl. the maximized row,
+  E0 incumbents): level 245 "within 1.64 %" → ProvenOptimal 2.9 s after the cached ledger (fast tier); level 110 (fast
+  tier lands 0.9 % under the bound, and the fallback found nothing in det-300 either — most likely a loose bound) now
+  gives up at the cap, 60.5 s instead of 269 s.
+  No bound changed ⇒ `CERTIFIER_VERSION` untouched; locked by `E8ConstructGateTest`.
 
 ---
 
