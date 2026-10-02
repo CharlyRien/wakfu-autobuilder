@@ -139,6 +139,13 @@ internal fun StatBuilder.perTurnDamageScore(
                         }
                 }
                 System.err.println("CERT_FAST_AUDIT totalMs=$fastMs cells=${certifierFastObjectivesForTest.toSortedMap()}")
+                // v44: the aux worlds' share of the fast bound (already folded in above) — cached by the fast pass.
+                certifierAuxFloor(scenario, clampedTable.size, certifyFastThreads)?.let { aux ->
+                    for (apCell in clampedTable.indices) {
+                        certifierAuxObjectivesForTest[apCell] =
+                            if (aux[apCell] == Long.MAX_VALUE) -1L else clampedTable[apCell] * (aux[apCell] / PERHIT_DOWNSCALE) * resFactor / FINAL_DOWNSCALE
+                    }
+                }
                 // B7 tier-1.5 audit: the sharpened (step-1, cell-pinned) fast bound per cell, for the
                 // `fast ≥ tier1.5 ≥ exact` soundness lock. Test-only (never on the fast-only parallel-equality
                 // path, which reads only the tier-1 map).

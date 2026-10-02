@@ -913,6 +913,105 @@ forced 2H + 1H/off-hand, >1 forced EPIC/RELIC item, an item both forced and excl
 sub whose carrier rarity the search excludes, >10 forced subs. Each has an EN/FR message + a
 `describe()` line for the CLI.
 
+### P5.4 — GUI-default rows + two dropped sub families (2026-10-02, CERTIFIER_VERSION 44)
+
+**The gap (the 2026-10 E0 production baseline).** Every max-damage request carrying the GUI's default target
+rows (AP 11 / MP 4 / RANGE 4 / CC 25 / distance mastery 1 / HP 2000 / wind-res 0 / dodge 0) got NO badge on any machine
+where CP-SAT did not prove in budget: all 21 cells bailed in ~0.1 s. Cause: `relevantRuneStats` models a rune for every
+target row — 0-valued included — so HP / resistance / dodge runes switch the max-damage rune model from the CHOICE
+COLLAPSE (best M-feeding rune OR the crit-mastery rune) to the GENERAL single-type fold (one pick bool per modeled
+type, `Σ picks = equipped`), and the pass bailed on any rune stat outside {range-band mastery, crit mastery}.
+
+**Fix (certifier side only — the CP-SAT model is untouched).** The general fold is now mirrored: an item's own lines
+form its base Raw and every pick is one per-item OPTION (`base + that pick's contribution` on di / m / critM). A socket
+holding an HP / resistance / dodge / lock / initiative / off-scenario-mastery rune is an option whose delta is ZERO on
+every certifier axis, so the best M-feeding option dominates it (dropped before the DP) — "credit the best damage rune
+instead", an over-count. AP / crit / MP never ride a rune (a rune there bails). `RuneModel.maxDamageChoiceCollapse`
+tells the two folds apart; the count model (forced runes, a secondary-cap>0 sub) still bails.
+
+**Audit (what the objective and the certifier derive from HP / resistances / dodge / lock / initiative).** The damage
+objective reads none of them (D, M, K, crit, the AP throughput table, the ENEMY resistance); the survivability floor
+(EHP) is the only HP/res consumer and already withholds the badge. Target rows only feed the penalty / hard leg — the
+AP-cell certificate is target-blind except AP and certifies a target request only when the incumbent meets every
+target (flat maximal multiplier), so it must bound raw damage over ALL builds, which the zero-delta crediting does.
+Sub conditions on such stats: `DODGE_LT_PCT_OF_LEVEL` (Outrage) is credited unconditionally (an AT_MOST — a dodge rune
+can only break it); range / block are not rune stats. Conversions (critM → elemental), the MP→DI ramp, %-of-level
+effects, passives (flat constants), %HP skills (HP only), best-element concentration (the elemental rune is generic,
+it cancels) and socket colours (not modeled; carriers only need ≥ 3 sockets) carry no dependence. The soft-leg
+certificate does not share the rune bail (own rune axes) but bails on any required target outside {AP, MP, CC, HP} —
+RANGE / resistance / dodge rows — so target-MISSING soft results on these rows stay Unavailable (unchanged).
+
+**Model-side reduction rejected (not exact).** A 0-valued row is a no-op for the objective (weight 0 in the soft
+penalty, skipped by the hard leg, weight 0 in the scorer), but dropping its rune variables would restore the
+COLLAPSE, which keys the best M rune — usually the ELEMENTAL rune — under the range-band mastery, i.e. as a SECONDARY
+mastery in the Neutralité family's `secondary masteries ≤ 0` read, while the general fold keys it as elemental. The
+two models therefore disagree on that family's feasible set (and on the runes non-optimal incumbents may display), so
+the reduction is not provably exact; the CP-SAT model stays untouched.
+
+**Two pre-existing UNDER-COUNTS found while auditing, fixed in the same version.** The pass dropped two sub families
+from its pools on an unguarded "a damage build never satisfies it" argument: the Neutralité family (`secondary
+masteries ≤ 0`: Neutrality III, Ambition III, Inflexibility II) and the EPIC block sub Mesure (`block ≥ 40`, +10 DI
++10 crit — a DI+crit mix no optional stage carries). A seeded 4-item pool whose proven optimum carries the dropped sub
+reproduces both: every pass (exact, tier-1.5, fast) certified BELOW the pinned CP-SAT cell optimum (−15 % / −27 %), i.e.
+a wrong "proven optimal" was reachable. Both families now get AUX worlds (`certifierAuxWorlds`):
+
+- **N — secondary-capped** (+ N×C for Critical Secret's epic slot): the family subs are kept and every mastery source
+  is re-valued under the condition's budget. With S = D + K + O ≤ 0 on the first-turn read (D the scenario's secondary
+  masteries, K crit mastery, O the others), `Graw ≤ (400+c)·(max(0,M) + max(0,K))` and, adding `−S ≥ 0`
+  (Lagrangian λ = 1) source by source: a READ source (item, rune pick, skill point, base, FLAT sub) is worth
+  `pos(e+d) + pos(k) − (d+k+o)` (typically `e − o`), an UNREAD one (passives, non-FLAT subs' own effects) keeps
+  `pos(e+d) + pos(k)`, and the critical-mastery axis is 0. Sound for any signed item lines; a conversion needs nothing
+  extra (it only re-labels pre-sub critM, already credited). `pos()` is not additive, so a rune choice is valued WITH
+  its item as one source: every general-fold pick, and under the collapse the crit-mastery SWAP (crit rune on, default
+  M rune suppressed) — an item whose own `e + d` is negative is worth more with the swap. The read/unread split
+  matches the model's first-turn read (`firstTurnStat`: items, runes, skills, base, every FLAT-sub effect); a non-FLAT
+  sub's PERMANENT effects are also read, harmless unless one were a NEGATIVE secondary mastery (none in the data) —
+  the pass bails on that shape.
+- **M — block-assumed** (+ N×M): the EPIC block sub is force-taken with its condition assumed satisfiable, credited
+  through the forced-sub constants (DI constant, start-of-combat crit as the free forced crit). It holds the single
+  epic sub slot, so no conversion / Critical-Secret variant is needed; a RELIC or second block sub, or a block sub
+  next to a non-EPIC conversion, bails (sound — none in the data).
+
+The aux worlds run at the FAST tier only (`certifierAuxFloor`, cached per shape) and floor every tier's per-cell
+value (fast: max with the normal worlds; tier-1.5 / exact: max with their own value) — sound since fast ≥ exact per
+world, and they never pay the tier-1.5 / exact passes. NORMAL block subs are no longer dropped (credited
+unconditionally).
+
+**Locks.** `max-damage certifier fuzz lock — non-damage rune rows, binding targets and the dropped sub families stay
+upper-bounded` (16 seeded pools, runes ON, HP / wind-res / dodge rows 0-valued and binding, signed secondary /
+defensive item lines, block, the Neutralité family + an EPIC Mesure-like sub; truth = the pinned CP-SAT raw optimum
+of the SAME model with the rows at weight 0, plus the binding rows' hard leg; three arms per pool — full sub set,
+without the dropped families (tightness), and no rows ⇒ the collapse + aux worlds), `max-damage certifier general rune fold
+equals the collapse on damage-neutral rows` (subs off: 0-valued HP / dodge / wind-res rows change NO certified cell —
+the zero-delta crediting is exactly the collapse's value) and `max-damage certifier covers optima carrying a dropped
+Neutralite-family or block sub` (the two reproducing pools).
+
+**Measurements** (manual harness `MaxDamageCoverageHarnessTest`, `MDCOV_*` lines in the JUnit XML; CRA, runes + subs,
+max rarity EPIC, the GUI's default scenario FIRE / DISTANCE / BACK):
+
+- *Certificate alone* (fast ledger with a huge incumbent, 4 threads; `WAKFU_MDCOV_DIAG=1 WAKFU_MDCOV_AUX=1
+  WAKFU_MDCOV_SPLIT=1`). Before: all 21 cells bailed (~0.1 s) as soon as an HP / wind-res / dodge row was present.
+  Now the eight default rows, the free request (distance mastery only) and HP / wind-res / dodge alone all certify
+  with no bailed cell and the SAME ledger — level 110: 13/21 non-zero cells, max cell 1,657,830 (= the free request's
+  pre-v44 ledger); level 245: 16/21, max cell 20,953,350. The aux worlds never bind on these shapes (aux max 1,600,890
+  / 19,855,260, i.e. −3.4 % / −5.2 %), and the slow lvl-245 oracle (FIRE / DISTANCE / FACE) still reproduces
+  bit-for-bit. Their cost is real, though: the fast ledger takes 2.6–3.2× the normal worlds' time (110: 3–5 s → 8–16
+  s; 245: 10–16 s → 26–42 s; two runs on a thermally throttling 10-core laptop) on EVERY max-damage request with subs
+  on — the default catalog carries the 9 dropped-family subs, so the 8 aux worlds (N, N×C, M, N×M × the weapon split)
+  always run. Follow-ups: fold the aux worlds into the normal worlds' thread pool (their first world runs alone to
+  warm caches), or relax the weapon split inside the aux worlds (half the worlds — sound, but Light Weapons Expert
+  credited next to a 2H weapon may then make them bind).
+- *Production path* (`WAKFU_MDCOV_PROD=1`: `WakfuBestBuildFinderAlgorithm.run` then `proveMaxDamageOptimality` and,
+  on ProvenWithin, the E8 construct — the GUI's chain; 120 s budget, `-XX:ActiveProcessorCount=4`, 3 GB heap, the E0
+  baseline's shape). Before (E0): **Unavailable** at 110 and 245. Now: level 110 — incumbent 1,320,070 (targets met,
+  not CP-SAT-optimal), **ProvenWithin 22.19 %**, shown 0.3 s after the search (the certificate ran during it); level
+  245 — incumbent 16,923,700, **ProvenWithin 22.97 %**, 51 s after the search (the exact tier on the cells above the
+  incumbent fans out once the search frees the cores). The E8 construct does not upgrade either (it is gated off for
+  requests with positive targets). The bound is the free request's optimum region (245: max cell 20.81 M = the
+  free request's proven optimum) because the certificate is target-blind except AP; MP 4 / RANGE 4 / CC 25 / HP 2000
+  bind, so the true gap is smaller than the badge says — a target-aware bound (MP / range axes) is the next lever. The
+  fraction also moves with the incumbent: E0's 245 search reached 18.23 M (multi-worker run-to-run noise).
+
 ### P4 badge robustness follow-ups (post-review, 2026-07-03)
 
 - **Wrong-badge fix**: `BuildSearchModel.loadBuild` reset neither `proofState` nor `proofJob`, so a prior

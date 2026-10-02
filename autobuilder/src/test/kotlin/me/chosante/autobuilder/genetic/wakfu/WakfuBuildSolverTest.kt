@@ -7626,6 +7626,287 @@ class WakfuBuildSolverTest {
     }
 
     /**
+     * CERTIFIER_VERSION 44 FUZZ LOCK B (CI-runnable) — the GUI-default request shapes. Every pool carries HP /
+     * wind-resistance / dodge target rows (0-valued AND positive — the positive HP / dodge / resistance rows BIND at
+     * level 50) with RUNES ON, so the model takes the GENERAL single-type rune fold (non-damage rune types are real
+     * picks) that the certifier used to bail on. Items carry signed secondary masteries (distance in the scenario,
+     * melee outside it, crit mastery), HP / resistance / dodge lines and block; the subs mix FLAT ones with the two
+     * families the normal certifier worlds DROP — the Neutralité family (`secondary masteries ≤ 0`) and an EPIC
+     * Mesure-like block sub — which now live in the AUX worlds.
+     *
+     * Three arms per pool: the FULL sub set (the optimum usually carries a dropped-family sub ⇒ the aux worlds are what
+     * covers it), the same pool / rows WITHOUT those families (no aux world ⇒ the normal worlds' general fold alone,
+     * which must stay TIGHT), and the full sub set with NO target rows (the free request's CHOICE-COLLAPSE rune model,
+     * whose crit-mastery swap the aux worlds price per item). Ground truth = the pinned CP-SAT RAW damage optimum over
+     * EVERY build of the SAME model: the same rows with weight 0 (same rune fold, constant penalty multiplier), since the
+     * AP-cell certificate bounds raw damage over all builds (that is what makes it the proof authority for target
+     * requests). The binding rows' HARD-leg optimum is checked too (it lives in the raw optimum's feasible set).
+     * Release-blocking: no pass may UNDER-count a cell.
+     */
+    @Test
+    fun `max-damage certifier fuzz lock — non-damage rune rows, binding targets and the dropped sub families stay upper-bounded`() {
+        val runes = WakfuBestBuildFinderAlgorithm.runes
+        var compared = 0
+        var normalArmCompared = 0
+        var tight = 0
+        var certifyingPools = 0
+        var droppedFamilyOptima = 0
+        var hardCompared = 0
+        var collapseCompared = 0
+        repeat(16) { iteration ->
+            val (params, pool, allSubs) = coverageFuzzScenario(iteration)
+            // Same rows (⇒ same general rune fold), weight 0 (⇒ a constant penalty): the model's raw optimum.
+            val truthParams =
+                params.copy(targetStats = TargetStats(params.targetStats.map { TargetStat(it.characteristic, it.target, userDefinedWeight = 0) }))
+            val normalSubs = allSubs.filterNot { isSecondaryCapDroppedSub(it, params.damageScenario) || isBlockWorldSub(it) }
+            val arms = if (normalSubs.size == allSubs.size) listOf(allSubs) else listOf(allSubs, normalSubs)
+            for (subs in arms) {
+                val normalArm = subs.size == normalSubs.size
+                val fullArm = subs === allSubs
+                val (exact, fast, tier15) =
+                    WakfuBuildSolver.certifierExactFastTier15CellObjectivesForTest(params, pool, runes, subs, applyDomination = false)
+                val truthByAp = LinkedHashMap<Int, Long>()
+                for (ap in exact.keys.sorted()) {
+                    val profile =
+                        WakfuBuildSolver.timedMaxDamageProfileForTest(
+                            truthParams.copy(maxDamageApTarget = ap),
+                            pool,
+                            runes,
+                            subs,
+                            workers = 1,
+                            seconds = 10.0,
+                            applyDomination = false,
+                            deterministicLimit = 6.0
+                        )
+                    if (!profile.hasSolution) continue
+                    check(profile.status == "OPTIMAL") { "iter $iteration AP=$ap: expected OPTIMAL on the tiny synthetic pool, got ${profile.status}" }
+                    truthByAp[ap] = profile.rawObjective
+                    if (profile.selectedSublimationStateIds.any { id -> normalSubs.none { it.stateId == id } }) droppedFamilyOptima++
+                    val exactObj = exact[ap] ?: -1L
+                    val fastObj = fast[ap] ?: -1L
+                    val tier15Obj = tier15[ap] ?: -1L
+                    for ((label, value) in listOf("exact" to exactObj, "tier-1.5" to tier15Obj, "fast" to fastObj)) {
+                        if (value < 0) continue
+                        assertThat(value)
+                            .describedAs(
+                                "iter %d AP=%d (%s subs): %s (%d) must upper-bound the pinned raw optimum (%d) — an under-count is fatal",
+                                iteration,
+                                ap,
+                                if (normalArm) "normal" else "full",
+                                label,
+                                value,
+                                profile.rawObjective
+                            ).isGreaterThanOrEqualTo(profile.rawObjective)
+                    }
+                    if (exactObj >= 0) {
+                        compared++
+                        if (normalArm) {
+                            normalArmCompared++
+                            if (exactObj == profile.rawObjective) tight++
+                        }
+                        if (tier15Obj >= 0) assertThat(tier15Obj).describedAs("iter %d AP=%d: tier-1.5 ≥ exact", iteration, ap).isGreaterThanOrEqualTo(exactObj)
+                        if (fastObj >= 0 && tier15Obj >= 0) assertThat(fastObj).describedAs("iter %d AP=%d: fast ≥ tier-1.5", iteration, ap).isGreaterThanOrEqualTo(tier15Obj)
+                    }
+                    if (!fullArm || exactObj < 0) continue
+                    // The binding rows' HARD leg: a subset of the raw optimum's builds — the certificate covers it too.
+                    val hard =
+                        WakfuBuildSolver.timedMaxDamageProfileForTest(
+                            params.copy(maxDamageApTarget = ap),
+                            pool,
+                            runes,
+                            subs,
+                            workers = 1,
+                            seconds = 10.0,
+                            applyDomination = false,
+                            deterministicLimit = 6.0,
+                            hardConstraints = true
+                        )
+                    if (hard.hasSolution && hard.status == "OPTIMAL") {
+                        hardCompared++
+                        assertThat(hard.rawObjective).describedAs("iter %d AP=%d: hard-leg optimum ≤ raw optimum", iteration, ap).isLessThanOrEqualTo(profile.rawObjective)
+                        assertThat(exactObj).describedAs("iter %d AP=%d: the certificate upper-bounds the hard leg", iteration, ap).isGreaterThanOrEqualTo(hard.rawObjective)
+                    }
+                }
+                val trueOptimum = truthByAp.values.maxOrNull()
+                if (fullArm && trueOptimum != null && trueOptimum > 0) {
+                    val ledger = WakfuBuildSolver.certifyLedgerForTest(params, pool, runes, subs, applyDomination = false, forceTier2All = true)
+                    val max = ledger.maxCellObjective
+                    if (max != null) {
+                        certifyingPools++
+                        assertThat(max)
+                            .describedAs("iter %d: ledger maxCellObjective (%d) must NOT under-count the true raw optimum (%d)", iteration, max, trueOptimum)
+                            .isGreaterThanOrEqualTo(trueOptimum)
+                    }
+                }
+            }
+            // Arm 3: no target rows ⇒ the max-damage CHOICE COLLAPSE (the free request's rune model) with the full sub
+            // set — the aux worlds then price each item's crit-mastery swap as one read source with the item.
+            val freeParams = params.copy(targetStats = TargetStats(emptyList()))
+            val (cExact, cFast, cTier15) =
+                WakfuBuildSolver.certifierExactFastTier15CellObjectivesForTest(freeParams, pool, runes, allSubs, applyDomination = false)
+            for (ap in cExact.keys.sorted()) {
+                val profile =
+                    WakfuBuildSolver.timedMaxDamageProfileForTest(
+                        freeParams.copy(maxDamageApTarget = ap),
+                        pool,
+                        runes,
+                        allSubs,
+                        workers = 1,
+                        seconds = 10.0,
+                        applyDomination = false,
+                        deterministicLimit = 6.0
+                    )
+                if (!profile.hasSolution) continue
+                check(profile.status == "OPTIMAL") { "iter $iteration AP=$ap (collapse): expected OPTIMAL on the tiny synthetic pool, got ${profile.status}" }
+                collapseCompared++
+                for ((label, value) in listOf("exact" to cExact[ap], "tier-1.5" to cTier15[ap], "fast" to cFast[ap])) {
+                    if (value == null || value < 0) continue
+                    assertThat(value)
+                        .describedAs("iter %d AP=%d (collapse): %s (%d) must upper-bound the pinned optimum (%d)", iteration, ap, label, value, profile.rawObjective)
+                        .isGreaterThanOrEqualTo(profile.rawObjective)
+                }
+            }
+        }
+        println(
+            "COVERAGE_FUZZ compared=$compared normalArmCompared=$normalArmCompared tight=$tight certifyingPools=$certifyingPools " +
+                "hardCompared=$hardCompared droppedFamilyOptima=$droppedFamilyOptima collapseCompared=$collapseCompared"
+        )
+        // Coverage: before v44 every one of these pools bailed (the non-damage rune rows) — the lock must now certify.
+        assertThat(certifyingPools).describedAs("the general rune fold must be CERTIFIED (not shape-bailed) on most pools").isGreaterThanOrEqualTo(12)
+        assertThat(compared).describedAs("a healthy number of exact-certified cells").isGreaterThan(60)
+        // Not /2 like the P6.1 lock: these items carry deep NEGATIVE distance lines, which the normal worlds credit
+        // optimistically per term (floored at 0 — sound, a little loose); 20/50 today.
+        assertThat(tight)
+            .describedAs("the general fold stays tight (exact == raw optimum) on the normal-world arm: %d/%d", tight, normalArmCompared)
+            .isGreaterThanOrEqualTo(normalArmCompared / 3)
+        assertThat(hardCompared).describedAs("binding-row hard legs were exercised").isGreaterThan(10)
+        assertThat(droppedFamilyOptima).describedAs("pinned optima carry a Neutralité-family / block sub, so the AUX worlds are what keeps them covered").isGreaterThan(10)
+        assertThat(collapseCompared).describedAs("the collapse arm compared real cells").isGreaterThan(30)
+    }
+
+    /**
+     * v44: crediting a non-damage rune with the best damage rune is EXACTLY the collapse's value. With subs off, a
+     * 0-valued HP / dodge / wind-resistance row only switches the rune model from the collapse to the general fold —
+     * every certified cell must be identical (the general fold's best M-feeding option is the collapse's choice, its
+     * crit-mastery option is the collapse's alternative, the zero-delta options are dominated). Seeded pools.
+     */
+    @Test
+    fun `max-damage certifier general rune fold equals the collapse on damage-neutral rows`() {
+        val runes = WakfuBestBuildFinderAlgorithm.runes
+        var cells = 0
+        repeat(6) { iteration ->
+            val rng = Random(0xF01DL + iteration)
+            val items = mutableListOf<Equipment>()
+            var id = 1
+            for (slot in listOf(ItemType.AMULET, ItemType.BELT, ItemType.CAPE, ItemType.BOOTS, ItemType.HELMET, ItemType.CHEST_PLATE).shuffled(rng).take(4)) {
+                repeat(2) { items += randomCoverageItem(id++, slot, "Fold$slot", rng) }
+            }
+            items += randomCoverageItem(id++, ItemType.RING, "FoldRingA", rng)
+            items += randomCoverageItem(id++, ItemType.RING, "FoldRingB", rng)
+            val pool = items.groupBy { it.itemType }
+            val collapse = fireMaxDamageParams(50).copy(useRunes = true)
+            val general =
+                collapse.copy(
+                    targetStats =
+                        TargetStats(
+                            listOf(
+                                TargetStat(Characteristic.HP, 0),
+                                TargetStat(Characteristic.DODGE, 0),
+                                TargetStat(Characteristic.RESISTANCE_ELEMENTARY_WIND, 0)
+                            )
+                        )
+                )
+            val (collapseExact, collapseFast, _) = WakfuBuildSolver.certifierExactFastTier15CellObjectivesForTest(collapse, pool, runes, applyDomination = false)
+            val (generalExact, generalFast, _) = WakfuBuildSolver.certifierExactFastTier15CellObjectivesForTest(general, pool, runes, applyDomination = false)
+            assertThat(generalExact).describedAs("iter %d: exact ledger, general fold vs collapse", iteration).isEqualTo(collapseExact)
+            assertThat(generalFast).describedAs("iter %d: fast ledger, general fold vs collapse", iteration).isEqualTo(collapseFast)
+            cells += generalExact.values.count { it > 0 }
+        }
+        assertThat(cells).describedAs("the lock compares real certified cells").isGreaterThan(10)
+    }
+
+    /**
+     * v44 regression locks: the two families the normal certifier worlds DROP. On these 4-item pools the proven
+     * optimum CARRIES the dropped sub (no secondary mastery anywhere ⇒ Neutralité-like holds; a 45 % block cape ⇒
+     * the Mesure-like EPIC sub holds) — before the AUX worlds every pass under-counted it (−15 % / −27 %).
+     */
+    @Test
+    fun `max-damage certifier covers optima carrying a dropped Neutralite-family or block sub`() {
+        val params = fireMaxDamageParams(50).copy(useSublimations = true)
+        val neutralLike =
+            sublimation(
+                9101,
+                "NeutralLike",
+                SublimationRarity.NORMAL,
+                SublimationKind.STATIC_CONDITIONAL,
+                mapOf(Characteristic.DAMAGE_INFLICTED to 40),
+                condition = SublimationCondition(SublimationConditionType.SECONDARY_MASTERIES_AT_MOST, 0)
+            )
+        val measureLike =
+            sublimation(
+                9201,
+                "MeasureLike",
+                SublimationRarity.EPIC,
+                SublimationKind.STATIC_CONDITIONAL,
+                mapOf(Characteristic.DAMAGE_INFLICTED to 40, Characteristic.CRITICAL_HIT to 10),
+                condition = SublimationCondition(SublimationConditionType.BLOCK_AT_LEAST, 40)
+            )
+        val secondaryPool =
+            listOf(
+                equipment(1, ItemType.HELMET, "Helm", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 500), maxShardSlots = 3),
+                equipment(2, ItemType.AMULET, "Amu", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 400)),
+                equipment(3, ItemType.CAPE, "Cape", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300)),
+                equipment(4, ItemType.BOOTS, "BootsDist", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 200, Characteristic.MASTERY_DISTANCE to 60))
+            ).groupBy { it.itemType }
+        val blockPool =
+            listOf(
+                equipment(1, ItemType.HELMET, "Helm", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 500), maxShardSlots = 3),
+                equipment(2, ItemType.AMULET, "EpicAmu", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 400), rarity = Rarity.EPIC),
+                equipment(3, ItemType.CAPE, "BlockCape", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300, Characteristic.BLOCK_PERCENTAGE to 45)),
+                equipment(4, ItemType.BOOTS, "Boots", mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 200))
+            ).groupBy { it.itemType }
+        for ((label, pool, sub) in listOf(Triple("neutrality", secondaryPool, neutralLike), Triple("block", blockPool, measureLike))) {
+            val (exact, fast, tier15) = WakfuBuildSolver.certifierExactFastTier15CellObjectivesForTest(params, pool, sublimations = listOf(sub), applyDomination = false)
+            var carried = 0
+            for (ap in exact.keys.sorted()) {
+                val profile =
+                    WakfuBuildSolver.timedMaxDamageProfileForTest(
+                        params.copy(maxDamageApTarget = ap),
+                        pool,
+                        emptyList(),
+                        listOf(sub),
+                        workers = 1,
+                        seconds = 10.0,
+                        applyDomination = false,
+                        deterministicLimit = 6.0
+                    )
+                if (!profile.hasSolution) continue
+                if (sub.stateId in profile.selectedSublimationStateIds) carried++
+                for ((pass, value) in listOf("exact" to exact[ap], "tier-1.5" to tier15[ap], "fast" to fast[ap])) {
+                    assertThat(value).describedAs("%s AP=%d: %s certifies the cell", label, ap, pass).isNotNull().isGreaterThanOrEqualTo(0L)
+                    assertThat(
+                        value
+                    ).describedAs("%s AP=%d: %s (%d) upper-bounds the pinned optimum (%d)", label, ap, pass, value, profile.objective).isGreaterThanOrEqualTo(profile.objective)
+                }
+            }
+            assertThat(carried).describedAs("%s: the pinned optimum carries the dropped sub on some cell", label).isGreaterThan(0)
+            val ledger = WakfuBuildSolver.certifyLedgerForTest(params, pool, sublimations = listOf(sub), applyDomination = false, forceTier2All = true)
+            val truth =
+                WakfuBuildSolver.timedMaxDamageProfileForTest(
+                    params,
+                    pool,
+                    emptyList(),
+                    listOf(sub),
+                    workers = 1,
+                    seconds = 10.0,
+                    applyDomination = false,
+                    deterministicLimit = 6.0
+                )
+            assertThat(ledger.maxCellObjective).describedAs("%s: ledger ≥ free optimum", label).isNotNull().isGreaterThanOrEqualTo(truth.objective)
+        }
+    }
+
+    /**
      * The coupling panel fixture (level 50): a pool + sub set that exercises every certifier world — an epic
      * item + epic-bound DI sub, four socket carriers, two distinct rings, AP + crit items, a critM anchor for
      * the conversion sub, a 2H weapon for the weapon-split, and the conversion / crit-secret / light-weapons /
@@ -10302,6 +10583,120 @@ class WakfuBuildSolverTest {
                 )
             }
         return Triple(params, items.groupBy { it.itemType }, subs)
+    }
+
+    /**
+     * Deterministic v44 coverage-fuzz scenario #[iteration] (fuzz lock B): a level-50 FIRE / DISTANCE CRA with runes
+     * and subs ON; an HP row (0-valued or binding), optionally wind-resistance / dodge rows (0-valued or binding) and an
+     * AP row — any non-damage row forces the GENERAL rune fold; items with signed secondary / defensive lines, block and
+     * sockets (levels 100–200 so rune values matter); subs drawn from FLAT + the Neutralité family (NORMAL DI, NORMAL
+     * crit, EPIC DI) + an EPIC Mesure-like block sub (DI + crit) with an epic carrier.
+     */
+    private fun coverageFuzzScenario(iteration: Int): Triple<WakfuBestBuildParams, Map<ItemType, List<Equipment>>, List<Sublimation>> {
+        val rng = Random(0x5EC0DEL + iteration)
+        val rows = mutableListOf(TargetStat(Characteristic.HP, if (rng.nextBoolean()) 0 else 700 + rng.nextInt(700)))
+        if (rng.nextBoolean()) rows += TargetStat(Characteristic.RESISTANCE_ELEMENTARY_WIND, if (rng.nextBoolean()) 0 else 20 + rng.nextInt(80))
+        if (rng.nextBoolean()) rows += TargetStat(Characteristic.DODGE, if (rng.nextBoolean()) 0 else 30 + rng.nextInt(150))
+        if (rng.nextInt(3) == 0) rows += TargetStat(Characteristic.ACTION_POINT, 7)
+        val params = fireMaxDamageParams(50).copy(useSublimations = true, useRunes = true, targetStats = TargetStats(rows))
+        val singleSlots =
+            listOf(
+                ItemType.AMULET,
+                ItemType.BELT,
+                ItemType.CAPE,
+                ItemType.BOOTS,
+                ItemType.HELMET,
+                ItemType.CHEST_PLATE,
+                ItemType.SHOULDER_PADS
+            )
+        var nextItemId = 1
+        val items = mutableListOf<Equipment>()
+        val slots = singleSlots.shuffled(rng).take(3 + rng.nextInt(3))
+        for (slot in slots) {
+            repeat(2 + rng.nextInt(2)) { items += randomCoverageItem(nextItemId++, slot, "Cov$slot", rng) }
+        }
+        if (rng.nextBoolean()) {
+            items += randomCoverageItem(nextItemId++, ItemType.RING, "RingA", rng)
+            items += randomCoverageItem(nextItemId++, ItemType.RING, "RingB", rng)
+        }
+        val epicSubs = rng.nextBoolean()
+        if (epicSubs) items += randomCoverageItem(nextItemId++, slots.first(), "EpicCarrier", rng, rarity = Rarity.EPIC)
+        val secondaryCap = SublimationCondition(SublimationConditionType.SECONDARY_MASTERIES_AT_MOST, 0)
+        val subs = mutableListOf<Sublimation>()
+        var stateId = 9_500 + iteration * 10
+        repeat(rng.nextInt(2)) { s ->
+            subs += sublimation(stateId++, "Flat$iteration-$s", SublimationRarity.NORMAL, SublimationKind.FLAT, mapOf(Characteristic.DAMAGE_INFLICTED to 5 + rng.nextInt(26)))
+        }
+        if (rng.nextInt(3) != 0) {
+            subs +=
+                sublimation(
+                    stateId++,
+                    "NeutralLike$iteration",
+                    SublimationRarity.NORMAL,
+                    SublimationKind.STATIC_CONDITIONAL,
+                    mapOf(Characteristic.DAMAGE_INFLICTED to 15 + rng.nextInt(30)),
+                    condition = secondaryCap
+                )
+        }
+        if (rng.nextBoolean()) {
+            subs +=
+                sublimation(
+                    stateId++,
+                    "AmbitionLike$iteration",
+                    SublimationRarity.NORMAL,
+                    SublimationKind.STATIC_CONDITIONAL,
+                    mapOf(Characteristic.CRITICAL_HIT to 10 + rng.nextInt(11)),
+                    condition = secondaryCap
+                )
+        }
+        if (epicSubs) {
+            subs +=
+                sublimation(
+                    stateId++,
+                    "InflexibilityLike$iteration",
+                    SublimationRarity.EPIC,
+                    SublimationKind.STATIC_CONDITIONAL,
+                    mapOf(Characteristic.DAMAGE_INFLICTED to 15 + rng.nextInt(16)),
+                    condition = secondaryCap
+                )
+            subs +=
+                sublimation(
+                    stateId++,
+                    "MeasureLike$iteration",
+                    SublimationRarity.EPIC,
+                    SublimationKind.STATIC_CONDITIONAL,
+                    mapOf(Characteristic.DAMAGE_INFLICTED to 10 + rng.nextInt(21), Characteristic.CRITICAL_HIT to 5 + rng.nextInt(6)),
+                    condition = SublimationCondition(SublimationConditionType.BLOCK_AT_LEAST, 20 + rng.nextInt(21))
+                )
+        }
+        return Triple(params, items.groupBy { it.itemType }, subs)
+    }
+
+    /** A random item for the v44 coverage fuzz: fire mastery plus signed secondary / defensive lines, block and sockets. */
+    private fun randomCoverageItem(
+        id: Int,
+        type: ItemType,
+        name: String,
+        rng: Random,
+        rarity: Rarity = Rarity.COMMON,
+    ): Equipment {
+        val stats = mutableMapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 100 + rng.nextInt(900))
+        // The scenario's secondary, signed — deep enough below zero that an item's own elemental + distance can be
+        // negative (world N then values the collapse's crit-mastery swap above its default M rune).
+        if (rng.nextInt(3) == 0) stats[Characteristic.MASTERY_DISTANCE] = rng.nextInt(700) - 400
+        if (rng.nextInt(4) == 0) stats[Characteristic.MASTERY_MELEE] = rng.nextInt(300) - 150 // an off-scenario secondary, signed
+        if (rng.nextInt(4) == 0) stats[Characteristic.MASTERY_CRITICAL] = rng.nextInt(300) - 50
+        if (rng.nextInt(3) == 0) stats[Characteristic.CRITICAL_HIT] = rng.nextInt(10) - 2
+        if (rng.nextInt(3) == 0) stats[Characteristic.ACTION_POINT] = rng.nextInt(3) - 1
+        // No DI on rings: a DI ring is a documented shape-level bail (the ring stage keeps graw only) — keep the
+        // lock on the coverage it is about.
+        if (rng.nextInt(4) == 0 && type != ItemType.RING) stats[Characteristic.DAMAGE_INFLICTED] = 5 + rng.nextInt(26)
+        if (rng.nextInt(3) == 0) stats[Characteristic.HP] = rng.nextInt(500) - 100
+        if (rng.nextInt(3) == 0) stats[Characteristic.RESISTANCE_ELEMENTARY_WIND] = rng.nextInt(60) - 20
+        if (rng.nextInt(3) == 0) stats[Characteristic.DODGE] = rng.nextInt(160) - 60
+        if (rng.nextInt(4) == 0) stats[Characteristic.BLOCK_PERCENTAGE] = 5 + rng.nextInt(26)
+        val sockets = listOf(0, 3, 3, 4)[rng.nextInt(4)]
+        return equipment(id, type, name, stats.filterValues { it != 0 }, maxShardSlots = sockets, level = 100 + rng.nextInt(101), rarity = rarity)
     }
 
     /**

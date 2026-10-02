@@ -1181,6 +1181,18 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     S2 to **+18.25%** soft and a hard-leg result's badge from +42.08% to **+23.58%**, S3 to +6.77%; two latent v40
     under-counts fixed on the way (AP/MP dims saturating at the out-of-combat caps, low-read-only subs dropped). The
     S2 residual is the main world's (block gate / ramp slot measured null);
+  - ~~max-damage default target rows get NO badge~~ — FIXED 2026-10-02 (CERTIFIER_VERSION 44,
+    `docs/CERTIFICATE_PROD_PLAN.md` P5.4): any HP / resistance / dodge row (0-valued included — every GUI-default
+    request) put non-damage rune types in the model (the GENERAL single-type rune fold) and the AP-cell certificate
+    bailed on all 21 cells; it now mirrors that fold (a non-damage rune is a zero-delta option the best damage rune
+    dominates). The same audit found two pre-existing UNDER-counts — the pools' unguarded drop of the Neutralité
+    family (`secondary masteries ≤ 0`) and of the EPIC block sub Mesure — now covered by fast-tier AUX worlds that
+    floor every cell. Measured (CRA, runes + subs, EPIC, 120 s, 4-core JVM): the GUI-default request now gets
+    **ProvenWithin 22.19 %** at 110 and **22.97 %** at 245 (was Unavailable) — target-blind, so the bound is the free
+    request's optimum while MP / RANGE / CC / HP bind; the certificate alone reproduces the free request's ledger cell
+    for cell (110 max 1,657,830; 245 max 20,953,350). Cost: the aux worlds run on every max-damage request with subs,
+    ~2.6–3.2× the fast ledger (245: ~10–16 s → ~26–42 s on 4 threads). Open: a target-aware bound (MP / range axes)
+    to tighten the badge; folding the aux worlds into the normal worlds' thread pool.
   - ~~the flat soft objective on wildly unreachable targets (empty build can win on 2–3 workers)~~ — FIXED
     2026-10-02: the power-table multiplier is floored at 1 (`penaltyMultiplier`, shared by the solver and both
     soft certificates; the re-scorers cap their factor at `MAX_PENALTY_MULTIPLIER`; the survivability floor's
