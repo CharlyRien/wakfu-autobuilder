@@ -24,6 +24,7 @@ import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
+import me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationKind
 import me.chosante.common.SublimationRarity
@@ -181,6 +182,10 @@ internal class StatBuilder(
     // -1 where it bails). Compared against [certifierObjectivesForTest] by the `fast ≥ exact` lock. The
     // fast pass computes every cell in one shared DP; here it is still built cell-by-cell (P2 in progress).
     val certifierFastObjectivesForTest = linkedMapOf<Int, Long>()
+
+    // Test seam (v44, see [certifyForTest]): the AUX worlds' per-cell fast bound alone (same objective scaling, -1
+    // where an aux world bails; empty when the shape has no aux world) — already folded into the maps above.
+    val certifierAuxObjectivesForTest = linkedMapOf<Int, Long>()
 
     // Test seam (B7, see [certifyForTest]): the TIER-1.5 sharpened fast pass's AP cell → objective (sound upper
     // bound, -1 where it bails). The `fast ≥ tier1.5 ≥ exact` lock asserts it sits between the two.
@@ -1695,6 +1700,71 @@ internal class StatBuilder(
     }
 
     internal fun damagePreMasteryTerms(scenario: DamageScenario): LinearTermSum? = damagePreMasteryTermsCache.getOrPut(scenario) { computeDamagePreMasteryTerms(scenario) }
+
+    /**
+     * The certifier's SECONDARY-CAPPED world (CERTIFIER_VERSION 44, see `certifyMaxPerHitAtApPass`) re-values every
+     * mastery source by how the Neutralité-family condition (`SECONDARY_MASTERIES_AT_MOST ≤ 0`) reads it, so it needs
+     * [damagePreMasteryTerms] split by category: [elemental] (the scenario element + generic + random elemental lines,
+     * constant = the base 100 + their bases), [scenarioSecondary] (the secondary masteries the scenario sums into M —
+     * the range band, rear/berserk/healing when granted) and [otherSecondary] (every OTHER secondary mastery except
+     * critical mastery, which the certifier reads through its own term list). Null when a percent skill touches any of
+     * them (the certifier bails, exactly like [damagePreMasteryTerms]). Memoized (the certifier passes read it from
+     * worker threads); mints no model variable for these stats (no ramp targets a mastery).
+     */
+    internal class DamageMasteryCategories(
+        val elemental: List<Term>,
+        val elementalConst: Long,
+        val scenarioSecondary: List<Term>,
+        val scenarioSecondaryConst: Long,
+        val otherSecondary: List<Term>,
+        val otherSecondaryConst: Long,
+    )
+
+    private val damageMasteryCategoriesCache = HashMap<DamageScenario, DamageMasteryCategories?>()
+
+    internal fun damageMasteryCategories(scenario: DamageScenario): DamageMasteryCategories? =
+        synchronized(damageMasteryCategoriesCache) {
+            damageMasteryCategoriesCache.getOrPut(scenario) { computeDamageMasteryCategories(scenario) }
+        }
+
+    private fun computeDamageMasteryCategories(scenario: DamageScenario): DamageMasteryCategories? {
+        val directStats = scenarioMasteryStats(scenario).distinct()
+        val elementalStats = directStats.filter { it !in SECONDARY_MASTERY_CHARACTERISTICS }
+        val scenarioSecondaryStats = directStats.filter { it in SECONDARY_MASTERY_CHARACTERISTICS }
+        val otherSecondaryStats = SECONDARY_MASTERY_CHARACTERISTICS.filter { it !in directStats && it != Characteristic.MASTERY_CRITICAL }
+        if ((elementalStats + scenarioSecondaryStats + otherSecondaryStats).any { skillTerms.percent[it].orEmpty().isNotEmpty() }) return null
+
+        fun collect(stats: List<Characteristic>): Pair<MutableList<Term>, Long> {
+            val terms = mutableListOf<Term>()
+            var constant = 0L
+            for (stat in stats) {
+                val (statTerms, statBase) = prePercentTermsFor(stat)
+                terms.addAll(statTerms)
+                constant += statBase
+            }
+            return terms to constant
+        }
+        val (elemental, elementalBase) = collect(elementalStats)
+        // The random-element lines are elemental (mirrors computeDamagePreMasteryTerms).
+        for (equip in allEquips) {
+            val equipVar = equipVars.getValue(equip)
+            for ((randomCharacteristic, count) in MASTERY_RANDOM_BY_COUNT) {
+                if (min(count, 1) == 0) continue
+                val value = equip.characteristics[randomCharacteristic] ?: 0
+                if (value != 0) elemental.add(Term(equipVar, value.toLong()))
+            }
+        }
+        val (scenarioSecondary, scenarioSecondaryBase) = collect(scenarioSecondaryStats)
+        val (otherSecondary, otherSecondaryBase) = collect(otherSecondaryStats)
+        return DamageMasteryCategories(elemental, 100L + elementalBase, scenarioSecondary, scenarioSecondaryBase, otherSecondary, otherSecondaryBase)
+    }
+
+    /**
+     * The certifier's AUX-world floors (CERTIFIER_VERSION 44, see `certifierAuxFloor`), keyed by (scenario, cell
+     * count): the per-cell fast-tier bound of the worlds the normal certifier worlds deliberately drop. An EMPTY array
+     * records "no aux world for this shape". Guarded by its own monitor (computed once, read from worker threads).
+     */
+    internal val certifierAuxFloorCache = HashMap<Pair<DamageScenario, Int>, LongArray>()
 
     private fun computeDamagePreMasteryTerms(scenario: DamageScenario): LinearTermSum? {
         val directStats = scenarioMasteryStats(scenario).distinct()

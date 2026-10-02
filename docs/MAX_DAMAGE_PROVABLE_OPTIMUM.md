@@ -447,7 +447,12 @@ duplicated here) — the short version of where it landed:
   `proofState` badge (proven optimal / within X% / unavailable). Memory-only per-cell cache keyed on
   `WakfuData.VERSION` + `CERTIFIER_VERSION`.
 - **Coverage**: forced-item pinning and forced-sublimation credit (FLAT, conditional, conversion,
-  crit-secret, combat-conditional) are all certified where sound; every unsupported shape BAILS.
+  crit-secret, combat-conditional) are all certified where sound; every unsupported shape BAILS. Since
+  CERTIFIER_VERSION 44 (2026-10-02, `CERTIFICATE_PROD_PLAN.md` P5.4) that includes the GUI-default target rows:
+  an HP / resistance / dodge row switches the model to the general single-type rune fold, which the certifier now
+  mirrors (non-damage runes = zero-delta options) instead of bailing every cell; and the two sub families the pools
+  used to DROP unguarded (the Neutralité family, the EPIC block sub Mesure — an under-count when the optimum carries
+  one) are covered by fast-tier AUX worlds.
 - **The one law — never under-count** (a wrong badge). Every pass is a sound upper bound, exact on most
   shapes, loose on some; locks assert `≥`, not `==`. The P6.1 fuzz lock caught a real pre-existing
   under-count in the **below-AP-constant** (negative-AP charging) exact DP — now walled off by a bail so

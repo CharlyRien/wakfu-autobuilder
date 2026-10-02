@@ -274,8 +274,17 @@ object WakfuBuildSolver {
      * TARGETS-MET read (states whose over-counted reads meet every required target > 0, folded at the full-targets
      * multiplier) that bounds the hard leg's feasible set; a result flagged
      * [me.chosante.autobuilder.genetic.SolverResult.mostMasteriesHardConstraintsMet] is compared with the latter.
+     * 44: max-damage AP-cell coverage + two under-count fixes. (a) The GENERAL single-type rune fold — what any
+     * HP / resistance / dodge / lock / initiative / off-scenario-mastery target row (even 0-valued, i.e. every
+     * GUI-default request) puts in the model — is mirrored instead of bailing every cell: one per-item option per
+     * rune pick, a non-damage pick being a zero-delta option the best damage rune dominates (an over-count).
+     * (b) The pools' long-standing DROP of the Neutralité family (`secondary masteries ≤ 0`) and of the EPIC block
+     * sub Mesure under-counted any build whose optimum carries one (reproduced on seeded 4-item pools); each family
+     * now gets AUX worlds (secondary-capped N / N×C, block-assumed M / N×M), run at the fast tier and folded into
+     * every tier as a per-cell floor ([certifierAuxFloor]). Cells can only RISE vs v43 (v41–v43 changed only the
+     * most-masteries certificate) — every cached bound is stale.
      */
-    const val CERTIFIER_VERSION: Int = 43
+    const val CERTIFIER_VERSION: Int = 44
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
@@ -959,6 +968,9 @@ object WakfuBuildSolver {
         // Test/research partition seam: resolved sheet-stat vars used by exact region oracles.
         // Keeping them on BuiltModel avoids rebuilding a second StatBuilder after the objective.
         val actualStatVars: Map<Characteristic, IntVar> = emptyMap(),
+        // Max-damage only (v44): the AUX worlds' per-cell fast bound alone (already folded into the certifier
+        // maps above), captured when certifyAllApForTest = true. Empty when the shape has no aux world.
+        val certifierAuxObjectivesForTest: Map<Int, Long> = emptyMap(),
     )
 
     /**
@@ -1171,6 +1183,7 @@ object WakfuBuildSolver {
         var certifierObjectives: Map<Int, Long> = emptyMap()
         var certifierFastObjectives: Map<Int, Long> = emptyMap()
         var certifierTier15Objectives: Map<Int, Long> = emptyMap()
+        var certifierAuxObjectives: Map<Int, Long> = emptyMap()
         var certifierLedger: CertLedger? = null
         var certifierExplain: List<String> = emptyList()
         var certifierExplainItemIds: List<Int> = emptyList()
@@ -1283,6 +1296,7 @@ object WakfuBuildSolver {
                     certifierObjectives = statBuilder.certifierObjectivesForTest
                     certifierFastObjectives = statBuilder.certifierFastObjectivesForTest
                     certifierTier15Objectives = statBuilder.certifierTier15ObjectivesForTest
+                    certifierAuxObjectives = statBuilder.certifierAuxObjectivesForTest
                     certifierLedger = statBuilder.certifierLedgerForTest
                     certifierExplain = statBuilder.certifierExplainForTest
                     certifierExplainItemIds = statBuilder.certifierExplainItemIds
@@ -1333,7 +1347,8 @@ object WakfuBuildSolver {
             critDiffJointCutBound,
             mmPenaltyProbeVars,
             mmAssumptionLits,
-            actualStatVars
+            actualStatVars,
+            certifierAuxObjectives
         )
     }
 
@@ -2557,6 +2572,30 @@ object WakfuBuildSolver {
             certifyFastThreadsForTest = threads,
             certifyFastOnlyForTest = true
         ).certifierFastObjectivesForTest
+
+    /**
+     * Test-only (v44): the FAST per-cell ledger together with the AUX worlds' share of it — `(fast, aux)`, both in
+     * objective units; `aux` is empty when the shape has no aux world ([certifierAuxWorlds]). Lets a harness see
+     * whether the secondary-capped / block-assumed worlds BIND (aux ≥ the normal worlds) on a real shape.
+     */
+    internal fun certifierFastAndAuxCellObjectivesForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        applyDomination: Boolean = false,
+        threads: Int = 1,
+    ): Pair<Map<Int, Long>, Map<Int, Long>> =
+        buildModel(
+            params,
+            equipmentsByItemType,
+            runes,
+            sublimations,
+            applyDomination = applyDomination,
+            certifyAllApForTest = true,
+            certifyFastThreadsForTest = threads,
+            certifyFastOnlyForTest = true
+        ).let { it.certifierFastObjectivesForTest to it.certifierAuxObjectivesForTest }
 
     /**
      * Default worker-thread count for the certificate orchestrator (P3.2). Memory-aware (B2): the parallel path
