@@ -112,6 +112,7 @@ fun RequestPanel(
     onRemoveForcedSublimation: (String) -> Unit = {},
     onOpenExcludedSublimationPicker: () -> Unit = {},
     onRemoveExcludedSublimation: (String) -> Unit = {},
+    onToggleExcludeAllSublimationsOfRarity: (SublimationRarity) -> Unit = {},
     onOpenPassivePicker: () -> Unit = {},
     onRemoveForcedPassive: (String) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -191,7 +192,8 @@ fun RequestPanel(
                 onOpenSublimationPicker = onOpenSublimationPicker,
                 onRemoveForcedSublimation = onRemoveForcedSublimation,
                 onOpenExcludedSublimationPicker = onOpenExcludedSublimationPicker,
-                onRemoveExcludedSublimation = onRemoveExcludedSublimation
+                onRemoveExcludedSublimation = onRemoveExcludedSublimation,
+                onToggleExcludeAllSublimationsOfRarity = onToggleExcludeAllSublimationsOfRarity
             )
             PassivesCard(
                 forcedPassives = ui.forcedPassives,
@@ -1272,6 +1274,7 @@ private fun SublimationsRunesCard(
     onRemoveForcedSublimation: (String) -> Unit,
     onOpenExcludedSublimationPicker: () -> Unit,
     onRemoveExcludedSublimation: (String) -> Unit,
+    onToggleExcludeAllSublimationsOfRarity: (SublimationRarity) -> Unit,
 ) {
     val forcedSublimationColors =
         remember {
@@ -1291,6 +1294,12 @@ private fun SublimationsRunesCard(
                 .filter { it > 0 }
                 .distinct()
                 .sorted()
+        }
+    val sublimationNamesByRarity =
+        remember {
+            WakfuBestBuildFinderAlgorithm.sublimations
+                .distinctBy { it.stateId }
+                .groupBy({ it.rarity }, { it.name.fr })
         }
     RequestCard(title = tr(Tr.SUBLIMATIONS_RUNES)) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1336,6 +1345,11 @@ private fun SublimationsRunesCard(
                 onAdd = onOpenExcludedSublimationPicker,
                 onRemove = onRemoveExcludedSublimation
             )
+            SublimationRarityQuickExcludeRow(
+                namesByRarity = sublimationNamesByRarity,
+                excludedSublimations = excludedSublimations,
+                onToggle = onToggleExcludeAllSublimationsOfRarity
+            )
             Text(
                 text = tr(Tr.RUNES_PER_ITEM_HINT),
                 style = WTypography.labelSmall.copy(color = WColor.muted, lineHeight = 15.sp)
@@ -1354,6 +1368,66 @@ private fun SublimationRarity.displayColor(): Color =
         SublimationRarity.RELIC -> WRarityColor.relic
         SublimationRarity.NORMAL -> WColor.success
     }
+
+/**
+ * One toggle chip per [SublimationRarity] that has any sublimations at all (so a data set with no
+ * normal-tier subs, say, doesn't show a dead button) — bulk-excludes or re-allows every sublimation of
+ * that rarity in one click. A chip reads as "active" (danger-tinted) once every name of that rarity is
+ * already in [excludedSublimations]; clicking it then undoes the bulk exclusion instead of re-applying it.
+ */
+@Composable
+private fun SublimationRarityQuickExcludeRow(
+    namesByRarity: Map<SublimationRarity, List<String>>,
+    excludedSublimations: List<String>,
+    onToggle: (SublimationRarity) -> Unit,
+) {
+    val lang = LocalLang.current
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        SublimationRarity.entries.forEach { rarity ->
+            val names = namesByRarity[rarity].orEmpty()
+            if (names.isNotEmpty()) {
+                val allExcluded = names.all { it in excludedSublimations }
+                val color = rarity.displayColor()
+                Row(
+                    modifier =
+                        Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (allExcluded) WColor.danger.copy(alpha = 0.16f) else WColor.surface)
+                            .border(1.dp, if (allExcluded) WColor.danger.copy(alpha = 0.5f) else WColor.border, RoundedCornerShape(8.dp))
+                            .clickable { onToggle(rarity) }
+                            .padding(horizontal = 8.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Box(
+                        modifier =
+                            Modifier
+                                .size(8.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(color.copy(alpha = if (allExcluded) 0.4f else 1f))
+                    )
+                    Text(
+                        text =
+                            if (allExcluded) {
+                                tr(Tr.UNEXCLUDE_ALL_SUBLIMATIONS_RARITY).format(rarity.label(lang))
+                            } else {
+                                tr(Tr.EXCLUDE_ALL_SUBLIMATIONS_RARITY).format(rarity.label(lang))
+                            },
+                        style =
+                            WTypography.labelSmall.copy(
+                                color = if (allExcluded) WColor.danger else WColor.muted,
+                                fontWeight = if (allExcluded) FontWeight.SemiBold else FontWeight.Normal
+                            )
+                    )
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun SublimationLevelCapFilter(
@@ -1704,16 +1778,16 @@ private val allMasteryCharacteristics = specializedMasteryCharacteristics + elem
 
 private fun Characteristic.masteryOptionLabel(lang: Lang): String =
     when (this) {
-        Characteristic.MASTERY_ELEMENTARY -> localized(lang, "Toutes", "All", "Todas")
-        Characteristic.MASTERY_ELEMENTARY_WATER -> localized(lang, "Eau", "Water", "Agua")
-        Characteristic.MASTERY_ELEMENTARY_FIRE -> localized(lang, "Feu", "Fire", "Fuego")
-        Characteristic.MASTERY_ELEMENTARY_EARTH -> localized(lang, "Terre", "Earth", "Tierra")
-        Characteristic.MASTERY_ELEMENTARY_WIND -> localized(lang, "Air", "Air", "Aire")
-        Characteristic.MASTERY_DISTANCE -> localized(lang, "Distance", "Distance", "Distancia")
-        Characteristic.MASTERY_MELEE -> localized(lang, "Mêlée", "Melee", "Cuerpo a cuerpo")
-        Characteristic.MASTERY_CRITICAL -> localized(lang, "Critique", "Critical", "Crítica")
-        Characteristic.MASTERY_BACK -> localized(lang, "Dos", "Rear", "Espalda")
-        Characteristic.MASTERY_BERSERK -> localized(lang, "Berserk", "Berserk", "Berserker")
-        Characteristic.MASTERY_HEALING -> localized(lang, "Soin", "Healing", "Curación")
+        Characteristic.MASTERY_ELEMENTARY -> localized(lang, fr = "Toutes", en = "All", es = "Todas")
+        Characteristic.MASTERY_ELEMENTARY_WATER -> localized(lang, fr = "Eau", en = "Water", es = "Agua")
+        Characteristic.MASTERY_ELEMENTARY_FIRE -> localized(lang, fr = "Feu", en = "Fire", es = "Fuego")
+        Characteristic.MASTERY_ELEMENTARY_EARTH -> localized(lang, fr = "Terre", en = "Earth", es = "Tierra")
+        Characteristic.MASTERY_ELEMENTARY_WIND -> localized(lang, fr = "Air", en = "Air", es = "Aire")
+        Characteristic.MASTERY_DISTANCE -> localized(lang, fr = "Distance", en = "Distance", es = "Distancia")
+        Characteristic.MASTERY_MELEE -> localized(lang, fr = "Mêlée", en = "Melee", es = "Melé")
+        Characteristic.MASTERY_CRITICAL -> localized(lang, fr = "Critique", en = "Critical", es = "Crítica")
+        Characteristic.MASTERY_BACK -> localized(lang, fr = "Dos", en = "Rear", es = "Espalda")
+        Characteristic.MASTERY_BERSERK -> localized(lang, fr = "Berserk", en = "Berserk", es = "Berserker")
+        Characteristic.MASTERY_HEALING -> localized(lang, fr = "Soin", en = "Healing", es = "Cura")
         else -> label(lang)
     }

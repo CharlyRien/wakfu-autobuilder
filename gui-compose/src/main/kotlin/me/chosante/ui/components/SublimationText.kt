@@ -1,5 +1,7 @@
 package me.chosante.ui.components
 
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import me.chosante.common.Characteristic
 import me.chosante.common.ScenarioGate
 import me.chosante.common.Sublimation
@@ -7,11 +9,33 @@ import me.chosante.common.SublimationCondition
 import me.chosante.common.SublimationConditionType
 import me.chosante.common.SublimationEffect
 import me.chosante.ui.i18n.Lang
+import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.label
 import me.chosante.ui.i18n.localized
+import me.chosante.ui.i18n.tr
+import me.chosante.ui.theme.WColor
+import me.chosante.ui.theme.WType
+import me.chosante.ui.theme.WTypography
 
 private val PERCENT_CHARACS =
     setOf(Characteristic.DAMAGE_INFLICTED, Characteristic.BLOCK_PERCENTAGE, Characteristic.CRITICAL_HIT)
+
+/**
+ * Stacking-at-a-glance badge, shared by the picker, the paperdoll cards and the stats panel:
+ * `granted levels / stack cap` (Carnage III → "3/6", Carnage II → "2/6") — so an
+ * autobuilder-vs-Zenith stacking discrepancy is visible on every surface. Uses the record's TIER
+ * (what one socketed shard grants), NOT [Sublimation.maxCopies] (a solver-modeling clamp that
+ * reads 1 for cumulable CONDITIONAL subs — displaying it misled the exact audit the badge is
+ * for). Hidden when the stack cap leaves no headroom beyond one shard.
+ */
+@Composable
+internal fun SublimationStackBadge(sub: Sublimation) {
+    if (sub.maxStackLevel <= sub.maxTier) return
+    Text(
+        text = tr(Tr.SUBLIMATION_STACK_SHORT).format(sub.maxTier, sub.maxStackLevel),
+        style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
+    )
+}
 
 /**
  * Localized effect text for a sublimation, synthesized from its **structured** [Sublimation.condition] /
@@ -37,13 +61,14 @@ internal fun sublimationEffectText(
                     val sign = if (e.value >= 0) "+" else ""
                     "$sign${e.value}$unit ${e.characteristic.label(lang)}$gate"
                 }
+
                 is SublimationEffect.PercentOfLevel -> {
                     val sign = if (e.percentOfLevel >= 0) "+" else ""
                     localized(
                         lang,
-                        "$sign${e.percentOfLevel}% du niveau en ${e.characteristic.label(lang)}$gate",
-                        "$sign${e.percentOfLevel}% of level as ${e.characteristic.label(lang)}$gate",
-                        "$sign${e.percentOfLevel}% del nivel como ${e.characteristic.label(lang)}$gate"
+                        fr = "$sign${e.percentOfLevel}% du niveau en ${e.characteristic.label(lang)}$gate",
+                        en = "$sign${e.percentOfLevel}% of level as ${e.characteristic.label(lang)}$gate",
+                        es = "$sign${e.percentOfLevel}% del nivel como ${e.characteristic.label(lang)}$gate"
                     )
                 }
             }
@@ -53,7 +78,7 @@ internal fun sublimationEffectText(
     sub.bestElementConcentration?.let { parts.add(bestElementConcentrationText(it, lang)) }
     if (sub.zeroesElementalMastery) {
         parts.add(
-            localized(lang, "Maîtrises élémentaires mises à 0", "Elemental masteries set to 0", "Maestrías elementales puestas a 0")
+            localized(lang, fr = "Maîtrises élémentaires mises à 0", en = "Elemental masteries set to 0", es = "Dominios elementales puestos a 0")
         )
     }
     return if (parts.isEmpty()) sub.rawText.orEmpty() else parts.joinToString("  |  ")
@@ -66,9 +91,9 @@ private fun bestElementConcentrationText(
 ): String =
     localized(
         lang,
-        "+${b.damageInflictedBonus}% Dommages infligés, -${b.masteryPenaltyPercent}% Maîtrise des 3 éléments les plus faibles",
-        "+${b.damageInflictedBonus}% Damage Inflicted, -${b.masteryPenaltyPercent}% Mastery of the 3 weakest elements",
-        "+${b.damageInflictedBonus}% Daño Infligido, -${b.masteryPenaltyPercent}% Maestría de los 3 elementos más débiles"
+        fr = "+${b.damageInflictedBonus}% Dommages infligés, -${b.masteryPenaltyPercent}% Maîtrise des 3 éléments les plus faibles",
+        en = "+${b.damageInflictedBonus}% Damage Inflicted, -${b.masteryPenaltyPercent}% Mastery of the 3 weakest elements",
+        es = "+${b.damageInflictedBonus}% Daños infligidos, -${b.masteryPenaltyPercent}% Dominio de los 3 elementos más débiles"
     )
 
 /** e.g. Featherweight → "+6% Damage Inflicted per MP above 4 (max 24)". */
@@ -79,9 +104,9 @@ private fun perStatStepText(
     val unit = if (s.target in PERCENT_CHARACS) "%" else ""
     return localized(
         lang,
-        "+${s.perStep}$unit ${s.target.label(lang)} par ${s.source.label(lang)} au-dessus de ${s.threshold} (max ${s.cap})",
-        "+${s.perStep}$unit ${s.target.label(lang)} per ${s.source.label(lang)} above ${s.threshold} (max ${s.cap})",
-        "+${s.perStep}$unit ${s.target.label(lang)} por ${s.source.label(lang)} por encima de ${s.threshold} (máx. ${s.cap})"
+        fr = "+${s.perStep}$unit ${s.target.label(lang)} par ${s.source.label(lang)} au-dessus de ${s.threshold} (max ${s.cap})",
+        en = "+${s.perStep}$unit ${s.target.label(lang)} per ${s.source.label(lang)} above ${s.threshold} (max ${s.cap})",
+        es = "+${s.perStep}$unit ${s.target.label(lang)} por ${s.source.label(lang)} por encima de ${s.threshold} (máx. ${s.cap})"
     )
 }
 
@@ -91,20 +116,20 @@ private fun gateText(
 ): String {
     if (gate == null) return ""
     val tags = ArrayList<String>()
-    if (gate.berserk == true) tags.add(localized(lang, "berserk", "berserk", "berserker"))
-    if (gate.ranged == true) tags.add(localized(lang, "à distance", "ranged", "a distancia"))
+    if (gate.berserk == true) tags.add(localized(lang, fr = "berserk", en = "berserk", es = "berserker"))
+    if (gate.ranged == true) tags.add(localized(lang, fr = "à distance", en = "ranged", es = "a distancia"))
     gate.element?.let { el ->
         tags.add(
             when (el) {
-                "FIRE" -> localized(lang, "feu", "fire", "fuego")
-                "WATER" -> localized(lang, "eau", "water", "agua")
-                "EARTH" -> localized(lang, "terre", "earth", "tierra")
-                "AIR" -> localized(lang, "air", "air", "aire")
+                "FIRE" -> localized(lang, fr = "feu", en = "fire", es = "fuego")
+                "WATER" -> localized(lang, fr = "eau", en = "water", es = "agua")
+                "EARTH" -> localized(lang, fr = "terre", en = "earth", es = "tierra")
+                "AIR" -> localized(lang, fr = "air", en = "air", es = "aire")
                 else -> el.lowercase()
             }
         )
     }
-    gate.minCharacterLevel?.let { tags.add(localized(lang, "niv $it+", "lvl $it+", "niv $it+")) }
+    gate.minCharacterLevel?.let { tags.add(localized(lang, fr = "niv $it+", en = "lvl $it+", es = "niv $it+")) }
     return if (tags.isEmpty()) "" else " (" + tags.joinToString(" + ") + ")"
 }
 
@@ -114,9 +139,9 @@ private fun conversionText(
 ): String =
     localized(
         lang,
-        "Convertit ${c.percent}% de ${c.from.label(lang)} en ${c.to.label(lang)}",
-        "Convert ${c.percent}% of ${c.from.label(lang)} into ${c.to.label(lang)}",
-        "Convierte ${c.percent}% de ${c.from.label(lang)} en ${c.to.label(lang)}"
+        fr = "Convertit ${c.percent}% de ${c.from.label(lang)} en ${c.to.label(lang)}",
+        en = "Convert ${c.percent}% of ${c.from.label(lang)} into ${c.to.label(lang)}",
+        es = "Convierte ${c.percent}% de ${c.from.label(lang)} en ${c.to.label(lang)}"
     )
 
 private fun conditionText(
@@ -124,62 +149,57 @@ private fun conditionText(
     lang: Lang,
 ): String =
     when (c.type) {
-        SublimationConditionType.AP_AT_MOST -> localized(lang, "Si PA ≤ ${c.value}", "If AP ≤ ${c.value}", "Si PA ≤ ${c.value}")
-        SublimationConditionType.AP_AT_LEAST -> localized(lang, "Si PA ≥ ${c.value}", "If AP ≥ ${c.value}", "Si PA ≥ ${c.value}")
-        SublimationConditionType.AP_EXACT -> localized(lang, "Si PA = ${c.value}", "If AP = ${c.value}", "Si PA = ${c.value}")
-        SublimationConditionType.AP_ODD -> localized(lang, "Si PA impairs", "If odd AP", "Si PA impares")
+        SublimationConditionType.AP_AT_MOST -> localized(lang, fr = "Si PA ≤ ${c.value}", en = "If AP ≤ ${c.value}", es = "Si PA ≤ ${c.value}")
+        SublimationConditionType.AP_AT_LEAST -> localized(lang, fr = "Si PA ≥ ${c.value}", en = "If AP ≥ ${c.value}", es = "Si PA ≥ ${c.value}")
+        SublimationConditionType.AP_EXACT -> localized(lang, fr = "Si PA = ${c.value}", en = "If AP = ${c.value}", es = "Si PA = ${c.value}")
+        SublimationConditionType.AP_ODD -> localized(lang, fr = "Si PA impairs", en = "If odd AP", es = "Si PA impares")
         SublimationConditionType.CRIT_AT_MOST ->
-            localized(lang, "Si Coup Critique ≤ ${c.value}%", "If Critical Hit ≤ ${c.value}%", "Si Golpe Crítico ≤ ${c.value}%")
+            localized(lang, fr = "Si Coup Critique ≤ ${c.value}%", en = "If Critical Hit ≤ ${c.value}%", es = "Si Golpe Crítico ≤ ${c.value}%")
+
         SublimationConditionType.CRIT_AT_LEAST ->
-            localized(lang, "Si Coup Critique ≥ ${c.value}%", "If Critical Hit ≥ ${c.value}%", "Si Golpe Crítico ≥ ${c.value}%")
+            localized(lang, fr = "Si Coup Critique ≥ ${c.value}%", en = "If Critical Hit ≥ ${c.value}%", es = "Si Golpe Crítico ≥ ${c.value}%")
+
         SublimationConditionType.BLOCK_AT_LEAST ->
-            localized(lang, "Si Parade ≥ ${c.value}%", "If Block ≥ ${c.value}%", "Si Bloqueo ≥ ${c.value}%")
-        SublimationConditionType.RANGE_AT_MOST -> localized(lang, "Si Portée ≤ ${c.value}", "If Range ≤ ${c.value}", "Si Alcance ≤ ${c.value}")
-        SublimationConditionType.RANGE_AT_LEAST -> localized(lang, "Si Portée ≥ ${c.value}", "If Range ≥ ${c.value}", "Si Alcance ≥ ${c.value}")
-        SublimationConditionType.RANGE_EXACT -> localized(lang, "Si Portée = ${c.value}", "If Range = ${c.value}", "Si Alcance = ${c.value}")
+            localized(lang, fr = "Si Parade ≥ ${c.value}%", en = "If Block ≥ ${c.value}%", es = "Si Anticipación ≥ ${c.value}%")
+
+        SublimationConditionType.RANGE_AT_MOST -> localized(lang, fr = "Si Portée ≤ ${c.value}", en = "If Range ≤ ${c.value}", es = "Si Alcance ≤ ${c.value}")
+        SublimationConditionType.RANGE_AT_LEAST -> localized(lang, fr = "Si Portée ≥ ${c.value}", en = "If Range ≥ ${c.value}", es = "Si Alcance ≥ ${c.value}")
+        SublimationConditionType.RANGE_EXACT -> localized(lang, fr = "Si Portée = ${c.value}", en = "If Range = ${c.value}", es = "Si Alcance = ${c.value}")
         SublimationConditionType.DODGE_LT_PCT_OF_LEVEL ->
-            localized(
-                lang,
-                "Si Esquive < ${c.value}% du niveau",
-                "If Dodge < ${c.value}% of level",
-                "Si Esquiva < ${c.value}% del nivel"
-            )
+            localized(lang, fr = "Si Esquive < ${c.value}% du niveau", en = "If Dodge < ${c.value}% of level", es = "Si Esquiva < ${c.value}% del nivel")
+
         SublimationConditionType.SECONDARY_MASTERIES_AT_MOST ->
-            localized(
-                lang,
-                "Si maîtrises secondaires ≤ ${c.value}",
-                "If secondary masteries ≤ ${c.value}",
-                "Si maestrías secundarias ≤ ${c.value}"
-            )
+            localized(lang, fr = "Si maîtrises secondaires ≤ ${c.value}", en = "If secondary masteries ≤ ${c.value}", es = "Si dominios secundarios ≤ ${c.value}")
+
         SublimationConditionType.CRITICAL_MASTERY_AT_MOST ->
-            localized(
-                lang,
-                "Si Maîtrise Critique ≤ ${c.value}",
-                "If Critical Mastery ≤ ${c.value}",
-                "Si Maestría Crítica ≤ ${c.value}"
-            )
+            localized(lang, fr = "Si Maîtrise Critique ≤ ${c.value}", en = "If Critical Mastery ≤ ${c.value}", es = "Si Dominio crítico ≤ ${c.value}")
+
         SublimationConditionType.WEAPON_TYPE_EQUIPPED ->
-            localized(lang, "Si ${c.text} équipé", "If ${c.text} equipped", "Si ${c.text} equipado")
+            localized(lang, fr = "Si ${c.text} équipé", en = "If ${c.text} equipped", es = "Si ${c.text} equipado")
+
         SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED ->
             localized(
                 lang,
-                "Si ni bouclier, ni dague, ni arme à deux mains équipé",
-                "If no shield, dagger or two-handed weapon equipped",
-                "Si no hay escudo, daga ni arma a dos manos equipada"
+                fr = "Si ni bouclier, ni dague, ni arme à deux mains équipé",
+                en = "If no shield, dagger or two-handed weapon equipped",
+                es = "Si no hay escudo, daga ni arma a dos manos equipada"
             )
+
         SublimationConditionType.HIGHEST_ELEM_MASTERY_GT_REAR ->
             localized(
                 lang,
-                "Si la plus haute maîtrise élémentaire > maîtrise dos",
-                "If highest elemental mastery > rear mastery",
-                "Si la maestría elemental más alta > maestría de espalda"
+                fr = "Si la plus haute maîtrise élémentaire > maîtrise dos",
+                en = "If highest elemental mastery > rear mastery",
+                es = "Si el dominio elemental más alto > dominio de espalda"
             )
+
         SublimationConditionType.HIGHEST_ELEM_MASTERY_GT_HEALING ->
             localized(
                 lang,
-                "Si la plus haute maîtrise élémentaire > maîtrise soin",
-                "If highest elemental mastery > healing mastery",
-                "Si la maestría elemental más alta > maestría de curación"
+                fr = "Si la plus haute maîtrise élémentaire > maîtrise soin",
+                en = "If highest elemental mastery > healing mastery",
+                es = "Si el dominio elemental más alto > dominio de cura"
             )
-        SublimationConditionType.OTHER -> localized(lang, "Conditionnel", "Conditional", "Condicional")
+
+        SublimationConditionType.OTHER -> localized(lang, fr = "Conditionnel", en = "Conditional", es = "Condicional")
     }

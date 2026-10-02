@@ -258,6 +258,7 @@ private fun BuilderBody(
                 onRemoveForcedSublimation = model::removeForcedSublimation,
                 onOpenExcludedSublimationPicker = { model.openModal(Modal.SublimationPicker(exclude = true)) },
                 onRemoveExcludedSublimation = model::removeExcludedSublimation,
+                onToggleExcludeAllSublimationsOfRarity = model::toggleExcludeAllSublimationsOfRarity,
                 onOpenPassivePicker = { model.openModal(Modal.PassivePicker) },
                 onRemoveForcedPassive = model::removeForcedPassive
             )
