@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.11.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.10.0...wakfu-autobuilder-1.11.0) (2026-10-02)
+
+
+### Features
+
+* builds carry a "proven within X%" quality badge, refined silently in the background ([22dbcee](https://github.com/CharlyRien/wakfu-autobuilder/commit/22dbceea47ec9c54432baa15775bb81b40348d9a))
+* game data updated to Wakfu 1.93 (Pourpre set, new lucky charms, Ignemikhal) ([55a1e6a](https://github.com/CharlyRien/wakfu-autobuilder/commit/55a1e6a272c717cbd54f39a59d2c9796b410191a))
+* max-damage builds can now be proven optimal above level 140, with live proof progress ([22dbcee](https://github.com/CharlyRien/wakfu-autobuilder/commit/22dbceea47ec9c54432baa15775bb81b40348d9a))
+* sublimations show their stacking level (e.g. 3/6) wherever they appear ([22dbcee](https://github.com/CharlyRien/wakfu-autobuilder/commit/22dbceea47ec9c54432baa15775bb81b40348d9a))
+
+
+### Bug Fixes
+
+* cancelling a search stops its background proof within a second ([22dbcee](https://github.com/CharlyRien/wakfu-autobuilder/commit/22dbceea47ec9c54432baa15775bb81b40348d9a))
+* forced and excluded sublimations saved before the tier rename keep working ([22dbcee](https://github.com/CharlyRien/wakfu-autobuilder/commit/22dbceea47ec9c54432baa15775bb81b40348d9a))
+* items with a max AP/MP/WP malus no longer hide better items from the search ([22dbcee](https://github.com/CharlyRien/wakfu-autobuilder/commit/22dbceea47ec9c54432baa15775bb81b40348d9a))
+* sublimation conditions are checked at their real in-game timing (e.g. Ravage with Neutralité) ([22dbcee](https://github.com/CharlyRien/wakfu-autobuilder/commit/22dbceea47ec9c54432baa15775bb81b40348d9a))
+* what's new now shows every release since the last one seen ([c1c4259](https://github.com/CharlyRien/wakfu-autobuilder/commit/c1c4259c828ac5f4c59267a167565142bce6d8e1))
+* Zenith export sockets the sublimation tier the build actually uses (Ravage III, not Ravage II) ([22dbcee](https://github.com/CharlyRien/wakfu-autobuilder/commit/22dbceea47ec9c54432baa15775bb81b40348d9a))
+
 ## [1.10.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.9.1...wakfu-autobuilder-1.10.0) (2026-07-12)
 
 
