@@ -6428,16 +6428,24 @@ class WakfuBuildSolverTest {
 
     @Test
     @Tag("slow")
-    fun `domination preserves the max-damage optimum on the full level-110 pool with sublimations`() {
-        // The smart-pinning guard — the case the default GUI search actually runs. With sublimations ON, the
-        // 9 dangerous conditional choosable subs pin AP/crit/dodge/range/secondaries, so domination can't flip
-        // any cap; it must still reach the SAME proven optimum as the full pool.
-        val tuning = WakfuBuildSolver.SolverTuning(maxDeterministicTime = 900.0)
+    fun `domination preserves the max-damage optimum on the full level-110 pool with the conditional sublimations`() {
+        // The smart-pinning guard. With sublimations ON, the dangerous conditional choosable subs pin
+        // AP/crit/crit-mastery/dodge/range/secondaries, so domination can't flip any cap; it must still reach the
+        // SAME proven optimum as the full pool. The catalog is narrowed to its conditional subs: they produce
+        // every pin, while the unconditional ones are pure value adds that never pin yet loosen the bound so much
+        // that the full-pool proof is out of reach (all 47 subs: not proven at det 600 even at level 90). Run on
+        // the deterministic protocol (1 worker + interleave) — the 8-worker portfolio's proof time is
+        // race-dependent and missed a 900 det budget on the 2-core CI runner. Measured: 155 / 183 det
+        // (1.92.1.58), 370 / 485 det (1.93.1.62); the cap keeps ~2.5× headroom over the larger one.
+        val tuning = WakfuBuildSolver.SolverTuning(numSearchWorkers = 1, interleaveSearch = true, maxDeterministicTime = 1200.0)
         val params =
             maxDamageShape(CharacterClass.CRA, 110, DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE))
                 .copy(useSublimations = true)
         val pool = fullEpicPool(110)
-        val subs = WakfuBestBuildFinderAlgorithm.sublimations
+        val subs = WakfuBestBuildFinderAlgorithm.sublimations.filter { it.solverChoosable && it.condition != null }
+        assertThat(dominationShape(params, subs)?.pinned)
+            .describedAs("the conditional subs alone produce every pin the full catalog does")
+            .isEqualTo(dominationShape(params, WakfuBestBuildFinderAlgorithm.sublimations)?.pinned)
         val full = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, sublimations = subs, applyDomination = false)
         val filtered = WakfuBuildSolver.maxDamageSolveForTest(params, pool, tuning, tightDomains = true, sublimations = subs, applyDomination = true)
         assertThat(full.isOptimal && filtered.isOptimal).describedAs("both prove OPTIMAL with subs on").isTrue()
