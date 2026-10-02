@@ -17,12 +17,16 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * M3-v2 tightness harness (plan §8.9 amendment). Computes the target-aware folded bound on the
- * campaign fixtures and compares against the banked same-protocol optima:
- *  - S2 frontier soft: folded optimum 67 295 807 882 856 (§8.1.1);
- *  - S3 DI isolate: core optimum 10 985 (v1's bound was 11 909, +8.4%).
+ * campaign fixtures and compares against the banked optima (re-banked 2026-10-02 on data 1.93.1.62,
+ * both proven OPTIMAL by the production portfolio; the 1.92.1.58 values of §8.1.1 were
+ * 67 295 807 882 856 / 10 985):
+ *  - S2 frontier soft: folded optimum 67 728 953 322 880;
+ *  - S3 DI isolate: core optimum 10 993.
  *
  * The bound must be ≥ the optimum (soundness canary — an under-count here is a bug, not a win);
- * the measured question is the OVERSHOOT ratio and the DP wall time.
+ * the measured question is the OVERSHOOT ratio and the DP wall time. Measured at CERTIFIER_VERSION
+ * 39 on 1.93: S2 +29.56%, S3 +8.11% (v37 on 1.92: +9.87% / +6.77% — the v38 soundness fixes
+ * loosened it, see docs/MOST_MASTERIES_PERF_PLAN.md §8.16).
  *
  * ```shell
  * WAKFU_MM_M3V2=1 [WAKFU_MM_M3V2_DEBUG=1] \
@@ -30,8 +34,10 @@ import kotlin.time.Duration.Companion.seconds
  * ```
  */
 class MostMasteriesCertificateTest {
-    private val s2Optimum = 67_295_807_882_856L
-    private val s3Optimum = 10_985L
+    // Re-banked 2026-10-02 on data 1.93.1.62 (production portfolio, both OPTIMAL — S2 in 106 s, S3 in
+    // 16 s); the 1.92.1.58 optima were 67_295_807_882_856 / 10_985.
+    private val s2Optimum = 67_728_953_322_880L
+    private val s3Optimum = 10_993L
 
     /**
      * CI SOUNDNESS LOCK for the 2026-07-14 review findings A#1/A#2 — the two shapes where the
@@ -415,6 +421,141 @@ class MostMasteriesCertificateTest {
                 .describedAs("SOUNDNESS — the certificate must never under-count the CP-SAT soft optimum")
                 .isEmpty()
         }
+
+    /**
+     * CI EXACTNESS LOCK for the stage-option Pareto pruning (perf next-steps P2): the pruned DP must return
+     * the SAME folded and core bounds as the unpruned one — pruning a dominated option is exact only if every
+     * transition and the collapse fold stay monotone in [MostMasteriesCertificate]'s dominance order, which a
+     * new option field or a non-monotone fold would silently break. Random seeded pools (1-2 items per slot,
+     * epic/relic items, signed AP and −MAX_AP lines, block, 0-2 sockets) with the real sub catalog and runes,
+     * × four target shapes × both tiers. No CP-SAT; the UNPRUNED reference DP is the cost (~1 s per case), so CI
+     * runs 4 seeds — `WAKFU_MM_PRUNE_LOCK_SEEDS=8` reproduces the 64-case screen the pruning shipped with.
+     */
+    @Test
+    fun `stage-option pruning is bit-identical on seeded random pools`() {
+        val slotTypes =
+            listOf(
+                ItemType.HELMET,
+                ItemType.CAPE,
+                ItemType.BELT,
+                ItemType.BOOTS,
+                ItemType.AMULET,
+                ItemType.RING,
+                ItemType.CHEST_PLATE,
+                ItemType.SHOULDER_PADS,
+                ItemType.ONE_HANDED_WEAPONS,
+                ItemType.OFF_HAND_WEAPONS,
+                ItemType.TWO_HANDED_WEAPONS,
+                ItemType.EMBLEM
+            )
+        val palette =
+            listOf(
+                Characteristic.MASTERY_DISTANCE,
+                Characteristic.ACTION_POINT,
+                Characteristic.MOVEMENT_POINT,
+                Characteristic.CRITICAL_HIT,
+                Characteristic.HP,
+                Characteristic.DAMAGE_INFLICTED,
+                Characteristic.BLOCK_PERCENTAGE,
+                Characteristic.MASTERY_BERSERK,
+                Characteristic.MAX_ACTION_POINT
+            )
+        val shapes =
+            listOf(
+                emptyList(),
+                listOf(TargetStat(Characteristic.ACTION_POINT, 9), TargetStat(Characteristic.HP, 3500)),
+                listOf(TargetStat(Characteristic.MOVEMENT_POINT, 5), TargetStat(Characteristic.CRITICAL_HIT, 40)),
+                listOf(
+                    TargetStat(Characteristic.ACTION_POINT, 10),
+                    TargetStat(Characteristic.MOVEMENT_POINT, 5),
+                    TargetStat(Characteristic.CRITICAL_HIT, 30),
+                    TargetStat(Characteristic.HP, 4000)
+                )
+            )
+        val mismatches = mutableListOf<String>()
+        var compared = 0
+        val seeds = System.getenv("WAKFU_MM_PRUNE_LOCK_SEEDS")?.toLongOrNull() ?: 4L
+        for (seed in 1L..seeds) {
+            val rng = java.util.Random(seed)
+            var id = 0
+            val pool =
+                slotTypes
+                    .flatMap { type ->
+                        (0 until 1 + rng.nextInt(2)).map {
+                            id++
+                            val stats =
+                                (0 until 2 + rng.nextInt(4)).associate {
+                                    val stat = palette[rng.nextInt(palette.size)]
+                                    val magnitude =
+                                        when (stat) {
+                                            Characteristic.ACTION_POINT, Characteristic.MOVEMENT_POINT ->
+                                                1 + rng.nextInt(2) * (if (rng.nextInt(6) == 0) -2 else 1)
+                                            Characteristic.MAX_ACTION_POINT -> -1
+                                            Characteristic.CRITICAL_HIT -> 1 + rng.nextInt(12)
+                                            Characteristic.HP -> 50 + rng.nextInt(500)
+                                            Characteristic.DAMAGE_INFLICTED -> 1 + rng.nextInt(12)
+                                            Characteristic.BLOCK_PERCENTAGE -> 1 + rng.nextInt(15)
+                                            else -> 20 + rng.nextInt(200) * (if (rng.nextInt(5) == 0) -1 else 1)
+                                        }
+                                    stat to magnitude
+                                }
+                            val rarity =
+                                when (rng.nextInt(8)) {
+                                    0 -> Rarity.EPIC
+                                    1 -> Rarity.RELIC
+                                    else -> Rarity.LEGENDARY
+                                }
+                            me.chosante.common.Equipment(
+                                equipmentId = seed.toInt() * 10_000 + id,
+                                guiId = id,
+                                level = 200,
+                                name = me.chosante.common.I18nText("p2i$seed-$id", "p2i$seed-$id", "", ""),
+                                rarity = rarity,
+                                itemType = type,
+                                characteristics = stats,
+                                maxShardSlots = rng.nextInt(3)
+                            )
+                        }
+                    }.groupBy { it.itemType }
+            for (targets in shapes) {
+                val p =
+                    WakfuBestBuildParams(
+                        character = Character(CharacterClass.CRA, 200, 0, CharacterSkills(200)),
+                        targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999)) + targets),
+                        searchDuration = 60.seconds,
+                        stopWhenBuildMatch = false,
+                        maxRarity = Rarity.EPIC,
+                        forcedItems = emptyList(),
+                        excludedItems = emptyList(),
+                        scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT,
+                        useRunes = true,
+                        useSublimations = true
+                    )
+                for (blockGate in listOf(false, true)) {
+                    fun boundOf(prune: Boolean) =
+                        MostMasteriesCertificate.bound(
+                            p,
+                            pool,
+                            WakfuBestBuildFinderAlgorithm.runes,
+                            WakfuBestBuildFinderAlgorithm.sublimations,
+                            blockGate = blockGate,
+                            pruneDominatedOptions = prune
+                        )
+                    val reference = boundOf(prune = false)
+                    val pruned = boundOf(prune = true)
+                    val label = "seed $seed targets=${targets.size} blockGate=$blockGate"
+                    if (pruned?.foldedBound != reference?.foldedBound || pruned?.coreBound != reference?.coreBound) {
+                        mismatches +=
+                            "$label: pruned ${pruned?.foldedBound}/${pruned?.coreBound} vs unpruned " +
+                            "${reference?.foldedBound}/${reference?.coreBound}"
+                    }
+                    compared++
+                }
+            }
+        }
+        assertThat(compared).isEqualTo(seeds.toInt() * shapes.size * 2)
+        assertThat(mismatches).describedAs("EXACTNESS — pruning dominated stage options must never move a bound").isEmpty()
+    }
 
     /**
      * The most-masteries HARD leg (targets enforced) emits `core × SCALE + bonus`; its stamp must be

@@ -198,6 +198,31 @@ internal object MostMasteriesCertificate {
         return distinct.filter { o -> distinct.none { other -> other !== o && other.dominates(o) && !o.dominates(other) } }
     }
 
+    /** Stage lists above this stay unpruned: the ring-pair list runs to millions and is pruned per pair already. */
+    private const val PARETO_PRUNE_MAX_OPTIONS = 200_000
+
+    /**
+     * [prune]'s exact filter (same strictness rule) applied to a whole STAGE — across the slot's items and the
+     * branch's skill allocations — as a skyline sweep, O(n · front) instead of O(n²), so it scales to the ~3-4k
+     * options of an item slot (perf next-steps P2: S2 4.6M → 45k states, full tier 78 s → 8 s with primitive maps,
+     * bit-identical bound).
+     *
+     * Why it is exact: a dominating option has the same flags (identical applicability in every state) and yields
+     * a successor state ≥ on every over-counted dim, ≤ on the assume-world LOW dims and ≥ on M. Every later
+     * transition (the BLOCK_AT_LEAST gate only gets easier with more block) and the collapse fold (core, penalty
+     * bucket, world-B caps, assume-world filters) are monotone in that order, so a dominated option's descendants
+     * can never beat the dominating one's — the max, and the core max, are unchanged.
+     */
+    private fun paretoPrune(options: List<Opt>): List<Opt> {
+        val front = ArrayList<Opt>()
+        for (o in options.distinct().sortedByDescending { it.m }) {
+            if (front.any { it.dominates(o) && !o.dominates(it) }) continue
+            front.removeAll { o.dominates(it) && !it.dominates(o) }
+            front += o
+        }
+        return front
+    }
+
     /** One AT_MOST cap a conditional sub can pin: the tracked dim + its threshold (raw units). */
     class CapSpec(
         val stat: Characteristic,
@@ -320,17 +345,26 @@ internal object MostMasteriesCertificate {
         return geometry.power6(geometry.fullBucket)
     }
 
+    /** Sentinel of [applyOneRaw] for an inapplicable/rejected option (no packed key can equal it). */
+    private const val REJECT = Long.MIN_VALUE
+
     /** One state transition, or null when the option is inapplicable/rejected in [k]. */
     private fun Geometry.applyOne(
         k: Long,
         o: Opt,
-    ): Long? {
+    ): Long? = applyOneRaw(k, o).takeIf { it != REJECT }
+
+    /** [applyOne] without the boxed `Long?` — [REJECT] when the option is inapplicable in [k] (the hot path). */
+    private fun Geometry.applyOneRaw(
+        k: Long,
+        o: Opt,
+    ): Long {
         val e = e(k)
         val r = r(k)
-        if (o.epic && e == 1) return null
-        if (o.relic && r == 1) return null
-        if (o.requiresEpicItem && e == 0) return null
-        if (o.requiresRelicItem && r == 0) return null
+        if (o.epic && e == 1) return REJECT
+        if (o.relic && r == 1) return REJECT
+        if (o.requiresEpicItem && e == 0) return REJECT
+        if (o.requiresRelicItem && r == 0) return REJECT
         val newMpMinus = (mpMinus(k) + o.mpCapMinus).coerceAtMost(1)
         // Review fix (A#1) — ASSUME-world semantics: the capped stat's dim is a LOW
         // under-approximation (SIGNED deltas, FLOOR bucketing), saturated one past the threshold
@@ -354,7 +388,7 @@ internal object MostMasteriesCertificate {
             }
         // Increment 8: an AT_LEAST block condition gates on the state's OVER-counted block —
         // real final block ≥ t implies the dim reads ≥ t, so a real build is never wrongly denied.
-        if (o.requiresBlockAtLeast > 0 && block(k) * BLOCK_STEP < o.requiresBlockAtLeast) return null
+        if (o.requiresBlockAtLeast > 0 && block(k) * BLOCK_STEP < o.requiresBlockAtLeast) return REJECT
         // mpCapMinus stays SATURATING: a lowered MAX MP wastes excess MP, it never forbids it.
         val mpEff = mpCapOf(newMpMinus)
         val flatHpBuckets = hp(k) + ceilDiv(o.hp, hpStep)
@@ -379,68 +413,37 @@ internal object MostMasteriesCertificate {
     /** Transitions below this stay single-threaded (thread + merge overhead beats the gain). */
     private const val PARALLEL_APPLY_MIN_TRANSITIONS = 4_000_000L
 
-    private fun Geometry.applySequential(
-        entries: List<Map.Entry<Long, Long>>,
-        options: List<Opt>,
-        expectedSize: Int,
-    ): HashMap<Long, Long> {
-        val next = HashMap<Long, Long>(expectedSize)
-        for ((k, mv) in entries) {
-            for (o in options) {
-                val nk = applyOne(k, o) ?: continue
-                val nm = mv + o.m
-                val cur = next[nk]
-                if (cur == null || nm > cur) next[nk] = nm
-            }
-        }
-        return next
-    }
-
     /**
-     * One stage advance. Big stages run CHUNKED across CPU cores: each worker sweeps its slice of
-     * the state map into a LOCAL map, then the locals max-merge — the same DP (max is
-     * order-independent, so the result is bit-identical to the sequential sweep), roughly
-     * cores× faster on the hot stages. Unlike the world-level parallelism that was measured
-     * SLOWER (4 full concurrent DPs = 4× the live state maps, GC-bound), the chunk locals only
-     * duplicate the overlap of one stage's output — the peak stays near the sequential footprint.
+     * One stage advance on primitive arrays ([LongLongMaxMap], perf next-steps P1): every transition is a
+     * max-merge, so the result is identical to the boxed `HashMap` sweep it replaced — only allocation, hashing
+     * and cache behaviour change. Big stages run chunked across CPU cores inside [LongLongMaxMap.advance]; the
+     * states stay a `HashMap` between stages for the collapse and the provenance replay.
      */
     private fun Geometry.apply(
         states: HashMap<Long, Long>,
         options: List<Opt>,
     ): HashMap<Long, Long> {
-        val transitions = states.size.toLong() * options.size
-        val workers = Runtime.getRuntime().availableProcessors() - 1
-        if (transitions < PARALLEL_APPLY_MIN_TRANSITIONS || workers < 2) {
-            return applySequential(states.entries.toList(), options, states.size * 2)
+        val n = states.size
+        val ks = LongArray(n)
+        val vs = LongArray(n)
+        var i = 0
+        for ((k, v) in states) {
+            ks[i] = k
+            vs[i] = v
+            i++
         }
-        val entries = states.entries.toList()
-        val chunkCount = minOf(workers, 8)
-        val chunkSize = (entries.size + chunkCount - 1) / chunkCount
-        val locals =
-            (0 until chunkCount)
-                .toList()
-                .parallelStream()
-                .map { c ->
-                    val from = c * chunkSize
-                    val to = minOf(entries.size, from + chunkSize)
-                    if (from >= to) {
-                        HashMap()
-                    } else {
-                        applySequential(entries.subList(from, to), options, (to - from) * 2)
+        val opts = options.toTypedArray()
+        return LongLongMaxMap
+            .advance(ks, vs, n, opts.size, PARALLEL_APPLY_MIN_TRANSITIONS) { from, to, into ->
+                for (idx in from until to) {
+                    val k = ks[idx]
+                    val m = vs[idx]
+                    for (o in opts) {
+                        val nk = applyOneRaw(k, o)
+                        if (nk != REJECT) into.putMax(nk, m + o.m)
                     }
-                }.collect(
-                    java.util.stream.Collectors
-                        .toList()
-                )
-        val merged = locals.maxByOrNull { it.size } ?: HashMap()
-        for (local in locals) {
-            if (local === merged) continue
-            for ((k, mv) in local) {
-                val cur = merged[k]
-                if (cur == null || mv > cur) merged[k] = mv
-            }
-        }
-        return merged
+                }
+            }.toHashMap()
     }
 
     fun bound(
@@ -471,6 +474,9 @@ internal object MostMasteriesCertificate {
         // uninterruptible — a superseded GUI proof kept a core pinned until completion. Checked
         // once per stage; `false` aborts with null (callers already treat null as "no badge").
         shouldContinue: () -> Boolean = { true },
+        // Exact stage-option Pareto pruning ([paretoPrune]) — production ON; `false` only for the
+        // bit-identity lock that compares both runs.
+        pruneDominatedOptions: Boolean = true,
         // INTERNAL world-split recursion (review fix A#1) — never set by callers. worldDropCaps:
         // run the DP with every AT_MOST cap sub excluded; worldAssume: run it with THAT cap sub
         // assumed carried (LOW semantics on its capped stat, credits added at collapse).
@@ -576,6 +582,7 @@ internal object MostMasteriesCertificate {
                         blockGate = if (assume == null) blockGate else false,
                         optionVeto = optionVeto,
                         shouldContinue = shouldContinue,
+                        pruneDominatedOptions = pruneDominatedOptions,
                         worldAssume = assume,
                         worldDropCaps = assume == null
                     )
@@ -783,7 +790,11 @@ internal object MostMasteriesCertificate {
                 states = HashMap()
                 return
             }
-            val effective = if (optionVeto == null) options else options.filter { !optionVeto(label, it.src) }
+            val allowed = if (optionVeto == null) options else options.filter { !optionVeto(label, it.src) }
+            // Exact: a strictly dominated option's descendants are dominated too (see [paretoPrune]). The
+            // ring-pair list is skipped — it is millions long and already pruned per pair.
+            val effective =
+                if (pruneDominatedOptions && allowed.size in 2..PARETO_PRUNE_MAX_OPTIONS) paretoPrune(allowed) else allowed
             stageLog?.add(Triple(label, HashMap(states), effective))
             states = geo.apply(states, effective)
         }
