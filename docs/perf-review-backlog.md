@@ -97,6 +97,7 @@ with an ordered roadmap in §C)**, and tiny hygiene items (D). See each item's `
 | — | ~~C8 (1)~~ | ✅ DONE — most-masteries reachable objective-product bound (sound, ~10³–10⁵× box tightening). |
 | Deferred | C6, C7, C8(2)/(3) | **C7 ✅ CLOSED 2026-07-09: re-implemented from the staged derivation (sound, guards green, fires on the engineered pool) — MEASURED-INERT on the flagship shapes (self-disables; byte-identical A/B), stays OFF.** C6 not started (run C4 screen first). C8(2) measured-NO / (3) blocked. See each item's block in §C. |
 | Anytime | D1, D3, D4 | Tiny hygiene — D1 CLI wording, D3 nightly-test flake, D4 doc note. |
+| Next | E0 → E1 | **TODO (opened 2026-10-02):** measure-first perf pass on the current engine — baseline the user-visible timings on 4 cores, then check the leads in §E. |
 
 ---
 
@@ -1144,6 +1145,32 @@ was C1 → C2 → C3 → C4 → C7 → C6 → C8; C7's revert showed the bilinea
 - **D4** ✅ DONE (was already shipped with A1, 2026-07-06 — this entry was stale): the resistance-feeder lesson
   lives in `docs/SOLVER_PERFORMANCE.md`'s domination section ("the `compared` set must include every FEEDER of
   a constrained stat…", with the future-edit warning).
+
+---
+
+## E. Next perf pass (opened 2026-10-02, after the 1.11 release) — TODO, not started
+
+Goal: find what still costs users time, starting from MEASUREMENTS of the current engine (CERTIFIER_VERSION 38,
+data 1.93), not from a technique. Most solver-side ideas are settled: read §0's REJECTED list,
+`docs/SOLVER_PERFORMANCE.md` §4 and `docs/MOST_MASTERIES_PERF_PLAN.md` §7–§8 first (no solver knobs; the whole
+DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dead).
+
+- **E0 — Baseline first.** Time the user-visible milestones on a 4-core profile (`solverWorkers = 3`: the
+  common laptop, and the CI runner): first build, first badge, ProvenOptimal after the silent refinement, GUI
+  warm-up — for the default requests at levels 110 / 200 / 245, most-masteries and max-damage, with and without
+  runes + subs. A/B comparisons on the deterministic protocol (1 worker + interleave); multi-worker wall times
+  only for end-to-end numbers (race noise otherwise). Re-baseline the badge-tightness matrix cold while at it
+  (pending since the 2026-07-20 soundness wave).
+- **E1 — Leads to check against that baseline** (verify, then decide):
+  - the slow-suite hot spots, which double as proxies for the end-game proof times (single local runs,
+    1.92 → 1.93 data): `max-damage AP-cell certifier does not bail on the shipped sublimation catalog`
+    464 s → 675 s, the lvl-245 free solve ~420 s, the lvl-245 runes+subs search + certificate 334 s → 429 s;
+  - max-damage shapes that still need minutes to reach ProvenOptimal after the soft-leg refinement
+    (sacrieur 230: 19.6 min), and the shapes that stay at a "proven within X%" badge;
+  - most-masteries on low core counts: the 1-worker proof takes 15–20 min where the certificate's full tier
+    answers in ~55 s; the M3-v2 coarse-grid "low-core backup" is measured but not wired;
+  - the flat soft objective on wildly unreachable targets (empty build can win on 2–3 workers) — a correctness
+    fix first, tracked separately.
 
 ---
 
