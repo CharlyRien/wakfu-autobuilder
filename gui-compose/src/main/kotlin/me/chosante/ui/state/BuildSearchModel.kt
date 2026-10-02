@@ -119,11 +119,13 @@ class BuildSearchModel(
     private val optimalityProver: OptimalityProver = { params, result, isCancelled, onPhase ->
         WakfuBestBuildFinderAlgorithm.proveMaxDamageOptimality(params, result, isCancelled, onPhase)
     },
-    // Most-masteries backup certificate (plan §8.9bis): the post-search "proven within X%" quality
-    // bound for searches CP-SAT left un-proven. Injectable for the same reason as [optimalityProver]
-    // (the real DP takes ~15-60 s on the full pool).
-    private val mmQualityProver: (WakfuBestBuildParams, SolverResult<BuildCombination>, Boolean, () -> Boolean) -> WakfuBestBuildFinderAlgorithm.MostMasteriesProof =
-        { params, result, quick, shouldContinue -> WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality(params, result, quick, shouldContinue) },
+    // Most-masteries backup certificate (plan §8.9bis): the "proven within X%" quality verdict for
+    // searches CP-SAT left un-proven. Its bound is computed in the search's tail (E10-for-MM, §8.18),
+    // so this is normally instant at search end; it waits for the in-flight bound (or computes it,
+    // after a short budget) otherwise. Injectable for the same reason as [optimalityProver] (the real
+    // DP takes seconds on the full pool).
+    private val mmQualityProver: (WakfuBestBuildParams, SolverResult<BuildCombination>, () -> Boolean) -> WakfuBestBuildFinderAlgorithm.MostMasteriesProof =
+        { params, result, shouldContinue -> WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality(params, result, shouldContinue) },
     private val zenithBuilder: ZenithBuilder = { it.createZenithBuild() },
     private val openBrowser: (String) -> Unit = { link -> Desktop.getDesktop().browse(URI(link)) },
     private val copyToClipboard: (String) -> Unit = { link -> Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(link), null) },
@@ -990,9 +992,10 @@ class BuildSearchModel(
                                 completedResult.mostMasteriesObjective != null
                             ) {
                                 // Backup quality certificate (§8.9bis): CP-SAT ended without a proof (short
-                                // budget / low-core machine) — bound the gap instead. Automatic and cheap
-                                // (~15-60 s single-thread); the same ProofState pipeline renders the phase
-                                // ("Verifying optimality…") and the "proven within X%" badge.
+                                // budget / low-core machine) — bound the gap instead. Automatic; the bound
+                                // was computed in the search's tail (§8.18), so the verdict is usually
+                                // instant — else the same ProofState pipeline renders the phase ("Verifying
+                                // optimality…") until the bound lands, then the badge.
                                 launchMostMasteriesQualityProof(params, completedResult)
                             }
                         } else if (ui.phase == Phase.Searching) {
@@ -1028,11 +1031,11 @@ class BuildSearchModel(
      * Most-masteries backup quality certificate (plan §8.9bis): bounds how far the shown un-proven
      * build can be from the optimum ("proven within X%"). Runs automatically after a most-masteries
      * search whose CP-SAT leg ended non-OPTIMAL — the case of short budgets and low-core machines,
-     * where the 1-worker proof would take 15-20 min while this single-thread DP answers in ~15-60 s.
-     * Streams through the same [UiState.proofState] pipeline as the max-damage proof (spinner phase,
-     * then the badge); failures and unsupported shapes degrade to [ProofState.Unavailable] — never a
-     * wrong badge. No cancellation hook: the DP is short; a superseding search simply wins the
-     * [ui.build] identity check below.
+     * where the 1-worker proof would take 15-20 min. ONE full-tier pass (§8.18): its incumbent-free
+     * bound was computed in the search's tail, so the verdict usually lands at once; otherwise the
+     * spinner phase shows until the bound does. Streams through the same
+     * [UiState.proofState] pipeline as the max-damage proof; failures and unsupported shapes degrade
+     * to [ProofState.Unavailable] — never a wrong badge.
      */
     private fun launchMostMasteriesQualityProof(
         params: WakfuBestBuildParams,
@@ -1040,67 +1043,41 @@ class BuildSearchModel(
     ) {
         val provenBuild = result.individual
         val proofStartMs = clock()
-        // B8 wiring (review finding): the certificate DP polls this per stage — a new search flips
-        // it and the superseded proof aborts within a stage instead of pinning a core for ~80 s.
+        // B8 wiring: the proof polls this while it waits for the bound (and per DP stage when it
+        // computes it) — a new search / mode switch flips it and the superseded proof stops at once.
         val cancelled = newProofCancelFlag()
         proofJob =
             scope.launch(Dispatchers.Default) {
                 withContext(mainDispatcher) {
-                    if (ui.phase == Phase.Done && ui.build == provenBuild && ui.proofState == ProofState.Idle) {
+                    if (!cancelled.get() && ui.phase == Phase.Done && ui.build == provenBuild && ui.proofState == ProofState.Idle) {
                         ui = ui.copy(proofState = ProofState.Proving(ProofProgress(phase = ProofPhase.CERTIFYING, startedAtMs = proofStartMs)))
                     }
                 }
-
-                fun toState(proof: WakfuBestBuildFinderAlgorithm.MostMasteriesProof): ProofState =
-                    when (proof) {
-                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenOptimal -> ProofState.ProvenOptimal
-                        is WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin -> ProofState.ProvenWithin(proof.percent)
-                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable -> ProofState.Unavailable
-                    }
-
-                suspend fun publish(
-                    state: ProofState,
-                    allowUpgradeFrom: Boolean,
-                ) {
-                    withContext(mainDispatcher) {
-                        if (ui.phase == Phase.Done &&
-                            ui.build == provenBuild &&
-                            (
-                                ui.proofState is ProofState.Proving ||
-                                    ui.proofState == ProofState.Idle ||
-                                    (allowUpgradeFrom && ui.proofState is ProofState.ProvenWithin)
-                            )
-                        ) {
-                            ui = ui.copy(proofState = state)
-                        }
-                    }
-                }
-
-                fun prove(quick: Boolean): WakfuBestBuildFinderAlgorithm.MostMasteriesProof =
+                val proof =
                     try {
-                        mmQualityProver(params, result, quick) { !cancelled.get() }
+                        mmQualityProver(params, result) { !cancelled.get() }
                     } catch (cancellation: CancellationException) {
                         throw cancellation
                     } catch (throwable: Throwable) {
                         throwable.printStackTrace()
                         WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable
                     }
-
-                // Two-tier: the QUICK bound (~15 s) puts a badge up fast; the FULL bound (~80 s)
-                // then silently tightens it (or flips to proven-optimal). Both tiers are sound, so
-                // showing the quick one first never over-promises.
-                val quickProof = prove(quick = true)
-                publish(toState(quickProof), allowUpgradeFrom = false)
-                if (quickProof is WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin) {
-                    val fullProof = prove(quick = false)
-                    // Only ever UPGRADE: a full-tier failure/Unavailable never erases the quick badge.
-                    val better =
-                        when (fullProof) {
-                            WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenOptimal -> true
-                            is WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin -> fullProof.percent < quickProof.percent
-                            WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable -> false
-                        }
-                    if (better) publish(toState(fullProof), allowUpgradeFrom = true)
+                val state =
+                    when (proof) {
+                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenOptimal -> ProofState.ProvenOptimal
+                        is WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin -> ProofState.ProvenWithin(proof.percent)
+                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable -> ProofState.Unavailable
+                    }
+                withContext(mainDispatcher) {
+                    // Only onto the build it proved, and never over a badge a cancel/load already reset
+                    // (builds compare by VALUE: a reloaded copy of this build must not inherit a dead proof).
+                    if (!cancelled.get() &&
+                        ui.phase == Phase.Done &&
+                        ui.build == provenBuild &&
+                        (ui.proofState is ProofState.Proving || ui.proofState == ProofState.Idle)
+                    ) {
+                        ui = ui.copy(proofState = state)
+                    }
                 }
             }
     }

@@ -59,13 +59,15 @@ class LongLongMaxMapTest {
         val vals = LongArray(count) { rng.nextLong(0, 1_000_000) }
         val deltas = LongArray(6) { rng.nextLong(0, 1L shl 20) }
 
-        fun run(parallelMinTransitions: Long) =
-            LongLongMaxMap
-                .advance(keys, vals, count, deltas.size, parallelMinTransitions) { from, to, into ->
-                    for (i in from until to) {
-                        for (d in deltas) into.putMax((keys[i] xor d) and ((1L shl 22) - 1), vals[i] + d)
-                    }
-                }.toHashMap()
+        fun run(
+            parallelMinTransitions: Long,
+            workers: Int = LongLongMaxMap.defaultWorkers(),
+        ) = LongLongMaxMap
+            .advance(keys, vals, count, deltas.size, parallelMinTransitions, workers) { from, to, into ->
+                for (i in from until to) {
+                    for (d in deltas) into.putMax((keys[i] xor d) and ((1L shl 22) - 1), vals[i] + d)
+                }
+            }.toHashMap()
 
         val sequential = run(Long.MAX_VALUE)
         val reference = HashMap<Long, Long>()
@@ -73,7 +75,12 @@ class LongLongMaxMapTest {
             for (d in deltas) reference.putMax((keys[i] xor d) and ((1L shl 22) - 1), vals[i] + d)
         }
         assertThat(sequential).isEqualTo(reference)
-        // The chunked path only engages with ≥ 3 cores; on smaller runners both arms are sequential (still equal).
+        // The default chunked path only engages with ≥ 3 cores; on smaller runners it is sequential (still equal).
         assertThat(run(0L)).isEqualTo(reference)
+        // An explicit worker count is a pure work knob (the search-time warm-up throttles to 1): every chunking
+        // yields the identical map, whatever the runner's core count.
+        for (workers in listOf(1, 2, 3, 8)) {
+            assertThat(run(0L, workers)).describedAs("workers=$workers").isEqualTo(reference)
+        }
     }
 }
