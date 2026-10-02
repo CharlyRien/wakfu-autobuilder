@@ -1190,9 +1190,13 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     floor every cell. Measured (CRA, runes + subs, EPIC, 120 s, 4-core JVM): the GUI-default request now gets
     **ProvenWithin 22.19 %** at 110 and **22.97 %** at 245 (was Unavailable) — target-blind, so the bound is the free
     request's optimum while MP / RANGE / CC / HP bind; the certificate alone reproduces the free request's ledger cell
-    for cell (110 max 1,657,830; 245 max 20,953,350). Cost: the aux worlds run on every max-damage request with subs,
-    ~2.6–3.2× the fast ledger (245: ~10–16 s → ~26–42 s on 4 threads). Open: a target-aware bound (MP / range axes)
-    to tighten the badge; folding the aux worlds into the normal worlds' thread pool.
+    for cell (110 max 1,657,830; 245 max 20,953,350). Cost: the aux worlds run on every max-damage request with subs
+    — at v44 ~2.6–3.2× the fast ledger, which killed the free flagship's certificate early stop on 10 cores (v40:
+    37–91 s; v44: none in 2/2). CERTIFIER_VERSION 48 (`docs/CERTIFICATE_PROD_PLAN.md` P5.4b) restores it (43.5 / 90.8
+    s) with identical certified values: one relaxed world stands for the six secondary-capped aux worlds (their exact
+    split runs only when the relaxed bound could move a value), and the aux floor is applied once at the end of the
+    ledger, computed on its own thread beside the normal worlds. Open: a target-aware bound (MP / range axes) to
+    tighten the GUI-default badge.
   - ~~the most-masteries GUI-default request gets NO badge on low-core machines~~ — FIXED 2026-10-02 (CERTIFIER_VERSION
     45 → 47, `docs/MOST_MASTERIES_PERF_PLAN.md` §8.20): the MM certificate bailed on the GUI's RANGE 4 row and on its
     0-valued wind-resistance / dodge rows (all eight default rows reach the engine). 0-valued rows of any stat are now an
@@ -1220,6 +1224,41 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
   tier lands 0.9 % under the bound, and the fallback found nothing in det-300 either — most likely a loose bound) now
   gives up at the cap, 60.5 s instead of 269 s.
   No bound changed ⇒ `CERTIFIER_VERSION` untouched; locked by `E8ConstructGateTest`.
+- **⚠️ OPEN SOUNDNESS BUGS (found 2026-10-02 by the adversarial review of the v41–v44 wave; NOT fixed — next
+  session).** Both bugs are certificate UNDER-counts, so the affected badge ("proven optimal" / "proven within X %")
+  can be WRONG. Both already exist at v40, i.e. in the shipped 1.11. The review found no under-count introduced by
+  v41–v44 (MM: 358 cases; max-damage: 400 pools, 4 646 cell comparisons).
+  - Reproductions: `SoundnessReviewAdversarialTest`. The failing tests (each runs in under a second) are gated by
+    `WAKFU_SOUNDNESS_REVIEW=1` so the default suite stays green. After the fix, promote them to CI locks and bump
+    `CERTIFIER_VERSION`.
+  - The file also holds manual fuzzers: `WAKFU_REVIEW_MM_FUZZ`, `WAKFU_REVIEW_MD_FUZZ` and their case replays.
+  - **A1 — the assume worlds' LOW dims are floored at 0 after every stage.**
+    - Where: `MostMasteriesCertificate` (the `ccLowRaw` / AP-low transitions `.coerceIn(0, thr + 1)` and the clamped
+      seed state), with a twin in `MaxDamageSoftCertificate`.
+    - Why it under-counts: the real pre-combat crit read can go negative, because the solver only floors the
+      pre-sub sheet at −9. A −10 ring staged first followed by +12 gives a LOW dim of 12 > 10, while the real read
+      is 5. The real Constance (`CRIT ≤ 10`) carrier is rejected in its own world. This affects the soft read AND the
+      T3 targets-met read.
+    - Real data reaches it: 87 items carry negative crit, including the −10 rings Tyra 'neau, Ann'Othan and Sortie
+      d'Automne.
+    - Measured gaps: −0.81 % on real level-245 items (with Mesure III excluded); −15.4 % on the 3-item repro, where
+      `compareMostMasteriesQuality` awards ProvenOptimal to the wrong build; −4.8 % on the soft twin.
+    - Fix: store the LOW dims with an offset, as `MaxDamageCertifier` does with `apOff` / `critOff` (the sum of the
+      worst negative LOW deltas, knapsack included), or bail when the negative LOW mass can push the sum below 0.
+  - **B1 — the paired Major skill "Movement Point and damage" is dropped when an MP→DI ramp sub is modeled.**
+    - Where: `MaxDamageCertifier` fast / exact / explain paths, triggered by `mpRampEnabled`.
+    - Why it under-counts: `mpVars` keeps only pure-MP skill vars and `grawVars` only the vars without MP, so the
+      paired var (+1 MP, +20 mastery) is in neither list.
+    - It hits most production max-damage requests: Poids Plume III is choosable by default, and at level ≥ 175 this
+      is every cell that does not spend the Major point on AP.
+    - Measured gaps: −5.3 % (AP-6 cell) and −3.6 % (AP-7 cell) on the repro. `MaxDamageSearch.proveOptimality`
+      awarded ProvenOptimal to a build 3.8 % below the true optimum.
+    - Fix: give vars carrying both MP and graw their own enumeration (MP on the MP axis plus their graw), or bail
+      when such a var exists.
+  - Latent, with no catalog data affected today (fix with the above):
+    - A FLAT sub's ramp into a secondary mastery would be subtracted as a read source in the max-damage world N.
+    - An item's POSITIVE `MAX_ACTION_POINT` / `MAX_MOVEMENT_POINT` line would be under-counted by the MM certificate
+      (`statOf(AP/MP)` ignores the MAX_* riders). Every such line in the data is −1 today, which is an over-count.
 
 ---
 

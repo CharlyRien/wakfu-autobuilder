@@ -7907,6 +7907,79 @@ class WakfuBuildSolverTest {
     }
 
     /**
+     * CERTIFIER_VERSION 48 — the relaxed capped aux world must DOMINATE the exact capped split it stands for (every DP
+     * path of N / N×C / N×M × the weapon split exists in it with a ≥ value). Seeded pools carrying the whole aux
+     * vocabulary: the weapon axis (1H / off-hand / 2H + a Light-Weapons-Expert-like sub), a Critical-Secret-like EPIC
+     * crit sub, a Mesure-like EPIC block sub and the Neutralité family; runes on / off, rows on / off (general fold vs
+     * collapse), FACE / BACK. An under-dominating cell would let [AuxFloor.floor] skip a split value that matters.
+     */
+    @Test
+    fun `max-damage certifier relaxed capped aux world dominates the exact capped split`() {
+        val runes = WakfuBestBuildFinderAlgorithm.runes
+        var relaxedPools = 0
+        var cells = 0
+        repeat(12) { iteration ->
+            val (params, pool, subs) = auxScheduleScenario(iteration)
+            val relaxedVsSplit = WakfuBuildSolver.certifierAuxRelaxedVsSplitForTest(params, pool, runes, subs)
+            if (relaxedVsSplit.isNotEmpty()) relaxedPools++
+            for ((ap, pair) in relaxedVsSplit) {
+                val (relaxed, split) = pair
+                if (split <= 0 || relaxed < 0) continue // a bailed relaxed world defers to the split (sound by construction)
+                cells++
+                assertThat(relaxed).describedAs("iter %d AP=%d: relaxed (%d) must dominate the capped split (%d)", iteration, ap, relaxed, split).isGreaterThanOrEqualTo(split)
+            }
+        }
+        assertThat(relaxedPools).describedAs("pools with a relaxed capped world").isGreaterThanOrEqualTo(10)
+        assertThat(cells).describedAs("dominance checked on real cells").isGreaterThan(40)
+    }
+
+    /**
+     * CERTIFIER_VERSION 48 — the relaxed aux SCHEDULE changes no certified value: on the same seeded pools, the fast /
+     * tier-1.5 / exact cell maps and the forced-exact ledger are IDENTICAL with the relaxed world on (production) and
+     * off (the v44 always-split schedule). Both paths are exercised: pools whose relaxed world stays below every
+     * normal-world fast value (the split is skipped) and pools where it does not (the split runs).
+     */
+    @Test
+    fun `max-damage certifier relaxed aux schedule certifies exactly the always-split values`() {
+        val runes = WakfuBestBuildFinderAlgorithm.runes
+        var skipEligible = 0
+        var splitNeeded = 0
+        val wasEnabled = CertifierTuning.auxRelaxedCappedEnabled
+        try {
+            repeat(12) { iteration ->
+                val (params, pool, subs) = auxScheduleScenario(iteration)
+                CertifierTuning.auxRelaxedCappedEnabled = true
+                // The ledger path runs the production schedule only (the cell-map seams below force the split).
+                val splitRunsBefore = CertifierTuning.auxSplitComputedForTest.get()
+                val relaxedLedger = WakfuBuildSolver.certifyLedgerForTest(params, pool, runes, subs, applyDomination = false, forceTier2All = true)
+                val splitRan = CertifierTuning.auxSplitComputedForTest.get() > splitRunsBefore
+                val relaxedMaps = WakfuBuildSolver.certifierExactFastTier15CellObjectivesForTest(params, pool, runes, subs, applyDomination = false)
+                val relaxedVsSplit = WakfuBuildSolver.certifierAuxRelaxedVsSplitForTest(params, pool, runes, subs)
+                CertifierTuning.auxRelaxedCappedEnabled = false
+                val splitMaps = WakfuBuildSolver.certifierExactFastTier15CellObjectivesForTest(params, pool, runes, subs, applyDomination = false)
+                val splitLedger = WakfuBuildSolver.certifyLedgerForTest(params, pool, runes, subs, applyDomination = false, forceTier2All = true)
+                assertThat(relaxedMaps.first).describedAs("iter %d: exact cells", iteration).isEqualTo(splitMaps.first)
+                assertThat(relaxedMaps.second).describedAs("iter %d: fast cells", iteration).isEqualTo(splitMaps.second)
+                assertThat(relaxedMaps.third).describedAs("iter %d: tier-1.5 cells", iteration).isEqualTo(splitMaps.third)
+                assertThat(relaxedLedger.cellObjectives).describedAs("iter %d: ledger cells", iteration).isEqualTo(splitLedger.cellObjectives)
+                assertThat(relaxedLedger.maxCellObjective).describedAs("iter %d: ledger max", iteration).isEqualTo(splitLedger.maxCellObjective)
+                // The ledger floors at the END (v48) — its forced-exact cells equal the per-pass-floored exact map.
+                for ((ap, exactValue) in relaxedMaps.first) {
+                    if (exactValue < 0) continue
+                    assertThat(relaxedLedger.cellObjectives[ap]).describedAs("iter %d AP=%d: end-floored ledger == per-pass-floored exact", iteration, ap).isEqualTo(exactValue)
+                }
+                if (relaxedVsSplit.isNotEmpty()) {
+                    if (splitRan) splitNeeded++ else skipEligible++
+                }
+            }
+        } finally {
+            CertifierTuning.auxRelaxedCappedEnabled = wasEnabled
+        }
+        assertThat(skipEligible).describedAs("pools where the relaxed world spares the split").isGreaterThan(0)
+        assertThat(splitNeeded).describedAs("pools where the split still runs").isGreaterThan(0)
+    }
+
+    /**
      * The coupling panel fixture (level 50): a pool + sub set that exercises every certifier world — an epic
      * item + epic-bound DI sub, four socket carriers, two distinct rings, AP + crit items, a critM anchor for
      * the conversion sub, a 2H weapon for the weapon-split, and the conversion / crit-secret / light-weapons /
@@ -10670,6 +10743,102 @@ class WakfuBuildSolverTest {
                 )
         }
         return Triple(params, items.groupBy { it.itemType }, subs)
+    }
+
+    /**
+     * A seeded pool for the v48 aux-schedule locks: the coverage items plus the WEAPON axis (1H / off-hand / 2H) and
+     * the whole aux sub vocabulary — the Neutralité family (NORMAL DI, NORMAL crit, EPIC DI), a Mesure-like EPIC block
+     * sub, a Critical-Secret-like EPIC crit sub, a Light-Weapons-Expert-like NORMAL sub (splits the weapon axis) and a
+     * FLAT DI sub; runes / an HP row (general fold vs collapse) / FACE vs BACK drawn at random.
+     */
+    private fun auxScheduleScenario(iteration: Int): Triple<WakfuBestBuildParams, Map<ItemType, List<Equipment>>, List<Sublimation>> {
+        val rng = Random(0xA0C5L + iteration)
+        val base = fireMaxDamageParams(50)
+        val scenario = if (rng.nextBoolean()) base.damageScenario else base.damageScenario.copy(orientation = Orientation.BACK)
+        val rows = if (rng.nextBoolean()) listOf(TargetStat(Characteristic.HP, 0)) else emptyList()
+        val params = base.copy(useSublimations = true, useRunes = rng.nextBoolean(), targetStats = TargetStats(rows), damageScenario = scenario)
+        var nextItemId = 1
+        val items = mutableListOf<Equipment>()
+        val slots =
+            listOf(ItemType.AMULET, ItemType.BELT, ItemType.CAPE, ItemType.BOOTS, ItemType.HELMET, ItemType.CHEST_PLATE)
+                .shuffled(rng)
+                .take(3 + rng.nextInt(3))
+        for (slot in slots) {
+            repeat(2) { items += randomCoverageItem(nextItemId++, slot, "Aux$slot", rng) }
+        }
+        items += randomCoverageItem(nextItemId++, ItemType.ONE_HANDED_WEAPONS, "Aux1H", rng)
+        items += randomCoverageItem(nextItemId++, ItemType.OFF_HAND_WEAPONS, "AuxOffHand", rng)
+        items += randomCoverageItem(nextItemId++, ItemType.TWO_HANDED_WEAPONS, "Aux2H", rng)
+        if (rng.nextBoolean()) items += randomCoverageItem(nextItemId++, ItemType.TWO_HANDED_WEAPONS, "Aux2Hb", rng)
+        items += randomCoverageItem(nextItemId++, slots.first(), "AuxEpicCarrier", rng, rarity = Rarity.EPIC)
+        // Every other pool carries end-game-like gear: a heavy scenario secondary (distance) on every item, which the
+        // secondary-capped worlds price out — their relaxed bound then sits below the normal worlds (the split is spared).
+        val pool =
+            if (iteration % 2 == 0) {
+                items.map { e ->
+                    e.copy(
+                        characteristics =
+                            e.characteristics + (Characteristic.MASTERY_DISTANCE to (e.characteristics[Characteristic.MASTERY_DISTANCE] ?: 0) + 300 + rng.nextInt(400))
+                    )
+                }
+            } else {
+                items
+            }
+        val secondaryCap = SublimationCondition(SublimationConditionType.SECONDARY_MASTERIES_AT_MOST, 0)
+        var stateId = 9_700 + iteration * 10
+        val subs =
+            listOf(
+                sublimation(stateId++, "AuxFlat$iteration", SublimationRarity.NORMAL, SublimationKind.FLAT, mapOf(Characteristic.DAMAGE_INFLICTED to 5 + rng.nextInt(16))),
+                sublimation(
+                    stateId++,
+                    "AuxNeutral$iteration",
+                    SublimationRarity.NORMAL,
+                    SublimationKind.STATIC_CONDITIONAL,
+                    mapOf(Characteristic.DAMAGE_INFLICTED to 15 + rng.nextInt(30)),
+                    condition = secondaryCap
+                ),
+                sublimation(
+                    stateId++,
+                    "AuxAmbition$iteration",
+                    SublimationRarity.NORMAL,
+                    SublimationKind.STATIC_CONDITIONAL,
+                    mapOf(Characteristic.CRITICAL_HIT to 10 + rng.nextInt(11)),
+                    condition = secondaryCap
+                ),
+                sublimation(
+                    stateId++,
+                    "AuxInflexibility$iteration",
+                    SublimationRarity.EPIC,
+                    SublimationKind.STATIC_CONDITIONAL,
+                    mapOf(Characteristic.DAMAGE_INFLICTED to 15 + rng.nextInt(16)),
+                    condition = secondaryCap
+                ),
+                sublimation(
+                    stateId++,
+                    "AuxMeasure$iteration",
+                    SublimationRarity.EPIC,
+                    SublimationKind.STATIC_CONDITIONAL,
+                    mapOf(Characteristic.DAMAGE_INFLICTED to 10 + rng.nextInt(21), Characteristic.CRITICAL_HIT to 5 + rng.nextInt(6)),
+                    condition = SublimationCondition(SublimationConditionType.BLOCK_AT_LEAST, 20 + rng.nextInt(21))
+                ),
+                sublimation(
+                    stateId++,
+                    "AuxCritSecret$iteration",
+                    SublimationRarity.EPIC,
+                    SublimationKind.STATIC_CONDITIONAL,
+                    mapOf(Characteristic.CRITICAL_HIT to 20 + rng.nextInt(16)),
+                    condition = SublimationCondition(SublimationConditionType.CRITICAL_MASTERY_AT_MOST, 0)
+                ),
+                sublimation(
+                    stateId++,
+                    "AuxLightWeapons$iteration",
+                    SublimationRarity.NORMAL,
+                    SublimationKind.STATIC_CONDITIONAL,
+                    mapOf(Characteristic.MASTERY_ELEMENTARY to 40 + rng.nextInt(120)),
+                    condition = SublimationCondition(SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED)
+                )
+            )
+        return Triple(params, pool.groupBy { it.itemType }, subs)
     }
 
     /** A random item for the v44 coverage fuzz: fire mastery plus signed secondary / defensive lines, block and sockets. */
