@@ -422,10 +422,13 @@ class MostMasteriesBoundPrototypeTest {
         }
 
     /**
-     * P2a fallback lock: with an unreachable required target (AP 99), the hard leg is INFEASIBLE and
-     * the production orchestration must fall back to the soft (penalized) model and still deliver a
-     * final build — never an empty flow. Runs the REAL production path (wall-clock), so the pool is
-     * tiny and the duration short.
+     * P2a fallback lock: with an unreachable required target (AP 12 — this pool carries no AP, so the
+     * build tops out at base 6 + the Major point), the hard leg is INFEASIBLE and the production
+     * orchestration must fall back to the soft (penalized) model and still deliver a final build —
+     * never an empty flow. Runs the REAL production path (wall-clock), so the pool is tiny and the
+     * duration short. The target must stay within ~10× of reach: a wildly unreachable one (AP 99)
+     * floors every power-6 multiplier to 0, so the soft objective is flat, the empty build ties the
+     * optimum, and 2-3 worker solves returned it ~2/3 of the time (how this test flaked on CI).
      */
     @Test
     fun `P2a falls back to the soft model when targets are unreachable`(): Unit =
@@ -436,7 +439,7 @@ class MostMasteriesBoundPrototypeTest {
                         TargetStats(
                             listOf(
                                 TargetStat(Characteristic.MASTERY_DISTANCE, 9999),
-                                TargetStat(Characteristic.ACTION_POINT, 99)
+                                TargetStat(Characteristic.ACTION_POINT, 12)
                             )
                         ),
                     searchDuration = 10.seconds
@@ -448,6 +451,14 @@ class MostMasteriesBoundPrototypeTest {
             val last = results.last()
             assertThat(last.progressPercentage).describedAs("the soft fallback must deliver its guaranteed final send").isEqualTo(100)
             assertThat(last.individual.equipments).isNotEmpty()
+            val achievedAp =
+                computeCharacteristicsValues(
+                    buildCombination = last.individual,
+                    characterBaseCharacteristics = p.character.baseCharacteristicValues,
+                    masteryElementsWanted = p.targetStats.masteryElementsWanted,
+                    resistanceElementsWanted = p.targetStats.resistanceElementsWanted
+                )[Characteristic.ACTION_POINT] ?: 0
+            assertThat(achievedAp).describedAs("the target is out of reach, so the delivered build is the soft fallback's").isLessThan(12)
         }
 
     /**
