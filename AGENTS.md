@@ -184,7 +184,7 @@ slowed CP-SAT), on one DP thread while CP-SAT owns the cores (all chunk workers 
 memoized single-flight per request, superseded by any new search and cancelled when the search proves
 OPTIMAL — so the badge is normally ready the moment the search ends (shorter budgets compute it post-search).
 The DP thread count is a pure work knob (identical bound); orchestration changes never bump
-`CERTIFIER_VERSION`. Measurements: `docs/MOST_MASTERIES_PERF_PLAN.md` §8.17–§8.18.
+`CERTIFIER_VERSION`. Measurements: `docs/MOST_MASTERIES_PERF_PLAN.md` §8.17–§8.19.
 
 ---
 
