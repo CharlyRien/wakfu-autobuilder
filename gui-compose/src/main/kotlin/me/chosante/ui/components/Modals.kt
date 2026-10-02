@@ -63,6 +63,7 @@ import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.label
+import me.chosante.ui.i18n.localized
 import me.chosante.ui.i18n.localizedCollator
 import me.chosante.ui.i18n.sortedByLocalized
 import me.chosante.ui.i18n.tr
@@ -783,9 +784,9 @@ private fun SublimationRarity.displayColor(): Color =
 
 private fun SublimationRarity.label(lang: Lang): String =
     when (this) {
-        SublimationRarity.EPIC -> if (lang == Lang.FR) "Épique" else "Epic"
-        SublimationRarity.RELIC -> if (lang == Lang.FR) "Relique" else "Relic"
-        SublimationRarity.NORMAL -> if (lang == Lang.FR) "Normal" else "Normal"
+        SublimationRarity.EPIC -> localized(lang, "Épique", "Epic", "Épico")
+        SublimationRarity.RELIC -> localized(lang, "Relique", "Relic", "Reliquia")
+        SublimationRarity.NORMAL -> localized(lang, "Normal", "Normal", "Normal")
     }
 
 @Composable

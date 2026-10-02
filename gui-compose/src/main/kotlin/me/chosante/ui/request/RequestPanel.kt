@@ -69,6 +69,7 @@ import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.label
+import me.chosante.ui.i18n.localized
 import me.chosante.ui.i18n.tr
 import me.chosante.ui.state.ItemChip
 import me.chosante.ui.state.StatDef
@@ -492,10 +493,10 @@ private fun RolePreset.label(lang: Lang): String =
 
 private fun SpellElement.label(lang: Lang): String =
     when (this) {
-        SpellElement.FIRE -> if (lang == Lang.FR) "Feu" else "Fire"
-        SpellElement.WATER -> if (lang == Lang.FR) "Eau" else "Water"
-        SpellElement.EARTH -> if (lang == Lang.FR) "Terre" else "Earth"
-        SpellElement.AIR -> if (lang == Lang.FR) "Air" else "Air"
+        SpellElement.FIRE -> Tr.ELEMENT_FIRE.value(lang)
+        SpellElement.WATER -> Tr.ELEMENT_WATER.value(lang)
+        SpellElement.EARTH -> Tr.ELEMENT_EARTH.value(lang)
+        SpellElement.AIR -> Tr.ELEMENT_AIR.value(lang)
     }
 
 @Composable
@@ -1701,20 +1702,18 @@ private val maxMasteryInputSections =
 
 private val allMasteryCharacteristics = specializedMasteryCharacteristics + elementalMasteryCharacteristics
 
-private fun Characteristic.masteryOptionLabel(lang: Lang): String {
-    val fr = lang == Lang.FR
-    return when (this) {
-        Characteristic.MASTERY_ELEMENTARY -> if (fr) "Toutes" else "All"
-        Characteristic.MASTERY_ELEMENTARY_WATER -> if (fr) "Eau" else "Water"
-        Characteristic.MASTERY_ELEMENTARY_FIRE -> if (fr) "Feu" else "Fire"
-        Characteristic.MASTERY_ELEMENTARY_EARTH -> if (fr) "Terre" else "Earth"
-        Characteristic.MASTERY_ELEMENTARY_WIND -> if (fr) "Air" else "Air"
-        Characteristic.MASTERY_DISTANCE -> "Distance"
-        Characteristic.MASTERY_MELEE -> if (fr) "Mêlée" else "Melee"
-        Characteristic.MASTERY_CRITICAL -> if (fr) "Critique" else "Critical"
-        Characteristic.MASTERY_BACK -> if (fr) "Dos" else "Rear"
-        Characteristic.MASTERY_BERSERK -> "Berserk"
-        Characteristic.MASTERY_HEALING -> if (fr) "Soin" else "Healing"
+private fun Characteristic.masteryOptionLabel(lang: Lang): String =
+    when (this) {
+        Characteristic.MASTERY_ELEMENTARY -> localized(lang, "Toutes", "All", "Todas")
+        Characteristic.MASTERY_ELEMENTARY_WATER -> localized(lang, "Eau", "Water", "Agua")
+        Characteristic.MASTERY_ELEMENTARY_FIRE -> localized(lang, "Feu", "Fire", "Fuego")
+        Characteristic.MASTERY_ELEMENTARY_EARTH -> localized(lang, "Terre", "Earth", "Tierra")
+        Characteristic.MASTERY_ELEMENTARY_WIND -> localized(lang, "Air", "Air", "Aire")
+        Characteristic.MASTERY_DISTANCE -> localized(lang, "Distance", "Distance", "Distancia")
+        Characteristic.MASTERY_MELEE -> localized(lang, "Mêlée", "Melee", "Cuerpo a cuerpo")
+        Characteristic.MASTERY_CRITICAL -> localized(lang, "Critique", "Critical", "Crítica")
+        Characteristic.MASTERY_BACK -> localized(lang, "Dos", "Rear", "Espalda")
+        Characteristic.MASTERY_BERSERK -> localized(lang, "Berserk", "Berserk", "Berserker")
+        Characteristic.MASTERY_HEALING -> localized(lang, "Soin", "Healing", "Curación")
         else -> label(lang)
     }
-}

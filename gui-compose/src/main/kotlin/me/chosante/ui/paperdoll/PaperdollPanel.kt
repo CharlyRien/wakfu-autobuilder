@@ -1214,7 +1214,7 @@ private fun UiState.hasPinnedRunes(equipment: Equipment?): Boolean = equipment !
 private fun Equipment.localizedName(lang: Lang): String =
     when (lang) {
         Lang.FR -> name.fr.ifBlank { name.en }
-        Lang.EN -> name.en.ifBlank { name.fr }
+        Lang.EN, Lang.ES -> name.en.ifBlank { name.fr }
     }
 
 private fun Equipment.secondaryLine(
@@ -1224,7 +1224,7 @@ private fun Equipment.secondaryLine(
     val secondaryName =
         when (lang) {
             Lang.FR -> name.en
-            Lang.EN -> name.fr
+            Lang.EN, Lang.ES -> name.fr
         }.ifBlank { null }
             ?.takeUnless { it == localizedName(lang) }
     return listOfNotNull(secondaryName, slot.labelKey.value(lang)).joinToString(" · ")
