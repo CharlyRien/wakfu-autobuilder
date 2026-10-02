@@ -108,6 +108,7 @@ internal const val PRODUCT_ABS_MAX = STAT_ABS_MAX * PERCENT_ABS_MAX
 internal const val STAT_WITH_PERCENT_ABS_MAX = STAT_ABS_MAX + (PRODUCT_ABS_MAX / 100) + 10
 internal const val MAX_POWER_TABLE_INDEX = 2_000
 internal const val MAX_PENALTY_MULTIPLIER = 1_000_000L
+internal const val MIN_PENALTY_MULTIPLIER = 1L // floor of every power-table bucket — see [penaltyMultiplier].
 internal const val MAX_NORMAL_SUBLIMATIONS = 10L // Wakfu: at most 10 NORMAL sublimations (one per socketed gear slot).
 internal const val MAX_SUBLIMATIONS_TOTAL = MAX_NORMAL_SUBLIMATIONS + 2L // + 1 epic + 1 relic (dedicated slots) = 12.
 internal const val NORMAL_SUB_SOCKET_COST = 3L // a normal sublimation needs a 3-socket carrier for its ordered colour pattern.
@@ -134,6 +135,43 @@ internal const val EHP_HP_MAX = 1_000_000L
 internal const val EHP_AVG_RESIST_CAP = 80L
 internal const val EHP_MAX = EHP_HP_MAX * (100L + EHP_AVG_RESIST_CAP) / 100L
 internal const val PRECISION_OVERFLOW_BOUND = 1_000_000_000L
+
+/**
+ * Scale of the required-target penalty power table over buckets `0..maxIndex`: `maxIndex⁶ /
+ * MAX_PENALTY_MULTIPLIER` (1 for small tables), so the top bucket maps to ≈ [MAX_PENALTY_MULTIPLIER].
+ */
+internal fun penaltyPowScale(maxIndex: Long): BigInteger {
+    val maxPow = BigInteger.valueOf(maxIndex).pow(6)
+    val target = BigInteger.valueOf(MAX_PENALTY_MULTIPLIER)
+    return if (maxPow > target) maxPow.divide(target) else BigInteger.ONE
+}
+
+/**
+ * The required-target penalty multiplier of bucket [index]: `max(MIN_PENALTY_MULTIPLIER, index⁶ / powScale)`,
+ * [powScale] from [penaltyPowScale]. The ONE definition every mirror shares — the CP-SAT soft objective
+ * ([WakfuBuildSolver.applyConstraintPenalty]), both soft certificates ([MostMasteriesCertificate],
+ * [MaxDamageSoftCertificate]) and their research harnesses — so a certificate can never price a bucket below
+ * the solver (an under-count). The re-scorers cap their continuous factor at [MAX_PENALTY_MULTIPLIER], the same
+ * floor relative to a target-meeting build.
+ *
+ * Why the floor: the integer division maps every bucket with `(index / maxIndex)⁶ < 1 / MAX_PENALTY_MULTIPLIER`
+ * (a weighted target ratio below ~10%) to 0. When the targets were that far out of reach for EVERY build,
+ * `core × 0` made the soft objective flat: the empty build tied the optimum and multi-worker solves returned
+ * it. Flooring at 1 keeps the core's gradient there (those builds rank by the core alone, at ≈1e-6 of a
+ * target-meeting build) and leaves every entry already ≥ 1 — so every objective value outside that region —
+ * bit-identical. The table stays monotone non-decreasing in [index], which the certificates' soundness rests
+ * on (an over-counted bucket never lowers the multiplier).
+ */
+internal fun penaltyMultiplier(
+    index: Long,
+    powScale: BigInteger,
+): Long =
+    BigInteger
+        .valueOf(index)
+        .pow(6)
+        .divide(powScale)
+        .toLong()
+        .coerceAtLeast(MIN_PENALTY_MULTIPLIER)
 
 object WakfuBuildSolver {
     private val logger = KotlinLogging.logger {}
@@ -214,8 +252,14 @@ object WakfuBuildSolver {
      * soft certificate gets the same low-read fixes (signed AP + MAX_AP, start-of-combat lines out of
      * the LOW dims, low-read/block-only subs kept), the outside-read constants (assume worlds, critZero
      * arm), the Major AP point always staged, and a bail on secondary lines outside the first-turn read.
+     * 39: the required-target penalty multiplier is floored at 1 ([penaltyMultiplier]) in the solver AND
+     * both soft certificates (MM `PenaltyGeometry.power6`, the max-damage collapse table and
+     * `PenaltyProfile.multiplier`): buckets whose `index⁶ / powScale` floored to 0 (weighted target ratio
+     * below ~10%) now price `core × 1` instead of 0 — the soft objective was flat there, so the empty build
+     * tied the optimum. Entries already ≥ 1 are unchanged (bounds outside that region are bit-identical),
+     * but every cached soft bound/union priced those states at 0 — an under-count against the new objective.
      */
-    const val CERTIFIER_VERSION: Int = 38
+    const val CERTIFIER_VERSION: Int = 39
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
@@ -3652,8 +3696,9 @@ object WakfuBuildSolver {
      *
      * Because the table is normalised so the at-or-above-floor bucket maps to [MAX_SURVIVABILITY_MULTIPLIER]
      * and we divide the product back out by that same max, meeting the floor is an exact no-op
-     * (`score · max / max = score`) and missing it scales the score down by `bucket^2 / maxIndex^2` — a
-     * smooth soft tax that vanishes at the floor. The result is clamped back onto [DAMAGE_PERTURN_ABS_MAX]
+     * (`score · max / max = score`) and missing it scales the score down by `bucket^2 / maxIndex^2` (at
+     * most ×1/[MAX_SURVIVABILITY_MULTIPLIER] — the table is floored at 1, so a hopeless floor still ranks
+     * builds by damage) — a smooth soft tax that vanishes at the floor. The result is clamped back onto [DAMAGE_PERTURN_ABS_MAX]
      * so downstream bounds are unchanged.
      */
     private fun CpModel.applySurvivabilityFloor(
@@ -3696,8 +3741,10 @@ object WakfuBuildSolver {
      * Wraps a build-dependent [coreScore] (mastery sum or expected damage) with the required-target
      * shortfall penalty: when no required targets exist the core score is the objective; otherwise it
      * is multiplied by a power-6 penalty multiplier driven by how fully the AP/MP/range/… constraints
-     * are met. Returns the penalized objective var and the absolute bound of its domain — the latter is
-     * what the most-masteries overshoot tie-breaker needs. [coreScoreAbsMax] bounds the result.
+     * are met — floored at 1 ([penaltyMultiplier]), so a request whose targets are far out of reach for
+     * every build still ranks builds by their core instead of collapsing to a flat 0. Returns the
+     * penalized objective var and the absolute bound of its domain — the latter is what the
+     * most-masteries overshoot tie-breaker needs. [coreScoreAbsMax] bounds the result.
      */
     private fun CpModel.applyConstraintPenalty(
         params: WakfuBestBuildParams,
@@ -3720,7 +3767,7 @@ object WakfuBuildSolver {
         val totalActualScoreForPenalty = maxVar(totalActualScore, 1L, totalExpectedScore, "totalActualScoreForPenalty")
 
         val (indexVar, maxIndex) = bucketedIndex(totalActualScoreForPenalty, totalExpectedScore)
-        val powerTable = buildPowerTable(maxIndex.toLong(), coreScoreAbsMax)
+        val powerTable = buildPowerTable(maxIndex.toLong())
 
         val multiplier = newIntVar(0, powerTable.maxValue, "penaltyMultiplier")
         addElement(indexVar, powerTable.values, multiplier)
@@ -3784,7 +3831,7 @@ object WakfuBuildSolver {
         val totalActualScore = statBuilder.totalActualScore(requiredTargets, totalExpectedScore, targetStats)
         val totalActualScoreForPenalty = maxVar(totalActualScore, 1L, totalExpectedScore, "totalActualScoreForPenalty")
         val (indexVar, maxIndex) = bucketedIndex(totalActualScoreForPenalty, totalExpectedScore)
-        val powerTable = buildPowerTable(maxIndex.toLong(), coreAbsMax)
+        val powerTable = buildPowerTable(maxIndex.toLong())
         geometryProbe?.invoke(maxIndex, powerTable.values, totalExpectedScore)
 
         val lo = interval.first.coerceIn(0, maxIndex).toLong()
@@ -4437,27 +4484,10 @@ object WakfuBuildSolver {
         return bucketVar to maxIndex
     }
 
-    private fun buildPowerTable(
-        maxIndex: Long,
-        maxMasteryAbs: Long,
-    ): PowerTable {
-        val maxMultiplierTarget = MAX_PENALTY_MULTIPLIER
-        val maxPow = BigInteger.valueOf(maxIndex).pow(6)
-        val powScale =
-            if (maxPow > BigInteger.valueOf(maxMultiplierTarget)) {
-                maxPow.divide(BigInteger.valueOf(maxMultiplierTarget))
-            } else {
-                BigInteger.ONE
-            }
-
-        val table =
-            LongArray(maxIndex.toInt() + 1) { index ->
-                BigInteger
-                    .valueOf(index.toLong())
-                    .pow(6)
-                    .divide(powScale)
-                    .toLong()
-            }
+    /** The required-target power table over buckets `0..maxIndex` — every entry is [penaltyMultiplier]'s, floor included. */
+    private fun buildPowerTable(maxIndex: Long): PowerTable {
+        val powScale = penaltyPowScale(maxIndex)
+        val table = LongArray(maxIndex.toInt() + 1) { index -> penaltyMultiplier(index.toLong(), powScale) }
 
         return PowerTable(
             values = table,
@@ -4470,6 +4500,8 @@ object WakfuBuildSolver {
      * the top bucket equals [MAX_SURVIVABILITY_MULTIPLIER]. Like [buildPowerTable] but with the much
      * smaller power-2 exponent, so the implied damage tax for missing the EHP floor stays mild (a build at
      * half the floor keeps ~1/4 of its score from this factor) instead of the near-veto a power-6 imposes.
+     * Floored at 1 like [penaltyMultiplier]: a floor far above every build's EHP (< ~3% reached) mapped every
+     * bucket to 0 and flattened the damage objective — the empty build tied the optimum.
      */
     private fun buildGentlePowerTable(maxIndex: Long): PowerTable {
         if (maxIndex <= 0) return PowerTable(longArrayOf(MAX_SURVIVABILITY_MULTIPLIER), MAX_SURVIVABILITY_MULTIPLIER)
@@ -4484,6 +4516,7 @@ object WakfuBuildSolver {
                     .pow(SURVIVABILITY_PENALTY_POWER)
                     .divide(powScale)
                     .toLong()
+                    .coerceAtLeast(MIN_PENALTY_MULTIPLIER)
             }
         return PowerTable(values = table, maxValue = table.last().coerceAtLeast(1L))
     }

@@ -426,9 +426,10 @@ class MostMasteriesBoundPrototypeTest {
      * build tops out at base 6 + the Major point), the hard leg is INFEASIBLE and the production
      * orchestration must fall back to the soft (penalized) model and still deliver a final build —
      * never an empty flow. Runs the REAL production path (wall-clock), so the pool is tiny and the
-     * duration short. The target must stay within ~10× of reach: a wildly unreachable one (AP 99)
-     * floors every power-6 multiplier to 0, so the soft objective is flat, the empty build ties the
-     * optimum, and 2-3 worker solves returned it ~2/3 of the time (how this test flaked on CI).
+     * duration short. A wildly unreachable target (AP 99) used to floor every power-6 multiplier to 0
+     * — a flat soft objective whose empty build tied the optimum, returned by ~2/3 of the 2-3 worker
+     * solves (how this test flaked on CI). The multiplier is now floored at 1; that far-out-of-reach
+     * shape is locked by [SoftPenaltyFloorTest].
      */
     @Test
     fun `P2a falls back to the soft model when targets are unreachable`(): Unit =
