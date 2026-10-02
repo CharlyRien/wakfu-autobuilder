@@ -319,9 +319,10 @@ internal object MostMasteriesCertificate {
             require(rangeCap <= 0x1F) { "rangeCap $rangeCap overflows the 5-bit range field" }
         }
 
-        // Packed key: range(5b @56) soc(7b @49) block(4b @45) ramp(1b @44) mpMinus(1b @43) d(13b @28)
+        // Packed key: lowExt(2b @61) range(5b @56) soc(7b @49) block(4b @45) ramp(1b @44) mpMinus(1b @43) d(13b @28)
         //             ap(5b @23) mp(5b @18) cc(7b @11) hp(9b @2) e(1b @1) r(1b @0)
-        // (bit 63 stays clear: LongLongMaxMap reserves Long.MIN_VALUE as its empty slot.)
+        // (lowExt: the assume worlds' LOW dim high bits — see [lowOff]. Bit 63 stays clear: LongLongMaxMap reserves
+        // Long.MIN_VALUE as its empty slot.)
         fun key(
             d: Int,
             ap: Int,
@@ -367,6 +368,58 @@ internal object MostMasteriesCertificate {
         fun range(k: Long): Int = ((k shr 56) and 0x1F).toInt()
 
         fun mpCapOf(mpMinus: Int): Int = (mpCap - mpMinus).coerceAtLeast(0)
+
+        // A1 fix (CERTIFIER_VERSION 50) — the assume world's LOW dim is stored OFFSET: `dim = LOW read + lowOff`.
+        // The real pre-combat read can go NEGATIVE (the solver floors the pre-sub sheet at −9 only: a −10-crit ring
+        // staged first), and flooring the dim at 0 RAISED it above the real read — the real carrier was rejected in
+        // its own world (an under-count). [raiseLowOff] grows the offset by each stage's worst negative delta before
+        // the stage runs, so no transition ever needs a floor; the saturation one past the threshold moves with it.
+        var lowOff: Int = 0
+
+        // The LOW dim's packed field: the AP (5 bits) or CC (7 bits) field EXTENDED by the 2 spare key bits @61 — the
+        // offset needs the room (lowOff 118 on the level-245 catalog: every slot has a −5..−30 crit item).
+        val lowBaseBits: Int = if (assumeApThreshold >= 0) 5 else 7
+
+        /** The LOW dim's largest storable value (7-bit AP / 9-bit raw CC), 0 outside the assume worlds. */
+        val lowFieldMax: Int = if (assumeApThreshold >= 0 || assumeCcThresholdRaw >= 0) (1 shl (lowBaseBits + 2)) - 1 else 0
+
+        /** The LOW dim's saturation WITHOUT the offset (one past the threshold, within the dim's cap). */
+        val lowSatBase: Int =
+            when {
+                assumeApThreshold >= 0 -> (assumeApThreshold + 1).coerceAtMost(apCap)
+                assumeCcThresholdRaw >= 0 -> (assumeCcThresholdRaw + 1).coerceAtMost(ccBucketCap)
+                else -> 0
+            }
+
+        /** The stored LOW dim (offset included): the base field plus its 2 extension bits @61. */
+        fun low(k: Long): Int = (if (assumeApThreshold >= 0) ap(k) else cc(k)) or (((k shr 61) and 3L).toInt() shl lowBaseBits)
+
+        /** The LOW read a stored dim stands for (`dim − lowOff`). */
+        fun lowRead(k: Long): Int = low(k) - lowOff
+
+        /** False ⇔ the offset no longer fits the LOW field — the caller must BAIL (never corrupt the key). */
+        fun raiseLowOff(by: Int): Boolean {
+            lowOff += by
+            return lowSatBase + lowOff <= lowFieldMax
+        }
+
+        /** [k] with its LOW dim set to [v] (0 ≤ v ≤ [lowFieldMax]): base field + extension bits. */
+        fun withLow(
+            k: Long,
+            v: Int,
+        ): Long {
+            val shift = if (assumeApThreshold >= 0) 23 else 11
+            val baseMask = (1L shl lowBaseBits) - 1
+            return (k and ((baseMask shl shift) or (3L shl 61)).inv()) or
+                ((v.toLong() and baseMask) shl shift) or
+                ((v.toLong() shr lowBaseBits) shl 61)
+        }
+
+        /** [k] with its LOW dim moved up by [by] (an injective re-key: no two states merge). */
+        fun shiftLow(
+            k: Long,
+            by: Int,
+        ): Long = withLow(k, low(k) + by)
     }
 
     private fun ceilDiv(
@@ -462,9 +515,17 @@ internal object MostMasteriesCertificate {
         // (all higher values fail the collapse filter identically). real ≥ dim on every
         // represented build, which is exactly what the sound condition check needs; the fold
         // credits the capped stat as a constant instead of this dim.
+        // A1: the LOW dim (offset, extended field — see [Geometry.lowOff]); its base bits ride the AP / CC field below.
+        val newLow =
+            when {
+                assumeApThreshold >= 0 -> (low(k) + o.apLow).coerceAtMost(lowSatBase + lowOff)
+                assumeCcThresholdRaw >= 0 -> (low(k) + o.ccLowRaw).coerceAtMost(lowSatBase + lowOff)
+                else -> 0
+            }
         val newAp =
             if (assumeApThreshold >= 0) {
-                (ap(k) + o.apLow).coerceIn(0, (assumeApThreshold + 1).coerceAtMost(apCap))
+                // A1: the LOW dim's base bits (never below 0: [lowOff] covers every stage's worst negative delta).
+                newLow and 0x1F
             } else {
                 (ap(k) + o.ap).coerceAtMost(apCap)
             }
@@ -473,7 +534,7 @@ internal object MostMasteriesCertificate {
                 // RAW signed accumulation (no bucketing): flooring lost small +cc lines and let
                 // phantom carriers slip the condition (+21% measured on S2) — raw is exact, and
                 // the dim saturates at threshold+1 anyway (every higher value fails the filter).
-                (cc(k) + o.ccLowRaw).coerceIn(0, (assumeCcThresholdRaw + 1).coerceAtMost(ccBucketCap))
+                newLow and 0x7F
             } else {
                 (cc(k) + ceilDiv(o.cc, ccStep)).coerceAtMost(ccBucketCap)
             }
@@ -487,22 +548,24 @@ internal object MostMasteriesCertificate {
         // so ceil(buckets × (100+pct) / 100) buckets still over-count the scaled value.
         val hpBuckets =
             if (o.hpPct > 0) ceilDiv(flatHpBuckets * (100 + o.hpPct), 100) else flatHpBuckets
-        return key(
-            nextDi(d(k), o.d),
-            newAp,
-            (mp(k) + o.mp).coerceAtMost(mpEff),
-            newCcBuckets,
-            hpBuckets.coerceAtMost(hpBucketCap),
-            if (o.epic) 1 else e,
-            if (o.relic) 1 else r,
-            newMpMinus,
-            if (o.ramp) 1 else ramp(k),
-            (block(k) + ceilDiv(o.block, BLOCK_STEP)).coerceAtMost(blockBucketCap),
-            // T1: the carried start-of-combat crit, UP-rounded and saturating (an over-count — sound).
-            if (socCap > 0) (soc(k) + ceilDiv(o.ccSoc, socStep)).coerceAtMost(socCap) else 0,
-            // RANGE: raw and saturating at the target — an over-count of `min(real range, target)`.
-            (range(k) + o.range).coerceAtMost(rangeCap)
-        )
+        val packed =
+            key(
+                nextDi(d(k), o.d),
+                newAp,
+                (mp(k) + o.mp).coerceAtMost(mpEff),
+                newCcBuckets,
+                hpBuckets.coerceAtMost(hpBucketCap),
+                if (o.epic) 1 else e,
+                if (o.relic) 1 else r,
+                newMpMinus,
+                if (o.ramp) 1 else ramp(k),
+                (block(k) + ceilDiv(o.block, BLOCK_STEP)).coerceAtMost(blockBucketCap),
+                // T1: the carried start-of-combat crit, UP-rounded and saturating (an over-count — sound).
+                if (socCap > 0) (soc(k) + ceilDiv(o.ccSoc, socStep)).coerceAtMost(socCap) else 0,
+                // RANGE: raw and saturating at the target — an over-count of `min(real range, target)`.
+                (range(k) + o.range).coerceAtMost(rangeCap)
+            )
+        return if (lowFieldMax > 0) withLow(packed, newLow) else packed
     }
 
     /** Transitions below this stay single-threaded (thread + merge overhead beats the gain). */
@@ -1086,33 +1149,43 @@ internal object MostMasteriesCertificate {
         }
 
         val baseValues = params.character.baseCharacteristicValues
+        // A1: a negative LOW seed opens the offset instead of being floored at 0 (see [Geometry.lowOff]).
+        val seedLow =
+            when {
+                geo.assumeApThreshold >= 0 -> baseValues[Characteristic.ACTION_POINT] ?: 0
+                geo.assumeCcThresholdRaw >= 0 -> baseValues[Characteristic.CRITICAL_HIT] ?: 0
+                else -> 0
+            }
+        if (seedLow < 0 && !geo.raiseLowOff(-seedLow)) return null
+        val seedLowDim = (seedLow + geo.lowOff).coerceAtMost(geo.lowSatBase + geo.lowOff)
         var states = HashMap<Long, Long>()
-        states[
+        val seedKey =
             geo.key(
                 0,
-                // Assume-AP worlds seed the AP dim with the SIGNED base (LOW semantics); otherwise
-                // the usual saturating positive read. Same split for CC (floor vs ceil bucketing).
-                (baseValues[Characteristic.ACTION_POINT] ?: 0).coerceIn(0, geo.apCap),
+                // Assume-AP worlds seed the AP dim with the SIGNED base (LOW semantics, offset); otherwise
+                // the usual saturating positive read. Same split for CC (raw signed vs ceil bucketing).
+                if (geo.assumeApThreshold >= 0) seedLowDim and 0x1F else (baseValues[Characteristic.ACTION_POINT] ?: 0).coerceIn(0, geo.apCap),
                 (baseValues[Characteristic.MOVEMENT_POINT] ?: 0).coerceIn(0, geo.mpCap),
-                (
-                    if (geo.assumeCcThresholdRaw >= 0) {
-                        (baseValues[Characteristic.CRITICAL_HIT] ?: 0)
-                    } else {
-                        ceilDiv((baseValues[Characteristic.CRITICAL_HIT] ?: 0).coerceAtLeast(0), ccStep)
-                    }
-                ).coerceIn(0, geo.ccBucketCap),
+                if (geo.assumeCcThresholdRaw >= 0) {
+                    seedLowDim and 0x7F
+                } else {
+                    ceilDiv((baseValues[Characteristic.CRITICAL_HIT] ?: 0).coerceAtLeast(0), ccStep).coerceAtMost(geo.ccBucketCap)
+                },
                 ceilDiv((baseValues[Characteristic.HP] ?: 0).coerceAtLeast(0), hpStep).coerceAtMost(geo.hpBucketCap),
                 0,
                 0,
                 block = ceilDiv((baseValues[Characteristic.BLOCK_PERCENTAGE] ?: 0).coerceAtLeast(0), BLOCK_STEP).coerceAtMost(geo.blockBucketCap),
                 range = (baseValues[Characteristic.RANGE] ?: 0).coerceIn(0, geo.rangeCap)
             )
-        ] = 0L
+        states[if (geo.lowFieldMax > 0) geo.withLow(seedKey, seedLowDim) else seedKey] = 0L
 
-        // Provenance retention + the single stage-advance helper.
-        val stageLog = if (provenance) mutableListOf<Triple<String, HashMap<Long, Long>, List<Opt>>>() else null
+        // Provenance retention + the single stage-advance helper. Each entry keeps the stage's [Geometry.lowOff]
+        // (the replay re-applies the stage's options under it).
+        val stageLog = if (provenance) mutableListOf<StageRecord>() else null
 
         var cancelled = false
+        // A1: set when the LOW-dim offset outgrows its packed field — the world bails (null), never corrupts a key.
+        var lowOverflow = false
 
         fun step(
             label: String,
@@ -1130,7 +1203,23 @@ internal object MostMasteriesCertificate {
             // ring-pair list is skipped — it is millions long and already pruned per pair.
             val effective =
                 if (pruneDominatedOptions && allowed.size in 2..PARETO_PRUNE_MAX_OPTIONS) paretoPrune(allowed) else allowed
-            stageLog?.add(Triple(label, HashMap(states), effective))
+            // A1: open the LOW-dim offset by this stage's worst negative delta FIRST, so no transition floors the
+            // dim at 0 (exact, monotone; Pareto pruning keeps the min — a dominator's LOW delta is ≤).
+            if (geo.lowFieldMax > 0) {
+                val worst = effective.minOfOrNull { if (geo.assumeApThreshold >= 0) it.apLow else it.ccLowRaw } ?: 0
+                if (worst < 0) {
+                    if (!geo.raiseLowOff(-worst)) {
+                        lowOverflow = true
+                        cancelled = true
+                        states = HashMap()
+                        return
+                    }
+                    val shifted = HashMap<Long, Long>(states.size * 2)
+                    for ((k, v) in states) shifted[geo.shiftLow(k, -worst)] = v
+                    states = shifted
+                }
+            }
+            stageLog?.add(StageRecord(label, HashMap(states), effective, geo.lowOff))
             states = geo.apply(states, effective, parallelism())
         }
 
@@ -1855,7 +1944,11 @@ internal object MostMasteriesCertificate {
 
         // Increment 8: EPIC/RELIC subs land after every other block source (items/normal subs/skills).
         epicRelicStages?.invoke()
-        if (cancelled) return null
+        if (cancelled) {
+            if (debug && lowOverflow) println("MM_M3V2_LOW_OFFSET_OVERFLOW lowOff=${geo.lowOff} world=${worldAssume?.name?.fr}")
+            return null
+        }
+        if (debug && geo.lowFieldMax > 0) println("MM_M3V2_LOW_OFFSET lowOff=${geo.lowOff} sat=${geo.lowSatBase + geo.lowOff}/${geo.lowFieldMax} world=${worldAssume?.name?.fr}")
 
         // Collapse: mirror applyConstraintPenalty/bucketedIndex/buildPowerTable arithmetic exactly
         // (shared with [fullTargetsMultiplier], so the hard-leg unit conversion can never drift).
@@ -1931,8 +2024,8 @@ internal object MostMasteriesCertificate {
             // self-exclusion built in: the assumed sub was never staged) must stay ≤ the threshold.
             if (worldAssume != null) {
                 if (geo.e(k) == 0) continue
-                if (geo.assumeApThreshold >= 0 && geo.ap(k) > geo.assumeApThreshold) continue
-                if (geo.assumeCcThresholdRaw >= 0 && geo.cc(k) > geo.assumeCcThresholdRaw) continue
+                if (geo.assumeApThreshold >= 0 && geo.lowRead(k) > geo.assumeApThreshold) continue
+                if (geo.assumeCcThresholdRaw >= 0 && geo.lowRead(k) > geo.assumeCcThresholdRaw) continue
             }
             // Increment 6: the deferred MP→DI ramp lands here at the PATH's own MP (the dim
             // over-counts real MP and contribution() is monotone — sound).
@@ -2010,7 +2103,8 @@ internal object MostMasteriesCertificate {
                 fun describe() =
                     "M=${mv + assumedOpt.m + extra.m} d=${geo.d(k) * diStep}+ramp$rampDi ap=${geo.ap(k)} mp=${geo.mp(k)} " +
                         "cc=${geo.cc(k) * ccStep} soc=${geo.soc(k) * geo.socStep} hp=${geo.hp(k) * hpStep} range=${geo.range(k)} " +
-                        "e=${geo.e(k)} r=${geo.r(k)} assume=${worldAssume?.name?.fr ?: "-"}$tag mpMinus=${geo.mpMinus(k)} core=$core"
+                        "e=${geo.e(k)} r=${geo.r(k)} assume=${worldAssume?.name?.fr ?: "-"}$tag mpMinus=${geo.mpMinus(k)} core=$core" +
+                        (if (geo.lowFieldMax > 0) " lowRead=${geo.lowRead(k)} lowOff=${geo.lowOff}" else "")
                 if (core > bestCore) bestCore = core
                 if (fold.folded > bestFolded) {
                     bestFolded = fold.folded
@@ -2044,7 +2138,8 @@ internal object MostMasteriesCertificate {
         if (provenance && stageLog != null && bindingState.isNotEmpty()) {
             var curK = bindingKey
             var curM = bindingM
-            for ((label, preMap, options) in stageLog.reversed()) {
+            for ((label, preMap, options, stageLowOff) in stageLog.reversed()) {
+                geo.lowOff = stageLowOff
                 var found = false
                 outer@ for ((pk, pm) in preMap) {
                     for (o in options) {
@@ -2081,6 +2176,14 @@ internal object MostMasteriesCertificate {
             hardBindingState = hardBindingState
         )
     }
+
+    /** One provenance-log entry: a stage's label, its pre-stage states, its options and the LOW-dim offset it ran under. */
+    private data class StageRecord(
+        val label: String,
+        val preMap: HashMap<Long, Long>,
+        val options: List<Opt>,
+        val lowOff: Int,
+    )
 
     /** One collapse fold of a state: its core, its SOFT folded value, and whether its reads meet every required target > 0. */
     private class Fold(

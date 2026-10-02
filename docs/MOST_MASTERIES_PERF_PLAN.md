@@ -1402,6 +1402,45 @@ the rune model — objective-neutral, a blank socket for the certificate.
 - **Not done** (stopped for budget): P3 (ring / weapon pair options built once per proof — a superset build + per-world
   projection and re-prune, exact as a set; prototyped, unmeasured); the 4-core production run of the GUI default.
 
+### 8.21 FIXED (2026-10-02, CERTIFIER_VERSION 50): A1 — the assume worlds' LOW dims are no longer floored at 0
+
+The soundness bug A1 (`perf-review-backlog.md` §E). An assume world (Constance / Mesure III: `CRIT ≤ t`; Inflexibilité:
+`AP ≤ t`) tracks the capped stat in a LOW dim that must stay ≤ the real pre-combat read. Every transition clamped it at
+0, and so did the seed. The real read goes negative, because the solver floors the pre-sub sheet at −9 only. Example: a
+−10-crit ring staged first, then +12: the dim read 12 > 10 while the real read was 5, so the real Constance carrier was
+rejected in its own world. The soft read and the targets-met read were both affected, in this certificate and in its
+max-damage soft twin (`MaxDamageSoftCertificate`).
+
+- **Fix (both certificates).** The LOW dim is stored with an OFFSET: `dim = LOW read + lowOff`. `step()` grows `lowOff`
+  by each stage's worst negative LOW delta (items, ring / weapon pairs, the normal knapsack's aggregate, sub stages,
+  skills; the seed too) and re-keys the states before the stage runs, so no transition needs a floor. The saturation
+  moves with it (`threshold + 1 + lowOff`), and the collapse filters `dim − lowOff > threshold`. The provenance log keeps
+  each stage's offset for the replay.
+- **Field width.** The level-245 catalog has a −5…−30 crit item in nearly every slot: `lowOff` reaches 118 (Constance:
+  129, Mesure III: 169 of the field). That overflows the 7-bit CC field, and a bail would have dropped the crit worlds
+  on every level ≥ 140 request. The LOW dim therefore takes the key's 2 spare bits @61, giving AP 7 bits and raw CC 9
+  bits (≤ 511). A world whose offset still outgrows the field bails (pool-dependent, so it is not a `requestShape`
+  bail). Measured with no bail on S2, the GUI default and a CC-40 request at levels 50 / 110 / 140 / 200 / 245.
+- **Exactness of the Pareto pruning (P2).** `Opt.dominates` compares the LOW dims with `≤`. A dominator's LOW delta is
+  ≤, so the stage minimum (the offset) is the same with or without pruning. The bit-identity lock gains a seventh case:
+  MP 5 + CC 30 on a pool variant with −1…−10 crit lines. Injecting them into every shape pushed the unpruned four-target
+  reference past a 512 MB CI heap.
+- **Effect.**
+
+  | case | before (v48) | after (v50) |
+  |---|---|---|
+  | 3-item repro (core) | 3 102 (−15.4 %; badge ProvenOptimal on the no-sub build) | 3 666 = optimum (ProvenWithin 18.2 %) |
+  | real catalog, Mesure III excluded (soft = targets-met) | 44 715 584 559 999 (−7.1 %) | 48 155 244 909 999 (optimum 48 155 244 901 818) |
+  | real level-245 items with Tyra 'neau (both reads) | 73 180 020 209 999 (−0.81 %) | 76 809 111 129 999 (+4.1 %) |
+  | max-damage soft twin, production setting | 1 394 410 000 000 (−4.8 %) | 1 593 100 000 000 (+8.7 %) |
+  | S2 soft / targets-met, S3 | 80 090 257 809 999 / 76 320 000 009 999, 11 737 | **bit-identical** (S3's Constance world 11 729 → 11 737) |
+
+  No pinned figure moved, so nothing was re-banked. Cost (per-world harness, 4 cores, 3 reps): S2 overall 22.4–28.4 s
+  vs 21.0–31.8 s on v48, within noise. S2's final state count is 67 k → 240 k, because the crit worlds no longer merge
+  their sub-zero states. S3 is unchanged (2.4–3.7 s).
+- **Locks.** In `SoundnessReviewAdversarialTest`, the four A1 repros are now CI locks (each runs in under 1 s) and the
+  control stays. The pruning lock gains its seventh case.
+
 ## 9. CAMPAIGN — the S4 D·Graw certificate (max-damage soft leg; maintainer GO 2026-07-14)
 
 **Context for resumption.** After the review-fix wave (`902fa393..f97cef60`) the MM certificate is

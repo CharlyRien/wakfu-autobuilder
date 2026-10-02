@@ -915,7 +915,8 @@ class MostMasteriesCertificateTest {
      * epic/relic items, signed AP and −MAX_AP lines, block, 0-2 sockets) with the real sub catalog and runes,
      * × six target shapes × both tiers. No CP-SAT; the UNPRUNED reference DP is the cost (~1 s per case), so CI
      * runs 4 seeds — `WAKFU_MM_PRUNE_LOCK_SEEDS=8` reproduces the 64-case screen the pruning shipped with (four
-     * shapes then; the fifth, plan §8.18, exercises the T5/T1/T3 regions; the sixth, plan §8.20, the RANGE dim).
+     * shapes then; the fifth, plan §8.18, exercises the T5/T1/T3 regions; the sixth, plan §8.20, the RANGE dim; the
+     * seventh, A1, negative crit lines on a pool variant — the offset LOW dim).
      */
     @Test
     fun `stage-option pruning is bit-identical on seeded random pools`() {
@@ -1027,7 +1028,26 @@ class MostMasteriesCertificateTest {
                             )
                         }
                     }.groupBy { it.itemType }
-            for ((shapeIndex, targets) in shapes.withIndex()) {
+            // A1 (CERTIFIER_VERSION 50): a seventh shape on a pool variant with NEGATIVE crit lines (the catalog's −10
+            // rings) — they drive the assume-CC worlds' LOW dim below the real 0 (the offset path) and exercise the ≤
+            // direction of [Opt.dominates] on it. Own stream and its own CC-only shape: the other shapes keep their
+            // exact pools (the four-target shape's UNPRUNED reference on this variant leaves a CI heap).
+            val negCritRng = java.util.Random(seed * 2_000_003L)
+            val negCritPool =
+                pool.mapValues { (_, items) ->
+                    items.map { e ->
+                        if (negCritRng.nextInt(3) == 0) {
+                            e.copy(characteristics = e.characteristics + (Characteristic.CRITICAL_HIT to -(1 + negCritRng.nextInt(10))))
+                        } else {
+                            e
+                        }
+                    }
+                }
+            val cases =
+                shapes.map { it to pool } +
+                    (listOf(TargetStat(Characteristic.MOVEMENT_POINT, 5), TargetStat(Characteristic.CRITICAL_HIT, 30)) to negCritPool)
+            for ((shapeIndex, case) in cases.withIndex()) {
+                val (targets, casePool) = case
                 val p =
                     WakfuBestBuildParams(
                         character = Character(CharacterClass.CRA, 200, 0, CharacterSkills(200)),
@@ -1045,7 +1065,7 @@ class MostMasteriesCertificateTest {
                     fun boundOf(prune: Boolean) =
                         MostMasteriesCertificate.bound(
                             p,
-                            pool,
+                            casePool,
                             WakfuBestBuildFinderAlgorithm.runes,
                             WakfuBestBuildFinderAlgorithm.sublimations,
                             blockGate = blockGate,
@@ -1068,7 +1088,7 @@ class MostMasteriesCertificateTest {
                 }
             }
         }
-        assertThat(compared).isEqualTo(seeds.toInt() * shapes.size * 2)
+        assertThat(compared).isEqualTo(seeds.toInt() * (shapes.size + 1) * 2)
         assertThat(mismatches).describedAs("EXACTNESS — pruning dominated stage options must never move a bound").isEmpty()
     }
 
