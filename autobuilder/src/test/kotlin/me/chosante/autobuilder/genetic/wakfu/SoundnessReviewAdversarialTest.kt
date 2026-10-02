@@ -457,9 +457,9 @@ class SoundnessReviewAdversarialTest {
 
     // ------------------------------------------------------------------------------------------------------------
     // SEED MIXING for both manual fuzzers (opt-in):  WAKFU_REVIEW_MIX_SEED=1
-    // A fuzz case draws its level FIRST, `java.util.Random(seed).nextInt(4)`. With a power-of-two bound that is the top
-    // 2 bits of the first next(31), which consecutive seeds barely move — runs of up to ~2 000 seeds share a level: md
-    // seeds 8704–10239 ALL draw level 230 (so the review's "400 pools from seed 9000" covered one level), mm seeds
+    // A fuzz case draws its level FIRST, `java.util.Random(seed).nextInt(4)`. A power-of-two bound makes that the top 2
+    // bits of the first next(31), and consecutive seeds barely move those — runs of up to ~2 000 seeds share a level:
+    // md seeds 8704–10239 ALL draw level 230 (so the review's "400 pools from seed 9000" covered one level), mm seeds
     // 7000–7399 only 110 / 200, never 245. The knob seeds the Random with `SplittableRandom(seed).nextLong()`
     // (SplitMix64) instead, so a run of consecutive seeds covers every level (md 9000–9399: 50/110/170/230 =
     // 120/95/86/99).
