@@ -1060,6 +1060,22 @@ and the multi-worker search keeps its early stop. Commands: `MaxDamageFlagshipCo
 WAKFU_FLAG_CONTENTION with WAKFU_FLAG_CONT_VARIANTS=normalOnly,full); the v40 rows ran the same harness against an
 export of the base sources.
 
+### P5.5 — B1: the paired Major MP point (2026-10-02, CERTIFIER_VERSION 49)
+
+**Under-count** (`docs/perf-review-backlog.md` §E, B1): with an MP→DI ramp modeled (Poids Plume III, choosable by
+default) the skill-branch cells kept only pure-MP vars on the mp axis and only MP-free vars in the graw fill, so the
+paired Major "Movement Point and damage" point (+1 MP AND +20 mastery) was dropped by the fast, tier-1.5, exact and
+explain passes (−5.3 % on the repro's AP-6 cell; a ProvenOptimal on a build 3.8 % below the optimum).
+
+**Fix:** one shared split (`mpGrawSplits`) enumerates every point count of MP+graw vars (MP on the mp axis, graw at
+the pass's fold crit) in all four builders; the zero-point split is the old cell, so cells can only rise. The extra
+Pareto points cost the CRA 245 warm-up-shaped ledger 93.4 s → 131.7 s (1 thread, 4-core profile, one sandbox machine),
+so a value-exact MP clamp follows the skill stages: mp is read by the ramps only and a ramp saturates, so MP beyond
+every ramp's saturation (later sub debits counted) is rewritten to the clamp — 93.5 s again (110: 18.0–18.5 s vs
+18.8 s); A/B seam `CertifierTuning.mpSaturationClampEnabled`. The nightly lvl-245 fast oracle rose 0.30–3.44 % on
+cells 2–15 (max cell 16 unchanged) and was re-banked. Locks in `SoundnessReviewAdversarialTest`: the ungated B1 repro,
+the Poids Plume fuzz (seeds red on v48) and the clamp equality lock.
+
 ### P4 badge robustness follow-ups (post-review, 2026-07-03)
 
 - **Wrong-badge fix**: `BuildSearchModel.loadBuild` reset neither `proofState` nor `proofJob`, so a prior

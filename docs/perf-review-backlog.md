@@ -1224,13 +1224,13 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
   tier lands 0.9 % under the bound, and the fallback found nothing in det-300 either — most likely a loose bound) now
   gives up at the cap, 60.5 s instead of 269 s.
   No bound changed ⇒ `CERTIFIER_VERSION` untouched; locked by `E8ConstructGateTest`.
-- **⚠️ OPEN SOUNDNESS BUGS (found 2026-10-02 by the adversarial review of the v41–v44 wave; NOT fixed — next
-  session).** Both bugs are certificate UNDER-counts, so the affected badge ("proven optimal" / "proven within X %")
-  can be WRONG. Both already exist at v40, i.e. in the shipped 1.11. The review found no under-count introduced by
-  v41–v44 (MM: 358 cases; max-damage: 400 pools, 4 646 cell comparisons).
-  - Reproductions: `SoundnessReviewAdversarialTest`. The failing tests (each runs in under a second) are gated by
+- **⚠️ OPEN SOUNDNESS BUGS (found 2026-10-02 by the adversarial review of the v41–v44 wave; B1 ✅ FIXED in
+  CERTIFIER_VERSION 49, A1 still OPEN).** Both bugs are certificate UNDER-counts, so the affected badge ("proven
+  optimal" / "proven within X %") can be WRONG. Both already exist at v40, i.e. in the shipped 1.11. The review found
+  no under-count introduced by v41–v44 (MM: 358 cases; max-damage: 400 pools, 4 646 cell comparisons).
+  - Reproductions: `SoundnessReviewAdversarialTest`. A1's failing tests (each runs in under a second) are gated by
     `WAKFU_SOUNDNESS_REVIEW=1` so the default suite stays green. After the fix, promote them to CI locks and bump
-    `CERTIFIER_VERSION`.
+    `CERTIFIER_VERSION` (B1's is a CI lock since v49).
   - The file also holds manual fuzzers: `WAKFU_REVIEW_MM_FUZZ`, `WAKFU_REVIEW_MD_FUZZ` and their case replays.
   - **A1 — the assume worlds' LOW dims are floored at 0 after every stage.**
     - Where: `MostMasteriesCertificate` (the `ccLowRaw` / AP-low transitions `.coerceIn(0, thr + 1)` and the clamped
@@ -1245,7 +1245,11 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
       `compareMostMasteriesQuality` awards ProvenOptimal to the wrong build; −4.8 % on the soft twin.
     - Fix: store the LOW dims with an offset, as `MaxDamageCertifier` does with `apOff` / `critOff` (the sum of the
       worst negative LOW deltas, knapsack included), or bail when the negative LOW mass can push the sum below 0.
-  - **B1 — the paired Major skill "Movement Point and damage" is dropped when an MP→DI ramp sub is modeled.**
+  - **B1 — ✅ FIXED (CERTIFIER_VERSION 49) — the paired Major skill "Movement Point and damage" is dropped when an
+    MP→DI ramp sub is modeled.**
+    - Fixed (v49): MP+graw skill vars get their own exact split (`mpGrawSplits`) in the fast, tier-1.5, exact and
+      explain passes (repro cells now = CP-SAT), plus a value-exact MP saturation clamp that keeps the ledger at v48
+      speed. CI locks in `SoundnessReviewAdversarialTest`; details in `docs/CERTIFICATE_PROD_PLAN.md` P5.5.
     - Where: `MaxDamageCertifier` fast / exact / explain paths, triggered by `mpRampEnabled`.
     - Why it under-counts: `mpVars` keeps only pure-MP skill vars and `grawVars` only the vars without MP, so the
       paired var (+1 MP, +20 mastery) is in neither list.
