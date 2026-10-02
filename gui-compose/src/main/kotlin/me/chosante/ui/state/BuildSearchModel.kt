@@ -145,6 +145,14 @@ class BuildSearchModel(
             .toString()
     },
     private val clock: () -> Long = { System.currentTimeMillis() },
+    // E8 rescue after a ProvenWithin verdict: CONSTRUCT the proven optimum from the certificate (a failing attempt can
+    // take up to a minute). Injectable like [optimalityProver], so tests drive the badge-first / upgrade-later order
+    // deterministically instead of running the real engine.
+    private val provenOptimumConstructor: (WakfuBestBuildParams, SolverResult<BuildCombination>, () -> Boolean) -> SolverResult<BuildCombination>? =
+        { params, result, isCancelled -> WakfuBestBuildFinderAlgorithm.constructMaxDamageProvenOptimum(params, result, isCancelled) },
+    // Silent per-carrier refinement behind a soft-leg ProvenWithin badge (minutes) — injectable for the same reason.
+    private val proofRefiner: (WakfuBestBuildParams, SolverResult<BuildCombination>, () -> Boolean) -> MaxDamageSearch.MaxDamageProof? =
+        { params, result, isCancelled -> WakfuBestBuildFinderAlgorithm.refineMaxDamageOptimality(params, result, isCancelled) },
 ) {
     var ui by androidx.compose.runtime.mutableStateOf(UiState())
         private set
@@ -1087,6 +1095,14 @@ class BuildSearchModel(
      * [UiState.proofState]. The certificate solve is a blocking call that can take minutes, so it runs in its
      * own [proofJob]; the result is only applied while the shown build is still the one it was proving (a new
      * search / build swap invalidates it). Failures degrade to [ProofState.Unavailable] — never a wrong badge.
+     *
+     * A [MaxDamageSearch.MaxDamageProof.ProvenWithin] verdict is shown AT ONCE as [ProofState.ProvenWithin] with
+     * `refining = true` (the badge plus a small "still proving" cue) and the work that may improve on it runs BEHIND
+     * it, instead of a spinner hiding the badge for the whole attempt (a failing E8 construct can take a minute):
+     * first the E8 construct of the proven optimum, then — failing that — the silent per-carrier refinement. A
+     * constructed build swaps in with [ProofState.ProvenOptimal]; a refinement tightens the badge (or closes it);
+     * anything else leaves it with `refining = false`. Every late application is guarded on that refining badge
+     * still being the one on screen for the proven build.
      */
     private fun launchOptimalityProof(
         params: WakfuBestBuildParams,
@@ -1115,6 +1131,29 @@ class BuildSearchModel(
                 }
             }
         }
+
+        // Publishes the "proven within X %" badge with the small "still proving" cue the moment the certificate verdict is
+        // known, so the E8 construct and the silent refinement run BEHIND it. Same guards as [reportProofProgress]: never
+        // resurrect a badge a cancel/load already reset. Returns whether the badge landed.
+        suspend fun publishRefiningBadge(fraction: Double): Boolean =
+            withContext(mainDispatcher) {
+                if (cancelled.get() ||
+                    ui.phase != Phase.Done ||
+                    ui.build != provenBuild ||
+                    !(ui.proofState is ProofState.Proving || ui.proofState == ProofState.Idle)
+                ) {
+                    return@withContext false
+                }
+                ui = ui.copy(proofState = ProofState.ProvenWithin(fraction, refining = true))
+                true
+            }
+
+        // True while the refining badge THIS proof published is still the one on screen for the proven build — what every
+        // late application (the constructed build, the refinement) is guarded on. Read it on the main dispatcher.
+        fun refiningBadgeShown(): Boolean {
+            val shown = ui.proofState
+            return !cancelled.get() && ui.phase == Phase.Done && ui.build == provenBuild && shown is ProofState.ProvenWithin && shown.refining
+        }
         proofJob =
             scope.launch(Dispatchers.Default) {
                 val proofScope = this
@@ -1136,16 +1175,18 @@ class BuildSearchModel(
                         throwable.printStackTrace()
                         MaxDamageSearch.MaxDamageProof.Unavailable
                     }
-                // E8 fast-path: a ProvenWithin verdict means the certificate has proven a strictly better build
-                // EXISTS than the search reached. Try to CONSTRUCT that proven optimum from the same certificate DP
-                // (off the UI thread, here). On success we swap the shown build to it and flip the badge to
-                // ProvenOptimal — recomputing its stats / rotation / scenario breakdown EXACTLY as the search did
-                // (same character + boss-overlaid scenario), so the whole sheet stays consistent with the paperdoll.
+                // A ProvenWithin verdict means the certificate has proven a strictly better build EXISTS than the search
+                // reached. Show that badge AT ONCE (with the "still proving" cue) and work behind it — only behind a badge
+                // that actually landed: work whose result nothing can display would just pin the CPU.
+                val badgeLanded = proof is MaxDamageSearch.MaxDamageProof.ProvenWithin && publishRefiningBadge(proof.fraction)
+                // E8 fast-path: try to CONSTRUCT that proven optimum from the same certificate DP (off the UI thread,
+                // here). On success we swap the shown build to it and flip the badge to ProvenOptimal — recomputing its
+                // stats / rotation / scenario breakdown EXACTLY as the search did (same character + boss-overlaid
+                // scenario), so the whole sheet stays consistent with the paperdoll.
                 val upgrade =
-                    if (proof is MaxDamageSearch.MaxDamageProof.ProvenWithin) {
-                        reportProofProgress(ProofProgress(phase = ProofPhase.CONSTRUCTING, startedAtMs = proofStartMs))
+                    if (badgeLanded) {
                         try {
-                            WakfuBestBuildFinderAlgorithm.constructMaxDamageProvenOptimum(params, result)?.let { up ->
+                            provenOptimumConstructor(params, result, { cancelled.get() })?.let { up ->
                                 val upBuild = up.individual
                                 val upAchieved =
                                     computeCharacteristicsValues(
@@ -1178,22 +1219,26 @@ class BuildSearchModel(
                     } else {
                         null
                     }
-                // Silent refinement (2026-07-21): a soft-leg ProvenWithin badge is shown immediately, then
-                // the per-carrier exact closure keeps running behind it — the badge carries `refining=true`
-                // so the stats panel renders a small "still proving" indicator (user request).
-                val refinable = proof is MaxDamageSearch.MaxDamageProof.ProvenWithin && upgrade == null
-                val state =
-                    when (proof) {
-                        MaxDamageSearch.MaxDamageProof.ProvenOptimal -> ProofState.ProvenOptimal
-                        is MaxDamageSearch.MaxDamageProof.ProvenWithin ->
-                            if (upgrade != null) ProofState.ProvenOptimal else ProofState.ProvenWithin(proof.fraction, refining = refinable)
-                        MaxDamageSearch.MaxDamageProof.Unavailable -> ProofState.Unavailable
-                    }
-                val badgeShown =
+                if (proof !is MaxDamageSearch.MaxDamageProof.ProvenWithin) {
+                    // A final verdict (or none): nothing is left to work on, so it is applied as soon as it is known.
                     withContext(mainDispatcher) {
-                        if (ui.phase != Phase.Done || ui.build != provenBuild) return@withContext false
-                        ui =
-                            if (upgrade != null) {
+                        if (ui.phase == Phase.Done && ui.build == provenBuild) {
+                            ui =
+                                ui.copy(
+                                    proofState =
+                                        if (proof == MaxDamageSearch.MaxDamageProof.ProvenOptimal) ProofState.ProvenOptimal else ProofState.Unavailable
+                                )
+                        }
+                    }
+                    return@launch
+                }
+                if (!badgeLanded) return@launch
+                if (upgrade != null) {
+                    // The constructed proven optimum replaces the shown build — but only while the refining badge this proof
+                    // published is still the one on screen for it (a cancel / new search / load invalidates the late swap).
+                    withContext(mainDispatcher) {
+                        if (refiningBadgeShown()) {
+                            ui =
                                 ui.copy(
                                     build = upgrade.build,
                                     achieved = upgrade.achieved,
@@ -1201,19 +1246,24 @@ class BuildSearchModel(
                                     scenarioDamages = upgrade.scenario,
                                     match = upgrade.match,
                                     optimal = true,
-                                    proofState = state
+                                    proofState = ProofState.ProvenOptimal,
+                                    // A Zenith link made for the incumbent (or one still loading) must never be shown for the
+                                    // constructed build — [createZenithLink] drops the late completion of the latter.
+                                    zenith = ZenithState.Idle,
+                                    zenithUrl = null
                                 )
-                            } else {
-                                ui.copy(proofState = state)
-                            }
-                        true
+                        }
                     }
-                // Refine only behind a refining badge that actually landed: a minutes-long CP-SAT pass whose
-                // result nothing can display would just pin the CPU.
-                if (refinable && badgeShown) {
+                    return@launch
+                }
+                // Silent refinement (2026-07-21): no constructed build, so the per-carrier exact closure keeps running behind
+                // the same badge — its `refining=true` cue makes the stats panel render a small "still proving" indicator
+                // (user request) — and ends it with refining=false, a tighter bound or ProvenOptimal. Refine only behind the
+                // badge still on screen: a minutes-long CP-SAT pass whose result nothing can display would just pin the CPU.
+                if (withContext(mainDispatcher) { refiningBadgeShown() }) {
                     val refined =
                         try {
-                            WakfuBestBuildFinderAlgorithm.refineMaxDamageOptimality(params, result, { cancelled.get() })
+                            proofRefiner(params, result, { cancelled.get() })
                         } catch (cancellation: CancellationException) {
                             throw cancellation
                         } catch (throwable: Throwable) {
@@ -1391,6 +1441,10 @@ class BuildSearchModel(
                         )
                     )
                 withContext(mainDispatcher) {
+                    // The shown build may have been swapped (the E8 construct), replaced or cleared while the link was being
+                    // created: a link made for another build must never be shown nor handed to the browser / clipboard. Drop
+                    // it silently and leave the state as that change left it.
+                    if (ui.build != build) return@withContext
                     ui =
                         ui.copy(
                             zenith = ZenithState.Ready,
@@ -1402,6 +1456,8 @@ class BuildSearchModel(
                 }
             } catch (exception: Exception) {
                 withContext(mainDispatcher) {
+                    // Same guard: a failure for a build that is no longer the shown one is no news.
+                    if (ui.build != build) return@withContext
                     ui = ui.copy(zenith = ZenithState.Error, error = exception.message ?: "Zenith build failed")
                 }
             }

@@ -40,7 +40,12 @@ enum class ProofPhase {
     /** The AP-cell certificate DP is computing the per-cell upper bounds (the long part). */
     CERTIFYING,
 
-    /** The certificate proved a better build exists and the E8 fast-path is constructing it. */
+    /**
+     * The certificate proved a better build exists and the E8 fast-path is constructing it. NOT emitted any more by the
+     * max-damage flow: that verdict now shows its "proven within X %" badge at once and the construct runs behind it
+     * ([ProofState.ProvenWithin.refining]). Kept only because the stats panel's progress label still renders it
+     * (`Tr.PROOF_CONSTRUCTING`); nothing sets it.
+     */
     CONSTRUCTING,
 }
 
@@ -76,8 +81,10 @@ sealed interface ProofState {
     data object ProvenOptimal : ProofState
 
     /** Not proven optimal, but the certificate bounds the gap: the true optimum is at most [fraction] above.
-     *  [refining] = the per-carrier silent refinement is still running and may tighten this badge (or close
-     *  it to [ProvenOptimal]); the UI shows the badge plus a small progress indicator while it is true. */
+     *  [refining] = work that may improve on this badge is still running behind it: the E8 construct of the proven
+     *  optimum (which may swap the build in and flip to [ProvenOptimal]) and then, failing that, the per-carrier silent
+     *  refinement (which may tighten the badge or close it to [ProvenOptimal]); the UI shows the badge plus a small
+     *  progress indicator while it is true. */
     data class ProvenWithin(
         val fraction: Double,
         val refining: Boolean = false,

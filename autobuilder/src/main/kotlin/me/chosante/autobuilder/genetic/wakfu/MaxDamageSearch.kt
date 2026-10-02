@@ -290,7 +290,10 @@ object MaxDamageSearch {
                                 runes,
                                 sublimations,
                                 incumbentObjective = latestProxy.get().takeIf { it != Long.MIN_VALUE },
-                                precomputedLedger = ledger
+                                precomputedLedger = ledger,
+                                // A superseded search (warmupCancelled) or a finished one (its channel is closed — the
+                                // post-search proof owns the rescue) has no use for the result: stop the re-solve at once.
+                                isCancelled = { warmupCancelled.get() || searchDone.get() }
                             )
                         }.getOrElse {
                             logger.warn(it) { "E8 construct failed during warm-up (non-fatal)." }

@@ -420,11 +420,16 @@ object WakfuBestBuildFinderAlgorithm {
      * delegates to [WakfuBuildSolver.dpConstructProvenOptimum], which re-solves a tiny restricted pool and returns the
      * build ONLY when it provably reaches the DP bound (SOUND — else null ⇒ the caller keeps [result]). Meant to run
      * async right after a `ProvenWithin` verdict: it reuses that same cached ledger, so it adds ~one explain-pass DP.
-     * Returns null for a non-max-damage / required-target request, or when construction can't reach the bound.
+     * Returns null for a non-max-damage request, one carrying a required (non-maximized) target — a MAXIMIZED-mastery
+     * row such as the GUI's default "distance mastery 1" does not count, max-damage ignores it — or when construction
+     * can't reach the bound. Bounded: its open-ended full-pool fallback gives up after
+     * [WakfuBuildSolver.E8_FALLBACK_WALL_CAP_SECONDS]; [isCancelled] (polled during the whole rescue — the GUI passes its
+     * proof-cancel flag) abandons it early when the proof is superseded.
      */
     fun constructMaxDamageProvenOptimum(
         params: WakfuBestBuildParams,
         result: SolverResult<BuildCombination>,
+        isCancelled: () -> Boolean = { false },
     ): SolverResult<BuildCombination>? {
         if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) return null
         val incumbent = result.maxDamageRawProxy ?: result.maxDamageObjective ?: return null
@@ -437,7 +442,14 @@ object WakfuBestBuildFinderAlgorithm {
                 character = params.character
             )
         return runBlocking {
-            WakfuBuildSolver.dpConstructProvenOptimum(params, equipmentsByItemType, runes, activeSublimations(params), incumbentObjective = incumbent)
+            WakfuBuildSolver.dpConstructProvenOptimum(
+                params,
+                equipmentsByItemType,
+                runes,
+                activeSublimations(params),
+                incumbentObjective = incumbent,
+                isCancelled = isCancelled
+            )
         }
     }
 
