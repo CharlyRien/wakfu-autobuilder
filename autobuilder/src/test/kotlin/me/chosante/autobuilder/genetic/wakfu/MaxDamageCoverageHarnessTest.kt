@@ -94,13 +94,23 @@ class MaxDamageCoverageHarnessTest {
                 val p = params(lvl, targets)
                 // A huge incumbent eliminates every cell ⇒ the pure fast ledger (what the badge starts from).
                 val t0 = System.nanoTime()
+                val splitRunsBefore = CertifierTuning.auxSplitComputedForTest.get()
                 val ledger = WakfuBuildSolver.maxDamageCertificate(p, pool, runes, subs, applyDomination = true, incumbentObjective = Long.MAX_VALUE / 4, threads = threads)
                 val ledgerMs = (System.nanoTime() - t0) / 1_000_000
                 val certified = ledger?.cellObjectives?.count { it.value > 0 }
                 println(
                     "MDCOV_DIAG level=$lvl variant=$label ledgerMs=$ledgerMs ledgerNull=${ledger == null} " +
-                        "bailed=${ledger?.bailedCells} maxCell=${ledger?.maxCellObjective} certified=$certified/${ledger?.cellObjectives?.size}"
+                        "bailed=${ledger?.bailedCells} maxCell=${ledger?.maxCellObjective} certified=$certified/${ledger?.cellObjectives?.size} " +
+                        "auxSplitRan=${CertifierTuning.auxSplitComputedForTest.get() > splitRunsBefore}"
                 )
+                if (System.getenv("WAKFU_MDCOV_RELAXED") == "1") {
+                    // v48: the relaxed capped aux world vs the exact capped split, beside the shipped fast ledger.
+                    val relaxedVsSplit = WakfuBuildSolver.certifierAuxRelaxedVsSplitForTest(p, pool, runes, subs, applyDomination = true)
+                    println(
+                        "MDCOV_RELAXED level=$lvl variant=$label cells=" +
+                            relaxedVsSplit.toSortedMap().map { (a, rs) -> "$a:(relaxed=${rs.first} split=${rs.second} ledger=${ledger?.cellObjectives?.get(a)})" }
+                    )
+                }
                 if (System.getenv("WAKFU_MDCOV_SPLIT") == "1") {
                     // The same ledger without the two sub families the normal worlds drop ⇒ no aux world: the normal
                     // worlds' own cost and values (the pre-v44 ledger on every shape that did not bail).

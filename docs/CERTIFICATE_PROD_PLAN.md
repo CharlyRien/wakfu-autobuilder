@@ -998,9 +998,7 @@ max rarity EPIC, the GUI's default scenario FIRE / DISTANCE / BACK):
   bit-for-bit. Their cost is real, though: the fast ledger takes 2.6–3.2× the normal worlds' time (110: 3–5 s → 8–16
   s; 245: 10–16 s → 26–42 s; two runs on a thermally throttling 10-core laptop) on EVERY max-damage request with subs
   on — the default catalog carries the 9 dropped-family subs, so the 8 aux worlds (N, N×C, M, N×M × the weapon split)
-  always run. Follow-ups: fold the aux worlds into the normal worlds' thread pool (their first world runs alone to
-  warm caches), or relax the weapon split inside the aux worlds (half the worlds — sound, but Light Weapons Expert
-  credited next to a 2H weapon may then make them bind).
+  always run. Addressed in P5.4b below (CERTIFIER_VERSION 48).
 - *Production path* (`WAKFU_MDCOV_PROD=1`: `WakfuBestBuildFinderAlgorithm.run` then `proveMaxDamageOptimality` and,
   on ProvenWithin, the E8 construct — the GUI's chain; 120 s budget, `-XX:ActiveProcessorCount=4`, 3 GB heap, the E0
   baseline's shape). Before (E0): **Unavailable** at 110 and 245. Now: level 110 — incumbent 1,320,070 (targets met,
@@ -1011,6 +1009,56 @@ max rarity EPIC, the GUI's default scenario FIRE / DISTANCE / BACK):
   free request's proven optimum) because the certificate is target-blind except AP; MP 4 / RANGE 4 / CC 25 / HP 2000
   bind, so the true gap is smaller than the badge says — a target-aware bound (MP / range axes) is the next lever. The
   fraction also moves with the incumbent: E0's 245 search reached 18.23 M (multi-worker run-to-run noise).
+
+### P5.4b — the aux worlds' cost on the free flagship (2026-10-02, CERTIFIER_VERSION 48)
+
+**The regression (v44).** The aux worlds ran on EVERY max-damage request with subs — the free flagship included —
+inside the E10 warm-up, which holds one certifier thread while the search runs. Measured on CRA 245, runes + subs,
+EPIC, distance mastery only (`MaxDamageFlagshipCostHarnessTest`): the 1-thread warm-up ledger went 32.1 s → 58.1 s
+(4-core profile, incumbent 20.48 M), and on the full 10-core machine the certificate early stop — v40: 37.1 / 43.1 /
+90.9 s, the proven optimum 20,811,420 — never fired in 2/2 runs: the ledger landed 3.8 / 13.2 s AFTER the 120 s search
+(8 aux passes serialized behind the 6 normal worlds, ~13 s each under the 9-worker load).
+
+**Fix 1 — one relaxed world for the six capped worlds ([certifierAuxPlan], [AuxFloor]).** Per cell, the secondary-
+capped worlds sit ~22 % below the normal ledger on real shapes (110 / 245, FACE and BACK). ONE relaxed world bounds
+all six: the secondary-capped valuation, the weapon split relaxed (the NO_OFFHAND subs allowed AND a free weapon slot),
+Critical Secret and the block sub credited as slot-free constants (`freeCreditSubs`: non-negative lines and
+start-of-combat crit only — anything that could lower a value bails), Critical Secret out of the budget as in N.
+Every DP path of every capped world exists in it with a ≥ value, so `split ≤ relaxed` per cell, and
+[AuxFloor.floor] runs the exact split only when the relaxed bound exceeds the value it floors — every reported value
+is the v44 one. Eager aux passes: 8 → 3 (the two block-assumed M worlds stay exact — within 3–4 % of the normal
+ledger, a relaxation there would bind). Alone it was not enough: still no early stop in 3/3 runs (ledger 116.5 s:
+fast 80.3 s of which 37.8 s aux, tier-1.5 36.2 s).
+
+**Fix 2 — the aux floor overlaps instead of serializing ([certifyLedger]).** No elimination / refinement decision
+reads the aux floor — it only lifts final values — so the ledger now applies it ONCE, at the end, to every value the
+run computed (`max(value, aux)` with v44's bail semantics ⇒ identical values; a cell it lifts over the incumbent was
+only ever refined in vain), and computes it on its OWN thread starting as soon as world[0] has warmed the shared caches
+(every later pass only reads them; the category memo is pre-warmed). While it runs, the search-time warm-up holds two
+certifier threads instead of one. Result, 10-core MD245F: early stop at **43.5 s and 90.8 s** (ledger 37.8 / 85.3 s,
+aux wait ≤ 1 ms), back in v40's 37–91 s range.
+
+**Locks.** `max-damage certifier relaxed capped aux world dominates the exact capped split` (12 seeded pools with the
+weapon axis, LWE- / Critical-Secret- / Mesure-like subs, the Neutralité family; relaxed ≥ split on every cell) and
+`max-damage certifier relaxed aux schedule certifies exactly the always-split values` (same pools: fast / tier-1.5 /
+exact maps and the forced-exact ledger identical with the relaxed world on vs off; both the skip and the split path
+exercised; the end-floored ledger equals the per-pass-floored exact map).
+
+**Measured on the 4-core profile** (`-XX:ActiveProcessorCount=4`, 3 GB, CRA 245 free, one JVM per row group):
+
+| | v40 (base sources) | v44 | v48 |
+|---|---|---|---|
+| warm-up-shaped ledger alone (1 thread, incumbent 20.48 M) | 32.1 s | 58.1 s | 30.1 s (28.2 s without the dropped families ≈ the v40 work) |
+| 1-worker det-60 solve beside it (race-free) | +15.2 % (ledger done first) | +27.5 % (ledger outlived the solve) | — |
+| 1-worker det-160 solve (~90 s) beside it | — | — | +13.8 % (v40-equivalent ledger in the same JVM: +6.1 %) |
+| production run 245: warm-up ledger landed / badge after search end | 22 s after / +22.8 s (weak incumbent) | 0.4 s before / +6 ms | 52 s before / +12 ms |
+| production run 110 | 76.5 s before / +5 ms | 74.1 s before / +9 ms | 86.9 s before / +3 ms |
+
+The warm-up's extra CPU (three aux passes, now beside the normal worlds) still costs CP-SAT some throughput while it
+runs — about 7 points of a 90 s 1-worker solve over the v40-equivalent ledger — but the ledger lands in v40's time
+and the multi-worker search keeps its early stop. Commands: `MaxDamageFlagshipCostHarnessTest` KDoc (WAKFU_FLAG_PROD /
+WAKFU_FLAG_CONTENTION with WAKFU_FLAG_CONT_VARIANTS=normalOnly,full); the v40 rows ran the same harness against an
+export of the base sources.
 
 ### P4 badge robustness follow-ups (post-review, 2026-07-03)
 

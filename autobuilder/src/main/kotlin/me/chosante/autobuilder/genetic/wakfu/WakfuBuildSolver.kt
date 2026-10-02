@@ -300,8 +300,13 @@ object WakfuBuildSolver {
      * (after the skills) and the world-B / assumed cap subs (collapse-time credits) added flat HP the skills stage never
      * scaled — an under-count of any HP read (no choosable sub carries HP on 1.93). That HP is now scaled by the largest
      * reachable %HP (an over-count). Bounds bit-identical on the current catalog.
+     * 48: the max-damage aux-world SCHEDULE ([certifierAuxPlan]): the six secondary-capped aux worlds are bounded by ONE relaxed
+     * world (weapon split relaxed, Critical Secret / the block sub credited as slot-free constants) and their exact
+     * split only runs when that bound exceeds the value it would floor — every certified value is the v44 value
+     * (locked by the relaxed-vs-split equality test), at 3 instead of 8 eager aux passes; aux worlds also re-read the
+     * thread count per world (a warm-up whose search ends midway fans out). Bumped per the standing rule.
      */
-    const val CERTIFIER_VERSION: Int = 47
+    const val CERTIFIER_VERSION: Int = 48
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
@@ -988,6 +993,8 @@ object WakfuBuildSolver {
         // Max-damage only (v44): the AUX worlds' per-cell fast bound alone (already folded into the certifier
         // maps above), captured when certifyAllApForTest = true. Empty when the shape has no aux world.
         val certifierAuxObjectivesForTest: Map<Int, Long> = emptyMap(),
+        // Max-damage only (v47): per AP cell, the relaxed capped aux world's objective vs the exact capped split's.
+        val certifierAuxRelaxedVsSplitForTest: Map<Int, Pair<Long, Long>> = emptyMap(),
     )
 
     /**
@@ -1201,6 +1208,7 @@ object WakfuBuildSolver {
         var certifierFastObjectives: Map<Int, Long> = emptyMap()
         var certifierTier15Objectives: Map<Int, Long> = emptyMap()
         var certifierAuxObjectives: Map<Int, Long> = emptyMap()
+        var certifierAuxRelaxedVsSplit: Map<Int, Pair<Long, Long>> = emptyMap()
         var certifierLedger: CertLedger? = null
         var certifierExplain: List<String> = emptyList()
         var certifierExplainItemIds: List<Int> = emptyList()
@@ -1314,6 +1322,7 @@ object WakfuBuildSolver {
                     certifierFastObjectives = statBuilder.certifierFastObjectivesForTest
                     certifierTier15Objectives = statBuilder.certifierTier15ObjectivesForTest
                     certifierAuxObjectives = statBuilder.certifierAuxObjectivesForTest
+                    certifierAuxRelaxedVsSplit = statBuilder.certifierAuxRelaxedVsSplitForTest
                     certifierLedger = statBuilder.certifierLedgerForTest
                     certifierExplain = statBuilder.certifierExplainForTest
                     certifierExplainItemIds = statBuilder.certifierExplainItemIds
@@ -1365,7 +1374,8 @@ object WakfuBuildSolver {
             mmPenaltyProbeVars,
             mmAssumptionLits,
             actualStatVars,
-            certifierAuxObjectives
+            certifierAuxObjectives,
+            certifierAuxRelaxedVsSplit
         )
     }
 
@@ -2613,6 +2623,29 @@ object WakfuBuildSolver {
             certifyFastThreadsForTest = threads,
             certifyFastOnlyForTest = true
         ).let { it.certifierFastObjectivesForTest to it.certifierAuxObjectivesForTest }
+
+    /**
+     * Test-only (v47): per AP cell, `(relaxed, split)` — the relaxed capped aux world's objective and the max over the
+     * exact capped split it stands for ([certifierAuxPlan]); empty when the shape has no relaxed world. The relaxation
+     * must dominate the split at every cell (`relaxed ≥ split`, -1 = a bail).
+     */
+    internal fun certifierAuxRelaxedVsSplitForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        applyDomination: Boolean = false,
+    ): Map<Int, Pair<Long, Long>> =
+        buildModel(
+            params,
+            equipmentsByItemType,
+            runes,
+            sublimations,
+            applyDomination = applyDomination,
+            certifyAllApForTest = true,
+            certifyFastThreadsForTest = 1,
+            certifyFastOnlyForTest = true
+        ).certifierAuxRelaxedVsSplitForTest
 
     /**
      * Default worker-thread count for the certificate orchestrator (P3.2). Memory-aware (B2): the parallel path

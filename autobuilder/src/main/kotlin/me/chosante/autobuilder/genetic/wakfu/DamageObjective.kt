@@ -139,12 +139,23 @@ internal fun StatBuilder.perTurnDamageScore(
                         }
                 }
                 System.err.println("CERT_FAST_AUDIT totalMs=$fastMs cells=${certifierFastObjectivesForTest.toSortedMap()}")
-                // v44: the aux worlds' share of the fast bound (already folded in above) — cached by the fast pass.
-                certifierAuxFloor(scenario, clampedTable.size, certifyFastThreads)?.let { aux ->
-                    for (apCell in clampedTable.indices) {
-                        certifierAuxObjectivesForTest[apCell] =
-                            if (aux[apCell] == Long.MAX_VALUE) -1L else clampedTable[apCell] * (aux[apCell] / PERHIT_DOWNSCALE) * resFactor / FINAL_DOWNSCALE
-                    }
+                // v44: the aux worlds' share of the fast bound (already folded in above) — cached by the fast pass; the
+                // exact aux values (v47: forcing the capped split the relaxed world usually spares).
+                val auxFloor = certifierAuxFloor(scenario, clampedTable.size) { certifyFastThreads }
+
+                fun auxScaled(
+                    apCell: Int,
+                    values: LongArray,
+                ): Long {
+                    val raw = values.getOrElse(apCell) { Long.MAX_VALUE }
+                    return if (raw == Long.MAX_VALUE) -1L else clampedTable[apCell] * (raw / PERHIT_DOWNSCALE) * resFactor / FINAL_DOWNSCALE
+                }
+                auxFloor?.exactForTest(certifyFastThreads)?.let { aux ->
+                    for (apCell in clampedTable.indices) certifierAuxObjectivesForTest[apCell] = auxScaled(apCell, aux)
+                }
+                // v47: the relaxed capped world vs the exact capped split it stands for (the relaxation must dominate).
+                auxFloor?.relaxedVsSplitForTest(certifyFastThreads)?.let { (relaxed, split) ->
+                    for (apCell in clampedTable.indices) certifierAuxRelaxedVsSplitForTest[apCell] = auxScaled(apCell, relaxed) to auxScaled(apCell, split)
                 }
                 // B7 tier-1.5 audit: the sharpened (step-1, cell-pinned) fast bound per cell, for the
                 // `fast ≥ tier1.5 ≥ exact` soundness lock. Test-only (never on the fast-only parallel-equality
