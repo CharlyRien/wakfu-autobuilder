@@ -46,10 +46,12 @@ import kotlin.math.ceil
  * forced items/runes/subs, a required target outside {AP, MP, CC, HP}, a conversion into a
  * requested mastery.
  *
- * PRODUCTION (backup certificate, plan §8.9bis): triggered by [WakfuBestBuildFinderAlgorithm.
- * proveMostMasteriesQuality] AFTER a most-masteries search whose CP-SAT leg ended non-OPTIMAL —
- * on low-core machines the 1-worker proof takes 15-20 min while this single-thread DP delivers a
- * "proven within X%" statement in seconds. Default grid = COARSE (DI 1 / CC 10 / HP 500):
+ * PRODUCTION (backup certificate, plan §8.9bis): read by [WakfuBestBuildFinderAlgorithm.
+ * proveMostMasteriesQuality] after a most-masteries search whose CP-SAT leg ended non-OPTIMAL —
+ * on low-core machines the 1-worker proof takes 15-20 min while this DP delivers a "proven within
+ * X%" statement in seconds. The bound is incumbent-free, so it is computed in the search's tail (one
+ * full-tier pass, memoized single-flight by [MostMasteriesBoundCache], §8.18) and the badge is
+ * usually ready when the search ends. Default grid = COARSE (DI 1 / CC 10 / HP 500):
  * measured bound-identical to the fine grid on S2 (the binding state saturates its targets) at
  * 580k states / ~33 MB / ~15 s. The steps stay mutable for the measurement harnesses
  * (MostMasteriesCertificateTest: tightness, attribution, grid profile, race).
@@ -422,6 +424,7 @@ internal object MostMasteriesCertificate {
     private fun Geometry.apply(
         states: HashMap<Long, Long>,
         options: List<Opt>,
+        workers: Int,
     ): HashMap<Long, Long> {
         val n = states.size
         val ks = LongArray(n)
@@ -434,7 +437,7 @@ internal object MostMasteriesCertificate {
         }
         val opts = options.toTypedArray()
         return LongLongMaxMap
-            .advance(ks, vs, n, opts.size, PARALLEL_APPLY_MIN_TRANSITIONS) { from, to, into ->
+            .advance(ks, vs, n, opts.size, PARALLEL_APPLY_MIN_TRANSITIONS, workers) { from, to, into ->
                 for (idx in from until to) {
                     val k = ks[idx]
                     val m = vs[idx]
@@ -444,6 +447,42 @@ internal object MostMasteriesCertificate {
                     }
                 }
             }.toHashMap()
+    }
+
+    /**
+     * [bound]'s REQUEST-level bails, answered without any pool or DP work: an elemental-mastery request, forced
+     * items/runes/sublimations, no requestable mastery, a required target outside [SUPPORTED_TARGETS], or a choosable
+     * sublimation converting into a requested mastery (it bails in every world that stages it). `false` ⇒ [bound]
+     * returns null on this request whatever the pool, so the search-time warm-up ([MostMasteriesBoundCache]) skips it
+     * instead of paying the pool + option build to watch the bail. Only ever gates that warm-up — the proof itself
+     * always runs [bound] — so a drift could cost CPU or an early badge, never a wrong one; the parity lock in
+     * MostMasteriesBoundCacheTest keeps the two in sync.
+     */
+    fun supportsRequest(
+        params: WakfuBestBuildParams,
+        sublimations: List<Sublimation>,
+    ): Boolean {
+        if (params.targetStats.masteryElementsToMinimize.isNotEmpty()) return false
+        if (params.forcedItems.isNotEmpty() ||
+            params.forcedRunes.isNotEmpty() ||
+            params.forcedRunesByItem.isNotEmpty() ||
+            params.forcedSublimations.isNotEmpty()
+        ) {
+            return false
+        }
+        val requested =
+            params.targetStats
+                .map { it.characteristic }
+                .filter { it in REQUESTABLE_MASTERIES }
+                .toSet()
+        if (requested.isEmpty()) return false
+        if (params.targetStats.any { it.characteristic.isRequiredMostMasteriesTarget() && it.characteristic !in SUPPORTED_TARGETS }) return false
+        return !params.useSublimations ||
+            sublimations.none { sub ->
+                sub.solverChoosable &&
+                    sub.bestElementConcentration == null &&
+                    sub.effects.any { it is SublimationEffect.Conversion && it.to in requested }
+            }
     }
 
     fun bound(
@@ -460,9 +499,10 @@ internal object MostMasteriesCertificate {
         // PATH backward — names the option chosen at every stage of the argmax state. Costs memory
         // (all stage maps retained) and a backward sweep; never used in production.
         provenance: Boolean = false,
-        // Two-tier certificate: `false` skips the block dim (increment 8) — the QUICK tier (~15 s,
-        // bound ~1.3pt looser). The GUI shows the quick badge first, then refines with the full
-        // pass in the background. Both tiers are independently sound.
+        // `false` skips the block dim (increment 8) — the former QUICK tier (bound ~1.3pt looser),
+        // kept for the harnesses and the assume worlds below. Production runs the full tier only:
+        // since P1+P2 it costs what the quick tier did, so the badge is ONE pass (§8.18). Both
+        // settings are independently sound.
         blockGate: Boolean = true,
         // §8.15 P&B-2 seam (harness only): veto options of a stage by provenance src — the DD-B&B
         // branching primitive. A veto only ever RESTRICTS the relaxation, so the result stays a
@@ -477,6 +517,10 @@ internal object MostMasteriesCertificate {
         // Exact stage-option Pareto pruning ([paretoPrune]) — production ON; `false` only for the
         // bit-identity lock that compares both runs.
         pruneDominatedOptions: Boolean = true,
+        // Stage-advance chunk workers ([LongLongMaxMap.advance]), read once per stage. A pure work
+        // knob — the max-merge is order-independent, so every value yields the identical bound. The
+        // search-time warm-up ([MostMasteriesBoundCache]) holds it at 1 while CP-SAT owns the cores.
+        parallelism: () -> Int = LongLongMaxMap::defaultWorkers,
         // INTERNAL world-split recursion (review fix A#1) — never set by callers. worldDropCaps:
         // run the DP with every AT_MOST cap sub excluded; worldAssume: run it with THAT cap sub
         // assumed carried (LOW semantics on its capped stat, credits added at collapse).
@@ -484,6 +528,8 @@ internal object MostMasteriesCertificate {
         worldDropCaps: Boolean = false,
     ): Result? {
         val t0 = System.nanoTime()
+        // Cancelled before this world even builds its options (the world split runs them in turn).
+        if (!shouldContinue()) return null
         val wantSrc = provenance || optionVeto != null
         if (params.targetStats.masteryElementsToMinimize.isNotEmpty()) return null
         // Forced RUNES (both forms) and forced SUBS can ADD modelable capability the bound does not
@@ -583,6 +629,7 @@ internal object MostMasteriesCertificate {
                         optionVeto = optionVeto,
                         shouldContinue = shouldContinue,
                         pruneDominatedOptions = pruneDominatedOptions,
+                        parallelism = parallelism,
                         worldAssume = assume,
                         worldDropCaps = assume == null
                     )
@@ -796,7 +843,7 @@ internal object MostMasteriesCertificate {
             val effective =
                 if (pruneDominatedOptions && allowed.size in 2..PARETO_PRUNE_MAX_OPTIONS) paretoPrune(allowed) else allowed
             stageLog?.add(Triple(label, HashMap(states), effective))
-            states = geo.apply(states, effective)
+            states = geo.apply(states, effective, parallelism())
         }
 
         // Pair-wise exact merge of two options (both non-null axes add; budgets/flags OR).

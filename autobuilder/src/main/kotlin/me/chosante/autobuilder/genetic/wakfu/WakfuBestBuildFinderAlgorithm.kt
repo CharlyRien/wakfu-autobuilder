@@ -2,6 +2,7 @@ package me.chosante.autobuilder.genetic.wakfu
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 import me.chosante.autobuilder.EmbeddedResources
@@ -132,26 +133,32 @@ object WakfuBestBuildFinderAlgorithm {
         // forced sublimation) BEFORE any work, reporting ALL problems at once. The GUI pre-validates with
         // [validateRequest] and shows them in a pop-up; this throw is the CLI / safety floor. (ENG-1 / ENG-2)
         validateRequest(params).let { if (it.isNotEmpty()) throw InvalidRequestException(it) }
-        val equipmentsByItemType =
-            groupAndFilterEquipments(
-                excludedItems = params.excludedItems,
-                forcedItems = params.forcedItems,
-                maxRarity = params.maxRarity,
-                excludedRarities = params.excludedRarities,
-                character = params.character
-            )
+        val equipmentsByItemType = poolFor(params)
 
         return try {
             // Max-damage routes through the external loop (AP-breakpoint probes + debuff-aware
             // sequencing valuation). Most-masteries runs the targets-HARD leg first with a soft
-            // fallback (P2a — see [mostMasteriesHardThenSoft]). Precision stays a single soft solve.
+            // fallback (P2a — see [mostMasteriesHardThenSoft]), its quality bound computed in the
+            // search's tail (E10-for-MM, [MostMasteriesBoundCache]). Precision stays a single soft
+            // solve. Every new search supersedes the bounds still computing for earlier requests.
             when (params.scoreComputationMode) {
                 ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE ->
-                    MaxDamageSearch.run(params, equipmentsByItemType, runes, activeSublimations(params))
-                ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
-                    mostMasteriesHardThenSoft(params, equipmentsByItemType, runes, activeSublimations(params))
+                    MaxDamageSearch
+                        .run(params, equipmentsByItemType, runes, activeSublimations(params))
+                        .onStart { MostMasteriesBoundCache.supersedeAll() }
+                ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT -> {
+                    val sublimations = activeSublimations(params)
+                    MostMasteriesBoundCache.withSearchTimeWarmup(
+                        params,
+                        equipmentsByItemType,
+                        sublimations,
+                        mostMasteriesHardThenSoft(params, equipmentsByItemType, runes, sublimations)
+                    )
+                }
                 else ->
-                    WakfuBuildSolver.optimize(params, equipmentsByItemType, runes, activeSublimations(params))
+                    WakfuBuildSolver
+                        .optimize(params, equipmentsByItemType, runes, activeSublimations(params))
+                        .onStart { MostMasteriesBoundCache.supersedeAll() }
             }
         } catch (exception: Exception) {
             // Surface the failure to the caller instead of killing the JVM: the CLI's runBlocking
@@ -241,21 +248,19 @@ object WakfuBestBuildFinderAlgorithm {
             }
         }
 
-    // Quick/full proof tiers share one prepared pool per params instance (identity-keyed: the GUI
-    // passes the same object twice; a new search builds new params and naturally invalidates it).
-    private val mmProofPoolMemo =
-        java.util.concurrent.atomic
-            .AtomicReference<Pair<WakfuBestBuildParams, Map<ItemType, List<Equipment>>>?>(null)
-
     /**
      * The most-masteries QUALITY certificate (backup certifier, docs/MOST_MASTERIES_PERF_PLAN.md
-     * §8.9bis): a post-search, single-thread sound upper bound on the SOFT folded objective —
-     * "your build is provably within X% of the optimum". Meant for searches whose CP-SAT leg ended
-     * WITHOUT a proof (low-core machines / short budgets: the 1-worker proof takes 15-20 min where
-     * this DP answers in seconds). Rebuilds the same filtered+dominated pool the search used and
-     * compares [MostMasteriesCertificate]'s bound against the result's raw objective
+     * §8.9bis): a sound upper bound on the SOFT folded objective — "your build is provably within X%
+     * of the optimum". Meant for searches whose CP-SAT leg ended WITHOUT a proof (low-core machines /
+     * short budgets: the 1-worker proof takes 15-20 min where this DP answers in seconds).
+     *
+     * The convenience entry (GUI, CLI, tests): [mostMasteriesQualityBound] — the full-tier bound,
+     * memoized single-flight and normally already computed in the search's tail (E10-for-MM, §8.18:
+     * instant at search end; else the in-flight compute is awaited, or computed here after a budget
+     * too short for a warm-up) — then [compareMostMasteriesQuality] against the result's raw objective
      * ([SolverResult.mostMasteriesObjective] — stamped only when the searched objective is
-     * certificate-comparable). Async-friendly (~15-60 s); call after the flow completes.
+     * certificate-comparable). [shouldContinue] cancels the wait (and a compute this call started),
+     * polled every ~100 ms and once per DP stage.
      *
      * SOUNDNESS: the bound never under-counts (locked by the tightness/fuzz harnesses), so
      * [MostMasteriesProof.ProvenWithin.percent] is a GUARANTEE, not an estimate; every unsupported
@@ -266,41 +271,46 @@ object WakfuBestBuildFinderAlgorithm {
     fun proveMostMasteriesQuality(
         params: WakfuBestBuildParams,
         result: SolverResult<BuildCombination>,
-        // Two-tier: the QUICK tier (~15 s, ~1.3pt looser) for an instant badge; the full tier
-        // (~80 s) refines it in the background. Both sound.
-        quick: Boolean = false,
-        // Cooperative cancellation: checked once per DP stage — a superseded proof (new search
-        // started) aborts within a stage instead of pinning a core for up to ~80 s.
         shouldContinue: () -> Boolean = { true },
     ): MostMasteriesProof {
         if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) return MostMasteriesProof.Unavailable
+        // Result-level verdicts first: no bound is computed for a result that cannot use one.
         if (result.isOptimal) return MostMasteriesProof.ProvenOptimal // CP-SAT already certified it exactly.
         val incumbent = result.mostMasteriesObjective ?: return MostMasteriesProof.Unavailable
         if (incumbent <= 0) return MostMasteriesProof.Unavailable
-        // The GUI runs the two tiers back-to-back on the SAME params: memoize the (expensive)
-        // filtered + dominated pool so the full tier doesn't rebuild what the quick tier just
-        // computed (the identity-keyed domination memo always missed on a fresh map).
-        val subs = activeSublimations(params)
-        val pool =
-            mmProofPoolMemo.get()?.takeIf { it.first === params }?.second ?: run {
-                val equipmentsByItemType =
-                    groupAndFilterEquipments(
-                        excludedItems = params.excludedItems,
-                        forcedItems = params.forcedItems,
-                        maxRarity = params.maxRarity,
-                        excludedRarities = params.excludedRarities,
-                        character = params.character
-                    )
-                // The same domination pool the production solve searched: the bound then
-                // upper-bounds the exact optimum OF THAT SEARCH (domination is optimum-preserving).
-                val shape = dominationShape(params, subs) ?: return MostMasteriesProof.Unavailable
-                WakfuBuildSolver
-                    .filterDominatedPoolMemoizedForTest(equipmentsByItemType, shape)
-                    .also { mmProofPoolMemo.set(params to it) }
-            }
-        val bound =
-            MostMasteriesCertificate.bound(params, pool, runes, subs, blockGate = !quick, shouldContinue = shouldContinue)
-                ?: return MostMasteriesProof.Unavailable
+        val bound = mostMasteriesQualityBound(params, shouldContinue) ?: return MostMasteriesProof.Unavailable
+        return compareMostMasteriesQuality(params, bound, result)
+    }
+
+    /**
+     * COMPUTE half of [proveMostMasteriesQuality]: the incumbent-free full-tier bound for [params],
+     * over the same filtered + dominated pool the production search used. Memoized per request and
+     * single-flight ([MostMasteriesBoundCache]): the search's tail warm-up usually has it ready (or in
+     * flight — then this waits for it); otherwise it is computed here, on every stage worker. Null =
+     * the certificate bails on this shape, or [shouldContinue] turned false first.
+     */
+    internal fun mostMasteriesQualityBound(
+        params: WakfuBestBuildParams,
+        shouldContinue: () -> Boolean = { true },
+    ): MostMasteriesCertificate.Result? {
+        if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) return null
+        return MostMasteriesBoundCache.bound(params, shouldContinue = shouldContinue)
+    }
+
+    /**
+     * COMPARE half of [proveMostMasteriesQuality]: the verdict for [result] against a [bound] computed
+     * for the same [params] — pure arithmetic, instant. Picks the bound's read in the result's units
+     * (folded with required targets, the bare core without), self-checks soundness, and returns
+     * ProvenOptimal (incumbent reaches the bound), ProvenWithin(bound / incumbent − 1) or Unavailable.
+     */
+    internal fun compareMostMasteriesQuality(
+        params: WakfuBestBuildParams,
+        bound: MostMasteriesCertificate.Result,
+        result: SolverResult<BuildCombination>,
+    ): MostMasteriesProof {
+        if (result.isOptimal) return MostMasteriesProof.ProvenOptimal
+        val incumbent = result.mostMasteriesObjective ?: return MostMasteriesProof.Unavailable
+        if (incumbent <= 0) return MostMasteriesProof.Unavailable
         // The model's exact fold predicate (no `target > 0` filter — a 0-valued required target still folds).
         val hasRequiredTargets = params.targetStats.any { it.characteristic.isRequiredMostMasteriesTarget() }
         val upper = if (hasRequiredTargets) bound.foldedBound else bound.coreBound
@@ -452,6 +462,16 @@ object WakfuBestBuildFinderAlgorithm {
                 isForced || params.maxSublimationTier?.let { sub.nameTier <= it } != false
             }
     }
+
+    /** The filtered, slot-grouped pool a production search of [params] runs on (before domination). */
+    internal fun poolFor(params: WakfuBestBuildParams): Map<ItemType, List<Equipment>> =
+        groupAndFilterEquipments(
+            excludedItems = params.excludedItems,
+            forcedItems = params.forcedItems,
+            maxRarity = params.maxRarity,
+            excludedRarities = params.excludedRarities,
+            character = params.character
+        )
 
     private fun groupAndFilterEquipments(
         excludedItems: List<String>,

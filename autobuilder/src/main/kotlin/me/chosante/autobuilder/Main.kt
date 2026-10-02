@@ -889,6 +889,19 @@ HUPPERMAGE"""
                         terminal.println("Optimality not proven for this request")
                 }
             }
+            if (mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) {
+                // The most-masteries quality certificate, one full-tier pass: its bound was computed in the search's
+                // tail (E10-for-MM), so the verdict is usually instant — else it waits for (or computes) the bound.
+                terminal.println("Checking optimality…")
+                when (val proof = WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality(searchParams, bestResult)) {
+                    WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenOptimal ->
+                        terminal.println(TextStyles.bold(if (bestResult.isOptimal) "Proven optimal (solver)" else "Proven optimal (certificate)"))
+                    is WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin ->
+                        terminal.println("Proven within ${String.format(Locale.ROOT, "%.1f", proof.percent * 100)}% of optimal")
+                    WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable ->
+                        terminal.println("Optimality not proven for this request")
+                }
+            }
 
             if (createZenithBuild) {
                 try {

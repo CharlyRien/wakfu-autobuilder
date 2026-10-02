@@ -119,6 +119,9 @@ internal class LongLongMaxMap(
         const val EMPTY: Long = Long.MIN_VALUE
         private const val GOLDEN: Long = -0x61c8864680b583ebL // 0x9E3779B97F4A7C15
 
+        /** [advance]'s default chunk-worker count: every core but one. */
+        fun defaultWorkers(): Int = Runtime.getRuntime().availableProcessors() - 1
+
         private fun capacityFor(expected: Int): Int {
             val want = (expected.coerceAtLeast(4).toLong() * 2).coerceAtMost(1L shl 30)
             var cap = 16
@@ -132,6 +135,9 @@ internal class LongLongMaxMap(
          * into a LOCAL map, then the locals max-merge (max is order-independent, so the result is identical to a
          * sequential sweep). Unlike world-level parallelism (measured SLOWER: 4 full concurrent DPs = 4× the live
          * state maps, GC-bound), the chunk locals only duplicate the overlap of one stage's output.
+         *
+         * [workers] caps the chunk count (below 2 = sequential). A pure work knob: the max-merge is order-independent,
+         * so every value yields the identical map — callers throttle it while another computation owns the cores.
          */
         inline fun advance(
             srcKeys: LongArray,
@@ -139,11 +145,11 @@ internal class LongLongMaxMap(
             count: Int,
             transitionsPerSource: Int,
             parallelMinTransitions: Long,
+            workers: Int = defaultWorkers(),
             crossinline sweep: (from: Int, to: Int, into: LongLongMaxMap) -> Unit,
         ): LongLongMaxMap {
             require(srcKeys.size >= count && srcVals.size >= count) { "advance: $count sources over smaller arrays" }
             val transitions = count.toLong() * transitionsPerSource
-            val workers = Runtime.getRuntime().availableProcessors() - 1
             if (transitions < parallelMinTransitions || workers < 2) {
                 val out = LongLongMaxMap(count * 2)
                 sweep(0, count, out)

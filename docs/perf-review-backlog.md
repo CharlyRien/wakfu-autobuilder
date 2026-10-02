@@ -1170,7 +1170,10 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
   - most-masteries on low core counts: the 1-worker proof takes 15–20 min where the certificate's full tier
     answers in ~55 s; the M3-v2 coarse-grid "low-core backup" is measured but not wired; — the certificate
     itself got ~7.5× faster on 2026-10-02 (exact stage-option pruning + primitive DP maps, CERTIFIER_VERSION
-    40, `docs/MOST_MASTERIES_PERF_PLAN.md` §8.17: S2 full tier 66 s → 9 s, bit-identical);
+    40, `docs/MOST_MASTERIES_PERF_PLAN.md` §8.17: S2 full tier 66 s → 9 s, bit-identical), and the badge is now
+    ONE full-tier pass computed in the search's tail (§8.18, E10-for-MM: on the 4-core profile the S2 badge
+    lands 0-2.5 s after a ≥ 45 s search instead of +10-12 s quick / +20-23 s full; ≤ 30 s budgets compute it on
+    demand, +12-13 s; never in the search's first 30 s, where the bound measurably slowed CP-SAT);
   - the MM certificate is looser since v38: S2 +29.56% / S3 +8.11% (was +9.87% / +6.77% at v37) — the
     budget-free start-of-combat crit constant lifts the Mesure III assume world; see
     `docs/MOST_MASTERIES_PERF_PLAN.md` §8.16 for the per-world attribution and the two leads;
