@@ -1193,6 +1193,14 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     for cell (110 max 1,657,830; 245 max 20,953,350). Cost: the aux worlds run on every max-damage request with subs,
     ~2.6–3.2× the fast ledger (245: ~10–16 s → ~26–42 s on 4 threads). Open: a target-aware bound (MP / range axes)
     to tighten the badge; folding the aux worlds into the normal worlds' thread pool.
+  - ~~the most-masteries GUI-default request gets NO badge on low-core machines~~ — FIXED 2026-10-02 (CERTIFIER_VERSION
+    45 → 47, `docs/MOST_MASTERIES_PERF_PLAN.md` §8.20): the MM certificate bailed on the GUI's RANGE 4 row and on its
+    0-valued wind-resistance / dodge rows (all eight default rows reach the engine). 0-valued rows of any stat are now an
+    exact skip (weight 0 in the model; the objective still folds) and RANGE has a saturating state dim; the request-level
+    bails are one function shared with the warm-up gate (`supportsRequest`). GUI-default bound at 245: core 11 737 (=
+    the range-free S3 bound, 8.6 s / 94 896 states on 10 cores) ⇒ ≈ "within 12.1 %" against E0's 4-core incumbent where
+    it read Unavailable; at 110 it bounds too (1.1 s). Also: late-staged sub HP now takes the %HP scaling (latent under-count,
+    no catalog sub carries HP). Open: the 4-core production re-run, P3 (pair options once per proof).
   - ~~the flat soft objective on wildly unreachable targets (empty build can win on 2–3 workers)~~ — FIXED
     2026-10-02: the power-table multiplier is floored at 1 (`penaltyMultiplier`, shared by the solver and both
     soft certificates; the re-scorers cap their factor at `MAX_PENALTY_MULTIPLIER`; the survivability floor's
