@@ -97,7 +97,9 @@ object FindMaxDamageScoring {
      * Replicates the most-masteries shortfall penalty: builds that fall short of the required hard
      * targets (AP/MP/range/HP/…) are divided down by `(100 / successPercentage)^6`, so the solver and
      * scorer both prefer constraint-satisfying builds. Returns 1 when every required target is met (or
-     * none are requested).
+     * none are requested). Capped at [MAX_PENALTY_MULTIPLIER] like the solver's floored multiplier
+     * ([penaltyMultiplier]): far-out-of-reach builds (< ~10%) keep their damage gradient — the external
+     * loop ranks probe results by this score, so an uncapped ~1e12 divisor read every such build as 0.
      */
     internal fun requiredConstraintPenaltyFactor(
         targetStats: TargetStats,
@@ -128,6 +130,8 @@ object FindMaxDamageScoring {
         val successPercentage =
             ((totalActual.coerceAtLeast(BigDecimal.ONE) / totalExpected.coerceAtLeast(BigDecimal.ONE)) * BigDecimal(100))
                 .coerceAtMost(BigDecimal(100))
-        return (BigDecimal(100).setScale(4) / successPercentage.coerceAtLeast(BigDecimal.ONE)).pow(6)
+        return (BigDecimal(100).setScale(4) / successPercentage.coerceAtLeast(BigDecimal.ONE))
+            .pow(6)
+            .coerceAtMost(MAX_PENALTY_MULTIPLIER.toBigDecimal())
     }
 }

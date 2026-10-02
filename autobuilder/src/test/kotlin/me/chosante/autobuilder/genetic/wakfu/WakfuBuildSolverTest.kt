@@ -8634,7 +8634,8 @@ class WakfuBuildSolverTest {
      *  - a NON-binding AP target the damage-optimal build meets for free ⇒ the certificate proves the SAME optimum
      *    (`proxy ≥ maxCell`), where the OLD gate returned Unavailable;
      *  - an unreachable target the incumbent MISSES ⇒ its multiplier is below max, so a target-meeting build could
-     *    out-score it and the certificate cannot rank the penalized objective ⇒ Unavailable (honest absence).
+     *    out-score it and the damage ledger cannot rank the penalized objective ⇒ the verdict comes from the soft
+     *    certificate in penalized units (a raw-proxy-optimal but penalized-weaker incumbent is NOT ProvenOptimal).
      * Guards the soundness of the gate-lift (a wrong ProvenOptimal here would be a false "proven optimum" badge).
      */
     @Test
@@ -8659,14 +8660,34 @@ class WakfuBuildSolverTest {
             .describedAs("a met, non-binding required target ⇒ the certificate proves the optimum (was blanket-Unavailable before)")
             .isEqualTo(MaxDamageSearch.MaxDamageProof.ProvenOptimal)
 
-        // A target the build CANNOT reach ⇒ the incumbent misses it ⇒ its multiplier is below max ⇒ Unavailable.
+        // A target the build CANNOT reach ⇒ the incumbent misses it ⇒ its multiplier is below max, so the DAMAGE
+        // ledger cannot rank it: proveOptimality hands it to the SOFT certificate (§9.20), which compares in
+        // penalized units. AP ≤ 9 of 99 puts every build in the floored region (multiplier 1), so the soft
+        // optimum is the max-damage build and the union closes on it. (Before the multiplier floor the soft
+        // objective was a flat 0 here and the proof bailed as Unavailable.)
         val unreachable = params.copy(targetStats = TargetStats(listOf(TargetStat(Characteristic.ACTION_POINT, 99))))
         val bestUnreachable =
             runBlocking { MaxDamageSearch.run(unreachable, pool, emptyList(), tuning).toList() }
                 .maxWithOrNull(compareBy({ it.matchPercentage }, { it.isOptimal }))!!
-        assertThat(MaxDamageSearch.proveOptimality(unreachable, pool, emptyList(), emptyList(), bestUnreachable.copy(isOptimal = false), threads = 1))
-            .describedAs("an unmet required target ⇒ certificate cannot rank the penalized objective ⇒ Unavailable")
-            .isEqualTo(MaxDamageSearch.MaxDamageProof.Unavailable)
+        val missed = bestUnreachable.copy(isOptimal = false)
+        assertThat(MaxDamageSearch.proveOptimality(unreachable, pool, emptyList(), emptyList(), missed, threads = 1))
+            .describedAs("an unmet required target ⇒ the soft certificate proves the penalized optimum")
+            .isEqualTo(MaxDamageSearch.MaxDamageProof.ProvenOptimal)
+        // ...and that verdict is the PENALIZED one, not the damage ledger's: the same build with its raw proxy
+        // intact (≥ the ledger's max cell — the damage ledger alone would call it optimal) but a 5% weaker
+        // penalized objective is only "proven within".
+        val missedObjective = missed.maxDamageObjective!!
+        assertThat(
+            MaxDamageSearch.proveOptimality(
+                unreachable,
+                pool,
+                emptyList(),
+                emptyList(),
+                missed.copy(maxDamageObjective = missedObjective - missedObjective / 20),
+                threads = 1
+            )
+        ).describedAs("an unmet target is ranked on the penalized objective, never on the raw damage proxy")
+            .isInstanceOf(MaxDamageSearch.MaxDamageProof.ProvenWithin::class.java)
     }
 
     /**

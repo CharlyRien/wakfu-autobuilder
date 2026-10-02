@@ -109,8 +109,13 @@ object FindMostMasteriesFromInputScoring {
 
         val successPercentageOnAskedCharacteristic =
             ((totalActualScore.coerceAtLeast(1.0.toBigDecimal()) / totalExpectedScore.coerceAtLeast(1.0.toBigDecimal())) * 100.0.toBigDecimal()).coerceAtMost(100.0.toBigDecimal())
-        // we calculate a penalty factor to penalize the score if the stats asked are too low compared to the stats we have
-        val penaltyFactor = (100.0.toBigDecimal().setScale(4) / successPercentageOnAskedCharacteristic.coerceAtLeast(1.0.toBigDecimal())).pow(6)
+        // we calculate a penalty factor to penalize the score if the stats asked are too low compared to the stats we have.
+        // Capped at MAX_PENALTY_MULTIPLIER like the solver's floored multiplier ([penaltyMultiplier]): a build whose
+        // targets are far out of reach (< ~10%) keeps its core's gradient instead of dividing down by up to 1e12.
+        val penaltyFactor =
+            (100.0.toBigDecimal().setScale(4) / successPercentageOnAskedCharacteristic.coerceAtLeast(1.0.toBigDecimal()))
+                .pow(6)
+                .coerceAtMost(MAX_PENALTY_MULTIPLIER.toBigDecimal())
 
         // Per-element fold mirroring StatBuilder.diAdjustedPerElementMasteryScore: maximize mastery × (1 + DI/100)
         // so the proxy is damage-faithful, but EACH requested element's damage line uses its OWN per-element DI

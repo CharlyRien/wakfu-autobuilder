@@ -126,6 +126,14 @@ solver.
 - `FIND_CLOSEST_BUILD_FROM_INPUT` ("precision") — hit exact target values for *every* requested
   characteristic. Scorer: `FindClosestBuildFromInputScoring`.
 
+When required targets cannot all be met, the *soft* objectives (the most-masteries fallback, the max-damage
+soft leg) multiply the core by a power-6 penalty on the weighted target ratio. That multiplier is defined ONCE
+— `penaltyMultiplier` in `WakfuBuildSolver.kt`, **floored at 1** so targets far out of reach (< ~10%) still
+rank builds by their core (unfloored, every bucket there was 0 and the empty build tied the optimum). The
+certificates and research harnesses call it — never re-derive `i⁶ / powScale` — and the re-scorers cap their
+continuous factor at `MAX_PENALTY_MULTIPLIER` to match. The opt-in survivability floor's gentle power-2 table
+is floored at 1 the same way.
+
 ### Inputs: `WakfuBestBuildParams`
 `character`, `targetStats: TargetStats`, `searchDuration`, `stopWhenBuildMatch`, `maxRarity`,
 `forcedItems`, `excludedItems`, `excludedRarities`, `scoreComputationMode`. `TargetStats` normalizes

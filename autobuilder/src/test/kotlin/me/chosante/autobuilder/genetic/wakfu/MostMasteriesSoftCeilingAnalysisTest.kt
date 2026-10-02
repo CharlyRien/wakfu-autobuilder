@@ -13,7 +13,6 @@ import me.chosante.common.Rarity
 import me.chosante.common.skills.CharacterSkills
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.Test
-import java.math.BigInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.ceil
 import kotlin.time.Duration.Companion.seconds
@@ -32,9 +31,9 @@ import kotlin.time.Duration.Companion.seconds
  * re-derived arithmetic). `U(x) < L` ⇒ no build containing `x` can beat the incumbent, so the item
  * would be droppable before model construction. Equality is kept (`x` may win the tie-break).
  *
- * The bucket/power-table arithmetic mirrors `applyConstraintPenalty`/`bucketedIndex`/
- * `buildPowerTable` exactly (integer, BigInteger-scaled) — measurement-only duplication, flagged
- * in the report so a future productionization derives it from the model instead.
+ * The bucket arithmetic mirrors `applyConstraintPenalty`/`bucketedIndex` exactly — measurement-only
+ * duplication, flagged in the report so a future productionization derives it from the model
+ * instead; the power-table entries come from the solver's own [penaltyMultiplier].
  *
  * Gates (plan §8.3): <10% rejected ⇒ DROP; 10-20% ⇒ research seam only; ≥20% ⇒ build the filter.
  *
@@ -130,16 +129,9 @@ class MostMasteriesSoftCeilingAnalysisTest {
         val bucketSize =
             if (totalExpected <= MAX_POWER_TABLE_INDEX) 1L else ceil(totalExpected.toDouble() / MAX_POWER_TABLE_INDEX.toDouble()).toLong()
         val maxIndex = if (totalExpected <= MAX_POWER_TABLE_INDEX) totalExpected.toInt() else ((totalExpected + bucketSize - 1) / bucketSize).toInt()
-        val maxPow = BigInteger.valueOf(maxIndex.toLong()).pow(6)
-        val powScale =
-            if (maxPow > BigInteger.valueOf(MAX_PENALTY_MULTIPLIER)) maxPow.divide(BigInteger.valueOf(MAX_PENALTY_MULTIPLIER)) else BigInteger.ONE
+        val powScale = penaltyPowScale(maxIndex.toLong())
 
-        fun power6(index: Int): Long =
-            BigInteger
-                .valueOf(index.toLong())
-                .pow(6)
-                .divide(powScale)
-                .toLong()
+        fun power6(index: Int): Long = penaltyMultiplier(index.toLong(), powScale)
 
         val scale = WakfuBuildSolver.OVERSHOOT_SCALE
         val diFactorMax = 100L + DAMAGE_DI_MAX

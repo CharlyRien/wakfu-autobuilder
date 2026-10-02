@@ -20,6 +20,8 @@ import kotlin.math.ceil
  *
  *   `⌊max(M,0) × (100 + clamp(D)) / 100⌋ × power6(bucket(totalActual)) × SCALE + (SCALE − 1)`
  *
+ * (`power6` is the solver's own [penaltyMultiplier], floor at 1 included.)
+ *
  * [MostMasteriesBoundPrototype] (v1) bounded the unpenalized core only, so any targets-met
  * incumbent sat below it by the crit/AP-dump gap (+2.6% on F5). v2 tracks the required-target
  * achievements INSIDE the DP state, so mastery bought by dumping targets pays its penalty bucket:
@@ -281,12 +283,8 @@ internal object MostMasteriesCertificate {
         val maxIndex: Int,
         val powScale: BigInteger,
     ) {
-        fun power6(index: Int): Long =
-            BigInteger
-                .valueOf(index.toLong())
-                .pow(6)
-                .divide(powScale)
-                .toLong()
+        // The solver's own multiplier (floored at 1), shared — never re-derived here.
+        fun power6(index: Int): Long = penaltyMultiplier(index.toLong(), powScale)
 
         /** The bucket a build meeting EVERY required target lands in (its per-stat clamps sum to totalExpected). */
         val fullBucket: Int
@@ -304,10 +302,7 @@ internal object MostMasteriesCertificate {
         val bucketSize =
             if (totalExpected <= MAX_POWER_TABLE_INDEX) 1L else ceil(totalExpected.toDouble() / MAX_POWER_TABLE_INDEX).toLong()
         val maxIndex = if (totalExpected <= MAX_POWER_TABLE_INDEX) totalExpected.toInt() else ((totalExpected + bucketSize - 1) / bucketSize).toInt()
-        val maxPow = BigInteger.valueOf(maxIndex.toLong()).pow(6)
-        val powScale =
-            if (maxPow > BigInteger.valueOf(MAX_PENALTY_MULTIPLIER)) maxPow.divide(BigInteger.valueOf(MAX_PENALTY_MULTIPLIER)) else BigInteger.ONE
-        return PenaltyGeometry(totalExpected, bucketSize, maxIndex, powScale)
+        return PenaltyGeometry(totalExpected, bucketSize, maxIndex, penaltyPowScale(maxIndex.toLong()))
     }
 
     /**
