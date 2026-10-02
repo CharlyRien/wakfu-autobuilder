@@ -1340,6 +1340,68 @@ post-search proof only compares.
   the identical map) and three `BuildSearchModelE2ETest` cases (one pass, a superseded proof never lands, no proof
   for a CP-SAT-proven result).
 
+### 8.20 SHIPPED (2026-10-02, CERTIFIER_VERSION 45 → 47): one source for the request-level bails; RANGE + 0-valued rows — the GUI-default request gets its badge; %HP on late-staged sub HP
+
+The coverage hole of the perf pass's E0 (`docs/perf-next-steps-2026-10.md` §1, §3 #5, §4.7): on a 4-core laptop the
+GUI-default most-masteries request at level 245 ends with no CP-SAT proof in 120 s AND no badge — the certificate bailed
+on its RANGE row and on its 0-valued rows. One step per CERTIFIER_VERSION; S2 / S3 bit-identical (soft
+80 090 257 809 999, targets-met 76 320 000 009 999, S3 11 737 — measured at v45 and v46 with `manual per-world tightness
+on S2 and S3`; v47 only scales HP lines no catalog sub carries).
+
+**What the GUI sends** (most-masteries mode, `UiState.defaultTargetValues` → `BuildSearchModel.toTargetStats`): all eight
+rows — AP 11, MP 4, RANGE 4, CC 25, distance mastery 1, HP 2000, wind resistance 0, dodge 0. `toTargetStats` drops a
+0-valued per-element resistance row only inside `expandGlobalResistance`, i.e. only when a GLOBAL resistance row exists;
+the defaults have none, so both 0-valued rows reach the engine (the field accepts digits only: no negative target).
+**What the model does with them**: `TargetStats` weighs a 0-valued row 0 (`associateWeights`), so its penalty term, its
+share of the expected total and its overshoot term all vanish, and the hard leg constrains `target > 0` only; the row
+still FOLDS the objective (the predicate is "any required-target stat"). Its shard type (dodge / wind resistance) joins
+the rune model — objective-neutral, a blank socket for the certificate.
+
+- **v45 — one source of truth for the request-level bails.** `requestShape(params, subs, diag, blockGate)` computes every
+  request-level fact (requested masteries, required / tracked rows, passives, cap subs, block gate, the MP→DI ramp, the
+  final AP/MP uppers) and every request-level bail; `bound` reads it in every world and `supportsRequest` (the warm-up's
+  gate) is `requestShape(…, no diag, full tier) != null`. The gate had missed the final-stat-upper conversion bail, the
+  AP/MP field overflow, the cap-sub count / non-EPIC bails and the second-ramp bail. Hardening bails on shapes no current
+  request reaches: one stat required twice (the fold read one row per stat — an under-count), a choosable sub converting
+  into DI or a tracked CC / HP / block / range (its moved value rode no option — an under-count; only Dénouement converts
+  today, into the untracked elemental mastery), and the CC / HP / block packed-field overflows (were exceptions). Lock:
+  `supportsRequest and bound share every request-level bail on synthetic catalogs` (MostMasteriesBoundCacheTest, every
+  bail and its control through both entries).
+- **v46 — coverage.** (a) A 0-valued required row of ANY stat is an exact skip: no dim, no rune axis, no skill relevance,
+  no fold or targets-met term — only the fold predicate keeps it (0-valued-only requests still fold, at the bucket-1
+  multiplier, like the model). (b) RANGE gets a saturating state dim (5 bits, raw, saturating at the target; a target
+  above 31 bails): items' positive range, a RANGE shard axis (none exists on 1.93), subs' positive range in every path
+  (the exact normal packing — Visibilité II —, the epic stage — Furie II, credited as if its `range ≥ 4` held —, world-B
+  and assumed credits), the Major "Range and damage" point, passives; negative lines (Combat rapproché II, −1/−2 items)
+  dropped (an over-count). The model caps range nowhere (`applyOutOfCombatCaps`: AP / MP / WP / crit only), so unlike
+  T5's AP / MP no final-stat upper can sit below the target. `Opt.range` joins `Opt.dominates` (≥).
+  GUI-default bound (10 cores, 6 GB; `MostMasteriesCoverageHarnessTest`, `WAKFU_MM_COVERAGE_BOUND_ONLY=1`):
+
+  | level | supportsRequest | soft = targets-met read | core (soft / targets-met) | states | wall |
+  |---|---|---|---|---|---|
+  | 245 | false → **true** | 117 018 242 119 999 | 11 737 / 11 737 | 94 896 | 8.6 s |
+  | 110 | false → **true** | 18 524 315 749 999 | 1 971 / 1 858 | 227 688 | 1.1 s |
+
+  At 245 the binding state (Mesure III world) meets every target, RANGE 4 included, and its core equals the range-free
+  S3 bound — the perf pass's upper estimate (§4.7) is exactly reached: against E0's 4-core incumbent (core 10 469) the
+  badge reads **≈ +12.1 %** where it read Unavailable. (Not re-measured on the 4-core production path: the harness's
+  search mode, `MostMasteriesCoverageHarnessTest` without `BOUND_ONLY`, is ready for it.)
+- **v47 — %HP on late-staged sub HP** (§8.18 open lead 2). The %HP skill scales the whole flat HP, but the EPIC/RELIC sub
+  stages run after the skills stage and the world-B / assumed subs are credited at the collapse: their flat HP entered
+  unscaled. It is now scaled by the largest reachable %HP (Σ PERCENT-HP skill × points; an over-count). No choosable sub
+  carries HP on 1.93 (bit-identical bounds). Lock `certificate scales the late-staged subs' HP by the percent-HP skill`:
+  three synthetic +3 000 HP subs (one per path, HP 8 000 at level 100 = (1 050 + 3 000) × 2) — the v46 certificate read
+  −55.65 % (soft) and 0 (targets-met) under the pinned hard-leg optimum on all three.
+- **Locks** (MostMasteriesCertificateTest, CI): `0-valued required rows are an exact skip` (binding fixtures + a seeded
+  catalog pool: all four reads AND the state count identical with and without five 0-valued rows; a 0-valued-only
+  request folds and covers the pinned soft and hard optima); two RANGE binding fixtures in the soft and targets-met locks
+  (`binding-range` +4.76 %, `range-epic-carrier` +0.00 %); the soft fuzz with ±range lines and a binding RANGE 8 target
+  (RANGE 4 was met for free on every seed — identical bounds); the pruning bit-identity lock with ±range lines and a sixth
+  shape (RANGE 3 + AP 9). Manual: `MostMasteriesCoverageHarnessTest` (`WAKFU_MM_COVERAGE=1`: the GUI-default request on
+  the production path, 4-core profile), the per-world harness's `WAKFU_MM_TIGHT_WORKERS` / `_REPS`.
+- **Not done** (stopped for budget): P3 (ring / weapon pair options built once per proof — a superset build + per-world
+  projection and re-prune, exact as a set; prototyped, unmeasured); the 4-core production run of the GUI default.
+
 ## 9. CAMPAIGN — the S4 D·Graw certificate (max-damage soft leg; maintainer GO 2026-07-14)
 
 **Context for resumption.** After the review-fix wave (`902fa393..f97cef60`) the MM certificate is
