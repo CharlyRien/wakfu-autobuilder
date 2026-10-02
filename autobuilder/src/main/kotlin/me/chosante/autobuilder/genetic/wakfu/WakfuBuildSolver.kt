@@ -283,8 +283,25 @@ object WakfuBuildSolver {
      * now gets AUX worlds (secondary-capped N / N×C, block-assumed M / N×M), run at the fast tier and folded into
      * every tier as a per-cell floor ([certifierAuxFloor]). Cells can only RISE vs v43 (v41–v43 changed only the
      * most-masteries certificate) — every cached bound is stale.
+     * 45: most-masteries certificate — ONE source for the request-level bails (`requestShape`, MOST_MASTERIES_PERF_PLAN
+     * §8.20), read by `bound` (every world) and `supportsRequest` (the search-time warm-up's gate, which had missed the
+     * final-stat-upper conversion bail, the AP/MP field overflow, the cap-sub count/rarity bails and the second-ramp
+     * bail). Hardening bails on shapes no current request reaches: one stat required twice (the fold read one row per
+     * stat — an under-count), a choosable sub converting into DI or a tracked CC / HP / block (its moved value rode no
+     * option — an under-count), and the CC / HP / block packed-field overflows (exceptions before). Bounds bit-identical
+     * otherwise.
+     * 46: most-masteries certificate COVERAGE (§8.20) — a 0-valued required row of any stat is an exact skip (the model
+     * weighs it 0 in the penalty and the overshoot and its hard leg skips it; the objective still folds), and RANGE
+     * targets get a saturating state dim (items, runes, subs incl. the exact packing, the Major "Range and damage"
+     * point, passives, world-B / assumed credits; positive lines only; a target ≤ 31, no conversion into range). The
+     * GUI-default request (RANGE 4, wind resistance 0, dodge 0) no longer bails; requests without RANGE or 0-valued rows
+     * are bit-identical.
+     * 47: most-masteries certificate — the %HP skill's share of late-staged sub HP (§8.20): the EPIC / RELIC sub stages
+     * (after the skills) and the world-B / assumed cap subs (collapse-time credits) added flat HP the skills stage never
+     * scaled — an under-count of any HP read (no choosable sub carries HP on 1.93). That HP is now scaled by the largest
+     * reachable %HP (an over-count). Bounds bit-identical on the current catalog.
      */
-    const val CERTIFIER_VERSION: Int = 44
+    const val CERTIFIER_VERSION: Int = 47
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing

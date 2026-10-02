@@ -24,6 +24,12 @@ import me.chosante.common.Equipment
 import me.chosante.common.I18nText
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
+import me.chosante.common.Sublimation
+import me.chosante.common.SublimationCondition
+import me.chosante.common.SublimationConditionType
+import me.chosante.common.SublimationEffect
+import me.chosante.common.SublimationKind
+import me.chosante.common.SublimationRarity
 import me.chosante.common.skills.CharacterSkills
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
@@ -406,7 +412,7 @@ class MostMasteriesBoundCacheTest {
                 listOf(
                     params(211, forcedItems = listOf("helmet")),
                     params(212, targets = listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 9999))),
-                    params(213, targets = listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.RANGE, 4))),
+                    params(213, targets = listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.DODGE, 100))),
                     params(214, targets = listOf(TargetStat(Characteristic.MOVEMENT_POINT, 4)))
                 )
             for (p in ineligible) {
@@ -435,13 +441,199 @@ class MostMasteriesBoundCacheTest {
                 params(227, targets = listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 9999))),
                 params(228, targets = listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.RANGE, 4))),
                 params(229, targets = listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.RESISTANCE_ELEMENTARY_FIRE, 100))),
-                params(230, targets = listOf(TargetStat(Characteristic.MOVEMENT_POINT, 4)))
+                params(230, targets = listOf(TargetStat(Characteristic.MOVEMENT_POINT, 4))),
+                // The GUI's default rows (most-masteries): RANGE + the 0-valued wind-resistance / dodge rows.
+                params(
+                    231,
+                    targets =
+                        listOf(
+                            TargetStat(Characteristic.ACTION_POINT, 11),
+                            TargetStat(Characteristic.MOVEMENT_POINT, 4),
+                            TargetStat(Characteristic.RANGE, 4),
+                            TargetStat(Characteristic.CRITICAL_HIT, 25),
+                            TargetStat(Characteristic.MASTERY_DISTANCE, 1),
+                            TargetStat(Characteristic.HP, 2000),
+                            TargetStat(Characteristic.RESISTANCE_ELEMENTARY_WIND, 0),
+                            TargetStat(Characteristic.DODGE, 0)
+                        )
+                ).copy(useSublimations = true, useRunes = true),
+                params(232, targets = listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.DODGE, 100)))
             )
         for (p in shapes) {
             val supported = MostMasteriesCertificate.supportsRequest(p, subs)
             val bound = MostMasteriesCertificate.bound(p, pool, WakfuBestBuildFinderAlgorithm.runes, subs)
             assertThat(bound != null).describedAs("level ${p.character.level}: supportsRequest=$supported").isEqualTo(supported)
         }
+    }
+
+    private fun synthSub(
+        id: Int,
+        rarity: SublimationRarity = SublimationRarity.NORMAL,
+        condition: SublimationCondition? = null,
+        effects: List<SublimationEffect>,
+    ) = Sublimation(
+        stateId = id,
+        name = I18nText("syn$id", "syn$id", "", ""),
+        rarity = rarity,
+        maxStackLevel = 1,
+        kind = if (condition == null) SublimationKind.FLAT else SublimationKind.STATIC_CONDITIONAL,
+        solverChoosable = true,
+        condition = condition,
+        effects = effects
+    )
+
+    private fun capped(
+        type: SublimationConditionType,
+        value: Int,
+    ) = SublimationCondition(type, value = value)
+
+    /**
+     * Every REQUEST-level bail of the certificate, triggered on SYNTHETIC sublimation catalogs, through both entries:
+     * [MostMasteriesCertificate.supportsRequest] (the warm-up gate) and [MostMasteriesCertificate.bound] (one-item pool)
+     * must agree with each other AND with the expected verdict — each bail is proven to fire, and its control (the
+     * same shape one step inside the limit) to stay supported.
+     */
+    @Test
+    fun `supportsRequest and bound share every request-level bail on synthetic catalogs`() {
+        val epic = SublimationRarity.EPIC
+        val dist = TargetStat(Characteristic.MASTERY_DISTANCE, 9999)
+
+        fun subsParams(
+            level: Int,
+            targets: List<TargetStat> = listOf(dist, TargetStat(Characteristic.MOVEMENT_POINT, 4)),
+        ) = params(level, targets).copy(useSublimations = true)
+
+        fun conversion(to: Characteristic) = SublimationEffect.Conversion(Characteristic.MASTERY_CRITICAL, to, 100)
+
+        fun flat(
+            c: Characteristic,
+            v: Int,
+        ) = SublimationEffect.Flat(c, v)
+
+        val mpDiRamp = SublimationEffect.PerStatStep(Characteristic.MOVEMENT_POINT, 4, 6, 24, Characteristic.DAMAGE_INFLICTED)
+        val cases: List<Triple<String, Pair<WakfuBestBuildParams, List<Sublimation>>, Boolean>> =
+            listOf(
+                Triple("no sub", subsParams(250) to emptyList(), true),
+                // A conversion into a stat the DP reads (its moved value rides no option), or into an AP / MP the
+                // final-stat upper cannot bound.
+                Triple("conversion into AP", subsParams(251) to listOf(synthSub(9301, effects = listOf(conversion(Characteristic.ACTION_POINT)))), false),
+                Triple("conversion into MP", subsParams(252) to listOf(synthSub(9302, effects = listOf(conversion(Characteristic.MOVEMENT_POINT)))), false),
+                Triple("conversion into the requested mastery", subsParams(253) to listOf(synthSub(9303, effects = listOf(conversion(Characteristic.MASTERY_DISTANCE)))), false),
+                Triple("conversion into DI", subsParams(254) to listOf(synthSub(9304, effects = listOf(conversion(Characteristic.DAMAGE_INFLICTED)))), false),
+                Triple(
+                    "conversion into a tracked CC",
+                    subsParams(255, listOf(dist, TargetStat(Characteristic.CRITICAL_HIT, 30))) to listOf(synthSub(9305, effects = listOf(conversion(Characteristic.CRITICAL_HIT)))),
+                    false
+                ),
+                Triple("conversion into an untracked CC", subsParams(256) to listOf(synthSub(9306, effects = listOf(conversion(Characteristic.CRITICAL_HIT)))), true),
+                // The 5-bit AP / MP fields: the dims saturate at min(target, final-stat upper).
+                Triple(
+                    "AP field overflow",
+                    subsParams(257, listOf(dist, TargetStat(Characteristic.ACTION_POINT, 35))) to listOf(synthSub(9307, effects = listOf(flat(Characteristic.ACTION_POINT, 20)))),
+                    false
+                ),
+                Triple("AP 35 capped by its upper", subsParams(258, listOf(dist, TargetStat(Characteristic.ACTION_POINT, 35))) to emptyList(), true),
+                Triple(
+                    "MP field overflow",
+                    subsParams(259, listOf(dist, TargetStat(Characteristic.MOVEMENT_POINT, 32))) to
+                        listOf(synthSub(9308, effects = listOf(flat(Characteristic.MOVEMENT_POINT, 30)))),
+                    false
+                ),
+                // The world split: at most 6 cap subs, all EPIC.
+                Triple(
+                    "7 cap subs",
+                    subsParams(260) to
+                        (1..7).map { synthSub(9310 + it, epic, capped(SublimationConditionType.AP_AT_MOST, 9 + it), listOf(flat(Characteristic.DAMAGE_INFLICTED, 10))) },
+                    false
+                ),
+                Triple(
+                    "6 cap subs",
+                    subsParams(261) to
+                        (1..6).map { synthSub(9320 + it, epic, capped(SublimationConditionType.AP_AT_MOST, 9 + it), listOf(flat(Characteristic.DAMAGE_INFLICTED, 10))) },
+                    true
+                ),
+                Triple(
+                    "a non-EPIC cap sub",
+                    subsParams(262) to
+                        listOf(synthSub(9330, condition = capped(SublimationConditionType.CRIT_AT_MOST, 10), effects = listOf(flat(Characteristic.DAMAGE_INFLICTED, 10)))),
+                    false
+                ),
+                // One tracked MP→DI ramp (a state bit), never two.
+                Triple("two MP→DI ramps", subsParams(263) to listOf(synthSub(9331, effects = listOf(mpDiRamp)), synthSub(9332, effects = listOf(mpDiRamp))), false),
+                Triple("one MP→DI ramp", subsParams(264) to listOf(synthSub(9333, effects = listOf(mpDiRamp))), true),
+                // World B folds every subset of the objective-capping subs: at most 6.
+                Triple(
+                    "7 world-B subs",
+                    subsParams(265) to
+                        (1..7).map {
+                            synthSub(
+                                9340 + it,
+                                condition = capped(SublimationConditionType.SECONDARY_MASTERIES_AT_MOST, it),
+                                effects = listOf(flat(Characteristic.CRITICAL_HIT, 5))
+                            )
+                        },
+                    false
+                ),
+                Triple(
+                    "6 world-B subs",
+                    subsParams(266) to
+                        (1..6).map {
+                            synthSub(
+                                9350 + it,
+                                condition = capped(SublimationConditionType.SECONDARY_MASTERIES_AT_MOST, it),
+                                effects = listOf(flat(Characteristic.CRITICAL_HIT, 5))
+                            )
+                        },
+                    true
+                ),
+                // The block field (4 bits of 5-block buckets).
+                Triple(
+                    "block field overflow",
+                    subsParams(267) to listOf(synthSub(9360, epic, capped(SublimationConditionType.BLOCK_AT_LEAST, 80), listOf(flat(Characteristic.DAMAGE_INFLICTED, 10)))),
+                    false
+                ),
+                Triple(
+                    "block 75",
+                    subsParams(268) to listOf(synthSub(9361, epic, capped(SublimationConditionType.BLOCK_AT_LEAST, 75), listOf(flat(Characteristic.DAMAGE_INFLICTED, 10)))),
+                    true
+                ),
+                // Request-only shapes: one stat required twice, CC / HP targets past their fields.
+                Triple(
+                    "AP required twice",
+                    subsParams(269, listOf(dist, TargetStat(Characteristic.ACTION_POINT, 8), TargetStat(Characteristic.ACTION_POINT, 10))) to emptyList(),
+                    false
+                ),
+                Triple("CC field overflow", subsParams(270, listOf(dist, TargetStat(Characteristic.CRITICAL_HIT, 1_300))) to emptyList(), false),
+                Triple("HP field overflow", subsParams(271, listOf(dist, TargetStat(Characteristic.HP, 300_000))) to emptyList(), false),
+                // Plan §8.20: RANGE is tracked (5 bits), and a 0-valued row of any stat is an exact skip.
+                Triple("RANGE target", subsParams(272, listOf(dist, TargetStat(Characteristic.RANGE, 4))) to emptyList(), true),
+                Triple("RANGE field overflow", subsParams(273, listOf(dist, TargetStat(Characteristic.RANGE, 40))) to emptyList(), false),
+                Triple(
+                    "conversion into a tracked RANGE",
+                    subsParams(274, listOf(dist, TargetStat(Characteristic.RANGE, 4))) to listOf(synthSub(9370, effects = listOf(conversion(Characteristic.RANGE)))),
+                    false
+                ),
+                Triple("conversion into an untracked RANGE", subsParams(275) to listOf(synthSub(9371, effects = listOf(conversion(Characteristic.RANGE)))), true),
+                Triple(
+                    "0-valued rows of untracked stats",
+                    subsParams(
+                        276,
+                        listOf(dist, TargetStat(Characteristic.MOVEMENT_POINT, 4), TargetStat(Characteristic.DODGE, 0), TargetStat(Characteristic.RESISTANCE_ELEMENTARY_WIND, 0))
+                    ) to
+                        emptyList(),
+                    true
+                ),
+                Triple("only 0-valued required rows", subsParams(277, listOf(dist, TargetStat(Characteristic.DODGE, 0))) to emptyList(), true),
+                Triple("a non-zero untracked row", subsParams(278, listOf(dist, TargetStat(Characteristic.DODGE, 50))) to emptyList(), false)
+            )
+        val mismatches = mutableListOf<String>()
+        for ((label, shape, expected) in cases) {
+            val (p, subs) = shape
+            val supported = MostMasteriesCertificate.supportsRequest(p, subs)
+            val bound = MostMasteriesCertificate.bound(p, pool, WakfuBestBuildFinderAlgorithm.runes, subs)
+            if (supported != expected || (bound != null) != expected) mismatches += "$label: expected $expected, supportsRequest=$supported bound=${bound != null}"
+        }
+        assertThat(mismatches).describedAs("every request-level bail must fire through BOTH entries").isEmpty()
     }
 
     @Test
