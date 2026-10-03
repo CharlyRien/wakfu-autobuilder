@@ -2352,30 +2352,6 @@
     "source": "bdata"
   },
   {
-    "id": 5295,
-    "name": {
-      "fr": "!@#dh`~",
-      "en": "!@#dh`~",
-      "es": "!@#dh`~",
-      "pt": "!@#dh`~"
-    },
-    "level": 238,
-    "hp": 275832,
-    "family": {
-      "fr": "Égarés",
-      "en": "Streyes",
-      "es": "Idos",
-      "pt": "Perdidos"
-    },
-    "rank": 1,
-    "gfx": 1107905295,
-    "fireResistance": 625,
-    "waterResistance": 625,
-    "earthResistance": 625,
-    "airResistance": 625,
-    "source": "bdata"
-  },
-  {
     "id": 5283,
     "name": {
       "fr": "Ar'Nan, Augure du néant",
@@ -8724,6 +8700,29 @@
     "waterResistance": 600,
     "earthResistance": 600,
     "airResistance": 600,
+    "source": "bdata"
+  },
+  {
+    "id": 5295,
+    "name": {
+      "fr": "!@#dh`~",
+      "en": "!@#dh`~",
+      "es": "!@#dh`~",
+      "pt": "!@#dh`~"
+    },
+    "level": 238,
+    "hp": 275832,
+    "family": {
+      "fr": "Égarés",
+      "en": "Streyes",
+      "es": "Idos",
+      "pt": "Perdidos"
+    },
+    "gfx": 1107905295,
+    "fireResistance": 625,
+    "waterResistance": 625,
+    "earthResistance": 625,
+    "airResistance": 625,
     "source": "bdata"
   },
   {
