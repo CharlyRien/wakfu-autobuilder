@@ -362,6 +362,24 @@ WAKFU_COMPOSE_SCREENSHOT=/tmp/out.png ./gradlew :gui-compose:run
   (`make copied-site`). It is chained **automatically** by `release-please.yml` (via `workflow_call`)
   when merging the release PR publishes a release — releasing = merge the release-please PR, nothing
   else. It can also be run manually (`workflow_dispatch`) to re-deploy without a release.
+- **Release notes.** `CHANGELOG.md` stays release-please's *technical* history; players read one short
+  note per user-visible change in the What's new dialog, in the UI language. **Every feat/fix/perf
+  change adds a `changes/unreleased/` note in EN + FR**: `changes/unreleased/<slug>.properties`
+  (UTF-8) with `type=feat|fix|perf`, `en=`, `fr=` (required), `es=` / `scope=cli|gui` (optional) —
+  format in CONTRIBUTING.md › Release notes.
+  - Enforced by `ChangeFragmentsTest` (format, in `./gradlew test`) and the `changeset.yml` PR check
+    (a feat/fix/perf commit or PR title needs an ADDED note; the `no-changeset` label waives it for
+    internal-only changes; release-please's PR is exempt). Optional hook:
+    `git config core.hooksPath scripts/git-hooks`.
+  - Filing: `release-notes.yml` (called after every release-please run, and on human pushes to the
+    release branch) moves `changes/unreleased/*` into `changes/<version>/` ON the release PR branch
+    (`scripts/changesets/assign-release-notes.sh`), re-applied because release-please regenerates
+    that branch whenever its notes change. Merging the release PR archives the notes; a note that
+    raced the merge is filed under the release that shipped it by the next release PR.
+  - `gui-compose`'s `generateReleaseNotes` compiles every note into `release-notes.json` (unreleased
+    notes labelled as the version being built) for `ui/state/WhatsNew.kt`; releases ≤ 1.11 keep their
+    CHANGELOG rendering. Never delete `changes/unreleased/.gitkeep` (it stops git from reading the
+    filing as a directory rename). Scenario tests: `scripts/changesets/test-changesets.sh` (in CI).
 - Dependencies are kept current by Dependabot (grouped Gradle + GitHub Actions PRs).
 
 ---
