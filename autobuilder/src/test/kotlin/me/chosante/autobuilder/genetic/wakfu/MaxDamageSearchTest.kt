@@ -93,7 +93,9 @@ class MaxDamageSearchTest {
             val params =
                 WakfuBestBuildParams(
                     character = character,
-                    targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY, 1))),
+                    // Boss candidate elements come from the scenario. An aggregate mastery TARGET would
+                    // separately enable the heuristic item prefilter and make a global proof unavailable.
+                    targetStats = TargetStats(emptyList()),
                     searchDuration = 10.seconds,
                     stopWhenBuildMatch = false,
                     maxRarity = Rarity.EPIC,
@@ -117,6 +119,18 @@ class MaxDamageSearchTest {
             assertThat(last.isOptimal)
                 .describedAs("a no-debuff boss case is PROVEN (every per-element solve proved)")
                 .isTrue()
+
+            val prefiltered = params.copy(targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY, 1))))
+            val prefilteredResults =
+                MaxDamageSearch
+                    .run(prefiltered, equipments.groupBy { it.itemType }, emptyList(), WakfuBuildSolver.SolverTuning())
+                    .toList()
+            assertThat(prefilteredResults.last().matchPercentage)
+                .describedAs("this tiny pool loses no item, so the search still finds the same damage")
+                .isEqualByComparingTo(last.matchPercentage)
+            assertThat(prefilteredResults)
+                .describedAs("the boss loop must not restore a global proof for a prefiltered request")
+                .allSatisfy { assertThat(it.isOptimal).isFalse() }
         }
 
     // ----- background proof: a front-end that stops or declines the post-search proof also stops the search's leftovers -----

@@ -356,25 +356,31 @@ class WakfuBuildSolverTest {
                     }.groupBy { it.itemType }
 
             // Deterministic, machine-independent solve (fixed worker + seed + deterministic-time
-            // budget): the search reaches the *same proven optimum* on every machine. This is what
+            // budget): the search proves the reduced pool's optimum. This is what
             // de-flakes the test — under the real wall-clock search a slow/loaded CI runner could stop
             // early on a sub-optimal feasible build that violated the assertions below.
+            var termination: WakfuBuildSolver.SolveOutcome? = null
             val results =
                 WakfuBuildSolver
-                    .optimize(params, equipmentsByItemType, WakfuBuildSolver.SolverTuning())
-                    .toList()
+                    .optimize(
+                        params,
+                        equipmentsByItemType,
+                        emptyList(),
+                        emptyList(),
+                        WakfuBuildSolver.SolverTuning(),
+                        onTermination = { termination = it }
+                    ).toList()
 
-            // Optimality must actually be *proven* within the deterministic-time budget — that proof
-            // is what keeps every assertion below stable. A failure here is a loud, reproducible
-            // "budget too small" signal, never a flake.
-            val lpBest =
-                results.lastOrNull { it.isOptimal }
-            assertThat(lpBest)
-                .describedAs("solver must prove optimality within the deterministic-time budget")
-                .isNotNull
+            // Keep the raw CP-SAT proof requirement, but never advertise it as a GLOBAL proof:
+            // these two elemental targets trigger the top-8 heuristic (PrefilterOptimalityTest).
+            assertThat(termination?.status)
+                .describedAs("solver must prove the reduced-pool optimum within the deterministic-time budget")
+                .isEqualTo(com.google.ortools.sat.CpSolverStatus.OPTIMAL)
+            val lpBest = results.last()
+            assertThat(lpBest.isOptimal).isFalse()
 
             // A real, valid, non-trivial build — not an empty no-op that could pass a bare ">= GA".
-            assertThat(lpBest!!.individual.isValid()).isTrue()
+            assertThat(lpBest.individual.isValid()).isTrue()
             assertThat(lpBest.individual.equipments.size).isGreaterThanOrEqualTo(10)
 
             // Correctness on real data: every required hard constraint (AP/MP/range/crit) is actually met.
@@ -6670,11 +6676,22 @@ class WakfuBuildSolverTest {
                     excludedItems = emptyList(),
                     scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
                 )
+            var termination: WakfuBuildSolver.SolveOutcome? = null
             val best =
                 WakfuBuildSolver
-                    .optimize(params, equipments.groupBy { it.itemType }, WakfuBuildSolver.SolverTuning())
-                    .toList()
-                    .last { it.isOptimal }
+                    .optimize(
+                        params,
+                        equipments.groupBy { it.itemType },
+                        emptyList(),
+                        emptyList(),
+                        WakfuBuildSolver.SolverTuning(),
+                        onTermination = { termination = it }
+                    ).toList()
+                    .last()
+            // The random-assignment oracle still requires CP-SAT's exact model optimum. The
+            // multi-element heuristic request must not expose that status as a global proof.
+            assertThat(termination?.status).isEqualTo(com.google.ortools.sat.CpSolverStatus.OPTIMAL)
+            assertThat(best.isOptimal).isFalse()
             // The freed CP-SAT random assignment must reach the SAME optimum the exact-scorer exhaustive does
             // (consistency): a divergence means the model and the scorer disagree on the random roll placement.
             assertThat(best.matchPercentage).isEqualByComparingTo(exhaustive)
@@ -6756,11 +6773,20 @@ class WakfuBuildSolverTest {
                     excludedItems = emptyList(),
                     scoreComputationMode = ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
                 )
+            var termination: WakfuBuildSolver.SolveOutcome? = null
             val best =
                 WakfuBuildSolver
-                    .optimize(params, equipments.groupBy { it.itemType }, WakfuBuildSolver.SolverTuning())
-                    .toList()
-                    .last { it.isOptimal }
+                    .optimize(
+                        params,
+                        equipments.groupBy { it.itemType },
+                        emptyList(),
+                        emptyList(),
+                        WakfuBuildSolver.SolverTuning(),
+                        onTermination = { termination = it }
+                    ).toList()
+                    .last()
+            assertThat(termination?.status).isEqualTo(com.google.ortools.sat.CpSolverStatus.OPTIMAL)
+            assertThat(best.isOptimal).isFalse()
             assertThat(best.matchPercentage).isEqualByComparingTo(exhaustive)
         }
 
