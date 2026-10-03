@@ -45,6 +45,7 @@ dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
+    testImplementation(libs.kotlinx.coroutine.test)
     testImplementation(libs.compose.ui.test.junit4)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 

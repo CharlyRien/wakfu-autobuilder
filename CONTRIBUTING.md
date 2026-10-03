@@ -36,6 +36,8 @@ build resolves Compose Desktop + the native OR-Tools library and is slow.
   filtering are matched in **French** (`equipment.name.fr`), regardless of UI language.
 - Tests: JUnit 5 + AssertJ (the engine also uses `kotlin-test`). Engine tests must use a deterministic
   `SolverTuning` (fixed det-time / seed / workers) or they flake on CI.
+- Every Gradle test task checks compiled `@Test` signatures before JUnit discovery. Kotlin expression-body tests
+  must return `Unit` (`: Unit = runBlocking { ... }` or `: Unit = runTest { ... }`); a non-void return fails the task.
 - **Commits:** each commit should be a real feature or fix; fold incidental chores (warning/lint fixes,
   deprecations) into the related commit rather than standalone `chore:` commits. Don't commit/push unless
   asked; the default branch is `main`.
