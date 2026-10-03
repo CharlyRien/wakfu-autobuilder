@@ -1794,8 +1794,12 @@ class BuildSearchModel(
         ui = ui.copy(modal = Modal.SaveBuild)
     }
 
-    /** Default text for the save dialog's name field. */
-    fun suggestedSaveName(): String = ui.activeBuildName ?: ui.suggestedBuildName()
+    /**
+     * Default text for the save dialog's name field: the loaded build's own name (saving updates it), else the generated
+     * "Cra 110 · Distance" — made unique against the library ("… (2)") so that suggestion never collides with a build you
+     * already saved, which would open the dialog with Save disabled and the "name already used" warning showing.
+     */
+    fun suggestedSaveName(): String = ui.activeBuildName ?: uniqueLibraryName(ui.suggestedBuildName())
 
     /**
      * Names already used by *other* saved builds (the active build's own name is excluded so updating

@@ -42,7 +42,16 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -293,16 +302,28 @@ internal fun Scrim(
     onDismiss: () -> Unit,
     content: @Composable () -> Unit,
 ) {
+    // The card holds the keyboard focus from the start, so Esc works in every modal — a confirm dialog with no text field
+    // included. A field that asks for the focus after it (SearchField's autoFocus) just takes it over: it is inside the card.
+    val cardFocus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { cardFocus.requestFocus() }
     Box(
         modifier =
             Modifier
                 .fillMaxSize()
                 .background(Color(0xCC0B0C0F))
-                .noRippleClickable(onClick = onDismiss),
+                // Esc closes whichever modal is open. A preview handler, so it fires wherever the focus is inside the card.
+                .onPreviewKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
+                        onDismiss()
+                        true
+                    } else {
+                        false
+                    }
+                }.noRippleClickable(onClick = onDismiss),
         contentAlignment = Alignment.Center
     ) {
         // Card swallows its own clicks so it does not dismiss the scrim.
-        Box(modifier = Modifier.noRippleClickable {}) {
+        Box(modifier = Modifier.focusRequester(cardFocus).noRippleClickable {}) {
             content()
         }
     }
@@ -337,7 +358,7 @@ private fun AddStatModal(
             }
         }
     ModalCard(title = tr(Tr.ADD_TARGET_STAT_TITLE)) {
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.FILTER_STATS))
+        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.FILTER_STATS), autoFocus = true)
         Spacer(modifier = Modifier.height(WDimens.gap))
         Column(
             modifier =
@@ -517,7 +538,7 @@ private fun ItemPickerModal(
             onToggle = { equippableOnly = !equippableOnly }
         )
         Spacer(modifier = Modifier.height(WDimens.gap))
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_ITEMS))
+        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_ITEMS), autoFocus = true)
         Spacer(modifier = Modifier.height(WDimens.gap))
         LazyColumn(
             modifier = Modifier.heightIn(max = 440.dp),
@@ -653,7 +674,7 @@ private fun SublimationPickerModal(
     ModalCard(title = tr(if (exclude) Tr.EXCLUDE_SUBLIMATION_TITLE else Tr.REQUIRE_SUBLIMATION_TITLE)) {
         SublimationRarityFilter(selected = rarityFilter, onSelect = { rarityFilter = it })
         Spacer(modifier = Modifier.height(WDimens.gap))
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_SUBLIMATIONS))
+        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_SUBLIMATIONS), autoFocus = true)
         Spacer(modifier = Modifier.height(WDimens.gap))
         LazyColumn(
             modifier = Modifier.heightIn(max = 440.dp),
@@ -814,7 +835,7 @@ private fun PassivePickerModal(
                 .take(120)
         }
     ModalCard(title = tr(Tr.REQUIRE_PASSIVE_TITLE)) {
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_PASSIVES))
+        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_PASSIVES), autoFocus = true)
         Spacer(modifier = Modifier.height(WDimens.gap))
         LazyColumn(
             modifier = Modifier.heightIn(max = 440.dp),
@@ -898,7 +919,7 @@ private fun BossPickerModal(onPick: (Monster) -> Unit) {
             }.take(120)
         }
     ModalCard(title = tr(Tr.CHOOSE_BOSS_TITLE)) {
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_BOSSES))
+        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_BOSSES), autoFocus = true)
         Spacer(modifier = Modifier.height(WDimens.gap))
         LazyColumn(
             modifier = Modifier.heightIn(max = 440.dp),
@@ -999,7 +1020,7 @@ private fun ItemRunePickerModal(
             style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
         )
         Spacer(modifier = Modifier.height(WDimens.gap))
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_RUNES))
+        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_RUNES), autoFocus = true)
         Spacer(modifier = Modifier.height(WDimens.gap))
         LazyColumn(
             modifier = Modifier.heightIn(max = 360.dp),
@@ -1188,11 +1209,12 @@ private fun RuneColor.pickerColor(): Color =
 @Composable
 internal fun ModalCard(
     title: String,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     Column(
         modifier =
-            Modifier
+            modifier
                 .widthIn(min = 380.dp, max = 460.dp)
                 .clip(RoundedCornerShape(WDimens.radius))
                 .background(WColor.surface)
@@ -1208,14 +1230,26 @@ internal fun ModalCard(
     }
 }
 
+/**
+ * The modals' single-line text input. It never takes the keyboard focus by itself: a form with several fields used to end up
+ * with the focus on whichever one was composed LAST (the Save dialog opened on its note field, the Edit dialog on its tags),
+ * so the field that should start focused — a picker's only field, a form's first one — asks for it with [autoFocus].
+ * [onEnter] runs when Enter is pressed in the field (and consumes the key).
+ */
 @Composable
 private fun SearchField(
     query: String,
     onQueryChange: (String) -> Unit,
     placeholder: String,
+    autoFocus: Boolean = false,
+    onEnter: (() -> Unit)? = null,
 ) {
     val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    LaunchedEffect(autoFocus) { if (autoFocus) focusRequester.requestFocus() }
+    // The caller owns the text; the cursor / selection live here. A field that takes the focus on open starts with its whole
+    // text selected, so typing replaces a pre-filled name (a plain String field would leave the cursor at position 0, in
+    // front of the suggestion, and typing would garble it).
+    var field by remember { mutableStateOf(TextFieldValue(text = query, selection = if (autoFocus) TextRange(0, query.length) else TextRange.Zero)) }
     Box(
         modifier =
             Modifier
@@ -1228,18 +1262,49 @@ private fun SearchField(
         contentAlignment = Alignment.CenterStart
     ) {
         BasicTextField(
-            value = query,
-            onValueChange = onQueryChange,
+            value = if (field.text == query) field else field.copy(text = query),
+            onValueChange = { updated ->
+                field = updated
+                if (updated.text != query) onQueryChange(updated.text)
+            },
             singleLine = true,
             cursorBrush = SolidColor(WColor.accent),
             textStyle = WTypography.bodyMedium.copy(color = WColor.text),
-            modifier = Modifier.fillMaxWidth().focusRequester(focusRequester)
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester)
+                    .then(if (onEnter != null) Modifier.onEnterKey(onEnter) else Modifier)
         )
         if (query.isEmpty()) {
             Text(text = placeholder, style = WTypography.bodyMedium.copy(color = WColor.faint))
         }
     }
 }
+
+private fun Key.isEnter(): Boolean = this == Key.Enter || this == Key.NumPadEnter
+
+/** Runs [action] when Enter is pressed and consumes the key. A preview handler, so the text field never sees it first. */
+private fun Modifier.onEnterKey(action: () -> Unit): Modifier =
+    onPreviewKeyEvent { event ->
+        if (event.type == KeyEventType.KeyDown && event.key.isEnter()) {
+            action()
+            true
+        } else {
+            false
+        }
+    }
+
+/** Runs [action] on Ctrl+Enter or Cmd+Enter anywhere inside — the "submit" of a form that has a free-text field. */
+private fun Modifier.onSubmitShortcut(action: () -> Unit): Modifier =
+    onPreviewKeyEvent { event ->
+        if (event.type == KeyEventType.KeyDown && event.key.isEnter() && (event.isCtrlPressed || event.isMetaPressed)) {
+            action()
+            true
+        } else {
+            false
+        }
+    }
 
 @Composable
 private fun SaveBuildModal(
@@ -1252,12 +1317,20 @@ private fun SaveBuildModal(
     var name by remember { mutableStateOf(initialName) }
     var note by remember { mutableStateOf("") }
     val nameTaken = name.trim().lowercase() in takenNames
-    ModalCard(title = tr(Tr.SAVE_DIALOG_TITLE)) {
+    // Block any save whose name collides with a *different* saved build, so two builds never
+    // share a name (which would make the library and compare view ambiguous).
+    val canSave = name.isNotBlank() && !nameTaken
+    // Enter in the name field and Ctrl/Cmd+Enter anywhere in the dialog do what the highlighted button does ("Update" for a
+    // loaded build, "Save" otherwise), and nothing while that button is disabled.
+    val submit = { if (canSave) onSave(name, note.ifBlank { null }, false) }
+    ModalCard(title = tr(Tr.SAVE_DIALOG_TITLE), modifier = Modifier.onSubmitShortcut(submit)) {
         LabeledField(
             label = tr(Tr.SAVE_NAME_LABEL),
             value = name,
             onValueChange = { name = it },
-            placeholder = ""
+            placeholder = "",
+            autoFocus = true,
+            onEnter = submit
         )
         if (nameTaken) {
             Spacer(modifier = Modifier.height(6.dp))
@@ -1281,9 +1354,6 @@ private fun SaveBuildModal(
             )
         }
         Spacer(modifier = Modifier.height(WDimens.gap))
-        // Block any save whose name collides with a *different* saved build, so two builds never
-        // share a name (which would make the library and compare view ambiguous).
-        val canSave = name.isNotBlank() && !nameTaken
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             DialogButton(text = tr(Tr.CANCEL), filled = false, color = WColor.border, onClick = onCancel, modifier = Modifier.weight(1f))
             if (isEditingExisting) {
@@ -1403,9 +1473,12 @@ private fun EditBuildModal(
     // The build's own name must not count as "taken" (editing it isn't a collision with itself).
     val ownName = entry.name.trim().lowercase()
     val nameTaken = name.trim().lowercase().let { it != ownName && it in takenNames }
+    val canSave = name.isNotBlank() && !nameTaken
+    // Same keys as the Save dialog: Enter in the name field, Ctrl/Cmd+Enter anywhere (the note, the tags…).
+    val submit = { if (canSave) onSave(entry.id, name, note.ifBlank { null }, tags, folder) }
 
-    ModalCard(title = tr(Tr.EDIT_BUILD_TITLE)) {
-        LabeledField(label = tr(Tr.SAVE_NAME_LABEL), value = name, onValueChange = { name = it }, placeholder = "")
+    ModalCard(title = tr(Tr.EDIT_BUILD_TITLE), modifier = Modifier.onSubmitShortcut(submit)) {
+        LabeledField(label = tr(Tr.SAVE_NAME_LABEL), value = name, onValueChange = { name = it }, placeholder = "", autoFocus = true, onEnter = submit)
         if (nameTaken) {
             Spacer(modifier = Modifier.height(6.dp))
             Text(text = tr(Tr.SAVE_NAME_TAKEN), style = WTypography.labelSmall.copy(color = WColor.danger))
@@ -1436,7 +1509,7 @@ private fun EditBuildModal(
                 text = tr(Tr.SAVE),
                 filled = true,
                 color = WColor.accent,
-                enabled = name.isNotBlank() && !nameTaken,
+                enabled = canSave,
                 onClick = { onSave(entry.id, name, note.ifBlank { null }, tags, folder) },
                 modifier = Modifier.weight(1f)
             )
@@ -1512,7 +1585,7 @@ private fun FolderPicker(
             Spacer(modifier = Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.weight(1f)) {
-                    SearchField(query = draft, onQueryChange = { draft = it }, placeholder = tr(Tr.FOLDER_NEW))
+                    SearchField(query = draft, onQueryChange = { draft = it }, placeholder = tr(Tr.FOLDER_NEW), autoFocus = true)
                 }
                 DialogButton(
                     text = tr(Tr.TAG_ADD),
@@ -1539,7 +1612,14 @@ private fun RenameValueModal(
 ) {
     var name by remember { mutableStateOf(initialName) }
     ModalCard(title = title) {
-        LabeledField(label = label, value = name, onValueChange = { name = it }, placeholder = "")
+        LabeledField(
+            label = label,
+            value = name,
+            onValueChange = { name = it },
+            placeholder = "",
+            autoFocus = true,
+            onEnter = { if (name.isNotBlank()) onRename(name) }
+        )
         Spacer(modifier = Modifier.height(WDimens.gap))
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             DialogButton(text = tr(Tr.CANCEL), filled = false, color = WColor.border, onClick = onCancel, modifier = Modifier.weight(1f))
@@ -1731,11 +1811,13 @@ private fun LabeledField(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
+    autoFocus: Boolean = false,
+    onEnter: (() -> Unit)? = null,
 ) {
     Column {
         Text(text = label, style = WTypography.labelMedium.copy(color = WColor.muted))
         Spacer(modifier = Modifier.height(6.dp))
-        SearchField(query = value, onQueryChange = onValueChange, placeholder = placeholder)
+        SearchField(query = value, onQueryChange = onValueChange, placeholder = placeholder, autoFocus = autoFocus, onEnter = onEnter)
     }
 }
 
