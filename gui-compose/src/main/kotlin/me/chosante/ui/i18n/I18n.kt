@@ -96,6 +96,7 @@ enum class Tr(
     ZONE_BUILD_IDLE("Awaiting search", "En attente"),
     ZONE_BUILD_SEARCHING("Live - best so far", "En direct - meilleur trouvé"),
     ZONE_BUILD_DONE("Result", "Résultat"),
+    ZONE_BUILD_STOPPED("Stopped - best so far", "Arrêté - meilleur trouvé"),
     ZONE_STATS("Resulting Stats", "Stats résultantes"),
     ZONE_STATS_HINT("Output", "Sortie"),
 
@@ -277,6 +278,10 @@ enum class Tr(
     NOT_OPTIMAL_HINT(
         "Time budget reached before proving the optimum — raise the search duration to aim higher.",
         "Budget de temps atteint avant de prouver l'optimum — augmente la durée de recherche pour viser plus haut."
+    ),
+    SEARCH_STOPPED_HINT(
+        "Search stopped early — run it again to let the solver finish.",
+        "Recherche arrêtée avant la fin — relance-la pour laisser le solveur terminer."
     ),
     NOT_OPTIMAL_STRUCTURAL_HINT(
         "Best found across resistance-debuff sequencing — that turn structure is searched heuristically, so more time won't materially change the result.",
