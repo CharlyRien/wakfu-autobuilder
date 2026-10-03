@@ -274,7 +274,7 @@ private fun BuilderBody(
                         when (ui.phase) {
                             Phase.Idle -> tr(Tr.ZONE_BUILD_IDLE)
                             Phase.Searching -> tr(Tr.ZONE_BUILD_SEARCHING)
-                            Phase.Done -> tr(Tr.ZONE_BUILD_DONE)
+                            Phase.Done -> tr(if (ui.searchStopped) Tr.ZONE_BUILD_STOPPED else Tr.ZONE_BUILD_DONE)
                         }
                     } else {
                         ""
