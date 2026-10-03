@@ -63,6 +63,7 @@ import me.chosante.ui.components.CharacteristicIcon
 import me.chosante.ui.components.Hairline
 import me.chosante.ui.components.InfoTip
 import me.chosante.ui.components.PassiveIcon
+import me.chosante.ui.components.StaleDataCue
 import me.chosante.ui.components.StatGlyphIcon
 import me.chosante.ui.components.VerticalScrollHints
 import me.chosante.ui.components.displayName
@@ -121,6 +122,8 @@ fun StatsPanel(
             verticalArrangement = Arrangement.spacedBy(WDimens.gap)
         ) {
             MatchHero(ui, onStopProof)
+            // A build loaded from other game data than the app ships now: a quiet note under the headline, nothing blocked.
+            ui.staleDataVersion?.takeIf { ui.build != null }?.let { StaleDataCue(version = it, boxed = true) }
             if (ui.phase == Phase.Idle && ui.build == null) {
                 // No build yet: the ActionsCard (which normally carries the error banner) isn't shown,
                 // so surface a pre-search error — e.g. an invalid min/max level range — here instead.
