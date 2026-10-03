@@ -1,0 +1,30 @@
+name: Changeset
+
+# A pull request with a user-visible change — a feat / fix / perf commit (scopes allowed, e.g. `fix(cli):`), or such a
+# PR title for a squash merge — must add a player-facing release note under changes/unreleased/ (EN + FR, see
+# CONTRIBUTING.md › Release notes). The `no-changeset` label waives it for internal-only changes; release-please's own
+# release PR is exempt. The note's format itself is checked by ChangeFragmentsTest (./gradlew test).
+on:
+    pull_request:
+        types: [ opened, synchronize, reopened, edited, labeled, unlabeled ]
+
+permissions:
+    contents: read
+
+jobs:
+    release-note:
+        if: ${{ !startsWith(github.head_ref, 'release-please--') }}
+        runs-on: ubuntu-latest
+        steps:
+            -   name: Checkout (full history, for the PR's commits)
+                uses: actions/checkout@v7.0.1
+                with:
+                    fetch-depth: 0
+
+            -   name: Require a release note for feat / fix / perf changes
+                env:
+                    BASE_SHA: ${{ github.event.pull_request.base.sha }}
+                    HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+                    PR_TITLE: ${{ github.event.pull_request.title }}
+                    NO_CHANGESET: ${{ contains(github.event.pull_request.labels.*.name, 'no-changeset') }}
+                run: scripts/changesets/check-pr.sh
