@@ -349,8 +349,17 @@ object WakfuBuildSolver {
      * collapse dropped every graw-≤-0 ring — also one carrying AP / crit (a cell read 0 against a real build wearing it) —
      * and no pass listed an EPIC / RELIC item carrying no stat the scenario reads, although it is the carrier an epic /
      * relic sub needs (−15 % on the repro).
+     * 53: max-damage rune-choice collapse books its best M-feeding rune under the rune's OWN characteristic,
+     * preserving the equip-var substitution and the crit swap's suppression. Elemental runes no longer pay
+     * the Neutralité family's secondary-mastery budget. The AP-cell mirror accepts those actual keys and
+     * splits the crit option using the actual default; world N now reads an elemental default as E instead
+     * of D, including its suppression delta. Old bounds could under-count the corrected model, so invalidate
+     * every cached cell. CI locks the free/general-fold Neutralité repro and the elemental-default crit swap.
+     * Carriers with a secondary default read by a cap also retain explicit rune picks: a smaller elemental
+     * choice can free secondary budget for skills (the signed-rear helmet repro). The mirror handles those
+     * picks beside the remaining collapsed defaults, without dropping equip-var aliases from item terms.
      */
-    const val CERTIFIER_VERSION: Int = 52
+    const val CERTIFIER_VERSION: Int = 53
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
