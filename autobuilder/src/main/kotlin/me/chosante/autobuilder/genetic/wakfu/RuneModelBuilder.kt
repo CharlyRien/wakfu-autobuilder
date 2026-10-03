@@ -8,6 +8,7 @@ import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_RESISTA
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.RuneType
+import me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
 
 // RuneModelBuilder — the per-search rune CP-SAT modelling (single-type fold vs per-stat counts, socket caps,
 // equipped-only gating) extracted from the WakfuBuildSolver object (B1 of docs/code-review-followups.md).
@@ -135,7 +136,7 @@ internal fun CpModel.createRuneModel(
             // Pure max-damage only cares about two rune effects:
             //  - M-feeding mastery (elemental/range/back/berserk/healing all enter the same M sum);
             //  - critical mastery.
-            // Pick the best M-feeding rune for this carrier, then keep the crit-mastery alternative only
+            // Without a cap on its secondary read, pick the best M-feeding rune, then keep the crit alternative only
             // when its carrier-specific value is larger. If crit's value is ≤ the M rune's value, M
             // dominates it for every crit rate in [0,100] because dGraw/dM = 400+crit ≥ 5*crit = dGraw/dK.
             // NOTE: this dominance is tied to perHitDamageScore's exact Graw coefficients (400·M, 5·K); if
@@ -146,18 +147,35 @@ internal fun CpModel.createRuneModel(
                     .mapNotNull { runeByCharacteristic[it] }
                     .map { it to it.valueOn(equip.itemType, equip.level).toLong() }
                     .maxByOrNull { it.second }
+            // A secondary default cannot dominate a smaller elemental/secondary choice when a sub
+            // caps that read: the smaller choice can free budget for another item or skill. Keep the
+            // explicit picks on these carriers; elemental defaults still safely collapse (more M,
+            // no secondary charge), and requests without such a read keep the compact default/swap.
+            val preserveMasteryChoices =
+                bestMasteryRune?.first?.characteristic?.let { stat ->
+                    stat in SECONDARY_MASTERY_CHARACTERISTICS && (subPinnedStats == null || stat in subPinnedStats)
+                } == true
             if (bestMasteryRune != null) {
-                choices[params.damageScenario.rangeBand.masteryCharacteristic] = bestMasteryRune
+                // The objective folds these masteries into M, but secondary-capped subs read their
+                // actual categories: an elemental rune must stay out of the secondary-mastery budget.
+                choices[bestMasteryRune.first.characteristic] = bestMasteryRune
+            }
+            if (preserveMasteryChoices) {
+                for (stat in maxDamageMasteryRuneStats) {
+                    val rune = runeByCharacteristic[stat] ?: continue
+                    choices[stat] = rune to rune.valueOn(equip.itemType, equip.level).toLong()
+                }
             }
             runeByCharacteristic[Characteristic.MASTERY_CRITICAL]?.let { critRune ->
                 val critValue = critRune.valueOn(equip.itemType, equip.level).toLong()
                 val masteryValue = bestMasteryRune?.second ?: 0L
-                if (critValue > masteryValue) {
+                if (preserveMasteryChoices || critValue > masteryValue) {
                     choices[Characteristic.MASTERY_CRITICAL] = critRune to critValue
                 }
             }
             if (choices.isEmpty()) continue
 
+            val masteryStat = bestMasteryRune?.first?.characteristic
             val perStat =
                 if (choices.size == 1) {
                     // The single surviving choice is forced whenever the item is equipped: substitute the
@@ -165,10 +183,9 @@ internal fun CpModel.createRuneModel(
                     mapOf(choices.keys.single() to equipVars.getValue(equip))
                 } else if (
                     choices.size == 2 &&
-                    choices.containsKey(params.damageScenario.rangeBand.masteryCharacteristic) &&
+                    masteryStat != null &&
                     choices.containsKey(Characteristic.MASTERY_CRITICAL)
                 ) {
-                    val masteryStat = params.damageScenario.rangeBand.masteryCharacteristic
                     val masteryChoice = choices.getValue(masteryStat)
                     val critVar = newBoolVar("runePick_${equip.equipmentId}_${Characteristic.MASTERY_CRITICAL.name}")
                     addLessOrEqual(critVar, equipVars.getValue(equip))
