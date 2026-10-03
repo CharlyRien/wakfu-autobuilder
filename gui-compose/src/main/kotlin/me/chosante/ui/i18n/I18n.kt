@@ -508,6 +508,15 @@ enum class Tr(
 
     // What's-new dialog (once-per-version release notes)
     WHATS_NEW_TITLE("What's new in", "Nouveautés de la version"),
+
+    // Sections of the player-facing notes (changes/: one feat / fix / perf note per change), and the label of a note that
+    // only concerns the command-line tool.
+    WHATS_NEW_NEW("New", "Nouveau"),
+    WHATS_NEW_FIXED("Fixes", "Corrections"),
+    WHATS_NEW_FASTER("Faster", "Plus rapide"),
+    WHATS_NEW_SCOPE_CLI("Command line", "Ligne de commande"),
+
+    // The release-please CHANGELOG headings, still shown for the releases that predate those notes (≤ 1.11).
     WHATS_NEW_FEATURES("Features", "Fonctionnalités"),
     WHATS_NEW_FIXES("Bug Fixes", "Corrections"),
     WHATS_NEW_PERF("Performance Improvements", "Améliorations de performance"),
