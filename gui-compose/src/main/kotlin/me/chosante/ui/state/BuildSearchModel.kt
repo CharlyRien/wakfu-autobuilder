@@ -890,6 +890,8 @@ class BuildSearchModel(
                 optimal = false,
                 proofState = ProofState.Idle,
                 searchStopped = false,
+                // The new build is found with this app's own game data, whatever the one it replaces was computed with.
+                staleDataVersion = null,
                 build = null,
                 achieved = emptyMap(),
                 spellRotation = null,
@@ -1615,7 +1617,7 @@ class BuildSearchModel(
                 name = ui.activeBuildName ?: ui.suggestedBuildName(),
                 note = active?.note,
                 createdAt = active?.createdAt ?: clock(),
-                dataVersion = dataVersion,
+                dataVersion = ui.resultDataVersion(),
                 tags = active?.tags ?: emptyList(),
                 folder = active?.folder
             ) ?: return
@@ -1802,6 +1804,14 @@ class BuildSearchModel(
     fun suggestedSaveName(): String = ui.activeBuildName ?: uniqueLibraryName(ui.suggestedBuildName())
 
     /**
+     * The game-data version a snapshot of the build on screen is stamped with: the one it was COMPUTED with. That is this app's
+     * data for a build found here, but the original stamp for a stale saved/imported build ([UiState.staleDataVersion]) — saving
+     * or exporting it without a new search must not relabel numbers from old data as current (which would also silence the
+     * "saved with other game data" note on its card).
+     */
+    private fun UiState.resultDataVersion(): String = staleDataVersion ?: dataVersion
+
+    /**
      * Names already used by *other* saved builds (the active build's own name is excluded so updating
      * it isn't blocked). The save dialog rejects these so two builds never share a name — which would
      * make the library and the compare view ambiguous.
@@ -1834,7 +1844,7 @@ class BuildSearchModel(
                 name = trimmedName,
                 note = note,
                 createdAt = clock(),
-                dataVersion = dataVersion,
+                dataVersion = ui.resultDataVersion(),
                 tags = existing?.tags ?: emptyList(),
                 folder = existing?.folder
             ) ?: return
@@ -1926,6 +1936,9 @@ class BuildSearchModel(
                 // restored above) — reset the proof state so a prior search's verdict can't leak onto it.
                 proofState = ProofState.Idle,
                 searchStopped = false,
+                // Computed with other game data than this app's (a build saved before a game update, or imported from another
+                // version): the stats column says so until a new search replaces it. The stored build itself is left untouched.
+                staleDataVersion = entry.dataVersion.takeIf { it != dataVersion },
                 build = loadedBuild,
                 spellRotation = rotation,
                 scenarioDamages = emptyList(),

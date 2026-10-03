@@ -453,6 +453,13 @@ enum class Tr(
     LIBRARY_SEARCH("Search builds…", "Rechercher un build…"),
     LIBRARY_NO_MATCH("No build matches your search", "Aucun build ne correspond"),
     LIBRARY_COUNT("saved", "enregistrés"),
+
+    // A build computed with other game data than the app's (a saved build loaded after a game update): a small note on its My
+    // Builds card and in the stats column. %s = the game-data version it was saved with.
+    SAVED_WITH_OTHER_DATA(
+        "Saved with game data %s — re-run the search to update",
+        "Enregistré avec les données de jeu %s — relance la recherche pour mettre à jour"
+    ),
     LIBRARY_ALL_BUILDS("All builds", "Tous les builds"),
     LIBRARY_CLASSES("Classes", "Classes"),
     LIBRARY_TAGS("Tags", "Tags"),
