@@ -1,0 +1,47 @@
+name: Release notes
+
+# Files the unreleased player-facing notes (changes/unreleased/*.properties) under the version of the open
+# release-please PR, ON its branch, so merging that PR archives them together with the CHANGELOG entry and the version
+# bump (scripts/changesets/assign-release-notes.sh). release-please regenerates (force-pushes) its branch from main
+# whenever its notes change, which drops that filing: hence a re-run after every release-please run (called from
+# release-please.yml) and after any human push to the release branch. Pushes made with GITHUB_TOKEN trigger no
+# workflow, so the filing never re-triggers itself.
+on:
+    workflow_call:
+    workflow_dispatch:
+    push:
+        branches: [ 'release-please--**' ]
+
+permissions:
+    contents: write # push the filing commit to the release branch (never to main)
+    pull-requests: read # find the open release PR
+
+jobs:
+    file-release-notes:
+        runs-on: ubuntu-latest
+        # One filing at a time: a newer run (a later regeneration or push) supersedes a pending one.
+        concurrency:
+            group: release-notes-filing
+            cancel-in-progress: false
+        steps:
+            -   name: Checkout main (full history and tags)
+                uses: actions/checkout@v7.0.1
+                with:
+                    ref: main
+                    fetch-depth: 0
+
+            -   name: Find the open release PR
+                id: release-pr
+                env:
+                    GH_TOKEN: ${{ github.token }}
+                run: |
+                    branch=$(gh pr list --state open --label 'autorelease: pending' --json headRefName \
+                      --jq '[.[].headRefName | select(startswith("release-please--"))][0] // ""')
+                    echo "branch=$branch" >> "$GITHUB_OUTPUT"
+                    echo "Open release PR branch: ${branch:-none}"
+
+            -   name: File the unreleased notes under its version
+                if: ${{ steps.release-pr.outputs.branch != '' }}
+                env:
+                    RELEASE_BRANCH: ${{ steps.release-pr.outputs.branch }}
+                run: scripts/changesets/assign-release-notes.sh "$RELEASE_BRANCH"

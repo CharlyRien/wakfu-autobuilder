@@ -22,6 +22,17 @@ jobs:
             -   name: Verify everything is working fine (fast tests)
                 run: ./gradlew test
 
+    release-note-scripts:
+        # Scenario tests of the release-note tooling (filing on the release PR, the PR gate, the commit-msg hook) on
+        # throwaway local repositories: seconds, no Gradle.
+        runs-on: ubuntu-latest
+        steps:
+            -   name: Checkout project sources
+                uses: actions/checkout@v7.0.1
+
+            -   name: Test the release-note scripts
+                run: scripts/changesets/test-changesets.sh
+
     slow-tests:
         # The heavy full-pool OR-Tools proof tests burn large deterministic-time budgets (the two bare
         # free-solve proofs run the 1-worker deterministic protocol; the runes+subs guards run a short

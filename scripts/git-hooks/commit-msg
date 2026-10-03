@@ -1,0 +1,38 @@
+#!/bin/sh
+#
+# Optional local twin of the CI release-note gate (.github/workflows/changeset.yml): refuses a feat / fix / perf
+# commit when neither it nor an earlier commit of the branch adds a player-facing note under changes/unreleased/.
+#
+#   Install once per clone:  git config core.hooksPath scripts/git-hooks
+#   Skip it for one commit:  git commit --no-verify   (internal-only change: ask for the no-changeset label)
+subject=$(grep -v '^#' "$1" | grep -m 1 -v '^[[:space:]]*$')
+printf '%s\n' "$subject" | grep -Eq '^(feat|fix|perf)(\([^)]*\))?!?: ' || exit 0
+
+notes='changes/unreleased/*.properties'
+# A note staged with this commit...
+if [ -n "$(git diff --cached --name-only --no-renames --diff-filter=A -- "$notes")" ]; then
+    exit 0
+fi
+# ...or added by an earlier commit of this branch: one note can cover a change spread over several commits.
+for upstream in origin/main main; do
+    if fork_point=$(git merge-base HEAD "$upstream" 2>/dev/null); then
+        if [ -n "$(git diff --name-only --no-renames --diff-filter=A "$fork_point" HEAD -- "$notes")" ]; then
+            exit 0
+        fi
+        break
+    fi
+done
+
+cat >&2 <<'EOF'
+commit-msg: a feat / fix / perf commit needs a player-facing release note.
+  Add changes/unreleased/<short-slug>.properties (UTF-8), for example:
+
+      type=fix
+      en=Saved builds keep their sublimations
+      fr=Les builds enregistrés gardent leurs sublimations
+
+  (type is feat, fix or perf; es and scope=cli|gui are optional), `git add` it and commit again.
+  Format and rules: CONTRIBUTING.md › Release notes.
+  Internal-only change? Commit with --no-verify and ask for the no-changeset label on the pull request.
+EOF
+exit 1

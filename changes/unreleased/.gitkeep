@@ -1,0 +1,3 @@
+# Keep this file: it stops changes/unreleased/ from ever being empty. Once the release PR files every note under
+# changes/<version>/, an emptied directory looks like a directory RENAME to git, and a pull request that adds a note
+# here and is rebased across that release would get its note moved into the released version (or a rebase conflict).
