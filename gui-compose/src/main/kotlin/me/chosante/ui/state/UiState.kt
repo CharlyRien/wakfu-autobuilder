@@ -315,6 +315,13 @@ data class UiState(
      * stats panel says so instead of claiming a proof or blaming the time budget. Cleared by whatever replaces the build.
      */
     val searchStopped: Boolean = false,
+    /**
+     * The game-data version the shown build was computed with, when it is NOT the data this app ships — a saved (or imported)
+     * build loaded after a game update ([BuildSearchModel.loadBuild]). The stats column then says so, quietly, until a new
+     * search replaces the build; saving the build as it is keeps this stamp, since the numbers are still those of that
+     * data. Null for a build found by this app's own data. Travels with the result ([ShownResult]).
+     */
+    val staleDataVersion: String? = null,
     val build: BuildCombination? = null,
     val achieved: Map<Characteristic, Int> = emptyMap(),
     /** Best spells to cast for the build's AP, in max-damage mode only (else null). Computed off-thread. */
@@ -399,6 +406,7 @@ data class ShownResult(
     val maxDamageStructural: Boolean = false,
     val proofState: ProofState = ProofState.Idle,
     val searchStopped: Boolean = false,
+    val staleDataVersion: String? = null,
     val build: BuildCombination? = null,
     val achieved: Map<Characteristic, Int> = emptyMap(),
     val spellRotation: SpellRotation? = null,
@@ -431,6 +439,7 @@ fun UiState.shownResult(): ShownResult =
         maxDamageStructural = maxDamageStructural,
         proofState = proofState,
         searchStopped = searchStopped,
+        staleDataVersion = staleDataVersion,
         build = build,
         achieved = achieved,
         spellRotation = spellRotation,
@@ -449,6 +458,7 @@ fun UiState.withResult(result: ShownResult): UiState =
         maxDamageStructural = result.maxDamageStructural,
         proofState = result.proofState,
         searchStopped = result.searchStopped,
+        staleDataVersion = result.staleDataVersion,
         build = result.build,
         achieved = result.achieved,
         spellRotation = result.spellRotation,

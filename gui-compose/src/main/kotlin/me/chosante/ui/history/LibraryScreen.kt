@@ -47,11 +47,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.common.CharacterClass
 import me.chosante.common.history.HistoryEntry
 import me.chosante.ui.components.BreedBackground
 import me.chosante.ui.components.BreedIllustration
 import me.chosante.ui.components.ItemThumbnail
+import me.chosante.ui.components.StaleDataCue
 import me.chosante.ui.components.localized
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
@@ -947,6 +949,11 @@ private fun PillsRow(entry: HistoryEntry) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+        // Saved with other game data than the app ships now (a game update since): its numbers may be out of date. Said quietly —
+        // the build stays fully usable; the stored entry is untouched.
+        if (entry.dataVersion != WakfuBestBuildFinderAlgorithm.dataVersion) {
+            StaleDataCue(version = entry.dataVersion)
         }
     }
 }
