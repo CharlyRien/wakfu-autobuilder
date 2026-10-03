@@ -279,6 +279,8 @@ object WakfuBestBuildFinderAlgorithm {
         shouldContinue: () -> Boolean = { true },
     ): MostMasteriesProof {
         if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) return MostMasteriesProof.Unavailable
+        // Mirror max-damage: reject heuristic requests BEFORE trusting a result's OPTIMAL stamp or a bound.
+        if (WakfuBuildSolver.needsItemPrefilter(params.targetStats)) return MostMasteriesProof.Unavailable
         // Result-level verdicts first: no bound is computed for a result that cannot use one.
         if (result.isOptimal) return MostMasteriesProof.ProvenOptimal // CP-SAT already certified it exactly.
         val incumbent = result.mostMasteriesObjective ?: return MostMasteriesProof.Unavailable
@@ -289,7 +291,7 @@ object WakfuBestBuildFinderAlgorithm {
 
     /**
      * COMPUTE half of [proveMostMasteriesQuality]: the incumbent-free full-tier bound for [params],
-     * over the same filtered + dominated pool the production search used. Memoized per request and
+     * over the full eligible + dominated pool (no heuristic top-8 prefilter). Memoized per request and
      * single-flight ([MostMasteriesBoundCache]): the search's tail warm-up usually has it ready (or in
      * flight — then this waits for it); otherwise it is computed here, on every stage worker. Null =
      * the certificate bails on this shape, or [shouldContinue] turned false first.
@@ -313,6 +315,7 @@ object WakfuBestBuildFinderAlgorithm {
         bound: MostMasteriesCertificate.Result,
         result: SolverResult<BuildCombination>,
     ): MostMasteriesProof {
+        if (WakfuBuildSolver.needsItemPrefilter(params.targetStats)) return MostMasteriesProof.Unavailable
         if (result.isOptimal) return MostMasteriesProof.ProvenOptimal
         val incumbent = result.mostMasteriesObjective ?: return MostMasteriesProof.Unavailable
         if (incumbent <= 0) return MostMasteriesProof.Unavailable

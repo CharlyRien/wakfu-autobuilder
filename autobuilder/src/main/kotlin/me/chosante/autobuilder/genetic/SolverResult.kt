@@ -15,6 +15,7 @@ data class SolverResult<T>(
     val individual: T,
     val matchPercentage: BigDecimal,
     val progressPercentage: Int,
+    /** A proof over the full eligible pool; OPTIMAL on a heuristic-prefiltered subset does not qualify. */
     val isOptimal: Boolean = false,
     /**
      * Max-damage mode only: true when this result is a **heuristic max over structure-changing probes** (the

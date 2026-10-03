@@ -476,8 +476,36 @@ class MostMasteriesBoundCacheTest {
             assertThat(computes() - before).isEqualTo(0)
         }
 
+    @Test
+    fun `prefiltered zero resistance requests neither warm nor compute a quality bound`(): Unit =
+        runBlocking {
+            val p =
+                params(
+                    1,
+                    targets = listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1), TargetStat(Characteristic.RESISTANCE_ELEMENTARY, 0))
+                )
+            // The DP itself can bound this shape over a full pool: zero resistance rows have no
+            // weight. Proof policy must still bail because the SEARCH uses the heuristic prefilter.
+            assertThat(MostMasteriesCertificate.supportsRequest(p, emptyList())).isTrue()
+            assertThat(WakfuBuildSolver.needsItemPrefilter(p.targetStats)).isTrue()
+            MostMasteriesBoundCache.certificateForTest = { _, _, _ -> fakeBound(2_000) }
+            val before = computes()
+            val search =
+                flow {
+                    // With zero start delay a warm-up attaches synchronously before collection:
+                    // a wrongly admitted compute is either in flight or already cached, regardless of scheduling.
+                    assertThat(MostMasteriesBoundCache.inFlightForTest(p)).isFalse()
+                    assertThat(MostMasteriesBoundCache.isCachedForTest(p)).isFalse()
+                    emit(result(1_000))
+                }
+            warm(p, pool, emptyList(), search).toList()
+            assertThat(computes() - before).describedAs("no prefiltered-request warm-up").isZero()
+            assertThat(MostMasteriesBoundCache.bound(p, pool)).isNull()
+            assertThat(computes() - before).describedAs("no post-search bound either").isZero()
+        }
+
     /**
-     * Parity of the warm-up gate with the certificate: every request [MostMasteriesCertificate.supportsRequest]
+     * Parity of the request support gate with the certificate: every request [MostMasteriesCertificate.supportsRequest]
      * rejects makes [MostMasteriesCertificate.bound] bail, and the supported ones bound (one-item pool).
      */
     @Test

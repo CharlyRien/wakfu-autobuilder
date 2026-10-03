@@ -156,6 +156,8 @@ internal object MostMasteriesBoundCache {
         basePool: Map<ItemType, List<Equipment>>? = null,
         shouldContinue: () -> Boolean = { true },
     ): MostMasteriesCertificate.Result? {
+        // Also guard memo hits: prefiltered requests never receive a quality badge.
+        if (WakfuBuildSolver.needsItemPrefilter(params.targetStats)) return null
         val key = keyFor(params)
         while (true) {
             cached(key)?.let { return it.bound }
@@ -209,8 +211,8 @@ internal object MostMasteriesBoundCache {
             val live = { !flight.cancelled.get() }
             val subs = WakfuBestBuildFinderAlgorithm.activeSublimations(params)
             val fake = certificateForTest
-            // The same filtered + dominated pool the production solve searched: the bound then upper-bounds the
-            // exact optimum OF THAT SEARCH (domination is optimum-preserving). No domination shape ⇒ a bail.
+            // Full eligible pool + sound domination: poolFor does NOT apply buildModel's heuristic top-8
+            // prefilter. No domination shape ⇒ a bail. Prefiltered requests are withheld at the proof gates.
             val bound =
                 if (fake != null) {
                     fake(params, live, ::stageWorkers)
@@ -246,6 +248,7 @@ internal object MostMasteriesBoundCache {
         sublimations: List<Sublimation>,
     ): Boolean =
         params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+            !WakfuBuildSolver.needsItemPrefilter(params.targetStats) &&
             MostMasteriesCertificate.supportsRequest(params, sublimations) &&
             dominationShape(params, sublimations) != null
 
