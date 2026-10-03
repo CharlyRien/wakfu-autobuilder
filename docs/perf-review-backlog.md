@@ -1160,7 +1160,7 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
   warm-up — for the default requests at levels 110 / 200 / 245, most-masteries and max-damage, with and without
   runes + subs. A/B comparisons on the deterministic protocol (1 worker + interleave); multi-worker wall times
   only for end-to-end numbers (race noise otherwise). Re-baseline the badge-tightness matrix cold while at it
-  (pending since the 2026-07-20 soundness wave).
+  (pending since the 2026-07-20 soundness wave). Measured: v38 = `docs/perf-next-steps-2026-10.md` §1, v50 = its §8.
 - **E1 — Leads to check against that baseline** (verify, then decide):
   - the slow-suite hot spots, which double as proxies for the end-game proof times (single local runs,
     1.92 → 1.93 data): `max-damage AP-cell certifier does not bail on the shipped sublimation catalog`
