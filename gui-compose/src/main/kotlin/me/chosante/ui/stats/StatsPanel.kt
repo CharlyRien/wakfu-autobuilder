@@ -267,6 +267,13 @@ internal fun MatchHero(
                             style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center),
                             modifier = Modifier.padding(top = 2.dp)
                         )
+                    // The user stopped the search: say so (the time budget did not run out), instead of the generic hint.
+                    ui.searchStopped && !showOptimal ->
+                        Text(
+                            text = tr(Tr.SEARCH_STOPPED_HINT),
+                            style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center),
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
                     // Otherwise fall back to the existing "not proven" hint (structural vs time-limited).
                     !showOptimal ->
                         Text(

@@ -287,6 +287,12 @@ data class UiState(
      * un-closed ([optimal] false but [ProofState.ProvenOptimal]). See [ProofState].
      */
     val proofState: ProofState = ProofState.Idle,
+    /**
+     * True when the shown build is the best-so-far of a search the user stopped before it finished
+     * ([BuildSearchModel.cancel]). That build is fully usable (save, export, Zenith) but it is a not-proven result, so the
+     * stats panel says so instead of claiming a proof or blaming the time budget. Cleared by whatever replaces the build.
+     */
+    val searchStopped: Boolean = false,
     val build: BuildCombination? = null,
     val achieved: Map<Characteristic, Int> = emptyMap(),
     /** Best spells to cast for the build's AP, in max-damage mode only (else null). Computed off-thread. */

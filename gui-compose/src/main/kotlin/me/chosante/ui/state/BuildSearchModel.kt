@@ -375,6 +375,7 @@ class BuildSearchModel(
                 match = java.math.BigDecimal.ZERO,
                 optimal = false,
                 proofState = ProofState.Idle,
+                searchStopped = false,
                 build = null,
                 achieved = emptyMap(),
                 spellRotation = null,
@@ -415,6 +416,7 @@ class BuildSearchModel(
                 match = java.math.BigDecimal.ZERO,
                 optimal = false,
                 proofState = ProofState.Idle,
+                searchStopped = false,
                 build = null,
                 achieved = emptyMap(),
                 spellRotation = null,
@@ -878,6 +880,7 @@ class BuildSearchModel(
                 match = java.math.BigDecimal.ZERO,
                 optimal = false,
                 proofState = ProofState.Idle,
+                searchStopped = false,
                 build = null,
                 achieved = emptyMap(),
                 spellRotation = null,
@@ -1398,11 +1401,32 @@ class BuildSearchModel(
         val match: java.math.BigDecimal,
     )
 
+    /**
+     * The search button's "Stop". A search that already streamed a build ends as a finished-but-not-proven result: the
+     * best-so-far build stays on screen, fully usable (not dimmed; save, export and Zenith enabled), flagged
+     * [UiState.searchStopped]. It makes no proof claim — the stream is cut short (a max-damage stream may hold results of a
+     * sub-problem only) and no proof ever ran for it — so [UiState.optimal] is dropped and the proof state is cleared. A stop
+     * before any build exists simply returns to idle. Calling it when nothing is searching only drops a proof that is still
+     * running (the "Stop" link of the background optimality check, [stopProof], is the user-facing way to do that).
+     */
     fun cancel() {
+        val searching = ui.phase == Phase.Searching
         job?.cancel()
         job = null
         cancelProof()
-        ui = ui.copy(phase = Phase.Idle, progress = 0, proofState = ProofState.Idle)
+        ui =
+            when {
+                !searching -> ui.copy(proofState = ProofState.Idle)
+                ui.build != null ->
+                    ui.copy(
+                        phase = Phase.Done,
+                        optimal = false,
+                        proofState = ProofState.Idle,
+                        searchStopped = true,
+                        lastLandedEquipmentId = null
+                    )
+                else -> ui.copy(phase = Phase.Idle, progress = 0, proofState = ProofState.Idle)
+            }
     }
 
     /**
@@ -1823,6 +1847,7 @@ class BuildSearchModel(
                 // A loaded build is not re-proven by the certificate (only its stored CP-SAT `optimal` flag is
                 // restored above) — reset the proof state so a prior search's verdict can't leak onto it.
                 proofState = ProofState.Idle,
+                searchStopped = false,
                 build = loadedBuild,
                 spellRotation = rotation,
                 scenarioDamages = emptyList(),
