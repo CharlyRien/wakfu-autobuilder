@@ -897,27 +897,12 @@ private fun PassiveResultRow(
 @Composable
 private fun BossPickerModal(onPick: (Monster) -> Unit) {
     val lang = LocalLang.current
-    val results =
-        remember(lang) {
-            WakfuBestBuildFinderAlgorithm.monsters
-                // Boss mode targets bosses, not every creature in the bestiary — keep only boss-tier
-                // entries (rank ≥ 1: bosses, golems, ultimate/"Dominant" variants): ~226 of the ~2841 in
-                // the full bdata-sourced bestiary (regular monsters are intentionally hidden from the picker).
-                .filter { it.isBoss }
-                .sortedByLocalized(lang) { it.name.localized(lang) }
-        }
+    // Boss mode targets bosses, not every creature in the bestiary: the roster keeps only boss-tier entries (rank ≥ 1, ~225 of
+    // the ~2 850 monsters), named and sorted in the language of the app. It is short enough to list in full, so there is no
+    // cap — the old take(120) silently hid every boss past "M".
+    val results = remember(lang) { bossRoster(WakfuBestBuildFinderAlgorithm.monsters, lang) }
     var query by remember { mutableStateOf("") }
-    val filtered =
-        remember(query, results) {
-            val q = query.trim()
-            if (q.isBlank()) {
-                results
-            } else {
-                results.filter {
-                    it.name.fr.contains(q, ignoreCase = true) || it.name.en.contains(q, ignoreCase = true)
-                }
-            }.take(120)
-        }
+    val filtered = remember(query, results) { results.filter { it.matchesQuery(query) } }
     ModalCard(title = tr(Tr.CHOOSE_BOSS_TITLE)) {
         SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_BOSSES), autoFocus = true)
         Spacer(modifier = Modifier.height(WDimens.gap))
@@ -944,6 +929,7 @@ private fun BossResultRow(
     monster: Monster,
     onClick: () -> Unit,
 ) {
+    val lang = LocalLang.current
     Row(
         modifier =
             Modifier
@@ -965,10 +951,10 @@ private fun BossResultRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // The bestiary's English names are lowercased; French is the canonical proper-cased form
-                // (and search matches both), so we display the French name regardless of UI language.
+                // The name in the language of the app (the list is sorted by it, and search matches both languages). The level
+                // beside it is what tells apart bosses that share a name ("Cire Momore" exists at levels 58, 73 and 233).
                 Text(
-                    text = monster.name.fr.ifBlank { monster.name.en },
+                    text = monster.displayName(lang),
                     style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
