@@ -80,6 +80,7 @@ import me.chosante.ui.state.ProofPhase
 import me.chosante.ui.state.ProofProgress
 import me.chosante.ui.state.ProofState
 import me.chosante.ui.state.TargetRow
+import me.chosante.ui.state.UiError
 import me.chosante.ui.state.UiState
 import me.chosante.ui.state.ZenithState
 import me.chosante.ui.state.displayedMatchPercent
@@ -103,6 +104,7 @@ fun StatsPanel(
     onExport: () -> Unit,
     onViewAsDamage: () -> Unit,
     onStopProof: () -> Unit = {},
+    onRetryError: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
@@ -121,7 +123,7 @@ fun StatsPanel(
             if (ui.phase == Phase.Idle && ui.build == null) {
                 // No build yet: the ActionsCard (which normally carries the error banner) isn't shown,
                 // so surface a pre-search error — e.g. an invalid min/max level range — here instead.
-                ui.error?.let { ErrorBanner(error = it) }
+                ui.error?.let { ErrorBanner(error = it, onRetry = onRetryError) }
                 EmptyHint()
             } else {
                 ActionsCard(
@@ -130,7 +132,8 @@ fun StatsPanel(
                     onCopyZenith = onCopyZenith,
                     onSaveBuild = onSaveBuild,
                     onExport = onExport,
-                    onViewAsDamage = onViewAsDamage
+                    onViewAsDamage = onViewAsDamage,
+                    onRetryError = onRetryError
                 )
                 if (ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
                     SpellRotationCard(ui)
@@ -1114,10 +1117,11 @@ private fun ActionsCard(
     onSaveBuild: () -> Unit,
     onExport: () -> Unit,
     onViewAsDamage: () -> Unit,
+    onRetryError: () -> Unit,
 ) {
     ResultCard {
         if (ui.error != null) {
-            ErrorBanner(error = ui.error)
+            ErrorBanner(error = ui.error, onRetry = onRetryError)
             Spacer(modifier = Modifier.height(10.dp))
         }
         ActionButton(
@@ -1259,8 +1263,18 @@ private fun ActionButton(
     }
 }
 
+/** Test tag of the error banner's "Retry" link (see [ErrorBanner]). */
+internal const val ERROR_RETRY_TAG = "error-retry"
+
+/**
+ * The red error banner: the plain-language [UiError.message] and, when repeating the failed action can help
+ * ([UiError.retry]), a "Retry" link that reports to [onRetry].
+ */
 @Composable
-private fun ErrorBanner(error: String) {
+internal fun ErrorBanner(
+    error: UiError,
+    onRetry: () -> Unit,
+) {
     Row(
         modifier =
             Modifier
@@ -1274,10 +1288,23 @@ private fun ErrorBanner(error: String) {
     ) {
         Text(text = "!", style = WTypography.bodyMedium.copy(color = WColor.danger))
         Text(
-            text = error,
+            text = error.message,
             style = WTypography.bodySmall.copy(color = WColor.text),
             modifier = Modifier.weight(1f)
         )
+        if (error.retry != null) {
+            Text(
+                text = tr(Tr.RETRY),
+                style = WTypography.bodySmall.copy(color = WColor.accent, textDecoration = TextDecoration.Underline),
+                modifier =
+                    Modifier
+                        .testTag(ERROR_RETRY_TAG)
+                        .pointerHoverIcon(PointerIcon.Hand)
+                        .clip(RoundedCornerShape(3.dp))
+                        .clickable(onClick = onRetry)
+                        .padding(horizontal = 3.dp)
+            )
+        }
     }
 }
 

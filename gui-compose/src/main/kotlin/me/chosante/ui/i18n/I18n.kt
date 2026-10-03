@@ -401,6 +401,21 @@ enum class Tr(
         "%d objet(s) imposé(s) retiré(s) car ils ne correspondent plus au niveau ou à la rareté"
     ),
 
+    // Error banner: plain sentences, the technical detail goes to the log. %s in ZENITH_BROWSER_FAILED = the "Copy build link" label.
+    ZENITH_UNREACHABLE(
+        "Zenith did not answer — check your connection and retry.",
+        "Zenith n'a pas répondu — vérifie ta connexion et réessaie."
+    ),
+    ZENITH_BROWSER_FAILED(
+        "Couldn't open your browser — use \"%s\" and paste the link into it yourself.",
+        "Impossible d'ouvrir ton navigateur — utilise « %s » et colle le lien dedans toi-même."
+    ),
+    SEARCH_FAILED(
+        "The search failed unexpectedly — try again. If it keeps happening, please report it.",
+        "La recherche a échoué de façon inattendue — réessaie. Si cela continue, signale-le."
+    ),
+    RETRY("Retry", "Réessayer"),
+
     // Navigation / active build
     NAV_BUILDER("Builder", "Builder"),
     NAV_LIBRARY("My Builds", "Mes builds"),

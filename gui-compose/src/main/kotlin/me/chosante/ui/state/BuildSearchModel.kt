@@ -1067,7 +1067,7 @@ class BuildSearchModel(
                                 ui.copy(
                                     phase = Phase.Idle,
                                     progress = 0,
-                                    error = Tr.SEARCH_NO_RESULT.value(ui.lang),
+                                    error = UiError(Tr.SEARCH_NO_RESULT.value(ui.lang)),
                                     lastLandedEquipmentId = null
                                 )
                         }
@@ -1080,10 +1080,13 @@ class BuildSearchModel(
                     // thread with a masked coroutines error instead of surfacing here. Request-validation
                     // problems are caught BEFORE the search starts (see validateRequest above), so they
                     // don't reach here.
+                    // The raw detail (native-library paths, class names…) goes to the log; the player gets a plain
+                    // sentence and a Retry. A search that fails after streaming a build ends like a stopped one, so the
+                    // build is not stranded in the idle phase.
                     throwable.printStackTrace()
-                    val message = throwable.message ?: throwable::class.qualifiedName ?: "Search failed"
                     withContext(mainDispatcher) {
-                        ui = ui.copy(phase = Phase.Idle, error = message)
+                        val failure = UiError(Tr.SEARCH_FAILED.value(ui.lang), ErrorRetry.SEARCH)
+                        ui = if (ui.phase == Phase.Searching) ui.searchEndedEarly().copy(error = failure) else ui.copy(error = failure)
                     }
                 } finally {
                     progressTicker.cancel()
@@ -1423,20 +1426,25 @@ class BuildSearchModel(
         job?.cancel()
         job = null
         cancelProof()
-        ui =
-            when {
-                !searching -> ui.copy(proofState = ProofState.Idle)
-                ui.build != null ->
-                    ui.copy(
-                        phase = Phase.Done,
-                        optimal = false,
-                        proofState = ProofState.Idle,
-                        searchStopped = true,
-                        lastLandedEquipmentId = null
-                    )
-                else -> ui.copy(phase = Phase.Idle, progress = 0, proofState = ProofState.Idle)
-            }
+        ui = if (searching) ui.searchEndedEarly() else ui.copy(proofState = ProofState.Idle)
     }
+
+    /**
+     * This state after its search ended before finishing (stopped, or failed): a build already found stays on screen as a
+     * finished, usable, NOT-proven result ([UiState.searchStopped]); with no build yet it is back to idle.
+     */
+    private fun UiState.searchEndedEarly(): UiState =
+        if (build != null) {
+            copy(
+                phase = Phase.Done,
+                optimal = false,
+                proofState = ProofState.Idle,
+                searchStopped = true,
+                lastLandedEquipmentId = null
+            )
+        } else {
+            copy(phase = Phase.Idle, progress = 0, proofState = ProofState.Idle)
+        }
 
     /**
      * The "Stop" link beside the background optimality check's cue. It stops the check like [cancelProof] — the proof's
@@ -1557,23 +1565,38 @@ class BuildSearchModel(
     }
 
     fun openZenithBuild() {
-        createZenithLink { link ->
+        createZenithLink(ErrorRetry.OPEN_ZENITH) { link ->
             runCatching {
                 openBrowser(link)
             }.onFailure { exception ->
-                ui = ui.copy(zenith = ZenithState.Error, error = exception.message ?: "Unable to open Zenith")
+                // The link itself is fine (the state stays Ready, so "Copy build link" reuses it): only the browser failed.
+                // Raw detail to the log, a plain sentence on screen.
+                exception.printStackTrace()
+                ui = ui.copy(error = UiError(Tr.ZENITH_BROWSER_FAILED.value(ui.lang).format(Tr.COPY_BUILD_LINK.value(ui.lang))))
             }
         }
     }
 
     fun copyZenithLink() {
-        createZenithLink { link ->
+        createZenithLink(ErrorRetry.COPY_ZENITH) { link ->
             copyToClipboard(link)
             ui =
                 ui.copy(
                     toast =
                         Tr.TOAST_ZENITH_COPIED.value(ui.lang)
                 )
+        }
+    }
+
+    /** The error banner's "Retry": repeats the action that failed, after dropping the banner. */
+    fun retryAfterError() {
+        val retry = ui.error?.retry ?: return
+        ui = ui.copy(error = null)
+        when (retry) {
+            ErrorRetry.OPEN_ZENITH -> openZenithBuild()
+            ErrorRetry.COPY_ZENITH -> copyZenithLink()
+            // The player already confirmed this request (a loaded build's re-search guard included): run it as it stands.
+            ErrorRetry.SEARCH -> search()
         }
     }
 
@@ -1600,8 +1623,23 @@ class BuildSearchModel(
         ui = ui.copy(toast = Tr.TOAST_BUILD_EXPORTED.value(ui.lang))
     }
 
-    private fun createZenithLink(onReady: (String) -> Unit) {
+    /**
+     * Hands [onReady] the Zenith link of the build on screen. A build is exported ONCE: when its link already exists — made
+     * by an earlier "Open in Zenith" / "Copy build link", or saved with the build — it is reused, because creating another
+     * Zenith build for the same build each time (Open then Copy made two) only litters the player's Zenith account. A request
+     * made while the link is being created is ignored (the buttons are disabled meanwhile, and a second creation would
+     * duplicate the build). [retry] is what the error banner's Retry repeats if the creation fails.
+     */
+    private fun createZenithLink(
+        retry: ErrorRetry,
+        onReady: (String) -> Unit,
+    ) {
         val build = ui.build ?: return
+        ui.zenithUrl?.takeIf { ui.zenith == ZenithState.Ready }?.let { existing ->
+            onReady(existing)
+            return
+        }
+        if (ui.zenith == ZenithState.Loading) return
         ui = ui.copy(zenith = ZenithState.Loading, error = null, toast = null)
         val character = Character(ui.clazz, ui.level, ui.minLevel).copy(characterSkills = build.characterSkills)
         scope.launch(Dispatchers.Default) {
@@ -1630,10 +1668,13 @@ class BuildSearchModel(
                     onReady(link)
                 }
             } catch (exception: Exception) {
+                // Whatever went wrong (no network, a timeout, an API error), the player gets one plain sentence and a Retry;
+                // the raw detail ("api.zenithwakfu.com", "Timed out waiting for 10000 ms"…) goes to the log.
+                exception.printStackTrace()
                 withContext(mainDispatcher) {
                     // Same guard: a failure for a build that is no longer the shown one is no news.
                     if (ui.build != build) return@withContext
-                    ui = ui.copy(zenith = ZenithState.Error, error = exception.message ?: "Zenith build failed")
+                    ui = ui.copy(zenith = ZenithState.Error, error = UiError(Tr.ZENITH_UNREACHABLE.value(ui.lang), retry))
                 }
             }
         }
@@ -1802,7 +1843,7 @@ class BuildSearchModel(
                     val all = historyRepository.loadAll()
                     withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all, knownTags = computeKnownTags(all), toast = Tr.TOAST_BUILD_SAVED.value(ui.lang)) }
                 }.onFailure { throwable ->
-                    withContext(mainDispatcher) { ui = ui.copy(error = throwable.message ?: "Could not save build") }
+                    withContext(mainDispatcher) { ui = ui.copy(error = UiError(throwable.message ?: "Could not save build")) }
                 }
         }
     }
@@ -1950,7 +1991,7 @@ class BuildSearchModel(
                         ui = ui.copy(toast = Tr.TOAST_BUILD_IMPORTED.value(ui.lang))
                     }
                 }.onFailure { throwable ->
-                    withContext(mainDispatcher) { ui = ui.copy(error = throwable.message ?: "Could not import build") }
+                    withContext(mainDispatcher) { ui = ui.copy(error = UiError(throwable.message ?: "Could not import build")) }
                 }
         }
     }
@@ -2060,7 +2101,7 @@ class BuildSearchModel(
                         clearDuplicatedMarkerLater(copy.id)
                     }
                 }.onFailure { throwable ->
-                    withContext(mainDispatcher) { ui = ui.copy(error = throwable.message ?: "Could not duplicate build") }
+                    withContext(mainDispatcher) { ui = ui.copy(error = UiError(throwable.message ?: "Could not duplicate build")) }
                 }
         }
     }
