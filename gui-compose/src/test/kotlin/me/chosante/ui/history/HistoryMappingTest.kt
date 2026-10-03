@@ -11,6 +11,7 @@ import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.I18nText
 import me.chosante.common.ItemType
+import me.chosante.common.Monster
 import me.chosante.common.Passive
 import me.chosante.common.Rarity
 import me.chosante.common.RuneColor
@@ -18,8 +19,10 @@ import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationKind
 import me.chosante.common.SublimationRarity
+import me.chosante.common.history.BossSnapshot
 import me.chosante.common.history.HistoryEntry
 import me.chosante.common.skills.CharacterSkills
+import me.chosante.ui.i18n.Tr
 import me.chosante.ui.state.ItemChip
 import me.chosante.ui.state.UiState
 import me.chosante.ui.state.statDefFor
@@ -414,6 +417,98 @@ class HistoryMappingTest {
         assertThat(loaded.request.excludedRarities).isEmpty()
         assertThat(loaded.request.forcedPassives).isEmpty()
         assertThat(loaded.request.forcedRunesByItem).isEmpty()
+    }
+
+    private val dungeonBoss =
+        Monster(
+            id = 4242,
+            name = I18nText("Magik Riktus Dominant", "Dominant Magik Riktus", "Magik Riktus Dominante", "Magik Riktus Dominante"),
+            level = 105,
+            hp = 12_345,
+            fireResistance = 10,
+            waterResistance = -20,
+            earthResistance = 30,
+            airResistance = 0
+        )
+
+    private fun damageUi(
+        mode: ScoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+        boss: Monster? = dungeonBoss,
+    ) = UiState(
+        mode = mode,
+        selectedBoss = boss,
+        bossElement = SpellElement.WATER,
+        bossDifficulty = "3",
+        match = BigDecimal("10528.8028"),
+        build = BuildCombination(equipments = emptyList(), characterSkills = CharacterSkills(110))
+    )
+
+    @Test
+    fun `a max-damage build records the boss it was searched against`() {
+        val entry = damageUi().toHistoryEntry(id = "id-boss", name = "Boss", note = null, createdAt = 1L, dataVersion = "v")!!
+
+        assertThat(entry.request.boss).isEqualTo(BossSnapshot(monster = dungeonBoss, element = "WATER", difficulty = "3"))
+        assertThat(entry.restoredBoss()).isEqualTo(dungeonBoss)
+        assertThat(entry.restoredBossElement()).isEqualTo(SpellElement.WATER)
+        assertThat(entry.restoredBossDifficulty()).isEqualTo("3")
+    }
+
+    @Test
+    fun `the boss survives the clipboard export-import round-trip`() {
+        val entry = damageUi().toHistoryEntry(id = "id-boss", name = "Boss", note = null, createdAt = 1L, dataVersion = "v")!!
+
+        val reloaded = historyJson.decodeFromString<HistoryEntry>(historyJson.encodeToString(HistoryEntry.serializer(), entry))
+
+        assertThat(reloaded.restoredBoss()).isEqualTo(dungeonBoss)
+        assertThat(reloaded).isEqualTo(entry)
+    }
+
+    @Test
+    fun `a boss left selected in another mode is not recorded, and no boss means none`() {
+        val masteries = damageUi(mode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT)
+        assertThat(masteries.toHistoryEntry("a", "A", null, 1L, "v")!!.request.boss).isNull()
+
+        val manual = damageUi(boss = null)
+        val entry = manual.toHistoryEntry("b", "B", null, 1L, "v")!!
+        assertThat(entry.request.boss).isNull()
+        assertThat(entry.restoredBoss()).isNull()
+        assertThat(entry.restoredBossElement()).isNull()
+        assertThat(entry.restoredBossDifficulty()).isEqualTo("1")
+    }
+
+    @Test
+    fun `a save written before the boss was recorded loads without one`() {
+        val legacyJson =
+            """
+            {
+                "id": "id-old", "name": "Old", "createdAt": 1, "dataVersion": "1.92.1.58",
+                "request": {
+                    "clazz": "CRA", "level": 110, "minLevel": 0, "mode": "FIND_BUILD_WITH_MAX_DAMAGE",
+                    "maxRarity": "EPIC", "duration": "120", "stopAtMatch": false,
+                    "targets": [], "forcedItems": [], "excludedItems": []
+                },
+                "result": { "equipments": [], "skills": {}, "achieved": {}, "match": 9876.5, "optimal": false }
+            }
+            """.trimIndent()
+
+        val loaded = historyJson.decodeFromString<HistoryEntry>(legacyJson)
+
+        assertThat(loaded.request.boss).isNull()
+        assertThat(loaded.restoredBoss()).isNull()
+        assertThat(loaded.isDamageMode()).isTrue()
+    }
+
+    @Test
+    fun `each mode has its own label and a damage build's match is its expected damage`() {
+        fun entryIn(mode: ScoreComputationMode) = damageUi(mode = mode, boss = null).toHistoryEntry("id", "n", null, 1L, "v")!!
+
+        val masteries = entryIn(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT)
+        val precision = entryIn(ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT)
+        val damage = entryIn(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE)
+
+        assertThat(listOf(masteries, precision, damage).map { it.modeLabel() }).containsExactly(Tr.MODE_MASTERIES, Tr.MODE_PRECISION, Tr.MODE_MAX_DAMAGE)
+        assertThat(listOf(masteries, precision, damage).map { it.isDamageMode() }).containsExactly(false, false, true)
+        assertThat(damage.expectedDamage()).isEqualTo(10_528L)
     }
 
     @Test

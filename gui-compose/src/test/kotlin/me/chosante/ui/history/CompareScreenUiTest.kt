@@ -8,7 +8,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
 import me.chosante.common.Characteristic
+import me.chosante.common.I18nText
+import me.chosante.common.Monster
 import me.chosante.common.Rarity
+import me.chosante.common.history.BossSnapshot
 import me.chosante.common.history.DamageScenarioSnapshot
 import me.chosante.common.history.HistoryEntry
 import me.chosante.common.history.RequestSnapshot
@@ -36,6 +39,9 @@ class CompareScreenUiTest {
         clazz: String,
         achieved: Map<Characteristic, Int> = mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 500),
         rangeBand: String = "DISTANCE",
+        mode: String = "FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT",
+        match: Double = 100.0,
+        boss: BossSnapshot? = null,
     ): HistoryEntry =
         HistoryEntry(
             id = id,
@@ -47,21 +53,22 @@ class CompareScreenUiTest {
                     clazz = clazz,
                     level = 110,
                     minLevel = 0,
-                    mode = "FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT",
+                    mode = mode,
                     maxRarity = Rarity.EPIC,
                     duration = "20",
                     stopAtMatch = false,
                     targets = emptyList(),
                     forcedItems = emptyList(),
                     excludedItems = emptyList(),
-                    scenario = DamageScenarioSnapshot(rangeBand = rangeBand)
+                    scenario = DamageScenarioSnapshot(rangeBand = rangeBand),
+                    boss = boss
                 ),
             result =
                 ResultSnapshot(
                     equipments = emptyList(),
                     skills = emptyMap(),
                     achieved = achieved,
-                    match = 100.0,
+                    match = match,
                     optimal = true
                 )
         )
@@ -168,6 +175,86 @@ class CompareScreenUiTest {
             // come from the per-column band labels — proving the bands are per-column, not a single default.
             assertThat(onAllNodesWithText("Distance", substring = true).fetchSemanticsNodes()).isNotEmpty()
             assertThat(onAllNodesWithText("Melee", substring = true).fetchSemanticsNodes()).isNotEmpty()
+        }
+
+    private val boss =
+        Monster(
+            id = 4242,
+            name = I18nText("Magik Riktus Dominant", "Dominant Magik Riktus", "Magik Riktus Dominante", "Magik Riktus Dominante"),
+            level = 105,
+            hp = 12_345,
+            fireResistance = 10,
+            waterResistance = 20,
+            earthResistance = 30,
+            airResistance = 40
+        )
+
+    @Test
+    fun `a max-damage column shows its expected damage and boss, with its own table row instead of a zero mastery score`() =
+        runComposeUiTest {
+            setContent {
+                CompositionLocalProvider(LocalLang provides Lang.EN) {
+                    CompareScreen(
+                        ui =
+                            UiState(
+                                savedBuilds =
+                                    listOf(
+                                        entry("m", "Masteries", "CRA", achieved = mapOf(Characteristic.MASTERY_DISTANCE to 1_210)),
+                                        entry(
+                                            "d",
+                                            "Boss damage",
+                                            "CRA",
+                                            mode = "FIND_BUILD_WITH_MAX_DAMAGE",
+                                            match = 10_528.8028,
+                                            boss = BossSnapshot(boss)
+                                        )
+                                    ),
+                                compareSlots = listOf("m", "d")
+                            ),
+                        onPick = { _, _ -> },
+                        onClear = { },
+                        onAdd = { },
+                        onBack = { }
+                    )
+                }
+            }
+            // The column header: the damage and the boss, no "10528% Match".
+            onNodeWithText("10,528 Expected damage · Optimal proven").assertExists()
+            onNodeWithText("vs Dominant Magik Riktus").assertExists()
+            assertThat(onAllNodesWithText("Match", substring = true).fetchSemanticsNodes()).isEmpty()
+            // The table: the mastery row stays for the mastery build, the damage row is new; each has a dash under the other kind.
+            onNodeWithText("Mastery score (engine)").assertExists()
+            onNodeWithText("Expected damage (engine)").assertExists()
+            assertThat(onAllNodesWithText("—").fetchSemanticsNodes()).hasSizeGreaterThanOrEqualTo(2)
+            // The mode shows in each column's meta line.
+            assertThat(onAllNodesWithText("Max Damage", substring = true).fetchSemanticsNodes()).isNotEmpty()
+            assertThat(onAllNodesWithText("Most Masteries", substring = true).fetchSemanticsNodes()).isNotEmpty()
+        }
+
+    @Test
+    fun `only damage builds compared means no mastery row`() =
+        runComposeUiTest {
+            setContent {
+                CompositionLocalProvider(LocalLang provides Lang.EN) {
+                    CompareScreen(
+                        ui =
+                            UiState(
+                                savedBuilds =
+                                    listOf(
+                                        entry("a", "Damage A", "CRA", mode = "FIND_BUILD_WITH_MAX_DAMAGE", match = 9_000.0),
+                                        entry("b", "Damage B", "CRA", mode = "FIND_BUILD_WITH_MAX_DAMAGE", match = 12_000.0)
+                                    ),
+                                compareSlots = listOf("a", "b")
+                            ),
+                        onPick = { _, _ -> },
+                        onClear = { },
+                        onAdd = { },
+                        onBack = { }
+                    )
+                }
+            }
+            onNodeWithText("Expected damage (engine)").assertExists()
+            onNodeWithText("Mastery score (engine)").assertDoesNotExist()
         }
 
     @Test
