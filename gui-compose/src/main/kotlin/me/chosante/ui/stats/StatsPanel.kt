@@ -65,6 +65,7 @@ import me.chosante.ui.components.InfoTip
 import me.chosante.ui.components.PassiveIcon
 import me.chosante.ui.components.StatGlyphIcon
 import me.chosante.ui.components.VerticalScrollHints
+import me.chosante.ui.components.displayName
 import me.chosante.ui.components.iconResourcePath
 import me.chosante.ui.components.localized
 import me.chosante.ui.components.rememberClasspathBitmap
@@ -554,7 +555,7 @@ private fun SpellRotationCard(ui: UiState) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "${tr(Tr.TURNS_TO_KILL)} · ${boss.name.fr.ifBlank { boss.name.en }}",
+                    text = "${tr(Tr.TURNS_TO_KILL)} · ${boss.displayName(LocalLang.current)}",
                     style = WTypography.labelMedium.copy(color = WColor.muted),
                     modifier = Modifier.weight(1f)
                 )

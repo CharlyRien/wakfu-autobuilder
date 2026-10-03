@@ -67,6 +67,8 @@ import me.chosante.ui.components.MonsterIcon
 import me.chosante.ui.components.RarityIcon
 import me.chosante.ui.components.StatGlyphIcon
 import me.chosante.ui.components.VerticalScrollHints
+import me.chosante.ui.components.displayFamily
+import me.chosante.ui.components.displayName
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
@@ -294,7 +296,7 @@ private fun BossCard(
                     MonsterIcon(monster = boss, size = 44.dp)
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = boss.name.fr.ifBlank { boss.name.en },
+                            text = boss.displayName(lang),
                             style = WTypography.bodyLarge,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -305,7 +307,7 @@ private fun BossCard(
                                     append(tr(Tr.BOSS_LEVEL_SHORT))
                                     append(' ')
                                     append(boss.level)
-                                    boss.family?.fr?.takeIf { it.isNotBlank() }?.let {
+                                    boss.displayFamily(lang)?.let {
                                         append("  ·  ")
                                         append(it)
                                     }
