@@ -200,6 +200,13 @@ compose.desktop {
 
 tasks.test {
     useJUnitPlatform()
+    // ChangeFragmentsTest validates every release note under <root>/changes: tracked as an input so a new or edited note
+    // re-runs it instead of leaving the test task up to date.
+    inputs
+        .files(fileTree(changesDir))
+        .withPropertyName("releaseNoteSources")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+    systemProperty("wakfu.changesDir", changesDir.absolutePath)
     jvmArgs(
         "--enable-native-access=ALL-UNNAMED",
         "--add-opens=jdk.unsupported/sun.misc=ALL-UNNAMED",

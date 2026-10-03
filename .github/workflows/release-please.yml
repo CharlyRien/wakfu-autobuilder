@@ -20,6 +20,12 @@ jobs:
                     config-file: release-please-config.json
                     manifest-file: .release-please-manifest.json
 
+    # Files changes/unreleased/* under the release PR's version, on its branch. release-please has just regenerated
+    # that branch from main if its notes changed, which drops the previous filing, so this re-runs on every push.
+    release-notes:
+        needs: [ release-please ]
+        uses: ./.github/workflows/release-notes.yml
+
     # Once the release PR merges, release-please tags + publishes the GitHub release
     # in the run above; this then chains the existing Deploy (Conveyor -> gh-pages).
     deploy:
