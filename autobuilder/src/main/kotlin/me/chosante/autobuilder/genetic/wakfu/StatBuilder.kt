@@ -158,6 +158,12 @@ internal class StatBuilder(
     // cancelled proof (the user restarted / closed the search) stops within a stage instead of running the whole
     // ~minutes-per-cell pass to completion. Default never-cancel keeps every existing caller byte-identical.
     internal val certifierCancelled: () -> Boolean = { false },
+    // CERTIFIER_VERSION 52: the max-damage certificate is computed for a HARD-LEG result (every required target met in
+    // the solver's exact arithmetic), so every pass also enforces the request's AP / MP / CC / RANGE rows — the ledger
+    // bounds the targets-met builds only (see the row block of [certifyMaxPerHitAtApPass]). False (the default: the soft
+    // leg, the free request, every test seam) ⇒ the target-blind certifier. Read together with the
+    // [CertifierTuning.targetAwareEnabled] kill switch; set by `WakfuBuildSolver.maxDamageCertificate(targetAware = …)`.
+    internal val certifierTargetAware: Boolean = false,
 ) {
     /**
      * Seeds the cumulable-sub COPY vars as the plain booleans they are. They are minted inside

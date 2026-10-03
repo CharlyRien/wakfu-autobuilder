@@ -2,6 +2,7 @@ package me.chosante.autobuilder.genetic.wakfu
 
 import com.google.ortools.sat.IntVar
 import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
@@ -218,7 +219,54 @@ internal object CertifierTuning {
     val indexedFastHarvestCoordinatesForTest =
         java.util.concurrent.atomic
             .AtomicLong()
+
+    /**
+     * CERTIFIER_VERSION 52 — the TARGET-AWARE AP-cell certificate: a ledger computed for a HARD-LEG result
+     * ([StatBuilder.certifierTargetAware], set by `MaxDamageSearch.proveOptimality` / the search warm-up) also enforces
+     * the request's required AP / MP / CC / RANGE rows in every pass, so it bounds the TARGETS-MET builds only — the
+     * set a hard-leg badge is compared against (see the row block in [certifyMaxPerHitAtApPass]). On in production;
+     * `WAKFU_MD_TARGET_AWARE=0` is the A/B kill switch (every ledger is then the target-blind one, bit for bit).
+     */
+    @Volatile
+    var targetAwareEnabled: Boolean = System.getenv("WAKFU_MD_TARGET_AWARE") != "0"
+
+    /** Sub-seam of [targetAwareEnabled]: the RANGE row's saturating key dimension (on unless `WAKFU_MD_TARGET_AWARE_RANGE=0`). */
+    @Volatile
+    var targetAwareRangeEnabled: Boolean = System.getenv("WAKFU_MD_TARGET_AWARE_RANGE") != "0"
+
+    /** Instrument: DP states the RANGE row's suffix-reachability prune dropped (flushed once per pass; tests read the delta). */
+    val targetAwareRangePrunedForTest =
+        java.util.concurrent.atomic
+            .AtomicLong()
+
+    /** Instrument: the last pass's `rangeRowFree` / `rangeNeed` (−1 = no RANGE row enforced). Harness logging only. */
+    val targetAwareRangeFreeForTest =
+        java.util.concurrent.atomic
+            .AtomicLong(-1)
+    val targetAwareRangeNeedForTest =
+        java.util.concurrent.atomic
+            .AtomicLong(-1)
 }
+
+/**
+ * The widest `target − free` RANGE gap the target-aware certificate tracks as a key dimension ([CertifierTuning
+ * .targetAwareRangeEnabled]). A wider need leaves the RANGE row un-enforced — sound: the bound is then target-blind on
+ * range, as before v52.
+ */
+internal const val TARGET_AWARE_RANGE_MAX_NEED = 6
+
+/** The required-target rows the target-aware certificate enforces (v52). Every other row stays unmodeled (HP, resistances…). */
+internal val TARGET_AWARE_ROW_STATS: Set<Characteristic> =
+    setOf(Characteristic.ACTION_POINT, Characteristic.MOVEMENT_POINT, Characteristic.CRITICAL_HIT, Characteristic.RANGE)
+
+/**
+ * Whether a HARD-LEG result of a request with these [targetStats] is certified by the TARGET-AWARE ledger (v52): the seam
+ * is on and the request carries at least one positive row of [TARGET_AWARE_ROW_STATS]. False ⇒ the target-blind ledger
+ * AND its cache key — so a request without such a row (the free request included) gets exactly the target-blind ledger. The single
+ * predicate behind `MaxDamageSearch.proveOptimality`'s flag and the search warm-up's, so the two always share a cache entry.
+ */
+internal fun targetAwareLedgerApplies(targetStats: Collection<TargetStat>): Boolean =
+    CertifierTuning.targetAwareEnabled && targetStats.any { it.target > 0 && it.characteristic in TARGET_AWARE_ROW_STATS }
 
 /**
  * Direct AP-cell index for one FAST-pass DP state's pre-sub AP coordinate.
@@ -1776,6 +1824,49 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     val (critTermsAll, critBase) = prePercentTermsFor(Characteristic.CRITICAL_HIT)
     val critTerms = dropMoved(critTermsAll)
 
+    // ---- TARGET-AWARE rows (CERTIFIER_VERSION 52, [StatBuilder.certifierTargetAware]) ---------------------------------
+    // A ledger computed for a HARD-LEG result bounds the TARGETS-MET builds only: the hard leg enforced
+    // `actualStat(row) ≥ target` for every required row in the solver's exact arithmetic (`actualStat` = base + items +
+    // runes + skills + every sub line + passives — [StatBuilder.prePercentTermsFor]), so its incumbent and every build it
+    // could have returned meet each row. A row enforced below therefore only ever drops builds the hard leg excludes —
+    // provided each filter reads a SOUND OVER-ESTIMATE of the build's own stat, which is what every row argues:
+    //  - AP: a build's AP cell IS its actual AP (items / skills / subs charged exactly, the budget subs filling the gap
+    //    to the pin — the existing cell semantics), so a cell below the row holds no targets-met build. The top table
+    //    cell is never zeroed (a row above [MAX_ROTATION_AP] is not enforced).
+    //  - CC: a build harvested at crit step c has actual crit ≤ c (c is its arithmetic total, start-of-combat and budget
+    //    subs included; a free-credited crit only raises c), and a build above the enumerated range is covered at
+    //    [cEnumMax] — so steps below the row are skipped, and a row above [cEnumMax] is not enforced.
+    //  - MP: a frontier point's mp (items floored at 0, skills exact, staged subs signed) plus [mpRowFree] (base,
+    //    passives, every sub MP no DP stage carries at its positive max) ≥ the build's actual MP.
+    //  - RANGE: a saturating key digit carries items floored at 0 and the Major range point exactly; base, passives
+    //    (floored at 0) and every sub's positive range at max copies are a free constant [rangeRowFree].
+    // A row whose axis cannot be priced that way (a %-skill on the stat, a rune carrying it) is simply not enforced —
+    // the bound stays target-blind on that axis, as before v52. Off ([certifierTargetAware] false, the soft leg and the
+    // free request, or the seam off) every row reads 0 and every filter below is inert: the target-blind certifier bit for bit.
+    val targetAware = certifierTargetAware && CertifierTuning.targetAwareEnabled
+
+    fun requiredRow(ch: Characteristic): Long =
+        if (!targetAware) {
+            0L
+        } else {
+            params.targetStats
+                .filter { it.characteristic == ch && it.target > 0 && it.characteristic.isRequiredMostMasteriesTarget() }
+                .maxOfOrNull { it.target.toLong() } ?: 0L
+        }
+    val apRowTarget = requiredRow(Characteristic.ACTION_POINT).takeIf { it <= MAX_ROTATION_AP } ?: 0L
+    // Finalized against [cEnumMax] once it is known ([ccRowTarget]).
+    val ccRowRequested = requiredRow(Characteristic.CRITICAL_HIT)
+    // MP / RANGE rows need their axis to be exactly trackable: a %-skill on the stat makes the per-source split unsound
+    // to price, so the row is simply not enforced (sound — the bound stays the target-blind one on that axis). A rune
+    // carrying the stat is checked once the rune shape is known ([mpRowTarget] / [rangeRowTarget]).
+    val mpRowRequested = if (skillTerms.percent[Characteristic.MOVEMENT_POINT].orEmpty().isEmpty()) requiredRow(Characteristic.MOVEMENT_POINT) else 0L
+    val rangeRowRequested =
+        if (CertifierTuning.targetAwareRangeEnabled && skillTerms.percent[Characteristic.RANGE].orEmpty().isEmpty()) {
+            requiredRow(Characteristic.RANGE)
+        } else {
+            0L
+        }
+
     // ---- Rune shapes (v44) ------------------------------------------------------------------------------
     // Three rune models reach this pass:
     //  - none, or the max-damage CHOICE COLLAPSE ([RuneModel.maxDamageChoiceCollapse]): the best M-feeding rune rides
@@ -1974,6 +2065,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         val epic: Int,
         val relic: Int,
         val mp: Long = 0L,
+        // v52 RANGE row: the option's range, negatives floored at 0; 0 unless the row is tracked.
+        val range: Int = 0,
     )
 
     // P5.3: FORCED subs are always equipped, so they are credited into the pass CONSTANTS (not the
@@ -2164,12 +2257,28 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // (ramps keep their tracked optimistic cap) when %-MP skills make the split unsound to price.
     val hasMpRampSubs = subModel.subVars.keys.any { it.perStatStep?.source == Characteristic.MOVEMENT_POINT }
     val mpRampEnabled = hasMpRampSubs && skillTerms.percent[Characteristic.MOVEMENT_POINT].orEmpty().isEmpty()
+    // v52 MP row: the frontier's mp axis is needed for the row filter too (the same plumbing; no ramp valuation without a
+    // ramp). A general-fold rune pick carrying MP would need a per-option MP delta — no rune does; the row is then simply
+    // not enforced (the ramp keeps its own bail below).
+    val mpTermsAndBase = if (mpRampEnabled || mpRowRequested > 0) prePercentTermsFor(Characteristic.MOVEMENT_POINT) else null
+    val mpRowTarget =
+        if (mpRowRequested > 0 && mpTermsAndBase != null && dropMoved(mpTermsAndBase.first).none { it.variable in runePickVars }) mpRowRequested else 0L
+    val mpAxisEnabled = mpRampEnabled || mpRowTarget > 0
     val mpI: Map<Equipment, Long>
     val mpS: Map<Sublimation, Long>
     val mpSkillByVar: Map<IntVar, Long>
     val mpFreeMax: Long
-    if (mpRampEnabled) {
-        val (mpTermsAll, mpBase) = prePercentTermsFor(Characteristic.MOVEMENT_POINT)
+    // v52 MP row: the item-independent MP no DP stage carries and [mpFreeMax] leaves out — credited on top of a frontier
+    // point's mp by the row filter only (never by the ramp valuation, which stays value-exact):
+    //  - the positive MP of NORMAL subs with NO damage line at all (they never enter the staged pools), top slots at max
+    //    copies;
+    //  - a world's force-taken specials (conversion / Critical Secret) and the relaxed aux world's slot-free credits, at
+    //    their positive MP;
+    //  - a CONDITIONAL forced sub's MP at its positive part instead of its signed value (a broken condition zeroes it).
+    // None of these carries MP in the shipped catalog; each keeps the row's over-estimate sound if one ever does.
+    var mpRowExtraFree = 0L
+    if (mpAxisEnabled) {
+        val (mpTermsAll, mpBase) = checkNotNull(mpTermsAndBase)
         val mpTerms = dropMoved(mpTermsAll)
         // No rune carries MP (a general-fold pick on the ramp's source axis would need a per-option MP delta).
         if (mpTerms.any { it.variable in runePickVars }) return Long.MAX_VALUE
@@ -2184,8 +2293,9 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 .filter { it.variable in skillVarsForMp }
                 .groupBy { it.variable }
                 .mapValues { (_, ts) -> ts.sumOf { it.coefficient } }
-        // A forced conditional sub whose MP would need per-state gating has no machinery — bail.
-        if (forcedCondCredits.any { (mpS[it.first] ?: 0L) != 0L }) return Long.MAX_VALUE
+        // A forced conditional sub whose MP would need per-state gating has no machinery — bail (the ramp's valuation reads
+        // the axis exactly; the row alone over-counts it below instead).
+        if (mpRampEnabled && forcedCondCredits.any { (mpS[it.first] ?: 0L) != 0L }) return Long.MAX_VALUE
         // FORCED subs' MP is always equipped (Swiftness +1 / Heavy Armor −1): an exact, always-on
         // part of the ramp source. passivePart skips sub-var terms, so this is the only credit.
         val forcedSubMp = forcedPlainSubs.sumOf { mpS[it] ?: 0L }
@@ -2202,12 +2312,97 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 .take(2)
                 .sum()
         mpFreeMax = mpBase + passivePart(mpTerms) + mpRaritySubFree + forcedSubMp
+        if (mpRowTarget > 0) {
+            val damageSubs = diS.keys + mS.keys + cmS.keys + apS.keys + crS.keys
+            val mpOnlySubFree =
+                mpS.entries
+                    .filter { (s, v) -> v > 0L && s.rarity == SublimationRarity.NORMAL && s !in damageSubs && s !in forcedSubs }
+                    .map { (s, v) -> v * s.maxCopies }
+                    .sortedDescending()
+                    .take(MAX_NORMAL_SUBLIMATIONS.toInt())
+                    .sum()
+            val mpSpecialFree = (listOfNotNull(convTaken, critSecret) + freeCreditSubs).distinct().sumOf { maxOf(0L, mpS[it] ?: 0L) }
+            val forcedConditionalMpLift =
+                forcedPlainSubs.filter { it.condition != null }.sumOf { s ->
+                    val v = mpS[s] ?: 0L
+                    maxOf(0L, v) - v
+                }
+            mpRowExtraFree = mpOnlySubFree + mpSpecialFree + forcedConditionalMpLift
+        }
     } else {
         mpI = emptyMap()
         mpS = emptyMap()
         mpSkillByVar = emptyMap()
         mpFreeMax = 0L
     }
+    // v52 MP row: the item-independent MP the row filter credits on top of a frontier point's mp (see [mpRowExtraFree]).
+    val mpRowFree = mpFreeMax + mpRowExtraFree
+
+    // ---- v52 RANGE row: per-source range for the saturating range key dimension of every pass ------------------------
+    // Items: exact when-equipped sums, the item's total floored at 0 in [raw] (an over-count of the build's range, sound
+    // for a `≥ target` row). Skills: the paired Major "Range and damage" point (per-point range, enumerated like the MP
+    // point). Item-independent sources — base, the passives (floored at 0), every sub's positive range at max copies (top
+    // slots) — are credited as a FREE constant [rangeRowFree]; the dim then only has to reach `target − free`. A
+    // general-fold rune pick carrying range (none does) would need a per-option range delta — the row is not enforced.
+    val rangeTermsAndBase = if (rangeRowRequested > 0) prePercentTermsFor(Characteristic.RANGE) else null
+    val rangeRowTarget =
+        if (rangeTermsAndBase != null && dropMoved(rangeTermsAndBase.first).none { it.variable in runePickVars }) rangeRowRequested else 0L
+    val rangeI: Map<Equipment, Long>
+    val rangeSkillByVar: Map<IntVar, Long>
+    val rangeRowFree: Long
+    if (rangeRowTarget > 0) {
+        val (rangeTermsAll, rangeBase) = checkNotNull(rangeTermsAndBase)
+        val rangeTerms = dropMoved(rangeTermsAll)
+        rangeI = perCarrierExactValue(rangeTerms)
+        val skillVarsForRange = skillVars.values.toSet()
+        rangeSkillByVar =
+            rangeTerms
+                .filter { it.variable in skillVarsForRange }
+                .groupBy { it.variable }
+                .mapValues { (_, ts) -> ts.sumOf { it.coefficient } }
+        val subRangeFree =
+            perSubValue(rangeTerms)
+                .entries
+                .filter { it.value > 0L }
+                // A RANGE_AT_LEAST n sub with n ≥ the row is left out of the free credit. It applies only to a build whose
+                // PRE-COMBAT range (its condition's read: base + items + runes + skills + the PERMANENT lines of FLAT subs —
+                // never a conditional sub's own line, never the passives) is already ≥ n ≥ the row, and the over-estimate
+                // below dominates that read source by source (items floored at 0, skills exact, every OTHER sub's positive
+                // range credited, passives floored at 0) — so such a build passes the filter without the sub's line. A build
+                // that carries it with the condition broken gets nothing from it (the solver gates its line), and every other
+                // build gets nothing either. Furie II (+1 range under `range ≥ 4`) is the only such sub; against the GUI's
+                // RANGE 4 its exclusion is what makes the row bind.
+                .filterNot { (s, _) -> s.condition?.type == SublimationConditionType.RANGE_AT_LEAST && (s.condition?.value ?: 0) >= rangeRowTarget }
+                .map { (s, v) -> v * s.maxCopies }
+                .sortedDescending()
+                .take(MAX_SUBLIMATIONS_TOTAL.toInt())
+                .sum()
+        // passivePart = every non-item / non-sub / non-skill source at its max (the selected passives' constants). Floored at
+        // 0: the pre-combat read the RANGE_AT_LEAST exclusion above relies on does not see the passives.
+        rangeRowFree = rangeBase + maxOf(0L, passivePart(rangeTerms)) + subRangeFree
+    } else {
+        rangeI = emptyMap()
+        rangeSkillByVar = emptyMap()
+        rangeRowFree = 0L
+    }
+    // The range the DP must still find on items + skills; 0 = the row is not enforced (no row, statically met by the
+    // free part, or a need beyond [TARGET_AWARE_RANGE_MAX_NEED] — a key dimension that wide would explode the box).
+    val rangeNeed =
+        (rangeRowTarget - rangeRowFree)
+            .coerceAtLeast(0L)
+            .toInt()
+            .let { if (it > TARGET_AWARE_RANGE_MAX_NEED) 0 else it }
+    val rangeTracked = rangeNeed > 0
+    if (rangeRowTarget > 0) {
+        CertifierTuning.targetAwareRangeFreeForTest.set(rangeRowFree)
+        CertifierTuning.targetAwareRangeNeedForTest.set(rangeNeed.toLong())
+    }
+    // v52 RANGE row: the saturating range key dimension `0..rangeNeed` shared by every pass, as the LOWEST key digit
+    // (1 = untracked: every key and cost cell is the target-blind one).
+    val rangeDim = if (rangeTracked) rangeNeed + 1 else 1
+    // States the RANGE row's suffix-reachability prune drops in this pass — a plain local (flushed once into
+    // [CertifierTuning.targetAwareRangePrunedForTest] at the pass's end), never a shared atomic in the DP's hot loop.
+    var rangePruned = 0L
 
     // Per objective-relevant skill var: its per-point contribution to crit / ap / di / mastery / critM
     // (read from the model's own term coefficients), and the points it can take (its cap ∧ the pool).
@@ -2219,6 +2414,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         val critM: Long,
         val cap: Int,
         val mp: Long = 0L,
+        // v52 RANGE row: per-point range (the paired Major "Range and damage"); 0 unless tracked.
+        val range: Int = 0,
     )
 
     fun skillCoef(
@@ -2245,12 +2442,13 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 }
             val cm = if (capCats == null) skillCoef(critMTerms, v) else 0L
             val mp = mpSkillByVar[v] ?: 0L
-            if (crit == 0L && ap == 0L && di == 0L && m == 0L && cm == 0L && mp == 0L) {
+            val rng = if (rangeTracked) (rangeSkillByVar[v] ?: 0L).coerceAtLeast(0L) else 0L
+            if (crit == 0L && ap == 0L && di == 0L && m == 0L && cm == 0L && mp == 0L && rng == 0L) {
                 null
             } else {
                 // Skill critM is a pre-sub source: under a taken conversion its per-point value feeds
                 // mastery instead (ceiling per point ≥ the floored total — see convGain).
-                SkillVarInfo(crit.toInt(), ap.toInt(), di, m + convGain(cm), cmWorld(cm), minOf(ch.maxPointsAssignable, pool), mp)
+                SkillVarInfo(crit.toInt(), ap.toInt(), di, m + convGain(cm), cmWorld(cm), minOf(ch.maxPointsAssignable, pool), mp, rng.toInt())
             }
         }
 
@@ -2276,6 +2474,29 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         // +20). Neither shape exists: bail if one appears.
         if (infos.any { it.di != 0L && (it.m != 0L || it.critM != 0L || it.mp != 0L) }) return Long.MAX_VALUE
         if (infos.any { it.mp != 0L && (it.m < 0L || it.critM < 0L) }) return Long.MAX_VALUE
+        // v52 RANGE row: a range-carrying skill var is enumerated on its own with its graw (the paired Major
+        // point: +1 range, +40 mastery); one also mixing a cost axis, DI or MP has no builder — bail (sound).
+        if (rangeTracked && infos.any { it.range != 0 && (it.di != 0L || it.mp != 0L || it.crit != 0 || it.ap != 0 || it.m < 0L || it.critM < 0L) }) {
+            return Long.MAX_VALUE
+        }
+    }
+
+    // v52 RANGE row: every point split over a branch's range-carrying vars, as `[points, range, graw]` —
+    // the [mpGrawSplits] shape on the range axis. Empty need ⇒ the single empty split (cells unchanged).
+    fun rangeGrawSplits(
+        vars: List<SkillVarInfo>,
+        budget: Int,
+        cFold: Long,
+    ): List<LongArray> {
+        var splits = listOf(LongArray(3))
+        for (v in vars) {
+            val per = (400L + cFold) * v.m + 5L * cFold * v.critM
+            splits =
+                splits.flatMap { s ->
+                    (0..minOf(v.cap.toLong(), budget - s[0]).toInt()).map { k -> longArrayOf(s[0] + k, s[1] + k * v.range, s[2] + k * per) }
+                }
+        }
+        return splits
     }
 
     // B1 (CERTIFIER_VERSION 49): a skill var carrying MP AND mastery / crit mastery for the SAME point — the paired Major
@@ -2329,7 +2550,9 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             // mp stays floored at 0: it is a VALUE axis (feeds the MP→DI ramp), never a cell
             // coordinate, so the floor only widens the bound (sound) — negative-MP tank items
             // would otherwise drag the frontier for no soundness gain.
-            (mpI[e] ?: 0L).coerceAtLeast(0L)
+            (mpI[e] ?: 0L).coerceAtLeast(0L),
+            // v52 RANGE row: range floored at 0 per item (a `≥ target` row only ever gets easier — sound).
+            range = if (rangeTracked) (rangeI[e] ?: 0L).coerceAtLeast(0L).toInt() else 0
         )
 
     fun rawSub(s: Sublimation): Raw =
@@ -2410,7 +2633,20 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // mpI too: an MP-only item (pure-MP boots) has no damage stat yet is exactly what feeds an
     // MP-sourced ramp — omitting it would silently value the ramp at the item-free MP floor. Under the general rune
     // fold the item-only maps exclude the picks, so a socketed item whose only value is its rune must be listed too.
-    val itemEquips = (diI.keys + mI.keys + cmI.keys + apI.keys + crI.keys + mpI.keys + (if (generalRuneFold) runeModel.runeVars.keys else emptySet())).distinct()
+    // v52 RANGE row: likewise a RANGE-only item (a pure-range ring) is how a targets-met build meets the row — left out,
+    // every state of such a build would miss the range digit and the cell would read 0 (an under-count, caught by the
+    // pure-range-ring lock of `MaxDamageTargetAwareCertificateTest`).
+    // v52 (pre-existing under-count): an EPIC / RELIC item is a resource even with no stat the scenario reads — it is the
+    // carrier an epic / relic sub needs (Σ subRarity ≤ Σ itemRarity). Before v52 such an item never entered the DP, so a
+    // build socketing Mesure III (+20 DI) on a damage-less epic belt was out of every pass's reach (−15 % on the
+    // `MaxDamageTargetAwareCertificateTest` repro). Appended last so every other item keeps its order.
+    val itemEquips =
+        (
+            diI.keys + mI.keys + cmI.keys + apI.keys + crI.keys + mpI.keys +
+                (if (rangeTracked) rangeI.keys else emptySet()) +
+                (if (generalRuneFold) runeModel.runeVars.keys else emptySet()) +
+                allEquips.filter { it.rarity == Rarity.EPIC || it.rarity == Rarity.RELIC }
+        ).distinct()
 
     // Forced-item pinning (P5.1): a forced SINGLE-OCCUPANCY slot is restricted to the forced-name options
     // and made a MANDATORY pick in the exact pass. The certifier does the restriction ITSELF (not only via
@@ -2537,6 +2773,11 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // pure-crit sub wasted past the cap can be dropped for free (value unchanged, a slot back).
     // Forced start-of-combat crit is always present, so the top reachable arithmetic total includes it.
     val cEnumMax = maxOf(critCap, (critConst + maxItemCrit + maxSkillCrit + forcedStartCritTotal).toInt())
+    // v52 CC row: a build harvested at crit step c has actual crit ≤ c, and a build whose budget subs push its crit past
+    // [cEnumMax] is covered AT [cEnumMax] (the overshoot dropped for free, see above) — so every step below the row may be
+    // skipped as long as the row itself is ≤ [cEnumMax]; a higher row would skip the very step that covers those builds,
+    // so it is not enforced.
+    val ccRowTarget = if (ccRowRequested in 1L..cEnumMax.toLong()) ccRowRequested else 0L
     val apHigh = (apTarget - apConst).toInt()
     // Cells BELOW the AP constant require charging net-negative AP (wearing −AP gear to drop below the
     // always-on AP). The exact negative-AP DP UNDER-COUNTS that charge — a systematic, sometimes
@@ -2728,21 +2969,29 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // min(mp, clamp) there changes no path's value, while points that differ only in MP beyond the ramps' reach (the
     // paired Major MP point on an already-saturated item set) collapse instead of multiplying every later stage's
     // frontier. Long.MAX_VALUE = no clamp (no ramp modeled, a degenerate ramp, or the A/B seam off).
+    // v52 MP row: the row filter is the axis's other reader — it reads `mpRowFree + mp ≥ target` at harvest — so the clamp
+    // must also stay ≥ the row's need plus every later debit: a clamped point then still passes exactly when its unclamped
+    // self would (both always pass), and the clamp stays value-exact for the ramps (it only ever rises). With the row but
+    // no staged ramp, the row's floor alone is the clamp.
     val mpSaturationClamp: Long =
-        if (!mpRampEnabled || !CertifierTuning.mpSaturationClampEnabled) {
+        if (!mpAxisEnabled || !CertifierTuning.mpSaturationClampEnabled) {
             Long.MAX_VALUE
         } else {
             val ramps =
-                stagedTransitions.mapNotNull { (sub, _, _) ->
-                    sub.perStatStep?.takeIf { it.source == Characteristic.MOVEMENT_POINT && it.target == Characteristic.DAMAGE_INFLICTED }
+                if (!mpRampEnabled) {
+                    emptyList()
+                } else {
+                    stagedTransitions.mapNotNull { (sub, _, _) ->
+                        sub.perStatStep?.takeIf { it.source == Characteristic.MOVEMENT_POINT && it.target == Characteristic.DAMAGE_INFLICTED }
+                    }
                 }
-            if (ramps.isEmpty() || ramps.any { it.perStep <= 0 || it.cap <= 0 }) {
-                Long.MAX_VALUE
-            } else {
-                val saturatedFrom = ramps.maxOf { it.threshold.toLong() + Math.ceilDiv(it.cap, it.perStep) }
-                // Every staged MP debit taken at once (copies included) — the most the axis can fall before a ramp.
-                val laterDebit = stagedTransitions.sumOf { (_, r, mult) -> maxOf(0L, -r.mp) * mult }
-                saturatedFrom - mpFreeMax + laterDebit
+            // Every staged MP debit taken at once (copies included) — the most the axis can fall before a ramp / the harvest.
+            val laterDebit = stagedTransitions.sumOf { (_, r, mult) -> maxOf(0L, -r.mp) * mult }
+            val rowFloor = if (mpRowTarget > 0) mpRowTarget - mpRowFree + laterDebit else null
+            when {
+                ramps.any { it.perStep <= 0 || it.cap <= 0 } -> Long.MAX_VALUE
+                ramps.isEmpty() -> rowFloor ?: Long.MAX_VALUE
+                else -> maxOf(ramps.maxOf { it.threshold.toLong() + Math.ceilDiv(it.cap, it.perStep) } - mpFreeMax + laterDebit, rowFloor ?: Long.MIN_VALUE)
             }
         }
     val diBudgetSorted = diBudgetUnits.sortedDescending()
@@ -3020,13 +3269,21 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         val critDimF = critHighF + 2 * critOff + 1
         val apCeilF = apCeil // apTarget was passed as the loosest cell, so this is the DP's AP ceiling.
 
+        // v52 RANGE row: the saturated range rides as the LOWEST digit (`rangeDim` = 1 ⇒ keys unchanged).
         fun keyF(
             ap: Int,
             crit: Int,
             epic: Int,
             relic: Int,
             n: Int,
-        ) = ((((ap.toLong() * critDimF + crit) * 2 + epic) * 2 + relic) * (subCap + 1)) + n
+            rng: Int = 0,
+        ) = (((((ap.toLong() * critDimF + crit) * 2 + epic) * 2 + relic) * (subCap + 1)) + n) * rangeDim + rng
+
+        fun ckOfF(r: Raw) = ((((r.ap + apOff) * critDimF + (r.crit + critOff)) * 2 + r.epic) * 2 + r.relic) * rangeDim + minOf(rangeNeed, r.range)
+
+        fun ckRangeF(ck: Int) = ck % rangeDim
+
+        fun maxRangeOfF(cells: Map<Int, Frontier>): Int = if (rangeDim == 1) 0 else cells.keys.maxOfOrNull { ckRangeF(it) } ?: 0
 
         // ∃-gate (P2.3, c-bucketed): allow a sub iff its condition holds for SOME (c ∈ [cLow,cHigh],
         // apTarget ∈ [0,maxCell]) — using the endpoint that makes it easiest. Over-allowing is a sound
@@ -3096,7 +3353,9 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 for (a in oneOpts) {
                     for (b in offOpts) {
                         if (a.epic + b.epic > 1 || a.relic + b.relic > 1) continue
-                        combined.add(Raw(a.di + b.di, a.m + b.m, a.critM + b.critM, a.ap + b.ap, a.crit + b.crit, a.epic + b.epic, a.relic + b.relic, a.mp + b.mp))
+                        combined.add(
+                            Raw(a.di + b.di, a.m + b.m, a.critM + b.critM, a.ap + b.ap, a.crit + b.crit, a.epic + b.epic, a.relic + b.relic, a.mp + b.mp, a.range + b.range)
+                        )
                     }
                 }
                 // Identical Raw vectors are indistinguishable to the DP — dedupe ONCE per pass instead of
@@ -3127,7 +3386,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                                 r.crit + r2.crit,
                                 r.epic + r2.epic,
                                 r.relic + r2.relic,
-                                r.mp + r2.mp
+                                r.mp + r2.mp,
+                                r.range + r2.range
                             )
                     }
                 }
@@ -3169,7 +3429,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         // values are identical (same point sets — only iteration order changes, and every consumer is an
         // order-independent max / Pareto frontier).
         val apDimF = apCeilF + 2 * apOff + 1
-        val denseBoxF = apDimF * critDimF * 4 * (subCap + 1)
+        val denseBoxF = apDimF * critDimF * 4 * (subCap + 1) * rangeDim
         val bufAF = DenseDp(denseBoxF)
         val bufBF = DenseDp(denseBoxF)
         var dpF = bufAF
@@ -3196,6 +3456,12 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             }
         for ((si, cLow) in segmentEdges.withIndex()) {
             val cHigh = if (si + 1 < segmentEdges.size) segmentEdges[si + 1] - 1 else cEnumMax
+            // v52 CC row: every crit step of this segment is below the row ⇒ no targets-met build (the
+            // exact pass skips the same steps, so `fast ≥ exact` and the c-loop pruning rows stay consistent).
+            if (ccRowTarget > 0 && cHigh < ccRowTarget) {
+                fastSegmentsSkipped++
+                continue
+            }
             // Floor speed (tier-1.5 single-cell runs): if tier-1's step-8 bounds cap every crit step of
             // this segment at-or-below the incumbent threshold, its step-1 DP cannot change the clearing
             // decision (step-1 ≤ step-8 per c) — carry the sound step-8 values and skip the DP entirely.
@@ -3223,10 +3489,16 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
 
             // Carry every live state into [ndF] (the "skip this stage's option" transition), then swap.
             // Mirrors the old `nd[k] = fr.copy()` seeding, minus the HashMap.
-            fun beginStageF() {
+            // v52 RANGE row: [rangeLeftAfter] = the most range the stages AFTER this one can add; a carried
+            // state that cannot reach [rangeNeed] with it is dropped (Int.MAX_VALUE = no pruning).
+            fun beginStageF(rangeLeftAfter: Int = Int.MAX_VALUE) {
                 ndF.clear()
                 for (i in 0 until dpF.liveCount) {
                     val k = dpF.liveKeys[i]
+                    if (rangeDim > 1 && rangeLeftAfter != Int.MAX_VALUE && ckRangeF(k) + rangeLeftAfter < rangeNeed) {
+                        rangePruned++
+                        continue
+                    }
                     dpF.slots[k]?.let { ndF.put(k, it.copy()) }
                 }
             }
@@ -3242,20 +3514,26 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 for (r in options) {
                     if (r.ap > apCeilF + apOff || r.crit > critHighF + critOff) continue
                     val g = grawOfF(r)
-                    if (r.di <= 0 && g <= 0 && r.epic + r.relic == 0 && r.crit == 0 && r.ap == 0 && r.mp == 0L) continue
-                    val ck = (((r.ap + apOff) * critDimF + (r.crit + critOff)) * 2 + r.epic) * 2 + r.relic
+                    // v52 RANGE row: a pure-RANGE item is a resource for a tracked RANGE row — never worthless then.
+                    if (r.di <= 0 && g <= 0 && r.epic + r.relic == 0 && r.crit == 0 && r.ap == 0 && r.mp == 0L && (rangeDim == 1 || r.range == 0)) continue
+                    val ck = ckOfF(r)
                     m.getOrPut(ck) { Frontier() }.add(r.di, g, r.mp)
                 }
                 return m
             }
 
-            fun applyCellsF(cells: Map<Int, Frontier>) {
-                beginStageF()
+            fun applyCellsF(
+                cells: Map<Int, Frontier>,
+                rangeLeftAfter: Int = Int.MAX_VALUE,
+            ) {
+                beginStageF(rangeLeftAfter)
                 for (i in 0 until dpF.liveCount) {
                     val k = dpF.liveKeys[i]
                     val fr = dpF.slots[k] ?: continue
-                    val n0 = k % (subCap + 1)
-                    var rest = k / (subCap + 1)
+                    val rng0 = k % rangeDim
+                    var rest = k / rangeDim
+                    val n0 = rest % (subCap + 1)
+                    rest /= (subCap + 1)
                     val relic0 = rest % 2
                     rest /= 2
                     val epic0 = rest % 2
@@ -3263,16 +3541,23 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                     val crit0 = rest % critDimF
                     val ap0 = rest / critDimF
                     for ((ck, cfr) in cells) {
-                        val rrelic = ck % 2
-                        val repic = (ck / 2) % 2
-                        val rcrit = (ck / 4) % critDimF - critOff
-                        val rap = (ck / 4) / critDimF - apOff
+                        val rrng = ck % rangeDim
+                        val ckb = ck / rangeDim
+                        val rrelic = ckb % 2
+                        val repic = (ckb / 2) % 2
+                        val rcrit = (ckb / 4) % critDimF - critOff
+                        val rap = (ckb / 4) / critDimF - apOff
                         val ap1 = ap0 + rap
                         val crit1 = crit0 + rcrit
                         val epic1 = epic0 + repic
                         val relic1 = relic0 + rrelic
                         if (ap1 > apCeilF + 2 * apOff || crit1 > critHighF + 2 * critOff || epic1 > 1 || relic1 > 1) continue
-                        val tgt = ndF.getOrPut(keyF(ap1, crit1, epic1, relic1, n0).toInt())
+                        val rng1 = minOf(rangeNeed, rng0 + rrng)
+                        if (rangeDim > 1 && rangeLeftAfter != Int.MAX_VALUE && rng1 + rangeLeftAfter < rangeNeed) {
+                            rangePruned++
+                            continue
+                        }
+                        val tgt = ndF.getOrPut(keyF(ap1, crit1, epic1, relic1, n0, rng1).toInt())
                         fr.forEachPoint { pd, pg, pm -> cfr.forEachPoint { qd, qg, qm -> tgt.add(pd + qd, pg + qg, pm + qm) } }
                     }
                 }
@@ -3280,12 +3565,34 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             }
 
             // Item slots (non-weapon), the grouped weapon slot, then the ring singles+pairs slot.
-            for ((type, entries) in itemsByType) {
-                if (type in weaponTypes) continue
-                stageStat("slot:${type.name}") { applyCellsF(perCostF(entries)) }
+            // v52 RANGE row: the stage cells are built first so the suffix-reachability prune knows how
+            // much range the later stages (items, then the skill branches' range vars) can still add.
+            val slotCellsF = itemsByType.filterKeys { it !in weaponTypes }.map { (type, entries) -> type to perCostF(entries) }
+            val weaponCellsF = if (weaponRawsF.isNotEmpty()) perCostF(weaponRawsF) else null
+            val ringCellsF = if (ringRawsDeduped.isNotEmpty()) perCostF(ringRawsDeduped) else null
+            val skillsMaxRangeF = if (rangeDim == 1) 0 else skillBranches.sumOf { (pool, infos) -> infos.filter { it.range > 0 }.sumOf { it.range * minOf(it.cap, pool) } }
+            var rangeLeftF =
+                if (rangeDim == 1) {
+                    Int.MAX_VALUE
+                } else {
+                    slotCellsF.sumOf { maxRangeOfF(it.second) } + (weaponCellsF?.let { maxRangeOfF(it) } ?: 0) + (ringCellsF?.let { maxRangeOfF(it) } ?: 0) + skillsMaxRangeF
+                }
+
+            fun applyItemStageF(cells: Map<Int, Frontier>) {
+                if (rangeDim > 1) rangeLeftF -= maxRangeOfF(cells)
+                applyCellsF(cells, rangeLeftF)
             }
-            if (weaponRawsF.isNotEmpty()) stageStat("weapons") { applyCellsF(perCostF(weaponRawsF)) }
-            if (ringRawsDeduped.isNotEmpty()) stageStat("rings") { applyCellsF(perCostF(ringRawsDeduped)) }
+            val itemStagesF =
+                slotCellsF.map { (type, cells) -> "slot:${type.name}" to cells } +
+                    listOfNotNull(weaponCellsF?.let { "weapons" to it }, ringCellsF?.let { "rings" to it })
+            // v52 RANGE row: the stages run in decreasing cost-cell count, so the wide ones (the weapon pairs, the ring pairs) meet
+            // a still-small state set instead of the fully range-split one at the end — the DP is a commutative convolution, so
+            // every value is unchanged (the four orders tried gave one ledger), only the work moves: CRA 245 GUI-default fast
+            // tier 40.6 s → 24.1 s on one thread (21.2 s target-blind). The target-blind order (rangeDim 1) is untouched.
+            val orderedStagesF = if (rangeDim == 1) itemStagesF else itemStagesF.sortedByDescending { it.second.size }
+            for ((label, cells) in orderedStagesF) {
+                stageStat(label) { applyItemStageF(cells) }
+            }
 
             // Skills: per branch, enumerate the crit/ap/di/mp/MP+graw point split; the remaining points
             // fill graw greedily by rate at the segment's fold crit — the exact pass's own shape (exact at
@@ -3299,9 +3606,11 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 val diVars = infos.filter { it.di != 0L }.sortedByDescending { it.di }
                 val mpVars = infos.filter { it.mp > 0L && it.di == 0L && it.m == 0L && it.critM == 0L && it.crit == 0 && it.ap == 0 }.sortedByDescending { it.mp }
                 val mpCapTotal = mpVars.sumOf { it.cap }
-                val grawVars = infos.filter { it.di == 0L && it.crit == 0 && it.ap == 0 && it.mp == 0L }
+                // v52 RANGE row: range-carrying vars leave the graw fill and get their own exact split.
+                val grawVars = infos.filter { it.di == 0L && it.crit == 0 && it.ap == 0 && it.mp == 0L && (rangeDim == 1 || it.range == 0) }
                 // B1: the MP+graw vars (the Major MP point under a ramp) — their own exact split, see [mpGrawSplits].
                 val mpGrawSplitsF = mpGrawSplits(infos.filter { isMpGrawVar(it) }, pool, cEffHi)
+                val rangeGrawSplitsF = if (rangeDim == 1) listOf(LongArray(3)) else rangeGrawSplits(infos.filter { it.range != 0 }, pool, cEffHi)
 
                 fun fillGraw(points: Int): Long {
                     var rem = points
@@ -3345,11 +3654,14 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                                     leftMp -= take
                                     if (leftMp <= 0) break
                                 }
-                                val ck = ((ap + apOff) * critDimF + (crit + critOff)) * 2 * 2
+                                val ckBase = (((ap + apOff) * critDimF + (crit + critOff)) * 2 * 2) * rangeDim
                                 for (x in mpGrawSplitsF) {
-                                    val fill = rem0 - d - mpPts - x[0].toInt()
-                                    if (fill < 0) continue
-                                    cells.getOrPut(ck) { Frontier() }.add(di, fillGraw(fill) + x[2], mpv + x[1])
+                                    for (y in rangeGrawSplitsF) {
+                                        val fill = rem0 - d - mpPts - x[0].toInt() - y[0].toInt()
+                                        if (fill < 0) continue
+                                        val ck = ckBase + minOf(rangeNeed.toLong(), y[1]).toInt()
+                                        cells.getOrPut(ck) { Frontier() }.add(di, fillGraw(fill) + x[2] + y[2], mpv + x[1])
+                                    }
                                 }
                             }
                         }
@@ -3358,7 +3670,26 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 return cells
             }
             for ((pool, infos) in skillBranches) {
-                stageStat("skills") { applyCellsF(branchCellsF(infos, pool)) }
+                stageStat("skills") {
+                    val cellsB = branchCellsF(infos, pool)
+                    if (rangeDim > 1) rangeLeftF -= maxRangeOfF(cellsB)
+                    applyCellsF(cellsB, rangeLeftF)
+                }
+            }
+            // v52 RANGE row: nothing after the skills adds tracked range — drop every state short of the need.
+            if (rangeDim > 1) {
+                stageStat("range-filter") {
+                    ndF.clear()
+                    for (i in 0 until dpF.liveCount) {
+                        val k = dpF.liveKeys[i]
+                        if (ckRangeF(k) < rangeNeed) {
+                            rangePruned++
+                            continue
+                        }
+                        ndF.put(k, dpF.slots[k] ?: continue)
+                    }
+                    endStageF()
+                }
             }
             // v49: MP beyond the ramps' saturation collapses here (see [mpSaturationClamp]) — every value unchanged.
             if (mpSaturationClamp != Long.MAX_VALUE) {
@@ -3392,16 +3723,17 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                     for (i in 0 until dpF.liveCount) {
                         val k = dpF.liveKeys[i]
                         val fr = dpF.slots[k] ?: continue
-                        val n0 = k % (subCap + 1)
+                        val kb = k / rangeDim
+                        val n0 = kb % (subCap + 1)
                         if (n0 >= subCap) continue
-                        var rest = k / (subCap + 1)
+                        var rest = kb / (subCap + 1)
                         rest /= 2
                         rest /= 2
                         val crit0 = rest % critDimF
                         val ap0 = rest / critDimF
                         if (!subAllowedExists(sub, crit0 - critOff, ap0 - apOff, cLow, cHigh)) continue
                         for (j in 1..minOf(stageMult, subCap - n0)) {
-                            val tgt = ndF.getOrPut(k + j) // n0 → n0+j, other coords unchanged (ap==crit==0)
+                            val tgt = ndF.getOrPut(k + j * rangeDim) // n0 → n0+j, other coords (range digit included) unchanged
                             fr.forEachPoint { pd, pg, pm ->
                                 val di1 = if (pssMp == null) r.di else minOf(r.di, pssMp.contribution((mpFreeMax + pm).coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()).toLong())
                                 tgt.add(pd + j * di1, pg + j * g, pm + j * r.mp)
@@ -3425,7 +3757,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 for (i in 0 until dpF.liveCount) {
                     val k = dpF.liveKeys[i]
                     val fr = dpF.slots[k] ?: continue
-                    var rest = k / (subCap + 1)
+                    var rest = (k / rangeDim) / (subCap + 1)
                     val relic0 = rest % 2
                     rest /= 2
                     val epic0 = rest % 2
@@ -3495,6 +3827,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 critGapSubsC: Int,
             ) {
                 if (n0 + critGapSubsC + apGapSubsA > subCap) return
+                // v52 CC row: a build harvested at step c has actual crit ≤ c.
+                if (ccRowTarget > 0 && c < ccRowTarget) return
                 if (convTaken != null) {
                     if (convTaken.rarity == SublimationRarity.EPIC && epic == 0) return
                     if (convTaken.rarity == SublimationRarity.RELIC && relic == 0) return
@@ -3524,7 +3858,9 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 val grawConstC = (400L + cEff) * (mConst + forcedCondMTotal) + 5L * cEff * (critMConst + forcedCondCmTotal)
                 val freeSlots = subCap - n0 - critGapSubsC - apGapSubsA
                 val gpC = gpByC[c - cLow]
-                fr.forEachPoint { pd, pg, _ ->
+                fr.forEachPoint { pd, pg, pm ->
+                    // v52 MP row: same over-estimate of the build's MP as the exact harvest.
+                    if (mpRowTarget > 0 && mpRowFree + pm < mpRowTarget) return@forEachPoint
                     val perHit = budgetMax(dConst + pd, grawConstC + pg, freeSlots, gpC)
                     if (perHit > fastAllCellsOut[a]) fastAllCellsOut[a] = perHit
                     // Per-crit-step harvest for the top cell (exact-pass c-loop pruning bounds).
@@ -3537,8 +3873,11 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             for (ki in 0 until dpF.liveCount) {
                 val k = dpF.liveKeys[ki]
                 val fr = dpF.slots[k] ?: continue
-                val n0 = k % (subCap + 1)
-                var rest = k / (subCap + 1)
+                // v52 RANGE row: a state short of the need holds no targets-met build.
+                if (rangeDim > 1 && k % rangeDim < rangeNeed) continue
+                var rest = k / rangeDim
+                val n0 = rest % (subCap + 1)
+                rest /= (subCap + 1)
                 val relic = rest % 2
                 rest /= 2
                 val epic = rest % 2
@@ -3594,6 +3933,16 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             }
             if (fastTimingEnabled) fastHarvestNanos += System.nanoTime() - segmentHarvestStart
         }
+        // v52 AP row: cells below the row hold no targets-met build (cell AP == actual AP); the exact pass returns 0 for them
+        // too. Their per-crit-step rows (the tier-1.5 skip / exact c-loop bounds) are zeroed alike — 0 bounds their empty set.
+        if (apRowTarget > 0) {
+            for (a in 0 until minOf(apRowTarget, fastCellCount.toLong()).toInt()) {
+                fastAllCellsOut[a] = 0L
+                fastPerCellC?.get(a)?.fill(0L)
+                if (a == maxCell) fastPerCOut?.fill(0L)
+            }
+        }
+        if (rangePruned > 0L) CertifierTuning.targetAwareRangePrunedForTest.addAndGet(rangePruned)
         if (fastTimingEnabled) {
             System.err.println(
                 "CERT_FAST_TIMING conv=${convTaken?.name?.en ?: "-"} critSecret=${critSecret?.name?.en ?: "-"} wr=$weaponsRestricted " +
@@ -3622,7 +3971,12 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // ≤ maxCritDim), so one size serves all crit steps.
     val apDim = apCeil + 2 * apOff + 1
     val maxCritDim = (cEnumMax - critConst).toInt() + 2 * critOff + 1
-    val denseBox = apDim * maxCritDim * 4 * (subCap + 1)
+    // The provenance backtrack decodes range-free keys — explain mode is not supported with the dim (bail, sound).
+    if (explainC != null && rangeDim > 1) return Long.MAX_VALUE
+    // v52 AP row: every build of a cell below the row has actual AP == the cell < target ⇒ no targets-met
+    // build lives here. 0 is a sound bound over the (empty) targets-met set; the fast pass zeroes the same cells.
+    if (apRowTarget > 0 && apTarget < apRowTarget) return 0L
+    val denseBox = apDim * maxCritDim * 4 * (subCap + 1) * rangeDim
     val bufA = DenseDp(denseBox)
     val bufB = DenseDp(denseBox)
 
@@ -3658,6 +4012,9 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     var bestPt: LongArray? = null
     for (c in cOrder) {
         if (explainC != null && c != explainC) continue
+        // v52 CC row: a build harvested at crit step c has actual crit ≤ c (c is its arithmetic total,
+        // budget subs included), so a step below the row holds no targets-met build.
+        if (ccRowTarget > 0 && c < ccRowTarget) continue
         if (cPruneUb != null && c != cSeed && cPruneUb[c] < best) {
             CertifierTuning.cPruneSkippedForTest.incrementAndGet()
             continue // ub[c] < best ⇒ dp(c) ≤ ub[c] < best — this crit step can never raise the max
@@ -3687,13 +4044,20 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         // intermediate, and at c = 0 it keeps the start coordinate critOff inside critDim.
         val critDim = critItemHigh + 2 * critOff + 1
 
+        // v52 RANGE row: the saturated range rides as the LOWEST digit (`rangeDim` = 1 ⇒ keys unchanged).
         fun key(
             ap: Int,
             crit: Int,
             epic: Int,
             relic: Int,
             n: Int,
-        ) = ((((ap.toLong() * critDim + crit) * 2 + epic) * 2 + relic) * (subCap + 1)) + n
+            rng: Int = 0,
+        ) = (((((ap.toLong() * critDim + crit) * 2 + epic) * 2 + relic) * (subCap + 1)) + n) * rangeDim + rng
+
+        // Cost cells likewise carry the option's (saturated) range as their lowest digit.
+        fun ckOf(r: Raw) = ((((r.ap + apOff) * critDim + (r.crit + critOff)) * 2 + r.epic) * 2 + r.relic) * rangeDim + minOf(rangeNeed, r.range)
+
+        fun ckRange(ck: Int) = ck % rangeDim
 
         // Double-buffered dense stores: dp is the current one; each stage clears the OTHER and fills it.
         var dp = bufA
@@ -3737,12 +4101,16 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 // reachable at all, so dropping it would UNDER-count those cells (unsound). A FORCED
                 // slot ([keepWorthless]) keeps even a null option: equipping a zero-stat forced item is a
                 // real (0,0,0) transition the MANDATORY slot needs so the state doesn't die (under-count).
-                if (!keepWorthless && r.di <= 0 && g <= 0 && r.epic + r.relic == 0 && r.crit == 0 && r.ap == 0 && r.mp == 0L) continue
-                val ck = (((r.ap + apOff) * critDim + (r.crit + critOff)) * 2 + r.epic) * 2 + r.relic
+                // v52 RANGE row: a pure-RANGE item is a resource for a tracked RANGE row — never worthless then.
+                if (!keepWorthless && r.di <= 0 && g <= 0 && r.epic + r.relic == 0 && r.crit == 0 && r.ap == 0 && r.mp == 0L && (rangeDim == 1 || r.range == 0)) continue
+                val ck = ckOf(r)
                 m.getOrPut(ck) { Frontier() }.add(r.di, g, r.mp)
             }
             return m
         }
+
+        // v52 RANGE row: the most range a cost-cell map can add (0 when untracked).
+        fun maxRangeOf(cells: Map<Int, Frontier>): Int = if (rangeDim == 1) 0 else cells.keys.maxOfOrNull { ckRange(it) } ?: 0
 
         // [apUpper]/[critUpper] are the STORED-coordinate upper bounds this stage may keep. They are
         // stage-aware: apUpper = apCeil + apOff + (worst negative AP still available in the not-yet-
@@ -3755,6 +4123,10 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             apUpper: Int,
             critUpper: Int,
             mandatory: Boolean = false,
+            // v52 RANGE row: the most range the stages AFTER this one can still add. A state whose saturated
+            // range plus that cannot reach [rangeNeed] can never be harvested — dropping it is sound (and the lever that
+            // keeps the extra dimension cheap). Int.MAX_VALUE = no pruning.
+            rangeLeftAfter: Int = Int.MAX_VALUE,
         ) {
             val nd = if (dp === bufA) bufB else bufA
             nd.clear()
@@ -3766,14 +4138,20 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             if (!mandatory) {
                 for (i in 0 until dp.liveCount) {
                     val k = dp.liveKeys[i]
+                    if (rangeDim > 1 && rangeLeftAfter != Int.MAX_VALUE && ckRange(k) + rangeLeftAfter < rangeNeed) {
+                        rangePruned++
+                        continue
+                    }
                     nd.put(k, (dp.slots[k] ?: continue).copy())
                 }
             }
             for (i in 0 until dp.liveCount) {
                 val k = dp.liveKeys[i]
                 val fr = dp.slots[k] ?: continue
-                val n0 = k % (subCap + 1)
-                var rest = k / (subCap + 1)
+                val rng0 = k % rangeDim
+                var rest = k / rangeDim
+                val n0 = rest % (subCap + 1)
+                rest /= (subCap + 1)
                 val relic0 = rest % 2
                 rest /= 2
                 val epic0 = rest % 2
@@ -3784,16 +4162,23 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                     // Cost cells carry their deltas BIASED by (+apOff, +critOff) so every packed
                     // component is non-negative (mixed-radix decode breaks on a negative low digit:
                     // crit −10 with ap 0 would decode as ap −1 / crit +8). Un-bias on read.
-                    val rrelic = ck % 2
-                    val repic = (ck / 2) % 2
-                    val rcrit = (ck / 4) % critDim - critOff
-                    val rap = (ck / 4) / critDim - apOff
+                    val rrng = ck % rangeDim
+                    val ckb = ck / rangeDim
+                    val rrelic = ckb % 2
+                    val repic = (ckb / 2) % 2
+                    val rcrit = (ckb / 4) % critDim - critOff
+                    val rap = (ckb / 4) / critDim - apOff
                     val ap1 = ap0 + rap
                     val crit1 = crit0 + rcrit
                     val epic1 = epic0 + repic
                     val relic1 = relic0 + rrelic
                     if (ap1 > apUpper || crit1 > critUpper || epic1 > 1 || relic1 > 1) continue
-                    val tgt = nd.getOrPut(key(ap1, crit1, epic1, relic1, n0).toInt())
+                    val rng1 = minOf(rangeNeed, rng0 + rrng)
+                    if (rangeDim > 1 && rangeLeftAfter != Int.MAX_VALUE && rng1 + rangeLeftAfter < rangeNeed) {
+                        rangePruned++
+                        continue
+                    }
+                    val tgt = nd.getOrPut(key(ap1, crit1, epic1, relic1, n0, rng1).toInt())
                     fr.forEachPoint { pd, pg, pm -> cfr.forEachPoint { qd, qg, qm -> tgt.add(pd + qd, pg + qg, pm + qm) } }
                 }
             }
@@ -3813,7 +4198,10 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             val apNeg: Int,
             val critNeg: Int,
             val mandatory: Boolean = false,
-        )
+        ) {
+            // v52 RANGE row: the most range this stage can add (for the suffix-reachability prune).
+            val maxRange: Int = maxRangeOf(cells)
+        }
         val itemStages = mutableListOf<ItemStage>()
         // Weapons grouped (1H+offhand OR 2H) like rarityAwareUpper.weaponOptions.
         for ((type, entries) in itemsByType) {
@@ -3835,7 +4223,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             for (a in oneOpts) {
                 for (b in offOpts) {
                     if (a.epic + b.epic > 1 || a.relic + b.relic > 1) continue
-                    combined.add(Raw(a.di + b.di, a.m + b.m, a.critM + b.critM, a.ap + b.ap, a.crit + b.crit, a.epic + b.epic, a.relic + b.relic, a.mp + b.mp))
+                    combined.add(Raw(a.di + b.di, a.m + b.m, a.critM + b.critM, a.ap + b.ap, a.crit + b.crit, a.epic + b.epic, a.relic + b.relic, a.mp + b.mp, a.range + b.range))
                 }
             }
             pair.clear()
@@ -3862,6 +4250,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 val name: String,
             )
             val top2 = HashMap<Int, MutableList<RingBest>>()
+            // The cost cell of a ring carrying no AP / crit / rarity / tracked range: only there is a graw-≤-0 ring worthless.
+            val zeroCostRingCk = ckOf(Raw(0, 0, 0, 0, 0, 0, 0))
             for ((nameKey, opts) in plainRingEquips) {
                 var bestG = Long.MIN_VALUE
                 // A negative-AP/crit ring packs to a NEGATIVE ck, so "no option" needs a real flag.
@@ -3872,11 +4262,16 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                     val g = grawOf(r)
                     if (g > bestG) {
                         bestG = g
-                        bestCk = (((r.ap + apOff) * critDim + (r.crit + critOff)) * 2 + r.epic) * 2 + r.relic
+                        bestCk = ckOf(r)
                         bestFound = true
                     }
                 }
-                if (!bestFound || bestG <= 0) continue
+                // Skip only a ring worthless on EVERY axis, like [perCost]: crit / AP / an epic-relic carrier / tracked
+                // RANGE (v52) are resources even at zero graw — a +1 AP ring whose only mastery is another element is how
+                // a build reaches its AP cell. Before v52 every graw-≤-0 ring was dropped here, so such a cell's EXACT
+                // value under-counted (to 0 on the `MaxDamageTargetAwareCertificateTest` zero-graw-ring repro; the fast
+                // and tier-1.5 passes, whose rings are explicit options, always kept it).
+                if (!bestFound || (bestG <= 0 && bestCk == zeroCostRingCk)) continue
                 val lst = top2.getOrPut(bestCk) { mutableListOf() }
                 val sameName = lst.indexOfFirst { it.name == nameKey }
                 if (sameName >= 0) {
@@ -3891,14 +4286,14 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             val ringCells = HashMap<Int, Frontier>()
 
             // Cost cells carry deltas BIASED by (+apOff, +critOff) — see perCost — so plain
-            // arithmetic decodes; un-bias on read, re-bias on re-encode.
-            fun decodeAp(ck: Int) = (ck / 4) / critDim - apOff
+            // arithmetic decodes; un-bias on read, re-bias on re-encode. (The range digit sits below.)
+            fun decodeAp(ck: Int) = ((ck / rangeDim) / 4) / critDim - apOff
 
-            fun decodeCrit(ck: Int) = (ck / 4) % critDim - critOff
+            fun decodeCrit(ck: Int) = ((ck / rangeDim) / 4) % critDim - critOff
 
-            fun decodeEpic(ck: Int) = (ck / 2) % 2
+            fun decodeEpic(ck: Int) = ((ck / rangeDim) / 2) % 2
 
-            fun decodeRelic(ck: Int) = ck % 2
+            fun decodeRelic(ck: Int) = (ck / rangeDim) % 2
 
             fun combineCells(
                 a: Int,
@@ -3909,7 +4304,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 val epic = decodeEpic(a) + decodeEpic(b)
                 val relic = decodeRelic(a) + decodeRelic(b)
                 if (ap > apCeil + apOff || crit > critItemHigh + critOff || epic > 1 || relic > 1) return null
-                return (((ap + apOff) * critDim + (crit + critOff)) * 2 + epic) * 2 + relic
+                val rng = minOf(rangeNeed, ckRange(a) + ckRange(b))
+                return ((((ap + apOff) * critDim + (crit + critOff)) * 2 + epic) * 2 + relic) * rangeDim + rng
             }
             for (i in cks.indices) {
                 ringCells.getOrPut(cks[i]) { Frontier() }.add(0, top2.getValue(cks[i])[0].g) // one ring
@@ -3944,7 +4340,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             for (i in mpRingOpts.indices) {
                 val (nameI, optsI) = mpRingOpts[i]
                 for (r in optsI) {
-                    val ckR = (((r.ap + apOff) * critDim + (r.crit + critOff)) * 2 + r.epic) * 2 + r.relic
+                    val ckR = ckOf(r)
                     val gR = grawOf(r)
                     ringCells.getOrPut(ckR) { Frontier() }.add(0, gR, r.mp) // mp ring alone
                     for (ckPlain in cks) {
@@ -3958,7 +4354,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                         val (nameJ, optsJ) = mpRingOpts[j]
                         if (nameJ == nameI) continue
                         for (r2 in optsJ) {
-                            val ck2 = (((r2.ap + apOff) * critDim + (r2.crit + critOff)) * 2 + r2.epic) * 2 + r2.relic
+                            val ck2 = ckOf(r2)
                             val ck = combineCells(ckR, ck2) ?: continue
                             ringCells.getOrPut(ck) { Frontier() }.add(0, gR + grawOf(r2), r.mp + r2.mp)
                         }
@@ -3980,6 +4376,10 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         itemStages.sortBy { it.apNeg + it.critNeg }
         var apNegLeft = apOff
         var critNegLeft = critOff
+        // v52 RANGE row: the range still obtainable from the stages not yet applied (items, then the skill
+        // branches' range-carrying vars); 0 after the skills, when the dead states are dropped outright.
+        val skillsMaxRange = if (rangeDim == 1) 0 else skillBranches.sumOf { (pool, infos) -> infos.filter { it.range > 0 }.sumOf { it.range * minOf(it.cap, pool) } }
+        var rangeLeft = if (rangeDim == 1) Int.MAX_VALUE else itemStages.sumOf { it.maxRange } + skillsMaxRange
         for (st in itemStages) {
             // B8 cooperative cancellation: poll once per DP stage (the coarsest place that still bounds latency
             // to one stage's work). A bail here returns a SOUND over-count — the fast pass turns it into a
@@ -3993,7 +4393,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             if (st.mandatory && st.cells.isEmpty()) return Long.MAX_VALUE
             apNegLeft += st.apNeg
             critNegLeft += st.critNeg
-            applyCells(st.cells, apCeil + apOff + apNegLeft, critItemHigh + critOff + critNegLeft, mandatory = st.mandatory)
+            if (rangeDim > 1) rangeLeft -= st.maxRange
+            applyCells(st.cells, apCeil + apOff + apNegLeft, critItemHigh + critOff + critNegLeft, mandatory = st.mandatory, rangeLeftAfter = rangeLeft)
             snap(st.name)
         }
 
@@ -4016,8 +4417,10 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                     .filter { it.mp > 0L && it.di == 0L && it.m == 0L && it.critM == 0L && it.crit == 0 && it.ap == 0 }
                     .sortedByDescending { it.mp }
             val mpCapTotal = mpVars.sumOf { it.cap }
-            val grawVars = infos.filter { it.di == 0L && it.crit == 0 && it.ap == 0 && it.mp == 0L }
+            // v52 RANGE row: range-carrying vars leave the graw fill and get their own exact split.
+            val grawVars = infos.filter { it.di == 0L && it.crit == 0 && it.ap == 0 && it.mp == 0L && (rangeDim == 1 || it.range == 0) }
             val mpGrawSplitsX = mpGrawSplits(infos.filter { isMpGrawVar(it) }, pool, cEff.toLong())
+            val rangeGrawSplitsX = if (rangeDim == 1) listOf(LongArray(3)) else rangeGrawSplits(infos.filter { it.range != 0 }, pool, cEff.toLong())
 
             fun fillGraw(points: Int): Long {
                 var rem = points
@@ -4061,11 +4464,14 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                                 leftMp -= take
                                 if (leftMp <= 0) break
                             }
-                            val ck = ((ap + apOff) * critDim + (crit + critOff)) * 2 * 2
+                            val ckBase = (((ap + apOff) * critDim + (crit + critOff)) * 2 * 2) * rangeDim
                             for (x in mpGrawSplitsX) {
-                                val fill = rem0 - d - mpPts - x[0].toInt()
-                                if (fill < 0) continue
-                                cells.getOrPut(ck) { Frontier() }.add(di, fillGraw(fill) + x[2], mpv + x[1])
+                                for (y in rangeGrawSplitsX) {
+                                    val fill = rem0 - d - mpPts - x[0].toInt() - y[0].toInt()
+                                    if (fill < 0) continue
+                                    val ck = ckBase + minOf(rangeNeed.toLong(), y[1]).toInt()
+                                    cells.getOrPut(ck) { Frontier() }.add(di, fillGraw(fill) + x[2] + y[2], mpv + x[1])
+                                }
                             }
                         }
                     }
@@ -4076,8 +4482,26 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         // Skills add AP/crit only (no negative capacity), so they run at the exact band — a skill that
         // pushes AP above apCeil can never be pulled back down and is correctly dropped here.
         for ((bi, branch) in skillBranches.withIndex()) {
-            applyCells(branchCells(branch.second, branch.first), apCeil + apOff, critItemHigh + critOff)
+            val cellsB = branchCells(branch.second, branch.first)
+            if (rangeDim > 1) rangeLeft -= maxRangeOf(cellsB)
+            applyCells(cellsB, apCeil + apOff, critItemHigh + critOff, rangeLeftAfter = rangeLeft)
             snap("skills:$bi")
+        }
+        // v52 RANGE row: nothing after the skills adds tracked range, so every state short of [rangeNeed] is
+        // dead — drop it now instead of carrying it through the sub stages to the harvest filter (same harvested set).
+        if (rangeDim > 1) {
+            val nd = if (dp === bufA) bufB else bufA
+            nd.clear()
+            for (i in 0 until dp.liveCount) {
+                val k = dp.liveKeys[i]
+                if (ckRange(k) < rangeNeed) {
+                    rangePruned++
+                    continue
+                }
+                nd.put(k, dp.slots[k] ?: continue)
+            }
+            dp = nd
+            snap("range-filter")
         }
         // v49: MP beyond the ramps' saturation collapses here (see [mpSaturationClamp]) — every value unchanged. Its own
         // snapshot, so the provenance backtrack maps a clamped point back to its parent.
@@ -4128,9 +4552,11 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             for (i in 0 until dp.liveCount) {
                 val k = dp.liveKeys[i]
                 val fr = dp.slots[k] ?: continue
-                val n0 = k % (subCap + 1)
+                val rng0 = k % rangeDim
+                var rest = k / rangeDim
+                val n0 = rest % (subCap + 1)
                 if (n0 >= subCap) continue
-                var rest = k / (subCap + 1)
+                rest /= (subCap + 1)
                 val relic0 = rest % 2
                 rest /= 2
                 val epic0 = rest % 2
@@ -4143,7 +4569,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 // negative capacity remains). Transition subs are ap==0 anyway, so this never fires.
                 if (ap1 < 0 || ap1 > apCeil + apOff) continue
                 for (j in 1..minOf(stageMult, subCap - n0)) {
-                    val tgt = nd.getOrPut(key(ap1, crit0, epic0, relic0, n0 + j).toInt())
+                    val tgt = nd.getOrPut(key(ap1, crit0, epic0, relic0, n0 + j, rng0).toInt())
                     fr.forEachPoint { pd, pg, pm ->
                         val di1 =
                             if (pssMp == null) {
@@ -4185,8 +4611,10 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             for (i in 0 until dp.liveCount) {
                 val k = dp.liveKeys[i]
                 val fr = dp.slots[k] ?: continue
-                val n0 = k % (subCap + 1)
-                var rest = k / (subCap + 1)
+                val rng0 = k % rangeDim
+                var rest = k / rangeDim
+                val n0 = rest % (subCap + 1)
+                rest /= (subCap + 1)
                 val relic0 = rest % 2
                 rest /= 2
                 val epic0 = rest % 2
@@ -4200,7 +4628,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                     val ap1 = ap0 + r.ap
                     // Exact band: subs run after all item stages (no negative capacity left); ap==0 here.
                     if (ap1 < 0 || ap1 > apCeil + apOff) continue
-                    val tgt = nd.getOrPut(key(ap1, crit0, epic0, relic0, n0).toInt())
+                    val tgt = nd.getOrPut(key(ap1, crit0, epic0, relic0, n0, rng0).toInt())
                     fr.forEachPoint { pd, pg, pm -> tgt.add(pd + r.di, pg + grawOf(r), pm) }
                 }
             }
@@ -4220,8 +4648,12 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         for (hi in 0 until dp.liveCount) {
             val k = dp.liveKeys[hi]
             val fr = dp.slots[k] ?: continue
-            val n0 = k % (subCap + 1)
-            var rest = k / (subCap + 1)
+            // v52 RANGE row: a state short of the need holds no targets-met build (dropped after the skills
+            // already; kept here as the harvest-level statement of the filter).
+            if (rangeDim > 1 && k % rangeDim < rangeNeed) continue
+            var rest = k / rangeDim
+            val n0 = rest % (subCap + 1)
+            rest /= (subCap + 1)
             val relic = rest % 2
             rest /= 2
             val epic = rest % 2
@@ -4288,6 +4720,9 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             for (i in 0 until fr.size) {
                 val pd = fr.di(i)
                 val pg = fr.graw(i)
+                // v52 MP row: the point's mp plus every item-independent MP source (a sound over-estimate of
+                // the build's actual MP) must reach the row — else no build of this point meets it.
+                if (mpRowTarget > 0 && mpRowFree + fr.mp(i) < mpRowTarget) continue
                 val prod = budgetMax(dConstHere + pd, grawConst + forcedCondGrawHere + pg, freeSlots.toInt(), gpExact)
                 // The tie clause (`prod == best && c < bestC`) exists for the PRUNED order only: the seed
                 // c runs first, so a smaller c tying its value must still win `bestC` — "smallest
@@ -4415,7 +4850,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                                     val g = grawOf(r)
                                     if (b == null || g > b.g) b = BestRing(g, ringCk(r), e.name.en, e.name.fr.lowercase(), e.equipmentId)
                                 }
-                                if (b == null || b.g <= 0) continue
+                                // Mirrors the ring stage's v52 skip rule: worthless only at zero graw AND a zero cost cell.
+                                if (b == null || (b.g <= 0 && b.ck == ringCk(Raw(0, 0, 0, 0, 0, 0, 0)))) continue
                                 val lst = top2.getOrPut(b.ck) { mutableListOf() }
                                 val sameName = lst.indexOfFirst { it.name == b.name }
                                 if (sameName >= 0) {
@@ -4733,6 +5169,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         }
     }
     winningCOut?.set(0, bestC)
+    if (rangePruned > 0L) CertifierTuning.targetAwareRangePrunedForTest.addAndGet(rangePruned)
     if (System.getenv("WAKFU_MAX_DAMAGE_CERT_DEBUG") == "1") System.err.println("CERT_DEBUG_BEST $bestDbg")
     if (statsEnabled) {
         System.err.println(

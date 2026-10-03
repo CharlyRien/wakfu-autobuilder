@@ -333,8 +333,24 @@ object WakfuBuildSolver {
      * world N a FLAT sub's ramp into a secondary mastery (priced as a read source). Plus the MM / soft provenance replay
      * undoing each stage's LOW-offset shift (instrument only) and the soft certificate's never-set `mpCapMinus` removed.
      * Bounds bit-identical (S2 / S3 locked).
+     * 52: the TARGET-AWARE AP-cell certificate (`docs/CERTIFICATE_PROD_PLAN.md` §P5.6, research memo track 1). A HARD-LEG
+     * result's ledger ([StatBuilder.certifierTargetAware]) enforces the request's required AP / MP / CC / RANGE rows in every
+     * pass — fast, tier-1.5, exact and the aux worlds: cells below the AP row read 0, crit steps below the CC row are skipped,
+     * a frontier point whose over-counted MP cannot reach the MP row is dropped (the v49 MP clamp raised to keep that test
+     * exact, and clamping the axis on its own when no ramp is modeled), and RANGE rides a saturating lowest key digit
+     * (items floored at 0, the Major range point exact; base, passives and every sub's positive range a free constant —
+     * Furie II's `RANGE_AT_LEAST 4` excluded, its condition already implies the row) with a suffix-reachability prune. Each
+     * filter reads a sound over-estimate of the build's own stat, so no targets-met build is ever dropped: the bound covers
+     * exactly what the hard leg can return (under the dim the fast pass applies its item stages widest-first — values
+     * unchanged). The flag keys the in-memory and disk caches; soft-leg and free results keep the target-blind ledger (a
+     * row-less request gets it bit for bit even with the flag set — locked). GUI-default badge on the production-shaped
+     * proof (4-core, 420 s incumbents): 7.83 % → 2.71 % at level 110, 13.05 % → 7.03 % at 200, 8.15 % → 3.70 % at 245.
+     * Plus two PRE-EXISTING under-counts its fixtures exposed, both of which only raise a bound: the exact pass's ring
+     * collapse dropped every graw-≤-0 ring — also one carrying AP / crit (a cell read 0 against a real build wearing it) —
+     * and no pass listed an EPIC / RELIC item carrying no stat the scenario reads, although it is the carrier an epic /
+     * relic sub needs (−15 % on the repro).
      */
-    const val CERTIFIER_VERSION: Int = 51
+    const val CERTIFIER_VERSION: Int = 52
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
@@ -1158,6 +1174,9 @@ object WakfuBuildSolver {
         // B8: polled once per certifier DP stage; when it flips true the certifier bails (sound) so a cancelled
         // proof stops promptly. Default never-cancel keeps the deterministic test/model builds byte-identical.
         certifierCancelled: () -> Boolean = { false },
+        // CERTIFIER_VERSION 52: the certificate is for a HARD-LEG result ⇒ the target-aware ledger (see
+        // [StatBuilder.certifierTargetAware]). False keeps the target-blind certifier.
+        certifierTargetAware: Boolean = false,
     ): BuiltModel {
         // Phase timing (WAKFU_BUILD_MODEL_TIMING=1): where the ~seconds of model construction go on the
         // big shapes — one stderr line per buildModel call. No behavior change.
@@ -1330,7 +1349,8 @@ object WakfuBuildSolver {
                             certifyLedgerPrecomputedTier15 = certifyLedgerPrecomputedTier15,
                             certifyLedgerPrecomputedExact = certifyLedgerPrecomputedExact,
                             certifyLedgerPrecomputedProv = certifyLedgerPrecomputedProv,
-                            certifierCancelled = certifierCancelled
+                            certifierCancelled = certifierCancelled,
+                            certifierTargetAware = certifierTargetAware
                         )
                     val built =
                         model.buildMaxDamageObjective(
@@ -2594,6 +2614,8 @@ object WakfuBuildSolver {
         runes: List<RuneType> = emptyList(),
         sublimations: List<Sublimation> = emptyList(),
         applyDomination: Boolean = false,
+        // v52: the hard-leg (target-aware) passes — see [StatBuilder.certifierTargetAware].
+        targetAware: Boolean = false,
     ): Triple<Map<Int, Long>, Map<Int, Long>, Map<Int, Long>> =
         buildModel(
             params,
@@ -2601,7 +2623,8 @@ object WakfuBuildSolver {
             runes,
             sublimations,
             applyDomination = applyDomination,
-            certifyAllApForTest = true
+            certifyAllApForTest = true,
+            certifierTargetAware = targetAware
         ).let { Triple(it.certifierObjectivesForTest, it.certifierFastObjectivesForTest, it.certifierTier15ObjectivesForTest) }
 
     /**
@@ -2616,6 +2639,8 @@ object WakfuBuildSolver {
         sublimations: List<Sublimation> = emptyList(),
         applyDomination: Boolean = false,
         threads: Int = 1,
+        // v52: the hard-leg (target-aware) pass — see [StatBuilder.certifierTargetAware].
+        targetAware: Boolean = false,
     ): Map<Int, Long> =
         buildModel(
             params,
@@ -2625,7 +2650,8 @@ object WakfuBuildSolver {
             applyDomination = applyDomination,
             certifyAllApForTest = true,
             certifyFastThreadsForTest = threads,
-            certifyFastOnlyForTest = true
+            certifyFastOnlyForTest = true,
+            certifierTargetAware = targetAware
         ).certifierFastObjectivesForTest
 
     /**
@@ -2640,6 +2666,8 @@ object WakfuBuildSolver {
         sublimations: List<Sublimation> = emptyList(),
         applyDomination: Boolean = false,
         threads: Int = 1,
+        // v52: the hard-leg (target-aware) pass — see [StatBuilder.certifierTargetAware].
+        targetAware: Boolean = false,
     ): Pair<Map<Int, Long>, Map<Int, Long>> =
         buildModel(
             params,
@@ -2649,7 +2677,8 @@ object WakfuBuildSolver {
             applyDomination = applyDomination,
             certifyAllApForTest = true,
             certifyFastThreadsForTest = threads,
-            certifyFastOnlyForTest = true
+            certifyFastOnlyForTest = true,
+            certifierTargetAware = targetAware
         ).let { it.certifierFastObjectivesForTest to it.certifierAuxObjectivesForTest }
 
     /**
@@ -2790,6 +2819,10 @@ object WakfuBuildSolver {
         precomputedTier15: Map<Int, Long>? = null,
         precomputedExact: Map<Int, Long>? = null,
         precomputedProv: Map<Int, CellProvenance>? = null,
+        // CERTIFIER_VERSION 52: certify a HARD-LEG result — the ledger then bounds the targets-met builds only (every pass
+        // enforces the request's AP / MP / CC / RANGE rows, see [StatBuilder.certifierTargetAware]). The caller keys its cache
+        // on it ([MaxDamageCertificateCache]); false (soft leg / free request) is the target-blind ledger.
+        targetAware: Boolean = false,
     ): CertLedger? {
         // The ledger's AT_MOST windows read apConst/critConst, which fold the passives' flat stats,
         // while the solver's pre-combat read excludes passives — a passive granting AP or crit would
@@ -2830,7 +2863,8 @@ object WakfuBuildSolver {
                 certifyLedgerPrecomputedTier15 = precomputedTier15,
                 certifyLedgerPrecomputedExact = precomputedExact,
                 certifyLedgerPrecomputedProv = precomputedProv,
-                certifierCancelled = isCancelled
+                certifierCancelled = isCancelled,
+                certifierTargetAware = targetAware
             ).certifierLedgerForTest
         // A cancelled run may have bailed mid-way (a sound but incomplete ledger). Never surface or cache it.
         return if (isCancelled()) null else ledger
@@ -2850,6 +2884,8 @@ object WakfuBuildSolver {
         incumbentObjective: Long? = null,
         forceTier2All: Boolean = false,
         threads: Int = 1,
+        // v52: the hard-leg (target-aware) ledger — see [StatBuilder.certifierTargetAware].
+        targetAware: Boolean = false,
     ): CertLedger =
         buildModel(
             params,
@@ -2860,7 +2896,8 @@ object WakfuBuildSolver {
             certifyFastThreadsForTest = threads,
             certifyLedgerForTest = true,
             certifyLedgerIncumbentForTest = incumbentObjective,
-            certifyLedgerForceTier2AllForTest = forceTier2All
+            certifyLedgerForceTier2AllForTest = forceTier2All,
+            certifierTargetAware = targetAware
         ).certifierLedgerForTest!!
 
     /** Test-only PROVENANCE: the backtracked composition of [cell]'s winning certificate state. */

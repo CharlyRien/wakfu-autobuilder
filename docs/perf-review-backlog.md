@@ -1195,8 +1195,20 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     37–91 s; v44: none in 2/2). CERTIFIER_VERSION 48 (`docs/CERTIFICATE_PROD_PLAN.md` P5.4b) restores it (43.5 / 90.8
     s) with identical certified values: one relaxed world stands for the six secondary-capped aux worlds (their exact
     split runs only when the relaxed bound could move a value), and the aux floor is applied once at the end of the
-    ledger, computed on its own thread beside the normal worlds. Open: a target-aware bound (MP / range axes) to
-    tighten the GUI-default badge.
+    ledger, computed on its own thread beside the normal worlds. ~~Open: a target-aware bound (MP / range axes) to
+    tighten the GUI-default badge.~~ ✅ DONE below (CERTIFIER_VERSION 52).
+  - **Target-aware AP-cell certificate** ✅ DONE (2026-10-03, CERTIFIER_VERSION 52, `docs/CERTIFICATE_PROD_PLAN.md` §P5.6):
+    a HARD-LEG result is now compared with a ledger that enforces the request's AP / MP / CC / RANGE rows in every pass
+    (cells below the AP row read 0, crit steps below the CC row skipped, an over-counted MP filter at harvest, RANGE as a
+    saturating key digit with a suffix-reachability prune); the flag keys the certificate caches, soft-leg and free
+    results keep the target-blind ledger (bit-identical). GUI-default badge on the production-shaped proof (4-core, the
+    420 s incumbents): **7.83 % → 2.71 %** at 110, **13.05 % → 7.03 %** at 200, **8.15 % → 3.70 %** at 245. Two
+    PRE-EXISTING under-counts found by its fixtures and fixed in the same version: the exact pass dropped a zero-graw ring
+    carrying AP / crit (a cell read 0), and no pass saw a damage-less epic / relic item as the carrier of an epic / relic
+    sub (−15 % on the repro). Cost (4-core): proof wall −7 % / +25 % / +42 % at 110 / 200 / 245 after a value-identical
+    widest-stage-first order of the fast pass under the range digit (+98 % at 245 without it); on the production
+    path the 245 badge lands ~35 s after a 120 s search (18 s target-blind), the 110 one at once. Open: the exact pass
+    under the range digit dominates what is left at 245 (its stage order was A/B'd — no gain).
   - ~~the most-masteries GUI-default request gets NO badge on low-core machines~~ — FIXED 2026-10-02 (CERTIFIER_VERSION
     45 → 47, `docs/MOST_MASTERIES_PERF_PLAN.md` §8.20): the MM certificate bailed on the GUI's RANGE 4 row and on its
     0-valued wind-resistance / dodge rows (all eight default rows reach the engine). 0-valued rows of any stat are now an

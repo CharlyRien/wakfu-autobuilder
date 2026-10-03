@@ -1107,7 +1107,10 @@ class SoundnessReviewAdversarialTest {
     // MAX-DAMAGE FUZZ (manual): seeded random pools × REAL choosable subs (Neutralité family, Mesure, Ravage…) × rune
     // rows (general fold) × scenarios. Per AP cell: exact / tier-1.5 / fast ≥ pinned CP-SAT raw optimum; ledger max ≥
     // true optimum (forceTier2All AND the incumbent path); E8 construct never returns a sub-optimal "proven" build.
-    //   WAKFU_REVIEW_MD_FUZZ=<cases> [WAKFU_REVIEW_MD_SEED0=<seed>] [WAKFU_REVIEW_MD_E8=1]
+    // WAKFU_REVIEW_MD_ROWS=1 (CERTIFIER_VERSION 52) also draws required AP / MP / RANGE / CC rows and item range lines and
+    // checks the TARGET-AWARE passes and ledgers against the pinned HARD-LEG optimum (never below it, never above the
+    // target-blind value).
+    //   WAKFU_REVIEW_MD_FUZZ=<cases> [WAKFU_REVIEW_MD_SEED0=<seed>] [WAKFU_REVIEW_MD_E8=1] [WAKFU_REVIEW_MD_ROWS=1]
     // ------------------------------------------------------------------------------------------------------------
 
     private class MdCase(
@@ -1122,6 +1125,9 @@ class SoundnessReviewAdversarialTest {
     private fun mdFuzzCase(
         seed: Long,
         forcePoidsPlume: Boolean = System.getenv("WAKFU_REVIEW_MD_FORCE_PP") == "1",
+        // v52: required AP / MP / RANGE / CC rows and item range lines, drawn from their OWN generator after every other
+        // draw, so a seed's pool, rows and subs are otherwise unchanged (the CI locks' seeds included).
+        requiredRows: Boolean = System.getenv("WAKFU_REVIEW_MD_ROWS") == "1",
     ): MdCase {
         val rng = java.util.Random(seed)
         val level = listOf(50, 110, 170, 230)[rng.nextInt(4)]
@@ -1225,6 +1231,18 @@ class SoundnessReviewAdversarialTest {
                 .distinct()
                 .filterNot { noPp && it.perStatStep?.source == Characteristic.MOVEMENT_POINT }
         val subs = if (forcePoidsPlume) (drawn + catalog.single { it.name.fr == "Poids Plume III" }).distinct() else drawn
+        var poolItems: List<Equipment> = items
+        if (requiredRows) {
+            val rowRng = java.util.Random(seed * 7_919L + 13L)
+            if (rowRng.nextInt(10) < 6) rows += TargetStat(Characteristic.ACTION_POINT, 7 + rowRng.nextInt(4))
+            if (rowRng.nextInt(10) < 6) rows += TargetStat(Characteristic.MOVEMENT_POINT, 3 + rowRng.nextInt(3))
+            if (rowRng.nextInt(10) < 6) rows += TargetStat(Characteristic.RANGE, 1 + rowRng.nextInt(5))
+            if (rowRng.nextInt(10) < 5) rows += TargetStat(Characteristic.CRITICAL_HIT, 10 + rowRng.nextInt(31))
+            poolItems =
+                items.map { e ->
+                    if (rowRng.nextInt(10) < 4) e.copy(characteristics = e.characteristics + (Characteristic.RANGE to rowRng.nextInt(4) - 1)) else e
+                }
+        }
         val p =
             WakfuBestBuildParams(
                 character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
@@ -1239,7 +1257,7 @@ class SoundnessReviewAdversarialTest {
                 useSublimations = true,
                 damageScenario = scenario
             )
-        return MdCase("md-seed$seed", p, items.groupBy { it.itemType }, subs)
+        return MdCase("md-seed$seed", p, poolItems.groupBy { it.itemType }, subs)
     }
 
     /**
@@ -1327,6 +1345,9 @@ class SoundnessReviewAdversarialTest {
             val cases = System.getenv("WAKFU_REVIEW_MD_FUZZ")?.toIntOrNull() ?: return@runBlocking
             val seed0 = System.getenv("WAKFU_REVIEW_MD_SEED0")?.toLongOrNull() ?: 9_000L
             val withE8 = System.getenv("WAKFU_REVIEW_MD_E8") == "1"
+            val withRows = System.getenv("WAKFU_REVIEW_MD_ROWS") == "1"
+            var hardCellsCompared = 0
+            var hardCellsTightened = 0
             val failures = mutableListOf<String>()
             var cellsCompared = 0
             var ledgers = 0
@@ -1408,10 +1429,66 @@ class SoundnessReviewAdversarialTest {
                     }
                 }
                 println("MD_FUZZ ${c.label} trueOpt=$trueOptimum ledgerMax=${ledger.maxCellObjective} cells=${truthByAp.size}")
+                if (withRows && targetAwareLedgerApplies(c.params.targetStats)) {
+                    // v52: the target-aware passes bound the HARD leg (every required row met) — never below its pinned
+                    // optimum, never above the target-blind value; the ledgers keep their max ≥ the true hard-leg optimum.
+                    val (taExact, taFast, taT15) =
+                        WakfuBuildSolver.certifierExactFastTier15CellObjectivesForTest(c.params, c.pool, runes, c.subs, applyDomination = false, targetAware = true)
+                    val hardByAp = LinkedHashMap<Int, Long>()
+                    for (ap in taExact.keys.sorted()) {
+                        for ((label, value, blind) in listOf(
+                            Triple("exact", taExact[ap], exact[ap]),
+                            Triple("tier15", taT15[ap], tier15[ap]),
+                            Triple("fast", taFast[ap], fast[ap])
+                        )) {
+                            if (value != null && blind != null && value >= 0 && blind >= 0 && value > blind) failures += "${c.label} AP=$ap TA-$label=$value > target-blind $blind"
+                        }
+                        val hard =
+                            WakfuBuildSolver.timedMaxDamageProfileForTest(
+                                c.params.copy(maxDamageApTarget = ap),
+                                c.pool,
+                                runes,
+                                c.subs,
+                                workers = 1,
+                                seconds = 30.0,
+                                applyDomination = false,
+                                deterministicLimit = 10.0,
+                                hardConstraints = true
+                            )
+                        if (!hard.hasSolution) continue
+                        if (hard.status != "OPTIMAL") {
+                            notOptimalCells++
+                            continue
+                        }
+                        hardByAp[ap] = hard.rawObjective
+                        if ((taExact[ap] ?: -1L) in 0 until (exact[ap] ?: -1L)) hardCellsTightened++
+                        for ((label, value) in listOf("exact" to taExact[ap], "tier15" to taT15[ap], "fast" to taFast[ap])) {
+                            if (value == null || value < 0) continue
+                            hardCellsCompared++
+                            if (value < hard.rawObjective) {
+                                failures +=
+                                    "${c.label} AP=$ap TA-$label=$value < hard-leg optimum ${hard.rawObjective} rows=${c.params.targetStats.map {
+                                        "${it.characteristic}=${it.target}"
+                                    }}"
+                            }
+                        }
+                    }
+                    val hardOptimum = hardByAp.values.maxOrNull()
+                    if (hardOptimum != null && hardOptimum > 0) {
+                        for (taLedger in listOf(
+                            WakfuBuildSolver.certifyLedgerForTest(c.params, c.pool, runes, c.subs, applyDomination = false, forceTier2All = true, targetAware = true),
+                            WakfuBuildSolver.certifyLedgerForTest(c.params, c.pool, runes, c.subs, applyDomination = false, incumbentObjective = hardOptimum, targetAware = true)
+                        )) {
+                            taLedger.maxCellObjective?.let { max -> if (max < hardOptimum) failures += "${c.label} TA LEDGER max=$max < hard-leg optimum $hardOptimum" }
+                        }
+                    }
+                    println("MD_FUZZ_TA ${c.label} hardOpt=$hardOptimum cells=${hardByAp.size} rows=${c.params.targetStats.map { "${it.characteristic}=${it.target}" }}")
+                }
             }
             println(
                 "MD_FUZZ_SUMMARY cases=$cases cellsCompared=$cellsCompared ledgers=$ledgers bailedPools=$bailedPools notOptimalCells=$notOptimalCells " +
-                    "e8Built=$e8Built droppedFamilyCarried=$droppedFamilyCarried failures=${failures.size}"
+                    "e8Built=$e8Built droppedFamilyCarried=$droppedFamilyCarried hardCellsCompared=$hardCellsCompared " +
+                    "hardCellsTightened=$hardCellsTightened failures=${failures.size}"
             )
             failures.forEach { println("MD_FUZZ_FAIL $it") }
             assertThat(failures).describedAs("SOUNDNESS — max-damage certifier under-counts").isEmpty()
