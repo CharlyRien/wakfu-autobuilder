@@ -140,7 +140,10 @@ fun StatsPanel(
                     SpellRotationCard(ui)
                 }
                 MasterySummary(ui)
-                DesiredVsAchieved(ui)
+                // Max Damage starts without target rows: with nothing requested there is nothing to compare, so no empty card.
+                if (ui.targets.isNotEmpty()) {
+                    DesiredVsAchieved(ui)
+                }
                 BuildSheet(ui)
                 SublimationsResult(ui)
                 PassivesResult(ui)
@@ -154,6 +157,9 @@ fun StatsPanel(
     }
 }
 
+/** What the headline shows before there is a build to read it from (a dash, in every language). */
+internal const val NO_HEADLINE = "—"
+
 /** [onStopProof] is the "Stop" link of the background optimality check's cue (see [ProofActivityRow]). */
 @Composable
 internal fun MatchHero(
@@ -166,18 +172,28 @@ internal fun MatchHero(
     val masteryMode = ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
     val damageMode = ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE
     val headlineNumberMode = masteryMode || damageMode
+    // Until a build exists there is no number to give: a dash, not the "0 Requested mastery" / "0 Expected damage" / "0 %" of a
+    // result that does not exist yet (which reads as "you asked for nothing and got nothing").
+    val hasBuild = ui.build != null
     ResultCard {
         Column(
             modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
         ) {
             if (headlineNumberMode) {
                 Text(
-                    text = if (damageMode) ui.match.toInt().formatCompact() else ui.requestedMasteryTotal().formatCompact(),
+                    text =
+                        when {
+                            !hasBuild -> NO_HEADLINE
+                            damageMode -> ui.match.toInt().formatCompact()
+                            else -> ui.requestedMasteryTotal().formatCompact()
+                        },
                     style =
                         WTypography.displayLarge.copy(
                             fontSize = 46.sp,
                             lineHeight = 46.sp,
-                            color = WColor.text,
+                            color = if (hasBuild) WColor.text else WColor.faint,
+                            // The dash of the display weight reads as a heavy bar; a regular one is a placeholder.
+                            fontWeight = if (hasBuild) FontWeight.Bold else FontWeight.Normal,
                             fontFamily = WType.display,
                             textAlign = TextAlign.Center
                         )
@@ -197,27 +213,35 @@ internal fun MatchHero(
             } else {
                 // Capped at 100: past it the engine only ranks how far a build overshoots its targets (a raw 248 % is not
                 // a percentage), so a build that meets every target reads "100 %" and says so.
-                val targetsMet = ui.match.meetsAllTargets()
+                val targetsMet = hasBuild && ui.match.meetsAllTargets()
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        text = ui.match.displayedMatchPercent().toString(),
+                        text = if (hasBuild) ui.match.displayedMatchPercent().toString() else NO_HEADLINE,
                         style =
                             WTypography.displayLarge.copy(
                                 fontSize = 46.sp,
                                 lineHeight = 46.sp,
-                                color = if (targetsMet) WColor.success else WColor.text,
+                                color =
+                                    when {
+                                        targetsMet -> WColor.success
+                                        hasBuild -> WColor.text
+                                        else -> WColor.faint
+                                    },
+                                fontWeight = if (hasBuild) FontWeight.Bold else FontWeight.Normal,
                                 fontFamily = WType.display,
                                 textAlign = TextAlign.Center
                             )
                     )
-                    Text(
-                        text = "%",
-                        style =
-                            WTypography.headlineMedium.copy(
-                                color = WColor.muted,
-                                lineHeight = 24.sp
-                            )
-                    )
+                    if (hasBuild) {
+                        Text(
+                            text = "%",
+                            style =
+                                WTypography.headlineMedium.copy(
+                                    color = WColor.muted,
+                                    lineHeight = 24.sp
+                                )
+                        )
+                    }
                 }
                 Text(
                     text = tr(if (targetsMet) Tr.TARGETS_MET else Tr.BUILD_MATCH),
@@ -292,7 +316,7 @@ internal fun MatchHero(
                         )
                 }
             }
-            if (!headlineNumberMode) {
+            if (!headlineNumberMode && hasBuild) {
                 Meter(
                     fill = ui.match.displayedMatchPercent() / 100f,
                     color = if (ui.match.meetsAllTargets()) WColor.success else WColor.warning,
