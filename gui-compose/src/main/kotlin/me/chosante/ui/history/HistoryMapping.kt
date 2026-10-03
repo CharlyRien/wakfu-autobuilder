@@ -24,7 +24,9 @@ import me.chosante.ui.i18n.label
 import me.chosante.ui.state.ItemChip
 import me.chosante.ui.state.TargetRow
 import me.chosante.ui.state.UiState
+import me.chosante.ui.state.displayedMatchPercent
 import me.chosante.ui.state.engineMasteryScore
+import me.chosante.ui.state.meetsAllTargets
 import me.chosante.ui.state.statDefFor
 import me.chosante.ui.state.toRow
 
@@ -235,6 +237,15 @@ fun HistoryEntry.modeLabel(): Tr =
 
 /** Expected damage per turn of a max-damage build (what its search maximized, stored as its match). */
 fun HistoryEntry.expectedDamage(): Long = result.match.toLong()
+
+/**
+ * A precision build's % match as displayed: a whole percent capped at 100. The stored [ResultSnapshot.match] keeps the raw
+ * score (which runs past 100 once every target is met, to rank overshoot), so anything that orders builds can still use it.
+ */
+fun HistoryEntry.matchPercent(): Int = result.match.displayedMatchPercent()
+
+/** True when a precision build meets every requested target (its raw score reaches 100). */
+fun HistoryEntry.meetsAllTargets(): Boolean = result.match.meetsAllTargets()
 
 /** The boss a max-damage build was searched against, if it recorded one. */
 fun HistoryEntry.restoredBoss(): Monster? = request.boss?.monster
