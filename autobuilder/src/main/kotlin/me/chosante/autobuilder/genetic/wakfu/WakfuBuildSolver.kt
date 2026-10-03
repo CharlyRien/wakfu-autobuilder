@@ -3194,6 +3194,8 @@ object WakfuBuildSolver {
         // Enforce the required targets as HARD `actual ≥ target` constraints (INFEASIBLE ⇒ hasSolution false),
         // matching the production hard-constraints-first pass. Default false keeps existing callers byte-identical.
         hardConstraints: Boolean = false,
+        // Reference solve for the heuristic-prefilter soundness lock (any scoring mode).
+        forceFullPool: Boolean = false,
     ): MaxDamageSolveOutcome {
         val built =
             buildModel(
@@ -3206,6 +3208,7 @@ object WakfuBuildSolver {
                 applyDomination = applyDomination,
                 forceRuneLeq = forceRuneLeq,
                 hardConstraints = hardConstraints,
+                forceFullPool = forceFullPool,
                 maxDamageExperiment = tuning.maxDamageExperiment
             )
         val solver = deterministicMaxDamageSolver(tuning)
@@ -4346,7 +4349,11 @@ object WakfuBuildSolver {
                             individual = finalComb,
                             matchPercentage = finalScore,
                             progressPercentage = 100,
-                            isOptimal = finalIsOptimalOverride ?: (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL),
+                            // OPTIMAL (including stage 1's override) proves only the searched pool. The
+                            // heuristic top-8 prefilter can discard the global optimum in EVERY mode.
+                            isOptimal =
+                                !needsItemPrefilter(params.targetStats) &&
+                                    (finalIsOptimalOverride ?: (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL)),
                             maxDamageObjective = if (maxDamage) solver.objectiveValue().toLong() else null,
                             maxDamageRawProxy = if (maxDamage) maxDamageRawScoreVar?.let { solver.value(it) } else null,
                             mostMasteriesObjective =
