@@ -193,7 +193,7 @@ fun App(model: BuildSearchModel) {
                 }
                 // Once-per-version release notes, over the shell on the first launch after an
                 // update. Skipped in screenshot mode, where it would cover the captured UI — unless
-                // the what's-new knob asks for exactly that shot (needs a CHANGELOG.md present).
+                // the what's-new knob asks for exactly that shot (needs notes for the running version).
                 val screenshotMode =
                     remember {
                         System.getProperty(SCREENSHOT_PATH_PROPERTY) != null || System.getenv("WAKFU_COMPOSE_SCREENSHOT") != null
