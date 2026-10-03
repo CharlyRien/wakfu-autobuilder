@@ -357,8 +357,17 @@ object WakfuBuildSolver {
      * its runes at least as high (EXACTLY as high, with equal sockets under the max-damage one-type-per-item model, when a
      * modelled rune type is a capped stat). Pools only grow, so every cached bound computed on a v52 pool is stale. Plus
      * a latent bail of the target-aware RANGE row: a RANGE_AT_LEAST sub whose own +range line is permanent (no shipped sub).
+     * 54: max-damage rune-choice collapse books its best M-feeding rune under the rune's OWN characteristic,
+     * preserving the equip-var substitution and the crit swap's suppression. Elemental runes no longer pay
+     * the Neutralité family's secondary-mastery budget. The AP-cell mirror accepts those actual keys and
+     * splits the crit option using the actual default; world N now reads an elemental default as E instead
+     * of D, including its suppression delta. Old bounds could under-count the corrected model, so invalidate
+     * every cached cell. CI locks the free/general-fold Neutralité repro and the elemental-default crit swap.
+     * Carriers with a secondary default read by a cap also retain explicit rune picks: a smaller elemental
+     * choice can free secondary budget for skills (the signed-rear helmet repro). The mirror handles those
+     * picks beside the remaining collapsed defaults, without dropping equip-var aliases from item terms.
      */
-    const val CERTIFIER_VERSION: Int = 53
+    const val CERTIFIER_VERSION: Int = 54
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing

@@ -1870,7 +1870,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // ---- Rune shapes (v44) ------------------------------------------------------------------------------
     // Three rune models reach this pass:
     //  - none, or the max-damage CHOICE COLLAPSE ([RuneModel.maxDamageChoiceCollapse]): the best M-feeding rune rides
-    //    the equip var, the crit-mastery alternative its own bool — mirrored by [rawOptions]' two-option split;
+    //    the equip var, the crit-mastery alternative its own bool — mirrored by [rawOptions]' two-option split.
+    //    A secondary-capped carrier can instead retain explicit picks, handled like the GENERAL fold below;
     //  - the GENERAL single-type fold: a target row (HP, a resistance, dodge, lock, initiative, an off-scenario
     //    secondary mastery — even 0-valued) put a non-damage rune stat in the model, so EVERY modeled type is its
     //    own pick bool with `Σ picks = equipped`. The item's own stats form its base Raw and each pick becomes one
@@ -1880,13 +1881,23 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     //  - the per-stat COUNT model (forced runes / a secondary-cap>0 sub): not mirrored ⇒ bail (further down).
     // No rune feeds AP / crit today; those axes are EXACT per-carrier sums, so a rune there bails.
     val generalRuneFold = runeModel.runeVars.isNotEmpty() && runeModel.singleTypePerItem && !runeModel.maxDamageChoiceCollapse
-    val runePickVars: Set<IntVar> = if (generalRuneFold) runeModel.runeVars.values.flatMapTo(HashSet()) { it.values } else emptySet()
+    // v54: a secondary-capped carrier can keep explicit choices beside other carriers' collapsed
+    // defaults. Only explicit picks leave the item base; an equip-var alias must keep its item stats.
+    val explicitRunePickItems =
+        if (runeModel.singleTypePerItem) {
+            runeModel.runeVars.keys.filterTo(HashSet()) { e -> equipVars[e] !in runeModel.runeVars.getValue(e).values }
+        } else {
+            emptySet()
+        }
+    val runePickVars: Set<IntVar> = explicitRunePickItems.flatMapTo(HashSet()) { runeModel.runeVars.getValue(it).values }
     if (runePickVars.isNotEmpty() && (apTerms.any { it.variable in runePickVars } || critTerms.any { it.variable in runePickVars })) return Long.MAX_VALUE
     // The collapse's crit-mastery swap bools (the crit rune + the suppression of the default M rune): in world N they
     // leave the item base and become a per-item SWAP option ([rawOptions]), exactly like a general-fold pick.
     val collapseRuneVars: Set<IntVar> =
         if (runeModel.maxDamageChoiceCollapse) {
-            runeModel.runeVars.flatMapTo(HashSet()) { (equip, perStat) -> perStat.values.filter { it != equipVars[equip] } }
+            runeModel.runeVars
+                .filterKeys { it !in explicitRunePickItems }
+                .flatMapTo(HashSet()) { (equip, perStat) -> perStat.values.filter { it != equipVars[equip] } }
         } else {
             emptySet()
         }
@@ -1983,6 +1994,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
 
     val diI = perCarrierContribution(itemOnly(diTerms))
     // World N, per carrier: the category sums of the item's own lines (rune picks are options below).
+    // The collapse's default rides the equip var under its OWN characteristic (v54): an elemental
+    // default feeds capItemE, never capItemD. Its crit swap suppresses that same category in pickM.
     val capItemE = if (capCats != null) perCarrierExactValue(itemOnly(capElemental)) else emptyMap()
     val capItemD = if (capCats != null) perCarrierExactValue(itemOnly(capScenarioSecondary)) else emptyMap()
     val capItemK = if (capCats != null) perCarrierExactValue(itemOnly(critMTerms)) else emptyMap()
@@ -2601,17 +2614,25 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             mpS[s] ?: 0L
         )
 
-    // Max-damage runes fold to ONE type per item. Under the CHOICE COLLAPSE (maxDamageRuneChoiceCollapse) that is
-    // the best M-feeding mastery rune OR the critical-mastery rune — never both: perCarrierContribution counted BOTH
+    // Max-damage runes fold to ONE type per item. Compact CHOICE COLLAPSE carriers keep the best M-feeding
+    // mastery rune OR the critical-mastery rune — never both: perCarrierContribution counted BOTH
     // (mI has the mastery rune, cmI the critM rune), so a dual-rune item splits into two Raw options
     // (mastery-rune-on / critM-rune-on) and the DP keeps whichever wins at each crit rate c; items with a single
     // always-on rune (or none) keep their single Raw. Under the GENERAL fold (v44) the item-only base excludes the
-    // picks and every pick is its own option (see the rune-shape block above). Bail on the per-stat COUNT model.
-    val rangeBandMasteryChar = scenario.rangeBand.masteryCharacteristic
+    // picks and every pick is its own option, also for capped carriers retaining explicit choices within the
+    // collapse (see the rune-shape block above). Bail on the per-stat COUNT model.
     if (runeModel.runeVars.isNotEmpty()) {
         if (!runeModel.singleTypePerItem) return Long.MAX_VALUE
         if (!generalRuneFold) {
-            val allowed = setOf(rangeBandMasteryChar, Characteristic.MASTERY_CRITICAL)
+            val allowed =
+                buildSet {
+                    add(Characteristic.MASTERY_ELEMENTARY)
+                    add(scenario.rangeBand.masteryCharacteristic)
+                    if (scenario.orientation.grantsRearMastery) add(Characteristic.MASTERY_BACK)
+                    if (scenario.berserk) add(Characteristic.MASTERY_BERSERK)
+                    if (scenario.healing) add(Characteristic.MASTERY_HEALING)
+                    add(Characteristic.MASTERY_CRITICAL)
+                }
             if (runeModel.runeVars.any { (_, perStat) -> perStat.keys.any { it !in allowed } }) return Long.MAX_VALUE
         }
     }
@@ -2622,7 +2643,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
 
     fun rawOptions(e: Equipment): List<Raw> {
         val base = raw(e)
-        if (generalRuneFold) {
+        if (e in explicitRunePickItems) {
             val picks = runeModel.runeVars[e]?.values ?: return listOf(convertRaw(base))
             // One option per pick (Σ picks = equipped ⇒ exactly one). Drop an option another one dominates on every
             // value axis (same item ⇒ same AP / crit / rarity / MP): the DP value — and convertRaw — is monotone in
@@ -2645,7 +2666,12 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         }
         runeModel.runeVars[e]?.get(Characteristic.MASTERY_CRITICAL) ?: return listOf(convertRaw(base))
         val slots = e.maxShardSlots.toLong()
-        val runeMastery = runeModel.coefficientFor(e, rangeBandMasteryChar) * slots
+        val runeMastery =
+            runeModel.runeVars[e]
+                .orEmpty()
+                .keys
+                .filter { it != Characteristic.MASTERY_CRITICAL }
+                .sumOf { runeModel.coefficientFor(e, it) } * slots
         val runeCritM = runeModel.coefficientFor(e, Characteristic.MASTERY_CRITICAL) * slots
         // base counts BOTH runes; strip the one not chosen for each option.
         return listOf(convertRaw(base.copy(critM = base.critM - runeCritM)), convertRaw(base.copy(m = base.m - runeMastery)))
@@ -2665,7 +2691,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         (
             diI.keys + mI.keys + cmI.keys + apI.keys + crI.keys + mpI.keys +
                 (if (rangeTracked) rangeI.keys else emptySet()) +
-                (if (generalRuneFold) runeModel.runeVars.keys else emptySet()) +
+                explicitRunePickItems +
                 allEquips.filter { it.rarity == Rarity.EPIC || it.rarity == Rarity.RELIC }
         ).distinct()
 
