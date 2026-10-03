@@ -222,6 +222,11 @@ object MaxDamageSearch {
             val warmupLedger = AtomicReference<CertLedger?>(null)
             val certProvenEarly = AtomicBoolean(false)
             val phase1JobRef = AtomicReference<Job?>(null)
+            // CERTIFIER_VERSION 52: a request whose rows the certificate enforces warms the TARGET-AWARE ledger — the one
+            // `proveOptimality` reads for the hard-leg results such a request's search emits (the same cache key, so the
+            // post-search proof joins this compute). It bounds the targets-met builds only, so it is never compared with a
+            // result that is not hard-leg (the greedy warm start, a soft-leg fallback).
+            val warmupTargetAware = targetAwareLedgerApplies(baseParams.targetStats)
 
             fun maybeStopSearchProven() {
                 if (hasResistanceDebuff || certProvenEarly.get()) return
@@ -230,6 +235,7 @@ object MaxDamageSearch {
                 val current = synchronized(considerLock) { best } ?: return
                 if (current.maxDamageHeuristicPhases) return
                 val proxy = current.maxDamageRawProxy ?: current.maxDamageObjective ?: return
+                if (warmupTargetAware && !current.maxDamageHardConstraintsMet) return
                 if (!current.maxDamageHardConstraintsMet && !fullyMeetsRequiredTargets(baseParams, current.individual)) return
                 // proveOptimality's mandatory self-check, applied identically: the incumbent's own AP
                 // cell must upper-bound its proxy, or the certifier under-counted — never stop on that.
@@ -360,7 +366,8 @@ object MaxDamageSearch {
                                     // WEAK incumbent does not pay a tier-1.5 pass for every survivor; the
                                     // construct below finishes the job (or the full fallback does).
                                     cascadeTier15 = true,
-                                    isCancelled = { warmupCancelled.get() }
+                                    isCancelled = { warmupCancelled.get() },
+                                    targetAware = warmupTargetAware
                                 )
                             if (ledger != null) {
                                 warmupLedger.set(ledger)
@@ -510,9 +517,12 @@ object MaxDamageSearch {
      *    violation the badge is suppressed and the event logged (never a wrong "proven").
      *  - **Required-stat targets are supported** (they were previously skipped): the certificate bounds damage over
      *    ALL builds, so it certifies the incumbent when the incumbent FULLY meets every required target — then its
-     *    shortfall multiplier is the flat maximum and "max damage" ⟺ "max penalized objective". A target-MISSING
-     *    incumbent (the soft unreachable-targets fallback) is handed to the dedicated soft certificate instead
-     *    ([proveSoftLegQuality], plan §9.20), which compares in penalized units end to end.
+     *    shortfall multiplier is the flat maximum and "max damage" ⟺ "max penalized objective". A HARD-LEG incumbent
+     *    is compared with the TARGET-AWARE ledger instead (CERTIFIER_VERSION 52): the AP / MP / CC / RANGE rows enforced
+     *    in every pass, so the bound covers the targets-met builds only — the badge then reads "within X% of the best
+     *    build that meets the targets". A target-MISSING incumbent (the soft unreachable-targets fallback) is handed to
+     *    the dedicated soft certificate instead ([proveSoftLegQuality], plan §9.20), which compares in penalized units
+     *    end to end.
      *  - Skipped (→ [MaxDamageProof.Unavailable]) for forced runes, a survivability soft-floor (a per-build
      *    multiplier the damage-only certificate does not model), an un-proven boss/multi-element request, or a
      *    bailed certifier shape.
@@ -563,7 +573,7 @@ object MaxDamageSearch {
         // pre-plumbing / hand-built results working; production max-damage results always carry the proxy.)
         val incumbentProxy = result.maxDamageRawProxy ?: result.maxDamageObjective ?: return MaxDamageProof.Unavailable
 
-        // Required-target requests: the certificate bounds damage over ALL builds (it ignores the AP/MP/range
+        // Required-target requests: the target-blind certificate bounds damage over ALL builds (it ignores the AP/MP/range
         // targets). That certifies the incumbent only when the incumbent FULLY meets every required target — then
         // its shortfall multiplier is the flat maximum, so `proxy ≥ maxCell ⇒ penalized-optimal`. If a target is
         // unmet the incumbent's multiplier is below max and a different (target-meeting, lower-damage) build could
@@ -583,6 +593,11 @@ object MaxDamageSearch {
             return proveSoftLegQuality(baseParams, equipmentsByItemType, runes, sublimations, result, isCancelled, onPhase)
         }
 
+        // CERTIFIER_VERSION 52: a HARD-LEG result meets every required row in the solver's exact arithmetic, so it is
+        // compared with the TARGET-AWARE ledger — a bound over the targets-met builds only (the AP / MP / CC / RANGE rows
+        // enforced in every pass), which is what "within X% of the optimum" means for it. Any other result (a soft-leg
+        // build the scorer finds targets-met, a request without such rows) keeps the target-blind ledger over all builds.
+        val targetAware = result.maxDamageHardConstraintsMet && targetAwareLedgerApplies(baseParams.targetStats)
         val ledger =
             MaxDamageCertificateCache.certificate(
                 baseParams,
@@ -597,7 +612,8 @@ object MaxDamageSearch {
                 // bounds, which can only make this MORE conservative (never a wrong ProvenOptimal); the
                 // construct path (dpConstruct) falls back to a full ledger when the argmax is unconfirmed.
                 cascadeTier15 = true,
-                isCancelled = isCancelled
+                isCancelled = isCancelled,
+                targetAware = targetAware
             ) ?: return MaxDamageProof.Unavailable
         val maxCell = ledger.maxCellObjective ?: return MaxDamageProof.Unavailable // a cell bailed ⇒ no sound global bound
 
@@ -1119,8 +1135,10 @@ object MaxDamageSearch {
  * yet cached forces a one-off recompute (which merges its new exacts back in).
  *
  * The key is otherwise conservative: the request [WakfuBestBuildParams] minus the ledger-irrelevant fields
- * (search duration, stop-on-match, AP pin, worker count), the data + certifier versions, and the sorted pool /
- * rune / sublimation ids. A hit is always sound; over-keying only ever costs a recompute. Bumping
+ * (search duration, stop-on-match, AP pin, worker count), the data + certifier versions, the sorted pool /
+ * rune / sublimation ids, and (CERTIFIER_VERSION 52) the TARGET-AWARE flag — a hard-leg result's ledger enforces the
+ * request's AP / MP / CC / RANGE row values (already in the key through the params) and is a different bound from
+ * the same request's target-blind one. A hit is always sound; over-keying only ever costs a recompute. Bumping
  * [WakfuBuildSolver.CERTIFIER_VERSION] invalidates every entry.
  */
 object MaxDamageCertificateCache {
@@ -1159,8 +1177,11 @@ object MaxDamageCertificateCache {
         // independent values, so a later full compute simply fills the cells the cascade skipped.
         cascadeTier15: Boolean = false,
         isCancelled: () -> Boolean = { false },
+        // CERTIFIER_VERSION 52: the HARD-LEG (target-aware) ledger — a different bound for the same request, so it is part
+        // of the key (in memory and on disk). Callers pass [targetAwareLedgerApplies]-gated values only.
+        targetAware: Boolean = false,
     ): CertLedger? {
-        val key = keyFor(params, equipmentsByItemType, runes, sublimations, applyDomination)
+        val key = keyFor(params, equipmentsByItemType, runes, sublimations, applyDomination, targetAware)
         val fingerprint = fingerprintOf(key)
 
         // B5: on an in-memory miss, try the disk cache — the SAME shape across app restarts reconstructs its badge
@@ -1217,7 +1238,8 @@ object MaxDamageCertificateCache {
                         precomputedBailed = existing?.bailed,
                         precomputedTier15 = existing?.tier15ByCell?.toMap(),
                         precomputedExact = existing?.exactByCell?.toMap(),
-                        precomputedProv = existing?.provByCell?.toMap()
+                        precomputedProv = existing?.provByCell?.toMap(),
+                        targetAware = targetAware
                     ) ?: return null
                 val merged = cache.compute(key) { _, e -> (e ?: RawEntry(ledger)).also { it.merge(ledger) } }!!
                 // Persist the accumulated raw bounds (never a bailed shape — it carries no sound global bound).
@@ -1237,6 +1259,7 @@ object MaxDamageCertificateCache {
         runes: List<RuneType>,
         sublimations: List<Sublimation>,
         applyDomination: Boolean,
+        targetAware: Boolean,
     ): Key =
         Key(
             dataVersion = me.chosante.common.WakfuData.VERSION,
@@ -1257,7 +1280,8 @@ object MaxDamageCertificateCache {
                     .sorted(),
             runeIds = runes.map { it.id }.sorted(),
             subIds = sublimations.map { it.stateId }.sorted(),
-            applyDomination = applyDomination
+            applyDomination = applyDomination,
+            targetAware = targetAware
         )
 
     /** Test seam: the canonical disk fingerprint of a request (see [fingerprintOf]). */
@@ -1267,7 +1291,8 @@ object MaxDamageCertificateCache {
         runes: List<RuneType>,
         sublimations: List<Sublimation>,
         applyDomination: Boolean,
-    ): String = fingerprintOf(keyFor(params, equipmentsByItemType, runes, sublimations, applyDomination))
+        targetAware: Boolean = false,
+    ): String = fingerprintOf(keyFor(params, equipmentsByItemType, runes, sublimations, applyDomination, targetAware))
 
     /**
      * A canonical, injective fingerprint of the incumbent-free cache [Key] — the FULL identity a disk record is
@@ -1299,6 +1324,8 @@ object MaxDamageCertificateCache {
         tok(key.dataVersion)
         tok(key.certifierVersion)
         tok(key.applyDomination)
+        // v52: the hard-leg (target-aware) ledger is a different bound for the same request.
+        tok(key.targetAware)
 
         val p = key.params
         // Character: class + level + minLevel + the NET skill allocation (CharacterSkills' own equality is the
@@ -1522,5 +1549,7 @@ object MaxDamageCertificateCache {
         val runeIds: List<Int>,
         val subIds: List<Int>,
         val applyDomination: Boolean,
+        // CERTIFIER_VERSION 52: the HARD-LEG (target-aware) ledger of the request rather than its target-blind one.
+        val targetAware: Boolean,
     )
 }
