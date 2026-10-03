@@ -69,7 +69,11 @@ data class ProofProgress(
 
 /** Max-damage AP-cell certificate verdict for the finished build (P4.4). See [UiState.proofState]. */
 sealed interface ProofState {
-    /** No proof yet (not max-damage, or before the async computation starts). */
+    /**
+     * No verdict: not max-damage / most-masteries, before the async computation starts, or the check was stopped before
+     * it knew anything ([BuildSearchModel.stopProof]) or switched off ([UiState.verifyOptimality]). The stats panel then
+     * shows the usual "not proven" hint.
+     */
     data object Idle : ProofState
 
     /** The certificate is being computed off-thread; [progress] says which phase and since when. */
@@ -84,7 +88,8 @@ sealed interface ProofState {
      *  [refining] = work that may improve on this badge is still running behind it: the E8 construct of the proven
      *  optimum (which may swap the build in and flip to [ProvenOptimal]) and then, failing that, the per-carrier silent
      *  refinement (which may tighten the badge or close it to [ProvenOptimal]); the UI shows the badge plus a small
-     *  progress indicator while it is true. */
+     *  progress indicator (with an info tooltip and a Stop link) while it is true. [BuildSearchModel.stopProof] clears
+     *  it and keeps the badge. */
     data class ProvenWithin(
         val fraction: Double,
         val refining: Boolean = false,
@@ -240,6 +245,13 @@ data class UiState(
     // (~80–110s after the rune fold); shorter modes still finish early and stream their result well before.
     val duration: String = "120",
     val stopAtMatch: Boolean = false,
+    /**
+     * "Check optimality after the search" (default ON, persisted via [LibraryPreferences]): whether the engine keeps
+     * working once a search ends to prove how close the build is to the best possible one (the [proofState] pipeline,
+     * in max-damage and most-masteries). An app option, not part of the request: it is not saved with a build. OFF starts
+     * no proof work after the search — see [BuildSearchModel.setVerifyOptimality].
+     */
+    val verifyOptimality: Boolean = true,
     val forcedItems: List<ItemChip> = emptyList(),
     val excludedItems: List<ItemChip> = emptyList(),
     /** When true (default), the solver may pick statically-modelable sublimations. */

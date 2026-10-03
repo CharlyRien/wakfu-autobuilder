@@ -153,6 +153,11 @@ class BuildSearchModel(
     // Silent per-carrier refinement behind a soft-leg ProvenWithin badge (minutes) — injectable for the same reason.
     private val proofRefiner: (WakfuBestBuildParams, SolverResult<BuildCombination>, () -> Boolean) -> MaxDamageSearch.MaxDamageProof? =
         { params, result, isCancelled -> WakfuBestBuildFinderAlgorithm.refineMaxDamageOptimality(params, result, isCancelled) },
+    // Stops the optimality work the ENGINE started beside the last search and leaves running after it (the certificate and
+    // quality-bound warm-ups a proof would join). Reached only when no proof will use them — the user stopped the check or
+    // switched it off — and only while no search runs. Injectable so tests see WHEN the model reaches for it without
+    // touching the engine's process-wide caches.
+    private val backgroundProofCanceller: () -> Unit = { WakfuBestBuildFinderAlgorithm.cancelBackgroundProofs() },
 ) {
     var ui by androidx.compose.runtime.mutableStateOf(UiState())
         private set
@@ -186,7 +191,8 @@ class BuildSearchModel(
     private var job: Job? = null
 
     // The post-search optimality proof runs independently of [job] (it can take minutes after the search
-    // already finished), so it has its own handle — cancelled when a new search starts.
+    // already finished), so it has its own handle — cancelled when a new search starts, or when the user stops it
+    // ([stopProof]) or switches the check off ([setVerifyOptimality]).
     private var proofJob: Job? = null
 
     // B8: cancelling [proofJob] only stops the coroutine, not the blocking certifier DP running inside it (which
@@ -230,13 +236,15 @@ class BuildSearchModel(
             System.getenv("WAKFU_COMPOSE_SCREENSHOT_VARY_PRIORITY") != null
 
     init {
-        // Seed the persisted UI options (language + library view) + tag registry before any UI reads them.
+        // Seed the persisted UI options (language + library view + the post-search optimality check) + tag registry
+        // before any UI reads them.
         tagRegistry = libraryPreferences.loadTags()
         ui =
             ui.copy(
                 lang = libraryPreferences.loadLang(),
                 librarySort = libraryPreferences.loadSort(),
-                libraryGroupByClass = libraryPreferences.loadGroupByClass()
+                libraryGroupByClass = libraryPreferences.loadGroupByClass(),
+                verifyOptimality = libraryPreferences.loadVerifyOptimality()
             )
 
         // Load the saved-build library off the UI thread. A read failure must never block startup —
@@ -599,6 +607,30 @@ class BuildSearchModel(
 
     fun setStopAtMatch(stopAtMatch: Boolean) {
         ui = ui.copy(stopAtMatch = stopAtMatch)
+    }
+
+    /**
+     * The "Check optimality after the search" switch (persisted; default ON). It decides, when a max-damage or
+     * most-masteries search ENDS, whether the engine keeps working to prove how close the build is to the best possible
+     * one — the "Verifying optimality…" wait, the E8 construct that can swap in the proven-optimal build, the silent
+     * refinement of the badge. The value read is the one in force when the search ends, so flipping it mid-search counts.
+     *
+     * **OFF means no proof work after the search ends** — nothing is launched ([launchOptimalityProof] /
+     * [launchMostMasteriesQualityProof] are not called), and the engine's own leftovers are cancelled
+     * ([skipBackgroundProof]). What costs nothing still shows: a result the search itself proved ([UiState.optimal] —
+     * CP-SAT's proof, or the certificate that landed during the search and stopped it early) keeps its "proven optimal"
+     * headline, and a most-masteries quality bound the search's tail already finished is read from the engine's memo
+     * without computing anything (a "proven within X %" badge). A max-damage certificate is NOT peeked the same way: one
+     * request shape (required targets the build misses) cannot be answered from its memo without computing, and telling
+     * the shapes apart here would duplicate the engine's gating — so max-damage shows the normal "not proven" hint.
+     *
+     * Switching OFF while a proof runs stops it, exactly like [stopProof]. Switching ON launches nothing for a build
+     * already on screen: it takes effect with the next search.
+     */
+    fun setVerifyOptimality(enabled: Boolean) {
+        ui = ui.copy(verifyOptimality = enabled)
+        libraryPreferences.saveVerifyOptimality(enabled)
+        if (!enabled) stopProof()
     }
 
     fun removeForcedItem(item: ItemChip) {
@@ -988,12 +1020,20 @@ class BuildSearchModel(
                             // Snap the time-based bar to a clean 100% on completion (the solver may
                             // have proven the optimum well before the wall-clock budget ran out).
                             ui = ui.copy(phase = Phase.Done, progress = 100, scenarioDamages = scenarioDamages, lastLandedEquipmentId = null)
+                            // Whether the engine keeps working after the search is the user's call ("Check optimality
+                            // after the search"): read NOW, so flipping it mid-search counts. OFF starts no proof work
+                            // at all — see [setVerifyOptimality] / [skipBackgroundProof].
+                            val verifyOptimality = ui.verifyOptimality
                             // Certificate optimality proof (P4.4): only for max-damage, and off the search's
                             // critical path — a full exact solve can take minutes, so it runs in its own job and
                             // streams its verdict into [UiState.proofState] when ready. It can prove an optimum
                             // CP-SAT left un-closed (badge flips to proven even when `optimal` was false).
                             if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE && completedResult != null) {
-                                launchOptimalityProof(params, completedResult, character, damageScenario)
+                                if (verifyOptimality) {
+                                    launchOptimalityProof(params, completedResult, character, damageScenario)
+                                } else {
+                                    skipBackgroundProof(params, completedResult)
+                                }
                             } else if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
                                 completedResult != null &&
                                 !completedResult.isOptimal &&
@@ -1004,7 +1044,11 @@ class BuildSearchModel(
                                 // was computed in the search's tail (§8.19), so the verdict is usually
                                 // instant — else the same ProofState pipeline renders the phase ("Verifying
                                 // optimality…") until the bound lands, then the badge.
-                                launchMostMasteriesQualityProof(params, completedResult)
+                                if (verifyOptimality) {
+                                    launchMostMasteriesQualityProof(params, completedResult)
+                                } else {
+                                    skipBackgroundProof(params, completedResult)
+                                }
                             }
                         } else if (ui.phase == Phase.Searching) {
                             ui =
@@ -1091,6 +1135,56 @@ class BuildSearchModel(
     }
 
     /**
+     * "Check optimality after the search" is OFF ([setVerifyOptimality]) and a max-damage / un-proven most-masteries search
+     * just ended: NO proof work follows — no certificate wait or compute, no E8 construct, no silent refinement, no
+     * quality-bound compute. What costs nothing still shows:
+     *  - a result the search itself proved ([UiState.optimal]) keeps its "proven optimal" headline — the stats panel
+     *    reads it straight from the result, nothing to do here;
+     *  - most-masteries only: a quality bound the search's tail already finished is read from the engine's memo by PEEKING.
+     *    The prover runs with a continue-predicate that is already false, so a memoized bound answers at once and anything
+     *    else returns "unavailable" without starting or joining a compute (see
+     *    [WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality]); the usual "not proven" hint then stays.
+     *
+     * Finally the engine's own warm-ups — started beside the search and kept alive for a proof to join, which will not
+     * come — are cancelled, so nothing keeps the processor busy. That runs on the UI thread, right as the search ends:
+     * no newer search can be running yet (it would lose its own warm-ups to the cancel).
+     */
+    private fun skipBackgroundProof(
+        params: WakfuBestBuildParams,
+        result: SolverResult<BuildCombination>,
+    ) {
+        // A fresh flag: a new search, a mode switch or a Stop supersedes the peek like any other proof launch.
+        val cancelled = newProofCancelFlag()
+        backgroundProofCanceller()
+        if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) return
+        val shownBuild = result.individual
+        proofJob =
+            scope.launch(Dispatchers.Default) {
+                val verdict =
+                    try {
+                        mmQualityProver(params, result) { false }
+                    } catch (cancellation: CancellationException) {
+                        throw cancellation
+                    } catch (throwable: Throwable) {
+                        throwable.printStackTrace()
+                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable
+                    }
+                val state =
+                    when (verdict) {
+                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenOptimal -> ProofState.ProvenOptimal
+                        is WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin -> ProofState.ProvenWithin(verdict.percent)
+                        WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable -> return@launch
+                    }
+                withContext(mainDispatcher) {
+                    // Only onto the build it read, and never over a state a cancel/load/new search already reset.
+                    if (!cancelled.get() && ui.phase == Phase.Done && ui.build == shownBuild && ui.proofState == ProofState.Idle) {
+                        ui = ui.copy(proofState = state)
+                    }
+                }
+            }
+    }
+
+    /**
      * Computes the AP-cell certificate optimality proof (P4.4) off the UI thread and streams the verdict into
      * [UiState.proofState]. The certificate solve is a blocking call that can take minutes, so it runs in its
      * own [proofJob]; the result is only applied while the shown build is still the one it was proving (a new
@@ -1102,7 +1196,9 @@ class BuildSearchModel(
      * first the E8 construct of the proven optimum, then — failing that — the silent per-carrier refinement. A
      * constructed build swaps in with [ProofState.ProvenOptimal]; a refinement tightens the badge (or closes it);
      * anything else leaves it with `refining = false`. Every late application is guarded on that refining badge
-     * still being the one on screen for the proven build.
+     * still being the one on screen for the proven build — and on this launch's cancel flag, which is how [stopProof]
+     * (the user's Stop link, or switching the check off) keeps the badge while nothing the stopped proof computes
+     * afterwards lands.
      */
     private fun launchOptimalityProof(
         params: WakfuBestBuildParams,
@@ -1220,9 +1316,10 @@ class BuildSearchModel(
                         null
                     }
                 if (proof !is MaxDamageSearch.MaxDamageProof.ProvenWithin) {
-                    // A final verdict (or none): nothing is left to work on, so it is applied as soon as it is known.
+                    // A final verdict (or none): nothing is left to work on, so it is applied as soon as it is known — unless
+                    // the proof was stopped or superseded meanwhile (its launch flag), whose late verdict must not land.
                     withContext(mainDispatcher) {
-                        if (ui.phase == Phase.Done && ui.build == provenBuild) {
+                        if (!cancelled.get() && ui.phase == Phase.Done && ui.build == provenBuild) {
                             ui =
                                 ui.copy(
                                     proofState =
@@ -1272,8 +1369,9 @@ class BuildSearchModel(
                         }
                     withContext(mainDispatcher) {
                         val shown = ui.proofState
-                        // Apply only while the refining badge this pass produced is still the one on screen.
-                        if (ui.phase == Phase.Done && ui.build == provenBuild && shown is ProofState.ProvenWithin && shown.refining) {
+                        // Apply only while the refining badge this pass produced is still the one on screen (a Stop or a
+                        // new search flags the proof cancelled and clears that cue).
+                        if (!cancelled.get() && ui.phase == Phase.Done && ui.build == provenBuild && shown is ProofState.ProvenWithin && shown.refining) {
                             ui =
                                 ui.copy(
                                     proofState =
@@ -1305,6 +1403,37 @@ class BuildSearchModel(
         job = null
         cancelProof()
         ui = ui.copy(phase = Phase.Idle, progress = 0, proofState = ProofState.Idle)
+    }
+
+    /**
+     * The "Stop" link beside the background optimality check's cue. It stops the check like [cancelProof] — the proof's
+     * coroutine AND the blocking solves inside it, which poll this launch's cancel flag — but KEEPS what is already known
+     * and never touches the shown build:
+     *  - a "proven within X %" badge that was still being worked on behind ([ProofState.ProvenWithin.refining]) stays, without
+     *    its cue;
+     *  - a check that knew nothing yet ([ProofState.Proving]) falls back to the usual "not proven" hint
+     *    ([ProofState.Idle]);
+     *  - any other state — a final verdict, or nothing running — is left as it is.
+     * The engine's own warm-ups a proof would have joined are cancelled too (they would otherwise keep the processor busy
+     * for nobody), unless a search is running.
+     *
+     * A result the stopped proof computes AFTER this call is dropped: its launch flag is set, which every late application
+     * checks, its coroutine is cancelled, and the refining badge it would be applied onto is gone.
+     */
+    fun stopProof() {
+        // The proof first, the engine's warm-ups second: a proof still waiting on a warm-up that is cancelled under it
+        // would start its own compute when that wait ends — flagged cancelled, it returns instead.
+        cancelProof()
+        // A search still running keeps its own warm-ups (they are what lets it stop early); only a finished search's
+        // leftovers are cancelled.
+        if (ui.phase != Phase.Searching) backgroundProofCanceller()
+        val shown = ui.proofState
+        ui =
+            when {
+                shown is ProofState.Proving -> ui.copy(proofState = ProofState.Idle)
+                shown is ProofState.ProvenWithin && shown.refining -> ui.copy(proofState = shown.copy(refining = false))
+                else -> ui
+            }
     }
 
     /**
@@ -1785,13 +1914,13 @@ class BuildSearchModel(
 
     /**
      * Starts a fresh, blank build: resets the whole workspace to defaults (request + result), drops
-     * any active-build link, and unlocks search. Keeps the language and the saved-build library.
-     * This is the explicit "New build" escape from editing a loaded build.
+     * any active-build link, and unlocks search. Keeps the language, the "check optimality" switch and the
+     * saved-build library. This is the explicit "New build" escape from editing a loaded build.
      */
     fun newBuild() {
         job?.cancel()
         cancelProof()
-        ui = UiState(lang = ui.lang, savedBuilds = ui.savedBuilds, screen = Screen.Builder)
+        ui = UiState(lang = ui.lang, verifyOptimality = ui.verifyOptimality, savedBuilds = ui.savedBuilds, screen = Screen.Builder)
     }
 
     /** Opens the Edit-build dialog (name + note + tags + folder). The dialog resolves the entry by id. */
