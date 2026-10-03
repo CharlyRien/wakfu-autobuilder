@@ -186,6 +186,21 @@ OPTIMAL — so the badge is normally ready the moment the search ends (shorter b
 The DP thread count is a pure work knob (identical bound); orchestration changes never bump
 `CERTIFIER_VERSION`. Measurements: `docs/MOST_MASTERIES_PERF_PLAN.md` §8.17–§8.19.
 
+### The post-search check is the GUI user's call
+Both badges above cost processor time at the end of a search and after it (the max-damage refinement was
+measured at > 25 min), so the GUI makes that work understandable and stoppable. While it runs the stats
+headline shows its cue — spinner, elapsed time, an info tooltip (`Tr.PROOF_INFO`) and a **Stop** link
+(`BuildSearchModel.stopProof()`: cancels the proof, keeps the current build and badge — a "proven within X%"
+badge just loses its `refining` cue, a check that knew nothing yet falls back to the "not proven" hint). The
+persisted **"Check optimality after the search"** switch (`UiState.verifyOptimality` via `LibraryPreferences`,
+default ON, offered in most-masteries / max-damage only) turns it off. **OFF starts no proof work after the
+search ends** — no certificate wait, no E8 construct, no silent refinement, no bound compute — and cancels the
+engine's own leftovers through `WakfuBestBuildFinderAlgorithm.cancelBackgroundProofs()` (the certificate / bound
+warm-ups started beside the search outlive it by design, so a proof can join them; Stop reaches them too). What
+costs nothing still shows: a CP-SAT-proven result, and a most-masteries bound the search's tail already finished
+(`proveMostMasteriesQuality` with a `shouldContinue` that is already false is a memo-only *peek*). Call
+`cancelBackgroundProofs()` only while no search runs — it would cancel that search's own warm-ups.
+
 ---
 
 ## 5. Data pipeline
@@ -280,11 +295,13 @@ is no FXML/XML.** Package root `me.chosante.ui`, organized by feature: `shell`, 
 - **`AppShell`** (`shell/`) — `TopBar` (brand logo, language toggle, class, level/min-level, the
   progress + match/mastery meters, Search button) above a 3-column body:
   - **`RequestPanel`** (`request/`) — search mode, target-stats editor, constraints (per-rarity
-    allow/exclude toggle chips, search duration…), forced / excluded item chips.
+    allow/exclude toggle chips, search duration, the "Check optimality after the search" switch…),
+    forced / excluded item chips.
   - **`PaperdollPanel`** (`paperdoll/`) — the 14 equipment slots of the discovered build.
   - **`StatsPanel`** (`stats/`) — the headline hero (match `%` in precision mode, **cumulated
-    requested mastery** in most-masteries mode), mastery summary, desired-vs-achieved grid, skill
-    tree, and the Zenith open/copy actions.
+    requested mastery** in most-masteries mode), the optimality badge with its background-check cue
+    (info tooltip + Stop link, §4), mastery summary, desired-vs-achieved grid, skill tree, and the
+    Zenith open/copy actions.
   Long panels show conditional **scroll-hint** badges (`components/ScrollHints.kt`).
 - **Visuals** (`components/`): `IconPreloader` decodes item icons off-thread into a cache;
   `rememberClasspathBitmap` loads PNGs from the classpath. `theme/` holds the dark palette

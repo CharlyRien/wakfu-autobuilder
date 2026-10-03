@@ -262,7 +262,10 @@ object WakfuBestBuildFinderAlgorithm {
      * too short for a warm-up) — then [compareMostMasteriesQuality] against the result's raw objective
      * ([SolverResult.mostMasteriesObjective] — stamped only when the searched objective is
      * certificate-comparable). [shouldContinue] cancels the wait (and a compute this call started),
-     * polled every ~100 ms and once per DP stage.
+     * polled every ~100 ms and once per DP stage. One that is ALREADY false makes the call a PEEK: a
+     * memoized bound still answers (the memo is read before the first poll) but nothing is started or
+     * joined, so a bound that is not ready yet gives [MostMasteriesProof.Unavailable] at once — how the
+     * GUI shows the badge the search's tail already paid for when the post-search check is switched off.
      *
      * SOUNDNESS: the bound never under-counts (locked by the tightness/fuzz harnesses), so
      * [MostMasteriesProof.ProvenWithin.percent] is a GUARANTEE, not an estimate; every unsupported
@@ -381,6 +384,20 @@ object WakfuBestBuildFinderAlgorithm {
         // Pass the rune / sublimation catalogs exactly as [run] does (exclusions applied) — the model honours
         // useRunes / useSublimations internally, so the certificate sees the same availability the search did.
         return MaxDamageSearch.proveOptimality(params, equipmentsByItemType, runes, activeSublimations(params), result, isCancelled = isCancelled, onPhase = onPhase)
+    }
+
+    /**
+     * Stops the optimality work the engine itself started beside the latest search and left running once it ended (E10: a
+     * normally completed search keeps its max-damage certificate warm-up and its most-masteries quality-bound warm-up so
+     * the post-search proof can join them instead of recomputing). For a front-end whose user stopped the proof or
+     * declined it: both computes bail within a stage and cache nothing, and a later proof simply recomputes. Idempotent;
+     * a no-op when nothing runs. Call it only while NO search is running — it would otherwise cancel that search's own
+     * warm-ups (the max-damage one is what lets the search stop early once its certificate lands). Cancel the proof you
+     * launched first: a proof still waiting on a warm-up that is cancelled under it starts its own compute.
+     */
+    fun cancelBackgroundProofs() {
+        MaxDamageSearch.cancelCertificateWarmup()
+        MostMasteriesBoundCache.supersedeAll()
     }
 
     /**

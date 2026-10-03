@@ -81,6 +81,20 @@ object MaxDamageSearch {
     internal val warmupJobForTest = AtomicReference<Job?>()
 
     /**
+     * Stops the certificate warm-up the latest search left running after it ended (a NORMALLY completed search keeps it so
+     * the post-search proof can join it). For a front-end whose user stopped or declined that proof: the compute bails
+     * within a certifier stage (B8) and caches nothing, a later proof simply recomputes. A no-op when none runs. Call it
+     * only while NO search is running — it would otherwise cancel that search's own warm-up (which is what lets it stop
+     * early once the certificate lands).
+     */
+    internal fun cancelCertificateWarmup() {
+        activeWarmupCancelled.get()?.set(true)
+    }
+
+    /** Test seam: whether the latest search's warm-up has been cancelled (null = no search ran yet). */
+    internal fun certificateWarmupCancelledForTest(): Boolean? = activeWarmupCancelled.get()?.get()
+
+    /**
      * The params-only certificate-support gates, mirroring [proveOptimality]'s early returns (prefiltered
      * pool / forced runes / survivability floor / multi-element ⇒ the proof never consults the certificate,
      * so warming it would be wasted work). Keep in sync with [proveOptimality].

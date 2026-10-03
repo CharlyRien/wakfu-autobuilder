@@ -248,6 +248,7 @@ private fun BuilderBody(
                 onToggleRarity = model::toggleRarity,
                 onDurationChange = model::setDuration,
                 onStopAtMatchChange = model::setStopAtMatch,
+                onVerifyOptimalityChange = model::setVerifyOptimality,
                 onAddForcedItem = { model.openModal(Modal.ItemPicker(PickerMode.Forced)) },
                 onRemoveForcedItem = model::removeForcedItem,
                 onAddExcludedItem = { model.openModal(Modal.ItemPicker(PickerMode.Excluded)) },
@@ -300,7 +301,8 @@ private fun BuilderBody(
                                 onCopyZenith = model::copyZenithLink,
                                 onSaveBuild = model::requestSaveBuild,
                                 onExport = model::exportBuild,
-                                onViewAsDamage = model::viewCurrentBuildAsMaxDamage
+                                onViewAsDamage = model::viewCurrentBuildAsMaxDamage,
+                                onStopProof = model::stopProof
                             )
                         }
                     }

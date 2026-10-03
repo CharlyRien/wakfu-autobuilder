@@ -171,6 +171,11 @@ enum class Tr(
     SEARCH_DURATION_SUB("time budget for the solver (empty = 10 min)", "temps alloué au solveur (vide = 10 min)"),
     SECONDS_SHORT("sec", "sec"),
     STOP_AT_MATCH("Stop at 100% match", "Arrêter à 100%"),
+    VERIFY_OPTIMALITY("Check optimality after the search", "Vérifier l'optimalité après la recherche"),
+    VERIFY_OPTIMALITY_SUB(
+        "may keep the processor busy for minutes once the search ends",
+        "peut occuper le processeur plusieurs minutes après la recherche"
+    ),
     SEARCH_NO_RESULT(
         "No build produced in this time window. Narrow the level range or increase the duration.",
         "Aucun build produit dans cette fenêtre. Réduis la plage de niveaux ou augmente la durée."
@@ -294,6 +299,20 @@ enum class Tr(
     PROOF_STAGE_CP_PROBE("Attempting a full CP-SAT proof… (%s)", "Tentative de preuve CP-SAT complète… (%s)"),
     PROOF_STAGE_CARRIER_CLOSURE("Closing the proof world by world… (%s)", "Fermeture de la preuve monde par monde… (%s)"),
     PROOF_REFINING("Refining the proof in the background…", "Affinage de la preuve en arrière-plan…"),
+
+    // Tooltip on the "still checking" cue (the Verifying… line and the refining line): what this background work is, what it
+    // costs, what it can change, and how to stop it or switch it off. Plain words on purpose.
+    PROOF_INFO(
+        "The app is still checking how close this build is to the best possible one. This check is optional: it uses " +
+            "your processor, sometimes all its cores, for up to several minutes. The badge may improve and, in Max " +
+            "Damage, the build may be replaced by the proven best one. You can stop it at any time and keep your current " +
+            "build and badge, or turn it off in the search settings (\"Check optimality after the search\").",
+        "L'app vérifie encore à quel point ce build est proche du meilleur possible. Cette vérification est facultative : " +
+            "elle utilise ton processeur, parfois tous ses cœurs, jusqu'à plusieurs minutes. Le badge peut s'améliorer et, " +
+            "en Dégâts max, le build peut être remplacé par le meilleur build prouvé. Tu peux l'arrêter à tout moment en " +
+            "gardant ton build et ton badge actuels, ou la désactiver dans les paramètres de recherche " +
+            "(« Vérifier l'optimalité après la recherche »)."
+    ),
     PROVEN_WITHIN("Proven within %s%% of optimal", "Optimal prouvé à %s%% près"),
     PROOF_UNAVAILABLE_FORCED("Proof unavailable (forced runes/sublimations)", "Preuve indisponible (runes/sublimations imposées)"),
     MASTERY_SUMMARY("Mastery Summary", "Cumul maîtrises"),
