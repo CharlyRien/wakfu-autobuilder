@@ -40,9 +40,13 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -57,6 +61,7 @@ import me.chosante.common.skills.CharacterSkills
 import me.chosante.common.skills.SkillCharacteristic
 import me.chosante.ui.components.CharacteristicIcon
 import me.chosante.ui.components.Hairline
+import me.chosante.ui.components.InfoTip
 import me.chosante.ui.components.PassiveIcon
 import me.chosante.ui.components.StatGlyphIcon
 import me.chosante.ui.components.VerticalScrollHints
@@ -95,6 +100,7 @@ fun StatsPanel(
     onSaveBuild: () -> Unit,
     onExport: () -> Unit,
     onViewAsDamage: () -> Unit,
+    onStopProof: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
@@ -109,7 +115,7 @@ fun StatsPanel(
                     .padding(WDimens.gap),
             verticalArrangement = Arrangement.spacedBy(WDimens.gap)
         ) {
-            MatchHero(ui)
+            MatchHero(ui, onStopProof)
             if (ui.phase == Phase.Idle && ui.build == null) {
                 // No build yet: the ActionsCard (which normally carries the error banner) isn't shown,
                 // so surface a pre-search error — e.g. an invalid min/max level range — here instead.
@@ -142,8 +148,12 @@ fun StatsPanel(
     }
 }
 
+/** [onStopProof] is the "Stop" link of the background optimality check's cue (see [ProofActivityRow]). */
 @Composable
-private fun MatchHero(ui: UiState) {
+internal fun MatchHero(
+    ui: UiState,
+    onStopProof: () -> Unit = {},
+) {
     // Most-masteries maximizes mastery and max-damage maximizes expected damage, so a "% match" is
     // meaningless for both — show the headline number (no %, no progress bar) instead. Only precision
     // mode keeps the % match + meter.
@@ -224,6 +234,7 @@ private fun MatchHero(ui: UiState) {
                     ui.proofState is ProofState.Proving ->
                         ProofProgressIndicator(
                             progress = (ui.proofState as ProofState.Proving).progress,
+                            onStop = onStopProof,
                             modifier = Modifier.padding(top = 2.dp)
                         )
                     // Not proven optimal, but the certificate BOUNDS the gap — more useful than the vague hint.
@@ -236,20 +247,15 @@ private fun MatchHero(ui: UiState) {
                             style = WTypography.labelSmall.copy(color = WColor.warning, textAlign = TextAlign.Center),
                             modifier = Modifier.padding(top = 2.dp)
                         )
-                        // The per-carrier silent refinement is still running behind the badge — keep a
-                        // visible "still proving" cue so a later badge upgrade never looks spontaneous.
+                        // The E8 construct / per-carrier silent refinement is still running behind the badge — keep a
+                        // visible "still proving" cue (with what it is, and a way to stop it) so a later badge upgrade
+                        // never looks spontaneous.
                         if (within.refining) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                            ProofActivityRow(
+                                text = tr(Tr.PROOF_REFINING),
+                                onStop = onStopProof,
                                 modifier = Modifier.padding(top = 2.dp)
-                            ) {
-                                ProofSpinner(color = WColor.accent)
-                                Text(
-                                    text = tr(Tr.PROOF_REFINING),
-                                    style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center)
-                                )
-                            }
+                            )
                         }
                     }
                     // Certificate unavailable because of forced runes/subs — name the reason (honest, not "proven").
@@ -286,11 +292,13 @@ private fun MatchHero(ui: UiState) {
  * while the certificate proof runs; the wording switches to "Building the proven optimal build…"
  * during the E8 construct phase. If the certifier later reports per-cell progress
  * ([ProofProgress.cellsDone]/[ProofProgress.cellsTotal]), this is the single place to upgrade the
- * indeterminate spinner to a determinate fraction.
+ * indeterminate spinner to a determinate fraction. Like the refining line it carries the info tooltip
+ * and the Stop link ([ProofActivityRow]).
  */
 @Composable
-private fun ProofProgressIndicator(
+internal fun ProofProgressIndicator(
     progress: ProofProgress,
+    onStop: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val nowMs = remember(progress.startedAtMs) { mutableStateOf(System.currentTimeMillis()) }
@@ -322,6 +330,25 @@ private fun ProofProgressIndicator(
                 }
             else -> Tr.PROVING_OPTIMALITY
         }
+    ProofActivityRow(text = tr(label).format(formatElapsed(elapsedSeconds)), onStop = onStop, modifier = modifier)
+}
+
+/** Test tag of the cue's "Stop" link (see [ProofActivityRow]). */
+internal const val PROOF_STOP_TAG = "proof-stop"
+
+/**
+ * The cue that the engine is still checking the build's optimality in the background: a spinner, [text] (what it is doing
+ * now), an info tooltip saying in plain words what this is, what it costs and how to stop or disable it
+ * ([Tr.PROOF_INFO]), and a "Stop" link ([onStop]) that stops the check and keeps the current build and badge. Shared by the
+ * "Verifying optimality…" line and the refining line under a "proven within X %" badge, so both look and behave alike.
+ * The text takes the leftover width (and wraps); the tooltip and the link keep their place at the end of the line.
+ */
+@Composable
+internal fun ProofActivityRow(
+    text: String,
+    onStop: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
@@ -329,17 +356,34 @@ private fun ProofProgressIndicator(
     ) {
         ProofSpinner(color = WColor.accent)
         Text(
-            text = tr(label).format(formatElapsed(elapsedSeconds)),
-            style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center)
+            text = text,
+            style = WTypography.labelSmall.copy(color = WColor.faint, textAlign = TextAlign.Center),
+            modifier = Modifier.weight(1f, fill = false)
+        )
+        InfoTip(text = tr(Tr.PROOF_INFO))
+        Text(
+            text = tr(Tr.STOP),
+            style = WTypography.labelSmall.copy(color = WColor.accent, textDecoration = TextDecoration.Underline),
+            modifier =
+                Modifier
+                    .testTag(PROOF_STOP_TAG)
+                    .pointerHoverIcon(PointerIcon.Hand)
+                    .clip(RoundedCornerShape(3.dp))
+                    .clickable(onClick = onStop)
+                    .padding(horizontal = 3.dp)
         )
     }
 }
 
-/** "45 s" below a minute, "2 min 10 s" above — locale-neutral unit abbreviations shared by EN/FR. */
-private fun formatElapsed(totalSeconds: Long): String {
+/**
+ * "45 s" below a minute, "2 min 10 s" above — locale-neutral unit abbreviations shared by EN/FR. The spaces are
+ * non-breaking so the narrow cue line (the text shares it with the info tooltip and the Stop link) wraps BEFORE the
+ * time, never inside it.
+ */
+internal fun formatElapsed(totalSeconds: Long): String {
     val minutes = totalSeconds / 60
     val seconds = totalSeconds % 60
-    return if (minutes > 0) "$minutes min $seconds s" else "$seconds s"
+    return if (minutes > 0) "$minutes\u00A0min\u00A0$seconds\u00A0s" else "$seconds\u00A0s"
 }
 
 /**

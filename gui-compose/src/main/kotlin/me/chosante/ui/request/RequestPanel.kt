@@ -113,6 +113,7 @@ fun RequestPanel(
     onRemoveExcludedSublimation: (String) -> Unit = {},
     onOpenPassivePicker: () -> Unit = {},
     onRemoveForcedPassive: (String) -> Unit = {},
+    onVerifyOptimalityChange: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
@@ -131,9 +132,11 @@ fun RequestPanel(
                 selected = ui.mode,
                 duration = ui.duration,
                 stopAtMatch = ui.stopAtMatch,
+                verifyOptimality = ui.verifyOptimality,
                 onSelect = onModeChange,
                 onDurationChange = onDurationChange,
-                onStopAtMatchChange = onStopAtMatchChange
+                onStopAtMatchChange = onStopAtMatchChange,
+                onVerifyOptimalityChange = onVerifyOptimalityChange
             )
             if (ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
                 BossCard(
@@ -203,14 +206,19 @@ fun RequestPanel(
     }
 }
 
+/** Test tag of the "Check optimality after the search" switch (see [SearchModeCard]). */
+internal const val VERIFY_OPTIMALITY_TOGGLE_TAG = "verify-optimality-toggle"
+
 @Composable
-private fun SearchModeCard(
+internal fun SearchModeCard(
     selected: ScoreComputationMode,
     duration: String,
     stopAtMatch: Boolean,
+    verifyOptimality: Boolean,
     onSelect: (ScoreComputationMode) -> Unit,
     onDurationChange: (String) -> Unit,
     onStopAtMatchChange: (Boolean) -> Unit,
+    onVerifyOptimalityChange: (Boolean) -> Unit,
 ) {
     RequestCard(title = tr(Tr.SEARCH_MODE)) {
         Row(
@@ -252,6 +260,19 @@ private fun SearchModeCard(
                 NumberField(value = duration, onValueChange = onDurationChange, width = 56.dp)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(text = tr(Tr.SECONDS_SHORT), style = WTypography.labelMedium)
+            }
+        }
+        // The post-search optimality check only exists for the two maximizing modes (most masteries, max damage):
+        // precision mode has no proof to run afterwards, so a switch there would do nothing — it is not offered
+        // (the value persists, and is back as soon as another mode is picked).
+        if (selected != ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT) {
+            Hairline()
+            ConstraintRow(label = tr(Tr.VERIFY_OPTIMALITY), sublabel = tr(Tr.VERIFY_OPTIMALITY_SUB)) {
+                Toggle(
+                    checked = verifyOptimality,
+                    onCheckedChange = onVerifyOptimalityChange,
+                    modifier = Modifier.testTag(VERIFY_OPTIMALITY_TOGGLE_TAG)
+                )
             }
         }
         // "Stop at 100% match" only makes sense in precision mode — it's the only mode with an exact
@@ -1194,10 +1215,11 @@ private fun ConstraintRow(
 private fun Toggle(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Box(
         modifier =
-            Modifier
+            modifier
                 .width(44.dp)
                 .height(24.dp)
                 .clip(RoundedCornerShape(999.dp))

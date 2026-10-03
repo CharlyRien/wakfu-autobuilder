@@ -404,6 +404,60 @@ class MostMasteriesBoundCacheTest {
         }
 
     @Test
+    fun `cancelBackgroundProofs stops a bound the finished search left computing and caches nothing`(): Unit =
+        runBlocking {
+            val p = params(290)
+            val gate = Gate(fakeBound(2_000))
+            MostMasteriesBoundCache.certificateForTest = gate.certificate()
+            // The search ends un-proven with a comparable objective: its warm-up keeps computing for the post-search proof.
+            warm(p, pool, emptyList(), flowOf(result(1_500))).toList()
+            gate.entered.await()
+            assertThat(MostMasteriesBoundCache.inFlightForTest(p)).isTrue()
+            // A front-end that will not ask for that proof (the user stopped or declined it) stops it.
+            WakfuBestBuildFinderAlgorithm.cancelBackgroundProofs()
+            awaitUntil { gate.sawCancel.get() && !MostMasteriesBoundCache.inFlightForTest(p) }
+            assertThat(MostMasteriesBoundCache.isCachedForTest(p)).describedAs("a cancelled compute caches nothing").isFalse()
+            // Idempotent, and a no-op when nothing runs.
+            WakfuBestBuildFinderAlgorithm.cancelBackgroundProofs()
+            WakfuBestBuildFinderAlgorithm.cancelBackgroundProofs()
+        }
+
+    @Test
+    fun `a proof that may not continue is a peek - it answers from the memo and never computes or joins`(): Unit =
+        runBlocking {
+            val p = params(291)
+            val gate = Gate(fakeBound(2_000))
+            MostMasteriesBoundCache.certificateForTest = gate.certificate()
+            val before = computes()
+            val peek = { r: SolverResult<BuildCombination> -> WakfuBestBuildFinderAlgorithm.proveMostMasteriesQuality(p, r) { false } }
+
+            // Nothing memoized: no verdict, and no compute is started.
+            assertThat(peek(result(1_000))).isEqualTo(WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable)
+            assertThat(computes() - before).describedAs("a peek never starts a compute").isEqualTo(0)
+            assertThat(MostMasteriesBoundCache.inFlightForTest(p)).isFalse()
+
+            // A compute in flight (the search's tail warm-up): a peek does not wait for it either.
+            val finish = CompletableDeferred<Unit>()
+            val search = async(Dispatchers.Default) { warm(p, pool, emptyList(), heldSearch(result(1_000), finish, result(1_500))).toList() }
+            gate.entered.await()
+            val started = computes()
+            val whileComputing = async(Dispatchers.Default) { peek(result(1_000)) }
+            assertThat(withTimeout(5.seconds) { whileComputing.await() }).isEqualTo(WakfuBestBuildFinderAlgorithm.MostMasteriesProof.Unavailable)
+            assertThat(computes()).describedAs("no second compute beside the in-flight one").isEqualTo(started)
+            assertThat(MostMasteriesBoundCache.inFlightForTest(p)).describedAs("the peek left the in-flight compute alone").isTrue()
+            finish.complete(Unit)
+            search.await()
+
+            // Once the bound is memoized, the peek returns the same verdict a normal proof would, with no new compute.
+            gate.release.countDown()
+            awaitUntil { MostMasteriesBoundCache.isCachedForTest(p) }
+            val settled = computes()
+            assertThat(peek(result(1_000))).isEqualTo(WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenWithin(1.0))
+            assertThat(peek(result(2_000))).isEqualTo(WakfuBestBuildFinderAlgorithm.MostMasteriesProof.ProvenOptimal)
+            assertThat(computes()).isEqualTo(settled)
+        }
+
+    @Test
     fun `requests the certificate cannot bound start no warm-up`(): Unit =
         runBlocking {
             MostMasteriesBoundCache.certificateForTest = { _, _, _ -> error("an ineligible request must never compute") }
