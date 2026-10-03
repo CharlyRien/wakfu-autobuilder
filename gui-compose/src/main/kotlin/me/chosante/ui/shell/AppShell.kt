@@ -302,7 +302,8 @@ private fun BuilderBody(
                                 onSaveBuild = model::requestSaveBuild,
                                 onExport = model::exportBuild,
                                 onViewAsDamage = model::viewCurrentBuildAsMaxDamage,
-                                onStopProof = model::stopProof
+                                onStopProof = model::stopProof,
+                                onRetryError = model::retryAfterError
                             )
                         }
                     }

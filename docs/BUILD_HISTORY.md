@@ -61,8 +61,9 @@ already has the working serialization setup and owns the referenced `Equipment`/
 Builds created via the Zenith API are anonymous/unowned, and a security change closed editing of
 them — so "update an existing Zenith build" is **not possible today**. Zenith stays export/share
 only; the search-lock is a *local* overwrite guard, fully decoupled from Zenith. (A cached Zenith URL
-is stored per entry for instant re-share.) Reconnecting builds to a Zenith account is a separate,
-later workstream.
+is stored per entry for instant re-share, and "Open in Zenith" / "Copy build link" reuse the link already
+made for the build on screen instead of creating another Zenith build.) Reconnecting builds to a
+Zenith account is a separate, later workstream.
 
 ## Deferred / follow-ups
 
