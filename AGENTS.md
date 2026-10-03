@@ -168,6 +168,13 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
   exact pass, orchestrator, scaling formula, world/sub enumeration). It keys the in-memory per-cell
   cache alongside `WakfuData.VERSION`, so a bump invalidates every cached bound instead of serving a
   stale (possibly now-unsound) one.
+- **Hard-leg results get a TARGET-AWARE ledger (CERTIFIER_VERSION 52).** A result of the hard-constraints leg
+  (`SolverResult.maxDamageHardConstraintsMet`) of a request with a positive AP / MP / CC / RANGE row is compared with a
+  ledger that enforces those rows in every pass (`StatBuilder.certifierTargetAware`; each filter reads a sound
+  OVER-estimate of the build's own stat), so its badge means "within X% of the best build that meets the targets". The
+  flag is part of the certificate cache key (memory and disk); soft-leg and free results keep the target-blind ledger.
+  Kill switch `WAKFU_MD_TARGET_AWARE=0`; locks in `MaxDamageTargetAwareCertificateTest` (oracle: the pinned hard-leg
+  CP-SAT optimum per AP cell).
 - **Guards:** a CI-runnable fuzz lock (`WakfuBuildSolverTest`, seeded random pools → `certExact/fast ≥`
   pinned CP-SAT, ledger `≥` true optimum) plus a nightly `@Tag("slow")` lvl-245 ledger oracle keyed on
   `WakfuData.VERSION`. The full campaign log lives in `docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md`; the plan +
