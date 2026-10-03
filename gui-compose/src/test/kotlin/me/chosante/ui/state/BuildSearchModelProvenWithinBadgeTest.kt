@@ -495,7 +495,9 @@ class BuildSearchModelProvenWithinBadgeTest {
                 awaitUntil { currentModel.ui.proofState == ProofState.ProvenOptimal }
                 currentModel.copyZenithLink()
                 awaitUntil { currentModel.ui.zenith == ZenithState.Error }
-                assertEquals("zenith down", currentModel.ui.error)
+                // The banner reads as a plain sentence with a Retry; the raw "zenith down" goes to the log.
+                assertEquals(Tr.ZENITH_UNREACHABLE.value(currentModel.ui.lang), currentModel.ui.error?.message)
+                assertEquals(ErrorRetry.COPY_ZENITH, currentModel.ui.error?.retry)
             } finally {
                 engine.releaseAll()
                 stale.releaseBuilder.countDown()

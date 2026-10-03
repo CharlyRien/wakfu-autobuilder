@@ -35,6 +35,22 @@ enum class ZenithState {
     Error,
 }
 
+/** What the error banner's "Retry" repeats. */
+enum class ErrorRetry {
+    OPEN_ZENITH,
+    COPY_ZENITH,
+    SEARCH,
+}
+
+/**
+ * The error banner of the results panel: the [message] shown to the player and, when repeating the failed action can help,
+ * what its "Retry" does ([retry]). Technical detail (host names, timeouts, stack traces) never goes in [message]: it is logged.
+ */
+data class UiError(
+    val message: String,
+    val retry: ErrorRetry? = null,
+)
+
 /** The coarse phase the running optimality proof is in. See [ProofProgress]. */
 enum class ProofPhase {
     /** The AP-cell certificate DP is computing the per-cell upper bounds (the long part). */
@@ -312,7 +328,7 @@ data class UiState(
     val zenith: ZenithState = ZenithState.Idle,
     val zenithUrl: String? = null,
     val toast: String? = null,
-    val error: String? = null,
+    val error: UiError? = null,
     /** Pre-search request problems shown together in the errors pop-up; non-empty blocks the search. */
     val requestErrors: List<RequestValidationProblem> = emptyList(),
     val modal: Modal? = null,
