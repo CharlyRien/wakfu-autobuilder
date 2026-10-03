@@ -72,7 +72,7 @@ class ProofCueUiTest {
                 }
             }
             mainClock.advanceTimeByFrame()
-            onNodeWithText("Proven within 2.0% of optimal").assertExists()
+            onNodeWithText("Best found · at most 2.0% below the optimum").assertExists()
             onNodeWithText("Refining the proof in the background…").assertExists()
             onNodeWithText("i").assertExists()
 
