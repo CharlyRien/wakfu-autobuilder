@@ -624,7 +624,74 @@ class MostMasteriesBoundCacheTest {
                     true
                 ),
                 Triple("only 0-valued required rows", subsParams(277, listOf(dist, TargetStat(Characteristic.DODGE, 0))) to emptyList(), true),
-                Triple("a non-zero untracked row", subsParams(278, listOf(dist, TargetStat(Characteristic.DODGE, 50))) to emptyList(), false)
+                Triple("a non-zero untracked row", subsParams(278, listOf(dist, TargetStat(Characteristic.DODGE, 50))) to emptyList(), false),
+                // CERTIFIER_VERSION 51: a negative capped-stat line on a sub no assume world stages into its LOW dim — the
+                // assumed cap sub itself or a world-B sub — would reject a real carrier (A1's over-rejection).
+                Triple(
+                    "a cap sub's own negative crit line",
+                    subsParams(279) to
+                        listOf(
+                            synthSub(
+                                9380,
+                                epic,
+                                capped(SublimationConditionType.CRIT_AT_MOST, 10),
+                                listOf(flat(Characteristic.DAMAGE_INFLICTED, 20), flat(Characteristic.CRITICAL_HIT, -5))
+                            )
+                        ),
+                    false
+                ),
+                Triple(
+                    "a world-B sub's negative crit line beside a crit cap sub",
+                    subsParams(280) to
+                        listOf(
+                            synthSub(9381, epic, capped(SublimationConditionType.CRIT_AT_MOST, 10), listOf(flat(Characteristic.DAMAGE_INFLICTED, 20))),
+                            synthSub(9382, condition = capped(SublimationConditionType.SECONDARY_MASTERIES_AT_MOST, 0), effects = listOf(flat(Characteristic.CRITICAL_HIT, -5)))
+                        ),
+                    false
+                ),
+                Triple(
+                    "a world-B sub's negative MAX_AP line beside an AP cap sub",
+                    subsParams(281) to
+                        listOf(
+                            synthSub(9383, epic, capped(SublimationConditionType.AP_AT_MOST, 10), listOf(flat(Characteristic.DAMAGE_INFLICTED, 15))),
+                            synthSub(
+                                9384,
+                                condition = capped(SublimationConditionType.SECONDARY_MASTERIES_AT_MOST, 0),
+                                effects = listOf(flat(Characteristic.DAMAGE_INFLICTED, 10), flat(Characteristic.MAX_ACTION_POINT, -1))
+                            )
+                        ),
+                    false
+                ),
+                Triple(
+                    "a world-B sub's negative crit line without a cap sub",
+                    subsParams(282) to
+                        listOf(
+                            synthSub(9385, condition = capped(SublimationConditionType.SECONDARY_MASTERIES_AT_MOST, 0), effects = listOf(flat(Characteristic.CRITICAL_HIT, -5)))
+                        ),
+                    true
+                ),
+                Triple(
+                    "a world-B sub's negative AP line beside a crit cap sub (no AP LOW dim)",
+                    subsParams(283) to
+                        listOf(
+                            synthSub(9386, epic, capped(SublimationConditionType.CRIT_AT_MOST, 10), listOf(flat(Characteristic.DAMAGE_INFLICTED, 20))),
+                            synthSub(
+                                9387,
+                                condition = capped(SublimationConditionType.SECONDARY_MASTERIES_AT_MOST, 0),
+                                effects = listOf(flat(Characteristic.DAMAGE_INFLICTED, 10), flat(Characteristic.ACTION_POINT, -1))
+                            )
+                        ),
+                    true
+                ),
+                // CERTIFIER_VERSION 51: a POSITIVE MAX_* AP / MP line is folded by the solver, by no AP / MP read here.
+                Triple("a positive MAX_AP sub line", subsParams(284) to listOf(synthSub(9388, effects = listOf(flat(Characteristic.MAX_ACTION_POINT, 1)))), false),
+                Triple("a positive MAX_MP sub line", subsParams(285) to listOf(synthSub(9389, effects = listOf(flat(Characteristic.MAX_MOVEMENT_POINT, 1)))), false),
+                Triple(
+                    "a negative MAX_MP sub line (Armure lourde's shape)",
+                    subsParams(286) to
+                        listOf(synthSub(9390, effects = listOf(flat(Characteristic.DAMAGE_INFLICTED, 10), flat(Characteristic.MAX_MOVEMENT_POINT, -1)))),
+                    true
+                )
             )
         val mismatches = mutableListOf<String>()
         for ((label, shape, expected) in cases) {

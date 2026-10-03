@@ -1,6 +1,7 @@
 package me.chosante.autobuilder.genetic.wakfu
 
 import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.domain.SpellCatalog
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.SolverResult
@@ -12,6 +13,11 @@ import me.chosante.common.I18nText
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import me.chosante.common.Sublimation
+import me.chosante.common.SublimationCondition
+import me.chosante.common.SublimationConditionType
+import me.chosante.common.SublimationEffect
+import me.chosante.common.SublimationKind
+import me.chosante.common.SublimationRarity
 import me.chosante.common.skills.CharacterSkills
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -20,7 +26,8 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * Adversarial soundness review (2026-10-02) of the most-masteries certificate v41–v43 and the max-damage AP-cell
  * certifier v44. Deterministic counterexamples (CI-runnable) + env-gated fuzz harnesses. The B1 and A1 repros are CI
- * locks since their fixes (CERTIFIER_VERSION 49 and 50).
+ * locks since their fixes (CERTIFIER_VERSION 49 and 50); the review follow-ups (provenance replay, latent shapes, the
+ * MP clamp's later-debit headroom) since CERTIFIER_VERSION 51.
  */
 class SoundnessReviewAdversarialTest {
     private val tuning =
@@ -73,6 +80,70 @@ class SoundnessReviewAdversarialTest {
         WakfuBuildSolver.optimize(p, pool, emptyList(), subs, tuning, hardConstraints = hard).collect { last = it }
         return last
     }
+
+    /** A CRA max-damage request (fire, distance, face) — the A1 twin's shape. */
+    private fun mdSoftParams(
+        targets: List<TargetStat>,
+        level: Int = 200,
+    ) = WakfuBestBuildParams(
+        character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
+        targetStats = TargetStats(targets),
+        searchDuration = 60.seconds,
+        stopWhenBuildMatch = false,
+        maxRarity = Rarity.EPIC,
+        forcedItems = emptyList(),
+        excludedItems = emptyList(),
+        scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+        useRunes = false,
+        useSublimations = true,
+        damageScenario =
+            me.chosante.autobuilder.domain.DamageScenario(
+                element = me.chosante.autobuilder.domain.SpellElement.FIRE,
+                rangeBand = me.chosante.autobuilder.domain.RangeBand.DISTANCE,
+                orientation = me.chosante.autobuilder.domain.Orientation.FACE
+            )
+    )
+
+    /** The max-damage soft certificate at its production ("banded") settings — the A1 twin's second read. */
+    private fun mdSoftBanded(
+        params: WakfuBestBuildParams,
+        pool: Map<ItemType, List<Equipment>>,
+        subs: List<Sublimation>,
+    ) = MaxDamageSoftCertificate.bound(
+        params,
+        pool,
+        emptyList(),
+        subs,
+        blockGate = false,
+        ccSupportLambda = 1500L,
+        ccSupportBand = 5,
+        coupleSecondaryItemNegative = true,
+        netSecondaryItemBudget = true,
+        exactNormalSubPacking = true,
+        foldNegativeItemAp = true,
+        foldNegativeMaxMp = true,
+        critAwareCollapse = true,
+        critWeightAnchorPercent = 100,
+        anchorConstTransport = true,
+        stateDependentMpRamp = true
+    )
+
+    /** A synthetic choosable sub (latent-shape fixtures: data the shipped catalog does not carry). */
+    private fun synthSub(
+        id: Int,
+        rarity: SublimationRarity,
+        condition: SublimationCondition?,
+        effects: List<SublimationEffect>,
+    ) = Sublimation(
+        stateId = id,
+        name = I18nText("synth$id", "synth$id", "", ""),
+        rarity = rarity,
+        maxStackLevel = 1,
+        kind = if (condition == null) SublimationKind.FLAT else SublimationKind.STATIC_CONDITIONAL,
+        solverChoosable = true,
+        condition = condition,
+        effects = effects
+    )
 
     /**
      * FINDING A1 — the assume-CC world's LOW crit dim is clamped at 0 after every stage
@@ -454,6 +525,338 @@ class SoundnessReviewAdversarialTest {
             assertThat(bound.coreBound).isGreaterThanOrEqualTo(requireNotNull(optimum.mostMasteriesObjective))
         }
 
+    /**
+     * A1 review follow-up (instrument only — production never sets `provenance`): both certificates logged a stage's
+     * pre-stage map AFTER its LOW-offset shift and the backtrack took that key for the previous stage's output, so it
+     * broke at the first stage whose offset grew — here the −10-crit AMULET, staged after the +12-crit ring (the A1
+     * reviewer's repro). CERTIFIER_VERSION 51 records each stage's shift and undoes it: the Constance world's binding path
+     * is complete in the most-masteries certificate and in its max-damage soft twin (on 9a698f2d both broke at the
+     * weapons stage, right before the shifted AMULET one).
+     */
+    @Test
+    fun `A1 follow-up - the provenance replay crosses a stage whose LOW offset grew`() {
+        val constance = WakfuBestBuildFinderAlgorithm.sublimations.single { it.name.fr == "Constance" }
+
+        fun pool(mastery: Characteristic) =
+            listOf(
+                item(1, ItemType.RING, stats = mapOf(mastery to 1000, Characteristic.CRITICAL_HIT to 12)),
+                item(2, ItemType.AMULET, stats = mapOf(mastery to 1000, Characteristic.CRITICAL_HIT to -10)),
+                item(3, ItemType.HELMET, Rarity.EPIC, mapOf(mastery to 500))
+            ).groupBy { it.itemType }
+        val mm =
+            requireNotNull(
+                MostMasteriesCertificate.bound(
+                    mmParams(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999))),
+                    pool(Characteristic.MASTERY_DISTANCE),
+                    emptyList(),
+                    listOf(constance),
+                    provenance = true
+                )
+            )
+        val md =
+            requireNotNull(
+                MaxDamageSoftCertificate.bound(
+                    mdSoftParams(listOf(TargetStat(Characteristic.HP, 500))),
+                    pool(Characteristic.MASTERY_ELEMENTARY_FIRE),
+                    emptyList(),
+                    listOf(constance),
+                    blockGate = false,
+                    provenance = true
+                )
+            )
+        val problems = mutableListOf<String>()
+        for ((label, binding, path) in listOf(Triple("MM", mm.bindingState, mm.bindingPath), Triple("MD-soft", md.bindingState, md.bindingPath))) {
+            println("A1_PROVENANCE $label binding=$binding")
+            path.forEach { println("A1_PROVENANCE $label   $it") }
+            if ("assume=Constance" !in binding) problems += "$label: the Constance world does not bind ($binding)"
+            if (path.isEmpty() || path.any { "no predecessor" in it }) problems += "$label: the backtrack breaks: $path"
+            if (path.none { it.startsWith("AMULET: item2") }) problems += "$label: the path misses the shifted AMULET stage"
+            if (path.none { it.startsWith("rings: item1") }) problems += "$label: the path never reaches the rings"
+        }
+        assertThat(problems).describedAs("the provenance replay must cross every LOW-offset shift").isEmpty()
+    }
+
+    /**
+     * Latent (review follow-up, CERTIFIER_VERSION 51): the most-masteries certificate never stages the ASSUMED cap sub or
+     * the world-B subs into an assume world's LOW dim (both are credited at the collapse only), yet the solver's
+     * pre-combat read carries every permanent line of a STATIC sub, its own condition's read included
+     * (`buildPermanentSubTerms`). A NEGATIVE capped-stat line on one of them reopens A1's over-rejection: (a) a
+     * CRIT_AT_MOST-10 cap sub carrying its own −5 permanent crit, whose +12-crit ring carrier reads 3 + 12 − 5 = 10;
+     * (b) Constance beside a world-B sub (SECONDARY_MASTERIES_AT_MOST, a budget that never binds) carrying the −5 that
+     * brings the same ring under 10. No shipped sub has such a line: v51 bails both shapes (on 9a698f2d both bounds sat
+     * under the pinned CP-SAT optimum). The max-damage soft twin STAGES its objective cappers (secZero / critZero /
+     * capFree arms), so only its assumed cap sub needs the bail: (c) the cap-sub shape on fire items bails, and (d) the
+     * world-B shape stays bounded, soundly.
+     */
+    @Test
+    fun `latent - a negative capped-stat line on a sub no assume world stages bails`(): Unit =
+        kotlinx.coroutines.runBlocking {
+            val constance = WakfuBestBuildFinderAlgorithm.sublimations.single { it.name.fr == "Constance" }
+            val capOwnNegCrit =
+                synthSub(
+                    99_101,
+                    SublimationRarity.EPIC,
+                    SublimationCondition(SublimationConditionType.CRIT_AT_MOST, 10),
+                    listOf(
+                        SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 20),
+                        SublimationEffect.Flat(Characteristic.CRITICAL_HIT, -5, appliesBeforeCombat = true)
+                    )
+                )
+            val worldBNegCrit =
+                synthSub(
+                    99_102,
+                    SublimationRarity.NORMAL,
+                    SublimationCondition(SublimationConditionType.SECONDARY_MASTERIES_AT_MOST, 100_000),
+                    listOf(
+                        SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 10),
+                        SublimationEffect.Flat(Characteristic.CRITICAL_HIT, -5, appliesBeforeCombat = true)
+                    )
+                )
+
+            fun pool(mastery: Characteristic) =
+                listOf(
+                    item(1, ItemType.RING, stats = mapOf(mastery to 1000, Characteristic.CRITICAL_HIT to 12)),
+                    item(2, ItemType.HELMET, Rarity.EPIC, mapOf(mastery to 500))
+                ).groupBy { it.itemType }
+            val failures = mutableListOf<String>()
+            val mmP = mmParams(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999)))
+            val mmPool = pool(Characteristic.MASTERY_DISTANCE)
+            for ((label, subs) in listOf("MM (a) cap sub's own line" to listOf(capOwnNegCrit), "MM (b) world-B line" to listOf(constance, worldBNegCrit))) {
+                val optimum = requireNotNull(pinnedSoft(mmP, mmPool, subs))
+                val incumbent = requireNotNull(optimum.mostMasteriesObjective)
+                val carried =
+                    optimum.individual.sublimations.values
+                        .flatten()
+                        .map { it.name.fr }
+                val bound = MostMasteriesCertificate.bound(mmP, mmPool, emptyList(), subs)
+                println("LATENT_NEG_LOW $label optimum=$incumbent optimal=${optimum.isOptimal} carried=$carried core=${bound?.coreBound} binding=${bound?.bindingState}")
+                assertThat(optimum.isOptimal).isTrue()
+                assertThat(carried).describedAs("$label: the optimum carries every fixture sub").containsExactlyInAnyOrderElementsOf(subs.map { it.name.fr })
+                if (bound != null && bound.coreBound < incumbent) failures += "UNDER-COUNT $label: core ${bound.coreBound} < optimum $incumbent"
+                if (bound != null) failures += "$label: no bail"
+            }
+            val mdP = mdSoftParams(listOf(TargetStat(Characteristic.HP, 500)))
+            val mdPool = pool(Characteristic.MASTERY_ELEMENTARY_FIRE)
+            for ((label, subs, bails) in listOf(
+                Triple("MD-soft (c) cap sub's own line", listOf(capOwnNegCrit), true),
+                Triple("MD-soft (d) world-B line, staged", listOf(constance, worldBNegCrit), false)
+            )) {
+                var last: SolverResult<BuildCombination>? = null
+                WakfuBuildSolver.optimize(mdP, mdPool, emptyList(), subs, tuning).collect { last = it }
+                val exact = requireNotNull(last)
+                val optimum = requireNotNull(exact.maxDamageObjective)
+                val carried =
+                    exact.individual.sublimations.values
+                        .flatten()
+                        .map { it.name.fr }
+                val reads = listOf("plain" to MaxDamageSoftCertificate.bound(mdP, mdPool, emptyList(), subs, blockGate = false), "banded" to mdSoftBanded(mdP, mdPool, subs))
+                println("LATENT_NEG_LOW $label optimum=$optimum optimal=${exact.isOptimal} carried=$carried ${reads.joinToString { (s, r) -> "$s=${r?.foldedBound}" }}")
+                assertThat(exact.isOptimal).isTrue()
+                assertThat(carried).describedAs("$label: the optimum carries every fixture sub").containsExactlyInAnyOrderElementsOf(subs.map { it.name.fr })
+                for ((setting, read) in reads) {
+                    if (read != null && read.foldedBound < optimum) failures += "UNDER-COUNT $label $setting: ${read.foldedBound} < optimum $optimum"
+                    if (bails && read != null) failures += "$label $setting: no bail"
+                    if (!bails && read == null) failures += "$label $setting: an unexpected bail"
+                }
+            }
+            assertThat(failures).describedAs("SOUNDNESS — a never-staged sub's negative capped-stat line").isEmpty()
+        }
+
+    /**
+     * Latent (review follow-up, CERTIFIER_VERSION 51): the solver folds MAX_ACTION_POINT / MAX_MOVEMENT_POINT lines into AP
+     * / MP (`valueFor`, `foldedToUsableStat`), but the most-masteries certificate reads the plain AP / MP lines only
+     * (`statOf`, the sub staging, `reachableMax`) and its max-damage soft twin keeps at most a NEGATIVE rider. Every
+     * MAX_* line in the data is −1 (an over-count there); a POSITIVE one is under-counted: an item's +2 MAX_AP meets an AP 9
+     * target (6 base + 2 + the Major point) the certificate read at 7, an item's +2 MAX_MP an MP 6 target (3 + 2 + the
+     * Major point) read at 4, a sub's +2 MAX_AP the AP 9 target again, and on the soft twin an item's +4 MAX_AP the spell
+     * throughput's AP. v51 bails all four (on 9a698f2d every bound sat under its pinned CP-SAT optimum).
+     */
+    @Test
+    fun `latent - a positive MAX_ACTION_POINT or MAX_MOVEMENT_POINT rider bails`(): Unit =
+        kotlinx.coroutines.runBlocking {
+            val dist = Characteristic.MASTERY_DISTANCE
+
+            fun twoItems(
+                first: ItemType,
+                firstStats: Map<Characteristic, Int>,
+                second: ItemType,
+                mastery: Characteristic = dist,
+            ) = listOf(item(1, first, stats = firstStats), item(2, second, stats = mapOf(mastery to 500))).groupBy { it.itemType }
+            val apRiderSub =
+                synthSub(99_301, SublimationRarity.NORMAL, null, listOf(SublimationEffect.Flat(Characteristic.MAX_ACTION_POINT, 2, appliesBeforeCombat = true)))
+            val ap9 = mmParams(listOf(TargetStat(dist, 9999), TargetStat(Characteristic.ACTION_POINT, 9)))
+            val mp6 = mmParams(listOf(TargetStat(dist, 9999), TargetStat(Characteristic.MOVEMENT_POINT, 6)))
+
+            class Case(
+                val label: String,
+                val params: WakfuBestBuildParams,
+                val pool: Map<ItemType, List<Equipment>>,
+                val subs: List<Sublimation>,
+            )
+            val failures = mutableListOf<String>()
+            for (c in listOf(
+                Case("MM item +2 MAX_AP", ap9, twoItems(ItemType.HELMET, mapOf(dist to 1000, Characteristic.MAX_ACTION_POINT to 2), ItemType.BOOTS), emptyList()),
+                Case("MM item +2 MAX_MP", mp6, twoItems(ItemType.BOOTS, mapOf(dist to 1000, Characteristic.MAX_MOVEMENT_POINT to 2), ItemType.HELMET), emptyList()),
+                Case("MM sub +2 MAX_AP", ap9, twoItems(ItemType.HELMET, mapOf(dist to 1000), ItemType.BOOTS), listOf(apRiderSub))
+            )) {
+                val soft = requireNotNull(pinnedSoft(c.params, c.pool, c.subs))
+                val hard = requireNotNull(pinnedSoft(c.params, c.pool, c.subs, hard = true))
+                val bound = MostMasteriesCertificate.bound(c.params, c.pool, emptyList(), c.subs)
+                // The target is reachable only through the rider (6 + 1 AP / 3 + 1 MP without it), so the proven hard leg
+                // — the target enforced — carries it.
+                val riderCarried =
+                    hard.individual.equipments.any { e -> e.characteristics.keys.any { it == Characteristic.MAX_ACTION_POINT || it == Characteristic.MAX_MOVEMENT_POINT } } ||
+                        hard.individual.sublimations.values
+                            .flatten()
+                            .any { it.stateId == apRiderSub.stateId }
+                println(
+                    "LATENT_MAX_RIDER ${c.label} soft=${soft.mostMasteriesObjective} hard=${hard.mostMasteriesObjective} riderCarried=$riderCarried " +
+                        "boundSoft=${bound?.foldedBound} boundHard=${bound?.hardFoldedBound}"
+                )
+                assertThat(soft.isOptimal && hard.isOptimal && !hard.greedyWarmStartEmission).describedAs("${c.label}: both legs proven").isTrue()
+                assertThat(riderCarried).describedAs("${c.label}: the target-meeting build carries the rider").isTrue()
+                if (bound != null) {
+                    val softUp = bound.comparableUpper(hardLeg = false, hasRequiredTargets = true)
+                    val hardUp = bound.comparableUpper(hardLeg = true, hasRequiredTargets = true)
+                    if (softUp < requireNotNull(soft.mostMasteriesObjective)) failures += "UNDER-COUNT ${c.label} soft: $softUp < ${soft.mostMasteriesObjective}"
+                    if (hardUp < requireNotNull(hard.mostMasteriesObjective)) failures += "UNDER-COUNT ${c.label} targets-met: $hardUp < ${hard.mostMasteriesObjective}"
+                    failures += "${c.label}: no bail"
+                }
+            }
+            // The soft twin: a +4 MAX_AP item lifts the throughput AP from 7 (base 6 + the Major point) to 11.
+            val mdP = mdSoftParams(listOf(TargetStat(Characteristic.HP, 500)))
+            val fire = Characteristic.MASTERY_ELEMENTARY_FIRE
+            val mdPool = twoItems(ItemType.HELMET, mapOf(fire to 1000, Characteristic.MAX_ACTION_POINT to 4), ItemType.BOOTS, mastery = fire)
+            var last: SolverResult<BuildCombination>? = null
+            WakfuBuildSolver.optimize(mdP, mdPool, emptyList(), emptyList(), tuning).collect { last = it }
+            val exact = requireNotNull(last)
+            val optimum = requireNotNull(exact.maxDamageObjective)
+            val reads =
+                listOf(
+                    "plain" to MaxDamageSoftCertificate.bound(mdP, mdPool, emptyList(), emptyList(), blockGate = false),
+                    "banded" to mdSoftBanded(mdP, mdPool, emptyList())
+                )
+            println("LATENT_MAX_RIDER MD-soft item +4 MAX_AP optimum=$optimum optimal=${exact.isOptimal} ${reads.joinToString { (s, r) -> "$s=${r?.foldedBound}" }}")
+            assertThat(exact.isOptimal).isTrue()
+            for ((setting, read) in reads) {
+                if (read != null && read.foldedBound < optimum) failures += "UNDER-COUNT MD-soft $setting: ${read.foldedBound} < optimum $optimum"
+                if (read != null) failures += "MD-soft $setting: no bail"
+            }
+            assertThat(failures).describedAs("SOUNDNESS — a positive MAX_* AP / MP rider").isEmpty()
+        }
+
+    /**
+     * Latent (review follow-up, CERTIFIER_VERSION 51): the max-damage AP-cell certifier's secondary-capped world N prices a
+     * whole FLAT sub as a READ source, its ramp included — but a ramp lands in the final sheet only, outside the
+     * first-turn read Neutralité's `secondary masteries ≤ 0` checks. A synthetic ramp into distance mastery (+1 000 once
+     * HP ≥ 1 000 — always, at level 200) beside Neutralité III was valued `pos(d) − d = 0` there: the free optimum
+     * carrying both (24 DI AND the ramp's mastery, read 0 ≤ 0) sat above every world. No shipped ramp targets a mastery
+     * (Poids Plume III: MP → DI): v51 bails world N on that shape, so the whole ledger bails (on 9a698f2d its max sat
+     * under the free optimum).
+     */
+    @Test
+    fun `latent - a FLAT ramp into a secondary mastery bails the secondary-capped world N`() {
+        val neutralite = WakfuBestBuildFinderAlgorithm.sublimations.single { it.name.fr == "Neutralité III" }
+        val ramp =
+            synthSub(
+                99_401,
+                SublimationRarity.NORMAL,
+                null,
+                listOf(SublimationEffect.PerStatStep(Characteristic.HP, 0, 1, 1000, Characteristic.MASTERY_DISTANCE))
+            )
+        val fire = Characteristic.MASTERY_ELEMENTARY_FIRE
+        // Two 3-socket carriers: one per normal sub.
+        val pool =
+            listOf(
+                item(1, ItemType.HELMET, stats = mapOf(fire to 3000)),
+                item(2, ItemType.BOOTS, stats = mapOf(fire to 3000))
+            ).groupBy { it.itemType }
+        val params = mdSoftParams(emptyList())
+        val subs = listOf(neutralite, ramp)
+        val truth =
+            WakfuBuildSolver.timedMaxDamageProfileForTest(params, pool, emptyList(), subs, workers = 1, seconds = 30.0, applyDomination = false, deterministicLimit = 10.0)
+        val ledger = WakfuBuildSolver.certifyLedgerForTest(params, pool, emptyList(), subs, applyDomination = false, forceTier2All = true)
+        println(
+            "LATENT_WORLD_N_RAMP free=${truth.rawObjective} status=${truth.status} carried=${truth.selectedSublimationStateIds} " +
+                "ledgerMax=${ledger.maxCellObjective} bailedCells=${ledger.bailedCells.size}"
+        )
+        assertThat(truth.status).isEqualTo("OPTIMAL")
+        assertThat(truth.selectedSublimationStateIds).describedAs("the free optimum carries Neutralité III AND the ramp").contains(neutralite.stateId, ramp.stateId)
+        val failures = mutableListOf<String>()
+        ledger.maxCellObjective?.let { max ->
+            if (max < truth.rawObjective) failures += "UNDER-COUNT ledger max $max < free optimum ${truth.rawObjective}"
+            failures += "world N did not bail (ledger max $max)"
+        }
+        assertThat(failures).describedAs("SOUNDNESS — a FLAT ramp into a secondary mastery in world N").isEmpty()
+    }
+
+    /**
+     * The CERTIFIER_VERSION 51 latent-shape bails never fire on the shipped catalog — no badge is lost: no item carries a
+     * positive MAX_ACTION_POINT / MAX_MOVEMENT_POINT line; no choosable sub a positive one, nor (a cap sub or an objective
+     * capper) a negative crit / AP / MAX_ACTION_POINT line, nor (FLAT) a ramp into a secondary mastery; and the
+     * most-masteries request gate ([MostMasteriesCertificate.supportsRequest], which runs the request-level bails) accepts
+     * every requestable mastery at every level band beside the full catalog's cap subs. A data refresh that trips one is
+     * named here — count that shape properly then.
+     */
+    @Test
+    fun `latent-shape bails never fire on the shipped catalog`() {
+        val riders = setOf(Characteristic.MAX_ACTION_POINT, Characteristic.MAX_MOVEMENT_POINT)
+        val capTypes =
+            setOf(
+                SublimationConditionType.AP_AT_MOST,
+                SublimationConditionType.AP_EXACT,
+                SublimationConditionType.CRIT_AT_MOST,
+                SublimationConditionType.SECONDARY_MASTERIES_AT_MOST,
+                SublimationConditionType.CRITICAL_MASTERY_AT_MOST
+            )
+        val levels = listOf(20, 50, 110, 170, 200, 245)
+        val findings = mutableListOf<String>()
+        for (e in WakfuBestBuildFinderAlgorithm.equipments) {
+            for (r in riders) if ((e.characteristics[r] ?: 0) > 0) findings += "item ${e.name.fr} (${e.equipmentId}): ${e.characteristics[r]} $r"
+        }
+        val choosable = WakfuBestBuildFinderAlgorithm.sublimations.filter { it.solverChoosable }
+        for (sub in choosable) {
+            for (eff in sub.effects) {
+                when (eff) {
+                    is SublimationEffect.StatEffect ->
+                        for (level in levels) {
+                            val v = eff.magnitudeAtLevel(level)
+                            if (eff.characteristic in riders && v > 0) findings += "sub ${sub.name.fr}: +$v ${eff.characteristic} at level $level"
+                            if (sub.condition?.type in capTypes &&
+                                eff.characteristic.foldedToUsableStat() in setOf(Characteristic.CRITICAL_HIT, Characteristic.ACTION_POINT) &&
+                                v < 0
+                            ) {
+                                findings += "capping sub ${sub.name.fr}: $v ${eff.characteristic} at level $level"
+                            }
+                        }
+                    is SublimationEffect.PerStatStep ->
+                        if (sub.kind == SublimationKind.FLAT && eff.target.foldedToUsableStat() in me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS) {
+                            findings += "FLAT sub ${sub.name.fr}: a ramp into ${eff.target}"
+                        }
+                    else -> {}
+                }
+            }
+        }
+        for (level in levels) {
+            for (mastery in listOf(
+                Characteristic.MASTERY_DISTANCE,
+                Characteristic.MASTERY_MELEE,
+                Characteristic.MASTERY_CRITICAL,
+                Characteristic.MASTERY_BACK,
+                Characteristic.MASTERY_BERSERK,
+                Characteristic.MASTERY_HEALING
+            )) {
+                val p = mmParams(listOf(TargetStat(mastery, 9999), TargetStat(Characteristic.ACTION_POINT, 11), TargetStat(Characteristic.CRITICAL_HIT, 30)), level = level)
+                if (!MostMasteriesCertificate.supportsRequest(p, WakfuBestBuildFinderAlgorithm.sublimations)) findings += "MM request gate: level $level, $mastery"
+            }
+        }
+        println(
+            "LATENT_CATALOG items=${WakfuBestBuildFinderAlgorithm.equipments.size} choosableSubs=${choosable.size} " +
+                "capOrCapperSubs=${choosable.count { it.condition?.type in capTypes }} findings=${findings.size}"
+        )
+        assertThat(findings).describedAs("a CERTIFIER_VERSION 51 latent-shape bail fires on the shipped catalog").isEmpty()
+    }
+
     // ------------------------------------------------------------------------------------------------------------
     // MM FUZZ (manual): seeded random pools × real choosable subs × random targets; pinned CP-SAT soft + hard legs
     //   WAKFU_REVIEW_MM_FUZZ=<cases> [WAKFU_REVIEW_MM_SEED0=<seed>] [WAKFU_REVIEW_MM_NO_NEG_CC=1]
@@ -722,7 +1125,16 @@ class SoundnessReviewAdversarialTest {
     ): MdCase {
         val rng = java.util.Random(seed)
         val level = listOf(50, 110, 170, 230)[rng.nextInt(4)]
-        val element = me.chosante.autobuilder.domain.SpellElement.entries[rng.nextInt(4)]
+        // Among the class's PLAYABLE elements: CRA casts no WATER spell, so a WATER draw (a quarter of the seeds) made the
+        // objective the constant 0 and the seed silently bailed. An unplayable draw is remapped onto a playable element —
+        // same single RNG draw, so a seed that drew a playable element keeps its exact case (the CI locks' seeds included).
+        val playable =
+            SpellCatalog.playableElements(CharacterClass.CRA).map {
+                me.chosante.autobuilder.domain.SpellElement
+                    .valueOf(it.name)
+            }
+        val drawnElement = me.chosante.autobuilder.domain.SpellElement.entries[rng.nextInt(4)]
+        val element = if (drawnElement in playable) drawnElement else playable[drawnElement.ordinal % playable.size]
         val range = if (rng.nextBoolean()) me.chosante.autobuilder.domain.RangeBand.DISTANCE else me.chosante.autobuilder.domain.RangeBand.MELEE
         val orientation = if (rng.nextInt(3) == 0) me.chosante.autobuilder.domain.Orientation.BACK else me.chosante.autobuilder.domain.Orientation.FACE
         val berserk = rng.nextInt(4) == 0
@@ -1100,6 +1512,12 @@ class SoundnessReviewAdversarialTest {
      * crosses the clamp stage, and the clamp actually rewrites frontiers (else this lock is vacuous). Fixtures: a micro
      * pool whose MP gear overshoots the saturation (items up to +9 MP, Major point +1) with Vélocité II (+1 MP) and
      * Armure lourde II (−1 max MP) moving the axis after the clamp, and the B1 fuzz seed 9009 with Poids Plume forced.
+     * Third fixture (review follow-up, CERTIFIER_VERSION 51) — the clamp's LATER-DEBIT headroom: the best items alone
+     * carry +9 MP, past the saturation (8) plus Armure lourde II's debit, so every cell's optimum takes Armure lourde II's
+     * +10 DI with the ramp still saturated after its −1. A clamp without the debit term (`saturatedFrom − mpFreeMax`)
+     * rewrote those points one MP too low and the debit then cost the ramp a step; the first two fixtures stayed green
+     * under that mutation (their optima never pay the debit from saturated MP), this one does not. CP-SAT alone cannot
+     * see the gap — it caps the pre-sub MP at 8 — so the clamp-off DP is the reference.
      */
     @Test
     fun `B1 lock - the MP saturation clamp is value- and provenance-identical to the unclamped DP`() {
@@ -1138,7 +1556,19 @@ class SoundnessReviewAdversarialTest {
             )
         val microSubs = listOf("Poids Plume III", "Vélocité II", "Armure lourde II").map { n -> catalog.single { it.name.fr == n } }
         val seeded = mdFuzzCase(9009L, forcePoidsPlume = true)
-        val fixtures = listOf(Triple(microParams, micro, microSubs), Triple(seeded.params, seeded.pool, seeded.subs))
+        val debitHeadroom =
+            listOf(
+                item(21, ItemType.HELMET, stats = mapOf(fire to 900, mp to 3)),
+                item(22, ItemType.BOOTS, stats = mapOf(fire to 900, mp to 3)),
+                item(23, ItemType.CAPE, stats = mapOf(fire to 900, mp to 3))
+            ).groupBy { it.itemType }
+        val debitSubs = listOf("Poids Plume III", "Armure lourde II").map { n -> catalog.single { it.name.fr == n } }
+        val fixtures =
+            listOf(
+                Triple(microParams, micro, microSubs),
+                Triple(seeded.params, seeded.pool, seeded.subs),
+                Triple(microParams, debitHeadroom, debitSubs)
+            )
         try {
             for ((i, fixture) in fixtures.withIndex()) {
                 val (params, pool, subs) = fixture
@@ -1157,10 +1587,10 @@ class SoundnessReviewAdversarialTest {
                 val off = certify(clamp = false)
                 val rewritesBefore = CertifierTuning.mpClampRewritesForTest.get()
                 val on = certify(clamp = true)
-                // The micro pool overshoots the saturation by design: there the clamp must rewrite frontiers (non-vacuous).
-                if (i == 0) {
+                // The micro pools overshoot the saturation by design: there the clamp must rewrite frontiers (non-vacuous).
+                if (i != 1) {
                     assertThat(CertifierTuning.mpClampRewritesForTest.get() - rewritesBefore)
-                        .describedAs("the clamp rewrites frontiers on the micro pool (else this lock is vacuous)")
+                        .describedAs("fixture $i: the clamp rewrites frontiers on the micro pool (else this lock is vacuous)")
                         .isGreaterThan(0L)
                 }
                 assertThat(on.first).describedAs("fixture $i: (exact, fast, tier-1.5) maps identical with the clamp").isEqualTo(off.first)
@@ -1175,6 +1605,11 @@ class SoundnessReviewAdversarialTest {
                     val explain = WakfuBuildSolver.certifierExplainForTest(params, pool, runes, subs, applyDomination = false, cell = argmax)
                     println("B1_CLAMP fixture=$i argmax=$argmax ${explain.joinToString(" | ")}")
                     assertThat(explain).describedAs("fixture $i: the provenance backtrack crosses the clamp").noneMatch { "???" in it }
+                    if (i == 2) {
+                        assertThat(explain)
+                            .describedAs("fixture 2: the best cell's optimum pays Armure lourde II's debit from saturated MP")
+                            .anyMatch { "Heavy Armor II" in it }
+                    }
                 }
             }
         } finally {

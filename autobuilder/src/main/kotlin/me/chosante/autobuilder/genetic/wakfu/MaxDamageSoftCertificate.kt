@@ -62,7 +62,9 @@ import kotlin.math.ceil
  *    tighter weights — banked as a follow-up seam).
  *
  * Bails (null): multi-element/boss scenarios, survivability floor, AP-pinned probes, forced
- * items/runes/subs/passives, a required target outside {AP, MP, CC, HP}.
+ * items/runes/subs/passives, a required target outside {AP, MP, CC, HP}, a cap sub's own negative
+ * capped-stat line and a positive MAX_ACTION_POINT / MAX_MOVEMENT_POINT line on an item or a sub
+ * (CERTIFIER_VERSION 51: shapes no shipped data reaches, each an under-count).
  */
 internal object MaxDamageSoftCertificate {
     private val SUPPORTED_TARGETS =
@@ -211,7 +213,6 @@ internal object MaxDamageSoftCertificate {
         val relic: Boolean = false,
         val requiresEpicItem: Boolean = false,
         val requiresRelicItem: Boolean = false,
-        val mpCapMinus: Int = 0,
         val block: Int = 0,
         val requiresBlockAtLeast: Int = 0,
         // ASSUME-world LOW semantics (signed, floor/raw) — see the MM certificate's A#1 fix.
@@ -247,7 +248,6 @@ internal object MaxDamageSoftCertificate {
                 relic == o.relic &&
                 requiresEpicItem == o.requiresEpicItem &&
                 requiresRelicItem == o.requiresRelicItem &&
-                mpCapMinus == o.mpCapMinus &&
                 ramp == o.ramp &&
                 conditional == o.conditional &&
                 block >= o.block &&
@@ -265,12 +265,16 @@ internal object MaxDamageSoftCertificate {
         return distinct.filter { o -> distinct.none { other -> other !== o && other.dominates(o) && !o.dominates(other) } }
     }
 
-    /** One provenance-log entry: a stage's label, its pre-stage states, its options and the LOW-dim offset it ran under. */
+    /**
+     * One provenance-log entry: a stage's label, its pre-stage states (logged AFTER the stage's LOW-offset shift), its
+     * options, the LOW-dim offset it ran under and the [shift] it opened it by (the replay undoes it).
+     */
     private data class StageRecord(
         val label: String,
         val preMap: HashMap<Long, Long>,
         val options: List<Opt>,
         val lowOff: Int,
+        val shift: Int,
     )
 
     private class Geometry(
@@ -301,9 +305,10 @@ internal object MaxDamageSoftCertificate {
                 secBucketCap <= 0x7 &&
                 negBucketCap <= 0x7
 
-        // Packed key: lowExt(2b @61) negB(3b @53) sec(3b @50) conditional(1b @49) block(4b @45) ramp(1b @44) mpMinus(1b @43)
+        // Packed key: lowExt(2b @61) negB(3b @53) sec(3b @50) conditional(1b @49) block(4b @45) ramp(1b @44)
         //             d(13b @28) ap(5b @23) mp(5b @18) cc(7b @11) hp(9b @2) e(1b @1) r(1b @0)
-        // (lowExt: the assume worlds' LOW dim high bits — see [lowOff].)
+        // (lowExt: the assume worlds' LOW dim high bits — see [lowOff]. Bit 43 is spare: it held a lowered-MP-cap flag no
+        // option ever set, removed in CERTIFIER_VERSION 51 — the keys are unchanged.)
         fun key(
             d: Int,
             ap: Int,
@@ -312,7 +317,6 @@ internal object MaxDamageSoftCertificate {
             hp: Int,
             e: Int,
             r: Int,
-            mpMinus: Int = 0,
             ramp: Int = 0,
             block: Int = 0,
             conditional: Int = 0,
@@ -320,7 +324,7 @@ internal object MaxDamageSoftCertificate {
             negB: Int = 0,
         ): Long =
             (negB.toLong() shl 53) or (sec.toLong() shl 50) or
-                (conditional.toLong() shl 49) or (block.toLong() shl 45) or (ramp.toLong() shl 44) or (mpMinus.toLong() shl 43) or
+                (conditional.toLong() shl 49) or (block.toLong() shl 45) or (ramp.toLong() shl 44) or
                 (d.toLong() shl 28) or (ap.toLong() shl 23) or (mp.toLong() shl 18) or
                 (cc.toLong() shl 11) or (hp.toLong() shl 2) or (e.toLong() shl 1) or r.toLong()
 
@@ -338,8 +342,6 @@ internal object MaxDamageSoftCertificate {
 
         fun r(k: Long): Int = (k and 1L).toInt()
 
-        fun mpMinus(k: Long): Int = ((k shr 43) and 1L).toInt()
-
         fun ramp(k: Long): Int = ((k shr 44) and 1L).toInt()
 
         fun block(k: Long): Int = ((k shr 45) and 0xF).toInt()
@@ -349,8 +351,6 @@ internal object MaxDamageSoftCertificate {
         fun sec(k: Long): Int = ((k shr 50) and 0x7).toInt()
 
         fun negB(k: Long): Int = ((k shr 53) and 0x7).toInt()
-
-        fun mpCapOf(mpMinus: Int): Int = (mpCap - mpMinus).coerceAtLeast(0)
 
         // A1 fix (CERTIFIER_VERSION 50, twin of MostMasteriesCertificate's) — the assume world's LOW dim is stored
         // OFFSET: `dim = LOW read + lowOff`. The real pre-combat read can go NEGATIVE (the solver floors the pre-sub
@@ -408,7 +408,7 @@ internal object MaxDamageSoftCertificate {
             k: Long,
             newMp: Int,
         ): Long =
-            key(d(k), ap(k), newMp, cc(k), hp(k), e(k), r(k), mpMinus(k), ramp(k), block(k), conditional(k), sec(k), negB(k)) or
+            key(d(k), ap(k), newMp, cc(k), hp(k), e(k), r(k), ramp(k), block(k), conditional(k), sec(k), negB(k)) or
                 // A1: the LOW dim's extension bits ride along unchanged.
                 (k and (3L shl 61))
     }
@@ -428,7 +428,6 @@ internal object MaxDamageSoftCertificate {
         if (o.relic && r == 1) return null
         if (o.requiresEpicItem && e == 0) return null
         if (o.requiresRelicItem && r == 0) return null
-        val newMpMinus = (mpMinus(k) + o.mpCapMinus).coerceAtMost(1)
         // A1: the LOW dim (offset, extended field — see [Geometry.lowOff]); its base bits ride the AP / CC field below.
         val newLow =
             when {
@@ -450,19 +449,17 @@ internal object MaxDamageSoftCertificate {
                 (cc(k) + ceilDiv(o.cc, ccStep)).coerceAtMost(ccBucketCap)
             }
         if (o.requiresBlockAtLeast > 0 && block(k) * BLOCK_STEP < o.requiresBlockAtLeast) return null
-        val mpEff = mpCapOf(newMpMinus)
         val flatHpBuckets = hp(k) + ceilDiv(o.hp, hpStep)
         val hpBuckets = if (o.hpPct > 0) ceilDiv(flatHpBuckets * (100 + o.hpPct), 100) else flatHpBuckets
         val packed =
             key(
                 (d(k) + ceilDiv(o.d, diStep)).coerceAtMost(diBucketCap),
                 newAp,
-                (mp(k) + o.mp).coerceIn(0, mpEff),
+                (mp(k) + o.mp).coerceIn(0, mpCap),
                 newCcBuckets,
                 hpBuckets.coerceAtMost(hpBucketCap),
                 if (o.epic) 1 else e,
                 if (o.relic) 1 else r,
-                newMpMinus,
                 if (o.ramp) 1 else ramp(k),
                 (block(k) + ceilDiv(o.block, BLOCK_STEP)).coerceAtMost(blockBucketCap),
                 if (o.conditional) 1 else conditional(k),
@@ -727,6 +724,41 @@ internal object MaxDamageSoftCertificate {
         // epic item. A NORMAL/RELIC cap sub (a future game-data refresh) would break both silently
         // — bail instead of under-counting.
         if (capSubs.any { it.rarity != SublimationRarity.EPIC }) return null
+        // Review follow-up (CERTIFIER_VERSION 51, the MM certificate's twin): the ASSUMED cap sub never feeds its own
+        // world's LOW dim (credited at the collapse only — `assumedOpt`), while the solver's pre-combat read carries its
+        // permanent lines, its own condition's read included (`buildPermanentSubTerms`). A NEGATIVE line on its capped
+        // stat would reject a real carrier in its own world (A1's over-rejection). None exists today: bail. The objective
+        // cappers need no such bail: every arm covering them (secZero, critZero, the assume worlds' capFree) STAGES them,
+        // so their negative lines feed the LOW dims like any staged sub's.
+        if (capSubs.any { sub ->
+                val capped = capStatOf(sub)
+                sub.effects.any { it is SublimationEffect.StatEffect && it.characteristic.foldedToUsableStat() == capped && it.magnitudeAtLevel(level) < 0 }
+            }
+        ) {
+            return null
+        }
+
+        // Review follow-up (CERTIFIER_VERSION 51, the MM certificate's twin): a POSITIVE MAX_ACTION_POINT /
+        // MAX_MOVEMENT_POINT line folds into AP / MP in the solver (`valueFor`, `foldedToUsableStat`), but the AP / MP
+        // reads here ([itemAp], the item MP option, the sub staging, [reachableMax]) keep at most a NEGATIVE rider — an
+        // under-count of the throughput AP, the MP ramp and the AP / MP targets. Every MAX_* line in the data is
+        // negative today: bail on a positive one.
+        fun positiveApMpRider(
+            c: Characteristic,
+            value: Int,
+        ): Boolean = value > 0 && (c == Characteristic.MAX_ACTION_POINT || c == Characteristic.MAX_MOVEMENT_POINT)
+        if (pool.values.any { items -> items.any { e -> e.characteristics.any { (c, v) -> positiveApMpRider(c, v) } } } ||
+            (
+                params.useSublimations &&
+                    "noSubs" !in diag &&
+                    sublimations.any { sub ->
+                        sub.solverChoosable &&
+                            sub.effects.any { it is SublimationEffect.StatEffect && positiveApMpRider(it.characteristic, it.magnitudeAtLevel(level)) }
+                    }
+            )
+        ) {
+            return null
+        }
         // The Neutralité-family budget caps (world B / secZero arm) assume every POSITIVE secondary
         // line sits inside the condition's FIRST-TURN read (pre-combat + start-of-combat lines of
         // unconditional FLAT subs). A line outside it — a conditional sub's start-of-combat
@@ -1460,6 +1492,7 @@ internal object MaxDamageSoftCertificate {
                 return
             }
             // A1: open the LOW-dim offset by this stage's worst negative delta FIRST, so no transition floors the dim.
+            var shift = 0
             if (geo.lowFieldMax > 0) {
                 val worst = options.minOfOrNull { if (geo.assumeApThreshold >= 0) it.apLow else it.ccLowRaw } ?: 0
                 if (worst < 0) {
@@ -1469,12 +1502,13 @@ internal object MaxDamageSoftCertificate {
                         states = HashMap()
                         return
                     }
+                    shift = -worst
                     val shifted = HashMap<Long, Long>(states.size * 2)
-                    for ((k, v) in states) shifted[geo.shiftLow(k, -worst)] = v
+                    for ((k, v) in states) shifted[geo.shiftLow(k, shift)] = v
                     states = shifted
                 }
             }
-            stageLog?.add(StageRecord(label, HashMap(states), options, geo.lowOff))
+            stageLog?.add(StageRecord(label, HashMap(states), options, geo.lowOff, shift))
             val stageT0 = System.nanoTime()
             states = geo.apply(states, options, ccSupportLambda)
             if (debug) {
@@ -2288,7 +2322,6 @@ internal object MaxDamageSoftCertificate {
                 }
                 val entersNormalPacking =
                     sub.rarity == SublimationRarity.NORMAL &&
-                        opt.mpCapMinus == 0 &&
                         (!opt.ramp || (exactNormalSubPacking && stateDependentMpRamp)) &&
                         opt.requiresBlockAtLeast == 0
                 if (opt.d < 0 && !(exactNormalSubPacking && entersNormalPacking)) opt = opt.copy(d = 0)
@@ -2320,7 +2353,6 @@ internal object MaxDamageSoftCertificate {
                     subOpts
                         .filter {
                             it.rarity == rarity &&
-                                it.opt.mpCapMinus == 0 &&
                                 (!it.opt.ramp || (exactNormalSubPacking && stateDependentMpRamp)) &&
                                 it.opt.requiresBlockAtLeast == 0
                         }.map { it.opt }
@@ -2489,8 +2521,7 @@ internal object MaxDamageSoftCertificate {
             for (flagged in subOpts.filter {
                 it.rarity == SublimationRarity.NORMAL &&
                     (
-                        it.opt.mpCapMinus != 0 ||
-                            (it.opt.ramp && !(exactNormalSubPacking && stateDependentMpRamp)) ||
+                        (it.opt.ramp && !(exactNormalSubPacking && stateDependentMpRamp)) ||
                             it.opt.requiresBlockAtLeast != 0
                     )
             }) {
@@ -2946,7 +2977,7 @@ internal object MaxDamageSoftCertificate {
             var curW = bindingW
             var work = 0L
             val workCap = 500_000_000L
-            reconstruct@ for ((label, preMap, options, stageLowOff) in stageLog.reversed()) {
+            reconstruct@ for ((label, preMap, options, stageLowOff, stageShift) in stageLog.reversed()) {
                 geo.lowOff = stageLowOff
                 val byW = HashMap<Long, MutableList<Long>>(preMap.size)
                 for ((pk, pw) in preMap) byW.getOrPut(pw) { mutableListOf() }.add(pk)
@@ -2962,7 +2993,10 @@ internal object MaxDamageSoftCertificate {
                                     "$label: ${o.src.ifEmpty { "opt" }} " +
                                     "(w=${o.w} d=${o.d} ap=${o.ap} mp=${o.mp} cc=${o.cc} hp=${o.hp} hpPct=${o.hpPct})"
                             }
-                            curK = pk
+                            // The pre-stage map was logged AFTER the stage's LOW-offset shift: undo it, so the key is the
+                            // one the previous stage produced (review follow-up — the backtrack broke after the first
+                            // stage whose offset grew).
+                            curK = if (stageShift != 0) geo.shiftLow(pk, -stageShift) else pk
                             curW -= supportArc
                             found = true
                             break@outer

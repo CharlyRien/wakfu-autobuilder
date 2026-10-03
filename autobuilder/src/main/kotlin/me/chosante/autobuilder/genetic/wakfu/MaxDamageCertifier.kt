@@ -1851,6 +1851,19 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     ) {
         return Long.MAX_VALUE
     }
+    // Review follow-up (CERTIFIER_VERSION 51): the FLAT valuation below prices a whole FLAT sub as a READ source, but a
+    // RAMP ([SublimationEffect.PerStatStep]) — [perSubValue] folds its gated var into the sub — lands in the final sheet
+    // only, OUTSIDE the first-turn read. A ramp into a secondary mastery would be subtracted from the budget relief it
+    // never paid into (`capRead(0, d, k, o) = −o` where the unread credit is `pos(d) + pos(k)`): an under-count. No ramp
+    // targets a mastery today (Poids Plume III: MP → DI) — bail if one ever does.
+    if (capCats != null &&
+        subModel.subVars.keys.any { s ->
+            s.kind == SublimationKind.FLAT &&
+                s.effects.any { it is SublimationEffect.PerStatStep && it.target.foldedToUsableStat() in SECONDARY_MASTERY_CHARACTERISTICS }
+        }
+    ) {
+        return Long.MAX_VALUE
+    }
     val capElemental = capCats?.let { dropMoved(it.elemental) }.orEmpty()
     val capScenarioSecondary = capCats?.let { dropMoved(it.scenarioSecondary) }.orEmpty()
     val capOtherSecondary = capCats?.let { dropMoved(it.otherSecondary) }.orEmpty()

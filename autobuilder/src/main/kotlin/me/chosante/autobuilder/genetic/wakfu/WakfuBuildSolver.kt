@@ -324,8 +324,17 @@ object WakfuBuildSolver {
      * stage's worst negative delta (seed, items, knapsack and sub stages alike), so no transition floors them; the field
      * takes the key's 2 spare bits @61 (AP 7 bits, raw CC 9 bits — the level-245 catalog needs 118 + 51 ≤ 511) and a
      * world whose offset still outgrows it bails. Bounds only rise (S2 / S3 / GUI-default bit-identical).
+     * 51: the A1 / B1 review follow-ups (`docs/perf-review-backlog.md` §E) — bails on shapes no shipped item or sub
+     * reaches, each of which would under-count: in the most-masteries certificate a NEGATIVE capped-stat line (crit,
+     * AP / MAX_ACTION_POINT) on a cap sub or a world-B sub (never staged into an assume world's LOW dim, yet in the
+     * solver's pre-combat read), and a POSITIVE MAX_ACTION_POINT / MAX_MOVEMENT_POINT line on an item or a sub (no AP /
+     * MP read folds it); in the max-damage soft twin the assumed cap sub's own negative capped-stat line (its world-B
+     * cappers are staged, no bail needed) and the same positive MAX_* riders; in the AP-cell certifier's secondary-capped
+     * world N a FLAT sub's ramp into a secondary mastery (priced as a read source). Plus the MM / soft provenance replay
+     * undoing each stage's LOW-offset shift (instrument only) and the soft certificate's never-set `mpCapMinus` removed.
+     * Bounds bit-identical (S2 / S3 locked).
      */
-    const val CERTIFIER_VERSION: Int = 50
+    const val CERTIFIER_VERSION: Int = 51
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
