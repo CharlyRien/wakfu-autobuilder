@@ -22,4 +22,7 @@ it is imported below so both files stay in sync.
   i18n is the hand-written `Tr` enum in `gui-compose/.../i18n/I18n.kt` (EN/FR); there is **no**
   generated i18n code. `docs/design-reference/` is the visual source of truth.
 - **Run `./gradlew ktlintFormat`** before finishing a change; CI style is strict.
+- **Release notes.** Every feat/fix/perf change adds a `changes/unreleased/` note in EN + FR
+  (`<slug>.properties`: `type`, `en`, `fr`; see CONTRIBUTING.md › Release notes). CI fails a PR
+  without one; the `no-changeset` label (maintainer) waives internal-only changes.
 - Don't commit/push unless asked; this repo's default branch is `main`.
