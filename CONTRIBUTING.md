@@ -39,6 +39,58 @@ build resolves Compose Desktop + the native OR-Tools library and is slow.
 - **Commits:** each commit should be a real feature or fix; fold incidental chores (warning/lint fixes,
   deprecations) into the related commit rather than standalone `chore:` commits. Don't commit/push unless
   asked; the default branch is `main`.
+- **Release notes:** every `feat:` / `fix:` / `perf:` change adds a player-facing note in EN + FR under
+  `changes/unreleased/` — see [Release notes](#release-notes). CI checks it on every pull request.
+
+## Release notes
+
+`CHANGELOG.md` is release-please's **technical** history, written from Conventional Commit subjects. Players read
+something else: the in-app **What's new** dialog shows one short note per user-visible change, in the app's language.
+Those notes are small files under `changes/`.
+
+**Every `feat:`, `fix:` or `perf:` change adds one** (scoped ones too, e.g. `fix(cli):`). The *Changeset* check fails
+a pull request whose commits (or title) include one of those types but that adds no note. For an internal-only
+change (research, a refactor typed `perf:`…), a maintainer adds the **`no-changeset`** label instead.
+
+Add `changes/unreleased/<short-slug>.properties`, saved as UTF-8:
+
+```properties
+type=fix
+scope=cli
+en=--wp sets the Wakfu-point target instead of movement points
+fr=--wp règle la cible de points Wakfu (PW), et non plus les points de mouvement (PM)
+```
+
+| Key | | Value |
+|---|---|---|
+| `type` | required | `feat` (shown under *New*), `fix` (*Fixes*) or `perf` (*Faster*) |
+| `en`, `fr` | required | one sentence for players: what changes for them, in their words, not the commit subject |
+| `es` | optional | Spanish; a missing translation falls back to English |
+| `scope` | optional | `cli` (labelled *Command line* in the app) or `gui` |
+
+- Use the app's own wording for game terms and UI labels: « Dégâts max », « Max maîtrises », « Poids Plume », the
+  « Optimal prouvé à X% près » badge… The `Tr` enum (`gui-compose/.../i18n/I18n.kt`) has the existing French.
+- Plain values: one line, no quotes, no `feat:` prefix. `#` starts a comment only at the beginning of a line.
+- Within a section, notes are listed by file name, so name them by topic (`max-damage-…`, `most-masteries-…`).
+- One note per change, even when the change spans several commits.
+- `./gradlew :gui-compose:test --tests '*ChangeFragmentsTest*'` validates every note; `./gradlew test` runs it too.
+- Never delete `changes/unreleased/.gitkeep`. Without it, the release PR (which moves every note out) empties the
+  directory, and git's rename detection would then move a note from a pull request rebased across that release into
+  the released version.
+
+**How a note ships.** The open release-please PR carries an extra commit, *chore: file N release note(s) under
+X.Y.Z*, that moves `changes/unreleased/*` into `changes/X.Y.Z/` ([`release-notes.yml`](.github/workflows/release-notes.yml),
+re-applied whenever release-please regenerates its PR). Merging the release PR therefore archives the notes with the
+release. The GUI build compiles every note into the bundled `release-notes.json`, with unreleased notes labelled
+as the version being built. Fix a note's wording on `main`, never on the release PR: the filing follows. The dialog
+still shows the English CHANGELOG for the releases before these notes existed (≤ 1.11).
+
+**Optional local hook.** It refuses a `feat` / `fix` / `perf` commit when neither it nor an earlier commit of the
+branch adds a note (skip it once with `git commit --no-verify`). Install it once per clone:
+
+```sh
+git config core.hooksPath scripts/git-hooks
+```
 
 ## The embedded game data
 
