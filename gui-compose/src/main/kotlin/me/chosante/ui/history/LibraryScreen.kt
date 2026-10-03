@@ -52,6 +52,8 @@ import me.chosante.common.history.HistoryEntry
 import me.chosante.ui.components.BreedBackground
 import me.chosante.ui.components.BreedIllustration
 import me.chosante.ui.components.ItemThumbnail
+import me.chosante.ui.components.localized
+import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.tr
 import me.chosante.ui.paperdoll.bottomSlots
@@ -885,9 +887,14 @@ private fun ActionIconButton(
 
 @Composable
 private fun HeadlineBadge(entry: HistoryEntry) {
-    val masteryMode = entry.isMasteryMode()
-    val value = if (masteryMode) entry.requestedMasteryTotal().formatCompact() else "${entry.result.match.toInt()}%"
-    val label = if (masteryMode) tr(Tr.MASTERY_SHORT) else tr(Tr.MATCH)
+    // The headline is the number the build's mode maximized: the mastery score, the expected damage per turn (NOT a % — a
+    // max-damage build stores its damage as its match), or the % match to the exact targets.
+    val (value, label) =
+        when {
+            entry.isMasteryMode() -> entry.requestedMasteryTotal().formatCompact() to tr(Tr.MASTERY_SHORT)
+            entry.isDamageMode() -> entry.expectedDamage().formatCompact() to tr(Tr.EXPECTED_DAMAGE)
+            else -> "${entry.result.match.toInt()}%" to tr(Tr.MATCH)
+        }
     Column(horizontalAlignment = Alignment.End) {
         Text(
             text = value,
@@ -908,7 +915,7 @@ private fun PillsRow(entry: HistoryEntry) {
         listOf(
             entry.classDisplayName(),
             "${tr(Tr.LEVEL_SHORT)} ${entry.request.level}",
-            tr(if (entry.isMasteryMode()) Tr.MODE_MASTERIES else Tr.MODE_PRECISION)
+            tr(entry.modeLabel())
         )
     val tagAccent = WColor.accent2.copy(alpha = 0.35f)
     val shownTags = entry.tags.take(4)
@@ -922,6 +929,15 @@ private fun PillsRow(entry: HistoryEntry) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 rowPills.forEach { (text, color) -> MetaPill(text = text, borderColor = color) }
             }
+        }
+        // The boss a max-damage build was searched against, when it recorded one — on its own line: boss names are long.
+        entry.restoredBoss()?.let { boss ->
+            Text(
+                text = tr(Tr.VS_BOSS).format(boss.name.localized(LocalLang.current)),
+                style = WTypography.labelSmall.copy(color = WColor.muted),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

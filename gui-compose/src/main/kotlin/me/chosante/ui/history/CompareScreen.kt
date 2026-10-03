@@ -179,20 +179,30 @@ private fun SideColumn(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 BreedIcon(clazz = entry.restoredClass(), size = 20.dp)
                 Text(
-                    text = "${entry.classDisplayName()} · ${tr(Tr.LEVEL_SHORT)} ${entry.request.level}",
+                    text = "${entry.classDisplayName()} · ${tr(Tr.LEVEL_SHORT)} ${entry.request.level} · ${tr(entry.modeLabel())}",
                     style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
                 )
             }
+            // What this build's mode maximized: the mastery score, the expected damage per turn (a max-damage build stores
+            // it as its match — it is not a percentage), or the % match to the exact targets.
             val headline =
-                if (entry.isMasteryMode()) {
-                    "${entry.requestedMasteryTotal().formatCompact()} ${tr(Tr.MASTERY_SHORT)}"
-                } else {
-                    "${entry.result.match.toInt()}% ${tr(Tr.MATCH)}"
+                when {
+                    entry.isMasteryMode() -> "${entry.requestedMasteryTotal().formatCompact()} ${tr(Tr.MASTERY_SHORT)}"
+                    entry.isDamageMode() -> "${entry.expectedDamage().formatCompact()} ${tr(Tr.EXPECTED_DAMAGE)}"
+                    else -> "${entry.result.match.toInt()}% ${tr(Tr.MATCH)}"
                 }
             Text(
                 text = headline + if (entry.result.optimal) " · ${tr(Tr.OPTIMAL_PROVEN)}" else "",
                 style = WTypography.labelMedium.copy(color = if (entry.result.optimal) WColor.success else WColor.text)
             )
+            entry.restoredBoss()?.let { boss ->
+                Text(
+                    text = tr(Tr.VS_BOSS).format(boss.name.localized(LocalLang.current)),
+                    style = WTypography.labelSmall.copy(color = WColor.muted),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(3.dp),
@@ -378,14 +388,27 @@ private fun ComparisonTable(columns: List<Pair<String, HistoryEntry>>) {
                 Text(text = letter, style = WTypography.labelMedium.copy(fontFamily = WType.mono, color = WColor.muted), modifier = Modifier.width(COMPARE_CELL))
             }
         }
-        // Headline: the value the engine actually maximized (specialized summed + min of elements) — the
-        // row that says which build the solver judges best overall, unlike the per-stat rows below.
-        ValueRow(values = entries.map { it.requestedMasteryTotal() }, bold = true) {
-            Text(
-                text = tr(Tr.COMPARE_ENGINE_SCORE),
-                style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Bold),
-                modifier = Modifier.weight(1f)
-            )
+        // Headline: the value the engine actually maximized — the row that says which build the solver judges best
+        // overall, unlike the per-stat rows below. A mastery build maximized its mastery (specialized summed + min of
+        // elements), a max-damage build its expected damage per turn: each gets its own row, with a dash under the builds
+        // the row does not apply to (a max-damage build has no mastery score, and a mastery build no damage score).
+        if (entries.any { !it.isDamageMode() }) {
+            ValueRow(values = entries.map { if (it.isDamageMode()) null else it.requestedMasteryTotal().toLong() }, bold = true) {
+                Text(
+                    text = tr(Tr.COMPARE_ENGINE_SCORE),
+                    style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Bold),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+        if (entries.any { it.isDamageMode() }) {
+            ValueRow(values = entries.map { if (it.isDamageMode()) it.expectedDamage() else null }, bold = true) {
+                Text(
+                    text = tr(Tr.COMPARE_ENGINE_DAMAGE),
+                    style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Bold),
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
         CompareGroupLabel(text = tr(Tr.COMPARE_GROUP_DAMAGE))
         damageRows.forEachIndexed { index, (characteristic, values) ->
@@ -419,7 +442,7 @@ private fun StatValueRow(
     values: List<Int>,
     lang: Lang,
 ) {
-    ValueRow(values = values, bold = false) {
+    ValueRow(values = values.map { it.toLong() }, bold = false) {
         CharacteristicIcon(characteristic = characteristic, size = 16.dp)
         Spacer(modifier = Modifier.width(9.dp))
         Text(
@@ -435,20 +458,22 @@ private fun StatValueRow(
 /**
  * One table row: a [leading] label (filling the width) followed by an integer value cell per build, the
  * best cell(s) highlighted green. Ties highlight nothing (matching the original two-build behaviour).
- * [bold] forces every cell bold (used for the headline engine-score row).
+ * A `null` value (the row does not apply to that build) shows a dash and never wins.
+ * [bold] forces every cell bold (used for the headline engine-score rows).
  */
 @Composable
 private fun ValueRow(
-    values: List<Int>,
+    values: List<Long?>,
     bold: Boolean,
     leading: @Composable RowScope.() -> Unit,
 ) {
-    val best = values.maxOrNull() ?: 0
-    val tie = values.all { it == best }
+    val present = values.filterNotNull()
+    val best = present.maxOrNull() ?: 0L
+    val tie = present.all { it == best }
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         leading()
         values.forEach { value ->
-            NumberCell(text = value.formatCompact(), highlighted = value == best && !tie, bold = bold)
+            NumberCell(text = value?.formatCompact() ?: "—", highlighted = value != null && value == best && !tie, bold = bold)
         }
     }
 }

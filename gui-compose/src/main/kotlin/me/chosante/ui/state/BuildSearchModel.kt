@@ -47,6 +47,9 @@ import me.chosante.ui.components.warmUpPaths
 import me.chosante.ui.history.HistoryRepository
 import me.chosante.ui.history.historyJson
 import me.chosante.ui.history.normalizeTags
+import me.chosante.ui.history.restoredBoss
+import me.chosante.ui.history.restoredBossDifficulty
+import me.chosante.ui.history.restoredBossElement
 import me.chosante.ui.history.restoredClass
 import me.chosante.ui.history.restoredMode
 import me.chosante.ui.history.restoredScenario
@@ -841,13 +844,7 @@ class BuildSearchModel(
         val targetStats = snapshot.toTargetStats()
         // A targeted boss overlays its per-element resistances onto the manual scenario (mirrors the CLI):
         // a forced element pins that one element, else all four are filled so the objective auto-picks.
-        val damageScenario =
-            when {
-                snapshot.selectedBoss != null && snapshot.bossElement != null ->
-                    snapshot.scenario.against(snapshot.selectedBoss, snapshot.bossElement)
-                snapshot.selectedBoss != null -> snapshot.scenario.againstAllElements(snapshot.selectedBoss)
-                else -> snapshot.scenario
-            }
+        val damageScenario = snapshot.scenario.aimedAt(snapshot.selectedBoss, snapshot.bossElement)
         val params =
             WakfuBestBuildParams(
                 character = character,
@@ -1538,11 +1535,20 @@ class BuildSearchModel(
         }
     }
 
-    private fun UiState.currentDamageScenario(): DamageScenario =
+    private fun UiState.currentDamageScenario(): DamageScenario = scenario.aimedAt(selectedBoss, bossElement)
+
+    /**
+     * This manual scenario aimed at [boss] (null = as is), mirroring the CLI: a forced [element] pins that one element, else
+     * all four are filled from the bestiary so the objective auto-picks the best playable one.
+     */
+    private fun DamageScenario.aimedAt(
+        boss: Monster?,
+        element: SpellElement?,
+    ): DamageScenario =
         when {
-            selectedBoss != null && bossElement != null -> scenario.against(selectedBoss, bossElement)
-            selectedBoss != null -> scenario.againstAllElements(selectedBoss)
-            else -> scenario
+            boss != null && element != null -> against(boss, element)
+            boss != null -> againstAllElements(boss)
+            else -> this
         }
 
     /** Dismisses the pre-search request-errors pop-up ([UiState.requestErrors]). */
@@ -1818,11 +1824,16 @@ class BuildSearchModel(
         // Recompute the spell rotation for a loaded max-damage build (else the Rotation card would show a
         // rotation left over from a prior search, or nothing). Cheap — no solver, just one rotation DP.
         val isMaxDamage = entry.restoredMode() == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE
+        // A boss build is scored against the boss it was searched with (otherwise the rotation would be computed against
+        // the manual scenario's 0 % resistance and disagree with the damage saved next to it).
+        val loadedBoss = entry.restoredBoss()
+        val loadedBossElement = entry.restoredBossElement()
+        val loadedScenario = entry.restoredScenario().aimedAt(loadedBoss, loadedBossElement)
         val restoredCharacter =
             me.chosante.common.Character(entry.restoredClass(), entry.request.level, entry.request.minLevel, loadedBuild.characterSkills)
         val rotation =
             if (isMaxDamage) {
-                SpellRotationOptimizer.bestSequencedRotation(loadedBuild, restoredCharacter, restoredCharacter.clazz, entry.restoredScenario())
+                SpellRotationOptimizer.bestSequencedRotation(loadedBuild, restoredCharacter, restoredCharacter.clazz, loadedScenario)
             } else {
                 null
             }
@@ -1837,6 +1848,10 @@ class BuildSearchModel(
                 // The loaded request replaces the whole workspace: no other mode's parked work survives it.
                 modeWorkspaces = emptyMap(),
                 scenario = entry.restoredScenario(),
+                // The boss the build was searched against comes back with it (none for a build saved without one).
+                selectedBoss = loadedBoss,
+                bossElement = loadedBossElement,
+                bossDifficulty = entry.restoredBossDifficulty(),
                 maxRarity = entry.request.maxRarity,
                 duration = entry.request.duration,
                 stopAtMatch = entry.request.stopAtMatch,
@@ -1889,7 +1904,7 @@ class BuildSearchModel(
                         loadedBuild,
                         restoredCharacter,
                         restoredCharacter.clazz,
-                        entry.restoredScenario(),
+                        loadedScenario,
                         includeBerserk = (entry.result.achieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
                         configuredRotationTotal = rotation.totalExpectedDamage
                     )

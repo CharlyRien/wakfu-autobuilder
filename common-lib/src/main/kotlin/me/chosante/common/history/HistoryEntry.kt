@@ -3,6 +3,7 @@ package me.chosante.common.history
 import kotlinx.serialization.Serializable
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.Monster
 import me.chosante.common.Passive
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
@@ -98,6 +99,26 @@ data class RequestSnapshot(
      * engine module — see the GUI mappers, mirroring how [mode] is stored.
      */
     val scenario: DamageScenarioSnapshot = DamageScenarioSnapshot(),
+    /**
+     * The boss a max-damage build was searched against, or null for a manual scenario (and for every other mode, and for
+     * saves written before the boss was recorded). Kept next to the scenario because the scenario alone cannot say which
+     * boss produced the numbers: the boss overlay is applied at search time and is not part of [scenario].
+     */
+    val boss: BossSnapshot? = null,
+)
+
+/**
+ * The boss targeted by a saved max-damage build. The whole [monster] is stored (it is `@Serializable`) rather than a bare id,
+ * so the card can name it offline and a reloaded build is scored against the exact resistances it was searched with even if
+ * a later game-data update changes the bestiary.
+ */
+@Serializable
+data class BossSnapshot(
+    val monster: Monster,
+    /** `SpellElement` name forced against the boss, or null = the objective picked the best playable element. */
+    val element: String? = null,
+    /** Dungeon HP multiplier for the turns-to-kill estimate (display only). */
+    val difficulty: String = "1",
 )
 
 /**

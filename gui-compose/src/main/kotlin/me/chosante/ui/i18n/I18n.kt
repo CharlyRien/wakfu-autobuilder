@@ -127,6 +127,7 @@ enum class Tr(
         "Target a boss to auto-fill its elemental resistances — the search picks the best playable element.",
         "Ciblez un boss pour remplir ses résistances élémentaires — la recherche choisit le meilleur élément jouable."
     ),
+    VS_BOSS("vs %s", "contre %s"),
     BOSS_PICK("＋ Choose a boss", "＋ Choisir un boss"),
     BOSS_CHANGE("Change", "Changer"),
     BOSS_REMOVE("Remove", "Retirer"),
@@ -503,6 +504,7 @@ enum class Tr(
     COMPARE_EMPTY("Pick at least two builds to compare them side by side.", "Choisis au moins deux builds à comparer côte à côte."),
     COMPARE_STAT("Stat", "Stat"),
     COMPARE_ENGINE_SCORE("Mastery score (engine)", "Score maîtrises (moteur)"),
+    COMPARE_ENGINE_DAMAGE("Expected damage (engine)", "Dégâts attendus (moteur)"),
     COMPARE_GROUP_DAMAGE("Damage", "Dégâts"),
     COMPARE_GROUP_OTHER("Other", "Autres"),
     COMPARE_SPELL_DAMAGE("Spell damage", "Dégâts des sorts"),
