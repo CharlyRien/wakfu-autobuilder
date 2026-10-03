@@ -51,10 +51,13 @@ import kotlin.math.ceil
  *    `threshold + carried start-of-combat crit + passives/ramps`, not every sub's crit at max copies;
  *  - ramps (perStatStep) priced at the sound reachable max of their source.
  *
- * Bails (null) instead of guessing — every one request-level, shared with [supportsRequest]
+ * Bails (null) instead of guessing — request-level ones shared with [supportsRequest]
  * ([requestShape]): elemental-mastery requests (min-over-elements out of scope), forced
  * items/runes/subs, a NON-ZERO required target outside {AP, MP, CC, HP, RANGE}, a choosable sub
- * converting into a stat the DP reads, a sub family the worlds cannot cover, a packed-field overflow.
+ * converting into a stat the DP reads, a sub family the worlds cannot cover, a negative capped-stat
+ * line on a sub the assume worlds never stage, a positive MAX_ACTION_POINT / MAX_MOVEMENT_POINT sub
+ * line, a packed-field overflow; pool-level ones in [bound]: an item's positive MAX_* AP / MP rider, an
+ * assume world's LOW offset outgrowing its field.
  *
  * PRODUCTION (backup certificate, plan §8.9bis): read by [WakfuBestBuildFinderAlgorithm.
  * proveMostMasteriesQuality] after a most-masteries search whose CP-SAT leg ended non-OPTIMAL —
@@ -617,6 +620,15 @@ internal object MostMasteriesCertificate {
         sublimations: List<Sublimation>,
     ): Boolean = requestShape(params, sublimations, diag = emptySet(), blockGate = true) != null
 
+    /**
+     * A POSITIVE MAX_ACTION_POINT / MAX_MOVEMENT_POINT line: the solver folds it onto AP / MP (`valueFor`,
+     * `foldedToUsableStat`), no AP / MP read of this certificate does — [requestShape] and [bound] bail on one.
+     */
+    private fun isPositiveApMpRider(
+        c: Characteristic,
+        value: Int,
+    ): Boolean = value > 0 && (c == Characteristic.MAX_ACTION_POINT || c == Characteristic.MAX_MOVEMENT_POINT)
+
     /** The AT_MOST cap a sub's condition puts on a TRACKED stat (the world split's cap subs), or null. */
     private fun capStatOf(sub: Sublimation): Characteristic? =
         when (sub.condition?.type) {
@@ -706,6 +718,10 @@ internal object MostMasteriesCertificate {
      *    more than 6 objective-capping (world-B) subs;
      *  - a choosable sub CONVERTING into a stat the DP reads — a requested mastery, DI, AP, MP, or a tracked CC / HP /
      *    RANGE / block — whose moved value no option prices (an under-count);
+     *  - with a cap sub in play, a NEGATIVE line on a capped stat (crit, AP / MAX_ACTION_POINT) on a cap sub or a world-B
+     *    sub — the subs no assume world stages into its LOW dim (CERTIFIER_VERSION 51: none exists; an under-count);
+     *  - a POSITIVE MAX_ACTION_POINT / MAX_MOVEMENT_POINT line on a staged sub, which no AP / MP read here folds
+     *    (CERTIFIER_VERSION 51: none exists; an under-count);
      *  - a target or catalog that overflows its packed-key field (AP / MP / RANGE 5 bits, CC 7, HP 9, block 4).
      * [diag] and [blockGate] are [bound]'s own arguments ([supportsRequest]: none / the full tier).
      */
@@ -851,6 +867,39 @@ internal object MostMasteriesCertificate {
             }
             // World B folds every SUBSET of the objective-capping subs at each collapse state (2^n − 1).
             if (sublimations.count { stagesSub(it, diag) && capStatOf(it) == null && isObjectiveCapping(it, requested) } > 6) return null
+            // Review follow-ups (CERTIFIER_VERSION 51) — shapes no current sub reaches, bailed rather than under-counted:
+            //  - the assumed cap sub and the world-B subs never feed an assume world's LOW dim (both are credited at the
+            //    collapse only), while the solver's pre-combat read carries every permanent line of a STATIC sub, its own
+            //    condition's read included (`buildPermanentSubTerms`). A NEGATIVE line on a capped stat would lower the
+            //    real read under the dim and reject a real carrier in its own world (A1's over-rejection);
+            //  - a POSITIVE MAX_ACTION_POINT / MAX_MOVEMENT_POINT line folds into AP / MP in the solver
+            //    (`foldedToUsableStat`), but the staging, [reachableMax] and the outside-read constants read the plain AP /
+            //    MP lines only (the data's MAX_* lines are all negative, which they over-count).
+            val lowStats = capSubs.mapNotNull(::capStatOf).toSet()
+            if (lowStats.isNotEmpty() &&
+                sublimations.any { sub ->
+                    // A cap sub matters in its OWN world only (the others are EPIC too: never beside it); a world-B sub
+                    // can ride beside any assumed one.
+                    val unstagedLowStats =
+                        when {
+                            sub in capSubs -> setOfNotNull(capStatOf(sub))
+                            stagesSub(sub, diag) && isObjectiveCapping(sub, requested) -> lowStats
+                            else -> emptySet()
+                        }
+                    sub.effects.any {
+                        it is SublimationEffect.StatEffect && it.characteristic.foldedToUsableStat() in unstagedLowStats && it.magnitudeAtLevel(level) < 0
+                    }
+                }
+            ) {
+                return null
+            }
+            if (sublimations.any { sub ->
+                    stagesSub(sub, diag) &&
+                        sub.effects.any { it is SublimationEffect.StatEffect && isPositiveApMpRider(it.characteristic, it.magnitudeAtLevel(level)) }
+                }
+            ) {
+                return null
+            }
         }
 
         val shape = RequestShape(requested, targets, targetByChar, passiveFlat, capSubs, blockAtLeastMax, mpDiRamps.firstOrNull(), apUpper, mpUpper)
@@ -912,6 +961,11 @@ internal object MostMasteriesCertificate {
         val wantSrc = provenance || optionVeto != null
         // Every request-level fact and bail — the code [supportsRequest] runs too.
         val shape = requestShape(params, sublimations, diag, blockGate) ?: return null
+        // Review follow-up (CERTIFIER_VERSION 51): an item's MAX_ACTION_POINT / MAX_MOVEMENT_POINT line folds into its AP /
+        // MP (the solver's `valueFor`), but [statOf] and [reachableMax] below read the plain AP / MP lines: a NEGATIVE
+        // rider is over-counted (every one in the data is −1), a POSITIVE one would be under-counted — bail on it. (The
+        // assume-AP LOW read already takes AP + MAX_ACTION_POINT, signed.)
+        if (pool.values.any { items -> items.any { e -> e.characteristics.any { (c, v) -> isPositiveApMpRider(c, v) } } }) return null
         val requested = shape.requested
         val targets = shape.targets
         val targetByChar = shape.targetByChar
@@ -1205,6 +1259,7 @@ internal object MostMasteriesCertificate {
                 if (pruneDominatedOptions && allowed.size in 2..PARETO_PRUNE_MAX_OPTIONS) paretoPrune(allowed) else allowed
             // A1: open the LOW-dim offset by this stage's worst negative delta FIRST, so no transition floors the
             // dim at 0 (exact, monotone; Pareto pruning keeps the min — a dominator's LOW delta is ≤).
+            var shift = 0
             if (geo.lowFieldMax > 0) {
                 val worst = effective.minOfOrNull { if (geo.assumeApThreshold >= 0) it.apLow else it.ccLowRaw } ?: 0
                 if (worst < 0) {
@@ -1214,12 +1269,13 @@ internal object MostMasteriesCertificate {
                         states = HashMap()
                         return
                     }
+                    shift = -worst
                     val shifted = HashMap<Long, Long>(states.size * 2)
-                    for ((k, v) in states) shifted[geo.shiftLow(k, -worst)] = v
+                    for ((k, v) in states) shifted[geo.shiftLow(k, shift)] = v
                     states = shifted
                 }
             }
-            stageLog?.add(StageRecord(label, HashMap(states), effective, geo.lowOff))
+            stageLog?.add(StageRecord(label, HashMap(states), effective, geo.lowOff, shift))
             states = geo.apply(states, effective, parallelism())
         }
 
@@ -2138,7 +2194,7 @@ internal object MostMasteriesCertificate {
         if (provenance && stageLog != null && bindingState.isNotEmpty()) {
             var curK = bindingKey
             var curM = bindingM
-            for ((label, preMap, options, stageLowOff) in stageLog.reversed()) {
+            for ((label, preMap, options, stageLowOff, stageShift) in stageLog.reversed()) {
                 geo.lowOff = stageLowOff
                 var found = false
                 outer@ for ((pk, pm) in preMap) {
@@ -2150,7 +2206,10 @@ internal object MostMasteriesCertificate {
                                     "$label: ${o.src.ifEmpty { "opt" }} " +
                                     "(m=${o.m} d=${o.d} ap=${o.ap} mp=${o.mp} cc=${o.cc} hp=${o.hp} hpPct=${o.hpPct} range=${o.range})"
                             }
-                            curK = pk
+                            // The pre-stage map was logged AFTER the stage's LOW-offset shift: undo it, so the key is the
+                            // one the previous stage produced (review follow-up — the backtrack broke after the first
+                            // stage whose offset grew).
+                            curK = if (stageShift != 0) geo.shiftLow(pk, -stageShift) else pk
                             curM = pm
                             found = true
                             break@outer
@@ -2177,12 +2236,16 @@ internal object MostMasteriesCertificate {
         )
     }
 
-    /** One provenance-log entry: a stage's label, its pre-stage states, its options and the LOW-dim offset it ran under. */
+    /**
+     * One provenance-log entry: a stage's label, its pre-stage states (logged AFTER the stage's LOW-offset shift), its
+     * options, the LOW-dim offset it ran under and the [shift] it opened it by (the replay undoes it).
+     */
     private data class StageRecord(
         val label: String,
         val preMap: HashMap<Long, Long>,
         val options: List<Opt>,
         val lowOff: Int,
+        val shift: Int,
     )
 
     /** One collapse fold of a state: its core, its SOFT folded value, and whether its reads meet every required target > 0. */
