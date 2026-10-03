@@ -344,44 +344,68 @@ class BuildSearchModel(
         }
     }
 
+    /**
+     * Switches the search mode. Each mode keeps its own work ([UiState.modeWorkspaces]): its target rows AND the result found
+     * under it. Leaving a mode parks both; coming back restores them, so a visit to another mode destroys nothing. A mode
+     * entered for the first time starts from [firstVisitRows]. Choosing the mode that is already active changes nothing.
+     *
+     * The shown build cannot simply stay on screen under the new mode: what it displays is read by the mode that found it —
+     * the headline (mastery score / % match / expected damage), the achieved-stat grid (resolved with that mode's
+     * random-element assignment) and the max-damage rotation — and Save / Export snapshot the live mode and rows together
+     * with it, which would pair it with another mode's request. Parking it with its mode keeps it recoverable instead.
+     */
     fun setMode(mode: ScoreComputationMode) {
-        val normalizedTargets =
-            when (mode) {
-                ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
-                    ui.targets.map { target ->
-                        if (target.characteristic.isMaximizableMastery()) {
-                            target.copy(value = "1")
-                        } else {
-                            target
-                        }
-                    }
-                // Max-damage maximizes the rotation's real damage directly, so the seeded AP/MP/range/HP/crit
-                // rows would only act as hard power-6 constraints that can exclude higher-damage builds (e.g.
-                // pinning AP=11 stops the solver finding the best AP breakpoint). Start CONSTRAINT-FREE; the user
-                // can still add an explicit target row (an AP floor, a min HP…) if they want a more playable build.
-                ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> emptyList()
-                else -> ui.targets
-            }
-        // Switching mode invalidates any completed result: a build/match/rotation found under the old mode
-        // would be reinterpreted under the new mode's display rules. Clear it so the UI returns to Idle —
-        // and stop its proof/refinement, which would otherwise keep CP-SAT busy for a build nobody sees.
-        cancelProof()
-        ui =
-            ui.copy(
-                mode = mode,
-                targets = normalizedTargets,
-                phase = Phase.Idle,
-                progress = 0,
-                match = java.math.BigDecimal.ZERO,
-                optimal = false,
-                proofState = ProofState.Idle,
-                searchStopped = false,
-                build = null,
-                achieved = emptyMap(),
-                spellRotation = null,
-                scenarioDamages = emptyList()
-            )
+        if (mode != ui.mode) enterMode(mode)
     }
+
+    private fun enterMode(mode: ScoreComputationMode) {
+        // A running search belongs to the mode being left: stop it first, so its best-so-far is what gets parked (otherwise it
+        // would keep streaming builds into a screen that now reads under another mode's rules).
+        if (ui.phase == Phase.Searching) cancel()
+        // The parked build's proof/refinement has nothing left to display, and would keep CP-SAT busy for nobody.
+        cancelProof()
+        val workspaces = ui.modeWorkspaces + (ui.mode to ModeWorkspace(ui.targets, ui.shownResult().atRest()))
+        val arriving = workspaces[mode]
+        ui =
+            ui
+                .copy(
+                    mode = mode,
+                    targets = arriving?.let { rowsForMode(mode, it.targets) } ?: firstVisitRows(mode, ui.targets),
+                    modeWorkspaces = workspaces - mode
+                ).withResult(arriving?.result ?: ShownResult())
+    }
+
+    /**
+     * The rows of a mode visited for the first time, derived from the [current] rows of the mode being left — the carry-over
+     * the mode switch always had between the two target-driven modes, so the first switch loses nothing the user typed.
+     * Max-damage is the exception: it maximizes the rotation's real damage directly, so the seeded AP/MP/range/HP/crit rows
+     * would only act as hard power-6 constraints that can exclude higher-damage builds (e.g. pinning AP=11 stops the solver
+     * finding the best AP breakpoint). It starts CONSTRAINT-FREE; the user can still add an explicit target row (an AP floor,
+     * a min HP…) if they want a more playable build.
+     */
+    private fun firstVisitRows(
+        mode: ScoreComputationMode,
+        current: List<TargetRow>,
+    ): List<TargetRow> =
+        when (mode) {
+            ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> emptyList()
+            else -> rowsForMode(mode, current)
+        }
+
+    /**
+     * [rows] as [mode] reads them. A maximized-mastery row of most-masteries is a bare "maximize this" marker whose value is
+     * always 1 (the panel offers no field for it), so a number typed under another mode is normalized away; the other modes
+     * keep every value.
+     */
+    private fun rowsForMode(
+        mode: ScoreComputationMode,
+        rows: List<TargetRow>,
+    ): List<TargetRow> =
+        when (mode) {
+            ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
+                rows.map { row -> if (row.characteristic.isMaximizableMastery()) row.copy(value = "1") else row }
+            else -> rows
+        }
 
     fun setScenario(scenario: DamageScenario) {
         // Turning the survivability floor on (via the toggle or the Tank preset) without a value would be a
@@ -399,29 +423,17 @@ class BuildSearchModel(
     /**
      * Target [monster] in max-damage mode: switch to max-damage (the boss fills the per-element
      * resistances the objective optimizes over) and close the picker — mirroring the CLI's `--boss`,
-     * which also forces max-damage. Clears any stale result computed under the previous scenario.
+     * which also forces max-damage. Coming from another mode parks that mode's work like the mode tab does (max-damage then
+     * starts from its own rows, constraint-free the first time); picking a boss while already in max-damage keeps the rows the
+     * user set there. The shown result was computed against the previous target, so it is cleared — and a search still running
+     * for it is stopped.
      */
     fun pickBoss(monster: Monster) {
+        if (ui.mode != ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) enterMode(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE)
+        job?.cancel()
+        job = null
         cancelProof() // the cleared build's proof/refinement has nothing left to display
-        ui =
-            ui.copy(
-                selectedBoss = monster,
-                mode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
-                // Same as setMode: max-damage is constraint-free by default (seeded AP/MP/HP targets would only
-                // hold the solver back from the highest-damage build vs this boss).
-                targets = emptyList(),
-                modal = null,
-                phase = Phase.Idle,
-                progress = 0,
-                match = java.math.BigDecimal.ZERO,
-                optimal = false,
-                proofState = ProofState.Idle,
-                searchStopped = false,
-                build = null,
-                achieved = emptyMap(),
-                spellRotation = null,
-                scenarioDamages = emptyList()
-            )
+        ui = ui.copy(selectedBoss = monster, modal = null).withResult(ShownResult())
     }
 
     /** Drop the boss target; the next search falls back to the manual damage [UiState.scenario]. */
@@ -1491,9 +1503,13 @@ class BuildSearchModel(
         cancelProof()
         val character = Character(snapshot.clazz, snapshot.level, snapshot.minLevel).copy(characterSkills = build.characterSkills)
         val damageScenario = snapshot.currentDamageScenario()
+        // The build moves to the max-damage view WITH its rows, but the mode it came from keeps its work: going back there
+        // restores the original result and rows, so this view can always be undone.
+        val parked = snapshot.modeWorkspaces + (snapshot.mode to ModeWorkspace(snapshot.targets, snapshot.shownResult().atRest()))
         ui =
             snapshot.copy(
                 mode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
+                modeWorkspaces = parked - ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
                 phase = Phase.Done,
                 progress = 100,
                 optimal = false,
@@ -1818,6 +1834,8 @@ class BuildSearchModel(
                 level = entry.request.level,
                 minLevel = entry.request.minLevel,
                 mode = entry.restoredMode(),
+                // The loaded request replaces the whole workspace: no other mode's parked work survives it.
+                modeWorkspaces = emptyMap(),
                 scenario = entry.restoredScenario(),
                 maxRarity = entry.request.maxRarity,
                 duration = entry.request.duration,
