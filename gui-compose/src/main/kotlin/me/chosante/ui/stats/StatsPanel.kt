@@ -82,9 +82,11 @@ import me.chosante.ui.state.ProofState
 import me.chosante.ui.state.TargetRow
 import me.chosante.ui.state.UiState
 import me.chosante.ui.state.ZenithState
+import me.chosante.ui.state.displayedMatchPercent
 import me.chosante.ui.state.formatCompact
 import me.chosante.ui.state.isEngineInternalStat
 import me.chosante.ui.state.isExact
+import me.chosante.ui.state.meetsAllTargets
 import me.chosante.ui.state.requestedMasteryTotal
 import me.chosante.ui.state.statCatalog
 import me.chosante.ui.theme.WColor
@@ -189,14 +191,17 @@ internal fun MatchHero(
                     )
                 }
             } else {
+                // Capped at 100: past it the engine only ranks how far a build overshoots its targets (a raw 248 % is not
+                // a percentage), so a build that meets every target reads "100 %" and says so.
+                val targetsMet = ui.match.meetsAllTargets()
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        text = ui.match.toInt().toString(),
+                        text = ui.match.displayedMatchPercent().toString(),
                         style =
                             WTypography.displayLarge.copy(
                                 fontSize = 46.sp,
                                 lineHeight = 46.sp,
-                                color = if (ui.match.toInt() == 100) WColor.success else WColor.text,
+                                color = if (targetsMet) WColor.success else WColor.text,
                                 fontFamily = WType.display,
                                 textAlign = TextAlign.Center
                             )
@@ -211,7 +216,7 @@ internal fun MatchHero(
                     )
                 }
                 Text(
-                    text = tr(Tr.BUILD_MATCH),
+                    text = tr(if (targetsMet) Tr.TARGETS_MET else Tr.BUILD_MATCH),
                     style = WTypography.labelMedium,
                     modifier = Modifier.padding(top = 4.dp)
                 )
@@ -285,8 +290,8 @@ internal fun MatchHero(
             }
             if (!headlineNumberMode) {
                 Meter(
-                    fill = ui.match.toFloat() / 100f,
-                    color = if (ui.match.toInt() == 100) WColor.success else WColor.warning,
+                    fill = ui.match.displayedMatchPercent() / 100f,
+                    color = if (ui.match.meetsAllTargets()) WColor.success else WColor.warning,
                     modifier = Modifier.padding(top = 14.dp)
                 )
             }

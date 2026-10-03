@@ -144,6 +144,31 @@ class LibraryScreenUiTest {
         }
 
     @Test
+    fun `a precision card that overshoots its targets reads 100 percent and targets met`() {
+        runComposeUiTest {
+            library(Lang.EN, entry("pr", "Precision build", "FIND_CLOSEST_BUILD_FROM_INPUT", match = 20_330.0))
+
+            onNodeWithText("100%").assertExists()
+            onNodeWithText("Targets met").assertExists()
+            assertThat(onAllNodesWithText("20330", substring = true).fetchSemanticsNodes()).isEmpty()
+        }
+        runComposeUiTest {
+            library(Lang.FR, entry("pr", "Precision build", "FIND_CLOSEST_BUILD_FROM_INPUT", match = 248.5))
+
+            onNodeWithText("100%").assertExists()
+            onNodeWithText("Cibles atteintes").assertExists()
+        }
+        // Targets met AND proven optimal: both facts show, one under the other.
+        runComposeUiTest {
+            library(Lang.EN, entry("pr", "Precision build", "FIND_CLOSEST_BUILD_FROM_INPUT", match = 248.5, optimal = true))
+
+            onNodeWithText("100%").assertExists()
+            onNodeWithText("Targets met").assertExists()
+            onNodeWithText("Optimal proven").assertExists()
+        }
+    }
+
+    @Test
     fun `mastery and precision cards keep their own headline and pill`() =
         runComposeUiTest {
             library(

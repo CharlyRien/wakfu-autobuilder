@@ -271,6 +271,7 @@ enum class Tr(
 
     // Stats panel
     BUILD_MATCH("Build Match", "Correspondance"),
+    TARGETS_MET("Targets met", "Cibles atteintes"),
     BUILD_MASTERY("Requested mastery", "Maîtrise demandée"),
     BUILD_MASTERY_HINT("specialized summed + weakest requested element", "spécialisées sommées + élément demandé le plus faible"),
     MASTERY_SHORT("Mastery", "Maîtrise"),
