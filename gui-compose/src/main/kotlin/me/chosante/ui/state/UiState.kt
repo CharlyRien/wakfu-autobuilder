@@ -238,6 +238,12 @@ data class UiState(
     /** Dungeon HP multiplier for the turns-to-kill estimate (display only; never changes the build). */
     val bossDifficulty: String = "1",
     val targets: List<TargetRow> = defaultTargets(),
+    /**
+     * The OTHER search modes' work, parked while [mode] is on screen: each mode keeps its own target rows and the result found
+     * under it, so a visit to another mode destroys neither (switching back restores both). The live mode is never in the map.
+     * See [BuildSearchModel.setMode] and [ModeWorkspace].
+     */
+    val modeWorkspaces: Map<ScoreComputationMode, ModeWorkspace> = emptyMap(),
     val maxRarity: Rarity = Rarity.EPIC,
     /** Rarities the user toggled off; excluded from the search. At least one rarity always stays allowed. */
     val excludedRarities: Set<Rarity> = emptySet(),
@@ -353,6 +359,88 @@ data class UiState(
     /** Whether the library groups its cards by class; persisted across launches. */
     val libraryGroupByClass: Boolean = false,
 )
+
+/**
+ * What one search mode keeps while another mode is on screen: its target [targets] and the [result] found under it. A result
+ * belongs to the mode (and rows) that produced it — its headline number, its achieved-stat grid and its rotation are read by
+ * that mode's rules, and Save / Export snapshot the mode and rows together with it — so it is parked here with them rather
+ * than shown under another mode.
+ */
+data class ModeWorkspace(
+    val targets: List<TargetRow>,
+    val result: ShownResult,
+)
+
+/**
+ * The part of [UiState] that describes the build the last search found — everything the paperdoll and the stats column read
+ * for it — gathered so it can be parked and restored as one piece ([ModeWorkspace]).
+ */
+data class ShownResult(
+    val phase: Phase = Phase.Idle,
+    val progress: Int = 0,
+    val match: BigDecimal = BigDecimal.ZERO,
+    val optimal: Boolean = false,
+    val maxDamageStructural: Boolean = false,
+    val proofState: ProofState = ProofState.Idle,
+    val searchStopped: Boolean = false,
+    val build: BuildCombination? = null,
+    val achieved: Map<Characteristic, Int> = emptyMap(),
+    val spellRotation: SpellRotation? = null,
+    val scenarioDamages: List<ScenarioDamage> = emptyList(),
+    val zenith: ZenithState = ZenithState.Idle,
+    val zenithUrl: String? = null,
+) {
+    /**
+     * This result as it can be shown again after being parked: nothing is running for it any more, so a running proof
+     * ([ProofState.Proving]) is back to the "not proven" state and a "proven within X %" badge loses its "still refining" cue.
+     */
+    fun atRest(): ShownResult =
+        copy(
+            proofState =
+                when (val proof = proofState) {
+                    is ProofState.Proving -> ProofState.Idle
+                    is ProofState.ProvenWithin -> if (proof.refining) proof.copy(refining = false) else proof
+                    else -> proof
+                }
+        )
+}
+
+/** The result fields of this state, as one parkable piece. */
+fun UiState.shownResult(): ShownResult =
+    ShownResult(
+        phase = phase,
+        progress = progress,
+        match = match,
+        optimal = optimal,
+        maxDamageStructural = maxDamageStructural,
+        proofState = proofState,
+        searchStopped = searchStopped,
+        build = build,
+        achieved = achieved,
+        spellRotation = spellRotation,
+        scenarioDamages = scenarioDamages,
+        zenith = zenith,
+        zenithUrl = zenithUrl
+    )
+
+/** This state with [result] on screen in place of whatever result it shows now. */
+fun UiState.withResult(result: ShownResult): UiState =
+    copy(
+        phase = result.phase,
+        progress = result.progress,
+        match = result.match,
+        optimal = result.optimal,
+        maxDamageStructural = result.maxDamageStructural,
+        proofState = result.proofState,
+        searchStopped = result.searchStopped,
+        build = result.build,
+        achieved = result.achieved,
+        spellRotation = result.spellRotation,
+        scenarioDamages = result.scenarioDamages,
+        zenith = result.zenith,
+        zenithUrl = result.zenithUrl,
+        lastLandedEquipmentId = null
+    )
 
 /**
  * Stats the engine treats as internal encodings rather than final values a player reads:
