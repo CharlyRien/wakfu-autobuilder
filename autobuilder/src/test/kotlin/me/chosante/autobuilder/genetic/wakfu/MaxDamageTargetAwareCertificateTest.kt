@@ -17,6 +17,11 @@ import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
+import me.chosante.common.SublimationCondition
+import me.chosante.common.SublimationConditionType
+import me.chosante.common.SublimationEffect
+import me.chosante.common.SublimationKind
+import me.chosante.common.SublimationRarity
 import me.chosante.common.skills.CharacterSkills
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -630,6 +635,52 @@ class MaxDamageTargetAwareCertificateTest {
         assertThat(failures).describedAs("SOUNDNESS — a damage-less epic carrier must stay in reach").isEmpty()
         assertThat(carried).describedAs("a pinned optimum socket Mesure III on the damage-less epic belt (else the lock is vacuous)").isGreaterThan(0)
         assertSound(check("epic-carrier", params(listOf(TargetStat(Characteristic.ACTION_POINT, 7))), pool, subs))
+    }
+
+    /**
+     * Latent (CERTIFIER_VERSION 53, the PR #222 review): the RANGE row's free credit leaves out a `RANGE_AT_LEAST n` sub with
+     * n ≥ the row, which is sound only while the sub's own +range line cannot feed its condition. A PERMANENT line can (the
+     * model gates it on the raw sub var): here the hard leg reaches RANGE 3 as items 2 + the sub's own +1, keeping the Major
+     * point for damage, while the excluded credit forced the DP to spend that point on range — an under-count. No shipped sub
+     * has the shape (the extractor flags only FLAT subs' lines permanent): the ledger now bails on it, and keeps certifying
+     * the same sub with a non-permanent line (Furie II's shape).
+     */
+    @Test
+    fun `latent - a RANGE_AT_LEAST sub with its own permanent range line bails the target-aware ledger`() {
+        val fire = Characteristic.MASTERY_ELEMENTARY_FIRE
+        val range = Characteristic.RANGE
+
+        fun selfFeeding(permanent: Boolean) =
+            Sublimation(
+                stateId = 99_531,
+                name = I18nText("sySelfFeed", "sySelfFeed", "", ""),
+                rarity = SublimationRarity.NORMAL,
+                kind = SublimationKind.STATIC_CONDITIONAL,
+                solverChoosable = true,
+                condition = SublimationCondition(SublimationConditionType.RANGE_AT_LEAST, 3),
+                effects =
+                    listOf(
+                        SublimationEffect.Flat(range, 1, appliesBeforeCombat = permanent),
+                        SublimationEffect.Flat(Characteristic.DAMAGE_INFLICTED, 6)
+                    )
+            )
+        val pool =
+            listOf(
+                item(951, ItemType.HELMET, mapOf(fire to 1200, range to 1)),
+                item(952, ItemType.HELMET, mapOf(fire to 1300)),
+                item(953, ItemType.BOOTS, mapOf(fire to 1100, range to 1)),
+                item(954, ItemType.CAPE, mapOf(fire to 1000))
+            ).groupBy { it.itemType }
+        val p = params(listOf(TargetStat(range, 3)))
+        val permanent = listOf(selfFeeding(permanent = true))
+        val bailed = WakfuBuildSolver.certifyLedgerForTest(p, pool, emptyList(), permanent, forceTier2All = true, targetAware = true)
+        assertThat(bailed.maxCellObjective).describedAs("a self-feeding permanent range line bails the target-aware ledger").isNull()
+        assertSound(check("self-feeding-permanent", p, pool, permanent))
+        val startOfCombat = listOf(selfFeeding(permanent = false))
+        assertThat(WakfuBuildSolver.certifyLedgerForTest(p, pool, emptyList(), startOfCombat, forceTier2All = true, targetAware = true).maxCellObjective)
+            .describedAs("the shipped shape (a start-of-combat line) still certifies")
+            .isNotNull()
+        assertSound(check("self-feeding-start-of-combat", p, pool, startOfCombat))
     }
 
     // ---- Bit-identity and wiring ----------------------------------------------------------------------------------------

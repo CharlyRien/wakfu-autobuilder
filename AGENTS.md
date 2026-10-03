@@ -149,6 +149,23 @@ the objective and the proven optimum leaves the slot empty. (A lexicographic sec
 "max total elemental mastery among optimal builds" — would fill such slots and was considered, but
 deliberately not implemented.)
 
+### The domination pre-filter (it decides what the search AND every certificate see)
+Production solves drop per-slot DOMINATED items before the search (`DominationFilter.kt`: `dominationShape` →
+`filterDominatedPool`, all three modes), and the certificates read the **same reduced pool** — so an item wrongly
+evicted makes CP-SAT's `OPTIMAL` and the certificate's bound wrong together (a wrong "proven optimal" badge). `A`
+may evict `B` only if it can replace `B` in EVERY build of the model with no loss, on every dimension the model or a
+certificate reads from an item (CERTIFIER_VERSION 53 audit, `docs/perf-review-backlog.md` §E):
+- stats `≥` on the compared stats, `==` on the pinned ones (stats a ≤ / exact / parity sub condition reads, AP / MP /
+  WP and their MAX_* riders), `≤` on the minimized ones; sockets `≥` (rune capacity, normal-sub carrier);
+- rarity both ways: `A` epic ⇒ `B` epic (the ≤1-epic / ≤1-relic budget), and `B` epic ⇒ `A` epic while an epic sub is
+  modelled (`B` may be the only carrier of the build's epic sub) — relic alike;
+- runes: the item's LEVEL caps its rune level, so `A`'s rune-level cap must be `≥` `B`'s (`==`, with equal sockets in
+  max-damage, when a modelled rune type is a pinned stat);
+- rings: `B` goes only when its dominators span two different NAMES (two rings of one name are never worn together).
+
+Adding anything the model reads from an `Equipment` (a new field, a level- or name-dependent term) means adding its
+clause there — and bumping `CERTIFIER_VERSION`, since the certificates' pool changes.
+
 ### The max-damage optimality certificate ("proven optimal" badge)
 Max-damage mode can **prove** the build it found is the global optimum, and the GUI/CLI show a badge
 saying so. The proof is an independent **certificate**, not a re-solve: `MaxDamageSearch.proveOptimality`

@@ -791,9 +791,10 @@ class SoundnessReviewAdversarialTest {
     }
 
     /**
-     * The CERTIFIER_VERSION 51 latent-shape bails never fire on the shipped catalog — no badge is lost: no item carries a
+     * The CERTIFIER_VERSION 51 / 53 latent-shape bails never fire on the shipped catalog — no badge is lost: no item carries a
      * positive MAX_ACTION_POINT / MAX_MOVEMENT_POINT line; no choosable sub a positive one, nor (a cap sub or an objective
-     * capper) a negative crit / AP / MAX_ACTION_POINT line, nor (FLAT) a ramp into a secondary mastery; and the
+     * capper) a negative crit / AP / MAX_ACTION_POINT line, nor (FLAT) a ramp into a secondary mastery, nor (RANGE_AT_LEAST)
+     * a permanent +range line of its own; and the
      * most-masteries request gate ([MostMasteriesCertificate.supportsRequest], which runs the request-level bails) accepts
      * every requestable mastery at every level band beside the full catalog's cap subs. A data refresh that trips one is
      * named here — count that shape properly then.
@@ -837,6 +838,16 @@ class SoundnessReviewAdversarialTest {
                 }
             }
         }
+        // v53: a RANGE_AT_LEAST sub whose OWN +range line is permanent could feed its own condition (the target-aware RANGE
+        // row bails on it). Any catalog sub — a forced one reaches the certificate too.
+        for (sub in WakfuBestBuildFinderAlgorithm.sublimations) {
+            if (sub.condition?.type != SublimationConditionType.RANGE_AT_LEAST) continue
+            for (eff in sub.effects.filterIsInstance<SublimationEffect.StatEffect>()) {
+                if (eff.appliesBeforeCombat && eff.characteristic.foldedToUsableStat() == Characteristic.RANGE && levels.any { eff.magnitudeAtLevel(it) > 0 }) {
+                    findings += "RANGE_AT_LEAST sub ${sub.name.fr}: a permanent +range line"
+                }
+            }
+        }
         for (level in levels) {
             for (mastery in listOf(
                 Characteristic.MASTERY_DISTANCE,
@@ -854,7 +865,7 @@ class SoundnessReviewAdversarialTest {
             "LATENT_CATALOG items=${WakfuBestBuildFinderAlgorithm.equipments.size} choosableSubs=${choosable.size} " +
                 "capOrCapperSubs=${choosable.count { it.condition?.type in capTypes }} findings=${findings.size}"
         )
-        assertThat(findings).describedAs("a CERTIFIER_VERSION 51 latent-shape bail fires on the shipped catalog").isEmpty()
+        assertThat(findings).describedAs("a CERTIFIER_VERSION 51 / 53 latent-shape bail fires on the shipped catalog").isEmpty()
     }
 
     // ------------------------------------------------------------------------------------------------------------
