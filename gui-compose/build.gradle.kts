@@ -13,7 +13,7 @@ plugins {
 }
 
 group = "me.chosante"
-version = "1.11.0" // x-release-please-version
+version = "1.12.0" // x-release-please-version
 
 repositories {
     mavenCentral()
