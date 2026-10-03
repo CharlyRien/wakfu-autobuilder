@@ -53,6 +53,8 @@ already has the working serialization setup and owns the referenced `Equipment`/
   the full `List<Equipment>` (serializable; drives paperdoll/tooltips/compare offline), a flat
   `skill name → points` map (rebuilt via `reconstructSkills`), the `achieved` map, match, optimal,
   and a cached Zenith URL. Carries `schemaVersion` + `dataVersion` for reproducibility/migration.
+  A Max Damage build also stores the boss it was searched against (`RequestSnapshot.boss`, optional, absent in
+  saves made before 1.12.1) so the library can name it and a reload scores the rotation against it.
 
 ## Zenith
 

@@ -9,6 +9,8 @@ import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.common.CharacterClass
+import me.chosante.common.Monster
+import me.chosante.common.history.BossSnapshot
 import me.chosante.common.history.DamageScenarioSnapshot
 import me.chosante.common.history.HistoryEntry
 import me.chosante.common.history.ItemRef
@@ -17,6 +19,7 @@ import me.chosante.common.history.ResultSnapshot
 import me.chosante.common.history.TargetSnapshot
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.ui.i18n.Lang
+import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.label
 import me.chosante.ui.state.ItemChip
 import me.chosante.ui.state.TargetRow
@@ -81,7 +84,12 @@ fun UiState.toHistoryEntry(
                 excludedRarities = excludedRarities,
                 forcedPassives = forcedPassives,
                 forcedRunesByItem = forcedRunesByItem,
-                scenario = scenario.toSnapshot()
+                scenario = scenario.toSnapshot(),
+                // The boss only counts for a max-damage build; it stays selected in the workspace when the mode changes.
+                boss =
+                    selectedBoss
+                        ?.takeIf { mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE }
+                        ?.let { BossSnapshot(monster = it, element = bossElement?.name, difficulty = bossDifficulty) }
             ),
         result =
             ResultSnapshot(
@@ -210,6 +218,32 @@ fun HistoryEntry.restoredScenario(): DamageScenario {
 
 /** True if the build was searched in most-masteries mode (where "% match" is not the headline number). */
 fun HistoryEntry.isMasteryMode(): Boolean = restoredMode() == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+
+/**
+ * True if the build was searched in max-damage mode, where [ResultSnapshot.match] is the expected damage per turn the search
+ * maximized — NOT a percentage, so it must never be shown as "% match" (nor scored as a mastery build).
+ */
+fun HistoryEntry.isDamageMode(): Boolean = restoredMode() == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE
+
+/** The label of the build's search mode, as shown in its pill. */
+fun HistoryEntry.modeLabel(): Tr =
+    when (restoredMode()) {
+        ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT -> Tr.MODE_MASTERIES
+        ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT -> Tr.MODE_PRECISION
+        ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> Tr.MODE_MAX_DAMAGE
+    }
+
+/** Expected damage per turn of a max-damage build (what its search maximized, stored as its match). */
+fun HistoryEntry.expectedDamage(): Long = result.match.toLong()
+
+/** The boss a max-damage build was searched against, if it recorded one. */
+fun HistoryEntry.restoredBoss(): Monster? = request.boss?.monster
+
+/** The damage element forced against the boss, or null when the objective picked it (or there is no boss). */
+fun HistoryEntry.restoredBossElement(): SpellElement? = request.boss?.element?.let { name -> runCatching { SpellElement.valueOf(name) }.getOrNull() }
+
+/** The boss difficulty (HP multiplier) the build was viewed with; 1 when none was recorded. */
+fun HistoryEntry.restoredBossDifficulty(): String = request.boss?.difficulty ?: "1"
 
 /**
  * Mastery the build reached, **as the engine scores it** (see [engineMasteryScore]) — the headline for
