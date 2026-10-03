@@ -10,7 +10,13 @@ object WColor {
     val hairline = Color(0xFF24282F)
     val text = Color(0xFFE7E5E0)
     val muted = Color(0xFF969BA5)
-    val faint = Color(0xFF5F656F)
+
+    /**
+     * Tertiary text (hints, units, placeholders, the 10 sp labels under values). The design mock-up's #5F656F measured
+     * 2.45–3.0:1 on the cards — under the 4.5:1 that small text needs — so it is lifted to #8F939A: 5.2:1 on `surface`,
+     * 4.7:1 on `raised`, and still a step below [muted] (which stays for secondary text).
+     */
+    val faint = Color(0xFF8F939A)
     val accent = Color(0xFFD98A45)
     val accentPress = Color(0xFFC2783A)
     val accent2 = Color(0xFF45B8A6)

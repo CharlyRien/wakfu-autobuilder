@@ -320,7 +320,13 @@ enum class Tr(
             "gardant ton build et ton badge actuels, ou la désactiver dans les paramètres de recherche " +
             "(« Vérifier l'optimalité après la recherche »)."
     ),
-    PROVEN_WITHIN("Proven within %s%% of optimal", "Optimal prouvé à %s%% près"),
+
+    // The certificate's bound on a build it could not prove optimal: it reads as a BOUND ("at most X below the optimum"), never as
+    // a success, and replaces the "optimum not proven" headline instead of stacking under it. FR uses a no-break space before the %.
+    BEST_FOUND_WITHIN(
+        "Best found · at most %s%% below the optimum",
+        "Meilleur trouvé · au plus %s %% sous l'optimum"
+    ),
     PROOF_UNAVAILABLE_FORCED("Proof unavailable (forced runes/sublimations)", "Preuve indisponible (runes/sublimations imposées)"),
     MASTERY_SUMMARY("Mastery Summary", "Cumul maîtrises"),
     MASTERY_TOTAL("Tracked total", "Total suivi"),

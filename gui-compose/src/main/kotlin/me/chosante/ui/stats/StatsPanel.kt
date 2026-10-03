@@ -231,8 +231,17 @@ internal fun MatchHero(
                 // when EITHER the solver or the certificate proved it (P4.4).
                 val certProven = ui.proofState is ProofState.ProvenOptimal
                 val showOptimal = ui.optimal || certProven
+                // Not proven optimal, but the certificate BOUNDS the gap — more useful than the vague hint. It REPLACES the
+                // "optimum not proven" headline (one line, worded as a bound) instead of stacking a second, apparently
+                // contradictory, line under it.
+                val within = (ui.proofState as? ProofState.ProvenWithin)?.takeIf { !ui.optimal }
                 Text(
-                    text = tr(if (showOptimal) Tr.OPTIMAL_PROVEN else Tr.BEST_FOUND),
+                    text =
+                        when {
+                            showOptimal -> tr(Tr.OPTIMAL_PROVEN)
+                            within != null -> tr(Tr.BEST_FOUND_WITHIN).format(formatBoundPercent(within.fraction, LocalLang.current))
+                            else -> tr(Tr.BEST_FOUND)
+                        },
                     style = WTypography.labelSmall.copy(color = if (showOptimal) WColor.success else WColor.warning),
                     modifier = Modifier.padding(top = 3.dp)
                 )
@@ -245,16 +254,7 @@ internal fun MatchHero(
                             onStop = onStopProof,
                             modifier = Modifier.padding(top = 2.dp)
                         )
-                    // Not proven optimal, but the certificate BOUNDS the gap — more useful than the vague hint.
-                    ui.proofState is ProofState.ProvenWithin && !ui.optimal -> {
-                        val within = ui.proofState as ProofState.ProvenWithin
-                        // Locale.ROOT so an FR UI shows "2.0", not "2,0" (the %s in PROVEN_WITHIN keeps the point).
-                        val pct = String.format(java.util.Locale.ROOT, "%.1f", within.fraction * 100)
-                        Text(
-                            text = tr(Tr.PROVEN_WITHIN).format(pct),
-                            style = WTypography.labelSmall.copy(color = WColor.warning, textAlign = TextAlign.Center),
-                            modifier = Modifier.padding(top = 2.dp)
-                        )
+                    within != null -> {
                         // The E8 construct / per-carrier silent refinement is still running behind the badge — keep a
                         // visible "still proving" cue (with what it is, and a way to stop it) so a later badge upgrade
                         // never looks spontaneous.
@@ -400,6 +400,15 @@ internal fun formatElapsed(totalSeconds: Long): String {
     val seconds = totalSeconds % 60
     return if (minutes > 0) "$minutes\u00A0min\u00A0$seconds\u00A0s" else "$seconds\u00A0s"
 }
+
+/**
+ * The certificate's bound ("at most X % below the optimum") as the player reads a number in their own language: one decimal
+ * with the language's decimal separator — "2.2" in English, "2,2" in French.
+ */
+internal fun formatBoundPercent(
+    fraction: Double,
+    lang: Lang,
+): String = String.format(if (lang == Lang.FR) java.util.Locale.FRANCE else java.util.Locale.ROOT, "%.1f", fraction * 100)
 
 /**
  * A small indeterminate spinner — a faint full ring with one bright arc sweeping around it — the same
