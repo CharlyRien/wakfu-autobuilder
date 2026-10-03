@@ -137,6 +137,8 @@ class BuildSearchModel(
     },
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Swing,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /** CPU work shares an injectable dispatcher so model tests can use one scheduler for every state update. */
+    private val backgroundDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val historyRepository: HistoryRepository = HistoryRepository(),
     /** Persisted library view options (sort + group-by-class). Injectable for tests. */
     private val libraryPreferences: LibraryPreferences = LibraryPreferences(),
@@ -275,7 +277,7 @@ class BuildSearchModel(
             // Pay OR-Tools' one-time cold start behind the loading screen, so the first real search
             // starts warm and the heavy main UI only mounts once the native library is loaded (no
             // CPU/IO contention with Compose's first render). The short delay lets the loader paint.
-            scope.launch(Dispatchers.Default) {
+            scope.launch(backgroundDispatcher) {
                 val estimateMs = WarmupTiming.estimatedDurationMs()
                 val start = System.currentTimeMillis()
                 // The native load reports no real progress, so animate an estimated %/ETA from the
@@ -341,7 +343,7 @@ class BuildSearchModel(
      * background thread — never on the UI thread.
      */
     private fun startIconPreload() {
-        scope.launch(Dispatchers.Default) {
+        scope.launch(backgroundDispatcher) {
             val paths = warmUpPaths(WakfuBestBuildFinderAlgorithm.equipments) + BreedAssets.warmUpPaths()
             IconPreloader.warmUp(scope, paths) { _, _ -> }
         }
@@ -586,7 +588,7 @@ class BuildSearchModel(
     private fun reconcileForcedItemsForCurrentRequest() {
         val snapshot = ui
         if (snapshot.forcedItems.isEmpty()) return
-        scope.launch(Dispatchers.Default) {
+        scope.launch(backgroundDispatcher) {
             val byFrenchName = WakfuBestBuildFinderAlgorithm.equipments.groupBy { it.name.fr }
             val kept =
                 snapshot.forcedItems.filter { chip ->
@@ -827,7 +829,7 @@ class BuildSearchModel(
             return
         }
         catalogJob =
-            scope.launch(Dispatchers.Default) {
+            scope.launch(backgroundDispatcher) {
                 val loaded =
                     WakfuBestBuildFinderAlgorithm.equipments
                         .distinctBy { it.equipmentId }
@@ -904,7 +906,7 @@ class BuildSearchModel(
                 requestErrors = emptyList()
             )
         job =
-            scope.launch(Dispatchers.Default) {
+            scope.launch(backgroundDispatcher) {
                 // The CP-SAT solver only reports progress when it finds a *better* solution, which can
                 // be many seconds apart — or stop entirely once the first good build is found — so the
                 // bar would sit frozen and the app looks dead mid-search. The budget is wall-clock, so
@@ -1012,7 +1014,7 @@ class BuildSearchModel(
                             }
                         }
                     // Compute the per-position breakdown ONCE for the final build, still off the UI thread
-                    // (we're on Dispatchers.Default here), reusing the final headline rotation for the
+                    // (we're on backgroundDispatcher here), reusing the final headline rotation for the
                     // configured combo so only the OTHER positions pay a rotation.
                     val finalBuildSnapshot = finalBuild
                     val scenarioDamages =
@@ -1116,7 +1118,7 @@ class BuildSearchModel(
         // computes it) — a new search / mode switch flips it and the superseded proof stops at once.
         val cancelled = newProofCancelFlag()
         proofJob =
-            scope.launch(Dispatchers.Default) {
+            scope.launch(backgroundDispatcher) {
                 withContext(mainDispatcher) {
                     if (!cancelled.get() && ui.phase == Phase.Done && ui.build == provenBuild && ui.proofState == ProofState.Idle) {
                         ui = ui.copy(proofState = ProofState.Proving(ProofProgress(phase = ProofPhase.CERTIFYING, startedAtMs = proofStartMs)))
@@ -1176,7 +1178,7 @@ class BuildSearchModel(
         if (params.scoreComputationMode != ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) return
         val shownBuild = result.individual
         proofJob =
-            scope.launch(Dispatchers.Default) {
+            scope.launch(backgroundDispatcher) {
                 val verdict =
                     try {
                         mmQualityProver(params, result) { false }
@@ -1268,7 +1270,7 @@ class BuildSearchModel(
             return !cancelled.get() && ui.phase == Phase.Done && ui.build == provenBuild && shown is ProofState.ProvenWithin && shown.refining
         }
         proofJob =
-            scope.launch(Dispatchers.Default) {
+            scope.launch(backgroundDispatcher) {
                 val proofScope = this
                 reportProofProgress(ProofProgress(phase = ProofPhase.CERTIFYING, startedAtMs = proofStartMs))
                 val proof =
@@ -1526,7 +1528,7 @@ class BuildSearchModel(
                 error = null,
                 toast = null
             )
-        scope.launch(Dispatchers.Default) {
+        scope.launch(backgroundDispatcher) {
             val rotation = SpellRotationOptimizer.bestSequencedRotation(build, character, character.clazz, damageScenario)
             val breakdown =
                 SpellRotationOptimizer.scenarioBreakdown(
@@ -1644,7 +1646,7 @@ class BuildSearchModel(
         if (ui.zenith == ZenithState.Loading) return
         ui = ui.copy(zenith = ZenithState.Loading, error = null, toast = null)
         val character = Character(ui.clazz, ui.level, ui.minLevel).copy(characterSkills = build.characterSkills)
-        scope.launch(Dispatchers.Default) {
+        scope.launch(backgroundDispatcher) {
             try {
                 val link =
                     zenithBuilder(
@@ -1956,7 +1958,7 @@ class BuildSearchModel(
         // card already renders from `rotation` above) and patch it in when ready — only if this build is still
         // the active one, so a quick load-another-build doesn't get a stale breakdown.
         if (isMaxDamage && rotation != null) {
-            scope.launch(Dispatchers.Default) {
+            scope.launch(backgroundDispatcher) {
                 val breakdown =
                     SpellRotationOptimizer.scenarioBreakdown(
                         loadedBuild,
