@@ -1722,7 +1722,7 @@ class WakfuBuildSolverTest {
                 .copy(targetStats = TargetStats(listOf(TargetStat(Characteristic.RESISTANCE_ELEMENTARY_FIRE, 40))))
         val shapeWith = dominationShape(withTarget, emptyList())!!
         val keptWith =
-            filterDominatedPool(pool, shapeWith.pinned, shapeWith.compared, shapeWith.minimized)[ItemType.AMULET]!!
+            filterDominatedPool(pool, shapeWith)[ItemType.AMULET]!!
                 .map { it.name.fr }
                 .toSet()
         assertThat(keptWith)
@@ -1734,7 +1734,7 @@ class WakfuBuildSolverTest {
         // the default-request domination win is untouched.
         val shapeNo = dominationShape(fireMaxDamageParams(50), emptyList())!!
         val keptNo =
-            filterDominatedPool(pool, shapeNo.pinned, shapeNo.compared, shapeNo.minimized)[ItemType.AMULET]!!
+            filterDominatedPool(pool, shapeNo)[ItemType.AMULET]!!
                 .map { it.name.fr }
                 .toSet()
         assertThat(keptNo)
@@ -3827,7 +3827,7 @@ class WakfuBuildSolverTest {
             )
         val shape = dominationShape(params, emptyList())
         assertThat(shape).isNotNull
-        val filtered = filterDominatedPool(mapOf(ItemType.AMULET to listOf(lowAp, highAp)), shape!!.pinned, shape.compared, shape.minimized)
+        val filtered = filterDominatedPool(mapOf(ItemType.AMULET to listOf(lowAp, highAp)), shape!!)
         assertThat(filtered.getValue(ItemType.AMULET))
             .describedAs("AP is pinned: the +3 AP amulet must not evict the +2 AP one (a 16-AP-cap-tight optimum may need it)")
             .containsExactlyInAnyOrder(lowAp, highAp)
@@ -3862,7 +3862,7 @@ class WakfuBuildSolverTest {
                     scoreComputationMode = mode
                 )
             val shape = requireNotNull(dominationShape(params, emptyList())) { "$mode: domination gated off" }
-            val filtered = filterDominatedPool(mapOf(ItemType.BOOTS to listOf(debited, clean)), shape.pinned, shape.compared, shape.minimized)
+            val filtered = filterDominatedPool(mapOf(ItemType.BOOTS to listOf(debited, clean)), shape)
             assertThat(filtered.getValue(ItemType.BOOTS))
                 .describedAs("$mode: the −1 MAX_AP boots must not evict the debit-free twin (+1 usable AP)")
                 .containsExactlyInAnyOrder(debited, clean)
@@ -9160,9 +9160,9 @@ class WakfuBuildSolverTest {
             .containsExactly(2)
         // And the memoized result is identical to the direct un-memoized filter (transparency).
         assertThat(fireFiltered)
-            .isEqualTo(filterDominatedPool(pool, fireShape.pinned, fireShape.compared, fireShape.minimized))
+            .isEqualTo(filterDominatedPool(pool, fireShape))
         assertThat(waterFiltered)
-            .isEqualTo(filterDominatedPool(pool, waterShape.pinned, waterShape.compared, waterShape.minimized))
+            .isEqualTo(filterDominatedPool(pool, waterShape))
     }
 
     /**

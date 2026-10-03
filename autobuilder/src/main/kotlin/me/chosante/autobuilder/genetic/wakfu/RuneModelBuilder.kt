@@ -260,9 +260,10 @@ internal fun CpModel.createRuneModel(
  * The rune-coverable stats worth modelling for this request: requested stats that have a rune.
  * Elemental masteries (specific or generic) all route to the single generic elemental-mastery rune
  * (there is no per-element mastery rune); the aggregate resistance request expands to the four
- * per-element resistance runes. Mirrors the elemental folding the scorers/solver already do.
+ * per-element resistance runes. Mirrors the elemental folding the scorers/solver already do. Also read by the
+ * domination pre-filter's rune contract ([dominationShape]) with every rune-able characteristic.
  */
-private fun relevantRuneStats(
+internal fun relevantRuneStats(
     params: WakfuBestBuildParams,
     runeCharacteristics: Set<Characteristic>,
 ): Set<Characteristic> {

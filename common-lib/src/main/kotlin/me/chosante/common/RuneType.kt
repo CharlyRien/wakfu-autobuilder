@@ -53,7 +53,7 @@ data class RuneType(
      * character's level. Socketing a rune above this cap is not possible in-game, so the engine and
      * the Zenith export both feed the carrier item's level here.
      */
-    fun maxLevel(itemLevel: Int): Int = RUNE_LEVEL_REQUIREMENTS.count { it <= itemLevel }.coerceIn(1, RUNE_LEVEL_REQUIREMENTS.size)
+    fun maxLevel(itemLevel: Int): Int = maxLevelForItemLevel(itemLevel)
 
     /**
      * Flat value this rune contributes when socketed on an item of [itemType] and [itemLevel]:
@@ -98,6 +98,32 @@ data class RuneType(
         // lvl 1 -> item 1, lvl 2 -> 36, lvl 3 -> 51, 4 -> 66, 5 -> 81, 6 -> 96, 7 -> 126, 8 -> 141,
         // 9 -> 171, 10 -> 186, 11 -> 216). The cap follows the item's level, not the character's.
         val RUNE_LEVEL_REQUIREMENTS = listOf(0, 36, 51, 66, 81, 96, 126, 141, 171, 186, 216)
+
+        /**
+         * The enchantment-level cap (1..11) of an item of [itemLevel] — what [maxLevel] returns for every rune. Every
+         * value table increases with it, so an item with a higher cap carries a better rune of each stat.
+         */
+        fun maxLevelForItemLevel(itemLevel: Int): Int = RUNE_LEVEL_REQUIREMENTS.count { it <= itemLevel }.coerceIn(1, RUNE_LEVEL_REQUIREMENTS.size)
+
+        /** Every characteristic a rune can carry: exactly the ones [baseValueTable] has a value table for. */
+        val VALUED_CHARACTERISTICS: Set<Characteristic> =
+            setOf(
+                Characteristic.MASTERY_ELEMENTARY,
+                Characteristic.MASTERY_MELEE,
+                Characteristic.MASTERY_DISTANCE,
+                Characteristic.MASTERY_BERSERK,
+                Characteristic.MASTERY_CRITICAL,
+                Characteristic.MASTERY_BACK,
+                Characteristic.MASTERY_HEALING,
+                Characteristic.RESISTANCE_ELEMENTARY_FIRE,
+                Characteristic.RESISTANCE_ELEMENTARY_WATER,
+                Characteristic.RESISTANCE_ELEMENTARY_EARTH,
+                Characteristic.RESISTANCE_ELEMENTARY_WIND,
+                Characteristic.LOCK,
+                Characteristic.DODGE,
+                Characteristic.INITIATIVE,
+                Characteristic.HP
+            )
 
         // Per-rune-level value tables (index by level-1). WakForge's resistance table carries a 12th
         // entry (30) that its own `[level-1]` indexing never reaches (max level 11 -> 27); we keep the

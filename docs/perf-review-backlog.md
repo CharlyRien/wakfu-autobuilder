@@ -1297,6 +1297,70 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
       positive rider, on an item or a sub.
     - ✅ DONE (CERTIFIER_VERSION 51) Dead code: MD-soft's never-set `Opt.mpCapMinus` (and its key bit) removed, keys
       and bounds unchanged.
+- **DOMINATION CONTRACT — ✅ FIXED (2026-10-03, CERTIFIER_VERSION 53; found by the adversarial review of PR #222).** The
+  per-slot domination pre-filter (`DominationFilter.kt`) feeds the search AND every certificate (`proveOptimality`,
+  the MM bound, the soft certificate: all `applyDomination = true`), so an item it wrongly evicts makes CP-SAT prove
+  `OPTIMAL` on the reduced pool and the certificate agree — a wrong "proven optimal" badge, in every mode.
+  - **The reported bug.** The rarity guard was one-way: an EPIC item could not dominate a non-epic one, but a non-epic
+    item could evict an EPIC (RELIC) one — although only an EPIC (RELIC) item can carry an epic (relic) sub
+    (`Σ epicSub ≤ Σ epicItem`). Repro (`DominationSoundnessReproTest`): level 200, an HP-only EPIC belt, a LEGENDARY belt
+    with 50 fire mastery, Mesure III — full pool 1 909 930, production 1 636 955 with `isOptimal = true` and
+    ProvenOptimal (−16.7 %), free and AP-row request alike. Fix: while an epic (relic) sub is modelled
+    (`modelledSublimations`, the model's own list: choosable or forced, sublimations on or off for a forced one), A may
+    dominate B only if `B epic ⇒ A epic` (`B relic ⇒ A relic`); with no such sub the old one-way rule stays.
+  - **Audit — every dimension the model or a certificate reads from an item:**
+
+    | Dimension | Verdict |
+    |---|---|
+    | rarity budget (≤1 epic / ≤1 relic) | safe (the old `A epic ⇒ B epic` clause) |
+    | epic / relic sub carrier | **fixed** (above) |
+    | rune VALUE: the item's level caps its rune level (`RuneType.maxLevel`) | **fixed**: when runes can be modelled, A's rune-level cap must be ≥ B's whenever B has sockets — a level-200 helmet with 5 more fire evicted a level-220 one whose level-11 runes are worth 12 more (889 920 vs 885 800) |
+    | rune on a CAPPED stat (crit mastery under Secret critique, a secondary under the Neutralité family, dodge under Furie, when that rune type is modelled) | **fixed, defensively**: equal rune-level caps, and equal sockets under max-damage's one-type-per-item fold / collapse (extra sockets would carry more of the capped type). The swap proof needs it; no end-to-end repro — every build tried let the skill points absorb the cap's slack (Strength distance points are more slack-efficient than runes) |
+    | the max-damage choice collapse at rune level 1 (elemental and secondary runes tie, so the per-slot rune TYPE flips at level 2) | **fixed, defensively**: a level-1 carrier is only replaced by another one there |
+    | ring NAME (never two rings of one French name; rarity variants share it) | **fixed**: B is evicted only when its dominators span two names — k = 2 by ITEM let the legendary and mythic variants of ring N evict B, N's only partner (991 660 vs 866 360). Proof in the `dominatedWithin` KDoc |
+    | sockets: count (rune capacity, ≥3-socket normal-sub carrier) | safe (`A.sockets ≥ B.sockets`) |
+    | socket colours | safe: the model is colour-agnostic (doubling is per slot, golden runes form the sub patterns) |
+    | MAX_* riders | safe (pinned since 2026-10-01) |
+    | weapon handedness / slot occupancy | safe: the filter is per `ItemType`; `NO_OFFHAND_OR_TWO_HANDED` is swap-invariant, `WEAPON_TYPE_EQUIPPED` gates domination off |
+    | item level / minimum level | safe: filtered before domination (the rune value is the row above) |
+    | set bonuses / item-specific hooks | none in the model |
+    | forced / excluded items, per-item forced runes | safe: forced items and per-item runes gate domination off, excluded items are removed before it; a global forced rune (resolved by name) counts as any rune type in the rune clause |
+    | per-stat-step ramp source (Poids Plume: MP) | latent hardening: the ramp's source / target are compared in max-damage (MP is pinned anyway) |
+    | best-element concentration FORCED where no single scenario element exists (most-masteries / precision, multi-element) | **fixed (latent)**: gates domination off — the sub's "scenario element strongest" constraint is non-monotone in the off elements |
+    | a multi-element max-damage scenario | **fixed (latent)**: every candidate element's mastery is compared (production enumerates single-element solves) |
+
+  - **Locks** (deterministic CI tests: 1 worker, fixed seed, interleaved search), every one RED on main @ 379830da:
+    `DominationSoundnessReproTest` — the epic-carrier repro end to end (the production `MaxDamageSearch` equals the
+    full-pool optimum and its proof never claims optimal below it, free and AP-row), the ring-name and the rune-level
+    repros (domination-ON solve == full pool), and the real-catalog probe (levels 110 / 200 / 245, GUI-default and free
+    max-damage, GUI-default most-masteries, a forced relic sub: no EPIC / RELIC item that only its own rarity could
+    replace is evicted — main evicted 2–4 per request: Sain Turastil, Piquants du Guerrier Trool, Anneau d'Amakna,
+    Anneau de Sufokia); `DominationFilterTest` — the relation clause by clause, both directions.
+  - **Cost** (pool sizes base → main → now, runes + subs unless noted): max-damage free 2 771 → 2 062 → 2 199 (110),
+    6 416 → 5 272 → 5 551 (200), 7 899 → 6 609 → 6 938 (245, +5.0 %); GUI-default max-damage 245: 6 888 → 7 078
+    (+2.8 %); GUI-default most-masteries / S2 / S3 245: 6 921 → 7 080 (+2.3 %); subs off (no carrier or cap clause): free
+    max-damage 245 784 → 871, S3 3 204 → 3 306. Certificates on the same pools (1 thread): the max-damage fast ledger
+    16.1 → 16.3 s (free 245), 18.0 → 18.8 s (GUI 245), 5.5 → 5.2 s (free 110); the MM bound 17.3 → 18.2 s (S2) — every
+    certified value identical; the nightly lvl-245 fast-ledger oracle is reproduced bit for bit (no re-bank). CP-SAT
+    (1 worker + interleave, det 120): no measurable change (S3 110 and the subs-off free 110 prove OPTIMAL on both
+    pools, same objective, det 45.6 → 7.0 and 26.3 → 16.6 — noise; the subs-on free 110 stays FEASIBLE in both).
+  - **Real badges — none found wrong.** The production chain (10 cores, 180 s search, then the proof) over main's pool vs
+    the contract's (`DominationFilterTest` `manual impact …`): free max-damage 245 ProvenOptimal at 20 811 420 on both;
+    S2 / S3 245 CP-SAT OPTIMAL at the same objective on both; GUI-default max-damage 245 / 200 "within 6.66 % / 11.37 %"
+    on main's pool vs "within 5.97 % / 7.03 %" on the contract's — better incumbents, but neither build wears a readmitted
+    item (search variance) and the certified bounds agree to a few units (19 954 742 vs 19 954 690; 11 246 189 vs
+    11 246 185), so main's badges held. The evicted carriers (Sain Turastil, Piquants du Guerrier Trool, Anneau d'Amakna /
+    de Sufokia) are not in these optima; a request whose optimum needs one (e.g. an epic sub with no strong epic item
+    allowed) would get a wrong badge, as the synthetic repro shows.
+  - **Also fixed:** a latent target-aware RANGE-row bail (`MaxDamageCertifier.kt`): a RANGE_AT_LEAST sub whose OWN +range
+    line is permanent could meet its row through that line, which the free credit excludes — −2.5 % on the synthetic
+    lock (`MaxDamageTargetAwareCertificateTest`, n = 3, +1 range, permanent); no shipped sub has the shape (the extractor
+    flags only FLAT subs' lines permanent), locked by `latent-shape bails never fire on the shipped catalog`.
+  - **Found, out of scope (OPEN follow-ups):** the max-damage rune CHOICE COLLAPSE books every M-feeding rune
+    under the range-band mastery, so an elemental rune counts as a SECONDARY mastery and no Neutralité-family sub can be
+    active on a free max-damage build carrying runes (+17 % on a 3-item pool once the rune is booked as elemental); and
+    the multi-element item PREFILTER (a top-8 heuristic) still lets most-masteries / precision report CP-SAT `OPTIMAL` as
+    "proven optimal" (max-damage already withholds it).
 
 ---
 

@@ -349,8 +349,16 @@ object WakfuBuildSolver {
      * collapse dropped every graw-≤-0 ring — also one carrying AP / crit (a cell read 0 against a real build wearing it) —
      * and no pass listed an EPIC / RELIC item carrying no stat the scenario reads, although it is the carrier an epic /
      * relic sub needs (−15 % on the repro).
+     * 53: the domination pre-filter's contract ([dominationShape], `docs/perf-review-backlog.md` §E) — the certificates
+     * read the SAME reduced pool as the search, and that pool changes: an EPIC / RELIC item is only dominated by another
+     * one while an epic / relic sub is modelled (a non-epic item used to evict the only carrier of Mesure III: the search
+     * and the certificate both settled 16.7 % below the optimum with a ProvenOptimal badge — the PR #222 review repro); a
+     * ring only when its dominators span two names (the same-name rule); a rune carrier only by an item whose level caps
+     * its runes at least as high (EXACTLY as high, with equal sockets under the max-damage one-type-per-item model, when a
+     * modelled rune type is a capped stat). Pools only grow, so every cached bound computed on a v52 pool is stale. Plus
+     * a latent bail of the target-aware RANGE row: a RANGE_AT_LEAST sub whose own +range line is permanent (no shipped sub).
      */
-    const val CERTIFIER_VERSION: Int = 52
+    const val CERTIFIER_VERSION: Int = 53
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
@@ -1087,7 +1095,7 @@ object WakfuBuildSolver {
             }
         // getOrPut on the concurrent inner map may double-compute under a race, but [filterDominatedPool] is a pure
         // deterministic function, so both threads produce a structurally-identical pool — a benign, idempotent race.
-        return perShape.getOrPut(shape) { filterDominatedPool(basePool, shape.pinned, shape.compared, shape.minimized) }
+        return perShape.getOrPut(shape) { filterDominatedPool(basePool, shape) }
     }
 
     /**
@@ -3226,7 +3234,7 @@ object WakfuBuildSolver {
     internal fun filterDominatedPoolForTest(
         pool: Map<ItemType, List<Equipment>>,
         pinned: Set<Characteristic> = emptySet(),
-    ): Map<ItemType, List<Equipment>> = filterDominatedPool(pool, pinned)
+    ): Map<ItemType, List<Equipment>> = filterDominatedPool(pool, DominationShape(pinned))
 
     /** A tracked objective-chain var's solved value against its declared reachable `[lo, hi]`. */
     internal data class MaxDamageVarBound(

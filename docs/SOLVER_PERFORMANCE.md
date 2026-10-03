@@ -70,6 +70,15 @@ slot, item A **soundly dominates** B (B can never beat A in any build, so B is r
 - B removable iff it has **≥ k** such dominators (k=2 for RING — two co-equippable distinct — else 1), ties
   broken by id.
 
+> **⚠️ Superseded in part (CERTIFIER_VERSION 53, `docs/perf-review-backlog.md` §E — the PR #222 review).** The relation
+> above missed three things the model reads from an item, each of which made the reduced pool lose the optimum (and the
+> certificates, which read the same pool, prove the wrong build): **(1)** the epic / relic CARRIER — `(B epic ⇒ A epic) ∧
+> (B relic ⇒ A relic)` is now also required while such a sub is modelled; **(2)** the rune VALUE — the item's level caps
+> its rune level, so A's cap must be ≥ B's (equal, with equal sockets in max-damage, when a modelled rune type is a pinned
+> stat); **(3)** the ring NAME rule — B goes only when its dominators span two names (k=2 counted items: two rarity
+> variants of one ring could evict B although a build wearing that ring can only pair it with B). The authoritative
+> contract is the KDoc of `DominationFilter.kt` and AGENTS.md §4.
+
 **Measured (max-damage fire, full EPIC pool, no runes/subs, deterministic):**
 
 | | lvl-110 | lvl-245 |
