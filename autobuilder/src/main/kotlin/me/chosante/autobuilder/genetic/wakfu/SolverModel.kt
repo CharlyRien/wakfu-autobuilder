@@ -58,10 +58,12 @@ internal class RuneModel(
     private val suppressedBy: Map<Pair<Equipment, Characteristic>, IntVar> = emptyMap(),
     /**
      * True ⇒ the max-damage per-item CHOICE COLLAPSE (`maxDamageRuneChoiceCollapse` in [createRuneModel]): each
-     * carrier offers only its best M-feeding rune (keyed under the range-band mastery, riding the equip var) and,
+     * carrier offers only its best M-feeding rune (keyed under its own characteristic, riding the equip var) and,
      * when larger, the critical-mastery rune. False with [singleTypePerItem] ⇒ the GENERAL single-type fold — one
      * pick bool per modeled rune stat (a target row added a non-damage rune type), `Σ picks = equipped`. The
      * AP-cell certifier mirrors the two shapes differently (see `certifyMaxPerHitAtApPass`).
+     * A carrier whose best rune is a secondary mastery read by a cap keeps explicit picks instead: a smaller
+     * elemental/secondary rune can free budget for skills. Such carriers can coexist with collapsed defaults.
      */
     val maxDamageChoiceCollapse: Boolean = false,
 ) {
