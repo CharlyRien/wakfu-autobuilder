@@ -65,6 +65,7 @@ import me.chosante.common.Sublimation
 import me.chosante.ui.components.RarityIcon
 import me.chosante.ui.components.iconResourcePath
 import me.chosante.ui.components.itemResourcePath
+import me.chosante.ui.components.localized
 import me.chosante.ui.components.rememberClasspathBitmap
 import me.chosante.ui.components.sublimationEffectText
 import me.chosante.ui.i18n.Lang
@@ -666,7 +667,7 @@ private fun emptyHintText(hint: EmptySlotHint): String {
     val lang = LocalLang.current
     return when (hint) {
         is EmptySlotHint.SubRequiresEmpty ->
-            tr(Tr.EMPTY_SLOT_SUB_HINT).format(if (lang == Lang.FR) hint.sub.name.fr else hint.sub.name.en)
+            tr(Tr.EMPTY_SLOT_SUB_HINT).format(hint.sub.name.localized(lang))
 
         EmptySlotHint.NoUsefulItem -> tr(Tr.EMPTY_SLOT_NO_GAIN_HINT)
     }
@@ -784,7 +785,7 @@ private fun ItemTooltip(
         if (subs.isNotEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
             Text(
-                text = "Sublimations",
+                text = tr(Tr.CHOSEN_SUBLIMATIONS),
                 style = WTypography.labelSmall.copy(color = WColor.faint, fontWeight = FontWeight.SemiBold)
             )
             subs.forEach { sub ->
@@ -794,7 +795,7 @@ private fun ItemTooltip(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = if (lang == Lang.FR) sub.name.fr else sub.name.en,
+                            text = sub.name.localized(lang),
                             style = WTypography.labelSmall.copy(color = WColor.accent, fontWeight = FontWeight.Medium)
                         )
                         Text(
@@ -1140,7 +1141,7 @@ private fun SlotMeta(
             val showLevel = cardHeight >= LEVEL_LINE_MIN_CARD
             if (showLevel) {
                 Text(
-                    text = "Lv ${equipment.level} · ${equipment.rarity.label(LocalLang.current)}",
+                    text = "${Tr.LEVEL_PREFIX_SHORT.value(LocalLang.current)} ${equipment.level} · ${equipment.rarity.label(LocalLang.current)}",
                     style =
                         WTypography.labelSmall.copy(
                             fontFamily = WType.mono,
@@ -1188,7 +1189,7 @@ private fun SlotMeta(
                         if (align != TextAlign.End && socketColors.isNotEmpty()) socketRow()
                         if (hasSub) {
                             Text(
-                                text = subs.joinToString("  ") { "✦ ${if (lang == Lang.FR) it.name.fr else it.name.en}" },
+                                text = subs.joinToString("  ") { "✦ ${it.name.localized(lang)}" },
                                 style = WTypography.labelSmall.copy(color = WColor.accent),
                                 textAlign = align,
                                 maxLines = 1,
@@ -1216,7 +1217,7 @@ private fun UiState.hasPinnedRunes(equipment: Equipment?): Boolean = equipment !
 private fun Equipment.localizedName(lang: Lang): String =
     when (lang) {
         Lang.FR -> name.fr.ifBlank { name.en }
-        Lang.EN -> name.en.ifBlank { name.fr }
+        Lang.EN, Lang.ES -> name.en.ifBlank { name.fr }
     }
 
 private fun Equipment.secondaryLine(
@@ -1226,7 +1227,7 @@ private fun Equipment.secondaryLine(
     val secondaryName =
         when (lang) {
             Lang.FR -> name.en
-            Lang.EN -> name.fr
+            Lang.EN, Lang.ES -> name.fr
         }.ifBlank { null }
             ?.takeUnless { it == localizedName(lang) }
     return listOfNotNull(secondaryName, slot.labelKey.value(lang)).joinToString(" · ")

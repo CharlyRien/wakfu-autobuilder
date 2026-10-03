@@ -47,8 +47,16 @@ internal fun SpellElement.elementLabel(): String =
         }
     )
 
-/** The text in the active [lang], falling back to the other language when the preferred one is blank. */
-internal fun I18nText.localized(lang: Lang): String = (if (lang == Lang.FR) fr else en).ifBlank { if (lang == Lang.FR) en else fr }
+/** The text in the active [lang], falling back to English then French when the preferred one is blank. */
+internal fun I18nText.localized(lang: Lang): String {
+    val preferred =
+        when (lang) {
+            Lang.FR -> fr
+            Lang.EN -> en
+            Lang.ES -> es
+        }
+    return preferred.ifBlank { en.ifBlank { fr }.ifBlank { es } }
+}
 
 /** A spell's icon sprite in an element-tinted rounded tile. Renders an empty tile when the asset is absent. */
 @Composable

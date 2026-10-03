@@ -81,37 +81,37 @@ internal fun RequestValidationProblem.localizedMessage(lang: Lang): String =
     when (this) {
         is RequestValidationProblem.LevelRangeInvalid -> Tr.LEVEL_RANGE_INVALID.value(lang)
         is RequestValidationProblem.ForcedItemNotEquippable -> {
-            val name = if (lang == Lang.FR) item.name.fr else item.name.en
+            val name = item.name.localized(lang)
             "$name ${Tr.FORCED_ITEM_NOT_EQUIPPABLE.value(lang)}"
         }
         is RequestValidationProblem.ForcedSublimationRarityExceeded -> {
-            val names = sublimations.joinToString { if (lang == Lang.FR) it.fr else it.en }
+            val names = sublimations.joinToString { it.localized(lang) }
             "${Tr.FORCED_SUBLIMATION_RARITY_INVALID.value(lang)} $names"
         }
         is RequestValidationProblem.ForcedItemAlsoExcluded -> {
-            val name = if (lang == Lang.FR) item.name.fr else item.name.en
+            val name = item.name.localized(lang)
             "$name ${Tr.FORCED_ITEM_ALSO_EXCLUDED.value(lang)}"
         }
         is RequestValidationProblem.ForcedItemsSlotConflict -> {
-            val names = items.joinToString { if (lang == Lang.FR) it.fr else it.en }
+            val names = items.joinToString { it.localized(lang) }
             "${Tr.FORCED_ITEMS_SLOT_CONFLICT.value(lang)} $names"
         }
         is RequestValidationProblem.ForcedWeaponsConflict -> {
-            val names = items.joinToString { if (lang == Lang.FR) it.fr else it.en }
+            val names = items.joinToString { it.localized(lang) }
             "${Tr.FORCED_WEAPONS_CONFLICT.value(lang)} $names"
         }
         is RequestValidationProblem.ForcedItemRarityBudgetExceeded -> {
-            val names = items.joinToString { if (lang == Lang.FR) it.fr else it.en }
+            val names = items.joinToString { it.localized(lang) }
             "${Tr.FORCED_ITEM_RARITY_BUDGET.value(lang)} $names"
         }
         is RequestValidationProblem.ForcedSublimationNoCarrier -> {
-            val name = if (lang == Lang.FR) sublimation.fr else sublimation.en
+            val name = sublimation.localized(lang)
             "$name ${Tr.FORCED_SUBLIMATION_NO_CARRIER.value(lang)}"
         }
         is RequestValidationProblem.ForcedSublimationsExceedCapacity ->
             Tr.FORCED_SUBLIMATIONS_EXCEED_CAPACITY.value(lang)
         is RequestValidationProblem.SublimationForcedAndExcluded -> {
-            val name = if (lang == Lang.FR) sublimation.fr else sublimation.en
+            val name = sublimation.localized(lang)
             "$name ${Tr.SUBLIMATION_FORCED_AND_EXCLUDED.value(lang)}"
         }
     }
