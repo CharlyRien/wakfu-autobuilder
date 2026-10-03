@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.13.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.12.0...wakfu-autobuilder-1.13.0) (2026-10-03)
+
+
+### Features
+
+* What's new shows player-facing release notes in the app language ([d3da862](https://github.com/CharlyRien/wakfu-autobuilder/commit/d3da86280d77d58d47e980fbf679a73d9b17c5dc))
+
+
+### Bug Fixes
+
+* a build saved with other game data now says so on its card and when loaded ([3aeaa69](https://github.com/CharlyRien/wakfu-autobuilder/commit/3aeaa69b6abe2215c9707b36e39df3ac7057798a))
+* boss names follow the app language, and the boss list loses its garbled entry ([433fa61](https://github.com/CharlyRien/wakfu-autobuilder/commit/433fa6186e4b93172222a0bc739b313fc989970a))
+* Max Damage builds show their damage and boss in My Builds and Compare ([b1c31a1](https://github.com/CharlyRien/wakfu-autobuilder/commit/b1c31a12930ab5f2ab40dc44074b3878791f29e6))
+* no "0" headline before a search, and no empty "Desired vs Achieved" card ([669fbc4](https://github.com/CharlyRien/wakfu-autobuilder/commit/669fbc4b46d8a4c180f407a29f9d21896396df4d))
+* request panel text no longer cut off, easier-to-read small text, clearer optimum badge ([65d6527](https://github.com/CharlyRien/wakfu-autobuilder/commit/65d6527c6a77d67b60f9545dceb4dd0f8bc8d37b))
+* stopping a search keeps the build usable ([779152d](https://github.com/CharlyRien/wakfu-autobuilder/commit/779152d91f277bd0989482f6eaa7de6f4b0bba8f))
+* switching the search mode keeps each mode's targets and results ([4a26ec8](https://github.com/CharlyRien/wakfu-autobuilder/commit/4a26ec8721cc221980dfcebdb6c24737f403ffc5))
+* the Precision match never reads above 100% ([007ddae](https://github.com/CharlyRien/wakfu-autobuilder/commit/007ddae47fcb7db0b58120b813ab35795c841388))
+* the Save dialog opens on the name field, closes with Esc and saves with Enter ([2867545](https://github.com/CharlyRien/wakfu-autobuilder/commit/286754562d6daefb9ae17dce70da1ff78e7e8c97))
+* Zenith links are made once per build, and Zenith errors are readable ([4ae86c2](https://github.com/CharlyRien/wakfu-autobuilder/commit/4ae86c24074572cc81734bdd8eaad772505abb70))
+
 ## [1.12.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.11.0...wakfu-autobuilder-1.12.0) (2026-10-03)
 
 
