@@ -83,6 +83,29 @@ private fun dropsDamageWithNoMasteryToProtect(
 }
 
 /**
+ * The sublimations [createSublimationModel] gives a variable for this request: `first` = the FORCED ones (matched by
+ * French or English name, modelled whatever [WakfuBestBuildParams.useSublimations] says), `second` = the choosable
+ * ones (sublimations on, solver-choosable and modelable in this mode / scenario). One source for the model and for
+ * the domination pre-filter's carrier contract ([dominationShape]): an epic / relic sub in either list needs an epic
+ * / relic carrier item.
+ */
+internal fun modelledSublimations(
+    params: WakfuBestBuildParams,
+    sublimations: List<Sublimation>,
+): Pair<List<Sublimation>, List<Sublimation>> {
+    val forcedNames = params.forcedSublimations.map { it.lowercase() }.toSet()
+    val forcedSubs =
+        sublimations.filter { it.name.fr.lowercase() in forcedNames || it.name.en.lowercase() in forcedNames }
+    val choosableSubs =
+        if (!params.useSublimations) {
+            emptyList()
+        } else {
+            sublimations.filter { it !in forcedSubs && isModelableSublimation(it, params) }
+        }
+    return forcedSubs to choosableSubs
+}
+
+/**
  * Models the chosen/forced sublimations. Each modeled sub gets a [SublimationModel.subVars] boolean.
  * Epic/relic subs are gated to an equipped epic/relic item — their dedicated slot comes from that carrier
  * ([gateSublimationsOnCarrierItems]). Normal subs all share the same carrier eligibility in this optimistic
@@ -106,15 +129,7 @@ internal fun CpModel.createSublimationModel(
     sublimations: List<Sublimation>,
 ): SublimationModel {
     if (sublimations.isEmpty()) return SublimationModel.EMPTY
-    val forcedNames = params.forcedSublimations.map { it.lowercase() }.toSet()
-    val forcedSubs =
-        sublimations.filter { it.name.fr.lowercase() in forcedNames || it.name.en.lowercase() in forcedNames }
-    val choosableSubs =
-        if (!params.useSublimations) {
-            emptyList()
-        } else {
-            sublimations.filter { it !in forcedSubs && isModelableSublimation(it, params) }
-        }
+    val (forcedSubs, choosableSubs) = modelledSublimations(params, sublimations)
     if (forcedSubs.isEmpty() && choosableSubs.isEmpty()) return SublimationModel.EMPTY
 
     val subVars = LinkedHashMap<Sublimation, IntVar>()

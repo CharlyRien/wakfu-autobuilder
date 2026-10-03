@@ -2360,6 +2360,27 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 .filter { it.variable in skillVarsForRange }
                 .groupBy { it.variable }
                 .mapValues { (_, ts) -> ts.sumOf { it.coefficient } }
+        // Latent (CERTIFIER_VERSION 53, the PR #222 review): the RANGE_AT_LEAST exclusion below relies on the excluded sub's
+        // OWN +range line staying out of its condition's pre-combat read. But [buildPermanentSubTerms] gates every PERMANENT
+        // (`appliesBeforeCombat`) line on the RAW subVar, the sub's own included: such a sub could meet its threshold — and
+        // the row — through its own line alone, which the exclusion then drops (an under-count of the build carrying it).
+        // The extractor only flags a FLAT sub's lines permanent ("permanent ⟹ FLAT"), so no shipped sub has this shape —
+        // bail if one ever does.
+        if (subModel.subVars.keys.any { s ->
+                s.condition?.type == SublimationConditionType.RANGE_AT_LEAST &&
+                    (s.condition?.value ?: 0) >= rangeRowTarget &&
+                    s.kind != SublimationKind.COMBAT_CONDITIONAL &&
+                    s.kind != SublimationKind.CONVERSION &&
+                    s.effects.filterIsInstance<SublimationEffect.StatEffect>().any { eff ->
+                        eff.appliesBeforeCombat &&
+                            eff.characteristic.foldedToUsableStat() == Characteristic.RANGE &&
+                            eff.magnitudeAtLevel(subModel.characterLevel) > 0 &&
+                            WakfuBuildSolver.scenarioGateMatches(eff.scenarioGate, params)
+                    }
+            }
+        ) {
+            return Long.MAX_VALUE
+        }
         val subRangeFree =
             perSubValue(rangeTerms)
                 .entries
