@@ -189,7 +189,7 @@ private fun SideColumn(
                 when {
                     entry.isMasteryMode() -> "${entry.requestedMasteryTotal().formatCompact()} ${tr(Tr.MASTERY_SHORT)}"
                     entry.isDamageMode() -> "${entry.expectedDamage().formatCompact()} ${tr(Tr.EXPECTED_DAMAGE)}"
-                    else -> "${entry.result.match.toInt()}% ${tr(Tr.MATCH)}"
+                    else -> "${entry.matchPercent()}% ${tr(if (entry.meetsAllTargets()) Tr.TARGETS_MET else Tr.MATCH)}"
                 }
             Text(
                 text = headline + if (entry.result.optimal) " · ${tr(Tr.OPTIMAL_PROVEN)}" else "",

@@ -70,6 +70,7 @@ import me.chosante.ui.i18n.tr
 import me.chosante.ui.state.Phase
 import me.chosante.ui.state.Screen
 import me.chosante.ui.state.UiState
+import me.chosante.ui.state.displayedMatchPercent
 import me.chosante.ui.state.onlyDigits
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WType
@@ -323,7 +324,9 @@ private fun SecondMeter(
 ) {
     if (ui.mode != ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT) return
     Spacer(modifier = Modifier.width(if (strip) 14.dp else 16.dp))
-    TopMeter(label = tr(Tr.MATCH), value = "${ui.match.toInt()}%", fill = ui.match.toFloat() / 100f, color = WColor.success)
+    // Capped at 100: past it the engine only ranks how far a build overshoots its targets (see displayedMatchPercent).
+    val percent = ui.match.displayedMatchPercent()
+    TopMeter(label = tr(Tr.MATCH), value = "$percent%", fill = percent / 100f, color = WColor.success)
 }
 
 /** A quiet uppercase section tag ("Request") marking the wrapped search strip — a marker, not a control. */

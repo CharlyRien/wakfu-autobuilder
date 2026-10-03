@@ -232,6 +232,33 @@ class CompareScreenUiTest {
         }
 
     @Test
+    fun `a precision column is capped at 100 percent and says its targets are met`() =
+        runComposeUiTest {
+            setContent {
+                CompositionLocalProvider(LocalLang provides Lang.EN) {
+                    CompareScreen(
+                        ui =
+                            UiState(
+                                savedBuilds =
+                                    listOf(
+                                        entry("a", "Overshoot", "CRA", mode = "FIND_CLOSEST_BUILD_FROM_INPUT", match = 248.5),
+                                        entry("b", "Short", "CRA", mode = "FIND_CLOSEST_BUILD_FROM_INPUT", match = 87.0)
+                                    ),
+                                compareSlots = listOf("a", "b")
+                            ),
+                        onPick = { _, _ -> },
+                        onClear = { },
+                        onAdd = { },
+                        onBack = { }
+                    )
+                }
+            }
+            onNodeWithText("100% Targets met · Optimal proven").assertExists()
+            onNodeWithText("87% Match · Optimal proven").assertExists()
+            assertThat(onAllNodesWithText("248", substring = true).fetchSemanticsNodes()).isEmpty()
+        }
+
+    @Test
     fun `only damage builds compared means no mastery row`() =
         runComposeUiTest {
             setContent {

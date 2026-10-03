@@ -893,17 +893,26 @@ private fun HeadlineBadge(entry: HistoryEntry) {
         when {
             entry.isMasteryMode() -> entry.requestedMasteryTotal().formatCompact() to tr(Tr.MASTERY_SHORT)
             entry.isDamageMode() -> entry.expectedDamage().formatCompact() to tr(Tr.EXPECTED_DAMAGE)
-            else -> "${entry.result.match.toInt()}%" to tr(Tr.MATCH)
+            else -> "${entry.matchPercent()}%" to tr(Tr.MATCH)
         }
+    // A precision build that meets every target says so, and a proven optimum says so: both can hold at once, then both show.
+    val targetsMet = !entry.isMasteryMode() && !entry.isDamageMode() && entry.meetsAllTargets()
+    val statuses =
+        buildList {
+            if (targetsMet) add(tr(Tr.TARGETS_MET))
+            if (entry.result.optimal) add(tr(Tr.OPTIMAL_PROVEN))
+        }
+    val good = statuses.isNotEmpty()
     Column(horizontalAlignment = Alignment.End) {
         Text(
             text = value,
-            style = WTypography.titleMedium.copy(fontFamily = WType.mono, color = if (entry.result.optimal) WColor.success else WColor.text)
+            style = WTypography.titleMedium.copy(fontFamily = WType.mono, color = if (good) WColor.success else WColor.text)
         )
-        Text(
-            text = if (entry.result.optimal) tr(Tr.OPTIMAL_PROVEN) else label,
-            style = WTypography.labelSmall.copy(color = if (entry.result.optimal) WColor.success else WColor.muted)
-        )
+        if (good) {
+            statuses.forEach { Text(text = it, style = WTypography.labelSmall.copy(color = WColor.success)) }
+        } else {
+            Text(text = label, style = WTypography.labelSmall.copy(color = WColor.muted))
+        }
     }
 }
 
