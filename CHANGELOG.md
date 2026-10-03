@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.12.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.11.0...wakfu-autobuilder-1.12.0) (2026-10-03)
+
+
+### Features
+
+* max-damage builds with a mastery row can be upgraded to the proven optimum ([644f3ef](https://github.com/CharlyRien/wakfu-autobuilder/commit/644f3ef6c31699c730d976dce769361f3bd03029))
+* max-damage requests with the default target rows get a quality badge ([9eecbf7](https://github.com/CharlyRien/wakfu-autobuilder/commit/9eecbf73d0cabc8950a383d34fbb943f55f20147))
+* most-masteries quality badge for range and zero-valued target rows ([aa38b70](https://github.com/CharlyRien/wakfu-autobuilder/commit/aa38b70dac1b22b691966114aec326a3ee6c1751))
+* the background optimality check can be stopped, turned off, and explains itself ([a7d6a4a](https://github.com/CharlyRien/wakfu-autobuilder/commit/a7d6a4a542a2a2a259d2c3631f80cf8fdfdabb3e))
+* the most-masteries quality badge is ready when the search ends ([d22d923](https://github.com/CharlyRien/wakfu-autobuilder/commit/d22d923900df75bade34dbc7ecdcb7cdea8e7658))
+* tighter most-masteries quality badge ([332b201](https://github.com/CharlyRien/wakfu-autobuilder/commit/332b201660f6cf6686fe6090136708882bc83e78))
+
+
+### Bug Fixes
+
+* **cli:** --wp sets the Wakfu-point target instead of movement points ([3f4a85e](https://github.com/CharlyRien/wakfu-autobuilder/commit/3f4a85e715c3384878960c5e93037e2b74110752))
+* quality badges no longer under-count builds with negative critical-hit items ([ec86d46](https://github.com/CharlyRien/wakfu-autobuilder/commit/ec86d4624d27a2c9a8f49a93c51b784fa5749dec))
+* requests with targets far out of reach no longer return an empty build ([c367d1c](https://github.com/CharlyRien/wakfu-autobuilder/commit/c367d1c463b3cfa14d6f881c991e3340b21fc272))
+* the max-damage proof no longer drops the Major "movement point and damage" skill with Poids Plume ([a8528ec](https://github.com/CharlyRien/wakfu-autobuilder/commit/a8528ec70711319adc58b281f3f366a68e000624))
+
+
+### Performance Improvements
+
+* the most-masteries quality badge is computed ~7x faster ([e6571bc](https://github.com/CharlyRien/wakfu-autobuilder/commit/e6571bc4e56941d7dbcc2c50e94774560066fe9e))
+
 ## [1.11.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.10.0...wakfu-autobuilder-1.11.0) (2026-10-02)
 
 
