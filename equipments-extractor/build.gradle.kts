@@ -15,6 +15,7 @@ repositories {
 dependencies {
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     implementation(platform(libs.kotlinx.coroutine.bom))
     implementation(libs.bundles.fuel)
     implementation(libs.kotlinx.serialization.json)

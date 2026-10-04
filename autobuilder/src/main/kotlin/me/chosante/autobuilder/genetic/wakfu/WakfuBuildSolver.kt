@@ -371,8 +371,14 @@ object WakfuBuildSolver {
      * budget and one represents them; a choice only a choosable cap keeps is gated on those subs
      * ([RuneModel.choiceGates]). Both cut dominated builds only, so the mirror reads the same (or a smaller) pick set
      * and the optimum it bounds is unchanged.
+     * 55: the POOL DATA changes, not the certifier. The Dofus Pourpre's
+     * "100% of the level as Elemental Mastery" (action 999, which the equipments extractor used to drop) is now
+     * [me.chosante.common.Equipment.percentOfLevel], resolved into the item's stats when the request's pool is built
+     * ([me.chosante.common.Equipment.atLevel]): +170 to +245 elemental mastery on every pool from level 170, and domination
+     * keeps the item where Dofushu used to evict it (level ≥ 230). Both certificates read that pool, so every cached bound
+     * computed on the old one (memory or disk, keyed by this version and the unchanged data version) is stale.
      */
-    const val CERTIFIER_VERSION: Int = 54
+    const val CERTIFIER_VERSION: Int = 55
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
@@ -3491,6 +3497,12 @@ object WakfuBuildSolver {
             poolSize = built.allEquips.size
         )
     }
+
+    /** Test seam: the items the multi-element prefilter ([prefilterRelevantEquipments]) keeps of [equipmentsByItemType]. */
+    internal fun prefilteredPoolForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+    ): Map<ItemType, List<Equipment>> = prefilterRelevantEquipments(equipmentsByItemType, params)
 
     /** Test-only: whether [params] would be prefiltered, and the resulting distinct-item pool size (no solve). */
     internal fun gatedPoolSizeForTest(
