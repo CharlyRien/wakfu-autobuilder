@@ -199,6 +199,34 @@ class HistoryMappingTest {
     }
 
     @Test
+    fun `a saved build keeps the Dofus Pourpre's level-scaled Elemental Mastery, counted once`() {
+        // A search's build carries the pool's copy of the item, resolved at the character's level (Equipment.atLevel).
+        val pourpre =
+            Equipment(
+                equipmentId = 33395,
+                guiId = 53133395,
+                level = 170,
+                name = I18nText(fr = "Dofus Pourpre", en = "Crimson Dofus", es = "", pt = ""),
+                rarity = Rarity.RELIC,
+                itemType = ItemType.EMBLEM,
+                characteristics = mapOf(Characteristic.ACTION_POINT to 1, Characteristic.CRITICAL_HIT to 3),
+                percentOfLevel = mapOf(Characteristic.MASTERY_ELEMENTARY to 100)
+            ).atLevel(245)
+        val ui = UiState(level = 245, build = BuildCombination(equipments = listOf(pourpre), characterSkills = CharacterSkills(245)))
+
+        val entry = ui.toHistoryEntry(id = "id-3", name = "Pourpre", note = null, createdAt = 1L, dataVersion = "v")!!
+        // Through the library / clipboard codec (it writes defaults: the copy's emptied line too).
+        val restored = historyJson.decodeFromString(HistoryEntry.serializer(), historyJson.encodeToString(HistoryEntry.serializer(), entry))
+
+        val reloaded = restored.toBuildCombination().equipments.single()
+        assertThat(reloaded).isEqualTo(pourpre)
+        assertThat(reloaded.characteristics).containsEntry(Characteristic.MASTERY_ELEMENTARY, 245)
+        // Compare and the library read this copy as is: resolving it again (at any level) adds nothing.
+        assertThat(reloaded.atLevel(245)).isEqualTo(pourpre)
+        assertThat(reloaded.atLevel(200)).isEqualTo(pourpre)
+    }
+
+    @Test
     fun `sublimations and passives survive an export-import round-trip`() {
         val amulet =
             Equipment(

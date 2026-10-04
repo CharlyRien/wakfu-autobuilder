@@ -814,7 +814,9 @@ class SoundnessReviewAdversarialTest {
         val levels = listOf(20, 50, 110, 170, 200, 245)
         val findings = mutableListOf<String>()
         for (e in WakfuBestBuildFinderAlgorithm.equipments) {
-            for (r in riders) if ((e.characteristics[r] ?: 0) > 0) findings += "item ${e.name.fr} (${e.equipmentId}): ${e.characteristics[r]} $r"
+            // As a search pool reads it: a level-scaled line ([Equipment.percentOfLevel], positive) is largest at the top level.
+            val stats = e.atLevel(levels.max()).characteristics
+            for (r in riders) if ((stats[r] ?: 0) > 0) findings += "item ${e.name.fr} (${e.equipmentId}): ${stats[r]} $r"
         }
         val choosable = WakfuBestBuildFinderAlgorithm.sublimations.filter { it.solverChoosable }
         for (sub in choosable) {

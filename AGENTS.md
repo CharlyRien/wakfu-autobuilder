@@ -71,7 +71,12 @@ These types are the vocabulary of the whole codebase — learn them first.
   `baseCharacteristicValues`.
 - **`CharacterClass`**: the 18 Wakfu classes + `UNKNOWN`.
 - **`Equipment`**: `equipmentId`, `guiId` (used to resolve the item icon PNG), `level`, `name`
-  (`I18nText` fr/en/es/pt), `rarity`, `itemType`, `characteristics: Map<Characteristic, Int>`.
+  (`I18nText` fr/en/es/pt), `rarity`, `itemType`, `characteristics: Map<Characteristic, Int>`, and
+  `percentOfLevel` — the "X% of the level as <stat>" lines (only the Dofus Pourpre's 100% Elemental Mastery
+  today). Those depend on the wearer's level, so the per-request pool resolves them into `characteristics`
+  (`Equipment.atLevel`, in `WakfuBestBuildFinderAlgorithm.poolFor`): every stat reader downstream sees plain
+  stats. The raw `WakfuBestBuildFinderAlgorithm.equipments` catalog is unresolved — never build a pool from it
+  without `atLevel`.
 - **`ItemType`**: the 14 equippable slots (amulet, ring, boots, helmet, cape, belt, chestplate,
   shoulder pads, emblem, pet, mount, 1H/2H/off-hand weapons). Each carries Ankama's numeric `id`.
 - **`Rarity`**: ordered enum `COMMON < UNCOMMON < RARE < MYTHIC < LEGENDARY < RELIC < SOUVENIR < EPIC`.
@@ -235,7 +240,9 @@ as **fixed-name** JSON files (no version in the filename):
 1. `equipments-extractor` downloads `items.json`, `equipmentItemTypes.json`, `actions.json`,
    `recipeCategories.json` from `https://wakfu.cdn.ankama.com/gamedata/:version` (the `:version` is read
    from `WakfuData.VERSION`, not auto-detected, so every extractor pins the same version) and writes
-   `equipments.json` (the `Equipment` list).
+   `equipments.json` (the `Equipment` list). Equip lines are decoded from their `actions.json` description;
+   action 999 (no description: "X% of the level", the stat in its `subEffects`) becomes `percentOfLevel`, states
+   (304) are skipped, and any other undescribed action fails the run unless it is known to grant no stat.
 2. `spells-extractor` → `spells.json`. (Monsters are no longer scraped — see `bdata-extractor` below.)
 3. `WakfuBestBuildFinderAlgorithm` / `SpellCatalog` / `PassiveCatalog` load these by fixed name via the
    classpath at startup (e.g. `equipments.json`).

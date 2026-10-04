@@ -52,7 +52,39 @@ data class Equipment(
     // Ordinary equipment is level-filtered regardless, so the flag is irrelevant (and stays false) for it.
     // Defaults false so equipments resources generated before this flag existed still deserialize.
     val levelRestricted: Boolean = false,
-)
+    // Ankama's "X% of the level as <stat>" equip lines (action 999 wrapping the stat's own effect), e.g. the Dofus
+    // Pourpre's "100% of level as Elemental Mastery": stat → percent. The magnitude depends on the WEARER's level, so it
+    // can't live in [characteristics]; [atLevel] folds it in when a search pool is built for a character, before any
+    // stat reader (solver, scorers, certificates, domination, GUI) sees the item. Empty for every other item, and the
+    // default, so resources and saved builds written before it existed still deserialize.
+    val percentOfLevel: Map<Characteristic, Int> = emptyMap(),
+) {
+    /**
+     * This item as worn by a level-[characterLevel] character: every [percentOfLevel] line resolved into
+     * [characteristics] (`floor(percent · level / 100)`, [percentOfLevelMagnitude]) and cleared. Clearing makes the copy
+     * final: resolving it again, at any level, returns it unchanged, so a resolved item can flow through any number of
+     * pools or saved builds without being counted twice. An item without such a line is returned as is (same instance).
+     */
+    fun atLevel(characterLevel: Int): Equipment {
+        if (percentOfLevel.isEmpty()) return this
+        val resolved = LinkedHashMap(characteristics)
+        for ((characteristic, percent) in percentOfLevel) {
+            resolved.merge(characteristic, percentOfLevelMagnitude(percent, characterLevel), Int::plus)
+        }
+        return copy(characteristics = resolved, percentOfLevel = emptyMap())
+    }
+}
+
+/**
+ * Ankama's "X% of the level as <stat>": `floor(percent · level / 100)` for a level-[level] character (every shipped
+ * percent is positive, where Kotlin's truncating `/` is the floor). Shared by the level-scaled item lines
+ * ([Equipment.percentOfLevel]) and sublimations ([SublimationEffect.PercentOfLevel]). At 100% (the Dofus Pourpre) it is
+ * the level itself, whatever the rounding.
+ */
+fun percentOfLevelMagnitude(
+    percent: Int,
+    level: Int,
+): Int = (percent * level) / 100
 
 @Serializable
 data class I18nText(

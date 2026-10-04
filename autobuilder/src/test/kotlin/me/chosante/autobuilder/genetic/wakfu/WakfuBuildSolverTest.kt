@@ -70,6 +70,9 @@ class WakfuBuildSolverTest {
         // Poids Plume III was modeled — an under-count — and is now credited, so a cell can only rise (v48 bank:
         // 2_385_000 / 3_974_880 / 4_964_025 / 6_554_630 / 8_131_060 / 9_064_410 / 10_595_840 / 12_084_870 /
         // 12_836_915 / 14_075_040 / 14_637_025 / 15_697_375 / 16_109_640 / 17_135_625 for cells 2–15).
+        // CERTIFIER_VERSION 55 (the Dofus Pourpre's +level Elemental Mastery, resolved into the pool like production does
+        // — see [fullEpicPool]) left EVERY cell unchanged: the build's one relic always buys more elsewhere. With every
+        // other relic removed, the resolved Pourpre does raise cells 6–17 (by 0.02–3.1 %).
         // Re-bank from `WAKFU_MAX_DAMAGE_CERT_LEDGER=1 …_LEVEL=245 …_INCUMBENT=99999999999999` on the manual
         // `certifyLedger end-to-end` test (a huge incumbent eliminates every cell ⇒ pure fast tier, ~80 s).
         val LVL245_FAST_LEDGER_ORACLE =
@@ -3617,6 +3620,8 @@ class WakfuBuildSolverTest {
         WakfuBestBuildFinderAlgorithm.equipments
             .filter { it.rarity <= Rarity.EPIC }
             .filter { it.level in 0..level || it.itemType == ItemType.PETS || it.itemType == ItemType.MOUNTS }
+            // Resolved at the character's level like the production pool (the Dofus Pourpre's level-scaled mastery).
+            .map { it.atLevel(level) }
             .groupBy { it.itemType }
 
     /**
