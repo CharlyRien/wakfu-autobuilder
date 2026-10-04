@@ -66,6 +66,9 @@ class MaxDamageSearchTest {
                 .describedAs("found a damaging fire rotation")
                 .isGreaterThan(BigDecimal.ZERO)
             assertThat(last.individual.equipments).describedAs("equips at least one item").isNotEmpty
+            assertThat(WakfuBestBuildFinderAlgorithm.rescore(params, last.individual))
+                .describedAs("a build scored again later (a saved one, loaded) gets exactly the score the search streamed for it")
+                .isEqualByComparingTo(last.matchPercentage)
         }
 
     // ----- boss / multi-candidate: provable per-element enumeration -----
@@ -119,6 +122,9 @@ class MaxDamageSearchTest {
             assertThat(last.isOptimal)
                 .describedAs("a no-debuff boss case is PROVEN (every per-element solve proved)")
                 .isTrue()
+            assertThat(WakfuBestBuildFinderAlgorithm.rescore(params, last.individual))
+                .describedAs("a boss build scored again later gets exactly the score the search streamed for it")
+                .isEqualByComparingTo(last.matchPercentage)
 
             val prefiltered = params.copy(targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY, 1))))
             val prefilteredResults =

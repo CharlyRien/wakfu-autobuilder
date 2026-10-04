@@ -842,35 +842,9 @@ class BuildSearchModel(
 
     fun search() {
         val snapshot = ui
-        val character = Character(snapshot.clazz, snapshot.level, snapshot.minLevel)
-        val targetStats = snapshot.toTargetStats()
-        // A targeted boss overlays its per-element resistances onto the manual scenario (mirrors the CLI):
-        // a forced element pins that one element, else all four are filled so the objective auto-picks.
-        val damageScenario = snapshot.scenario.aimedAt(snapshot.selectedBoss, snapshot.bossElement)
-        val params =
-            WakfuBestBuildParams(
-                character = character,
-                targetStats = targetStats,
-                // Blank duration = the longest sensible run (10 min). Kept finite on purpose: an unbounded
-                // budget would make the time-driven progress bar meaningless and risk a search that never
-                // returns on a hard input. (QOL-2)
-                searchDuration = (snapshot.duration.toIntOrNull() ?: 600).coerceAtLeast(1).seconds,
-                // "Stop at 100% match" only applies to precision mode (the only mode with an exact target);
-                // ignore a stale toggle when searching in most-masteries / max-damage.
-                stopWhenBuildMatch = snapshot.stopAtMatch && snapshot.mode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT,
-                maxRarity = snapshot.maxRarity,
-                excludedRarities = snapshot.excludedRarities,
-                forcedItems = snapshot.forcedItems.map { it.matchName },
-                excludedItems = snapshot.excludedItems.map { it.matchName },
-                scoreComputationMode = snapshot.mode,
-                useSublimations = snapshot.useSublimations,
-                maxSublimationTier = snapshot.maxSublimationTier,
-                forcedSublimations = snapshot.forcedSublimations,
-                excludedSublimations = snapshot.excludedSublimations,
-                forcedPassives = snapshot.forcedPassives,
-                forcedRunesByItem = snapshot.forcedRunesByItem,
-                damageScenario = damageScenario
-            )
+        val params = snapshot.toSearchParams()
+        val character = params.character
+        val damageScenario = params.damageScenario
 
         // Validate the whole request up front and surface ALL problems together in a pop-up
         // (UiState.requestErrors) instead of throwing on the first and burying it in the results-panel banner.
@@ -939,34 +913,7 @@ class BuildSearchModel(
                         .conflate()
                         .collect { result ->
                             hasResult = true
-                            // Resolve the achieved per-stat grid with the SAME random-element assignment the scorer
-                            // used, so the displayed values match the score: most-masteries → exact max-min,
-                            // precision → exact max-capped, max-damage → greedy. Mirrors FindMostMasteriesFromInputScoring;
-                            // omitting the mode would fall to the greedy `else` branch and diverge from the score.
-                            val masteryElementsToMinimize =
-                                if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) {
-                                    targetStats.masteryElementsToMinimize
-                                } else {
-                                    null
-                                }
-                            val resistanceElementsToMinimize =
-                                if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
-                                    targetStats.any { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY }
-                                ) {
-                                    targetStats.resistanceElementsWanted.keys.toList()
-                                } else {
-                                    null
-                                }
-                            val achieved =
-                                computeCharacteristicsValues(
-                                    buildCombination = result.individual,
-                                    characterBaseCharacteristics = character.baseCharacteristicValues,
-                                    masteryElementsWanted = targetStats.masteryElementsWanted,
-                                    resistanceElementsWanted = targetStats.resistanceElementsWanted,
-                                    scoreComputationMode = params.scoreComputationMode,
-                                    masteryElementsToMinimize = masteryElementsToMinimize,
-                                    resistanceElementsToMinimize = resistanceElementsToMinimize
-                                )
+                            val achieved = achievedStats(result.individual, params)
                             // Best spells to cast for this build's AP — only in max-damage mode, computed
                             // here off the UI thread (like `achieved`) so the panel just reads it. Uses the
                             // boss-overlaid `damageScenario` (not the raw `snapshot.scenario`) and picks the
@@ -1698,6 +1645,74 @@ class BuildSearchModel(
         return TargetStats(forEngine)
     }
 
+    /**
+     * This request as the engine receives it: what a search runs on, and what a loaded saved build is re-scored against
+     * ([rescored]) — one mapping, so the two can never read the same request differently.
+     */
+    private fun UiState.toSearchParams(): WakfuBestBuildParams =
+        WakfuBestBuildParams(
+            character = Character(clazz, level, minLevel),
+            targetStats = toTargetStats(),
+            // Blank duration = the longest sensible run (10 min). Kept finite on purpose: an unbounded
+            // budget would make the time-driven progress bar meaningless and risk a search that never
+            // returns on a hard input. (QOL-2)
+            searchDuration = (duration.toIntOrNull() ?: 600).coerceAtLeast(1).seconds,
+            // "Stop at 100% match" only applies to precision mode (the only mode with an exact target);
+            // ignore a stale toggle when searching in most-masteries / max-damage.
+            stopWhenBuildMatch = stopAtMatch && mode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT,
+            maxRarity = maxRarity,
+            excludedRarities = excludedRarities,
+            forcedItems = forcedItems.map { it.matchName },
+            excludedItems = excludedItems.map { it.matchName },
+            scoreComputationMode = mode,
+            useSublimations = useSublimations,
+            maxSublimationTier = maxSublimationTier,
+            forcedSublimations = forcedSublimations,
+            excludedSublimations = excludedSublimations,
+            forcedPassives = forcedPassives,
+            forcedRunesByItem = forcedRunesByItem,
+            // A targeted boss overlays its per-element resistances onto the manual scenario (mirrors the CLI):
+            // a forced element pins that one element, else all four are filled so the objective auto-picks.
+            damageScenario = currentDamageScenario()
+        )
+
+    /**
+     * The per-stat grid the stats column shows for [build] under [params]'s request, resolved with the SAME random-element
+     * assignment the scorer used so the displayed values match the score: most-masteries → exact max-min, precision → exact
+     * max-capped, max-damage → greedy. Mirrors FindMostMasteriesFromInputScoring; omitting the mode would fall to the greedy
+     * `else` branch and diverge from the score. A search's streamed builds and a reloaded saved build both read their stats
+     * here, so the two can never disagree about the same build.
+     */
+    private fun achievedStats(
+        build: BuildCombination,
+        params: WakfuBestBuildParams,
+    ): Map<Characteristic, Int> {
+        val targetStats = params.targetStats
+        val masteryElementsToMinimize =
+            if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) {
+                targetStats.masteryElementsToMinimize
+            } else {
+                null
+            }
+        val resistanceElementsToMinimize =
+            if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+                targetStats.any { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY }
+            ) {
+                targetStats.resistanceElementsWanted.keys.toList()
+            } else {
+                null
+            }
+        return computeCharacteristicsValues(
+            buildCombination = build,
+            characterBaseCharacteristics = params.character.baseCharacteristicValues,
+            masteryElementsWanted = targetStats.masteryElementsWanted,
+            resistanceElementsWanted = targetStats.resistanceElementsWanted,
+            scoreComputationMode = params.scoreComputationMode,
+            masteryElementsToMinimize = masteryElementsToMinimize,
+            resistanceElementsToMinimize = resistanceElementsToMinimize
+        )
+    }
+
     private fun newlyLandedEquipmentId(
         previous: BuildCombination?,
         next: BuildCombination,
@@ -1866,16 +1881,16 @@ class BuildSearchModel(
 
     /**
      * Loads a saved build into the workspace: restores its request (so it can be tweaked & re-run)
-     * and its result (shown without re-running), marks it as the active build, and locks the search
-     * button. Returns to the Builder screen.
+     * and its result (shown without re-running, but re-scored under the CURRENT rules — see [rescored]),
+     * marks it as the active build, and locks the search button. Returns to the Builder screen.
      */
     fun loadBuild(id: String) {
         val entry = ui.savedBuilds.firstOrNull { it.id == id } ?: return
         job?.cancel()
         // Cancel any in-flight optimality proof: it is proving the PREVIOUS build, and the loaded build has no
-        // certificate (its stored CP-SAT `optimal` flag is restored below). Without this, a running proof could
-        // leave "Proving optimality…" stuck, or a prior ProvenOptimal could paint a green badge on this build
-        // that the certificate never saw (proofState is reset to Idle in the copy below).
+        // certificate (its stored CP-SAT `optimal` flag is restored below, unless the re-score moved the build's score).
+        // Without this, a running proof could leave "Proving optimality…" stuck, or a prior ProvenOptimal could paint a
+        // green badge on this build that the certificate never saw (proofState is reset to Idle in the copy below).
         cancelProof()
         val loadedBuild = entry.toBuildCombination()
         // Recompute the spell rotation for a loaded max-damage build (else the Rotation card would show a
@@ -1894,7 +1909,7 @@ class BuildSearchModel(
             } else {
                 null
             }
-        ui =
+        val loaded =
             ui.copy(
                 screen = Screen.Builder,
                 modal = null,
@@ -1932,6 +1947,7 @@ class BuildSearchModel(
                 forcedRunesByItem = entry.request.forcedRunesByItem,
                 phase = Phase.Done,
                 progress = 100,
+                // The STORED score, proof flag and stats: [rescored] swaps them for the current rules' just below.
                 match = entry.result.match.toBigDecimal(),
                 optimal = entry.result.optimal,
                 // A loaded build is not re-proven by the certificate (only its stored CP-SAT `optimal` flag is
@@ -1954,10 +1970,12 @@ class BuildSearchModel(
                 activeBuildName = entry.name,
                 searchLocked = true
             )
+        ui = loaded.rescored()
         // The per-position breakdown runs 3-4 more rotations, so compute it OFF the UI thread (the rotation
         // card already renders from `rotation` above) and patch it in when ready — only if this build is still
         // the active one, so a quick load-another-build doesn't get a stale breakdown.
         if (isMaxDamage && rotation != null) {
+            val achieved = ui.achieved
             scope.launch(backgroundDispatcher) {
                 val breakdown =
                     SpellRotationOptimizer.scenarioBreakdown(
@@ -1965,7 +1983,7 @@ class BuildSearchModel(
                         restoredCharacter,
                         restoredCharacter.clazz,
                         loadedScenario,
-                        includeBerserk = (entry.result.achieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
+                        includeBerserk = (achieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
                         configuredRotationTotal = rotation.totalExpectedDamage
                     )
                 withContext(mainDispatcher) {
@@ -1973,6 +1991,24 @@ class BuildSearchModel(
                 }
             }
         }
+    }
+
+    /**
+     * This freshly loaded saved build with the score and stats of the CURRENT rules in place of the stored ones. A save keeps
+     * the numbers of the rules it was found under, and the rules move: a build saved while the Neutralité family read the SUM of the
+     * secondary masteries came back showing a bonus the game never grants. The re-score is the search's own — the same request
+     * ([toSearchParams]), stats grid ([achievedStats]) and scorer ([WakfuBestBuildFinderAlgorithm.rescore]) — and costs milliseconds,
+     * no solver. The items and sublimations come from the save itself, so a build whose items left the catalog re-scores too.
+     * A proof belongs to the rules it was made under: a build whose score moved loses its stored "proven optimal" flag. Only a build
+     * the scorer cannot read at all keeps its stored numbers.
+     */
+    private fun UiState.rescored(): UiState {
+        val shown = build ?: return this
+        return runCatching {
+            val params = toSearchParams()
+            val score = WakfuBestBuildFinderAlgorithm.rescore(params, shown)
+            copy(match = score, achieved = achievedStats(shown, params), optimal = optimal && score.compareTo(match) == 0)
+        }.getOrDefault(this)
     }
 
     /** Opens the import dialog, where a build exported via [exportBuild] is pasted. See [importBuild]. */

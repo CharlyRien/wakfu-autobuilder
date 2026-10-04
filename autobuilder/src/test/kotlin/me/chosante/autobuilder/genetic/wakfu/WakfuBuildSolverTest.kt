@@ -710,6 +710,8 @@ class WakfuBuildSolverTest {
             val recomputed =
                 FindClosestBuildFromInputScoring.computeScore(targetStats, best.individual, character.baseCharacteristicValues)
             assertThat(best.matchPercentage).isEqualByComparingTo(recomputed)
+            // …and so does a later re-score of it (a saved build, loaded): the number the search streamed.
+            assertThat(WakfuBestBuildFinderAlgorithm.rescore(params, best.individual)).isEqualByComparingTo(best.matchPercentage)
         }
 
     @Test
@@ -1019,6 +1021,8 @@ class WakfuBuildSolverTest {
             val recomputed =
                 FindMostMasteriesFromInputScoring.computeScore(targetStats, best.individual, character.baseCharacteristicValues)
             assertThat(best.matchPercentage).isEqualByComparingTo(recomputed)
+            // …and so does a later re-score of it (a saved build, loaded): the number the search streamed.
+            assertThat(WakfuBestBuildFinderAlgorithm.rescore(params, best.individual)).isEqualByComparingTo(best.matchPercentage)
 
             // Item 50 + four amulet runes (not doubled on an amulet) at 33 each = 182.
             val achieved =
