@@ -2,6 +2,10 @@ package me.chosante.autobuilder.genetic.wakfu
 
 import kotlinx.coroutines.runBlocking
 import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.Orientation
+import me.chosante.autobuilder.domain.RangeBand
+import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.SolverResult
@@ -38,11 +42,13 @@ import kotlin.time.Duration.Companion.seconds
  *
  * Knobs (all env): `WAKFU_E0_FIXTURES` (default = the eight v38 fixtures; `SAC230` = the production request of the
  * known minutes-long refinement shape, and `SAC230R` = that shape routed into the soft-leg branch the way
- * `MaxDamageSoftCertificateTest` does — no search, see [runSoftRouted] — only run when named; `WAKFU_E0_ORACLE_WORKERS`
+ * `MaxDamageSoftCertificateTest` does — no search, see [runSoftRouted] — and the free face requests `MD80MF` /
+ * `MD200MF` / `MD230DF` (level, melee / distance) only run when named; `WAKFU_E0_ORACLE_WORKERS`
  * sets the oracle's CP-SAT workers, 8), `WAKFU_E0_SECONDS` (search budget, 120; a comma list
  * runs every fixture once per budget, ids get an `@<n>s` suffix — a short budget exercises the post-search badge
  * path of searches CP-SAT leaves un-proven), `WAKFU_E0_REPS` (repeat everything n times in the same JVM, `#k`
- * suffix), `WAKFU_E0_RUNES_SUBS=0` (runes + sublimations OFF), `WAKFU_E0_REFINE=1` (run the silent refinement after
+ * suffix), `WAKFU_E0_RUNES_SUBS=0` (runes + sublimations OFF), `WAKFU_E0_EXCLUDE_SUBS` (French names of sublimations
+ * every fixture excludes), `WAKFU_E0_REFINE=1` (run the silent refinement after
  * a failed E8 construct) with `WAKFU_E0_REFINE_CAP_S` (1500 = 25 min), `WAKFU_E0_PROVE_CAP_S` (600) and
  * `WAKFU_E0_CONSTRUCT_CAP_S` (300), `WAKFU_E0_LOG=/path` (every `E0 …` line is also appended + flushed there, so a
  * run can be followed live instead of reading the JUnit XML at the end).
@@ -157,13 +163,24 @@ class PerfBaselineE0Test {
                 cfg,
                 CharacterClass.SACRIEUR
             )
+
+        // Free FACE requests (CRA fire, the row is the band's maximized mastery) — the rune-collapse review's fixtures
+        // (docs/RUNE_CHOICE_COLLAPSE_FIX.md): their optima carry secondary runes beside the Neutralité family.
+        fun freeFace(
+            level: Int,
+            band: RangeBand,
+        ) = params(level, md, listOf(TargetStat(band.masteryCharacteristic, 1)), cfg)
+            .copy(damageScenario = DamageScenario(element = SpellElement.FIRE, rangeBand = band, orientation = Orientation.FACE))
         return listOf(
             // The production request of MaxDamageSoftCertificateTest `sacrieur230-apmp`: on data 1.93 its hard leg
             // meets the targets, so the post-search chain is the hard-leg ledger and the refinement never applies.
             Fixture("SAC230", sacrieur230),
             // The same shape routed into the soft-leg branch (the known minutes-long silent refinement:
             // ProvenOptimal after ~19.6 min on 10 cores in v36) — see [runSoftRouted].
-            Fixture("SAC230R", sacrieur230, softRouted = true)
+            Fixture("SAC230R", sacrieur230, softRouted = true),
+            Fixture("MD80MF", freeFace(80, RangeBand.MELEE)),
+            Fixture("MD200MF", freeFace(200, RangeBand.MELEE)),
+            Fixture("MD230DF", freeFace(230, RangeBand.DISTANCE))
         )
     }
 
@@ -214,12 +231,21 @@ class PerfBaselineE0Test {
                 for (seconds in budgets) {
                     val cfg = Config(seconds, baseCfg.runesAndSubs, baseCfg.refine, baseCfg.refineCapMs, baseCfg.proveCapMs, baseCfg.constructCapMs)
                     log("E0 ENV2 rep=$rep budgetS=$seconds mmBoundWarmupStartMs=${MostMasteriesBoundCache.warmupStartDelay(seconds.seconds)?.inWholeMilliseconds}")
+                    // WAKFU_E0_EXCLUDE_SUBS=<French names, comma-separated>: the request's excluded sublimations (a world
+                    // control, e.g. the Neutralité family out of the catalog).
+                    val excludedSubs =
+                        System
+                            .getenv("WAKFU_E0_EXCLUDE_SUBS")
+                            ?.split(',')
+                            ?.map { it.trim() }
+                            ?.filter { it.isNotEmpty() }
+                            .orEmpty()
                     val chosen =
                         if (selected == null) {
                             fixtures(cfg)
                         } else {
                             (fixtures(cfg) + extraFixtures(cfg)).filter { it.id in selected }
-                        }
+                        }.map { it.copy(params = it.params.copy(excludedSublimations = excludedSubs)) }
                     for (fx in chosen) {
                         val suffix = (if (budgets.size > 1) "@${seconds}s" else "") + (if (reps > 1) "#$rep" else "")
                         runFixture(fx.copy(id = fx.id + suffix), cfg)
@@ -296,10 +322,16 @@ class PerfBaselineE0Test {
         val endNanos = System.nanoTime()
         val endMs = (endNanos - t0) / 1_000_000
         val final = checkNotNull(last) { "${fx.id}: no emission" }
+        val runeTypes =
+            final.individual.runes.values
+                .flatten()
+                .groupingBy { it.characteristic }
+                .eachCount()
         log(
             "E0 SEARCH fx=${fx.id} firstMs=$firstMs lastImproveMs=$lastImproveMs lastObjImproveMs=$lastObjImproveMs endMs=$endMs " +
                 "optimal=${final.isOptimal} score=${final.matchPercentage} emissions=$emissions mdProxy=${final.maxDamageRawProxy} " +
-                "mmObj=${final.mostMasteriesObjective} hardMet=${final.maxDamageHardConstraintsMet} mmHardMet=${final.mostMasteriesHardConstraintsMet}"
+                "mmObj=${final.mostMasteriesObjective} hardMet=${final.maxDamageHardConstraintsMet} mmHardMet=${final.mostMasteriesHardConstraintsMet} " +
+                "subs=${final.individual.sublimations.values.flatten().map { it.name.fr }} runes=$runeTypes"
         )
         // Milestones for the one-line summary (all relative to the search END, null = not reached).
         var badge = "none"

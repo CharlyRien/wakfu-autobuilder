@@ -12,6 +12,7 @@ import me.chosante.common.Equipment
 import me.chosante.common.I18nText
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
+import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationCondition
 import me.chosante.common.SublimationConditionType
@@ -1120,8 +1121,12 @@ class SoundnessReviewAdversarialTest {
     // true optimum (forceTier2All AND the incumbent path); E8 construct never returns a sub-optimal "proven" build.
     // WAKFU_REVIEW_MD_ROWS=1 (CERTIFIER_VERSION 52) also draws required AP / MP / RANGE / CC rows and item range lines and
     // checks the TARGET-AWARE passes and ledgers against the pinned HARD-LEG optimum (never below it, never above the
-    // target-blind value).
+    // target-blind value). CERTIFIER_VERSION 54 (the rune choice collapse): WAKFU_REVIEW_MD_COLLAPSE=1 keeps the collapse
+    // shape (runes on, no non-damage rune row), WAKFU_REVIEW_MD_NEUTRALITE=choosable|forced puts Neutralité III in every
+    // case (forced: in the request's forced subs too), WAKFU_REVIEW_MD_PRUNE=1 checks the pruned + gated model's optimum
+    // against the full-choice one.
     //   WAKFU_REVIEW_MD_FUZZ=<cases> [WAKFU_REVIEW_MD_SEED0=<seed>] [WAKFU_REVIEW_MD_E8=1] [WAKFU_REVIEW_MD_ROWS=1]
+    //     [WAKFU_REVIEW_MD_COLLAPSE=1] [WAKFU_REVIEW_MD_NEUTRALITE=choosable|forced] [WAKFU_REVIEW_MD_PRUNE=1]
     // ------------------------------------------------------------------------------------------------------------
 
     private class MdCase(
@@ -1241,7 +1246,11 @@ class SoundnessReviewAdversarialTest {
             (focus.shuffled(rng).take(3 + rng.nextInt(5)) + catalog.shuffled(rng).take(rng.nextInt(6)))
                 .distinct()
                 .filterNot { noPp && it.perStatStep?.source == Characteristic.MOVEMENT_POINT }
-        val subs = if (forcePoidsPlume) (drawn + catalog.single { it.name.fr == "Poids Plume III" }).distinct() else drawn
+        val withPp = if (forcePoidsPlume) (drawn + catalog.single { it.name.fr == "Poids Plume III" }).distinct() else drawn
+        // CERTIFIER_VERSION 54 (rune choice collapse): WAKFU_REVIEW_MD_NEUTRALITE=choosable|forced puts Neutralité III in
+        // every case (forced: also in the request's forced subs) — appended after every draw, like Poids Plume.
+        val neutraliteMode = System.getenv("WAKFU_REVIEW_MD_NEUTRALITE")
+        val subs = if (neutraliteMode == null) withPp else (withPp + catalog.single { it.name.fr == "Neutralité III" }).distinct()
         var poolItems: List<Equipment> = items
         if (requiredRows) {
             val rowRng = java.util.Random(seed * 7_919L + 13L)
@@ -1254,19 +1263,25 @@ class SoundnessReviewAdversarialTest {
                     if (rowRng.nextInt(10) < 4) e.copy(characteristics = e.characteristics + (Characteristic.RANGE to rowRng.nextInt(4) - 1)) else e
                 }
         }
+        // WAKFU_REVIEW_MD_COLLAPSE=1: the max-damage rune CHOICE-COLLAPSE shape — runes on, and every row carrying a rune
+        // type the scenario does not sum into its damage (HP / dodge / wind resistance / an off-scenario secondary) dropped.
+        val collapseShape = System.getenv("WAKFU_REVIEW_MD_COLLAPSE") == "1"
+        val damageRuneStats = scenarioMasteryStats(scenario) + Characteristic.MASTERY_CRITICAL
+        val finalRows = if (collapseShape) rows.filter { it.characteristic !in RuneType.VALUED_CHARACTERISTICS || it.characteristic in damageRuneStats } else rows
         val p =
             WakfuBestBuildParams(
                 character = Character(CharacterClass.CRA, level, 0, CharacterSkills(level)),
-                targetStats = TargetStats(rows),
+                targetStats = TargetStats(finalRows),
                 searchDuration = 60.seconds,
                 stopWhenBuildMatch = false,
                 maxRarity = Rarity.EPIC,
                 forcedItems = emptyList(),
                 excludedItems = emptyList(),
                 scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
-                useRunes = useRunes,
+                useRunes = useRunes || collapseShape,
                 useSublimations = true,
-                damageScenario = scenario
+                damageScenario = scenario,
+                forcedSublimations = if (neutraliteMode == "forced") listOf("Neutralité III") else emptyList()
             )
         return MdCase("md-seed$seed", p, poolItems.groupBy { it.itemType }, subs)
     }
@@ -1357,6 +1372,9 @@ class SoundnessReviewAdversarialTest {
             val seed0 = System.getenv("WAKFU_REVIEW_MD_SEED0")?.toLongOrNull() ?: 9_000L
             val withE8 = System.getenv("WAKFU_REVIEW_MD_E8") == "1"
             val withRows = System.getenv("WAKFU_REVIEW_MD_ROWS") == "1"
+            val withPrune = System.getenv("WAKFU_REVIEW_MD_PRUNE") == "1"
+            var pruneCompared = 0
+            var pruneUnproven = 0
             var hardCellsCompared = 0
             var hardCellsTightened = 0
             val failures = mutableListOf<String>()
@@ -1411,6 +1429,30 @@ class SoundnessReviewAdversarialTest {
                     }
                 }
                 val trueOptimum = truthByAp.values.maxOrNull() ?: continue
+                if (withPrune) {
+                    // v54: the collapse's Pareto pruning + choice gates must keep the full-choice model's optimum (every
+                    // candidate rune on every carrier, no gate) — unpinned, deterministic.
+                    val tuning = WakfuBuildSolver.SolverTuning(numSearchWorkers = 1, randomSeed = 1, maxDeterministicTime = 30.0, interleaveSearch = true)
+                    val pruned = WakfuBuildSolver.maxDamageSolveForTest(c.params, c.pool, tuning, tightDomains = true, runes = runes, sublimations = c.subs)
+                    val full =
+                        WakfuBuildSolver.maxDamageSolveForTest(
+                            c.params,
+                            c.pool,
+                            tuning,
+                            tightDomains = true,
+                            runes = runes,
+                            sublimations = c.subs,
+                            runeChoicePruning = false,
+                            runeChoiceGating = false
+                        )
+                    if (pruned.isOptimal && full.isOptimal) {
+                        pruneCompared++
+                        if (pruned.objective != full.objective) failures += "${c.label} PRUNED optimum ${pruned.objective} != full-choice ${full.objective}"
+                    } else {
+                        pruneUnproven++
+                    }
+                    println("MD_FUZZ_PRUNE ${c.label} pruned=${pruned.objective}/${pruned.isOptimal} full=${full.objective}/${full.isOptimal}")
+                }
                 val ledger = WakfuBuildSolver.certifyLedgerForTest(c.params, c.pool, runes, c.subs, applyDomination = false, forceTier2All = true)
                 ledger.maxCellObjective?.let { max ->
                     ledgers++
@@ -1499,7 +1541,7 @@ class SoundnessReviewAdversarialTest {
             println(
                 "MD_FUZZ_SUMMARY cases=$cases cellsCompared=$cellsCompared ledgers=$ledgers bailedPools=$bailedPools notOptimalCells=$notOptimalCells " +
                     "e8Built=$e8Built droppedFamilyCarried=$droppedFamilyCarried hardCellsCompared=$hardCellsCompared " +
-                    "hardCellsTightened=$hardCellsTightened failures=${failures.size}"
+                    "hardCellsTightened=$hardCellsTightened pruneCompared=$pruneCompared pruneUnproven=$pruneUnproven failures=${failures.size}"
             )
             failures.forEach { println("MD_FUZZ_FAIL $it") }
             assertThat(failures).describedAs("SOUNDNESS — max-damage certifier under-counts").isEmpty()

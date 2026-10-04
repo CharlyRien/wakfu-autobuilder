@@ -58,14 +58,23 @@ internal class RuneModel(
     private val suppressedBy: Map<Pair<Equipment, Characteristic>, IntVar> = emptyMap(),
     /**
      * True ⇒ the max-damage per-item CHOICE COLLAPSE (`maxDamageRuneChoiceCollapse` in [createRuneModel]): each
-     * carrier offers only its best M-feeding rune (keyed under its own characteristic, riding the equip var) and,
-     * when larger, the critical-mastery rune. False with [singleTypePerItem] ⇒ the GENERAL single-type fold — one
-     * pick bool per modeled rune stat (a target row added a non-damage rune type), `Σ picks = equipped`. The
-     * AP-cell certifier mirrors the two shapes differently (see `certifyMaxPerHitAtApPass`).
-     * A carrier whose best rune is a secondary mastery read by a cap keeps explicit picks instead: a smaller
-     * elemental/secondary rune can free budget for skills. Such carriers can coexist with collapsed defaults.
+     * carrier offers only the Pareto set of its candidate runes (the scenario's M-feeding masteries + critical
+     * mastery, each keyed under its own characteristic) over everything the model reads from them
+     * ([MaxDamageRuneReads]). With no secondary cap that is the best M-feeding rune, riding the equip var, and, when
+     * larger, the critical-mastery rune as a swap bool. A carrier whose best rune is a secondary mastery read by a cap
+     * keeps explicit picks instead (`Σ picks = equipped`): a cheaper elemental / secondary / crit rune can free budget.
+     * Such carriers coexist with collapsed defaults. False with [singleTypePerItem] ⇒ the GENERAL single-type fold —
+     * one pick bool per modeled rune stat (a target row added a non-damage rune type). The AP-cell certifier mirrors
+     * the shapes differently (see `certifyMaxPerHitAtApPass`).
      */
     val maxDamageChoiceCollapse: Boolean = false,
+    /**
+     * Collapse choices kept only because a CHOOSABLE conditional sub reads them, each with those subs
+     * ([MaxDamageRuneReads.choiceGates]): `pick ≤ Σ subVar` is posted once the sub model exists. A pure search cut —
+     * every build it removes has a never-gated choice that is at least as good while those subs are untaken — so the
+     * certifier, which never reads it, bounds a relaxation of the same optimum.
+     */
+    val choiceGates: Map<IntVar, Set<Sublimation>> = emptyMap(),
 ) {
     fun runeTypeFor(
         variable: IntVar,

@@ -1871,7 +1871,9 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // Three rune models reach this pass:
     //  - none, or the max-damage CHOICE COLLAPSE ([RuneModel.maxDamageChoiceCollapse]): the best M-feeding rune rides
     //    the equip var, the crit-mastery alternative its own bool — mirrored by [rawOptions]' two-option split.
-    //    A secondary-capped carrier can instead retain explicit picks, handled like the GENERAL fold below;
+    //    A secondary-capped carrier can instead retain explicit picks (its Pareto set, [MaxDamageRuneReads]), handled
+    //    like the GENERAL fold below. The model's choice gates ([RuneModel.choiceGates]) are a search cut this pass
+    //    never reads: it bounds a relaxation of the same optimum;
     //  - the GENERAL single-type fold: a target row (HP, a resistance, dodge, lock, initiative, an off-scenario
     //    secondary mastery — even 0-valued) put a non-damage rune stat in the model, so EVERY modeled type is its
     //    own pick bool with `Σ picks = equipped`. The item's own stats form its base Raw and each pick becomes one

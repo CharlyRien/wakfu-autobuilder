@@ -366,6 +366,11 @@ object WakfuBuildSolver {
      * Carriers with a secondary default read by a cap also retain explicit rune picks: a smaller elemental
      * choice can free secondary budget for skills (the signed-rear helmet repro). The mirror handles those
      * picks beside the remaining collapsed defaults, without dropping equip-var aliases from item terms.
+     * Those picks are the carrier's Pareto set over every read of the model ([MaxDamageRuneReads]): the cap sums
+     * all six secondaries (crit included) at weight 1, so equal-valued distance / rear / crit runes cost the same
+     * budget and one represents them; a choice only a choosable cap keeps is gated on those subs
+     * ([RuneModel.choiceGates]). Both cut dominated builds only, so the mirror reads the same (or a smaller) pick set
+     * and the optimum it bounds is unchanged.
      */
     const val CERTIFIER_VERSION: Int = 54
 
@@ -1129,6 +1134,10 @@ object WakfuBuildSolver {
         // Test seam: force the rune socket cap back to `≤` (disable exact fill), so a test can assert
         // most-masteries exact fill preserves the ≤-model optimum (exact-fill optimum == ≤ optimum).
         forceRuneLeq: Boolean = false,
+        // Test seams (the pruning-exactness lock): false keeps every max-damage collapse candidate rune on every carrier
+        // (no Pareto pruning), resp. posts no choice gate ([RuneModel.choiceGates]). Production keeps both on.
+        runeChoicePruning: Boolean = true,
+        runeChoiceGating: Boolean = true,
         // Production path only: drop per-slot dominated items ([filterDominatedPool]) — provably optimum-
         // preserving in all three (monotone) modes. Off by default so the deterministic test path sees the full
         // pool unchanged; the production [optimize] passes true and the soundness lock toggles it.
@@ -1242,6 +1251,9 @@ object WakfuBuildSolver {
         // MIX can be optimal, which the fold can't express. Every solver-choosable secondary-cap sub has
         // N=0 (⇒ all-elemental, no mix), so the default search folds; this guard future-proofs the data and
         // a forced sub with N>0.
+        // KNOWN GAP (OPEN, docs/perf-review-backlog.md §E): N=0 does not rule a mix out — an item's NEGATIVE
+        // secondary line gives the cap a positive budget, which a mixed item can fill exactly. The per-stat
+        // count model beat the fold by 0.03–0.48 % on 6 seeded pools of the 2026-10-04 review fuzz.
         val forcedSubNames = params.forcedSublimations.map { it.lowercase() }.toSet()
         val secondaryCapMixSubInPlay =
             sublimations.any { sub ->
@@ -1251,9 +1263,27 @@ object WakfuBuildSolver {
                     (sub.condition?.value ?: 0) > 0
             }
         val allowRuneFold = !forceRuneCountModel && !secondaryCapMixSubInPlay
-        val runeModel = model.createRuneModel(params, allEquips, equipVars, runes, allowRuneFold, dominationShape?.pinned, forceRuneLeq)
+        val runeModel =
+            model.createRuneModel(
+                params,
+                allEquips,
+                equipVars,
+                runes,
+                allowRuneFold,
+                dominationShape?.pinned,
+                forceRuneLeq,
+                reads = maxDamageRuneReads(params, sublimations, buildSkillTerms(skillVars).percent.keys),
+                choicePruning = runeChoicePruning,
+                choiceGating = runeChoiceGating
+            )
         bmMark("runeModel")
         val subModel = model.createSublimationModel(params, allEquips, equipVars, sublimations)
+        // The collapse's gated rune choices (`pick ≤ Σ subVar`): the reads come from the same modelled-sub list, so
+        // every gate sub has a var; a missing one leaves its pick ungated (no cut — sound).
+        for ((pick, subs) in runeModel.choiceGates) {
+            val subVars = subs.mapNotNull { subModel.subVars[it] }
+            if (subVars.size == subs.size) model.addLessOrEqual(pick, LinearExpr.sum(subVars.toTypedArray()))
+        }
         bmMark("subModel")
         // A normal sublimation does NOT reserve rune sockets. Golden runes (colour-agnostic) form its ordered
         // colour pattern AND still carry their stat — doubling where the item favours that colour — so a carrier
@@ -3205,6 +3235,9 @@ object WakfuBuildSolver {
         hardConstraints: Boolean = false,
         // Reference solve for the heuristic-prefilter soundness lock (any scoring mode).
         forceFullPool: Boolean = false,
+        // The rune-choice pruning-exactness lock: see [buildModel].
+        runeChoicePruning: Boolean = true,
+        runeChoiceGating: Boolean = true,
     ): MaxDamageSolveOutcome {
         val built =
             buildModel(
@@ -3216,6 +3249,8 @@ object WakfuBuildSolver {
                 forceRuneCountModel = forceRuneCountModel,
                 applyDomination = applyDomination,
                 forceRuneLeq = forceRuneLeq,
+                runeChoicePruning = runeChoicePruning,
+                runeChoiceGating = runeChoiceGating,
                 hardConstraints = hardConstraints,
                 forceFullPool = forceFullPool,
                 maxDamageExperiment = tuning.maxDamageExperiment
