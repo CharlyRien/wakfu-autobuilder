@@ -1923,8 +1923,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // ---- SECONDARY-CAPPED world N (v44): the value maps under the Neutralité-family budget --------------------------
     // Every build this world covers carries an ACTIVE `each secondary mastery ≤ t` sub (t ≤ 0), so its FIRST-TURN read
     // (the condition's own read: items + runes + skills + base + FLAT subs — [firstTurnStat]) holds each of the six ≤ 0,
-    // hence S = D + K + O ≤ 0 — the RELAXATION priced below (CERTIFIER_VERSION 56: the per-stat rule would allow more —
-    // K ≤ 0 alone, and no cross-stat relief from a negative line — left for later, docs/perf-review-backlog.md §E),
+    // hence S = D + K + O ≤ 0 — the RELAXATION priced below (CERTIFIER_VERSION 56: the per-stat rule would allow a tighter
+    // bound — K ≤ 0 alone, and no cross-stat relief from a negative line — left for later, docs/perf-review-backlog.md §E),
     // D the scenario's secondary masteries (summed into M), K critical mastery, O the other secondary masteries.
     // M = 100 + E + D (E elemental) and Graw = (400+c)·max(0, M) + 5c·max(0, K) ≤ (400+c)·(max(0, M) + max(0, K))
     // (5c ≤ 400 + c for c ≤ 100). Splitting every sum by SOURCE s (an item, a rune pick, a skill point, a sub, a
