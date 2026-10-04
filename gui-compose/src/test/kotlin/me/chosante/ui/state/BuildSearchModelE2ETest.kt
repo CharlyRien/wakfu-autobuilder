@@ -444,6 +444,7 @@ class BuildSearchModelE2ETest {
                             matchPercentage = BigDecimal("1000"),
                             progressPercentage = 100,
                             isOptimal = false,
+                            maxDamageHeuristicPhases = true,
                             maxDamageObjective = 5_000L
                         )
                     )
@@ -464,12 +465,15 @@ class BuildSearchModelE2ETest {
             model.search()
             // The certificate proof resolves to ProvenOptimal after the max-damage search completes.
             awaitUntil { model.ui.proofState == ProofState.ProvenOptimal }
+            assertTrue(model.ui.maxDamageStructural, "the search that just ended was structurally heuristic")
 
             // Loading a DIFFERENT build must clear the stale proof — otherwise StatsPanel would paint a green
             // "Proven optimal" on a build the certificate never saw (P4.4 wrong-badge bug).
             model.loadBuild("saved")
             assertEquals(Phase.Done, model.ui.phase)
             assertEquals(ProofState.Idle, model.ui.proofState)
+            // A save does not record that: the loaded build must not show the previous search's "structural" hint.
+            assertFalse(model.ui.maxDamageStructural)
         } finally {
             scope.cancel()
         }

@@ -42,6 +42,7 @@ import me.chosante.ui.history.toSnapshot
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
@@ -86,6 +87,7 @@ class BuildSearchModelSecondaryCapReloadTest {
         buildFinder: (WakfuBestBuildParams) -> Flow<SolverResult<BuildCombination>> = {
             flowOf(SolverResult(individual = savedBuild, matchPercentage = BigDecimal("5000"), progressPercentage = 100, isOptimal = false))
         },
+        buildRescorer: (WakfuBestBuildParams, BuildCombination) -> BigDecimal = { params, build -> WakfuBestBuildFinderAlgorithm.rescore(params, build) },
     ): BuildSearchModel =
         BuildSearchModel(
             scope = scope,
@@ -96,6 +98,7 @@ class BuildSearchModelSecondaryCapReloadTest {
             ioDispatcher = Dispatchers.Unconfined,
             libraryPreferences = LibraryPreferences(null),
             backgroundProofCanceller = {},
+            buildRescorer = buildRescorer,
             historyRepository = repository
         )
 
@@ -223,10 +226,11 @@ class BuildSearchModelSecondaryCapReloadTest {
     private suspend fun modelWithLoaded(
         scope: CoroutineScope,
         entry: HistoryEntry,
+        buildRescorer: (WakfuBestBuildParams, BuildCombination) -> BigDecimal = { params, build -> WakfuBestBuildFinderAlgorithm.rescore(params, build) },
     ): BuildSearchModel {
         val repository = HistoryRepository(baseDir = Files.createTempDirectory("wakfu-test-history"), ioDispatcher = Dispatchers.Unconfined)
         repository.save(entry)
-        val model = newModel(scope, repository)
+        val model = newModel(scope, repository, buildRescorer = buildRescorer)
         awaitUntil { model.ui.savedBuilds.any { it.id == entry.id } }
         model.loadBuild(entry.id)
         return model
@@ -324,9 +328,12 @@ class BuildSearchModelSecondaryCapReloadTest {
                 try {
                     // The engine's own score of the build under the request it is given, as a real search streams it, proven optimal.
                     val model =
-                        newModel(scope) { params ->
-                            flowOf(SolverResult(savedBuild, WakfuBestBuildFinderAlgorithm.rescore(params, savedBuild), progressPercentage = 100, isOptimal = true))
-                        }
+                        newModel(
+                            scope,
+                            buildFinder = { params ->
+                                flowOf(SolverResult(savedBuild, WakfuBestBuildFinderAlgorithm.rescore(params, savedBuild), progressPercentage = 100, isOptimal = true))
+                            }
+                        )
                     model.setMode(mode)
                     model.setScenario(faceScenario)
                     model.setDuration("1")
@@ -349,6 +356,29 @@ class BuildSearchModelSecondaryCapReloadTest {
                 } finally {
                     scope.cancel()
                 }
+            }
+        }
+
+    @Test
+    fun `a score too long for a Double still keeps the proof flag of a save the rules agree with`(): Unit =
+        runBlocking {
+            // 17 significant digits, the shape of a quotient with float noise. A save keeps its score as a Double and BigDecimal → Double →
+            // BigDecimal does not give such a score back, so comparing the BigDecimals would call an unchanged score changed.
+            val score = BigDecimal("1488.1234567890123")
+            assertNotEquals(0, score.compareTo(score.toDouble().toBigDecimal()), "precondition: the naive BigDecimal comparison fails for this score")
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            try {
+                val targets = listOf(TargetSnapshot(Characteristic.MASTERY_ELEMENTARY_FIRE, "1"), TargetSnapshot(Characteristic.MASTERY_DISTANCE, "1"))
+                val grid = gridOf(savedBuild, mostMasteries, fireAndDistance)
+                val unchanged = modelWithLoaded(scope, oldSave(mostMasteries, targets, savedBuild, grid, score, optimal = true)) { _, _ -> score }
+                assertTrue(unchanged.ui.optimal, "the score did not move, so the proof flag holds")
+                assertThat(unchanged.ui.match).isEqualByComparingTo(score)
+
+                // A score that really moved still drops it.
+                val moved = modelWithLoaded(scope, oldSave(mostMasteries, targets, savedBuild, grid, score, optimal = true)) { _, _ -> score.add(BigDecimal.ONE) }
+                assertFalse(moved.ui.optimal, "a score that moved loses the proof flag")
+            } finally {
+                scope.cancel()
             }
         }
 
