@@ -114,6 +114,16 @@ internal fun expandGlobalResistance(targets: List<TargetStat>): List<TargetStat>
     } + perElement
 }
 
+/**
+ * Whether [rescored] is the score a saved build stored, [stored] being that score read back. A save keeps its score as a [Double]
+ * ([me.chosante.common.history.ResultSnapshot.match]), so the two are compared there: a score of 16-17 significant digits does not
+ * survive BigDecimal → Double → BigDecimal, and comparing the BigDecimals would call an unchanged build changed.
+ */
+private fun isStoredScore(
+    rescored: java.math.BigDecimal,
+    stored: java.math.BigDecimal,
+): Boolean = rescored.toDouble() == stored.toDouble()
+
 class BuildSearchModel(
     private val scope: CoroutineScope,
     private val buildFinder: BuildFinder = { WakfuBestBuildFinderAlgorithm.run(it) },
@@ -163,6 +173,11 @@ class BuildSearchModel(
     // switched it off — and only while no search runs. Injectable so tests see WHEN the model reaches for it without
     // touching the engine's process-wide caches.
     private val backgroundProofCanceller: () -> Unit = { WakfuBestBuildFinderAlgorithm.cancelBackgroundProofs() },
+    // A build's score under the CURRENT rules ([WakfuBestBuildFinderAlgorithm.rescore]): what a loaded saved build ([loadBuild]) and
+    // the constructed optimum that swaps in after a proof ([launchOptimalityProof]) are shown and saved with, so both read like a
+    // search's own result. Injectable so tests can hand back a score of any shape, or time the load without it.
+    private val buildRescorer: (WakfuBestBuildParams, BuildCombination) -> java.math.BigDecimal =
+        { params, build -> WakfuBestBuildFinderAlgorithm.rescore(params, build) },
 ) {
     var ui by androidx.compose.runtime.mutableStateOf(UiState())
         private set
@@ -1244,7 +1259,10 @@ class BuildSearchModel(
                 // E8 fast-path: try to CONSTRUCT that proven optimum from the same certificate DP (off the UI thread,
                 // here). On success we swap the shown build to it and flip the badge to ProvenOptimal — recomputing its
                 // stats / rotation / scenario breakdown EXACTLY as the search did (same character + boss-overlaid
-                // scenario), so the whole sheet stays consistent with the paperdoll.
+                // scenario), so the whole sheet stays consistent with the paperdoll. Its score too: the solver's own
+                // (`up.matchPercentage`) is the across-elements damage, not the debuff-aware one every search path stores, so
+                // keeping it would put a headline beside a rotation card that disagrees with it, and a save of the swapped
+                // build would read as changed (its proof flag dropped) when reloaded.
                 val upgrade =
                     if (badgeLanded) {
                         try {
@@ -1270,7 +1288,7 @@ class BuildSearchModel(
                                         includeBerserk = (upAchieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
                                         configuredRotationTotal = upRotation?.totalExpectedDamage
                                     )
-                                UpgradedBuild(upBuild, upAchieved, upRotation, upScenario, up.matchPercentage)
+                                UpgradedBuild(upBuild, upAchieved, upRotation, upScenario, buildRescorer(params, upBuild))
                             }
                         } catch (cancellation: CancellationException) {
                             throw cancellation
@@ -1953,6 +1971,9 @@ class BuildSearchModel(
                 // A loaded build is not re-proven by the certificate (only its stored CP-SAT `optimal` flag is
                 // restored above) — reset the proof state so a prior search's verdict can't leak onto it.
                 proofState = ProofState.Idle,
+                // A save does not record whether its search was structurally heuristic (resistance-debuff sequencing…): the
+                // build shows no such hint, not the one of whatever search ran before it.
+                maxDamageStructural = false,
                 searchStopped = false,
                 // Computed with other game data than this app's (a build saved before a game update, or imported from another
                 // version): the stats column says so until a new search replaces it. The stored build itself is left untouched.
@@ -1997,17 +2018,17 @@ class BuildSearchModel(
      * This freshly loaded saved build with the score and stats of the CURRENT rules in place of the stored ones. A save keeps
      * the numbers of the rules it was found under, and the rules move: a build saved while the Neutralité family read the SUM of the
      * secondary masteries came back showing a bonus the game never grants. The re-score is the search's own — the same request
-     * ([toSearchParams]), stats grid ([achievedStats]) and scorer ([WakfuBestBuildFinderAlgorithm.rescore]) — and costs milliseconds,
-     * no solver. The items and sublimations come from the save itself, so a build whose items left the catalog re-scores too.
-     * A proof belongs to the rules it was made under: a build whose score moved loses its stored "proven optimal" flag. Only a build
-     * the scorer cannot read at all keeps its stored numbers.
+     * ([toSearchParams]), stats grid ([achievedStats]) and scorer ([buildRescorer], by default [WakfuBestBuildFinderAlgorithm.rescore]) —
+     * and costs milliseconds, no solver. The items and sublimations come from the save itself, so a build whose items left the catalog
+     * re-scores too. A proof belongs to the rules it was made under: a build whose score moved ([isStoredScore]) loses its stored
+     * "proven optimal" flag. Only a build the scorer cannot read at all keeps its stored numbers.
      */
     private fun UiState.rescored(): UiState {
         val shown = build ?: return this
         return runCatching {
             val params = toSearchParams()
-            val score = WakfuBestBuildFinderAlgorithm.rescore(params, shown)
-            copy(match = score, achieved = achievedStats(shown, params), optimal = optimal && score.compareTo(match) == 0)
+            val score = buildRescorer(params, shown)
+            copy(match = score, achieved = achievedStats(shown, params), optimal = optimal && isStoredScore(score, match))
         }.getOrDefault(this)
     }
 

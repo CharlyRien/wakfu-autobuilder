@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
+import java.math.RoundingMode
 import java.nio.file.Files
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
@@ -176,6 +177,9 @@ class BuildSearchModelProvenWithinBadgeTest {
         }
     }
 
+    /** The damage of the rotation card on screen, as a headline stores it (floored to 4 decimals; max-damage starts without target rows, so no shortfall penalty). */
+    private fun rotationDamage(model: BuildSearchModel): BigDecimal = requireNotNull(model.ui.spellRotation).totalExpectedDamage.toBigDecimal().setScale(4, RoundingMode.FLOOR)
+
     /** Runs a ProvenWithin(0.02) proof whose construct FAILS and whose refinement answers [refine]; returns the state the badge ends in. */
     private suspend fun badgeAfterFailedConstruct(refine: MaxDamageSearch.MaxDamageProof?): ProofState {
         val engine = Engine()
@@ -221,9 +225,52 @@ class BuildSearchModelProvenWithinBadgeTest {
                 engine.releaseConstruct.countDown()
                 awaitUntil { model.ui.proofState == ProofState.ProvenOptimal }
                 assertEquals(constructedBuild, model.ui.build, "the constructed proven optimum replaces the shown build")
-                assertEquals(0, BigDecimal("1100").compareTo(model.ui.match))
+                // The swap shows the score every search path stores: the debuff-aware rotation damage, which is also what the rotation
+                // card shows. NOT the solver's own score for the constructed build (the fake's 1100 here, the across-elements damage
+                // in production), which would put a headline beside a rotation card that disagrees with it.
+                assertEquals(0, rotationDamage(model).compareTo(model.ui.match), "the headline is the damage of the rotation card")
                 assertTrue(model.ui.optimal)
                 assertEquals(0, engine.refineCalls.get(), "a constructed optimum needs no refinement")
+            } finally {
+                engine.releaseAll()
+                scope.cancel()
+            }
+        }
+
+    @Test
+    fun `a constructed optimum that was saved reloads as proven optimal, with the same headline`(): Unit =
+        runBlocking {
+            val engine = Engine()
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val model =
+                newModel(
+                    scope,
+                    engine,
+                    MaxDamageSearch.MaxDamageProof.ProvenWithin(0.02),
+                    construct = solverResult(constructedBuild, "1100", isOptimal = true)
+                )
+            try {
+                engine.releaseProver.countDown()
+                model.searchMaxDamage()
+                assertTrue(engine.constructStarted.await(25, TimeUnit.SECONDS))
+                engine.releaseConstruct.countDown()
+                awaitUntil { model.ui.proofState == ProofState.ProvenOptimal }
+                val swapped = model.ui
+
+                model.saveBuild("Constructed optimum", null, asNew = true)
+                awaitUntil { model.ui.savedBuilds.isNotEmpty() }
+                model.loadBuild(
+                    model.ui.savedBuilds
+                        .single()
+                        .id
+                )
+
+                // Nothing moved since the swap: the save holds the very score a re-score gives, so its proof flag survives the reload.
+                // (With the solver's own score stored, the reload re-scored it to another number and dropped the flag.)
+                assertTrue(model.ui.optimal, "a constructed proven optimum stays proven when reloaded")
+                assertEquals(0, swapped.match.compareTo(model.ui.match))
+                assertEquals(swapped.spellRotation?.totalExpectedDamage, model.ui.spellRotation?.totalExpectedDamage)
+                assertEquals(0, rotationDamage(model).compareTo(model.ui.match), "and its headline is still the damage of its rotation card")
             } finally {
                 engine.releaseAll()
                 scope.cancel()

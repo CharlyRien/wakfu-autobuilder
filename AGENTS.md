@@ -331,8 +331,9 @@ is no FXML/XML.** Package root `me.chosante.ui`, organized by feature: `shell`, 
   A **saved build is re-scored when loaded** (`loadBuild` → `rescored()`): a save keeps the `match` /
   `achieved` of the rules it was found under, so the shown ones are recomputed with the search's own request
   mapping, stats grid and scorer (`WakfuBestBuildFinderAlgorithm.rescore`, no solver); the stored ones are
-  only a fallback, and a score that moved drops the stored "proven optimal" flag. The library cards and the
-  compare view still read the stored entry.
+  only a fallback, and a score that moved drops the stored "proven optimal" flag (compared as the stored
+  `Double`, not as `BigDecimal`). The E8 constructed-optimum swap stores that same `rescore`, so a swapped
+  build reloads unchanged. The library cards and the compare view still read the stored entry.
 - **`AppShell`** (`shell/`) — `TopBar` (brand logo, language toggle, class, level/min-level, the
   progress + match/mastery meters, Search button) above a 3-column body:
   - **`RequestPanel`** (`request/`) — search mode, target-stats editor, constraints (per-rarity
