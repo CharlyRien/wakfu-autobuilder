@@ -140,9 +140,16 @@ internal fun dominationShape(
                 pinned += Characteristic.DODGE
                 conditionStats += Characteristic.DODGE
             }
+            // EACH secondary is capped on its own: pinning every one of them keeps each per-stat read unchanged.
             SublimationConditionType.SECONDARY_MASTERIES_AT_MOST -> {
                 pinned += SECONDARY_MASTERY_CHARACTERISTICS
                 conditionStats += SECONDARY_MASTERY_CHARACTERISTICS
+            }
+            // Not solver-modelled (no choosable sub carries it; a carrier's effects apply unconditionally) — pinned like
+            // AP_ODD all the same, should a future data refresh model it.
+            SublimationConditionType.HEALING_MASTERY_AT_MOST -> {
+                pinned += Characteristic.MASTERY_HEALING
+                conditionStats += Characteristic.MASTERY_HEALING
             }
             // ≥-type: a ≥ swap on a beneficial choosable sub keeps the condition satisfied ⇒ no pin needed.
             SublimationConditionType.AP_AT_LEAST -> conditionStats += Characteristic.ACTION_POINT

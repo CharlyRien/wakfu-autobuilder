@@ -883,7 +883,7 @@ internal class StatBuilder(
     internal val permanentSubTermsByStat: Map<Characteristic, List<Term>> = buildPermanentSubTerms()
 
     // The START-OF-COMBAT contributions of unconditional FLAT subs — the extra layer a FIRST-TURN
-    // condition sees on top of [preCombatStat] (Neutralité's `secondary masteries ≤ 0` is checked by
+    // condition sees on top of [preCombatStat] (Neutralité's `each secondary mastery ≤ 0` is checked by
     // the game on the first turn, AFTER start-of-combat effects like Ravage's masteries landed —
     // in-game verified 2026-07-14). Same subVar gating as [permanentSubTermsByStat] (FLAT ⇒ no
     // condition), so [firstTurnStat] stays acyclic from [reifyCondition].

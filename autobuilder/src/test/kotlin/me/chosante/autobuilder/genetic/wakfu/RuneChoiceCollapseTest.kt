@@ -79,13 +79,16 @@ class RuneChoiceCollapseTest {
     /**
      * v54 model-fidelity lock (2026-10-03): the collapse booked the cape's elemental rune as DISTANCE,
      * disabling Neutralité. An HP=0 row switched to the general fold and raised the real optimum by 14.8%.
-     * The signed-secondary helmet variant also exercises world N's secondary-budget relief.
+     * The signed-secondary helmet variant also exercises world N's secondary-budget relief. v56: Neutralité III holds
+     * EACH secondary ≤ 0, so the helmet's −120 rear no longer funds +120 distance (skill points) beside it — rear only
+     * offsets rear, which this face scenario does not read: 2,198,020 under the old sum reading, 2,172,270 now (while
+     * world N, a sum relaxation, still credits that relief — the cell checks below bound the per-stat optimum).
      */
     @Test
     fun `elemental rune collapse preserves Neutralite and the general-fold optimum`() {
         val base = listOf(item(1, ItemType.CAPE, 4), item(2, ItemType.BOOTS, 0))
         val helmet = item(3, ItemType.HELMET, 4, level = 200, extraStats = mapOf(Characteristic.MASTERY_BACK to -120))
-        for ((items, expected) in listOf(base to 1_540_880L, (base + helmet) to 2_198_020L)) {
+        for ((items, expected) in listOf(base to 1_540_880L, (base + helmet) to 2_172_270L)) {
             val pool = items.groupBy { it.itemType }
             val freeParams = params()
             val generalParams = freeParams.copy(targetStats = TargetStats(freeParams.targetStats.toList() + TargetStat(Characteristic.HP, 0)))

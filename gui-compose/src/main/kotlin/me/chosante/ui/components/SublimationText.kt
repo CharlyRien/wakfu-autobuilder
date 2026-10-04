@@ -151,7 +151,10 @@ private fun conditionText(
         SublimationConditionType.RANGE_AT_LEAST -> if (fr) "Si Portée ≥ ${c.value}" else "If Range ≥ ${c.value}"
         SublimationConditionType.RANGE_EXACT -> if (fr) "Si Portée = ${c.value}" else "If Range = ${c.value}"
         SublimationConditionType.DODGE_LT_PCT_OF_LEVEL -> if (fr) "Si Esquive < ${c.value}% du niveau" else "If Dodge < ${c.value}% of level"
-        SublimationConditionType.SECONDARY_MASTERIES_AT_MOST -> if (fr) "Si maîtrises secondaires ≤ ${c.value}" else "If secondary masteries ≤ ${c.value}"
+        // EACH secondary mastery on its own (the game's rule — never their sum).
+        SublimationConditionType.SECONDARY_MASTERIES_AT_MOST ->
+            if (fr) "Si chaque maîtrise secondaire ≤ ${c.value}" else "If each secondary mastery ≤ ${c.value}"
+        SublimationConditionType.HEALING_MASTERY_AT_MOST -> if (fr) "Si Maîtrise Soin ≤ ${c.value}" else "If Healing Mastery ≤ ${c.value}"
         SublimationConditionType.CRITICAL_MASTERY_AT_MOST -> if (fr) "Si Maîtrise Critique ≤ ${c.value}" else "If Critical Mastery ≤ ${c.value}"
         SublimationConditionType.WEAPON_TYPE_EQUIPPED -> if (fr) "Si ${c.text} équipé" else "If ${c.text} equipped"
         SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED ->

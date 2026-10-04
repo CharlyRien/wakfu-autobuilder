@@ -24,7 +24,8 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * The max-damage rune CHOICE COLLAPSE keeps, per carrier, the Pareto set of its candidate runes over everything the
- * model reads from them ([MaxDamageRuneReads]), and gates the choices only a choosable conditional sub keeps
+ * model reads from them ([MaxDamageRuneReads] — the Neutralité family's cap read as one bound PER secondary mastery),
+ * and gates the choices only a choosable conditional sub keeps
  * ([MaxDamageRuneReads.choiceGates]). Both are optimum-preserving search cuts: the rule locks below pin what each carrier
  * keeps on the real rune catalog, and the model lock checks the pruned + gated model against the full-choice one (every
  * candidate rune on every carrier, no gate) and the general single-type fold on seeded pools.
@@ -93,36 +94,112 @@ class RuneChoicePruningTest {
     private val crit = Characteristic.MASTERY_CRITICAL
 
     @Test
-    fun `a secondary cap keeps every cheaper rune a budget can need and drops the exact ties`() {
-        // Rear distance, rune level 11: secondary 33 (66 doubled), elemental 22 (44 doubled). The Neutralité family sums
-        // ALL six secondaries (crit included) at weight 1, so equal-valued distance / rear / crit runes cost the same
-        // budget and distance — first in order, and worth more than crit at every crit rate — represents them.
+    fun `a secondary cap keeps every cheaper rune a budget can need and every secondary on its own budget`() {
+        // Rear distance, rune level 11: secondary 33 (66 doubled), elemental 22 (44 doubled). The Neutralité family holds
+        // EACH of the six secondaries (crit included) ≤ 0 on its own, so a rune of one secondary never stands in for a rune
+        // of another — a rear rune can be absorbed by a −430-rear item where an equal distance rune cannot — and every
+        // secondary type survives beside the elemental rune, which only an elemental rune at least as large beats.
         val reads = maxDamageRuneReads(params(distanceRear), secondaryCaps + critSecret + unraveling, emptySet())
+        val all = listOf(elem, dist, back, crit)
         val expected =
             mapOf(
-                ItemType.HELMET to listOf(elem, dist), // 22 / 33 / 33 / 33
+                ItemType.HELMET to all, // 22 / 33 / 33 / 33
                 ItemType.CHEST_PLATE to listOf(elem), // 44 doubled beats every 33 on every read
-                ItemType.SHOULDER_PADS to listOf(elem, dist, crit), // crit 66 doubled
-                ItemType.BOOTS to listOf(elem, dist, back), // rear 66 doubled: distance 33 is the half-budget option
-                ItemType.AMULET to listOf(elem, dist),
+                ItemType.SHOULDER_PADS to all, // crit 66 doubled
+                ItemType.BOOTS to all, // rear 66 doubled
+                ItemType.AMULET to all,
                 ItemType.CAPE to listOf(elem),
-                ItemType.BELT to listOf(elem, dist, crit), // distance = rear = 66, crit 33 is the half-budget option
-                ItemType.ONE_HANDED_WEAPONS to listOf(elem, dist, back), // distance = crit = 66, rear 33
-                ItemType.RING to listOf(elem, dist)
+                ItemType.BELT to all, // distance = rear = 66, crit 33
+                ItemType.ONE_HANDED_WEAPONS to all, // distance = crit = 66, rear 33
+                ItemType.RING to all
             )
         for ((type, stats) in expected) {
             assertThat(kept(reads, distanceRear, type)).describedAs("%s", type).isEqualTo(stats)
         }
-        // While no secondary cap is taken, the best M rune beats the cheaper choices: they are gated on exactly the four
-        // caps (Critical Secret prefers the distance rune anyway; Unraveling's crit-into-elemental re-label never helps).
+        // While no secondary cap is taken, the best M rune beats the others: they are gated on exactly the four caps
+        // (Critical Secret prefers the distance rune anyway; Unraveling's crit-into-elemental re-label never helps).
         val helmetGates = reads.choiceGates(reads.paretoChoices(candidates(distanceRear, ItemType.HELMET)))
-        assertThat(helmetGates.keys).containsExactly(elem)
-        assertThat(helmetGates.getValue(elem)).containsExactlyInAnyOrderElementsOf(secondaryCaps)
+        assertThat(helmetGates.keys).containsExactlyInAnyOrder(elem, back, crit)
+        for (gated in helmetGates.values) assertThat(gated).containsExactlyInAnyOrderElementsOf(secondaryCaps)
         val beltGates = reads.choiceGates(reads.paretoChoices(candidates(distanceRear, ItemType.BELT)))
-        assertThat(beltGates.keys).containsExactlyInAnyOrder(elem, crit)
+        assertThat(beltGates.keys).containsExactlyInAnyOrder(elem, back, crit)
         // The doubled crit rune (66 > distance 33) is the original collapse's crit swap: never gated.
         val shoulderGates = reads.choiceGates(reads.paretoChoices(candidates(distanceRear, ItemType.SHOULDER_PADS)))
-        assertThat(shoulderGates.keys).containsExactly(elem)
+        assertThat(shoulderGates.keys).containsExactlyInAnyOrder(elem, back)
+        // The doubled rear rune is the boots' best M rune: the others are gated.
+        val bootsGates = reads.choiceGates(reads.paretoChoices(candidates(distanceRear, ItemType.BOOTS)))
+        assertThat(bootsGates.keys).containsExactlyInAnyOrder(elem, dist, crit)
+    }
+
+    /**
+     * Rear vs distance under the per-stat cap, end to end. CRA 230 fire / distance / back, Neutralité III choosable: a
+     * helmet whose equal distance and rear runes (4 × 33) tie, and a cape carrying −1000 rear — more than the Luck rear
+     * points can absorb. Taking Neutralité, distance must stay ≤ 0 but rear has room: the helmet's REAR runes are
+     * absorbed (+132 to M through the rear line) where distance runes would break the cap and elemental runes add only
+     * 88. A pruning that read the cap as one SUM made distance and rear one choice (distance) and missed that optimum;
+     * the per-stat reads keep both, so the pruned + gated model equals the full-choice one and the general fold.
+     */
+    @Test
+    fun `an equal rear rune survives the distance one when a negative rear line can absorb it`() {
+        val level = 230
+
+        fun item(
+            id: Int,
+            type: ItemType,
+            stats: Map<Characteristic, Int>,
+            sockets: Int,
+        ) = Equipment(
+            equipmentId = id,
+            guiId = id,
+            level = level,
+            name = I18nText("rr$id", "rr$id", "", ""),
+            rarity = Rarity.LEGENDARY,
+            itemType = type,
+            characteristics = stats,
+            maxShardSlots = sockets
+        )
+        val helmet = item(800_001, ItemType.HELMET, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 400), sockets = 4)
+        val cape = item(800_002, ItemType.CAPE, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 3_000, back to -1_000), sockets = 0)
+        val pool = listOf(helmet, cape).groupBy { it.itemType }
+        val neutralite = secondaryCaps[0]
+        val p = params(distanceRear, level)
+        val tuning = WakfuBuildSolver.SolverTuning(numSearchWorkers = 1, randomSeed = 1, maxDeterministicTime = 60.0, interleaveSearch = true)
+        val pruned = WakfuBuildSolver.maxDamageSolveForTest(p, pool, tuning, tightDomains = true, runes = runes, sublimations = listOf(neutralite))
+        val full =
+            WakfuBuildSolver.maxDamageSolveForTest(
+                p,
+                pool,
+                tuning,
+                tightDomains = true,
+                runes = runes,
+                sublimations = listOf(neutralite),
+                runeChoicePruning = false,
+                runeChoiceGating = false
+            )
+        val hp0 = p.copy(targetStats = TargetStats(p.targetStats.toList() + TargetStat(Characteristic.HP, 0)))
+        val general = WakfuBuildSolver.maxDamageSolveForTest(hp0, pool, tuning, tightDomains = true, runes = runes, sublimations = listOf(neutralite))
+        println("RUNE_REAR pruned=${pruned.objective}/${pruned.isOptimal} full=${full.objective}/${full.isOptimal} general=${general.objective}/${general.isOptimal}")
+        // 22 / 33 / 33 / 33 on the helmet: distance and rear are two choices (the sum reading kept distance alone).
+        val reads = maxDamageRuneReads(p, listOf(neutralite), emptySet())
+        assertThat(kept(reads, distanceRear, ItemType.HELMET)).containsExactly(elem, dist, back, crit)
+        for (outcome in listOf(pruned, full, general)) assertThat(outcome.isOptimal).isTrue()
+        assertThat(pruned.objective).isEqualTo(full.objective)
+        assertThat(general.objective).isEqualTo(full.objective)
+
+        // The optimum takes Neutralité III with the helmet's four REAR runes (absorbed by the cape's −1000 rear).
+        val build =
+            kotlinx.coroutines.runBlocking {
+                var last: me.chosante.autobuilder.genetic.SolverResult<me.chosante.autobuilder.domain.BuildCombination>? = null
+                WakfuBuildSolver.optimize(p, pool, runes, listOf(neutralite), tuning, hardConstraints = false).collect { last = it }
+                requireNotNull(last).individual
+            }
+        assertThat(build.sublimations.values.flatten()).containsExactly(neutralite)
+        assertThat(
+            build.runes.entries
+                .single { it.key.equipmentId == helmet.equipmentId }
+                .value
+                .map { it.characteristic }
+        ).containsExactly(back, back, back, back)
     }
 
     @Test
@@ -149,16 +226,17 @@ class RuneChoicePruningTest {
     @Test
     fun `a forced cap and an unknown reader are never pruned across`() {
         // A FORCED sub's effect is gated by its condition and may be a malus, so its stats must match exactly: the
-        // doubled elemental rune no longer beats the distance one (it frees budget the build may want to spend).
+        // doubled elemental rune no longer beats the secondary ones (it frees budget the build may want to spend), and
+        // each secondary reads its own bound.
         val forced = maxDamageRuneReads(params(distanceRear, forcedSubs = listOf("Neutralité III")), listOf(secondaryCaps[0]), emptySet())
-        assertThat(kept(forced, distanceRear, ItemType.CHEST_PLATE)).isEqualTo(listOf(elem, dist))
+        assertThat(kept(forced, distanceRear, ItemType.CHEST_PLATE)).isEqualTo(listOf(elem, dist, back, crit))
         assertThat(forced.choiceGates(forced.paretoChoices(candidates(distanceRear, ItemType.HELMET)))).isEmpty()
 
         // A conversion out of distance mastery (or crit mastery converted at > 100 %) is an unknown reader: that type is
-        // neither pruned nor pruning.
+        // neither pruned nor pruning (with no cap, the equal rear rune now represents the others instead).
         val fromDistance = unraveling.copy(stateId = -1, effects = listOf(SublimationEffect.Conversion(from = dist, to = Characteristic.DAMAGE_INFLICTED, percent = 50)))
-        val opaqueDistance = maxDamageRuneReads(params(distanceRear), secondaryCaps + fromDistance, emptySet())
-        assertThat(kept(opaqueDistance, distanceRear, ItemType.HELMET)).isEqualTo(listOf(elem, dist, back))
+        val opaqueDistance = maxDamageRuneReads(params(distanceRear), listOf(fromDistance), emptySet())
+        assertThat(kept(opaqueDistance, distanceRear, ItemType.HELMET)).isEqualTo(listOf(dist, back))
         val overConverting = unraveling.copy(stateId = -2, effects = listOf(SublimationEffect.Conversion(from = crit, to = elem, percent = 150)))
         val opaqueCrit = maxDamageRuneReads(params(distanceRear), listOf(overConverting), emptySet())
         assertThat(kept(opaqueCrit, distanceRear, ItemType.HELMET)).isEqualTo(listOf(dist, crit))
@@ -178,8 +256,9 @@ class RuneChoicePruningTest {
 
     /**
      * Small collapse-shaped pools: socketed items over every rune-level cap (ties at rune level 1 included), signed
-     * secondary / crit lines (a negative line is the budget a cap can spend), the Neutralité family choosable or one of it
-     * forced, Critical Secret / Unraveling / a random extra sub, every orientation and range band.
+     * secondary / crit lines (a negative line is the budget a cap can spend on runes of ITS stat — non-positive only in
+     * every third pool), the Neutralité family choosable or one of it forced, Critical Secret / Unraveling / a random
+     * extra sub, every orientation and range band.
      */
     private fun case(seed: Long): Case {
         val rng = java.util.Random(seed * 7_907L + 11L)
@@ -191,6 +270,12 @@ class RuneChoicePruningTest {
         val scenario = DamageScenario(element = element, rangeBand = range, orientation = orientation, berserk = berserk)
         val others = SECONDARY_MASTERY_CHARACTERISTICS.filter { it !in scenarioMasteryStats(scenario) && it != crit }
         var id = 700_000 + (seed % 1_000).toInt() * 100
+        // Every third pool carries NON-POSITIVE secondary lines only (the same draws, signs folded): the cap — which holds
+        // EACH secondary ≤ 0 — is then cheap to take, and each negative line is a per-stat budget a rune of THAT stat
+        // can fill (on signed pools a cap optimum is rare once a positive line cannot be offset across stats).
+        val negativeSecondaries = seed % 3 == 0L
+
+        fun secondary(value: Int) = if (negativeSecondaries) -kotlin.math.abs(value) else value
 
         fun item(
             type: ItemType,
@@ -198,11 +283,11 @@ class RuneChoicePruningTest {
         ): Equipment {
             val stats = mutableMapOf<Characteristic, Int>()
             stats[if (rng.nextInt(3) == 0) elem else element.masteryCharacteristic] = 40 + rng.nextInt(400)
-            if (rng.nextInt(10) < 4) stats[range.masteryCharacteristic] = rng.nextInt(260) - 140
-            if (orientation.grantsRearMastery && rng.nextInt(3) == 0) stats[back] = rng.nextInt(200) - 120
-            if (berserk && rng.nextInt(4) == 0) stats[Characteristic.MASTERY_BERSERK] = rng.nextInt(200) - 100
-            if (rng.nextInt(10) < 3) stats[others[rng.nextInt(others.size)]] = rng.nextInt(200) - 140
-            if (rng.nextInt(10) < 3) stats[crit] = rng.nextInt(160) - 60
+            if (rng.nextInt(10) < 4) stats[range.masteryCharacteristic] = secondary(rng.nextInt(260) - 140)
+            if (orientation.grantsRearMastery && rng.nextInt(3) == 0) stats[back] = secondary(rng.nextInt(200) - 120)
+            if (berserk && rng.nextInt(4) == 0) stats[Characteristic.MASTERY_BERSERK] = secondary(rng.nextInt(200) - 100)
+            if (rng.nextInt(10) < 3) stats[others[rng.nextInt(others.size)]] = secondary(rng.nextInt(200) - 140)
+            if (rng.nextInt(10) < 3) stats[crit] = secondary(rng.nextInt(160) - 60)
             if (rng.nextInt(10) < 4) stats[Characteristic.CRITICAL_HIT] = rng.nextInt(15) - 4
             if (rng.nextInt(10) < 2) stats[Characteristic.ACTION_POINT] = 1
             if (rng.nextInt(8) == 0) stats[Characteristic.DAMAGE_INFLICTED] = 5 + rng.nextInt(10)
@@ -242,7 +327,8 @@ class RuneChoicePruningTest {
         val p =
             params(scenario, level, forcedSubs = listOfNotNull(forcedCap?.name?.fr))
         return Case(
-            "seed$seed(${scenario.rangeBand}/${scenario.orientation}/berserk=$berserk lvl$level forced=${forcedCap?.name?.fr})",
+            "seed$seed(${scenario.rangeBand}/${scenario.orientation}/berserk=$berserk lvl$level forced=${forcedCap?.name?.fr}" +
+                "${if (negativeSecondaries) " negative-secondaries" else ""})",
             p,
             items.groupBy { it.itemType },
             family + extras + random
@@ -294,7 +380,10 @@ class RuneChoicePruningTest {
                         deterministicLimit = 60.0,
                         interleave = true
                     )
-                if (probe.status == "OPTIMAL" && probe.selectedSublimationStateIds.any { id -> secondaryCaps.any { it.stateId == id } }) familyOptima++
+                if (probe.status == "OPTIMAL" && probe.selectedSublimationStateIds.any { id -> secondaryCaps.any { it.stateId == id } }) {
+                    familyOptima++
+                    println("RUNE_PRUNING family optimum: ${c.label}")
+                }
             }
         }
         // The pools must exercise the cap: some (choosable) optimum carries a Neutralité-family sub.
