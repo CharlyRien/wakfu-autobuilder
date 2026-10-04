@@ -565,8 +565,8 @@ object WakfuBuildSolver {
         )
 
     /**
-     * The prefilter (a top-N-per-stat HEURISTIC that trades global optimality for tractability) is needed
-     * only when a single elemental fold has **more than one** wanted element: that is exactly the case where
+     * The prefilter (a top-N-per-stat plus top-N-by-combined-mastery HEURISTIC that trades global optimality for
+     * tractability) is needed only when a single elemental fold has **more than one** wanted element: that is exactly the case where
      * [applyGreedyRandom] mints the per-item × per-element assignment booleans + O(elements²) ordering
      * constraints that explode the full late-game pool. A SINGLE specific element (the common request, e.g.
      * "fire mastery") takes the cheap `effectiveCount == elementCount` random branch with no assignment vars,
@@ -582,6 +582,18 @@ object WakfuBuildSolver {
      * pool produces a CP-SAT model with tens of thousands of booleans that presolve cannot reduce in
      * time; keeping only the strongest items per requested characteristic (plus forced items) shrinks
      * the model dramatically, so presolve stays fast and the search reaches strong solutions.
+     *
+     * Per slot it keeps the forced items, then the top [topPerCharacteristic] items of every relevant
+     * characteristic, then the top [topPerCharacteristic] by [combinedMasteryScore]. Two rankings read that
+     * score, because a well-rounded item (395 random-element + 395 distance mastery) is the best on no
+     * single stat yet is what a multi-element optimum wears:
+     *  - it breaks ties on a characteristic's own value. AP / MP / range / crit are small integers, so the
+     *    cut falls inside a tie group of a dozen items and, ranked by value alone, pool order decided who
+     *    survived; a stable sort keeps pool order for what is still tied, so the result stays deterministic;
+     *  - it is a ranking of its own, so an item that ranks 9th on every stat still gets in on its overall
+     *    mastery.
+     * Still a heuristic: a build that needs an item ranked low on all of those is lost, so a prefiltered
+     * request never earns an optimality badge (see [needsItemPrefilter]).
      */
     private fun prefilterRelevantEquipments(
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
@@ -591,20 +603,60 @@ object WakfuBuildSolver {
         val relevant = relevantCharacteristics(params.targetStats)
         if (relevant.isEmpty()) return equipmentsByItemType
         val forced = params.forcedItems.map { it.lowercase() }.toSet()
+        val wantedElements = params.targetStats.masteryElementsToMinimize
+        val wantedNonElemental =
+            params.targetStats
+                .map { it.characteristic }
+                .filter { it in NON_ELEMENTARY_MASTERIES }
+                .distinct()
 
         return equipmentsByItemType.mapValues { (_, items) ->
             val keep = LinkedHashSet<Equipment>()
             items.filter { it.name.fr.lowercase() in forced }.forEach { keep.add(it) }
+            // Scored once per slot: the rankings below read it for every characteristic.
+            val scored = items.map { it to combinedMasteryScore(it, wantedElements, wantedNonElemental) }
             for (characteristic in relevant) {
-                items
+                scored
                     .asSequence()
-                    .filter { it.valueFor(characteristic) > 0 }
-                    .sortedByDescending { it.valueFor(characteristic) }
-                    .take(topPerCharacteristic)
-                    .forEach { keep.add(it) }
+                    .filter { (item, _) -> item.valueFor(characteristic) > 0 }
+                    .sortedWith(
+                        compareByDescending<Pair<Equipment, Int>> { (item, _) -> item.valueFor(characteristic) }
+                            .thenByDescending { (_, combined) -> combined }
+                    ).take(topPerCharacteristic)
+                    .forEach { (item, _) -> keep.add(item) }
             }
+            scored
+                .asSequence()
+                .filter { (_, combined) -> combined > 0 }
+                .sortedByDescending { (_, combined) -> combined }
+                .take(topPerCharacteristic)
+                .forEach { (item, _) -> keep.add(item) }
             if (keep.isEmpty()) items else keep.toList()
         }
+    }
+
+    /**
+     * How much of the requested mastery an item can give across ALL the wanted elements at once — the prefilter's
+     * answer to the item that is the best on no single stat. The most-masteries objective takes the minimum
+     * over the [wantedElements], so what an item is worth is its share on every element, not its peak on one:
+     * the sum over the wanted elements of the specific mastery it carries, plus the generic
+     * [Characteristic.MASTERY_ELEMENTARY] once per element, plus each random-element line (rolled on k elements)
+     * on `min(k, elements)` of them, plus every requested non-elemental mastery ([wantedNonElemental], e.g.
+     * distance) once per element — an upper bound of its share of that minimum. Zero when no elemental mastery
+     * is wanted (a resistance-only request ranks as before). Pure and integer, so equal inputs rank equally.
+     */
+    private fun combinedMasteryScore(
+        equipment: Equipment,
+        wantedElements: List<Characteristic>,
+        wantedNonElemental: List<Characteristic>,
+    ): Int {
+        val elements = wantedElements.size
+        if (elements == 0) return 0
+        var total = elements * equipment.valueFor(Characteristic.MASTERY_ELEMENTARY)
+        for (element in wantedElements) total += equipment.valueFor(element)
+        for ((randomLine, rolledOn) in MASTERY_RANDOM_BY_COUNT) total += min(rolledOn, elements) * equipment.valueFor(randomLine)
+        for (mastery in wantedNonElemental) total += elements * equipment.valueFor(mastery)
+        return total
     }
 
     private fun relevantCharacteristics(targetStats: TargetStats): Set<Characteristic> {
