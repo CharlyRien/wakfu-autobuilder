@@ -1373,8 +1373,9 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
   - **Its search cost and the mitigation.** #226 gave those carriers 3–4 pick bools on 7 of 9 socketed slot kinds (the
     family is choosable by default): free max-damage searches lost their proofs (80 melee face: proven 41 s → within
     7.51 %; MD245F on 10 cores: proven 47 s → 100 s). Now each carrier keeps the Pareto set of its candidates over every
-    read of the model (`MaxDamageRuneReads`: the objective, each modelled condition — the cap sums all six secondaries,
-    crit included, at weight 1 — conversions; forced subs read both ways; any other reader makes a type opaque), and a
+    read of the model (`MaxDamageRuneReads`: the objective, each modelled condition — the cap was read as the SUM of all
+    six secondaries, crit included, at weight 1, wrong: per stat since CERTIFIER_VERSION 56, next item — conversions;
+    forced subs read both ways; any other reader makes a type opaque), and a
     choice only a choosable cap keeps is gated on those subs (`pick ≤ Σ subVar`). Forced items no longer trigger the
     explicit picks (the readers come from the modelled subs, not the domination shape).
   - **Measured (production path, 4 cores, 120 s, 2 runs; main / #226 / pruned):** MD110F back at main's value and badge
@@ -1392,7 +1393,8 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
   The max-damage fold (and the collapse built on it) fills each item with ONE rune type, on the premise (comment in
   `WakfuBuildSolver.buildModel`) that a `secondary ≤ 0` cap rules an intra-item mix out. It does not: an item's NEGATIVE
   secondary line gives the cap a positive budget, which a mixed item (part secondary, part elemental) can fill exactly
-  while no single type fits. Evidence (the review's collapse-shape fuzz, a scratch harness: free requests, and requests
+  while no single type fits. (Measured under the old SUM reading; since CERTIFIER_VERSION 56 a negative line funds only
+  ITS OWN stat — each secondary is capped on its own — so the gap is per stat; not re-measured.) Evidence (the review's collapse-shape fuzz, a scratch harness: free requests, and requests
   with AP / MP / RANGE / CC rows): the per-stat COUNT model (`forceRuneCountModel`) beat the fold in 12 of 130
   comparisons — 6 seeded pools, each diverging identically with Neutralité III choosable and forced — by 0.032 % /
   0.063 % / 0.049 % (free, seeds 71015 / 71036 / 71037) and 0.072 % / 0.481 % / 0.129 % (rows, seeds 72006 / 72014 /
@@ -1402,6 +1404,68 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
   badge can sit up to that far below a mixed-rune build. Not started. Options: keep the count model (or bail the
   certificate) when a modelled secondary cap meets a negative secondary line in the pool; or offer a mixed option only on
   the carriers that can need it.
+- **NEUTRALITÉ FAMILY READ AS A SUM — ✅ FIXED (2026-10-04, CERTIFIER_VERSION 56).** The engine credited Neutralité,
+  Ambition, Inflexibilité and Prétention whenever the SUM of the six secondary masteries was ≤ 0; the game requires EACH
+  of them to be ≤ 0, so a positive secondary could be offset by a negative one of another stat — bonuses the game never
+  grants, and optima (with badges) of the wrong model.
+  - **bdata evidence** (local client 1.93.1.62, State 67 → StaticEffect 68, dumped by `SecondaryMasteryCriterionTest`'s
+    install-gated case): Neutralité III (6931 → 317914 → 397776), Abandon II (6932 → 397775), Prétention III
+    (6933 → 397778), Ambition III (7115 → 397777) and Inflexibilité II (7256 → 394768, its live branch; the other branch,
+    330558, ends `and False` and never fires) all carry exactly
+    `GetCharac("MELEE_DMG", "target") <= 0 and GetCharac("RANGED_DMG", "target") <= 0 and GetCharac("BERSERK_DMG", "target") <= 0
+    and GetCharac("CRITICAL_BONUS", "target") <= 0 and GetCharac("BACKSTAB_BONUS", "target") <= 0 and GetCharac("HEAL_IN_PERCENT", "target") <= 0`.
+    `SublimationBuilder` split it on `and` and collapsed the six atoms into one `SECONDARY_MASTERIES_AT_MOST(0)`; the engine
+    (`SubConditionSpec.StatBound`) then summed them. The same collapse also mis-decoded Engagement (7880), whose criterion
+    is the lone `GetCharac("HEAL_IN_PERCENT", "caster") <= 0`: it is now `HEALING_MASTERY_AT_MOST` (display only — its
+    "+30 % heals performed" is not a modelled stat).
+  - **The report.** A player's saved Xelor 200 most-masteries build (fire / water, distance and critical rows, Mémoire
+    forced) carried Neutralité III + Ambition III + Inflexibilité II with distance +76, critical +240, rear −304 and
+    berserk −12: sum 0, so the app showed +44 % DI and +15 % crit that none of the three grants in game. Re-scored today:
+    DI 70 → 26, crit 100 → 85, score 5830 → 4458 (`SecondaryMasteriesEachTest`).
+  - **Fix.** `StatBound` holds iff EACH stat passes (CP-SAT: a reified max of the per-stat reads, reads that can never
+    exceed the threshold left out; re-scorer: each stat). The extractor validates the shape — exactly the six tokens, one
+    threshold, one argument, no `or`, no compound atom — and fails on any other mix. The max-damage rune choice collapse
+    reads one bound per secondary (`MaxDamageRuneReads`): an equal rear rune is no longer replaced by the distance one
+    (a −430-rear item can absorb the rear rune, not the distance one) — `docs/RUNE_CHOICE_COLLAPSE_FIX.md`, per-stat section.
+  - **Certificates.** Every certificate read of the condition is a SUM budget — world N's Lagrangian (`S = D + K + O ≤ 0`),
+    the soft certificate's secZero arm (knapsack, negative-budget cap, μ envelope), the MM world-B knapsack — a RELAXATION
+    of the per-stat rule (each ≤ t ⇒ any k of them sum to ≤ k·t): sound, looser. Their threshold is now read through
+    `secondaryMasteriesSumBound` (6·t for t ≥ 0, t below; the raw t would be stricter than the rule for t > 0 — no shipped
+    sub has t ≠ 0). One per-stat tightening shipped: the MM world-B M-cap is also bounded by Σ over the requested
+    masteries of (t + what lands outside the first-turn read). The inputs changed (the rune pick set), hence v56.
+  - **Open (per-stat tightenings not built).** World N could drop the read crit-mastery credit (K ≤ 0 on its own: λ_K = 0
+    — needs a bail on negative crit-mastery sub lines for Dénouement's conversion) and price a negative line of one
+    secondary at nothing for the others (only valid per stat; not uniformly tighter on sources with negative elemental and
+    positive scenario secondary). The capped world sits ~30 % below the normal worlds on real shapes, so neither moves a
+    production badge today. The single-type fold gap below is per stat now (a negative line funds ITS stat only).
+  - **Measured** (production path, 4-core profile `-XX:ActiveProcessorCount=4 -Xmx3g`, main `ed97adfa` → this fix):
+    - the player's request (Xelor 200, most-masteries, the saved rows, Vivacité II / Visibilité II excluded, Mémoire
+      forced, fire / distance / back, 240 s): main returned 8,470 and 8,532 — both carrying Neutralité III + Ambition III
+      + Inflexibilité II on cross-stat offsets (distance +256 / rear −256; distance +60 and crit +229 / rear −286 and
+      berserk −4), so not what the game gives (the second is worth 5,151 in game, the three caps inactive). The fix
+      returns 8,533 with the same three caps and EVERY secondary ≤ 0 (berserk −4, the rest 0): valid in game (DI 70,
+      crit 101). The saved build itself re-scores from 5,830 to 4,458;
+    - GUI-default most-masteries 245 (`MM245`, 120 s): the same optimum, 10,993 (no cap sub in it) — main "within
+      6.77 %" at the deadline, the fix CP-SAT OPTIMAL at 98 s (one run each; multi-worker variance);
+    - free max-damage 245 (`MD245F`, 120 s, three runs each): the same optimum, 20,811,420, ProvenOptimal every time
+      (no cap sub in it), at 58.3 / 64.1 / 61.7 s on main and 71.0 / 62.0 / 75.6 s with the fix (+13 % mean) — the
+      per-stat rune pick set (#226's size again, gated) costs the certificate warm-up that closes the proof;
+    - the nightly lvl-245 fast ledger (`:autobuilder:slowTest`, `lvl-245 fast certifier ledger`) reproduces the banked
+      oracle bit for bit — the added picks only tie existing ones, world N is unchanged — so nothing re-banked.
+  - **Soundness fuzz** (fresh seeds, 1 worker, seed 1, interleaved): MM with the whole family choosable
+    (`WAKFU_REVIEW_MM_NEUTRALITE=1`, seeds 56000–56039): 40 soft + 25 hard comparisons, 0 under-counts (a forced family
+    sub makes the MM certificate bail by design); max-damage with Neutralité III choosable (56000–56039) and forced
+    (56100–56139), collapse + pruning on: 1,213 cells, 80 ledgers, 0 bails, 292 cells whose optimum carries a dropped
+    family sub, pruned + gated == full-choice on all 80; with required rows (56200–56229): 463 cells, 221 target-aware
+    hard-leg cells — 0 under-counts throughout.
+  - **Locks:** `SecondaryMasteriesEachTest` (the player's build, per-stat unit cases, a CP-SAT fixture offsetting within one
+    stat but not across — RED under a sum reification), `RuneChoicePruningTest` (per-stat rule per slot; the rear-vs-distance
+    fixture: pruned + gated == full-choice == general fold — RED under a sum read: 1,852,970 vs 1,878,720),
+    `SecondaryMasteryCriterionTest` (shapes; the client's criteria), `BuildSearchModelSecondaryCapReloadTest` (a reloaded
+    max-damage build loses the bonus), `RuneChoiceCollapseTest` (its signed-rear helmet fixture re-banked 2,198,020 →
+    2,172,270: the −120 rear no longer funds distance beside Neutralité III). Saved most-masteries / precision builds still
+    show the stats they were saved with (a loaded build is not re-scored, by design); a loaded max-damage build's
+    rotation is, so it drops the bonus.
 
 ---
 

@@ -944,20 +944,21 @@ RANGE / resistance / dodge rows — so target-MISSING soft results on these rows
 **Model-side reduction rejected (not exact).** A 0-valued row is a no-op for the objective (weight 0 in the soft
 penalty, skipped by the hard leg, weight 0 in the scorer), but dropping its rune variables would restore the
 COLLAPSE, which keys the best M rune — usually the ELEMENTAL rune — under the range-band mastery, i.e. as a SECONDARY
-mastery in the Neutralité family's `secondary masteries ≤ 0` read, while the general fold keys it as elemental. The
+mastery in the Neutralité family's secondary-mastery read (`each secondary mastery ≤ 0`), while the general fold keys it as elemental. The
 two models therefore disagree on that family's feasible set (and on the runes non-optimal incumbents may display), so
 the reduction is not provably exact; the CP-SAT model stays untouched.
 
 **Two pre-existing UNDER-COUNTS found while auditing, fixed in the same version.** The pass dropped two sub families
-from its pools on an unguarded "a damage build never satisfies it" argument: the Neutralité family (`secondary
-masteries ≤ 0`: Neutrality III, Ambition III, Inflexibility II) and the EPIC block sub Mesure (`block ≥ 40`, +10 DI
+from its pools on an unguarded "a damage build never satisfies it" argument: the Neutralité family (`each secondary
+mastery ≤ 0`: Neutrality III, Ambition III, Inflexibility II) and the EPIC block sub Mesure (`block ≥ 40`, +10 DI
 +10 crit — a DI+crit mix no optional stage carries). A seeded 4-item pool whose proven optimum carries the dropped sub
 reproduces both: every pass (exact, tier-1.5, fast) certified BELOW the pinned CP-SAT cell optimum (−15 % / −27 %), i.e.
 a wrong "proven optimal" was reachable. Both families now get AUX worlds (`certifierAuxWorlds`):
 
 - **N — secondary-capped** (+ N×C for Critical Secret's epic slot): the family subs are kept and every mastery source
   is re-valued under the condition's budget. With S = D + K + O ≤ 0 on the first-turn read (D the scenario's secondary
-  masteries, K crit mastery, O the others), `Graw ≤ (400+c)·(max(0,M) + max(0,K))` and, adding `−S ≥ 0`
+  masteries, K crit mastery, O the others — the condition holds EACH of the six ≤ 0, so this sum is a relaxation of it,
+  CERTIFIER_VERSION 56), `Graw ≤ (400+c)·(max(0,M) + max(0,K))` and, adding `−S ≥ 0`
   (Lagrangian λ = 1) source by source: a READ source (item, rune pick, skill point, base, FLAT sub) is worth
   `pos(e+d) + pos(k) − (d+k+o)` (typically `e − o`), an UNREAD one (passives, non-FLAT subs' own effects) keeps
   `pos(e+d) + pos(k)`, and the critical-mastery axis is 0. Sound for any signed item lines; a conversion needs nothing
