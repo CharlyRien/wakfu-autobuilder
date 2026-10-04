@@ -149,7 +149,8 @@ internal fun CpModel.createRuneModel(
             // candidate type, minus each one another candidate on THIS carrier beats on every read
             // ([MaxDamageRuneReads.paretoChoices]): without such a read that leaves the best M-feeding rune and,
             // when larger, the crit one — the original collapse; a capped secondary read also keeps the cheaper
-            // choices (elemental, a smaller secondary, crit) a budget can need, minus the exact ties.
+            // choices (elemental, a smaller secondary, crit) a budget can need, and — the cap holding EACH secondary on
+            // its own — every secondary type on its own budget (an equal rear and distance rune are two choices).
             val candidates =
                 (maxDamageMasteryRuneStats + Characteristic.MASTERY_CRITICAL).mapNotNull { stat ->
                     runeByCharacteristic[stat]?.let { rune -> RuneChoice(stat, rune, rune.valueOn(equip.itemType, equip.level).toLong()) }
@@ -277,13 +278,14 @@ internal data class RuneChoice(
  * `baseTermsFor` of its own characteristic, so its readers are the readers of that characteristic:
  *  - the damage objective `Graw = (400 + c)·M + 5c·K` ([perHitDamageScore]): M sums every [damageStats] stat at weight
  *    1 ([scenarioMasteryStats]), K is critical mastery, the crit rate c is clamped to [0, 100];
- *  - each modelled sub's build-static stat condition ([subConditionSpec] → a SUM of [Bound.stats] against a threshold,
- *    read on the pre-combat / first-turn sheet — runes included). A CHOOSABLE sub only restricts the build once taken
- *    (`subVar ≤ holds`), so the build prefers the satisfying side ([Side.LOWER] for `≤`, [Side.HIGHER] for `≥`); a
- *    FORCED sub's effect is gated by its condition and may be a malus, so its stats must match exactly
- *    ([Side.EXACT]). The Neutralité family's `secondary masteries ≤ 0` sums ALL six secondaries — crit mastery
- *    included — at weight 1, so it tells no two of them apart; Critical Secret reads critical mastery alone; no
- *    modelled condition reads a single rear / distance / melee mastery (HIGHEST_ELEM_MASTERY_GT_* are not
+ *  - each modelled sub's build-static stat condition ([subConditionSpec]: EACH of its stats against a threshold, read on
+ *    the pre-combat / first-turn sheet — runes included), one [Bound] PER STAT. A CHOOSABLE sub only restricts the
+ *    build once taken (`subVar ≤ holds`), so the build prefers the satisfying side ([Side.LOWER] for `≤`, [Side.HIGHER]
+ *    for `≥`); a FORCED sub's effect is gated by its condition and may be a malus, so its stats must match exactly
+ *    ([Side.EXACT]). The Neutralité family's `each secondary mastery ≤ 0` reads EACH of the six secondaries — crit
+ *    mastery included — on its own, so it tells every two of them apart: a rear rune can be absorbed by a −430-rear
+ *    item where an equal distance rune cannot, so equal-valued distance / rear / crit runes are DIFFERENT choices (a
+ *    sum would have made them one). Critical Secret reads critical mastery alone (HIGHEST_ELEM_MASTERY_GT_* are not
  *    solver-modelled: such a sub applies unconditionally);
  *  - a CONVERSION reads its source's pre-sub stat. Crit mastery → an M-feeding stat at ≤ 100 % (Dénouement) only moves
  *    part of a crit rune into M — never more than its value, so a rune feeding M directly by at least as much still
@@ -299,9 +301,13 @@ internal class MaxDamageRuneReads(
 ) {
     internal enum class Side { LOWER, HIGHER, EXACT }
 
-    /** A modelled condition: `Σ stats ⋚ threshold`, the side the build prefers, and its CHOOSABLE sub (null when forced). */
+    /**
+     * One stat of a modelled condition: `stat ⋚ threshold` (a multi-stat condition — the Neutralité family's six
+     * secondaries — is one [Bound] per stat, each held on its own), the side the build prefers, and its CHOOSABLE sub
+     * (null when forced).
+     */
     internal data class Bound(
-        val stats: Set<Characteristic>,
+        val stat: Characteristic,
         val side: Side,
         val choosableSub: Sublimation?,
     )
@@ -328,7 +334,7 @@ internal class MaxDamageRuneReads(
             }
     }
 
-    private fun Bound.read(c: RuneChoice): Long = if (c.stat in stats) c.value else 0L
+    private fun Bound.read(c: RuneChoice): Long = if (c.stat == stat) c.value else 0L
 
     private fun Bound.holdsFor(
         q: RuneChoice,
@@ -414,7 +420,9 @@ internal fun maxDamageRuneReads(
                     spec.comparison == ConditionComparison.AT_LEAST -> MaxDamageRuneReads.Side.HIGHER
                     else -> MaxDamageRuneReads.Side.EXACT
                 }
-            bounds += MaxDamageRuneReads.Bound(spec.stats.toSet(), side, if (isForced) null else sub)
+            // EACH stat is its own bound (the Neutralité family holds every secondary mastery ≤ t separately, never
+            // their sum): a choice dominates another only if it reads no more of ANY of them.
+            for (stat in spec.stats.distinct()) bounds += MaxDamageRuneReads.Bound(stat, side, if (isForced) null else sub)
         }
         sub.conversion?.let { conversion ->
             val critIntoDamage =

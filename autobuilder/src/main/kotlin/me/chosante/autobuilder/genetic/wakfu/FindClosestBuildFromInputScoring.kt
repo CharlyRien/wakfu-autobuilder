@@ -741,7 +741,8 @@ private fun subConditionHolds(
     when (val spec = subConditionSpec(cond, level)) {
         is SubConditionSpec.StatBound -> {
             val sheet = if (spec.firstTurn) firstTurn.value else preCombat
-            spec.comparison.holds(spec.stats.sumOf { sheet[it] ?: 0 }, spec.threshold)
+            // EACH stat on its own (Neutralité family: every secondary mastery ≤ t, never their sum).
+            spec.holdsOn { sheet[it] ?: 0 }
         }
         SubConditionSpec.NoOffhandOrTwoHanded -> !usesOffhandOrTwoHanded
         SubConditionSpec.AlwaysApplies -> true

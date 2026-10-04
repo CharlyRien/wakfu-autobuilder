@@ -1459,10 +1459,11 @@ internal object MostMasteriesCertificate {
             return v
         }
 
-        // Sound M-cap for builds carrying a SECONDARY_MASTERIES_AT_MOST-t sub (review fix A#2): a
+        // Sound M-cap for builds carrying a SECONDARY_MASTERIES_AT_MOST sub (review fix A#2): a
         // standalone budget knapsack over EVERY mastery source — maximize Σp (positive requested
-        // lines, what M counts) s.t. Σ(p − q − n) ≤ t, where p − q − n per pick is a LOWER bound
-        // of its contribution to the signed all-secondaries sum the condition reads (q = |negative
+        // lines, what M counts) s.t. Σ(p − q − n) ≤ t, t the SUM bound the per-stat rule implies
+        // ([secondaryMasteriesSumBound] — a relaxation of "each secondary ≤ its threshold"), where
+        // p − q − n per pick is a LOWER bound of its contribution to that signed all-secondaries sum (q = |negative
         // requested|, n = |negative unrequested|). Items are per-slot picks (rings twice); subs,
         // skills and mastery runes are optional pseudo-slots — their mastery PAYS the same budget
         // (an additive shortcut measured +102% on S2; the naive Σ-of-best-negatives offset, which
@@ -1565,6 +1566,24 @@ internal object MostMasteriesCertificate {
                 dp = next
             }
             return dp.entries.filter { it.key <= bucket(t) }.maxOfOrNull { it.value } ?: t.coerceAtLeast(0L)
+        }
+
+        // Per-stat M-cap for a build carrying a SECONDARY_MASTERIES_AT_MOST-t sub (CERTIFIER_VERSION 56): the condition
+        // holds EACH secondary mastery ≤ t on the FIRST-TURN read (StatBuilder.firstTurnStat — base, items, runes, fixed
+        // skills, permanent and start-of-combat FLAT sub lines), so a requested secondary's FINAL value is at most t plus
+        // what lands OUTSIDE that read: the passives, a conditional sub's own lines, ramps — [outsideReadMax], which also
+        // counts the start-of-combat lines of FLAT subs the read does see (an over-count, sound) and every choosable sub
+        // (the carrier itself included). M sums the requested masteries, each floored at 0 here (≥ the signed sum). No
+        // cap (Long.MAX_VALUE) when a %-skill scales a requested mastery: its multiplier would ride on top of the read.
+        fun secondaryPerStatCap(t: Long): Long {
+            val skills = params.character.characterSkills
+            val percentOnRequested =
+                listOf(skills.intelligence, skills.strength, skills.agility, skills.luck, skills.major)
+                    .flatMap { it.getCharacteristics() }
+                    .flatMap(::skillComponents)
+                    .any { it.characteristic in requested && it.unitType == me.chosante.common.skills.UnitType.PERCENT }
+            if (percentOnRequested) return Long.MAX_VALUE
+            return requested.sumOf { maxOf(0L, t + outsideReadMax(it, exclude = null, excludeEpics = false)) }
         }
 
         // Max total the requested masteries OTHER than crit mastery can reach: the
@@ -1707,16 +1726,19 @@ internal object MostMasteriesCertificate {
                 if (opt.d < 0 && !entersNormalPacking) opt = opt.copy(d = 0)
                 if (capsObjective) {
                     // The sound M-cap for a build CARRYING this sub:
-                    //  - SECONDARY_MASTERIES_AT_MOST t: the budget knapsack over every mastery
-                    //    source (maximize Σ positive requested lines s.t. the signed
-                    //    all-secondaries sum stays ≤ t);
+                    //  - SECONDARY_MASTERIES_AT_MOST t (EACH secondary ≤ t): the budget knapsack over every
+                    //    mastery source (maximize Σ positive requested lines s.t. the signed all-secondaries
+                    //    sum stays ≤ 6·t — what the per-stat rule implies), capped by the per-stat bound
+                    //    ([secondaryPerStatCap]);
                     //  - CRITICAL_MASTERY_AT_MOST t: caps only the crit component, so M ≤ t + the
                     //    other requested masteries' reachable max.
                     // Its credits (DI/CC/…) ride along and are folded per state at collapse.
                     val t = (cond?.value ?: 0).toLong()
                     val mCap =
                         if (cond?.type == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST) {
-                            secondaryBudgetCap(t)
+                            // Two sound caps, the smaller wins: the SUM knapsack (a relaxation of the per-stat rule
+                            // at the sum it implies, 6·t) and the per-stat cap itself (CERTIFIER_VERSION 56).
+                            minOf(secondaryBudgetCap(secondaryMasteriesSumBound(t.toInt()).toLong()), secondaryPerStatCap(t))
                         } else {
                             // The condition reads PRE-COMBAT crit mastery; M counts the final one,
                             // which adds start-of-combat crit mastery (Ravage III), ramps and passives

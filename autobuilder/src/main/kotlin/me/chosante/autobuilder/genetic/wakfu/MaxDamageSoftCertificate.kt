@@ -1764,7 +1764,9 @@ internal object MaxDamageSoftCertificate {
 
         // Sound SECONDARY-mastery cap for a Neutralité-family carrier (MM review fix A#2,
         // transposed): the EXACT budget knapsack — maximize Σ positive SCENARIO-relevant secondary
-        // lines subject to the signed all-secondaries sum ≤ t, over every mastery source.
+        // lines subject to the signed all-secondaries sum ≤ t, over every mastery source. The carrier
+        // holds EACH secondary ≤ its threshold; [t] is the SUM bound that implies
+        // ([secondaryMasteriesSumBound], via `secTMax`) — a relaxation of the per-stat rule.
         fun secondaryBudgetCap(t: Long): Long {
             fun bucket(x: Long): Int = x.toInt()
 
@@ -1842,7 +1844,8 @@ internal object MaxDamageSoftCertificate {
         }
 
         /**
-         * Independent upper bound for a `sum(all secondary masteries) <= t` carrier. Write the
+         * Independent upper bound for a carrier whose secondaries sum to at most t (the per-stat rule's sum
+         * relaxation, `secTMax`: each secondary ≤ the threshold ⇒ `sum(all secondary masteries) <= t`). Write the
          * signed sum as `P_all - N <= t`, where N is the magnitude of all negative secondary
          * lines. Then the positive scenario-relevant part obeys `P_objective <= P_all <= t + N`.
          *
@@ -2003,11 +2006,14 @@ internal object MaxDamageSoftCertificate {
                 .filter { pred(it.characteristic) && WakfuBuildSolver.scenarioGateMatches(it.scenarioGate, params) }
                 .sumOf { maxOf(it.magnitudeAtLevel(level), 0).toLong() }
 
+        // The secZero arm prices a carrier through the SUM of its six secondaries; the real rule holds EACH ≤ t, which
+        // implies that sum ≤ 6·t — the threshold the sum budget must read (the raw t would be stricter than the rule for
+        // t > 0, an under-count; equal for the shipped t = 0).
         val secTMax =
             if (armZeroSecondary) {
                 objCapSubs
                     .filter { capsObjectiveType(it) == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST }
-                    .maxOf { (it.condition?.value ?: 0).toLong() }
+                    .maxOf { secondaryMasteriesSumBound(it.condition?.value ?: 0).toLong() }
             } else {
                 0L
             }

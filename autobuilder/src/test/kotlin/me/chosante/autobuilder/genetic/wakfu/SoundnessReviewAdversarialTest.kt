@@ -873,7 +873,7 @@ class SoundnessReviewAdversarialTest {
 
     // ------------------------------------------------------------------------------------------------------------
     // MM FUZZ (manual): seeded random pools × real choosable subs × random targets; pinned CP-SAT soft + hard legs
-    //   WAKFU_REVIEW_MM_FUZZ=<cases> [WAKFU_REVIEW_MM_SEED0=<seed>] [WAKFU_REVIEW_MM_NO_NEG_CC=1]
+    //   WAKFU_REVIEW_MM_FUZZ=<cases> [WAKFU_REVIEW_MM_SEED0=<seed>] [WAKFU_REVIEW_MM_NO_NEG_CC=1] [WAKFU_REVIEW_MM_NEUTRALITE=1]
     // ------------------------------------------------------------------------------------------------------------
 
     private val mmRequestable =
@@ -992,6 +992,11 @@ class SoundnessReviewAdversarialTest {
                 setOf("Influence vitale III", "Ambition III", "Influence III", "Ravage secondaire II", "Vivacité II", "Vélocité II", "Armure lourde II", "Secret critique")
             val extra = catalog.filter { it.name.fr in named && f.nextInt(3) != 0 }
             subs = (subs + extra + capSubs.filter { it.condition?.type == me.chosante.common.SublimationConditionType.CRIT_AT_MOST }[f.nextInt(2)]).distinct()
+        }
+        // CERTIFIER_VERSION 56 (per-stat secondary cap): WAKFU_REVIEW_MM_NEUTRALITE=1 appends the whole choosable Neutralité
+        // family (each secondary mastery ≤ 0 — world B) after every draw, so a seed's pool and targets are unchanged.
+        if (System.getenv("WAKFU_REVIEW_MM_NEUTRALITE") == "1") {
+            subs = (subs + catalog.filter { it.condition?.type == me.chosante.common.SublimationConditionType.SECONDARY_MASTERIES_AT_MOST }).distinct()
         }
         val p =
             mmParams(targets, level = level, useRunes = rng.nextInt(3) == 0)
