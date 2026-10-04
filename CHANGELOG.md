@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.14.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.13.0...wakfu-autobuilder-1.14.0) (2026-10-04)
+
+
+### Features
+
+* tighter "proven within X%" badge for Max Damage searches with targets ([379830d](https://github.com/CharlyRien/wakfu-autobuilder/commit/379830dade40e4541fdf053b7fa9c64d26ccc52e))
+
+
+### Bug Fixes
+
+* the domination pre-filter no longer evicts an item the optimum needs ([7e0f51f](https://github.com/CharlyRien/wakfu-autobuilder/commit/7e0f51f826a7a1860dea4e25b03057c0065c8b18))
+* withhold optimality proofs for prefiltered requests ([d4f69bb](https://github.com/CharlyRien/wakfu-autobuilder/commit/d4f69bbb4e7163377be0796baa4e26b9a57c32a8))
+
 ## [1.13.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.12.0...wakfu-autobuilder-1.13.0) (2026-10-03)
 
 
