@@ -20,6 +20,7 @@ import me.chosante.common.Rarity
 import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationRarity
+import java.math.BigDecimal
 import kotlin.time.Duration
 
 object WakfuBestBuildFinderAlgorithm {
@@ -171,6 +172,27 @@ object WakfuBestBuildFinderAlgorithm {
             throw exception
         }
     }
+
+    /**
+     * [build] scored under the CURRENT rules: exactly the number [run] streams as [SolverResult.matchPercentage] for it — the
+     * most-masteries / precision scorer's value or, in max-damage, the debuff-aware rotation damage over the shortfall penalty
+     * ([MaxDamageSearch.sequencedScore], which the max-damage search ranks by). For a build the search did not just find, such as a
+     * saved one whose stored number is the old rules': no search, no solver, one scorer call (milliseconds). It deliberately never
+     * touches [WakfuBuildSolver], whose first use loads OR-Tools natively; the two scorers called here are those of its `scoreFor`.
+     */
+    fun rescore(
+        params: WakfuBestBuildParams,
+        build: BuildCombination,
+    ): BigDecimal =
+        when (params.scoreComputationMode) {
+            ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
+                FindMostMasteriesFromInputScoring.computeScore(params.targetStats, build, params.character.baseCharacteristicValues)
+
+            ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
+                FindClosestBuildFromInputScoring.computeScore(params.targetStats, build, params.character.baseCharacteristicValues)
+
+            ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> MaxDamageSearch.sequencedScore(params, build)
+        }
 
     /**
      * P2a (docs/MOST_MASTERIES_PERF_PLAN.md): the production most-masteries orchestration — the

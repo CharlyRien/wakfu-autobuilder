@@ -836,8 +836,9 @@ object MaxDamageSearch {
      * required-target penalty as the scorer. Routes through [SpellRotationOptimizer.bestSequencedRotation],
      * which picks the build's best playable element (max over [DamageScenario.candidateElements]) and sequences
      * any resistance debuffs first — the same call the CLI/GUI use to display, so scored and shown damage agree.
+     * Also the score [WakfuBestBuildFinderAlgorithm.rescore] gives a max-damage build the search did not just find.
      */
-    private fun sequencedScore(
+    internal fun sequencedScore(
         params: WakfuBestBuildParams,
         build: BuildCombination,
     ): BigDecimal {
