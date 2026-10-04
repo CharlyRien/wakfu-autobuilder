@@ -1,6 +1,12 @@
 # Elemental rune booking in the max-damage collapse
 
 2026-10-03 / 04 · Wakfu data 1.93.1.62 · `CERTIFIER_VERSION` 53 → 54 (52 → 53 before the rebase onto #225).
+
+> **Update (2026-10-04, `CERTIFIER_VERSION` 56).** The Neutralité family's condition holds EACH secondary mastery ≤ 0
+> on its own — it is NOT their sum (the game's criterion is an `and` of six per-stat atoms, State 67 → StaticEffect
+> 68). The pruning below was derived under the sum reading; its reads are now one bound per secondary, see
+> [the per-stat section](#per-stat-secondary-cap-2026-10-04-certifier_version-56). The rest of this page describes the
+> v54 / v55 state.
 PR #226 (the fix) is superseded by a rebase onto `main` @ `d4f69bbb` (#227) that adds the search-cost mitigation
 below (per-carrier Pareto pruning + choice gates) and two review findings.
 
@@ -58,7 +64,7 @@ exactly where that characteristic is read (`MaxDamageRuneReads` in `RuneModelBui
 | Reader | What it reads | Side the build prefers |
 |---|---|---|
 | damage objective `Graw = (400 + c)·M + 5c·K` | M = 100 + Σ scenario masteries (weight 1), K = crit mastery, c ∈ [0, 100] | more |
-| Neutralité family (`SECONDARY_MASTERIES_AT_MOST`) | the SUM of all six secondaries — melee, distance, berserk, rear, **critical**, healing — at weight 1 | choosable: less; forced: exact |
+| Neutralité family (`SECONDARY_MASTERIES_AT_MOST`) | EACH of the six secondaries — melee, distance, berserk, rear, **critical**, healing — on its own: one bound per stat (v54 / v55 read their SUM at weight 1 — wrong, see the per-stat section) | choosable: less; forced: exact |
 | Critical Secret (`CRITICAL_MASTERY_AT_MOST`) | critical mastery alone | choosable: less; forced: exact |
 | Dénouement (conversion crit → elemental, 100 %) | pre-sub critical mastery | re-labels part of a crit rune into M |
 | `HIGHEST_ELEM_MASTERY_GT_REAR` / `_HEALING` | — not solver-modelled (the sub applies unconditionally); no sub in the data carries them | — |
@@ -80,9 +86,10 @@ preorder, so every dropped choice has a kept dominator: swapping the dropped cho
 condition and never lowers the objective — the pruned model keeps the full-choice optimum, and the certifier, which
 reads the same `runeVars`, mirrors the same (smaller) pick set.
 
-So, to the reviewer's examples: crit mastery IS secondary for the caps, so an equal-valued distance rune costs the
-same budget and dominates the crit rune (it also beats it under Critical Secret); no modelled condition tells rear
-from distance, so equal-valued rear / distance runes are one choice. A strictly smaller secondary or crit rune
+So, to the reviewer's examples (as derived for v54 / v55, under the SUM reading): crit mastery IS secondary for the
+caps, so an equal-valued distance rune cost the same budget and dominated the crit rune (it also beats it under
+Critical Secret); no modelled condition told rear from distance, so equal-valued rear / distance runes were one choice.
+Under the per-stat rule (v56) both conclusions fall: see below. A strictly smaller secondary or crit rune
 survives as the "half-budget" option, and the elemental rune always survives on a secondary-best carrier.
 At rune level 11 (secondary 33, elemental 22, doubled on favoured slots), fire / distance / rear with the
 family choosable:
@@ -120,6 +127,49 @@ unsupported conditions) also make it null. The readers now come from the subs th
 The single-type fold (and the collapse built on it) is not exact when an item's NEGATIVE secondary line gives a
 `≤ 0` cap a positive budget: a mixed item can fill it exactly. The per-stat count model beat the fold by
 0.03–0.48 % on 6 seeded pools of the review fuzz — recorded in `docs/perf-review-backlog.md` §E.
+
+## Per-stat secondary cap (2026-10-04, CERTIFIER_VERSION 56)
+
+The game holds EACH secondary mastery ≤ 0 on its own: Neutralité III (State 6931 → effect 397776), Abandon II (6932),
+Prétention III (6933), Ambition III (7115) and Inflexibilité II (7256, live branch 394768) all gate their bonus on
+`GetCharac("MELEE_DMG", "target") <= 0 and GetCharac("RANGED_DMG", "target") <= 0 and … BERSERK_DMG … CRITICAL_BONUS …
+BACKSTAB_BONUS … HEAL_IN_PERCENT … <= 0`. A cap carrier can therefore not offset a positive secondary with a negative one
+of ANOTHER stat (the player's Xelor build: distance +76 and crit +240 against rear −304 and berserk −12 sum to 0, and none
+of its three caps fires in game) — only within the same stat.
+
+`MaxDamageRuneReads` now reads such a condition as one `Bound` per secondary (`Bound(stat, side, choosableSub)`), each
+held on its own. Choice Q dominates choice P only if Q reads no more than P on EVERY stat bound of a taken sub, so a
+rune of one secondary never stands in for a rune of another: a rear rune can be absorbed by a −430-rear item where an
+equal distance rune cannot. On a secondary-best carrier every secondary candidate therefore survives beside the elemental
+rune (only an elemental rune at least as large prunes them), and the choice gates keep the cap-free subtree the original
+collapse (the best M rune, plus crit when larger):
+
+| Slot | Values (E / D / R / C) | Kept by #226 | Sum pruning (v54 / v55, gated) | Per-stat (v56, gated) |
+|---|---|---|---|---|
+| helmet, amulet, ring | 22 / 33 / 33 / 33 | E, D, R, C | E (gated), D | E (gated), D, R (gated), C (gated) |
+| chest, cape | 44 / 33 / 33 / 33 | E | E | E |
+| shoulders | 22 / 33 / 33 / 66 | E, D, R, C | E (gated), D, C | E (gated), D, R (gated), C |
+| boots | 22 / 33 / 66 / 33 | E, D, R, C | E (gated), D (gated), R | E (gated), D (gated), R, C (gated) |
+| belt | 22 / 66 / 66 / 33 | E, D, R, C | E (gated), D, C (gated) | E (gated), D, R (gated), C (gated) |
+| weapon | 22 / 66 / 33 / 66 | E, D, R, C | E (gated), D, R (gated) | E (gated), D, R (gated), C (gated) |
+
+The pick count is #226's again (the gates still restore the cap-free subtree). A pool-aware refinement — a secondary no
+read source can make negative can never host a rune of its type next to a taken cap, so its rune could stand in for an
+equal one — was considered and not built: every secondary but healing has negative lines on real items (Cartes
+Truchesques −120 distance at level 78, Bâton Bola −57 critical at 75, Main de Cire Momore −150 melee, La Zimasse −400 rear,
+Le Hachis Niyomi −400 berserk), and the domination filter pins secondaries so it keeps them: it would almost never fire.
+
+Locks: `RuneChoicePruningTest` — the per-stat rule per slot on the real catalog (and its gates), and a CRA 230
+fire / distance / back fixture (`an equal rear rune survives the distance one …`) where the optimum takes Neutralité III
+with the helmet's four REAR runes absorbed by a −1000-rear cape: pruned + gated == full-choice == general fold. RED under
+a mutation that makes every secondary bound read all six (the sum): pruned 1,852,970 vs full 1,878,720. The seeded lock
+(24 pools, every third one with non-positive secondary lines only, so caps are taken) stays green and is NOT sensitive to
+that mutation — the dedicated fixture is the lock for it.
+
+Cost (production path, `PerfBaselineE0Test`, 4-core profile, 120 s, three runs each): `MD245F` proves the same
+20,811,420 at 71.0 / 62.0 / 75.6 s against 58.3 / 64.1 / 61.7 s on `ed97adfa` (+13 % mean) — the certificate warm-up
+that closes the proof reads the larger pick set. The nightly lvl-245 fast ledger is bit-identical (the added picks only
+tie existing ones). The free face fixtures (`MD80MF` / `MD200MF` / `MD230DF`) were not re-measured.
 
 ## Production-path measurements
 
