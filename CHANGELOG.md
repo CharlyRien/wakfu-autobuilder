@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.14.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.13.0...wakfu-autobuilder-1.14.0) (2026-10-04)
+
+
+### Features
+
+* tighter "proven within X%" badge for Max Damage searches with targets ([379830d](https://github.com/CharlyRien/wakfu-autobuilder/commit/379830dade40e4541fdf053b7fa9c64d26ccc52e))
+
+
+### Bug Fixes
+
+* keep elemental runes out of secondary mastery caps ([8df8786](https://github.com/CharlyRien/wakfu-autobuilder/commit/8df8786432ddd4cd66e48e3977ef0538ee1f841a))
+* the Dofus Pourpre counts its Elemental Mastery equal to your level ([cc4b48e](https://github.com/CharlyRien/wakfu-autobuilder/commit/cc4b48e2efc0ad0a696124e0c1feda23f01091a4))
+* the domination pre-filter no longer evicts an item the optimum needs ([7e0f51f](https://github.com/CharlyRien/wakfu-autobuilder/commit/7e0f51f826a7a1860dea4e25b03057c0065c8b18))
+* withhold optimality proofs for prefiltered requests ([d4f69bb](https://github.com/CharlyRien/wakfu-autobuilder/commit/d4f69bbb4e7163377be0796baa4e26b9a57c32a8))
+
+
+### Performance Improvements
+
+* max-damage rune choices keep only what a sublimation cap can need ([f81b8b4](https://github.com/CharlyRien/wakfu-autobuilder/commit/f81b8b414468715b21881c05ef25bb5c9ffdbae4))
+
 ## [1.13.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.12.0...wakfu-autobuilder-1.13.0) (2026-10-03)
 
 
