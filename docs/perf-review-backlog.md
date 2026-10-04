@@ -1356,11 +1356,52 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     line is permanent could meet its row through that line, which the free credit excludes — −2.5 % on the synthetic
     lock (`MaxDamageTargetAwareCertificateTest`, n = 3, +1 range, permanent); no shipped sub has the shape (the extractor
     flags only FLAT subs' lines permanent), locked by `latent-shape bails never fire on the shipped catalog`.
-  - **Found, out of scope (OPEN follow-ups):** the max-damage rune CHOICE COLLAPSE books every M-feeding rune
-    under the range-band mastery, so an elemental rune counts as a SECONDARY mastery and no Neutralité-family sub can be
-    active on a free max-damage build carrying runes (+17 % on a 3-item pool once the rune is booked as elemental); and
-    the multi-element item PREFILTER (a top-8 heuristic) still lets most-masteries / precision report CP-SAT `OPTIMAL` as
-    "proven optimal" (max-damage already withholds it).
+  - **Found, out of scope — both since FIXED:** the max-damage rune CHOICE COLLAPSE booked every M-feeding rune
+    under the range-band mastery, so an elemental rune counted as a SECONDARY mastery and no Neutralité-family sub could
+    be active on a free max-damage build carrying runes (+17 % on a 3-item pool once the rune is booked as elemental) —
+    ✅ FIXED, CERTIFIER_VERSION 54 (next item); and the multi-element item PREFILTER (a top-8 heuristic) let
+    most-masteries / precision report CP-SAT `OPTIMAL` as "proven optimal" — ✅ FIXED by #227 (`d4f69bbb`: prefiltered
+    requests withhold every optimality proof).
+- **RUNE CHOICE COLLAPSE — ✅ FIXED (2026-10-04, CERTIFIER_VERSION 54; #226, superseded by its rebase + mitigation).**
+  Details and measurements: `docs/RUNE_CHOICE_COLLAPSE_FIX.md`.
+  - **The bug.** The collapse keyed a carrier's best M-feeding rune under the range-band mastery, so the Neutralité
+    family's `secondary masteries ≤ 0` charged elemental runes: CRA 80 fire / melee / face proved 796,125 on main while
+    797,775 exists (Neutralité III + Inflexibilité II + Ambition III). A wrong "Optimal proven" badge was possible.
+  - **The fix (#226).** Each rune is keyed under its OWN characteristic; a carrier whose best rune is a secondary mastery
+    read by a cap keeps explicit picks (a cheaper elemental rune can free budget); the AP-cell certifier mirrors both
+    shapes (world N reads an elemental default as E).
+  - **Its search cost and the mitigation.** #226 gave those carriers 3–4 pick bools on 7 of 9 socketed slot kinds (the
+    family is choosable by default): free max-damage searches lost their proofs (80 melee face: proven 41 s → within
+    7.51 %; MD245F on 10 cores: proven 47 s → 100 s). Now each carrier keeps the Pareto set of its candidates over every
+    read of the model (`MaxDamageRuneReads`: the objective, each modelled condition — the cap sums all six secondaries,
+    crit included, at weight 1 — conversions; forced subs read both ways; any other reader makes a type opaque), and a
+    choice only a choosable cap keeps is gated on those subs (`pick ≤ Σ subVar`). Forced items no longer trigger the
+    explicit picks (the readers come from the modelled subs, not the domination shape).
+  - **Measured (production path, 4 cores, 120 s, 2 runs; main / #226 / pruned):** MD110F back at main's value and badge
+    (1.60–1.61 M within 0.14–1.03 %; #226 1.48–1.52 M within 5.9–8.9 %); MD245F proven like main (54 / 56 s vs 50 / 58;
+    #226 57 / 64), 10 cores 96 / 86 s (main 51 / 100, #226 115 / 112). **Not recovered:** the free FACE requests (80 / 200
+    melee, 230 distance) stay unproven at 120 s — the fix opens the Neutralité world, which at 80 melee face holds a better
+    build than main's "proven" 796,125 (797,775 — the pruned model reaches it in 121 s on 10 cores); with the four caps
+    excluded the pruned model proves all three at main's values and speed (15 / 36 / 49 s), and the v54 certificate bounds
+    those shapes 4–5 % above the best builds. **OPEN follow-up:** a tighter world-N (capped-world) bound, or a cap-free /
+    capped world split of the search.
+  - **Locks:** `RuneChoiceCollapseTest` (RED on main), `RuneChoicePruningTest` (the rule per slot on the real catalog,
+    the gates' sub sets, forced / opaque readers; pruned + gated == full-choice == general fold on 24 seeded pools,
+    mutation-checked), the manual fuzz knobs `WAKFU_REVIEW_MD_COLLAPSE` / `_NEUTRALITE` / `_PRUNE`.
+- **SINGLE-TYPE RUNE FOLD UNDER A POSITIVE SECONDARY BUDGET — OPEN (soundness; found 2026-10-04 by the #226 review).**
+  The max-damage fold (and the collapse built on it) fills each item with ONE rune type, on the premise (comment in
+  `WakfuBuildSolver.buildModel`) that a `secondary ≤ 0` cap rules an intra-item mix out. It does not: an item's NEGATIVE
+  secondary line gives the cap a positive budget, which a mixed item (part secondary, part elemental) can fill exactly
+  while no single type fits. Evidence (the review's collapse-shape fuzz, a scratch harness: free requests, and requests
+  with AP / MP / RANGE / CC rows): the per-stat COUNT model (`forceRuneCountModel`) beat the fold in 12 of 130
+  comparisons — 6 seeded pools, each diverging identically with Neutralité III choosable and forced — by 0.032 % /
+  0.063 % / 0.049 % (free, seeds 71015 / 71036 / 71037) and 0.072 % / 0.481 % / 0.129 % (rows, seeds 72006 / 72014 /
+  72023); the general fold equalled the collapse every time. Re-run on the pruned collapse (CERTIFIER_VERSION 54 as
+  shipped, fresh seeds 91000–91029 free and 92000–92019 with rows, both Neutralité modes): 7 of 50 pools, +0.032–0.242 %,
+  collapse == general fold again in all 100 comparisons. The certificate bounds the folded model, so a "proven optimal"
+  badge can sit up to that far below a mixed-rune build. Not started. Options: keep the count model (or bail the
+  certificate) when a modelled secondary cap meets a negative secondary line in the pool; or offer a mixed option only on
+  the carriers that can need it.
 
 ---
 
