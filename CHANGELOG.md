@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.14.1](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.14.0...wakfu-autobuilder-1.14.1) (2026-10-04)
+
+
+### Bug Fixes
+
+* a build loaded from My Builds is re-scored with the current rules ([2f4ce1a](https://github.com/CharlyRien/wakfu-autobuilder/commit/2f4ce1a8acae64e724fd50bcd512bfe8d50e0904))
+* a reloaded build keeps its proof flag when nothing moved, and shows no stale search hint ([8284ec0](https://github.com/CharlyRien/wakfu-autobuilder/commit/8284ec080b26ffd955a8a27f4da96664903db61f))
+* Neutralité, Ambition and Inflexibilité now require each secondary mastery to be zero or below ([e075135](https://github.com/CharlyRien/wakfu-autobuilder/commit/e0751351fde2f5065977ee147eab0d20a4fcf448))
+
 ## [1.14.0](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.13.0...wakfu-autobuilder-1.14.0) (2026-10-04)
 
 
