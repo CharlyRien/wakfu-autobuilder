@@ -37,6 +37,9 @@ object WakfuBestBuildFinderAlgorithm {
     // these multi-MB JSON parses eagerly — blocking the UI thread before the first frame could even
     // paint. Lazy init moves the parse to the first real use (icon preloading / the first search),
     // which always happens on a background thread in the GUI and on the main thread in the CLI.
+    //
+    // The RAW catalog: an item's level-scaled lines ([Equipment.percentOfLevel]) are not in its characteristics yet.
+    // Search with [poolFor] (or resolve with [Equipment.atLevel]) — a pool built straight from this list misses them.
     val equipments: List<Equipment> by lazy {
         EmbeddedResources.decodeList<Equipment>("equipments.json")!!
     }
@@ -499,7 +502,10 @@ object WakfuBestBuildFinderAlgorithm {
             }
     }
 
-    /** The filtered, slot-grouped pool a production search of [params] runs on (before domination). */
+    /**
+     * The filtered, slot-grouped pool a production search of [params] runs on (before domination), every item resolved at
+     * the character's level ([Equipment.atLevel]).
+     */
     internal fun poolFor(params: WakfuBestBuildParams): Map<ItemType, List<Equipment>> =
         groupAndFilterEquipments(
             excludedItems = params.excludedItems,
@@ -527,6 +533,10 @@ object WakfuBestBuildFinderAlgorithm {
                     equipment.isLevelExemptCompanion ||
                         (equipment.level <= character.level && equipment.level >= character.minLevel)
                 }.filter { equipment -> equipment.name.fr.lowercase() !in itemsExcluded }
+                // Level-scaled lines (the Dofus Pourpre's "100% of level as Elemental Mastery") resolved at the
+                // character's level HERE, once per request: every consumer of the pool (domination, prefilter, CP-SAT
+                // model, scorers, both certificates, the build handed to the GUI / CLI / Zenith) then reads plain stats.
+                .map { equipment -> equipment.atLevel(character.level) }
                 .toList()
         val forcedWeaponTypes =
             eligibleEquipments

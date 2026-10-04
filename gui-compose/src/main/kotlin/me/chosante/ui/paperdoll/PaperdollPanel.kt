@@ -167,6 +167,7 @@ fun PaperdollPanel(
                                 EquipmentSlot(
                                     slot = slot,
                                     equipment = weaponEquipment,
+                                    characterLevel = ui.level,
                                     runes = weaponEquipment?.let { ui.build?.runes?.get(it) }.orEmpty(),
                                     subs = weaponEquipment?.let { ui.build?.sublimations?.get(it) }.orEmpty(),
                                     emptyHint = emptyHints[slot.id],
@@ -316,6 +317,7 @@ private fun SlotColumn(
             EquipmentSlot(
                 slot = slot,
                 equipment = equipment,
+                characterLevel = ui.level,
                 runes = equipment?.let { ui.build?.runes?.get(it) }.orEmpty(),
                 subs = equipment?.let { ui.build?.sublimations?.get(it) }.orEmpty(),
                 emptyHint = emptyHints[slot.id],
@@ -341,6 +343,7 @@ private fun SlotColumn(
 private fun EquipmentSlot(
     slot: DollSlot,
     equipment: Equipment?,
+    characterLevel: Int,
     runes: List<RuneType>,
     subs: List<Sublimation>,
     idle: Boolean,
@@ -413,7 +416,7 @@ private fun EquipmentSlot(
             modifier = modifier,
             delayMillis = 350,
             tooltipPlacement = SlotTooltipPlacement,
-            tooltip = { ItemTooltip(slot = slot, equipment = equipment, runes = runes, subs = subs) }
+            tooltip = { ItemTooltip(slot = slot, equipment = equipment, characterLevel = characterLevel, runes = runes, subs = subs) }
         ) {
             Box(modifier = Modifier.fillMaxWidth().hoverable(interaction)) {
                 SlotRowContent(slot, equipment, runes, subs, idle, justLanded, rightAlign, forced, excluded, cardHeight = cardHeight, modifier = Modifier.fillMaxWidth())
@@ -697,6 +700,7 @@ private fun EmptySlotTooltip(hint: EmptySlotHint) {
 private fun ItemTooltip(
     slot: DollSlot,
     equipment: Equipment,
+    characterLevel: Int,
     runes: List<RuneType>,
     subs: List<Sublimation>,
 ) {
@@ -736,7 +740,14 @@ private fun ItemTooltip(
                 style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
             )
         }
-        val stats = equipment.characteristics.entries.sortedBy { it.key.ordinal }
+        // As worn at the build's level: a level-scaled line (the Dofus Pourpre's "100% of level as Elemental Mastery") reads
+        // as its value. A searched build's items are already resolved (the engine's pool), so this only matters for an
+        // item that was not; resolving is idempotent either way.
+        val stats =
+            equipment
+                .atLevel(characterLevel)
+                .characteristics.entries
+                .sortedBy { it.key.ordinal }
         if (stats.isNotEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
             Column(

@@ -177,7 +177,7 @@ sealed interface SublimationEffect {
         override val scenarioGate: ScenarioGate? = null,
         override val appliesBeforeCombat: Boolean = false,
     ) : StatEffect {
-        override fun magnitudeAtLevel(level: Int): Int = (percentOfLevel * level) / 100
+        override fun magnitudeAtLevel(level: Int): Int = percentOfLevelMagnitude(percentOfLevel, level)
     }
 
     /**
