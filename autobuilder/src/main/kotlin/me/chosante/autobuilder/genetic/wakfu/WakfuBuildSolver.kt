@@ -278,7 +278,7 @@ object WakfuBuildSolver {
      * HP / resistance / dodge / lock / initiative / off-scenario-mastery target row (even 0-valued, i.e. every
      * GUI-default request) puts in the model — is mirrored instead of bailing every cell: one per-item option per
      * rune pick, a non-damage pick being a zero-delta option the best damage rune dominates (an over-count).
-     * (b) The pools' long-standing DROP of the Neutralité family (`secondary masteries ≤ 0`) and of the EPIC block
+     * (b) The pools' long-standing DROP of the Neutralité family (`each secondary mastery ≤ 0`) and of the EPIC block
      * sub Mesure under-counted any build whose optimum carries one (reproduced on seeded 4-item pools); each family
      * now gets AUX worlds (secondary-capped N / N×C, block-assumed M / N×M), run at the fast tier and folded into
      * every tier as a per-cell floor ([certifierAuxFloor]). Cells can only RISE vs v43 (v41–v43 changed only the
@@ -366,9 +366,9 @@ object WakfuBuildSolver {
      * Carriers with a secondary default read by a cap also retain explicit rune picks: a smaller elemental
      * choice can free secondary budget for skills (the signed-rear helmet repro). The mirror handles those
      * picks beside the remaining collapsed defaults, without dropping equip-var aliases from item terms.
-     * Those picks are the carrier's Pareto set over every read of the model ([MaxDamageRuneReads]): the cap sums
-     * all six secondaries (crit included) at weight 1, so equal-valued distance / rear / crit runes cost the same
-     * budget and one represents them; a choice only a choosable cap keeps is gated on those subs
+     * Those picks are the carrier's Pareto set over every read of the model ([MaxDamageRuneReads]): the cap was then
+     * read as the SUM of all six secondaries (crit included) at weight 1 — wrong, see 56 — so equal-valued distance /
+     * rear / crit runes cost the same budget and one represented them; a choice only a choosable cap keeps is gated on those subs
      * ([RuneModel.choiceGates]). Both cut dominated builds only, so the mirror reads the same (or a smaller) pick set
      * and the optimum it bounds is unchanged.
      * 55: the POOL DATA changes, not the certifier. The Dofus Pourpre's
@@ -377,8 +377,21 @@ object WakfuBuildSolver {
      * ([me.chosante.common.Equipment.atLevel]): +170 to +245 elemental mastery on every pool from level 170, and domination
      * keeps the item where Dofushu used to evict it (level ≥ 230). Both certificates read that pool, so every cached bound
      * computed on the old one (memory or disk, keyed by this version and the unchanged data version) is stale.
+     * 56: the Neutralité family's `SECONDARY_MASTERIES_AT_MOST` holds EACH secondary mastery ≤ t on its own — the
+     * game's criterion is an `and` of six per-stat atoms (State 67 → StaticEffect 68) — not their SUM, which let a
+     * positive mastery be offset by a negative one (the reported Xelor build: distance +76 and crit +240 against rear
+     * −304 and berserk −12 credited Neutralité III, Ambition III and Inflexibilité II). The model and the re-scorers now
+     * read it per stat, and the certificates' inputs change with it: the max-damage rune choice collapse reads one bound
+     * per secondary ([MaxDamageRuneReads]), so equal-valued distance / rear / crit runes are distinct picks again and the
+     * AP-cell mirror reads that larger pick set. Every certificate read of the condition was a SUM budget — a RELAXATION
+     * of the per-stat rule (each ≤ t ⇒ any k of them sum to ≤ k·t), sound as it stands for t ≤ 0 and now read at
+     * [secondaryMasteriesSumBound] (6·t for t ≥ 0, t below — the raw t is stricter than the rule for t > 0; equal for
+     * the shipped t = 0): world N's Lagrangian (S ≤ 0), the soft certificate's secZero arm, the MM world-B knapsack. One
+     * cheap per-stat tightening: the MM world-B M-cap is also bounded by Σ over the requested masteries of (t + what
+     * lands outside the first-turn read). The true optimum can only fall (the rule is stricter), so old bounds were
+     * sound but may be loose — and the pick set changed: invalidate every cached cell.
      */
-    const val CERTIFIER_VERSION: Int = 55
+    const val CERTIFIER_VERSION: Int = 56
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
@@ -1258,8 +1271,9 @@ object WakfuBuildSolver {
         // N=0 (⇒ all-elemental, no mix), so the default search folds; this guard future-proofs the data and
         // a forced sub with N>0.
         // KNOWN GAP (OPEN, docs/perf-review-backlog.md §E): N=0 does not rule a mix out — an item's NEGATIVE
-        // secondary line gives the cap a positive budget, which a mixed item can fill exactly. The per-stat
-        // count model beat the fold by 0.03–0.48 % on 6 seeded pools of the 2026-10-04 review fuzz.
+        // secondary line gives that secondary's cap (the cap holds EACH secondary mastery on its own) a positive
+        // budget, which a mixed item can fill exactly. The per-stat count model beat the fold by 0.03–0.48 % on 6
+        // seeded pools of the 2026-10-04 review fuzz (measured under the old SUM reading of the cap).
         val forcedSubNames = params.forcedSublimations.map { it.lowercase() }.toSet()
         val secondaryCapMixSubInPlay =
             sublimations.any { sub ->

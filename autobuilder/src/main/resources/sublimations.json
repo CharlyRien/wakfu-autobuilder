@@ -3079,7 +3079,7 @@
         "value": 24
       }
     ],
-    "rawText": "If secondary masteries ≤ 0 | +24% Damage Inflicted"
+    "rawText": "If each secondary mastery ≤ 0 | +24% Damage Inflicted"
   },
   {
     "stateId": 6932,
@@ -3115,7 +3115,7 @@
         "value": 1
       }
     ],
-    "rawText": "If secondary masteries ≤ 0 | +1 WP | +1 Range"
+    "rawText": "If each secondary mastery ≤ 0 | +1 WP | +1 Range"
   },
   {
     "stateId": 6933,
@@ -3147,7 +3147,7 @@
         "value": 15
       }
     ],
-    "rawText": "If secondary masteries ≤ 0 | +15% Block"
+    "rawText": "If each secondary mastery ≤ 0 | +15% Block"
   },
   {
     "stateId": 7075,
@@ -3394,7 +3394,7 @@
         "value": 15
       }
     ],
-    "rawText": "If secondary masteries ≤ 0 | +15% Critical Hit"
+    "rawText": "If each secondary mastery ≤ 0 | +15% Critical Hit"
   },
   {
     "stateId": 7252,
@@ -3468,7 +3468,7 @@
         "value": 20
       }
     ],
-    "rawText": "If secondary masteries ≤ 0 | +20% Damage Inflicted"
+    "rawText": "If each secondary mastery ≤ 0 | +20% Damage Inflicted"
   },
   {
     "stateId": 7257,
@@ -4146,10 +4146,10 @@
     "rarity": "EPIC",
     "kind": "STATIC_CONDITIONAL",
     "condition": {
-      "type": "SECONDARY_MASTERIES_AT_MOST",
+      "type": "HEALING_MASTERY_AT_MOST",
       "value": 0
     },
-    "rawText": "If secondary masteries ≤ 0"
+    "rawText": "If Healing Mastery ≤ 0"
   },
   {
     "stateId": 7881,

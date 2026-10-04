@@ -109,7 +109,7 @@ internal fun scenarioGateMatchesCore(
 internal val ELEMENT_MASTERY_CHARACTERISTICS: List<Characteristic> =
     SpellElement.entries.map { it.masteryCharacteristic }
 
-/** The comparison a build-static sublimation condition applies to a (summed) pre-combat stat value. */
+/** The comparison a build-static sublimation condition applies to each pre-combat stat value it reads. */
 internal enum class ConditionComparison {
     AT_MOST,
     AT_LEAST,
@@ -135,11 +135,13 @@ internal enum class ConditionComparison {
  */
 internal sealed interface SubConditionSpec {
     /**
-     * `sum(`[stats]`)` [comparison] [threshold]. Read on the build's PRE-COMBAT (character-sheet)
-     * stats by default; [firstTurn] conditions are instead checked by the game ON THE FIRST TURN,
-     * so they also see the START-OF-COMBAT contributions of unconditional FLAT subs (in-game
-     * verified 2026-07-14: Ravage's start-of-combat secondary masteries BREAK Neutralité's
-     * `secondary masteries ≤ 0`, while a start-of-combat +crit does NOT feed a CRIT_AT_MOST —
+     * EACH of [stats] [comparison] [threshold] — every listed stat must satisfy the comparison ON ITS OWN (a
+     * conjunction, never a sum: the game's Neutralité-family criterion is an `and` of six per-stat
+     * `GetCharac(<secondary>) <= N` atoms, so +76 distance is NOT offset by −304 rear). Every other condition reads a
+     * single stat. Read on the build's PRE-COMBAT (character-sheet) stats by default; [firstTurn] conditions are
+     * instead checked by the game ON THE FIRST TURN, so they also see the START-OF-COMBAT contributions of
+     * unconditional FLAT subs (in-game verified 2026-07-14: Ravage's start-of-combat secondary masteries BREAK
+     * Neutralité's `each secondary mastery ≤ 0`, while a start-of-combat +crit does NOT feed a CRIT_AT_MOST —
      * condition timing is per-type, not global).
      */
     data class StatBound(
@@ -147,7 +149,10 @@ internal sealed interface SubConditionSpec {
         val comparison: ConditionComparison,
         val threshold: Int,
         val firstTurn: Boolean = false,
-    ) : SubConditionSpec
+    ) : SubConditionSpec {
+        /** Whether this bound holds on a sheet read through [valueOf] (a missing stat reads 0): EACH stat on its own. */
+        inline fun holdsOn(valueOf: (Characteristic) -> Int): Boolean = stats.all { comparison.holds(valueOf(it), threshold) }
+    }
 
     /** Holds iff the build equips no off-hand and no two-handed weapon — a slot-occupancy test, not a stat read. */
     object NoOffhandOrTwoHanded : SubConditionSpec
@@ -184,9 +189,21 @@ internal fun subConditionSpec(
         SublimationConditionType.RANGE_EXACT -> SubConditionSpec.StatBound(listOf(Characteristic.RANGE), ConditionComparison.EXACT, n)
         SublimationConditionType.DODGE_LT_PCT_OF_LEVEL ->
             SubConditionSpec.StatBound(listOf(Characteristic.DODGE), ConditionComparison.AT_MOST, (n * level) / 100 - 1)
+        // EACH of the six secondaries ≤ n on its own (a conjunction, not their sum — see [SubConditionSpec.StatBound]).
         SublimationConditionType.SECONDARY_MASTERIES_AT_MOST ->
             SubConditionSpec.StatBound(SECONDARY_MASTERY_CHARACTERISTICS.toList(), ConditionComparison.AT_MOST, n, firstTurn = true)
         SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED -> SubConditionSpec.NoOffhandOrTwoHanded
         else -> SubConditionSpec.AlwaysApplies // AP_ODD / WEAPON_TYPE_EQUIPPED / HIGHEST_* / OTHER — not solver-modeled
     }
 }
+
+/**
+ * A bound on the SUM of any non-empty subset of the six secondary masteries implied by a Neutralité-family condition
+ * ([SublimationConditionType.SECONDARY_MASTERIES_AT_MOST]) of threshold t: each of k ≤ 6 secondaries ≤ t ⇒ their sum
+ * ≤ k·t ≤ 6·t when t ≥ 0, and ≤ t when t < 0. The certificates price a build carrying such a sub through a budget on a
+ * secondary SUM — a RELAXATION of the real per-stat rule (every build the rule admits passes the budget: sound, only
+ * looser) as long as the budget reads THIS value. Reading the raw `t` would be STRICTER than the rule whenever t > 0
+ * (melee = distance = t sums to 2·t > t) — an under-count. Equal to `t` for the shipped `t = 0` (Neutralité, Ambition,
+ * Inflexibilité, Prétention, Abandon).
+ */
+internal fun secondaryMasteriesSumBound(threshold: Int): Int = if (threshold >= 0) SECONDARY_MASTERY_CHARACTERISTICS.size * threshold else threshold

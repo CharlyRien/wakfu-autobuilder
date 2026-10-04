@@ -161,7 +161,7 @@ internal fun StatBuilder.buildPermanentSubTerms(): Map<Characteristic, List<Term
  * The START-OF-COMBAT contributions of unconditional FLAT subs (effects NOT flagged
  * [SublimationEffect.appliesBeforeCombat]), grouped like [buildPermanentSubTerms]. Together with
  * [StatBuilder.preCombatStat] they form the FIRST-TURN sheet that `firstTurn` conditions read
- * (Neutralité's `secondary masteries ≤ 0` — see [SubConditionSpec.StatBound.firstTurn]).
+ * (Neutralité's `each secondary mastery ≤ 0` — see [SubConditionSpec.StatBound.firstTurn]).
  * Restricted to `kind == FLAT` (condition-less) subs so the gate is the raw `subVar` and
  * [reifyCondition] stays acyclic — a STATIC_CONDITIONAL sub's own start-of-combat effects are NOT
  * summed (its applies-var would recurse; in-game a conditional sub never feeds its own condition,
@@ -265,9 +265,12 @@ internal fun StatBuilder.reifyCondition(cond: SublimationCondition): IntVar {
 }
 
 /**
- * Reifies a [SubConditionSpec.StatBound] `sum(stats) <comparison> threshold` on the pre-combat stats. A single
- * stat reifies directly on its [preCombatStat] (no wrapper var); a multi-stat bound (secondary masteries) sums
- * first — reproducing the exact model the hand-written per-type `when` built (same var names, bounds and tags).
+ * Reifies a [SubConditionSpec.StatBound] — EACH of its stats `<comparison> threshold` — on the pre-combat (or
+ * first-turn) stats. A single stat reifies directly on its read var (no wrapper var). A multi-stat bound (the
+ * Neutralité family's six secondary masteries) is a CONJUNCTION of per-stat bounds, never their sum (+76 distance is
+ * not offset by −304 rear): `≤` reifies on the MAX of the reads (every stat ≤ n ⇔ max ≤ n), `≥` on their MIN, `=` on
+ * both. A read whose tracked reach already satisfies its side on every build (a secondary mastery no item / rune /
+ * skill / sub can push past the threshold) can never be the one that breaks the condition, so it is left out — exact.
  */
 private fun StatBuilder.reifyStatBound(
     spec: SubConditionSpec.StatBound,
@@ -275,17 +278,48 @@ private fun StatBuilder.reifyStatBound(
 ): IntVar {
     // firstTurn conditions read the FIRST-TURN sheet (pre-combat + start-of-combat FLAT subs).
     val read: (Characteristic) -> IntVar = if (spec.firstTurn) ::firstTurnStat else ::preCombatStat
-    val value =
-        if (spec.stats.size == 1) {
-            read(spec.stats.single())
-        } else {
-            model.sumVar("secMast_$tag", spec.stats.map { read(it) }, -STAT_ABS_MAX, STAT_ABS_MAX)
-        }
     val n = spec.threshold.toLong()
+    if (spec.stats.size == 1) {
+        val value = read(spec.stats.single())
+        return when (spec.comparison) {
+            ConditionComparison.AT_MOST -> reifyLe(value, n, tag)
+            ConditionComparison.AT_LEAST -> reifyGe(value, n, tag)
+            ConditionComparison.EXACT -> and(reifyLe(value, n, "${tag}_le"), reifyGe(value, n, "${tag}_ge"), tag)
+        }
+    }
+    val reads = spec.stats.map { read(it) }
+
+    // Every read ≤ n (a `≤` side): the reads that can exceed n, through their max.
+    fun allAtMost(suffix: String): IntVar {
+        val live = reads.filter { tracker.of(it).last > n }
+        return when (live.size) {
+            0 -> model.newConstant(1L)
+            1 -> reifyLe(live.single(), n, "${tag}$suffix")
+            else -> {
+                val maxRead = model.newIntVar(-STAT_ABS_MAX, STAT_ABS_MAX, "secMastMax_${tag}$suffix")
+                model.addMaxEquality(maxRead, live.toTypedArray())
+                reifyLe(maxRead, n, "${tag}$suffix")
+            }
+        }
+    }
+
+    // Every read ≥ n (a `≥` side): the reads that can fall below n, through their min.
+    fun allAtLeast(suffix: String): IntVar {
+        val live = reads.filter { tracker.of(it).first < n }
+        return when (live.size) {
+            0 -> model.newConstant(1L)
+            1 -> reifyGe(live.single(), n, "${tag}$suffix")
+            else -> {
+                val minRead = model.newIntVar(-STAT_ABS_MAX, STAT_ABS_MAX, "secMastMin_${tag}$suffix")
+                model.addMinEquality(minRead, live.toTypedArray())
+                reifyGe(minRead, n, "${tag}$suffix")
+            }
+        }
+    }
     return when (spec.comparison) {
-        ConditionComparison.AT_MOST -> reifyLe(value, n, tag)
-        ConditionComparison.AT_LEAST -> reifyGe(value, n, tag)
-        ConditionComparison.EXACT -> and(reifyLe(value, n, "${tag}_le"), reifyGe(value, n, "${tag}_ge"), tag)
+        ConditionComparison.AT_MOST -> allAtMost("")
+        ConditionComparison.AT_LEAST -> allAtLeast("")
+        ConditionComparison.EXACT -> and(allAtMost("_le"), allAtLeast("_ge"), tag)
     }
 }
 

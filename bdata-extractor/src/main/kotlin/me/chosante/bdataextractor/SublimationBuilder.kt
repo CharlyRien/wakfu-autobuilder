@@ -803,9 +803,9 @@ private val RE_CMP = Regex("""GetCharac(?:Max)?\("(\w+)",\s*"\w+"\)\s*(<=|>=|==)
 
 /**
  * Critical **Mastery** cap (Critical Secret: "+crit when Critical Mastery ≤ 0"): the **1-argument**
- * `GetCharac("CRITICAL_BONUS") <= N` form (no caster arg). `CRITICAL_BONUS` is also one of the six
+ * `GetCharac("CRITICAL_BONUS") <= N` form (no target arg). `CRITICAL_BONUS` is also one of the six
  * [SECONDARY_MASTERY_CRITERION_TOKENS], but that criterion uses the 2-argument `GetCharac("CRITICAL_BONUS",
- * "caster")` form picked up by [RE_CMP]; the arity disambiguates, so this is matched **before** [RE_CMP].
+ * "target")` form decoded by [secondaryMasteryCondition]; the arity disambiguates.
  */
 private val RE_CRIT_MASTERY_AT_MOST = Regex("""GetCharac(?:Max)?\("CRITICAL_BONUS"\)\s*<=\s*(-?\d+)""")
 
@@ -837,8 +837,23 @@ private val RE_ELEM_DMG_EXCEEDS_SECONDARY =
  */
 private val RE_ELEMENT_MATCHUP =
     Regex("""GetCharac\("(?:DMG|RES)_(FIRE|WATER|EARTH|AIR)_PERCENT"(?:,\s*"\w+")?\)\s*(?:<=|<|>=|>)\s*GetCharac\(""")
+
+/**
+ * The six secondary masteries in the game's criterion naming — melee `MELEE_DMG`, distance `RANGED_DMG`, berserk
+ * `BERSERK_DMG`, critical `CRITICAL_BONUS`, rear `BACKSTAB_BONUS`, healing `HEAL_IN_PERCENT` (exactly
+ * [me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS]). The Neutralité family's criterion is an `and`-chain of one
+ * 2-argument `GetCharac("<token>", "<who>") <= N` atom per token — see [secondaryMasteryCondition].
+ */
 private val SECONDARY_MASTERY_CRITERION_TOKENS =
     setOf("MELEE_DMG", "RANGED_DMG", "BERSERK_DMG", "CRITICAL_BONUS", "BACKSTAB_BONUS", "HEAL_IN_PERCENT")
+
+/** A 2-argument comparison of one secondary-mastery token against a NUMBER (any operator) — the shape to validate. */
+private val RE_SECONDARY_TOKEN_CMP =
+    Regex("""GetCharac(?:Max)?\("(MELEE_DMG|RANGED_DMG|BERSERK_DMG|CRITICAL_BONUS|BACKSTAB_BONUS|HEAL_IN_PERCENT)",\s*"\w+"\)\s*(<=|>=|==|!=|<|>)\s*-?\d+""")
+
+/** One `and`-atom that IS a 2-argument `GetCharac("<token>", "<who>") <= N` and nothing else. */
+private val RE_SECONDARY_ATOM =
+    Regex("""GetCharac(?:Max)?\("(MELEE_DMG|RANGED_DMG|BERSERK_DMG|CRITICAL_BONUS|BACKSTAB_BONUS|HEAL_IN_PERCENT)",\s*"(\w+)"\)\s*<=\s*(-?\d+)""")
 
 private val RE_NOT_HAS_WEAPON_TYPE = Regex("""not\s+HasWeaponType\(([0-9,\s]+)\)""")
 
@@ -860,12 +875,86 @@ private val LIGHT_WEAPON_FORBIDDEN_TYPES = setOf(101, 111, 114, 117, 223, 253, 5
 private fun parseCriterion(criterion: String): List<CritAtom> {
     val crit = criterion.trim()
     if (crit.isEmpty() || crit.equals("True", ignoreCase = true)) return listOf(CritAtom.Ignore)
-    return crit
-        .replace('\n', ' ')
-        .split(Regex("""\s+and\s+"""))
-        .map { it.trim() }
-        .filter { it.isNotEmpty() }
-        .map { atom -> classifyAtom(atom) }
+    val atoms =
+        crit
+            .replace('\n', ' ')
+            .split(Regex("""\s+and\s+"""))
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+    val secondary = secondaryMasteryCondition(crit, atoms) ?: return atoms.map { atom -> classifyAtom(atom) }
+    // The secondary-mastery atoms carry ONE condition for the whole chain (the first one reports it); every other atom
+    // (Inflexibilité II's dead `and False` branch) is classified as usual.
+    return atoms.mapIndexed { i, atom ->
+        when (i) {
+            secondary.first.first() -> CritAtom.Cond(secondary.second)
+            in secondary.first -> CritAtom.Ignore
+            else -> classifyAtom(atom)
+        }
+    }
+}
+
+/**
+ * Test seam: the condition [criterion]'s secondary-mastery atoms decode to (null when it has none), with the same
+ * validation the extraction applies — it throws on an unsupported shape.
+ */
+internal fun decodeSecondaryMasteryCriterion(criterion: String): SublimationCondition? =
+    parseCriterion(criterion)
+        .filterIsInstance<CritAtom.Cond>()
+        .map { it.condition }
+        .singleOrNull {
+            it.type == SublimationConditionType.SECONDARY_MASTERIES_AT_MOST || it.type == SublimationConditionType.HEALING_MASTERY_AT_MOST
+        }
+
+/**
+ * Validates and decodes the secondary-mastery comparisons of one criterion ([atoms] = its `and`-split): `null` when it
+ * compares no secondary-mastery token against a number with `<=` (left to [classifyAtom]); else the indices of the
+ * secondary atoms and the ONE condition they make. Two shapes exist in the game data, and only those two decode:
+ *  - the Neutralité family (Neutralité, Abandon, Prétention, Ambition, Inflexibilité — State 67 → StaticEffect 68):
+ *    `GetCharac("MELEE_DMG", "target") <= 0 and GetCharac("RANGED_DMG", "target") <= 0 and … HEAL_IN_PERCENT … <= 0`,
+ *    an `and`-chain of EXACTLY the six tokens, each once, one threshold, one target argument ⇒
+ *    [SublimationConditionType.SECONDARY_MASTERIES_AT_MOST], which holds iff EACH secondary mastery ≤ N on its own
+ *    (never their sum);
+ *  - Engagement's lone `GetCharac("HEAL_IN_PERCENT", "caster") <= 0` ⇒
+ *    [SublimationConditionType.HEALING_MASTERY_AT_MOST] (healing mastery alone — it used to be collapsed into the
+ *    six-way type).
+ * Anything else — an `or`, a subset of the six, a token twice, mixed thresholds or arguments, a negated / parenthesized
+ * / compound atom, another operator beside the `<=` atoms — FAILS the extraction loudly rather than silently collapsing
+ * into one of the two (a per-stat rule read as a sum, or a subset read as all six, hands builds bonuses the game never
+ * grants).
+ */
+private fun secondaryMasteryCondition(
+    crit: String,
+    atoms: List<String>,
+): Pair<List<Int>, SublimationCondition>? {
+    val comparisons = RE_SECONDARY_TOKEN_CMP.findAll(crit).toList()
+    if (comparisons.none { it.groupValues[2] == "<=" }) return null
+
+    fun fail(why: String): Nothing =
+        error(
+            "Unsupported secondary-mastery criterion ($why) — expected an `and`-chain of the six " +
+                "GetCharac(\"<token>\", \"<who>\") <= N atoms $SECONDARY_MASTERY_CRITERION_TOKENS with one threshold, " +
+                "or Engagement's lone HEAL_IN_PERCENT <= N: ${crit.replace(Regex("\\s+"), " ")}"
+        )
+    if (Regex("""\bor\b""").containsMatchIn(crit)) fail("an `or`")
+    if (comparisons.any { it.groupValues[2] != "<=" }) fail("another operator beside `<=`")
+    // Every atom naming a token must BE one `<=` comparison — no `not`, parentheses or arithmetic around it.
+    val indices = atoms.indices.filter { i -> SECONDARY_MASTERY_CRITERION_TOKENS.any { atoms[i].contains("\"$it\"") } }
+    val parsed =
+        indices.map { i ->
+            RE_SECONDARY_ATOM.matchEntire(atoms[i])?.groupValues ?: fail("a compound atom `${atoms[i]}`")
+        }
+    val tokens = parsed.map { it[1] }
+    val thresholds = parsed.map { it[3].toInt() }.toSet()
+    if (thresholds.size != 1) fail("mixed thresholds $thresholds")
+    if (parsed.map { it[2] }.toSet().size != 1) fail("mixed arguments")
+    val n = thresholds.single()
+    return when {
+        tokens.size == SECONDARY_MASTERY_CRITERION_TOKENS.size && tokens.toSet() == SECONDARY_MASTERY_CRITERION_TOKENS ->
+            indices to SublimationCondition(SublimationConditionType.SECONDARY_MASTERIES_AT_MOST, value = n)
+        tokens == listOf("HEAL_IN_PERCENT") ->
+            indices to SublimationCondition(SublimationConditionType.HEALING_MASTERY_AT_MOST, value = n)
+        else -> fail("tokens $tokens, not the six exactly once")
+    }
 }
 
 private fun classifyAtom(atom: String): CritAtom {
@@ -954,7 +1043,8 @@ private fun classifyAtom(atom: String): CritAtom {
                 charac == "RANGE" && op == "<=" -> SublimationConditionType.RANGE_AT_MOST
                 charac == "RANGE" && op == ">=" -> SublimationConditionType.RANGE_AT_LEAST
                 charac == "RANGE" && op == "==" -> SublimationConditionType.RANGE_EXACT
-                charac in SECONDARY_MASTERY_CRITERION_TOKENS && op == "<=" -> SublimationConditionType.SECONDARY_MASTERIES_AT_MOST
+                // Unreachable: every `<=` secondary comparison is validated + decoded by [secondaryMasteryCondition] first.
+                charac in SECONDARY_MASTERY_CRITERION_TOKENS && op == "<=" -> error("secondary-mastery atom escaped the shape check: $atom")
                 else -> null
             }
         return type?.let { CritAtom.Cond(SublimationCondition(it, value = n)) } ?: CritAtom.Unknown
@@ -1077,7 +1167,8 @@ private fun conditionText(c: SublimationCondition): String =
         SublimationConditionType.RANGE_AT_LEAST -> "If Range ≥ ${c.value}"
         SublimationConditionType.RANGE_EXACT -> "If Range = ${c.value}"
         SublimationConditionType.DODGE_LT_PCT_OF_LEVEL -> "If Dodge < ${c.value}% of level"
-        SublimationConditionType.SECONDARY_MASTERIES_AT_MOST -> "If secondary masteries ≤ ${c.value}"
+        SublimationConditionType.SECONDARY_MASTERIES_AT_MOST -> "If each secondary mastery ≤ ${c.value}"
+        SublimationConditionType.HEALING_MASTERY_AT_MOST -> "If Healing Mastery ≤ ${c.value}"
         SublimationConditionType.CRITICAL_MASTERY_AT_MOST -> "If Critical Mastery ≤ ${c.value}"
         SublimationConditionType.WEAPON_TYPE_EQUIPPED -> "If ${c.text} equipped"
         SublimationConditionType.NO_OFFHAND_OR_TWO_HANDED -> "If no shield, dagger or two-handed weapon equipped"

@@ -505,7 +505,7 @@ internal class CertWorld(
 )
 
 /**
- * A choosable sub the normal certifier worlds DROP because its condition — `secondary masteries ≤ 0` (the
+ * A choosable sub the normal certifier worlds DROP because its condition — `each secondary mastery ≤ 0` (the
  * Neutralité family: Neutrality III, Ambition III, Inflexibility II, …) — caps the very masteries the scenario sums
  * into M. Dropping it is only sound because the secondary-capped AUX world ([certifierAuxWorlds]) covers every build
  * on which it is active (CERTIFIER_VERSION 44 — before that the drop was unguarded and under-counted a build whose
@@ -570,10 +570,10 @@ internal fun StatBuilder.certifierWorlds(scenario: DamageScenario): List<CertWor
  * CERTIFIER_VERSION 44 — the AUX worlds: the builds the normal [certifierWorlds] deliberately DROP from their pools
  * (the pass's `structurallyDropped`), each covered by a world of its own so the drop stays sound:
  *
- * - SECONDARY-CAPPED (N): every build on which a Neutralité-family sub ([isSecondaryCapDroppedSub]) is ACTIVE has its
- *   first-turn secondary masteries summing to ≤ 0. World N keeps those subs and re-values every mastery source under
- *   that budget (see `secondaryCapped` in [certifyMaxPerHitAtApPass]) — a sound relaxation whatever the items' signed
- *   secondary lines. A CONVERSION needs no N variant (its gain is priced inside the relaxation); Critical Secret does
+ * - SECONDARY-CAPPED (N): every build on which a Neutralité-family sub ([isSecondaryCapDroppedSub]) is ACTIVE has EACH
+ *   of its first-turn secondary masteries ≤ 0, hence their SUM ≤ 0. World N keeps those subs and re-values every
+ *   mastery source under that sum budget (see `secondaryCapped` in [certifyMaxPerHitAtApPass]) — a sound relaxation of
+ *   the per-stat rule whatever the items' signed secondary lines. A CONVERSION needs no N variant (its gain is priced inside the relaxation); Critical Secret does
  *   (its EPIC slot) ⇒ N and N×C.
  * - BLOCK-ASSUMED (M): the EPIC block sub ([isBlockWorldSub], Mesure) force-taken with its untracked block
  *   condition assumed satisfiable. It holds the single epic sub slot, so no conversion / Critical-Secret special
@@ -1921,8 +1921,10 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     fun pos(x: Long): Long = maxOf(0L, x)
 
     // ---- SECONDARY-CAPPED world N (v44): the value maps under the Neutralité-family budget --------------------------
-    // Every build this world covers carries an ACTIVE `secondary masteries ≤ 0` sub, so its FIRST-TURN read (the
-    // condition's own read: items + runes + skills + base + FLAT subs — [firstTurnStat]) satisfies S = D + K + O ≤ 0,
+    // Every build this world covers carries an ACTIVE `each secondary mastery ≤ t` sub (t ≤ 0), so its FIRST-TURN read
+    // (the condition's own read: items + runes + skills + base + FLAT subs — [firstTurnStat]) holds each of the six ≤ 0,
+    // hence S = D + K + O ≤ 0 — the RELAXATION priced below (CERTIFIER_VERSION 56: the per-stat rule would allow more —
+    // K ≤ 0 alone, and no cross-stat relief from a negative line — left for later, docs/perf-review-backlog.md §E),
     // D the scenario's secondary masteries (summed into M), K critical mastery, O the other secondary masteries.
     // M = 100 + E + D (E elemental) and Graw = (400+c)·max(0, M) + 5c·max(0, K) ≤ (400+c)·(max(0, M) + max(0, K))
     // (5c ≤ 400 + c for c ≤ 100). Splitting every sum by SOURCE s (an item, a rune pick, a skill point, a sub, a
@@ -2866,7 +2868,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     //    when there are ≥ that many carrier slots (the build hosts a damage-irrelevant carrier in
     //    any otherwise-spent slot) — guarded, else bail.
     //  • conditions read PRE-sub build stats. AP/CRIT are tracked, so gated EXACTLY. Two families are
-    //    DROPPED from these pools — the Neutralité family (secMast ≤ 0: satisfying it caps the
+    //    DROPPED from these pools — the Neutralité family (each secondary mastery ≤ 0: satisfying it caps the
     //    secondary masteries the scenario sums into M) and the EPIC/RELIC block subs (Mesure: block is
     //    untracked and its DI+crit mix fits no optional stage). The drop is sound ONLY because the AUX
     //    worlds cover every build they exclude (v44, [certifierAuxWorlds]; before, it was an unguarded
