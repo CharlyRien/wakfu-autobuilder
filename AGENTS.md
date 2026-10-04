@@ -176,6 +176,27 @@ certificate reads from an item (CERTIFIER_VERSION 53 audit, `docs/perf-review-ba
 Adding anything the model reads from an `Equipment` (a new field, a level- or name-dependent term) means adding its
 clause there — and bumping `CERTIFIER_VERSION`, since the certificates' pool changes.
 
+### The multi-element item pre-filter (a HEURISTIC: what a multi-element search sees, and why it never earns a badge)
+A request wanting more than one element of mastery or resistance (`WakfuBuildSolver.needsItemPrefilter`: two specific
+elements, or the aggregate `MASTERY_ELEMENTARY` / `RESISTANCE_ELEMENTARY`) would blow up the random-element modelling on
+the full late-game pool, so `buildModel` shrinks every slot first (`prefilterRelevantEquipments`, BEFORE the domination
+filter): the forced items, the top 8 items of each relevant characteristic, and the top 8 by a **combined mastery score**
+(`combinedMasteryScore`: the sum over the wanted elements of the specific mastery, plus the generic one and each
+random-element line on `min(k, elements)` elements, plus every requested non-elemental mastery, once per element; 0 when
+no elemental mastery is wanted). The score also breaks ties on a stat's value — AP / MP / range / crit are small
+integers, so the cut falls inside a tie group — and the sort is stable, so what is still tied keeps pool order and the
+result stays deterministic. Ranked on single stats alone, the item that is best on none but strong on all (395
+random-element + 395 distance mastery) was lost: 6 of 20 most-masteries requests with a proven full-pool optimum lost
+0.19–4.6 % (all four level-245 requests with a distance row); the combined ranking recovers all six with no regression
+(deterministic A/B: 1 worker, interleave, seed 1, 120 det-s).
+
+It stays lossy by construction, so CP-SAT's `OPTIMAL` over the reduced pool proves nothing global: every proof path gates
+on `needsItemPrefilter` (`SolverResult.isOptimal`, `MaxDamageSearch.proveOptimality`, `proveMostMasteriesQuality`, the
+bound cache, the E8 construct) and a prefiltered request never earns a badge. No certificate reads the reduced pool (the
+most-masteries bound builds its own from `poolFor` + domination; the max-damage certificate is unreachable for such a
+request), so changing the ranking needs no `CERTIFIER_VERSION` bump. Locks: `PrefilterRankingTest` (what is kept),
+`PrefilterOptimalityTest` (no badge).
+
 ### The max-damage optimality certificate ("proven optimal" badge)
 Max-damage mode can **prove** the build it found is the global optimum, and the GUI/CLI show a badge
 saying so. The proof is an independent **certificate**, not a re-solve: `MaxDamageSearch.proveOptimality`

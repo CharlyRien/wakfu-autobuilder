@@ -59,16 +59,18 @@ class PrefilterOptimalityTest {
         maxShardSlots = 0
     )
 
-    // In EACH slot eight fire-only and eight water-only items beat the balanced item on their own
-    // stat, so it ranks ninth for both and disappears. Two balanced items yield min(1800,1800),
-    // whereas the surviving specialists can only yield min(1008,1008). Level 1 has no Strength points.
+    // In EACH slot eight fire-only and eight water-only items beat the balanced item (900 fire + 900 water) on their own
+    // stat, so it ranks ninth for both; the fire-only items carry 2 001..2 008, more than the balanced item's 1 800 in
+    // total, so it ranks ninth on the combined-mastery ranking as well (the prefilter keeps well-rounded items through that
+    // ranking, so a pool where it stays out needs lopsided items that out-sum it) and disappears. Two balanced items
+    // yield min(1800,1800), whereas the surviving specialists can only yield min(2008,1008). Level 1 has no Strength points.
     private val pool =
         listOf(ItemType.AMULET, ItemType.BELT)
             .mapIndexed { slotIndex, slot ->
                 val base = slotIndex * 100
                 slot to
                     (
-                        (1..8).map { equipment(base + it, slot, 1000 + it, 0) } +
+                        (1..8).map { equipment(base + it, slot, 2000 + it, 0) } +
                             (1..8).map { equipment(base + 10 + it, slot, 0, 1000 + it) } +
                             equipment(base + 99, slot, 900, 900)
                     )
