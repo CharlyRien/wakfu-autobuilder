@@ -98,7 +98,8 @@ The whole reification chain is in **`autobuilder/.../genetic/wakfu/SublimationTe
 - **`appliesVar(sub)`** (~L197): for a non-forced sub with a supported condition, it posts
   `subVar ≤ reifyCondition(cond)` — i.e. the sub can only be *chosen* when its condition holds.
 - **`reifyCondition(cond)`** (~L257): dispatches on `subConditionSpec(cond, level)`:
-  - `StatBound` → `reifyStatBound` (the common case — a stat sum vs a threshold),
+  - `StatBound` → `reifyStatBound` (the common case — each stat it reads vs a threshold; only the Neutralité
+    family reads several, EACH on its own since CERTIFIER_VERSION 56 — see the note below),
   - `NoOffhandOrTwoHanded` → a pick-sum ≤ 0,
   - `AlwaysApplies` → constant 1 (unsupported types stay optimistically on).
 - **`reifyStatBound(spec, tag)`** (~L271): reads `firstTurnStat` when `spec.firstTurn` (only
@@ -106,6 +107,13 @@ The whole reification chain is in **`autobuilder/.../genetic/wakfu/SublimationTe
   - `AT_MOST` → `reifyLe(value, n, tag)`
   - `AT_LEAST` → `reifyGe(value, n, tag)`
   - `EXACT` → `and(reifyLe, reifyGe)`
+
+  > **2026-10-04 (CERTIFIER_VERSION 56).** This research note was written when the Neutralité family's
+  > `secondary masteries ≤ 0` was reified on the SUM of the six secondaries. The game's criterion (State 67 →
+  > StaticEffect 68) is an `and` of six per-stat atoms — `GetCharac("MELEE_DMG", "target") <= 0 and … RANGED_DMG … and
+  > … HEAL_IN_PERCENT … <= 0` — so EACH secondary must be ≤ 0 on its own. The multi-stat `StatBound` now reifies on the
+  > MAX of the per-stat reads (`≤`), leaving out reads whose tracked reach can never exceed the threshold. Every sum
+  > formulation below (`S + O ≤ 0`, the secZero arm, the μ envelope) is a RELAXATION of that rule — sound, looser.
 - **`reifyLe` / `reifyGe`** (~L218/L229): the actual hardness — a fresh bool `b` with the
   **indicator pair**
   ```
@@ -273,7 +281,7 @@ filtered by `isModelableSublimation`; it creates no reification.
   dual 71.380T→77.210T (+8.17%) and wall 144.6→184.7 s (+28%). A real-parallel 180 s sample was also
   worse (dual 35.921T→39.431T). Do not retry this change alone without a new propagation argument.
 - **B2. Share identical predicates (MEASURED-NO; reverted).** Four subs have the same first-turn
-  `secondary masteries ≤ 0` predicate. Memoizing by normalized condition reduces 15 modeled entries
+  `secondary masteries ≤ 0` predicate (read as a sum then; per stat since CERTIFIER_VERSION 56). Memoizing by normalized condition reduces 15 modeled entries
   to 12 unique reifications and is exactly equivalent, but at fixed seed/1 worker/interleave/det 60
   it worsened the dual **46.790T→50.920T (+8.83%)** and the incumbent 7.526T→4.218T. Wall improved
   156.2→130.4 s, but proof quality is the gate. The duplicate predicates were useful propagation;
@@ -871,7 +879,8 @@ Both are sound but looser than the item-coupled budget projection.
 ### Promising unfinished work: secondary-condition Lagrangian envelope
 
 For a `SECONDARY_MASTERIES_AT_MOST(0)` carrier, write scenario secondary mastery as `S` and all
-other signed secondary mastery as `O`; the condition is `S + O ≤ 0`. For every
+other signed secondary mastery as `O`; the condition holds EACH secondary ≤ 0, which implies `S + O ≤ 0` (the
+relaxation priced here — the per-stat rule itself is tighter). For every
 `0 ≤ μ ≤ wMastery`, the objective term has the sound upper
 
 ```text

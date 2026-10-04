@@ -87,6 +87,11 @@ These types are the vocabulary of the whole codebase — learn them first.
   `Agility`, `Luck`, `Major` — each an `Assignable` of `SkillCharacteristic`s. Available skill
   points derive from level; `Major` points unlock at levels 25/75/125/175. Values are `FIXED` or
   `PERCENT` (`UnitType`), and some are `PairedCharacteristic` (one point feeds two stats).
+- **Sublimation conditions** (`SublimationConditionType`, meaning in `SublimationSemantics.kt`): the Neutralité
+  family's `SECONDARY_MASTERIES_AT_MOST` (Neutralité, Ambition, Inflexibilité, Prétention, Abandon) holds iff EACH of the
+  six secondary masteries (melee, distance, berserk, rear, critical, healing) is ≤ the threshold on the first-turn sheet —
+  never their sum: the game's criterion is an `and` of six per-stat atoms, and `bdata-extractor` fails on any other
+  shape. The certificates price it through a SUM budget — a sound relaxation (`secondaryMasteriesSumBound`).
 
 `BuildCombination` (in `autobuilder/domain`) = `equipments + characterSkills`, with `isValid()`
 enforcing slot/rarity/weapon rules.
