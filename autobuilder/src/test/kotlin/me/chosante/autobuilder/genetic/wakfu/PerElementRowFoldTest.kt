@@ -354,6 +354,54 @@ class PerElementRowFoldTest {
         check(fire = 40, expectedFire = 50, expectedAir = -20)
     }
 
+    @Test
+    fun `precision halves once, like the solver, however many rows of target 0 are below 0`() {
+        // The GUI's precision defaults (air resistance 0, dodge 0) beside the user's "fire resistance 300"; a ring with −5 dodge
+        // makes the halving unavoidable. The solver halves its objective ONCE, so lifting air is worth nothing to it any more
+        // (320 fire halved beats 290 fire halved): the roll goes to fire and air stays at −20 — and the score must read that
+        // build halved once (50 %), not once per row below 0 (25 %, below the 48.33 % of the roll on air).
+        val p =
+            params(
+                ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT,
+                listOf(
+                    TargetStat(Characteristic.RESISTANCE_ELEMENTARY_FIRE, 300),
+                    TargetStat(Characteristic.RESISTANCE_ELEMENTARY_WIND, 0),
+                    TargetStat(Characteristic.DODGE, 0)
+                )
+            )
+        val amulet = item(1, ItemType.AMULET, mapOf(Characteristic.RESISTANCE_ELEMENTARY_FIRE to 310, Characteristic.RESISTANCE_ELEMENTARY to -20))
+        val ring = item(2, ItemType.RING, mapOf(Characteristic.DODGE to -5))
+        val roll = item(3, ItemType.BOOTS, mapOf(Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT to 30))
+
+        fun solved(vararg items: Equipment) =
+            WakfuBuildSolver.elementRowSolveForTest(
+                p,
+                items.groupBy { it.itemType },
+                tuning,
+                hardConstraints = false,
+                pinnedEquipmentIds = items.map { it.equipmentId }.toSet(),
+                pinSkillsToZero = true
+            )
+
+        val withRoll = BuildCombination(listOf(amulet, ring, roll), CharacterSkills(1))
+        val stats = scorerStats(p, withRoll)
+        assertThat(stats[Characteristic.RESISTANCE_ELEMENTARY_FIRE]).isEqualTo(320)
+        assertThat(stats[Characteristic.RESISTANCE_ELEMENTARY_WIND]).isEqualTo(-20)
+        assertThat(score(p, withRoll.equipments)).isEqualByComparingTo("50.0")
+        val model = solved(amulet, ring, roll)
+        assertThat(model.modelElementValues)
+            .isEqualTo(mapOf(Characteristic.RESISTANCE_ELEMENTARY_FIRE to 320L, Characteristic.RESISTANCE_ELEMENTARY_WIND to -20L))
+        assertThat(precisionModelObjective(p.targetStats, stats, emptyMap())).isEqualTo(model.objective).isEqualTo(49_500L)
+
+        // No roll at all: air −20 and dodge −5, two rows of target 0 below 0 — the solver and the score halve once, no more.
+        val twoBelow = BuildCombination(listOf(amulet, ring), CharacterSkills(1))
+        val twoBelowStats = scorerStats(p, twoBelow)
+        assertThat(twoBelowStats[Characteristic.RESISTANCE_ELEMENTARY_WIND]).isEqualTo(-20)
+        assertThat(twoBelowStats[Characteristic.DODGE]).isEqualTo(-5)
+        assertThat(score(p, twoBelow.equipments)).isEqualByComparingTo("48.33")
+        assertThat(precisionModelObjective(p.targetStats, twoBelowStats, emptyMap())).isEqualTo(solved(amulet, ring).objective).isEqualTo(47_850L)
+    }
+
     // ---- Seeded fuzz: per build, what the model claims is what the scorer places --------------------------------------
 
     private class FuzzCase(
