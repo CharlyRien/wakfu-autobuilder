@@ -197,6 +197,14 @@ most-masteries bound builds its own from `poolFor` + domination; the max-damage 
 request), so changing the ranking needs no `CERTIFIER_VERSION` bump. Locks: `PrefilterRankingTest` (what is kept),
 `PrefilterOptimalityTest` (no badge).
 
+The GUI says so instead of suggesting a longer search (`Tr.NO_PROOF_TITLE` / `Tr.NO_PROOF_BODY` in the stats headline):
+`UiState.prefilteredRequest` is read from `TargetStats.needsItemPrefilter` when a search starts or a saved build is loaded,
+so it belongs to the RESULT (it travels with `ShownResult`) and never follows the target rows as they are edited later.
+The post-search check is not started for such a request either. If a proof of these requests ever lands (the planned
+background full-catalog proof, `docs/perf-review-backlog.md` §E), revise that text and that gate together. The other
+no-badge messages stay as they were: a result that merely ran out of time keeps the "raise the search duration" hint
+(`Tr.NOT_OPTIMAL_HINT`). Locks: `BuildSearchModelNoBadgeExplanationTest`, `NoProofExplanationUiTest`.
+
 ### The max-damage optimality certificate ("proven optimal" badge)
 Max-damage mode can **prove** the build it found is the global optimum, and the GUI/CLI show a badge
 saying so. The proof is an independent **certificate**, not a re-solve: `MaxDamageSearch.proveOptimality`

@@ -880,6 +880,9 @@ class BuildSearchModel(
                 progress = 0,
                 match = java.math.BigDecimal.ZERO,
                 optimal = false,
+                // Snapshotted HERE, from the request the engine is about to receive (not from the rows as they will be once
+                // the search ends): this result says "no proof is possible" about THAT request, whatever is edited meanwhile.
+                prefilteredRequest = params.targetStats.needsItemPrefilter,
                 proofState = ProofState.Idle,
                 searchStopped = false,
                 // The new build is found with this app's own game data, whatever the one it replaces was computed with.
@@ -1003,11 +1006,16 @@ class BuildSearchModel(
                             // after the search"): read NOW, so flipping it mid-search counts. OFF starts no proof work
                             // at all — see [setVerifyOptimality] / [skipBackgroundProof].
                             val verifyOptimality = ui.verifyOptimality
+                            // A request no search can prove ([TargetStats.needsItemPrefilter]) has nothing to verify: the engine
+                            // answers "unavailable" at once, so launching the check would only flash a "Verifying optimality…"
+                            // spinner over the explanation the stats panel gives for it ([UiState.prefilteredRequest]). The
+                            // engine starts no warm-up for such a request either, so there is nothing to cancel.
+                            val provable = !params.targetStats.needsItemPrefilter
                             // Certificate optimality proof (P4.4): only for max-damage, and off the search's
                             // critical path — a full exact solve can take minutes, so it runs in its own job and
                             // streams its verdict into [UiState.proofState] when ready. It can prove an optimum
                             // CP-SAT left un-closed (badge flips to proven even when `optimal` was false).
-                            if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE && completedResult != null) {
+                            if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE && completedResult != null && provable) {
                                 if (verifyOptimality) {
                                     launchOptimalityProof(params, completedResult, character, damageScenario)
                                 } else {
@@ -1015,6 +1023,7 @@ class BuildSearchModel(
                                 }
                             } else if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
                                 completedResult != null &&
+                                provable &&
                                 !completedResult.isOptimal &&
                                 completedResult.mostMasteriesObjective != null
                             ) {
@@ -1933,7 +1942,7 @@ class BuildSearchModel(
             } else {
                 null
             }
-        val loaded =
+        val restored =
             ui.copy(
                 screen = Screen.Builder,
                 modal = null,
@@ -1997,6 +2006,10 @@ class BuildSearchModel(
                 activeBuildName = entry.name,
                 searchLocked = true
             )
+        // The request this save was computed for — the rows and mode restored just above, never the rows the workspace held before
+        // the load — decides whether any search of it could ever have been proven: the stats column explains the missing badge
+        // of such a build ([UiState.prefilteredRequest]) instead of suggesting a longer search.
+        val loaded = restored.copy(prefilteredRequest = runCatching { restored.toTargetStats().needsItemPrefilter }.getOrDefault(false))
         ui = loaded.rescored()
         // The per-position breakdown runs 3-4 more rotations, so compute it OFF the UI thread (the rotation
         // card already renders from `rotation` above) and patch it in when ready — only if this build is still
@@ -2027,16 +2040,16 @@ class BuildSearchModel(
      * ([toSearchParams]), stats grid ([achievedStats]) and scorer ([buildRescorer], by default [WakfuBestBuildFinderAlgorithm.rescore]) —
      * and costs milliseconds, no solver. The items and sublimations come from the save itself, so a build whose items left the catalog
      * re-scores too. A proof belongs to the rules it was made under: a build whose score moved ([isStoredScore]) loses its stored
-     * "proven optimal" flag, and so does any build of a request no search can prove ([TargetStats.needsItemPrefilter]: several
-     * elements of one family): an older version may have stored a proof made by a model that counted every random-element roll on
-     * every element. Only a build the scorer cannot read at all keeps its stored numbers.
+     * "proven optimal" flag, and so does any build of a request no search can prove ([UiState.prefilteredRequest], read from
+     * [TargetStats.needsItemPrefilter]: several elements of one family): an older version may have stored a proof made by a model
+     * that counted every random-element roll on every element. Only a build the scorer cannot read at all keeps its stored numbers.
      */
     private fun UiState.rescored(): UiState {
         val shown = build ?: return this
         return runCatching {
             val params = toSearchParams()
             val score = buildRescorer(params, shown)
-            val provable = !params.targetStats.needsItemPrefilter
+            val provable = !prefilteredRequest
             copy(match = score, achieved = achievedStats(shown, params), optimal = optimal && provable && isStoredScore(score, match))
         }.getOrDefault(this)
     }
