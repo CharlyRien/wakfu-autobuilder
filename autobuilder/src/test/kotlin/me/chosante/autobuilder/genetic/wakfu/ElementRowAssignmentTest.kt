@@ -12,11 +12,12 @@ import org.junit.jupiter.api.Test
 import kotlin.random.Random
 
 /**
- * Locks [ElementRowObjective] — the scorers' random-element placement for a family read through per-element rows over
- * several elements — against EXHAUSTIVE enumeration: over every way to put each roll on `min(k, n)` distinct wanted
- * elements, the assignment it returns reaches the lexicographic optimum of the solver's objective for those rows
- * (primary, 0-weight rows met, secondary), recomputed here from the request's rows with the solver's formulas — never
- * through the class's own evaluation — and places every roll.
+ * Locks [ElementRowObjective] — the scorers' random-element placement for a family read through one joint fold (per-element
+ * rows over several elements, or a resistance floor) — against EXHAUSTIVE enumeration: over every way to put each roll on its
+ * [rollCover] distinct fold elements (`min(k, n)`; in a family with a floor, a negative roll on as few as the elements outside
+ * the fold leave it), the assignment it returns reaches the lexicographic optimum of the solver's objective for those rows
+ * (primary, 0-weight rows met, secondary), recomputed here from the request's rows with the solver's formulas — never through
+ * the class's own evaluation — and places every roll; the placement keeping the floors is the optimum among those that do.
  */
 class ElementRowAssignmentTest {
     private data class Roll(
@@ -86,15 +87,20 @@ class ElementRowAssignmentTest {
         return combinations(tail, k - 1).map { listOf(head) + it } + combinations(tail, k)
     }
 
-    /** Every reachable final per-element map, each roll on `min(count, wanted)` distinct wanted elements. */
+    /**
+     * Every reachable final per-element map, each roll on its cover of distinct fold elements: `min(count, wanted)`, or — in a family
+     * with a floor ([freeSinks] = the elements outside the fold) — as the game places it, a negative roll on `count − freeSinks` of
+     * them at least. (Spelled out here, not through [rollCover].)
+     */
     private fun allAssignments(
         base: Map<Characteristic, Int>,
         wanted: List<Characteristic>,
         rolls: List<Roll>,
+        freeSinks: Int? = null,
     ): List<Map<Characteristic, Int>> {
         var states = listOf(base)
         for ((value, count) in rolls) {
-            val cover = minOf(count, wanted.size)
+            val cover = if (freeSinks != null && value < 0) (count - freeSinks).coerceIn(0, wanted.size) else minOf(count, wanted.size)
             if (value == 0 || cover == 0) continue
             states =
                 states.flatMap { state ->
@@ -137,11 +143,11 @@ class ElementRowAssignmentTest {
                 }
 
             val assigned = objective.assign(rolls.map { it.value to it.count }, base)
-            val reachable = allAssignments(base, wanted, rolls)
+            val reachable = allAssignments(base, wanted, rolls, targetStats.freeSinks(family))
             val best = reachable.map { solverKey(targetStats, family, mode, it) }.maxWith(keyOrder)
 
             assertThat(reachable)
-                .describedAs("every roll is placed on min(k, n) wanted elements; base=%s rolls=%s", base, rolls)
+                .describedAs("every roll is placed on its cover of the fold's elements; base=%s rolls=%s", base, rolls)
                 .contains(assigned)
             assertThat(solverKey(targetStats, family, mode, assigned))
                 .describedAs(
@@ -162,30 +168,32 @@ class ElementRowAssignmentTest {
     }
 
     @Test
-    fun `precision - the placement keeping the rows of target 0 at 0 or more is the exhaustive optimum among those, or none`() {
-        val precision = ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
+    fun `the placement keeping the floors and precision's rows of target 0 at 0 or more is the exhaustive optimum among those, or none`() {
         val random = Random(4711)
         var checked = 0
         var infeasible = 0
-        repeat(5000) {
+        repeat(8000) {
             val family = if (random.nextBoolean()) ElementFamily.RESISTANCE else ElementFamily.MASTERY
-            // The first row has a target, so the family is read jointly; the others sometimes have target 0.
+            val mode = if (family == ElementFamily.MASTERY) ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT else ScoreComputationMode.entries.random(random)
+            // The rows sometimes have target 0: a mastery one that precision halves on, a resistance one — a floor — in every mode.
             val rows =
-                family.elements.shuffled(random).take(2 + random.nextInt(3)).mapIndexed { index, element ->
-                    TargetStat(element, if (index > 0 && random.nextInt(2) == 0) 0 else 5 + random.nextInt(60), 1 + random.nextInt(5))
+                family.elements.shuffled(random).take(1 + random.nextInt(4)).mapIndexed { index, element ->
+                    TargetStat(element, if (random.nextInt(2) == 0 && (index > 0 || family == ElementFamily.RESISTANCE)) 0 else 5 + random.nextInt(60), 1 + random.nextInt(5))
                 } + if (random.nextInt(4) == 0) listOf(TargetStat(family.aggregate, 5 + random.nextInt(60), 1 + random.nextInt(5))) else emptyList()
             val targetStats = TargetStats(rows)
-            val objective = ElementRowObjective.of(targetStats, family, precision) ?: return@repeat
-            if (!objective.hasZeroTargetRows) return@repeat
-            val zeroTarget = rows.filter { it.target == 0 }.map { it.characteristic }
+            val objective = ElementRowObjective.of(targetStats, family, mode) ?: return@repeat
+            if (!objective.hasKeptElements) return@repeat
+            // What the request keeps at 0 or more, from its own semantics: its floors, or precision's masteries of target 0.
+            val keptElements = if (family == ElementFamily.RESISTANCE) targetStats.resistanceFloorElements else targetStats.zeroMasteries
             val base = objective.elements.associateWith { random.nextInt(-30, 40) }
             val rolls =
                 List(random.nextInt(0, 6)) {
-                    Roll(value = if (random.nextInt(10) == 0) -random.nextInt(1, 20) else random.nextInt(1, 30), count = 1 + random.nextInt(3))
+                    Roll(value = if (random.nextInt(8) == 0) -random.nextInt(1, 20) else random.nextInt(1, 30), count = 1 + random.nextInt(3))
                 }
 
-            val kept = objective.placeKeepingZeroTargetRows(rolls.map { it.value to it.count }, base)
-            val keeping = allAssignments(base, objective.elements, rolls).filter { state -> zeroTarget.all { state.getValue(it) >= 0 } }
+            val kept = objective.placeKeepingFloors(rolls.map { it.value to it.count }, base)
+            val keeping =
+                allAssignments(base, objective.elements, rolls, targetStats.freeSinks(family)).filter { state -> keptElements.all { state.getValue(it) >= 0 } }
             val described = "rows=${rows.map { "${it.characteristic}:${it.target}x${it.userDefinedWeight}" }} base=$base rolls=$rolls"
             if (keeping.isEmpty()) {
                 assertThat(kept).describedAs(described).isNull()
@@ -195,12 +203,12 @@ class ElementRowAssignmentTest {
             assertThat(kept).describedAs(described).isNotNull()
             assertThat(kept!!.exact).isTrue()
             assertThat(keeping).describedAs(described).contains(kept.values)
-            assertThat(solverKey(targetStats, family, precision, kept.values))
+            assertThat(solverKey(targetStats, family, mode, kept.values))
                 .describedAs(described)
-                .isEqualTo(keeping.map { solverKey(targetStats, family, precision, it) }.maxWith(keyOrder))
+                .isEqualTo(keeping.map { solverKey(targetStats, family, mode, it) }.maxWith(keyOrder))
             checked++
         }
-        assertThat(checked).isGreaterThan(500)
+        assertThat(checked).isGreaterThan(1500)
         assertThat(infeasible).isGreaterThan(10)
     }
 
@@ -291,13 +299,19 @@ class ElementRowAssignmentTest {
         }
         // ...but a per-element row beside it joins the same fold.
         assertThat(rows(Characteristic.RESISTANCE_ELEMENTARY to 400, fire to 500).readsJointPerElementRows(ElementFamily.RESISTANCE, mm)).isTrue()
-        // A 0-valued resistance row wants no element (it is a floor): the GUI's default wind 0 beside the aggregate keeps the
-        // aggregate's fold, and beside one fire row it leaves a request on ONE element — in every mode.
+        // A 0-valued resistance row wants no element — it is a floor: the GUI's default wind 0 beside the aggregate is left to the
+        // aggregate (its element is wanted), which keeps its own fold; beside one fire row it leaves a request on ONE wanted element
+        // (no pre-filter), but the floor joins the family's fold — {fire, air}, in every mode — so a roll can lift it.
         assertThat(
             rows(Characteristic.RESISTANCE_ELEMENTARY to 400, Characteristic.RESISTANCE_ELEMENTARY_WIND to 0).readsJointPerElementRows(ElementFamily.RESISTANCE, maxDamage)
         ).isFalse()
         for (mode in ScoreComputationMode.entries) {
-            assertThat(rows(Characteristic.RESISTANCE_ELEMENTARY_WIND to 0, fire to 300).readsJointPerElementRows(ElementFamily.RESISTANCE, mode)).describedAs("$mode").isFalse()
+            val defaultBesideFire = rows(Characteristic.RESISTANCE_ELEMENTARY_WIND to 0, fire to 300)
+            assertThat(defaultBesideFire.readsJointPerElementRows(ElementFamily.RESISTANCE, mode)).describedAs("$mode").isTrue()
+            assertThat(defaultBesideFire.foldElements(ElementFamily.RESISTANCE)).containsExactly(fire, Characteristic.RESISTANCE_ELEMENTARY_WIND)
+            assertThat(defaultBesideFire.needsItemPrefilter).isFalse()
+            // The GUI's default alone: a fold over air only.
+            assertThat(rows(Characteristic.RESISTANCE_ELEMENTARY_WIND to 0).foldElements(ElementFamily.RESISTANCE)).containsExactly(Characteristic.RESISTANCE_ELEMENTARY_WIND)
         }
         assertThat(rows(Characteristic.RESISTANCE_ELEMENTARY_WIND to 0, fire to 300, water to 100).readsJointPerElementRows(ElementFamily.RESISTANCE, maxDamage)).isTrue()
         // Masteries: per row in precision only (most-masteries maximizes their min; max-damage reads the scenario element).

@@ -24,6 +24,7 @@ import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildParams
 import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
+import me.chosante.autobuilder.genetic.wakfu.elementRowObjectives
 import me.chosante.common.Character
 import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
@@ -177,7 +178,7 @@ class BuildSearchModelSecondaryCapReloadTest {
             resistanceElementsWanted = targetStats.resistanceElementsWanted,
             scoreComputationMode = mode,
             masteryElementsToMinimize = targetStats.masteryElementsToMinimize.takeIf { mode == mostMasteries },
-            resistanceFloorElements = targetStats.resistanceFloorElements
+            elementRows = targetStats.elementRowObjectives(mode)
         )
 
     private fun rotationDamage(build: BuildCombination): Double {

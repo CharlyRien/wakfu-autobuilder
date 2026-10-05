@@ -3106,8 +3106,9 @@ object WakfuBuildSolver {
      * keeps the incumbent, so best-effort construction is safe (a miss only costs the badge, never correctness).
      * Free single-element max-damage only (the DP-provable shape): a request whose rows constrain the problem
      * (a required AP / MP / range / HP… target) is refused, but a MAXIMIZED-mastery row — which max-damage
-     * ignores — is not (see [isFreeMaxDamageShape]), nor a FLOOR (a required row of target 0): both re-solves then
-     * run the hard leg, so the constructed build meets every floor (the ledger, which ignores them, still bounds it).
+     * ignores — is not (see [isFreeMaxDamageShape]), nor a FLOOR (a required row of target 0): the fast re-solve then
+     * runs the hard leg, so the constructed build meets every floor (the ledger, which ignores them, still bounds it), and
+     * the full-pool fallback is skipped — a fast miss there most likely means a binding floor, which it cannot get past.
      *
      * BOUNDED + CANCELLABLE: [isCancelled] is polled between the steps and while a re-solve runs (the native solve
      * is stopped through the flow's teardown), so a superseded search / proof abandons the rescue at once; and the
@@ -3225,8 +3226,9 @@ object WakfuBuildSolver {
         // The request's FLOORS (rows of target 0 on a required stat — "air resistance 0", "dodge 0") are the one constraint a
         // free shape still carries: the ledger ignores them (a relaxation, so its bound stays an upper bound of the floored
         // optimum), but the build constructed here must meet them, or the badge would crown a build the search's hard leg
-        // forbids. So both re-solves run the hard leg — `actual ≥ 0` on every floor, the plain damage objective — whenever the
-        // request has floors; without one the hard leg adds nothing, and the plain solve stays as it was.
+        // forbids. So the re-solve runs the hard leg — `actual ≥ 0` on every floor, the plain damage objective — whenever the
+        // request has floors (and the full-pool fallback is skipped, see below); without one the hard leg adds nothing, and the
+        // plain solve stays as it was.
         val hardFloors = params.targetStats.hasFloors
         // FAST path: re-solve the pool restricted to the provenance items — ~seconds, and reaches the bound on
         // most shapes (measured: free lvl-110 / lvl-245 construct in one tiny re-solve).
@@ -3265,6 +3267,15 @@ object WakfuBuildSolver {
             // A floored re-solve is a hard leg: the build meets every floor in the solver's exact arithmetic.
             return fast.copy(isOptimal = true, maxDamageHardConstraintsMet = hardFloors)
         }
+        // A request with FLOORS whose fast re-solve fell short: the ledger's bound ignores the floors, so the likeliest reason is a
+        // floor the argmax cell's best build breaks — and then no floored build reaches the bound, and the full-pool feasibility
+        // search below can only run out its wall cap (twice per search: in it, competing with CP-SAT, and after it). Skipped: the
+        // incumbent keeps its "within X%" badge. (Every measured construct success comes from the fast tier anyway, see
+        // [E8_FALLBACK_WALL_CAP_SECONDS].)
+        if (hardFloors) {
+            if (debug) System.err.println("E8_DBG floored fast tier missed cell=$cell bound=$bound proxy=$fastProxy — fallback skipped")
+            return null
+        }
         // FALLBACK: the provenance item-set need not REALIZE the bound — the certifier's frontier abstraction can
         // credit a sublimation whose value only a slightly different item set unlocks (e.g. the 10th normal sub on
         // a fuller sub loadout), so the restricted re-solve tops out below the bound. Re-solve the FULL pool at the
@@ -3288,7 +3299,6 @@ object WakfuBuildSolver {
                         maxDeterministicTime = E8_FALLBACK_DETERMINISTIC_BUDGET,
                         stopAtFirstSolution = true
                     ),
-                    hardConstraints = hardFloors,
                     maxDamageRawFloor = bound
                 ),
                 budgetMillis = (fallbackWallCapSeconds * 1000.0).toLong(),
@@ -3301,7 +3311,7 @@ object WakfuBuildSolver {
         val fallback = fallbackRun.items.maxByOrNull { it.matchPercentage } ?: return null
         val proxy = fallback.maxDamageRawProxy ?: fallback.maxDamageObjective ?: return null
         if (debug) System.err.println("E8_DBG fallback cell=$cell bound=$bound proxy=$proxy valid=${fallback.individual.isValid()}")
-        return if (proxy >= bound && fallback.individual.isValid()) fallback.copy(isOptimal = true, maxDamageHardConstraintsMet = hardFloors) else null
+        return if (proxy >= bound && fallback.individual.isValid()) fallback.copy(isOptimal = true) else null
     }
 
     /**
@@ -4431,20 +4441,10 @@ object WakfuBuildSolver {
                 .bestAcrossElements(combination, params.character, params.character.clazz, params.damageScenario)
                 .totalExpectedDamage
                 .toBigDecimal()
-        val stats =
-            computeCharacteristicsValues(
-                buildCombination = combination,
-                characterBaseCharacteristics = params.character.baseCharacteristicValues,
-                masteryElementsWanted = mapOf(params.damageScenario.element.masteryCharacteristic to 1),
-                // Pass the real resistance targets so the penalty's stats see RESISTANCE_ELEMENTARY / per-
-                // element resistances (an emptyMap made them read 0, mis-ranking builds when the user sets a
-                // required resistance in max-damage mode).
-                resistanceElementsWanted = params.targetStats.resistanceElementsWanted,
-                // ...with their random rolls placed where the solver's joint per-element fold places them.
-                elementRows = params.targetStats.elementRowObjectives(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE),
-                // ...and the resistance floors read without the rolls, as the model's floors.
-                resistanceFloorElements = params.targetStats.resistanceFloorElements
-            )
+        // The scorer's own stats (FindMaxDamageScoring.penaltyStats): the real resistance targets — an emptyMap read them as 0,
+        // mis-ranking builds when the user sets a required resistance in max-damage mode — their rolls (and a floor's) placed
+        // where the solver's joint fold places them, and the scenario-gated sublimation effects applied as the model applies them.
+        val stats = FindMaxDamageScoring.penaltyStats(params.targetStats, combination, params.character.baseCharacteristicValues, params.damageScenario)
         val penalty = FindMaxDamageScoring.requiredConstraintPenaltyFactor(params.targetStats, stats)
         return rotationDamage.divide(penalty, 4, RoundingMode.FLOOR)
     }

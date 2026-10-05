@@ -58,10 +58,20 @@ class BuildSearchModelElementRowsGridTest {
     private val boots = item(960_002, ItemType.BOOTS, mapOf(Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT to 50))
 
     @Test
-    fun `the stats column shows a floor row's value without any roll - its own lines plus the generic ones`(): Unit =
+    fun `the stats column shows a floor row's value with the random roll the player puts there`(): Unit =
         runBlocking {
-            // The default "air resistance 0" beside a "fire resistance 100" target: air is a floor nobody's roll lands on.
-            val airAmulet = item(960_003, ItemType.AMULET, mapOf(Characteristic.RESISTANCE_ELEMENTARY_WIND to -20, Characteristic.RESISTANCE_ELEMENTARY to 25))
+            // The default "air resistance 0" beside a "fire resistance 100" target: air is a floor, not a wanted element, but it
+            // reads the family's fold — a roll can land on it. Fire is met without the roll, so it lifts air back above 0.
+            val airAmulet =
+                item(
+                    960_003,
+                    ItemType.AMULET,
+                    mapOf(
+                        Characteristic.RESISTANCE_ELEMENTARY_FIRE to 100,
+                        Characteristic.RESISTANCE_ELEMENTARY_WIND to -60,
+                        Characteristic.RESISTANCE_ELEMENTARY to 25
+                    )
+                )
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
             try {
                 val model =
@@ -89,9 +99,9 @@ class BuildSearchModelElementRowsGridTest {
                     while (model.ui.phase != Phase.Done) delay(20.milliseconds)
                 }
                 val achieved = model.ui.achieved
-                // Air: −20 own + 25 on all elements = 5 (≥ 0: the row reads met); the roll went to fire, the one wanted element.
-                assertEquals(5, achieved[Characteristic.RESISTANCE_ELEMENTARY_WIND])
-                assertEquals(75, achieved[Characteristic.RESISTANCE_ELEMENTARY_FIRE])
+                // Air: −60 own + 25 on all elements + the roll's 50 = 15 (≥ 0: the row reads met); fire 100 + 25, met without it.
+                assertEquals(15, achieved[Characteristic.RESISTANCE_ELEMENTARY_WIND])
+                assertEquals(125, achieved[Characteristic.RESISTANCE_ELEMENTARY_FIRE])
                 // A request on ONE resistance element: no heuristic prefilter, so the stats panel does not explain a missing badge.
                 assertEquals(false, model.ui.prefilteredRequest)
             } finally {
