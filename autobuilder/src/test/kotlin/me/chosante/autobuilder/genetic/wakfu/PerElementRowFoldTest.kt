@@ -17,6 +17,7 @@ import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import me.chosante.common.skills.CharacterSkills
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import java.math.BigDecimal
 import kotlin.random.Random
@@ -305,6 +306,54 @@ class PerElementRowFoldTest {
         assertThat(scorerStats(p, solved.build!!)[Characteristic.RESISTANCE_ELEMENTARY_FIRE]).isEqualTo(160)
     }
 
+    @Test
+    fun `precision - a row of target 0 below 0 halves the score, so a free roll lifts it when that is worth more`() {
+        // The GUI's precision request: the user's "fire resistance 300" beside the default "air resistance 0", one jointly read
+        // family. A "−20 on all elements" line leaves air at −20, which halves the whole score; one item carries "+30 resistance
+        // on 1 random element".
+        val p =
+            params(
+                ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT,
+                listOf(TargetStat(Characteristic.RESISTANCE_ELEMENTARY_FIRE, 300), TargetStat(Characteristic.RESISTANCE_ELEMENTARY_WIND, 0))
+            )
+        val roll = item(2, ItemType.BOOTS, mapOf(Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT to 30))
+
+        fun check(
+            fire: Int,
+            expectedFire: Int,
+            expectedAir: Int,
+        ) {
+            val amulet = item(1, ItemType.AMULET, mapOf(Characteristic.RESISTANCE_ELEMENTARY_FIRE to fire, Characteristic.RESISTANCE_ELEMENTARY to -20))
+            val stats = scorerStats(p, BuildCombination(listOf(amulet, roll), CharacterSkills(1)))
+            assertThat(stats[Characteristic.RESISTANCE_ELEMENTARY_FIRE]).describedAs("fire, amulet fire $fire").isEqualTo(expectedFire)
+            assertThat(stats[Characteristic.RESISTANCE_ELEMENTARY_WIND]).describedAs("air, amulet fire $fire").isEqualTo(expectedAir)
+            // The solver, build pinned, takes the same placement for the same objective.
+            val solved =
+                WakfuBuildSolver.elementRowSolveForTest(
+                    p,
+                    mapOf(ItemType.AMULET to listOf(amulet), ItemType.BOOTS to listOf(roll)),
+                    tuning,
+                    hardConstraints = false,
+                    pinnedEquipmentIds = setOf(1, 2),
+                    pinSkillsToZero = true
+                )
+            assertThat(solved.modelElementValues)
+                .describedAs("model, amulet fire $fire")
+                .isEqualTo(mapOf(Characteristic.RESISTANCE_ELEMENTARY_FIRE to expectedFire.toLong(), Characteristic.RESISTANCE_ELEMENTARY_WIND to expectedAir.toLong()))
+            assertThat(precisionModelObjective(p.targetStats, stats, emptyMap())).describedAs("objective, amulet fire $fire").isEqualTo(solved.objective)
+        }
+
+        // Fire already met (310): the roll on air lifts it to 10 — 103.3 % (310 / 300 above 100 %), not the halved 50 % of the
+        // roll on fire (the first version of the joint fold weighed the row of target 0 at nothing, so it sent the roll to fire).
+        check(fire = 330, expectedFire = 310, expectedAir = 10)
+        val metAmulet = item(1, ItemType.AMULET, mapOf(Characteristic.RESISTANCE_ELEMENTARY_FIRE to 330, Characteristic.RESISTANCE_ELEMENTARY to -20))
+        assertThat(score(p, listOf(metAmulet, roll))).isEqualByComparingTo("103.3")
+        // Fire 15 short: lifting air still beats meeting fire under a halved score (285 unhalved against 315 halved).
+        check(fire = 305, expectedFire = 285, expectedAir = 10)
+        // Fire far short (20): the roll's 30 on fire more than doubles the capped sum, worth more than the halving costs.
+        check(fire = 40, expectedFire = 50, expectedAir = -20)
+    }
+
     // ---- Seeded fuzz: per build, what the model claims is what the scorer places --------------------------------------
 
     private class FuzzCase(
@@ -325,17 +374,25 @@ class PerElementRowFoldTest {
                         }.ifEmpty { listOf(ElementFamily.MASTERY) }
                 else -> listOf(ElementFamily.RESISTANCE)
             }
+        val precision = mode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
         val rows = mutableListOf<TargetStat>()
         for (family in families) {
-            for (element in family.elements.shuffled(random).take(2 + random.nextInt(3))) {
-                // Precision weighs a 0 weight / target out entirely (and halves on a negative 0-target row): keep it to
-                // positive rows. The other modes also get the CLI's 0-weight rows, which the hard leg still requires.
-                val weight = if (mode != ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT && random.nextInt(10) == 0) 0 else 1 + random.nextInt(5)
-                rows += TargetStat(element, 10 + random.nextInt(50), weight)
+            family.elements.shuffled(random).take(2 + random.nextInt(3)).forEachIndexed { index, element ->
+                // Precision: the occasional row of target 0 (the GUI's default "air resistance 0"), whose sign halves the whole
+                // objective — never the first, so the family stays jointly read. The other modes also get the CLI's 0-weight
+                // rows, which the hard leg still requires.
+                if (precision && index > 0 && random.nextInt(3) == 0) {
+                    rows += TargetStat(element, 0, 1 + random.nextInt(5))
+                } else {
+                    val weight = if (!precision && random.nextInt(10) == 0) 0 else 1 + random.nextInt(5)
+                    rows += TargetStat(element, 10 + random.nextInt(50), weight)
+                }
             }
             if (random.nextInt(4) == 0) rows += TargetStat(family.aggregate, 10 + random.nextInt(40), 1 + random.nextInt(5))
         }
         if (mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) rows += TargetStat(Characteristic.MASTERY_DISTANCE, 1)
+        // Precision: sometimes a non-elemental row of target 0 too (the GUI's default "dodge 0"), which can halve on its own.
+        if (precision && random.nextInt(4) == 0) rows += TargetStat(Characteristic.DODGE, 0)
         val randomLines = families.flatMap { it.randomByCount }
         var id = 0
         val pool =
@@ -344,8 +401,10 @@ class PerElementRowFoldTest {
                     val stats = mutableMapOf<Characteristic, Int>()
                     for (family in families) {
                         for (element in family.elements) if (random.nextInt(3) == 0) stats[element] = random.nextInt(-5, 25)
-                        if (random.nextInt(4) == 0) stats[family.aggregate] = random.nextInt(0, 12)
+                        // The "−X on all elements" line of some real items is what drives a row of target 0 below 0.
+                        if (random.nextInt(4) == 0) stats[family.aggregate] = random.nextInt(-12, 12)
                     }
+                    if (random.nextInt(4) == 0) stats[Characteristic.DODGE] = random.nextInt(-10, 10)
                     // One or two random-element lines, k = 1..3 (the occasional negative one).
                     repeat(1 + random.nextInt(2)) {
                         val (line, _) = randomLines[random.nextInt(randomLines.size)]
@@ -422,16 +481,46 @@ class PerElementRowFoldTest {
 
     @Test
     fun `seeded fuzz - the model's joint fold claims exactly what the scorer places, and the optimum is the scorer's`() {
-        val random = Random(20261005)
+        // The default (CI) slice: every precision shape is cheap, the hard-leg modes cost a CP-SAT solve per build — one case
+        // each here, the full run is the slow-tagged test below.
+        val checked =
+            runFuzz(
+                seed = 20261005,
+                casesPerMode =
+                    mapOf(
+                        ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT to 10,
+                        ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT to 1,
+                        ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE to 1
+                    )
+            )
+        assertThat(checked).isGreaterThan(200)
+    }
+
+    @Test
+    @Tag("slow")
+    fun `seeded fuzz, full run - the model's joint fold claims exactly what the scorer places, and the optimum is the scorer's`() {
+        val checked = runFuzz(seed = 20261006, casesPerMode = ScoreComputationMode.entries.associateWith { 12 })
+        assertThat(checked).isGreaterThan(600)
+    }
+
+    /** [casesPerMode] seeded [fuzzCase]s per mode, every build of each pool checked; returns how many builds were. */
+    private fun runFuzz(
+        seed: Int,
+        casesPerMode: Map<ScoreComputationMode, Int>,
+    ): Int {
+        val random = Random(seed)
         var checkedBuilds = 0
-        for (mode in ScoreComputationMode.entries) {
-            repeat(6) { caseIndex ->
+        for ((mode, cases) in casesPerMode) {
+            repeat(cases) { caseIndex ->
                 val case = fuzzCase(random, mode)
                 val p = case.p
                 val described = "mode=$mode case=$caseIndex rows=${p.targetStats.map { "${it.characteristic}:${it.target}x${it.userDefinedWeight}" }}"
                 val objectives =
                     listOfNotNull(ElementRowObjective.of(p.targetStats, ElementFamily.MASTERY, mode), ElementRowObjective.of(p.targetStats, ElementFamily.RESISTANCE, mode))
                 assertThat(objectives).describedAs(described).isNotEmpty()
+                // Precision with a row of target 0: its halving is decided on the whole build (the per-family primary can then
+                // lose to keeping that row at 0 or more), so the build-level objective is what is compared.
+                val halvable = mode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT && p.targetStats.any { it.target == 0 }
                 val metBuilds = mutableListOf<Pair<List<Equipment>, BigDecimal>>()
                 for (items in allBuilds(case.pool)) {
                     val ids = items.map { it.equipmentId }.toSet()
@@ -439,9 +528,13 @@ class PerElementRowFoldTest {
                     val scorer = scorerStats(p, build)
                     val buildDescription = "$described build=$ids scorer=$scorer"
                     // The scorer's placement is the exhaustive optimum of the primary.
-                    for (objective in objectives) {
-                        val family = if (objective.elements.first() in ElementFamily.MASTERY.elements) ElementFamily.MASTERY else ElementFamily.RESISTANCE
-                        assertThat(objective.primary(values(objective, scorer))).describedAs(buildDescription).isEqualTo(exhaustiveBestPrimary(p, objective, family, build))
+                    if (!halvable) {
+                        for (objective in objectives) {
+                            val family = if (objective.elements.first() in ElementFamily.MASTERY.elements) ElementFamily.MASTERY else ElementFamily.RESISTANCE
+                            assertThat(
+                                objective.primary(values(objective, scorer))
+                            ).describedAs(buildDescription).isEqualTo(exhaustiveBestPrimary(p, objective, family, build))
+                        }
                     }
                     if (mode != ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT) {
                         // HARD leg, build pinned: feasible ⇔ the scorer meets every required row; feasible ⇒ same primary.
@@ -463,16 +556,25 @@ class PerElementRowFoldTest {
                     // then the model's placement is the scorer's best too; below that, the model is indifferent to it.
                     val soft = WakfuBuildSolver.elementRowSolveForTest(p, case.pool, tuning, hardConstraints = false, pinnedEquipmentIds = ids, pinSkillsToZero = true)
                     assertThat(soft.isOptimal).describedAs(buildDescription).isTrue()
-                    for (objective in objectives) {
-                        val model = values(objective, soft.modelElementValues)
-                        val placed = values(objective, scorer)
-                        assertThat(
-                            objective.primary(model)
-                        ).describedAs("model ≤ scorer; $buildDescription model=${soft.modelElementValues}").isLessThanOrEqualTo(objective.primary(placed))
-                        if (mode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT) {
-                            assertThat(objective.primary(model)).describedAs(buildDescription).isEqualTo(objective.primary(placed))
-                            assertThat(objective.secondary(model)).describedAs(buildDescription).isLessThanOrEqualTo(objective.secondary(placed))
-                            if (precisionMeetsEveryRow(p, scorer)) assertThat(objective.secondary(model)).describedAs(buildDescription).isEqualTo(objective.secondary(placed))
+                    if (mode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT) {
+                        // The whole build: the scorer's placement reaches the solver's own optimum of its precision objective,
+                        // halving included. (Every row of target 0 here is a jointly read family's or a non-elemental one.)
+                        assertThat(precisionModelObjective(p.targetStats, scorer, emptyMap()))
+                            .describedAs("solver objective of the scorer's placement; $buildDescription model=${soft.modelElementValues}")
+                            .isEqualTo(soft.objective)
+                    }
+                    if (!halvable) {
+                        for (objective in objectives) {
+                            val model = values(objective, soft.modelElementValues)
+                            val placed = values(objective, scorer)
+                            assertThat(
+                                objective.primary(model)
+                            ).describedAs("model ≤ scorer; $buildDescription model=${soft.modelElementValues}").isLessThanOrEqualTo(objective.primary(placed))
+                            if (mode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT) {
+                                assertThat(objective.primary(model)).describedAs(buildDescription).isEqualTo(objective.primary(placed))
+                                assertThat(objective.secondary(model)).describedAs(buildDescription).isLessThanOrEqualTo(objective.secondary(placed))
+                                if (precisionMeetsEveryRow(p, scorer)) assertThat(objective.secondary(model)).describedAs(buildDescription).isEqualTo(objective.secondary(placed))
+                            }
                         }
                     }
                     checkedBuilds++
@@ -487,7 +589,7 @@ class PerElementRowFoldTest {
                 }
             }
         }
-        assertThat(checkedBuilds).isGreaterThan(100)
+        return checkedBuilds
     }
 
     // ---- Real data: the player's Xelor 200 request, as the GUI sends it ------------------------------------------------
