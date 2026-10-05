@@ -7,6 +7,7 @@ import me.chosante.common.skills.CharacterSkills
 import me.chosante.common.skills.SkillCharacteristic
 import me.chosante.common.skills.UnitType
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
 import kotlin.random.Random
 
@@ -402,7 +403,7 @@ class ElementRowAssignmentTest {
     }
 
     @Test
-    fun `an identical search hands back the placement it already found, whatever object asks`() {
+    fun `an identical search hands back the read-only placement it already found, whatever object asks`() {
         // A build is read several times over (its score, the stats column, the penalty, each emission): the second read of the
         // same rows, values and rolls costs nothing — even from another objective instance of the same request, rolls reordered.
         val shape = maxDamageAllResistances
@@ -421,6 +422,13 @@ class ElementRowAssignmentTest {
                 )
             )
         assertThat(rebuilt.place(shape.rolls.reversed(), shape.base)).isSameAs(first)
+        // The shared placement is read-only: a caller writing into it would change what every later read sees.
+        val expected = first.values.toMap()
+        assertThatThrownBy {
+            @Suppress("UNCHECKED_CAST")
+            (first.values as MutableMap<Characteristic, Int>)[Characteristic.RESISTANCE_ELEMENTARY_FIRE] = 1360
+        }.isInstanceOf(UnsupportedOperationException::class.java)
+        assertThat(shape.objective.place(shape.rolls, shape.base).values).isEqualTo(expected)
         // Anything the result depends on is part of the key: another budget, other values, another mode are searched afresh.
         assertThat(shape.objective.place(shape.rolls, shape.base, nodeBudget = 1_000L)).isNotSameAs(first)
         assertThat(shape.objective.place(shape.rolls, shape.base + (Characteristic.RESISTANCE_ELEMENTARY_FIRE to 20))).isNotSameAs(first)
