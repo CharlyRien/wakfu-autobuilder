@@ -828,7 +828,9 @@ object MaxDamageSearch {
                 masteryElementsWanted = mapOf(params.damageScenario.element.masteryCharacteristic to 1),
                 resistanceElementsWanted = params.targetStats.resistanceElementsWanted,
                 // Per-element resistance rows: the rolls placed where the solver's joint fold places them.
-                elementRows = params.targetStats.elementRowObjectives(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE)
+                elementRows = params.targetStats.elementRowObjectives(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE),
+                // Resistance floors: their roll-free reads, as the solver's floors.
+                resistanceFloorElements = params.targetStats.resistanceFloorElements
             )
         return FindMaxDamageScoring.requiredConstraintPenaltyFactor(params.targetStats, stats).compareTo(BigDecimal.ONE) <= 0
     }
@@ -856,7 +858,9 @@ object MaxDamageSearch {
                 masteryElementsWanted = mapOf(params.damageScenario.element.masteryCharacteristic to 1),
                 resistanceElementsWanted = params.targetStats.resistanceElementsWanted,
                 // Per-element resistance rows: the rolls placed where the solver's joint fold places them.
-                elementRows = params.targetStats.elementRowObjectives(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE)
+                elementRows = params.targetStats.elementRowObjectives(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE),
+                // Resistance floors: their roll-free reads, as the solver's floors.
+                resistanceFloorElements = params.targetStats.resistanceFloorElements
             )
         val penalty = FindMaxDamageScoring.requiredConstraintPenaltyFactor(params.targetStats, stats)
         return totalDamage.toBigDecimal().divide(penalty, 4, RoundingMode.FLOOR)
@@ -984,11 +988,12 @@ object MaxDamageSearch {
         // C8(3): greedy warm start, single-element path only — see [WakfuBuildSolver.optimize].
         greedyWarmStart: Boolean = false,
     ): Flow<SolverResult<BuildCombination>> {
-        // Match [StatBuilder.addRequiredTargetHardConstraints]'s own `target > 0` filter: a request whose only
-        // required-target stats are non-positive adds ZERO hard constraints, so the "hard" leg would be a plain
-        // unpenalized solve that (being satisfiable) never falls through to the soft penalty. Skipping straight to
-        // the identical plain solve here keeps the two predicates aligned and the behaviour honest.
-        if (params.targetStats.none { it.characteristic.isRequiredMostMasteriesTarget() && it.target > 0 }) {
+        // Match what [StatBuilder.addRequiredTargetHardConstraints] posts — `actual ≥ target` for every target > 0, `actual ≥ 0`
+        // for every floor (a required row of target 0, [TargetStats.hasFloors]): a request with neither (only negative
+        // targets, or none) adds ZERO hard constraints, so the "hard" leg would be a plain unpenalized solve that (being
+        // satisfiable) never falls through to the soft penalty. Skipping straight to the identical plain solve here keeps
+        // the two predicates aligned and the behaviour honest.
+        if (params.targetStats.none { it.characteristic.isRequiredMostMasteriesTarget() && it.target > 0 } && !params.targetStats.hasFloors) {
             return WakfuBuildSolver.optimize(params, equipmentsByItemType, runes, sublimations, tuning, maxDamageGreedyWarmStart = greedyWarmStart)
         }
         return flow {

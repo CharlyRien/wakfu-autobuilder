@@ -107,8 +107,7 @@ class PrefilterOptimalityTest {
             elementalTargets,
             listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY, 1800)),
             listOf(TargetStat(Characteristic.RESISTANCE_ELEMENTARY_FIRE, 10), TargetStat(Characteristic.RESISTANCE_ELEMENTARY_WATER, 10)),
-            listOf(TargetStat(Characteristic.RESISTANCE_ELEMENTARY, 10)),
-            listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1), TargetStat(Characteristic.RESISTANCE_ELEMENTARY, 0))
+            listOf(TargetStat(Characteristic.RESISTANCE_ELEMENTARY, 10))
         )
 
     @Test
@@ -176,6 +175,38 @@ class PrefilterOptimalityTest {
             assertThat(MaxDamageSearch.proveOptimality(p, pool, emptyList(), emptyList(), last.copy(isOptimal = true), threads = 1))
                 .isEqualTo(MaxDamageSearch.MaxDamageProof.Unavailable)
             assertThat(WakfuBuildSolver.dpConstructProvenOptimum(p, pool)).isNull()
+        }
+
+    @Test
+    fun `a resistance row of target 0 is a floor - it never makes a request multi-element, so the full pool keeps its proof`(): Unit =
+        runBlocking {
+            // "All resistances 0" and the GUI's "air resistance 0" beside a fire resistance target used to want every element they
+            // named: a prefiltered pool, no proof. They only hold those elements at 0 or more (TargetStats.resistanceFloorElements).
+            for (targets in listOf(
+                listOf(TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 1800), TargetStat(Characteristic.RESISTANCE_ELEMENTARY, 0)),
+                listOf(
+                    TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 1800),
+                    TargetStat(Characteristic.RESISTANCE_ELEMENTARY_FIRE, 0),
+                    TargetStat(Characteristic.RESISTANCE_ELEMENTARY_WIND, 0)
+                )
+            )) {
+                for (mode in ScoreComputationMode.entries) {
+                    val p = params(mode, targets)
+                    assertThat(WakfuBuildSolver.needsItemPrefilter(p.targetStats)).describedAs("$mode / $targets").isFalse()
+                    val last =
+                        WakfuBuildSolver
+                            .optimize(
+                                p,
+                                pool,
+                                emptyList(),
+                                emptyList(),
+                                tuning,
+                                hardConstraints = mode != ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
+                            ).toList()
+                            .last()
+                    assertThat(last.isOptimal).describedAs("$mode / $targets").isTrue()
+                }
+            }
         }
 
     @Test

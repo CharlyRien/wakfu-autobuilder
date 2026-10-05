@@ -176,7 +176,8 @@ class BuildSearchModelSecondaryCapReloadTest {
             masteryElementsWanted = targetStats.masteryElementsWanted,
             resistanceElementsWanted = targetStats.resistanceElementsWanted,
             scoreComputationMode = mode,
-            masteryElementsToMinimize = targetStats.masteryElementsToMinimize.takeIf { mode == mostMasteries }
+            masteryElementsToMinimize = targetStats.masteryElementsToMinimize.takeIf { mode == mostMasteries },
+            resistanceFloorElements = targetStats.resistanceFloorElements
         )
 
     private fun rotationDamage(build: BuildCombination): Double {

@@ -87,20 +87,23 @@ enum class ElementFamily(
  *  - precision: both families.
  *  - max-damage: the RESISTANCE rows. The scenario's element mastery is a single-element fold.
  *
- * Only once a per-element row has a target: a 0-valued row weighs nothing (no penalty share, no overshoot, no hard
- * constraint, no capped term), so without one the family keeps its earlier placements — the aggregate row's own exact one
- * (the GUI's default "wind resistance 0" row beside "all resistances" in precision / max-damage), or single-element folds.
- * (The solver's fold beside an aggregate row is the aggregate's joint one, which such a 0-valued row now reads too; nothing
- * weighs it there, and precision's halving keeps reading its unfolded stat.) Within a jointly read family, a 0-valued row
- * still matters in precision, whose halving reads the joint fold for it: see [ElementRowObjective.placeKeepingZeroTargetRows].
- * A family with one wanted element keeps its single-element fold, which credits every roll in full — exact there.
+ * Only once a per-element row has a target — or, in precision, once a mastery row of target 0 halves the score on its fold
+ * ([TargetStats.zeroMasteries]): a resistance row of target 0 wants nothing (it is a floor, read without the rolls —
+ * [TargetStats.resistanceFloorElements]), and without such a row the family keeps its earlier placements — the aggregate
+ * row's own exact one, or single-element folds. A 0-valued row on an element another row already targets is left to that
+ * row (it is no floor, and no row of the objective). Within a jointly read family, a mastery row of target 0 matters in
+ * precision, whose halving reads the joint fold for it: see [ElementRowObjective.placeKeepingZeroTargetRows]. A family with
+ * one wanted element keeps its single-element fold, which credits every roll in full — exact there.
  */
 internal fun TargetStats.readsJointPerElementRows(
     family: ElementFamily,
     mode: ScoreComputationMode,
 ): Boolean {
     if (family.wanted(this).size < 2) return false
-    if (none { it.characteristic in family.elements && it.target > 0 }) return false
+    val readsARow =
+        any { it.characteristic in family.elements && it.target > 0 } ||
+            (mode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT && zeroMasteries.any { it in family.elements })
+    if (!readsARow) return false
     return when (mode) {
         ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT -> family == ElementFamily.RESISTANCE
         ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT -> true
@@ -136,15 +139,13 @@ fun TargetStats.elementRowObjectives(mode: ScoreComputationMode): ElementRowObje
  * integer units — a mirror the scorers use to take the placement the solver itself takes where one family cannot decide
  * alone (the halving, see [ElementRowObjective.placeKeepingZeroTargetRows]):
  *  - the capped sum `Σ min(W·read, W·t)` of the rows with a weight (an aggregate row averages its four elements with the
- *    solver's truncating division), HALVED (truncated) while some row of target 0 reads below 0 — the joint fold's value for
- *    a jointly read family's row, else the solver's unfolded value ([unfoldedStats] for an elemental row: its own lines only,
- *    without the "+all elements" lines and the random rolls), the stat itself for any other row;
+ *    solver's truncating division), HALVED (truncated) while a floor or a mastery of target 0 reads below 0 ([precisionHalves]:
+ *    a resistance floor on its roll-free read, a mastery element on its fold — both what [stats] holds for them);
  *  - plus, once that reaches the expected total (every target met, no halving), the overflow `Σ W·read − capped sum`.
  */
 internal fun precisionModelObjective(
     targetStats: TargetStats,
     stats: Map<Characteristic, Int>,
-    unfoldedStats: Map<Characteristic, Int>,
 ): Long {
     var capped = 0L
     var uncapped = 0L
@@ -171,19 +172,7 @@ internal fun precisionModelObjective(
         }
         expected += rowExpected
     }
-    val halved =
-        targetStats.any { row ->
-            if (row.target != 0 || ElementFamily.entries.any { it.aggregate == row.characteristic }) return@any false
-            val family = ElementFamily.entries.firstOrNull { row.characteristic in it.elements }
-            val read =
-                when {
-                    family == null -> stats[row.characteristic]
-                    targetStats.readsJointPerElementRows(family, ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT) -> stats[row.characteristic]
-                    else -> unfoldedStats[row.characteristic]
-                } ?: 0
-            read < 0
-        }
-    val penalized = if (halved) capped / 2 else capped
+    val penalized = if (targetStats.precisionHalves(stats)) capped / 2 else capped
     val bonus = if (penalized >= expected.coerceAtLeast(1L)) minOf(maxOf(uncapped - capped, 0L), PRECISION_OVERFLOW_BOUND) else 0L
     return penalized + bonus
 }
@@ -251,11 +240,13 @@ internal class ElementRowObjective private constructor(
             (!hasAggregate || (aggregateWeight >= 0L && aggregateTarget >= 0L))
 
     /**
-     * Precision only: the elements of the family's rows of target 0 — the GUI's default "air resistance 0" beside a fire
-     * resistance target makes {fire, air} one jointly read family. Such a row weighs nothing, but precision HALVES the whole
-     * objective while one of them reads below 0 (`StatBuilder.negativeTargetPenalty`, which reads the joint fold for them),
-     * a request-wide effect no per-family objective can weigh alone: [placeKeepingZeroTargetRows] gives the best placement
-     * that keeps them all ≥ 0, and [precisionModelObjective] decides between the two on the whole build.
+     * Precision only: the elements of the family's rows of target 0 — a mastery's ([TargetStats.zeroMasteries]: "water mastery
+     * 0" beside a fire mastery target makes {fire, water} one jointly read family; a resistance row of target 0 is a floor on
+     * an element nobody wants, read without the rolls, so it is never one of this objective's rows). Such a row weighs nothing,
+     * but precision HALVES the whole objective while one of them reads below 0 (`StatBuilder.negativeTargetPenalty`, which
+     * reads the joint fold for them), a request-wide effect no per-family objective can weigh alone:
+     * [placeKeepingZeroTargetRows] gives the best placement that keeps them all ≥ 0, and [precisionModelObjective] decides
+     * between the two on the whole build.
      */
     private val zeroTargetElements: IntArray =
         if (mode != ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT) {
@@ -1287,9 +1278,11 @@ internal class ElementRowObjective private constructor(
             val wanted = family.wanted(targetStats).keys
             val elements = family.elements.filter { it in wanted }
             // In element order (the request is a hash set): the same rows always give the same objective, and the same memo key.
+            // A row of target 0 counts only as a mastery precision halves on ([TargetStats.zeroMasteries]): on an element another
+            // row targets it is left to that row (a 0-valued row weighs nothing in any objective term).
             val rows =
                 targetStats
-                    .filter { it.characteristic in elements }
+                    .filter { it.characteristic in elements && (it.target != 0 || it.characteristic in targetStats.zeroMasteries) }
                     .sortedWith(compareBy({ elements.indexOf(it.characteristic) }, { it.target }, { it.userDefinedWeight }))
             val aggregate = targetStats.firstOrNull { it.characteristic == family.aggregate }
             return ElementRowObjective(

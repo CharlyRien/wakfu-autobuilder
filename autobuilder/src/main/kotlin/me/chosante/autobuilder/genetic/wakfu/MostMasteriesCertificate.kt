@@ -29,8 +29,10 @@ import kotlin.math.ceil
  * at their target (per-stat clamp in `totalActualScore`) and BUCKETED UP (an over-count of the
  * achievement can only raise the multiplier — sound). A 0-valued required row of ANY stat (the GUI's
  * default "wind resistance 0" / "dodge 0") gets no dim: the model weighs it 0 in the penalty's actual
- * AND expected sums and the hard leg skips it, so skipping it is exact — it only keeps the objective
- * folded, like the model's fold predicate.
+ * AND expected sums, so it only keeps the objective folded, like the model's fold predicate. Such a row
+ * is a FLOOR in the model (`TargetStats.hasFloors`: `≥ 0` on the hard leg, the objective halved on the
+ * soft one while it is below 0) — constraints this bound ignores: a RELAXATION, so it stays an upper bound
+ * of both reads (every floored build's objective is at most its unfloored one).
  *
  * Sound-by-construction relaxations (each only ever RAISES the bound):
  *  - negative stat lines dropped everywhere — except a sublimation's DI, which is NET per sub (a build
@@ -713,7 +715,7 @@ internal object MostMasteriesCertificate {
      *  - an elemental-mastery request (min-over-elements out of scope), forced items / runes / sublimations (they can
      *    ADD capability the bound does not price), no requestable mastery;
      *  - a NON-ZERO required target outside [SUPPORTED_TARGETS], or one stat required twice (the fold reads one row
-     *    per stat) — a 0-valued row of any stat is skipped exactly (see `tracked` below);
+     *    per stat) — a 0-valued row of any stat (a floor) is skipped, a sound relaxation (see `tracked` below);
      *  - a cap-sub family the world split cannot cover (more than 6, or a non-EPIC one), a second tracked MP→DI ramp,
      *    more than 6 objective-capping (world-B) subs;
      *  - a choosable sub CONVERTING into a stat the DP reads — a requested mastery, DI, AP, MP, or a tracked CC / HP /
@@ -752,10 +754,11 @@ internal object MostMasteriesCertificate {
         // the objective folds when ANY required-target stat is requested, 0-valued included — the
         // certificate's units must never diverge from the model's on any request shape.
         val targets = params.targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }
-        // The rows the DP TRACKS: a 0-valued row of any stat is an EXACT skip — TargetStats weighs it 0, so its
-        // penalty term (weight × clamp(actual, ±0)) and its share of the expected total are both 0, its overshoot
-        // term is 0, and the hard leg only constrains `target > 0` (addRequiredTargetHardConstraints). It keeps the
-        // fold (above) and nothing else.
+        // The rows the DP TRACKS: a 0-valued row of any stat is skipped — TargetStats weighs it 0, so its penalty
+        // term (weight × clamp(actual, ±0)) and its share of the expected total are both 0, its overshoot term is 0.
+        // The model keeps it as a FLOOR (`≥ 0` on the hard leg, a halving of the soft objective while broken): skipping
+        // that is a RELAXATION — the floors only remove builds or lower their objective — so the bound stays sound
+        // for both reads. It keeps the fold (above) and nothing else.
         val tracked = targets.filter { it.target != 0 }
         if (tracked.any { it.characteristic !in SUPPORTED_TARGETS }) return null
         // The model sums one penalty term PER ROW; the fold reads one per stat — two rows of one stat would be
@@ -2084,7 +2087,8 @@ internal object MostMasteriesCertificate {
         // bonus` — the hard leg's converted stamp. Every read below is an over-count of the build's FINAL stat
         // (or ≥ the target once saturated at it), so a targets-met build's own state passes `read ≥ target` on every
         // target: filtering the other states out keeps a sound bound OF THAT SET, while the soft read must also
-        // cover target-missing builds the hard leg never returns (+42% vs +24% on S2, plan §8.18).
+        // cover target-missing builds the hard leg never returns (+42% vs +24% on S2, plan §8.18). The hard leg also
+        // holds every floor (a required row of target 0) `≥ 0`, which this read does not check: a superset again, sound.
         val fullMultiplier = power6(penalty.fullBucket)
         val hardChecked = targets.filter { it.target > 0 }
         var bestHardCore = 0L

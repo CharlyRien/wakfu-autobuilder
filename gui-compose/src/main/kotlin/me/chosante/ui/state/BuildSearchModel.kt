@@ -102,8 +102,9 @@ private val ELEMENTAL_RESISTANCES =
  */
 internal fun expandGlobalResistance(targets: List<TargetStat>): List<TargetStat> {
     val global = targets.firstOrNull { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY } ?: return targets
-    // A meaningful (non-zero) per-element resistance keeps its own value; a zero one is an inert
-    // placeholder (e.g. the default wind=0) the global must override, so all four really get the value.
+    // A meaningful (non-zero) per-element resistance keeps its own value; a zero one only keeps its element at 0 or more
+    // (e.g. the default wind=0), which the global's own row on that element asks for anyway (`≥ value ≥ 0`), so the global
+    // overrides it and all four really get the value.
     val explicit = targets.filter { it.characteristic in ELEMENTAL_RESISTANCES && it.target != 0 }.map { it.characteristic }.toSet()
     val perElement =
         ELEMENTAL_RESISTANCES
@@ -1287,7 +1288,8 @@ class BuildSearchModel(
                                         scoreComputationMode = params.scoreComputationMode,
                                         masteryElementsToMinimize = null,
                                         resistanceElementsToMinimize = null,
-                                        elementRows = params.targetStats.elementRowObjectives(params.scoreComputationMode)
+                                        elementRows = params.targetStats.elementRowObjectives(params.scoreComputationMode),
+                                        resistanceFloorElements = params.targetStats.resistanceFloorElements
                                     )
                                 val upRotation = SpellRotationOptimizer.bestSequencedRotation(upBuild, character, character.clazz, damageScenario)
                                 val upScenario =
@@ -1742,7 +1744,10 @@ class BuildSearchModel(
             masteryElementsToMinimize = masteryElementsToMinimize,
             resistanceElementsToMinimize = resistanceElementsToMinimize,
             // Per-element rows over several elements: the scorers' exact placement of the solver's joint fold.
-            elementRows = targetStats.elementRowObjectives(params.scoreComputationMode)
+            elementRows = targetStats.elementRowObjectives(params.scoreComputationMode),
+            // A row of target 0 on a resistance ("air resistance 0") is a floor nobody's rolls land on: its own lines plus the
+            // "+all elements" ones — the value the engine checks against 0, so the row's status reads what the search enforced.
+            resistanceFloorElements = targetStats.resistanceFloorElements
         )
     }
 

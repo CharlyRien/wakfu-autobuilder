@@ -1,5 +1,6 @@
 package me.chosante.autobuilder.genetic.wakfu
 
+import com.google.ortools.sat.BoolVar
 import com.google.ortools.sat.CpModel
 import com.google.ortools.sat.IntVar
 import com.google.ortools.sat.LinearExpr
@@ -953,8 +954,10 @@ internal class StatBuilder(
         // and makes the model intractable on the full item set. The low clamp at -target is
         // faithful to the scorer: totalActualScore is floored at 1 before the penalty ratio, so a
         // constraint dragged below -target already maxes out the penalty either way.
+        // A row of target 0 scores clamp(actual, 0, 0) = 0 here: it is left out (its floor is [floorReads]'), so no fold is built
+        // for an element nobody wants — nor the four-element one of an "all resistances 0" row.
         val contributions =
-            requiredTargets.map { targetStat ->
+            requiredTargets.filter { it.target != 0 }.map { targetStat ->
                 val actual = requiredActualStat(targetStat.characteristic)
                 val weight = targetStats.scaledWeight(targetStat)
                 val target = targetStat.target.toLong()
@@ -990,8 +993,9 @@ internal class StatBuilder(
         targetStats: TargetStats,
         encoding: MmOvershootEncoding = MmOvershootEncoding.CURRENT,
     ): IntVar {
+        // A row of target 0 overshoots by clamp(actual, 0, 0) = 0: left out, like in [totalActualScore].
         val contributions =
-            requiredTargets.map { targetStat ->
+            requiredTargets.filter { it.target != 0 }.map { targetStat ->
                 val actual = requiredActualStat(targetStat.characteristic)
                 val weight = targetStats.scaledWeight(targetStat)
                 val target = targetStat.target.toLong().coerceAtLeast(0)
@@ -1182,35 +1186,16 @@ internal class StatBuilder(
         low: Long,
         high: Long,
     ): IntVar {
-        val zeroTargets =
-            targetStats.filter {
-                it.target == 0 &&
-                    it.characteristic != Characteristic.MASTERY_ELEMENTARY &&
-                    it.characteristic != Characteristic.RESISTANCE_ELEMENTARY
-            }
-        if (zeroTargets.isEmpty()) return cappedSum
-
-        val flagsSum = LinearExpr.newBuilder()
-        for (targetStat in zeroTargets) {
-            // A row of a jointly read family reads that family's fold, the value the scorer checks: its random-element rolls
-            // placed, so where they land decides the halving (the GUI's default "air resistance 0" beside a fire resistance
-            // target). Any other row keeps reading its unfolded stat. Mirrored by [precisionModelObjective].
-            val family = ElementFamily.entries.firstOrNull { targetStat.characteristic in it.elements }
-            val actual =
-                if (family != null && targetStats.readsJointPerElementRows(family, params.scoreComputationMode)) {
-                    foldedElementalStat(targetStat.characteristic)
-                } else {
-                    actualStat(targetStat.characteristic)
-                }
-            val isNegative = model.newBoolVar("precNeg_${targetStat.characteristic.name}")
-            model.addLessOrEqual(actual, -1L).onlyEnforceIf(isNegative)
-            model.addGreaterOrEqual(actual, 0L).onlyEnforceIf(isNegative.not())
-            flagsSum.addTerm(isNegative, 1)
-        }
-        val anyNegative = model.newBoolVar("precAnyNegativeTarget0")
-        val flags = flagsSum.build()
-        model.addGreaterOrEqual(flags, 1L).onlyEnforceIf(anyNegative)
-        model.addLessOrEqual(flags, 0L).onlyEnforceIf(anyNegative.not())
+        // The halving reads every floor ([floorReads]: a resistance floor without the random rolls, "all resistances 0" on each
+        // element) and every mastery of target 0 ([TargetStats.zeroMasteries]) on its fold — an element's random rolls placed,
+        // jointly when its family is read jointly, so where they land decides the halving. Mirrored by [precisionModelObjective].
+        val reads =
+            floorReads +
+                targetStats.zeroMasteries
+                    .map { it to foldedElementalStat(it) }
+                    .filter { (_, read) -> tracker.of(read).first < 0L }
+        val anyNegative = anyBelowZero(reads, "precNeg", "precAnyNegativeTarget0") ?: return cappedSum
+        halvingFlagForTest = anyNegative
 
         val halved = model.newIntVar(low, high, "precHalvedCapped")
         model.addDivisionEquality(halved, cappedSum, model.newConstant(2L))
@@ -1957,8 +1942,9 @@ internal class StatBuilder(
      * The elements of the ONE fold [characteristic]'s rows read: every wanted element of its [family], in canonical order,
      * when the family is read jointly — per-element rows with a target over several elements
      * ([readsJointPerElementRows]), or beside the aggregate row, which wants all four and reads this very fold. Otherwise
-     * just [characteristic], whose single-element fold credits every roll in full: exact for one wanted element, and
-     * harmless for a 0-valued row, which weighs nothing (the fold these rows read before, bit for bit).
+     * just [characteristic], whose single-element fold credits every roll in full: exact for one wanted element. (A row of
+     * target 0 reads no fold: on a resistance it is a floor read without the rolls, [floorReads]; the penalty and overshoot
+     * sums leave it out, and precision reads a mastery's on its element's fold — jointly once its family is read jointly.)
      */
     private fun familyFoldElements(
         family: ElementFamily,
@@ -1993,6 +1979,96 @@ internal class StatBuilder(
             foldedElementalStat(characteristic)
         }
 
+    // Test seam ([floorReadsForTest]): whether [floorReads] was built by the model — read back without minting it afterwards.
+    private var floorReadsBuilt = false
+
+    /**
+     * The FLOORS of the request ([TargetStats.floorCharacteristics], [TargetStats.resistanceFloorElements]) — what each of its
+     * rows of target 0 on a required stat keeps at 0 or more, by name: a stat's own value ([actualStat]), an elemental
+     * resistance's ROLL-FREE value ([unrolledElementStat] — no row wants that element, so no random roll lands on it, in the
+     * scorers either: [computeCharacteristicsValues] returns exactly this for it). "All resistances 0" is a floor on each
+     * element no other row wants. Read by the hard leg ([addRequiredTargetHardConstraints]: each `≥ 0`), the soft legs
+     * ([floorViolation]: a halving) and precision's halving ([negativeTargetPenalty]). The resistance reads are also test
+     * row reads ([elementRowReads]). A floor no build of the pool can break — its tracked reach, a sound over-estimate of every
+     * build's value, never goes below 0 (no negative line on it) — is left out: it would constrain nothing.
+     */
+    internal val floorReads: List<Pair<Characteristic, IntVar>> by lazy {
+        (
+            params.targetStats.floorCharacteristics.map { it to actualStat(it) } +
+                params.targetStats.resistanceFloorElements.map { element ->
+                    element to unrolledElementStat(element).also { elementRowReads[element] = it }
+                }
+        ).filter { (_, read) -> tracker.of(read).first < 0L }
+            .also { floorReadsBuilt = true }
+    }
+
+    /** Test seam (read through `BuiltModel.floorReads`): the floors the model reads, or none when it never read them. */
+    internal fun floorReadsForTest(): List<Pair<Characteristic, IntVar>> = if (floorReadsBuilt) floorReads else emptyList()
+
+    /**
+     * Test seam (read through `BuiltModel.halvingFlag`): the boolean that halves this model's objective — precision's
+     * ([negativeTargetPenalty]) or a soft leg's [floorViolation] — when the model built one.
+     */
+    internal var halvingFlagForTest: BoolVar? = null
+        private set
+
+    private val unrolledCache = mutableMapOf<Characteristic, IntVar>()
+
+    /**
+     * [element]'s value WITHOUT any random-element roll: its own lines + its family's "+all elements" ones ([elementVars]'
+     * per-element base), percent skills applied — the scorers' value of an element no row wants (`currentStatSpecificElements`
+     * then the per-key percent pass), which is what a floor of it reads.
+     */
+    private fun unrolledElementStat(element: Characteristic): IntVar =
+        unrolledCache.getOrPut(element) {
+            val generic = if (element in ELEMENTARY_RESISTANCES) Characteristic.RESISTANCE_ELEMENTARY else Characteristic.MASTERY_ELEMENTARY
+            val base =
+                tSumNaive(
+                    name = "floorPre_${element.name}",
+                    terms = listOf(Term(prePercentStat(element), 1L), Term(prePercentStat(generic), 1L)),
+                    constant = 0L,
+                    guardLo = -STAT_WITH_PERCENT_ABS_MAX,
+                    guardHi = STAT_WITH_PERCENT_ABS_MAX
+                )
+            val percentTerms = skillTerms.percent[element].orEmpty()
+            if (percentTerms.isEmpty()) {
+                base
+            } else {
+                val percent = tSumNaive("floorPct_${element.name}", percentTerms, 0L, -PERCENT_ABS_MAX, PERCENT_ABS_MAX)
+                tPercent(base, percent, "floor_${element.name}")
+            }
+        }
+
+    /**
+     * A boolean that holds iff one of [reads] is below 0 (each reified both ways, so it is EXACT, not a one-sided bound), or null
+     * when there is nothing to read.
+     */
+    private fun anyBelowZero(
+        reads: List<Pair<Characteristic, IntVar>>,
+        flagPrefix: String,
+        name: String,
+    ): BoolVar? {
+        if (reads.isEmpty()) return null
+        val flagsSum = LinearExpr.newBuilder()
+        for ((characteristic, actual) in reads) {
+            val isNegative = model.newBoolVar("${flagPrefix}_${characteristic.name}")
+            model.addLessOrEqual(actual, -1L).onlyEnforceIf(isNegative)
+            model.addGreaterOrEqual(actual, 0L).onlyEnforceIf(isNegative.not())
+            flagsSum.addTerm(isNegative, 1)
+        }
+        val anyNegative = model.newBoolVar(name)
+        val flags = flagsSum.build()
+        model.addGreaterOrEqual(flags, 1L).onlyEnforceIf(anyNegative)
+        model.addLessOrEqual(flags, 0L).onlyEnforceIf(anyNegative.not())
+        return anyNegative
+    }
+
+    /**
+     * The soft legs' floor penalty (most-masteries fallback, max-damage soft leg — `WakfuBuildSolver.applyConstraintPenalty`):
+     * true iff some floor ([floorReads]) is below 0, which HALVES the penalized objective. Null without a floor. Memoized.
+     */
+    internal val floorViolation: BoolVar? by lazy { anyBelowZero(floorReads, "floorNeg", "floorBroken").also { halvingFlagForTest = it } }
+
     /**
      * HARD-constraint form of the required-target rule: forbid any build that misses an AP/MP/range/
      * resistance/… target outright (`actual ≥ target`), instead of taxing the objective with the shortfall
@@ -2001,7 +2077,7 @@ internal class StatBuilder(
      * damage objective — the shape CP-SAT can actually prove — instead of the penalty product, whose foggy LP
      * relaxation traps the search at a sub-optimal build. It generalises to EVERY required stat (resistance
      * included, via [requiredActualStat]'s min-of-four for the aggregate) — where the damage certificate cannot.
-     * A non-positive target is trivially met and skipped.
+     * A negative target is trivially met and skipped; a row of target 0 is a FLOOR, `actual ≥ 0` on its [floorReads].
      *
      * Returns `staticallyInfeasible` (C2): true iff some required target exceeds its var's tracked reachable
      * ceiling (`tracker.of(actual).last`, a sound over-estimate) — i.e. NO build can meet it, so the hard model is
@@ -2017,6 +2093,10 @@ internal class StatBuilder(
             val actual = requiredActualStat(targetStat.characteristic)
             if (targetStat.target > tracker.of(actual).last) staticallyInfeasible = true
             model.addGreaterOrEqual(actual, targetStat.target.toLong())
+        }
+        for ((_, floor) in floorReads) {
+            if (tracker.of(floor).last < 0L) staticallyInfeasible = true
+            model.addGreaterOrEqual(floor, 0L)
         }
         return staticallyInfeasible
     }
@@ -2039,6 +2119,15 @@ internal class StatBuilder(
             model.addGreaterOrEqual(actual, targetStat.target.toLong()).onlyEnforceIf(literal)
             model.addAssumption(literal)
             literals[targetStat.characteristic] = literal
+        }
+        // The floors, like the production hard leg: each `≥ 0` behind its own literal (keyed by the floored stat — no row
+        // with a target shares it, or it would be no floor).
+        for ((characteristic, floor) in floorReads) {
+            if (tracker.of(floor).last < 0L) staticallyInfeasible = true
+            val literal = model.newBoolVar("assume_floor_${characteristic.name}")
+            model.addGreaterOrEqual(floor, 0L).onlyEnforceIf(literal)
+            model.addAssumption(literal)
+            literals[characteristic] = literal
         }
         return literals to staticallyInfeasible
     }

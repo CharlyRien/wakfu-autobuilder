@@ -25,7 +25,9 @@ import me.chosante.autobuilder.domain.TargetStats
  *  - a **required** row with a non-zero target (AP / MP / range / crit / HP / resistance / DI …) constrains the build
  *    (a hard leg, or the power-6 penalty). The DP bounds the damage over ALL builds and cannot model that, so a build
  *    reaching its bound may still miss the target — [WakfuBuildSolver.dpConstructProvenOptimum] must refuse. A
- *    0-valued row is inert (weight 0) and stays admitted, exactly as before.
+ *    0-valued row is a FLOOR (`actual ≥ 0`, [TargetStats.hasFloors]) and stays admitted: the ledger ignores it (a
+ *    relaxation — its bound still caps every floored build), and the construct's re-solves run the hard leg, so the
+ *    build they return meets it; a build reaching the bound under the floors is then the floored optimum.
  *
  * Also refused, to stay conservative where the argument above is not established:
  *  - rows that trigger the multi-element item prefilter ([WakfuBuildSolver.needsItemPrefilter], e.g. an aggregate

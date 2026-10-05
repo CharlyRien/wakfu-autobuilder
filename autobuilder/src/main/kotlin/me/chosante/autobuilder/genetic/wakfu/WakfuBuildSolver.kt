@@ -1109,6 +1109,10 @@ object WakfuBuildSolver {
         // Test seam ([elementRowSolveForTest]): the per-element vars the request's elemental target rows read — each
         // family's fold — so a lock compares the model's claimed per-element values with the scorer's.
         val elementRowReads: Map<Characteristic, IntVar> = emptyMap(),
+        // Test seam ([elementRowSolveForTest]): the floors the model reads ([StatBuilder.floorReads]) and the boolean that
+        // halves its objective (precision's, or a soft leg's floor penalty), when the model built them.
+        val floorReads: List<Pair<Characteristic, IntVar>> = emptyList(),
+        val halvingFlag: IntVar? = null,
     )
 
     /**
@@ -1364,6 +1368,9 @@ object WakfuBuildSolver {
         var mmAssumptionLits: Map<Characteristic, com.google.ortools.sat.BoolVar>? = null
         var actualStatVars: Map<Characteristic, IntVar> = emptyMap()
         var elementRowReads: Map<Characteristic, IntVar> = emptyMap()
+        var floorReads: List<Pair<Characteristic, IntVar>> = emptyList()
+        var halvingFlag: IntVar? = null
+        var mmStatBuilder: StatBuilder? = null
         val objective =
             when (params.scoreComputationMode) {
                 ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT -> {
@@ -1388,8 +1395,13 @@ object WakfuBuildSolver {
                             mmDiFactorFoldedObjective,
                             mmHardTargetsAsAssumptions,
                             mmSoftNoGoodCore,
-                            onStatBuilder = { elementRowReads = it.elementRowReads }
+                            onStatBuilder = { mmStatBuilder = it }
                         )
+                    mmStatBuilder?.let { statBuilder ->
+                        elementRowReads = statBuilder.elementRowReads
+                        floorReads = statBuilder.floorReadsForTest()
+                        halvingFlag = statBuilder.halvingFlagForTest
+                    }
                     maxDamageStaticallyInfeasible = mm.staticallyInfeasible
                     mmPenaltyProbeVars = mm.penaltyBucketProbeVars
                     mmAssumptionLits = mm.assumptionLiterals
@@ -1417,6 +1429,8 @@ object WakfuBuildSolver {
                     val obj = model.buildPrecisionObjective(params, statBuilder)
                     precisionTracked = statBuilder.tracker.tracked()
                     elementRowReads = statBuilder.elementRowReads
+                    floorReads = statBuilder.floorReadsForTest()
+                    halvingFlag = statBuilder.halvingFlagForTest
                     obj
                 }
 
@@ -1475,6 +1489,8 @@ object WakfuBuildSolver {
                     certifierExplainItemIds = statBuilder.certifierExplainItemIds
                     critDiffJointCutBound = statBuilder.critDiffJointCutBoundForTest
                     elementRowReads = statBuilder.elementRowReads
+                    floorReads = statBuilder.floorReadsForTest()
+                    halvingFlag = statBuilder.halvingFlagForTest
                     // Proof/research profiles only (stat-bound pins + reported actual stats): building
                     // actualStat(HP) adds the pre-HP sum + %HP product chain to every PRODUCTION model
                     // that has no HP target (pre-release review 2026-10-01 — main never paid it).
@@ -1524,7 +1540,9 @@ object WakfuBuildSolver {
             actualStatVars,
             certifierAuxObjectives,
             certifierAuxRelaxedVsSplit,
-            elementRowReads
+            elementRowReads,
+            floorReads,
+            halvingFlag
         )
     }
 
@@ -3088,7 +3106,8 @@ object WakfuBuildSolver {
      * keeps the incumbent, so best-effort construction is safe (a miss only costs the badge, never correctness).
      * Free single-element max-damage only (the DP-provable shape): a request whose rows constrain the problem
      * (a required AP / MP / range / HP… target) is refused, but a MAXIMIZED-mastery row — which max-damage
-     * ignores — is not (see [isFreeMaxDamageShape]).
+     * ignores — is not (see [isFreeMaxDamageShape]), nor a FLOOR (a required row of target 0): both re-solves then
+     * run the hard leg, so the constructed build meets every floor (the ledger, which ignores them, still bounds it).
      *
      * BOUNDED + CANCELLABLE: [isCancelled] is polled between the steps and while a re-solve runs (the native solve
      * is stopped through the flow's teardown), so a superseded search / proof abandons the rescue at once; and the
@@ -3203,6 +3222,12 @@ object WakfuBuildSolver {
         // A cancelled explain bailed with no ids — stop here instead of falling through to the full-pool fallback.
         if (isCancelled()) return null
         val debug = System.getenv("WAKFU_E8_DEBUG") == "1"
+        // The request's FLOORS (rows of target 0 on a required stat — "air resistance 0", "dodge 0") are the one constraint a
+        // free shape still carries: the ledger ignores them (a relaxation, so its bound stays an upper bound of the floored
+        // optimum), but the build constructed here must meet them, or the badge would crown a build the search's hard leg
+        // forbids. So both re-solves run the hard leg — `actual ≥ 0` on every floor, the plain damage objective — whenever the
+        // request has floors; without one the hard leg adds nothing, and the plain solve stays as it was.
+        val hardFloors = params.targetStats.hasFloors
         // FAST path: re-solve the pool restricted to the provenance items — ~seconds, and reaches the bound on
         // most shapes (measured: free lvl-110 / lvl-245 construct in one tiny re-solve).
         val fast =
@@ -3216,7 +3241,14 @@ object WakfuBuildSolver {
                 } else {
                     // Cancellable, not wall-capped: the tiny restricted pool answers in seconds, its own det-120 budget bounds it.
                     collectWithinBudget(
-                        optimize(params.copy(maxDamageApTarget = cell), restricted, runes, sublimations, SolverTuning(maxDeterministicTime = 120.0)),
+                        optimize(
+                            params.copy(maxDamageApTarget = cell),
+                            restricted,
+                            runes,
+                            sublimations,
+                            SolverTuning(maxDeterministicTime = 120.0),
+                            hardConstraints = hardFloors
+                        ),
                         budgetMillis = null,
                         isCancelled = isCancelled
                     ).items.maxByOrNull { it.matchPercentage }
@@ -3229,7 +3261,10 @@ object WakfuBuildSolver {
         // proxy only when its var survives — so fall back. Both are the ledger-comparable scaled units.
         val fastProxy = fast?.let { it.maxDamageRawProxy ?: it.maxDamageObjective }
         if (debug) System.err.println("E8_DBG fast cell=$cell bound=$bound proxy=$fastProxy valid=${fast?.individual?.isValid()}")
-        if (fast != null && fastProxy != null && fastProxy >= bound && fast.individual.isValid()) return fast.copy(isOptimal = true)
+        if (fast != null && fastProxy != null && fastProxy >= bound && fast.individual.isValid()) {
+            // A floored re-solve is a hard leg: the build meets every floor in the solver's exact arithmetic.
+            return fast.copy(isOptimal = true, maxDamageHardConstraintsMet = hardFloors)
+        }
         // FALLBACK: the provenance item-set need not REALIZE the bound — the certifier's frontier abstraction can
         // credit a sublimation whose value only a slightly different item set unlocks (e.g. the 10th normal sub on
         // a fuller sub loadout), so the restricted re-solve tops out below the bound. Re-solve the FULL pool at the
@@ -3253,6 +3288,7 @@ object WakfuBuildSolver {
                         maxDeterministicTime = E8_FALLBACK_DETERMINISTIC_BUDGET,
                         stopAtFirstSolution = true
                     ),
+                    hardConstraints = hardFloors,
                     maxDamageRawFloor = bound
                 ),
                 budgetMillis = (fallbackWallCapSeconds * 1000.0).toLong(),
@@ -3265,7 +3301,7 @@ object WakfuBuildSolver {
         val fallback = fallbackRun.items.maxByOrNull { it.matchPercentage } ?: return null
         val proxy = fallback.maxDamageRawProxy ?: fallback.maxDamageObjective ?: return null
         if (debug) System.err.println("E8_DBG fallback cell=$cell bound=$bound proxy=$proxy valid=${fallback.individual.isValid()}")
-        return if (proxy >= bound && fallback.individual.isValid()) fallback.copy(isOptimal = true) else null
+        return if (proxy >= bound && fallback.individual.isValid()) fallback.copy(isOptimal = true, maxDamageHardConstraintsMet = hardFloors) else null
     }
 
     /**
@@ -3338,6 +3374,11 @@ object WakfuBuildSolver {
         val build: BuildCombination?,
         // The model's claimed value of every per-element var the elemental target rows read (each family's fold).
         val modelElementValues: Map<Characteristic, Long>,
+        // The model's value of every floor it reads (a required row of target 0 — StatBuilder.floorReads; a floor no build of
+        // the pool can break is not read), and whether it halved its objective (precision, or a soft leg's broken floor;
+        // null when the model has no such boolean — the hard legs).
+        val modelFloorValues: Map<Characteristic, Long> = emptyMap(),
+        val modelHalved: Boolean? = null,
     ) {
         val hasSolution: Boolean get() = objective != null
         val isOptimal: Boolean get() = status == com.google.ortools.sat.CpSolverStatus.OPTIMAL
@@ -3403,7 +3444,9 @@ object WakfuBuildSolver {
             // Rounded, not truncated: the objective comes back as a double (961354.9999 must read 961355).
             objective = Math.round(solver.objectiveValue()),
             build = build,
-            modelElementValues = built.elementRowReads.mapValues { (_, v) -> solver.value(v) }
+            modelElementValues = built.elementRowReads.mapValues { (_, v) -> solver.value(v) },
+            modelFloorValues = built.floorReads.associate { (characteristic, v) -> characteristic to solver.value(v) },
+            modelHalved = built.halvingFlag?.let { solver.value(it) == 1L }
         )
     }
 
@@ -4167,6 +4210,13 @@ object WakfuBuildSolver {
      * every build still ranks builds by their core instead of collapsing to a flat 0. Returns the
      * penalized objective var and the absolute bound of its domain — the latter is what the
      * most-masteries overshoot tie-breaker needs. [coreScoreAbsMax] bounds the result.
+     *
+     * A FLOOR below 0 (a required row of target 0, [StatBuilder.floorReads]) HALVES that product — once, however many floors
+     * are below 0, as precision halves: the core is halved (truncated) before it meets the multiplier. A row of target 0 has
+     * no share of the power-6 ratio (its expected score is 0), so the halving is its penalty: a factor ≤ 1, so the leg stays
+     * feasible, never raises an objective (every certificate's bound, which ignores the floors, stays an upper bound of it),
+     * and it applies on top of the multiplier floor, so even a build whose targets are hopeless still pays it. The scorers
+     * divide by 2 on top of their shortfall factor.
      */
     private fun CpModel.applyConstraintPenalty(
         params: WakfuBestBuildParams,
@@ -4194,10 +4244,30 @@ object WakfuBuildSolver {
         val multiplier = newIntVar(0, powerTable.maxValue, "penaltyMultiplier")
         addElement(indexVar, powerTable.values, multiplier)
 
+        // The floors' halving is taken on the CORE, before the product: the product's domain is near int64's limit (CP-SAT
+        // refuses a model whose variable domains sum past it), the core's is small. `⌊core / 2⌋ × multiplier` is the halved
+        // objective up to the truncation of an odd core — still ≤ the unhalved one, which is all the certificates rely on.
+        val floorBroken = statBuilder.floorViolation
+        val core =
+            if (floorBroken == null) {
+                coreScore
+            } else {
+                // Declared on the core's own domain (CP-SAT's division truncates toward 0, like Kotlin's), so the product below
+                // keeps the core's tight bounds — a loose factor would weaken its relaxation.
+                val coreDomain = coreScore.domain
+                val (lo, hi) = coreDomain.min() to coreDomain.max()
+                val halved = newIntVar(lo / 2, hi / 2, "coreHalved")
+                addDivisionEquality(halved, coreScore, newConstant(2L))
+                val penalized = newIntVar(minOf(lo, lo / 2), maxOf(hi, hi / 2), "coreFloorPenalized")
+                addEquality(penalized, coreScore).onlyEnforceIf(floorBroken.not())
+                addEquality(penalized, halved).onlyEnforceIf(floorBroken)
+                penalized
+            }
+
         val maxObjective = safeMultiply(coreScoreAbsMax, powerTable.maxValue)
         val objectiveBound = maxObjective.coerceAtMost(Long.MAX_VALUE / 2)
         val objective = newIntVar(-objectiveBound, objectiveBound, "objectiveScore")
-        addMultiplicationEquality(objective, coreScore, multiplier)
+        addMultiplicationEquality(objective, core, multiplier)
         return PenalizedObjective(objective, objectiveBound)
     }
 
@@ -4246,6 +4316,9 @@ object WakfuBuildSolver {
     ): BucketIntervalCore? {
         val requiredTargets = targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }
         if (requiredTargets.isEmpty()) return null
+        // These measurement seams price the bucket's power-6 multiplier only, not the floors' halving (applyConstraintPenalty):
+        // refuse a request with a floor rather than search a model that is not the soft leg's.
+        require(!targetStats.hasFloors) { "the penalty-bucket seams do not model the floors' halving" }
         val totalExpectedScore =
             requiredTargets
                 .sumOf { it.target.toLong() * targetStats.scaledWeight(it) }
@@ -4368,7 +4441,9 @@ object WakfuBuildSolver {
                 // required resistance in max-damage mode).
                 resistanceElementsWanted = params.targetStats.resistanceElementsWanted,
                 // ...with their random rolls placed where the solver's joint per-element fold places them.
-                elementRows = params.targetStats.elementRowObjectives(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE)
+                elementRows = params.targetStats.elementRowObjectives(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE),
+                // ...and the resistance floors read without the rolls, as the model's floors.
+                resistanceFloorElements = params.targetStats.resistanceFloorElements
             )
         val penalty = FindMaxDamageScoring.requiredConstraintPenaltyFactor(params.targetStats, stats)
         return rotationDamage.divide(penalty, 4, RoundingMode.FLOOR)
