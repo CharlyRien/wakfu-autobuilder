@@ -164,7 +164,8 @@ fun computeCharacteristicsValues(
     masteryRollOffset: Long = 0L,
     // A family read through PER-ELEMENT rows over more than one element (TargetStats.elementRowObjectives): its random
     // rolls are placed at the exact optimum of the solver's objective for those rows, overriding the branches below for
-    // that family — the solver reads such rows from ONE joint fold. Null ⇒ the per-mode assignment of each family.
+    // that family — the solver reads such rows from ONE joint fold (in precision, with precision's halving for its rows of
+    // target 0 decided on the whole build, see the end). Null ⇒ the per-mode assignment of each family.
     elementRows: ElementRowObjectives? = null,
 ): Map<Characteristic, Int> {
     val eachCharacteristicValueLineByEquipment =
@@ -260,11 +261,13 @@ fun computeCharacteristicsValues(
             mergeAndSumCharacteristicValues(sumOfCharacteristicFixedValues, passiveContributions)
         }
 
-    val mutableActualCharacteristics = sumWithPassives.toMutableMap()
-    if (masteryElementsWanted.isNotEmpty()) {
-        val currentSpecificMasteryElements = currentStatSpecificElements(masteryElementsWanted, sumWithPassives, Characteristic.MASTERY_ELEMENTARY)
-        val masteryRandoms = getMasteryRandoms(eachCharacteristicValueLineByEquipment)
-        val specificMasteryElementsWithRandomValuesAssigned =
+    val currentSpecificMasteryElements =
+        if (masteryElementsWanted.isEmpty()) emptyMap() else currentStatSpecificElements(masteryElementsWanted, sumWithPassives, Characteristic.MASTERY_ELEMENTARY)
+    val masteryRandoms = getMasteryRandoms(eachCharacteristicValueLineByEquipment)
+    val masteryPlaced: Map<Characteristic, Int>? =
+        if (masteryElementsWanted.isEmpty()) {
+            null
+        } else {
             when {
                 // Per-element mastery rows (precision): the exact optimum of the solver's objective for those rows.
                 elementRows?.mastery != null ->
@@ -289,16 +292,14 @@ fun computeCharacteristicsValues(
                 else ->
                     assignUniformlyMasteryRandomValues(masteryRandoms, currentSpecificMasteryElements, masteryElementsWanted)
             }
-        specificMasteryElementsWithRandomValuesAssigned.forEach {
-            mutableActualCharacteristics[it.key] = it.value
         }
-        mutableActualCharacteristics[Characteristic.MASTERY_ELEMENTARY] = specificMasteryElementsWithRandomValuesAssigned.minOfOrNull { it.value } ?: 0
-    }
 
     val resistanceElementsCurrent = currentStatSpecificElements(resistanceElementsWanted, sumWithPassives, Characteristic.RESISTANCE_ELEMENTARY)
-    if (resistanceElementsWanted.isNotEmpty()) {
-        val resistanceRandoms = getResistanceRandoms(eachCharacteristicValueLineByEquipment)
-        val specificResistanceElementsWithRandomValuesAssigned =
+    val resistanceRandoms = getResistanceRandoms(eachCharacteristicValueLineByEquipment)
+    val resistancePlaced: Map<Characteristic, Int>? =
+        if (resistanceElementsWanted.isEmpty()) {
+            null
+        } else {
             when {
                 // Per-element resistance rows (every mode): the exact optimum of the solver's objective for those rows.
                 elementRows?.resistance != null ->
@@ -315,38 +316,68 @@ fun computeCharacteristicsValues(
                 else ->
                     assignUniformlyResistanceRandomValues(resistanceRandoms, resistanceElementsCurrent, resistanceElementsWanted)
             }
-        specificResistanceElementsWithRandomValuesAssigned.forEach {
-            mutableActualCharacteristics[it.key] = it.value
         }
 
-        specificResistanceElementsWithRandomValuesAssigned.minOfOrNull { it.value }?.let {
-            mutableActualCharacteristics[Characteristic.RESISTANCE_ELEMENTARY] = it
+    // Every stat of the build with these placements of the random-element rolls.
+    fun withPlacements(
+        mastery: Map<Characteristic, Int>?,
+        resistance: Map<Characteristic, Int>?,
+    ): Map<Characteristic, Int> {
+        val mutableActualCharacteristics = sumWithPassives.toMutableMap()
+        mastery?.let { placed ->
+            placed.forEach { mutableActualCharacteristics[it.key] = it.value }
+            mutableActualCharacteristics[Characteristic.MASTERY_ELEMENTARY] = placed.minOfOrNull { it.value } ?: 0
+        }
+        resistance?.let { placed ->
+            placed.forEach { mutableActualCharacteristics[it.key] = it.value }
+            placed.minOfOrNull { it.value }?.let { mutableActualCharacteristics[Characteristic.RESISTANCE_ELEMENTARY] = it }
+        }
+
+        // Percent skills are applied per characteristic key, at the very end, on the accumulated value.
+        // NOTE: the Major "% Inflicted Damage" aptitude is modeled as a FIXED contribution to the dedicated
+        // DAMAGE_INFLICTED stat (not as a percent on mastery), because in the Wakfu damage formula "% damage"
+        // is a separate multiplicative factor from mastery. DAMAGE_INFLICTED is only read by the max-damage
+        // scoring mode (FindMaxDamageScoring), so this aptitude stays inert in the most-masteries / precision
+        // modes — which is faithful: a flat "% damage inflicted" does not change displayed cumulated mastery.
+        val actualCharacteristics =
+            mutableActualCharacteristics.mapValues { (key, value) ->
+                characteristicGivenBySkillsPercentValues[key]?.let { percent ->
+                    (value + value * (percent.toDouble() / 100)).roundToInt()
+                } ?: return@mapValues value
+            }
+
+        // Featherweight-style perStatStep ramps ([Sublimation.perStatStep]): clamp(perStep·(source − threshold), 0, cap)
+        // added to the target stat — applied HERE, after the stat sums, because its magnitude depends on a build
+        // variable (the source stat, e.g. MP), not on level, so it cannot ride the flat magnitudeAtLevel path above.
+        // Mirrors the solver's StatBuilder.perStatStepGatedVar exactly (same clamp on the same final source value).
+        val perStatStepContributions = perStatStepContributions(buildCombination.sublimations.values.flatten(), actualCharacteristics)
+        return if (perStatStepContributions.isEmpty()) {
+            actualCharacteristics
+        } else {
+            mergeAndSumCharacteristicValues(actualCharacteristics, perStatStepContributions)
         }
     }
 
-    // Percent skills are applied per characteristic key, at the very end, on the accumulated value.
-    // NOTE: the Major "% Inflicted Damage" aptitude is modeled as a FIXED contribution to the dedicated
-    // DAMAGE_INFLICTED stat (not as a percent on mastery), because in the Wakfu damage formula "% damage"
-    // is a separate multiplicative factor from mastery. DAMAGE_INFLICTED is only read by the max-damage
-    // scoring mode (FindMaxDamageScoring), so this aptitude stays inert in the most-masteries / precision
-    // modes — which is faithful: a flat "% damage inflicted" does not change displayed cumulated mastery.
-    val actualCharacteristics =
-        mutableActualCharacteristics.mapValues { (key, value) ->
-            characteristicGivenBySkillsPercentValues[key]?.let { percent ->
-                (value + value * (percent.toDouble() / 100)).roundToInt()
-            } ?: return@mapValues value
-        }
+    val placed = withPlacements(masteryPlaced, resistancePlaced)
 
-    // Featherweight-style perStatStep ramps ([Sublimation.perStatStep]): clamp(perStep·(source − threshold), 0, cap)
-    // added to the target stat — applied HERE, after the stat sums, because its magnitude depends on a build
-    // variable (the source stat, e.g. MP), not on level, so it cannot ride the flat magnitudeAtLevel path above.
-    // Mirrors the solver's StatBuilder.perStatStepGatedVar exactly (same clamp on the same final source value).
-    val perStatStepContributions = perStatStepContributions(buildCombination.sublimations.values.flatten(), actualCharacteristics)
-    return if (perStatStepContributions.isEmpty()) {
-        actualCharacteristics
-    } else {
-        mergeAndSumCharacteristicValues(actualCharacteristics, perStatStepContributions)
-    }
+    // Precision HALVES its whole objective while a row of target 0 reads below 0 (StatBuilder.negativeTargetPenalty), which for a
+    // jointly read family depends on where its rolls land — a request-wide trade no per-family objective can weigh alone. So
+    // such a family also gets its best placement keeping those rows at 0 or more, and the build keeps whichever of the two the
+    // solver's own objective ([precisionModelObjective], on every stat) ranks first — the placement the solver itself takes.
+    val rows = elementRows ?: return placed
+    val masteryKeeping = rows.mastery?.takeIf { it.hasZeroTargetRows }
+    val resistanceKeeping = rows.resistance?.takeIf { it.hasZeroTargetRows }
+    if (masteryKeeping == null && resistanceKeeping == null) return placed
+    val masteryKept =
+        masteryKeeping?.let { it.placeKeepingZeroTargetRows(masteryRolls(masteryRandoms), currentSpecificMasteryElements)?.values ?: return placed }
+            ?: masteryPlaced
+    val resistanceKept =
+        resistanceKeeping?.let { it.placeKeepingZeroTargetRows(resistanceRolls(resistanceRandoms), resistanceElementsCurrent)?.values ?: return placed }
+            ?: resistancePlaced
+    if (masteryKept == masteryPlaced && resistanceKept == resistancePlaced) return placed
+    val kept = withPlacements(masteryKept, resistanceKept)
+    // Ties keep the rows of target 0 at 0 or more: the score halves for each one below 0.
+    return if (precisionModelObjective(rows.targetStats, kept, sumWithPassives) >= precisionModelObjective(rows.targetStats, placed, sumWithPassives)) kept else placed
 }
 
 /**
