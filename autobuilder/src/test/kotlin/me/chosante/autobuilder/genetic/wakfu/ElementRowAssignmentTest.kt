@@ -402,6 +402,31 @@ class ElementRowAssignmentTest {
     }
 
     @Test
+    fun `an identical search hands back the placement it already found, whatever object asks`() {
+        // A build is read several times over (its score, the stats column, the penalty, each emission): the second read of the
+        // same rows, values and rolls costs nothing — even from another objective instance of the same request, rolls reordered.
+        val shape = maxDamageAllResistances
+        val first = shape.objective.place(shape.rolls, shape.base)
+        val rebuilt =
+            checkNotNull(
+                ElementRowObjective.of(
+                    rowsOf(
+                        Triple(Characteristic.RESISTANCE_ELEMENTARY, 322, 4),
+                        Triple(Characteristic.RESISTANCE_ELEMENTARY_FIRE, 176, 3),
+                        Triple(Characteristic.RESISTANCE_ELEMENTARY_WATER, 355, 1),
+                        Triple(Characteristic.RESISTANCE_ELEMENTARY_EARTH, 283, 2)
+                    ),
+                    ElementFamily.RESISTANCE,
+                    ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE
+                )
+            )
+        assertThat(rebuilt.place(shape.rolls.reversed(), shape.base)).isSameAs(first)
+        // Anything the result depends on is part of the key: another budget, other values, another mode are searched afresh.
+        assertThat(shape.objective.place(shape.rolls, shape.base, nodeBudget = 1_000L)).isNotSameAs(first)
+        assertThat(shape.objective.place(shape.rolls, shape.base + (Characteristic.RESISTANCE_ELEMENTARY_FIRE to 20))).isNotSameAs(first)
+    }
+
+    @Test
     fun `no skill applies a percentage to an elemental mastery or resistance - the assignment reads pre-percent values`() {
         // [ElementRowObjective] places the rolls on the values BEFORE the percent skills, which the scorer applies last
         // (and the solver after the fold). Exact because no skill scales an elemental stat; a new one must be modelled.
