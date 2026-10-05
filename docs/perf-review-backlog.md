@@ -1464,9 +1464,11 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     fixture: pruned + gated == full-choice == general fold — RED under a sum read: 1,852,970 vs 1,878,720),
     `SecondaryMasteryCriterionTest` (shapes; the client's criteria), `BuildSearchModelSecondaryCapReloadTest` (a reloaded
     max-damage build loses the bonus), `RuneChoiceCollapseTest` (its signed-rear helmet fixture re-banked 2,198,020 →
-    2,172,270: the −120 rear no longer funds distance beside Neutralité III). Saved most-masteries / precision builds still
-    show the stats they were saved with (a loaded build is not re-scored, by design); a loaded max-damage build's
-    rotation is, so it drops the bonus.
+    2,172,270: the −120 rear no longer funds distance beside Neutralité III). Since #232 (released in 1.14.1) a loaded
+    build is re-scored under the current rules, in every mode (`loadBuild` → `rescored()`: the search's own request
+    mapping and stats grid, scored by `WakfuBestBuildFinderAlgorithm.rescore`; no solver), so an old save shows the
+    corrected stats and score, and a stored "proven optimal" flag is dropped when the score moved. The library cards and
+    the compare view still read the stored entry, until the build is re-saved.
 - **OCTOBER 2026 FOLLOW-UPS — leftovers of the per-element random-roll work (#237, #238) — all OPEN, decided "later"
   (recorded 2026-10-05).** #237 (`0e6ed868`) made the scorer keep every random-element roll once the targets are met;
   #238 makes a family read through several per-element rows fold each roll ONCE, jointly (still open when this was
