@@ -870,7 +870,11 @@ internal class StatBuilder(
     // cached LinearTermSum.terms list is read-only at every consumer; do not mutate it in place.
     private val damagePreMasteryTermsCache = mutableMapOf<DamageScenario, LinearTermSum?>()
     private val actualCache = mutableMapOf<Characteristic, IntVar>()
-    private val elementCache = mutableMapOf<Pair<Characteristic, List<Characteristic>>, Map<Characteristic, IntVar>>()
+    private val elementCache = mutableMapOf<Pair<Characteristic, Set<Characteristic>>, Map<Characteristic, IntVar>>()
+
+    // Test seam (read through BuiltModel.elementRowReads): every per-element var a target ROW reads — the per-element rows
+    // and the aggregate rows, i.e. each family's fold — so a lock compares the model's claimed values with the scorer's.
+    internal val elementRowReads = LinkedHashMap<Characteristic, IntVar>()
     internal val appliesVarCache = mutableMapOf<Sublimation, IntVar>()
 
     // The PERMANENT (out-of-combat / character-sheet) sublimation contributions — the subset of FLAT-sub
@@ -1077,11 +1081,13 @@ internal class StatBuilder(
             val name = targetStat.characteristic.name
             val (cappedVar, uncappedVar) =
                 when (targetStat.characteristic) {
+                    // The aggregate wants all four elements: its fold is the family's joint fold, shared with any
+                    // per-element row of the same family (see [foldedElementalStat]).
                     Characteristic.MASTERY_ELEMENTARY ->
-                        averagedContribution(elementMasteryVars(ELEMENTARY_MASTERIES).values.toList(), weight, expected, name)
+                        averagedContribution(elementMasteryVars(ELEMENTARY_MASTERIES).also { elementRowReads.putAll(it) }.values.toList(), weight, expected, name)
 
                     Characteristic.RESISTANCE_ELEMENTARY ->
-                        averagedContribution(elementResistanceVars(ELEMENTARY_RESISTANCES).values.toList(), weight, expected, name)
+                        averagedContribution(elementResistanceVars(ELEMENTARY_RESISTANCES).also { elementRowReads.putAll(it) }.values.toList(), weight, expected, name)
 
                     else -> cappedContribution(foldedElementalStat(targetStat.characteristic), weight, expected, name)
                 }
@@ -1455,15 +1461,17 @@ internal class StatBuilder(
      * by survivability (more HP and more resist both raise it) without being a true effective-HP.
      * Resistance is averaged (not summed) so a single high element can't masquerade as overall
      * tankiness; the cap mirrors Wakfu's soft resistance ceiling and keeps the proxy honest against
-     * a few extreme resist rolls. Each element is read through [foldedElementalStat] so the generic
-     * "+all elements" resistance and random-resistance gear count exactly as they do elsewhere.
+     * a few extreme resist rolls. Each element is read through its own single-element fold, so the generic
+     * "+all elements" resistance and the random-resistance gear count for it — every random roll in full on every
+     * element, an over-estimate this model-only proxy (no scorer mirrors it, no certificate reads it) has always made,
+     * kept as is when the per-element target rows moved to one joint fold ([foldedElementalStat]).
      */
     fun effectiveHpVar(): IntVar {
         val hp = model.clampVar(actualStat(Characteristic.HP), 0L, EHP_HP_MAX, "ehpHp")
         val resSum =
             model.sumVar(
                 "ehpResSum",
-                ELEMENTARY_RESISTANCES.map { foldedElementalStat(it) },
+                ELEMENTARY_RESISTANCES.map { elementResistanceVars(listOf(it)).getValue(it) },
                 -STAT_WITH_PERCENT_ABS_MAX,
                 STAT_WITH_PERCENT_ABS_MAX
             )
@@ -1914,13 +1922,50 @@ internal class StatBuilder(
      * and the Major aptitudes (which carry [Characteristic.MASTERY_ELEMENTARY] /
      * [Characteristic.RESISTANCE_ELEMENTARY]); without it those contributions were invisible and
      * the matching items/aptitudes were never selected.
+     *
+     * The value is read from the ONE fold of its family ([familyFoldElements]): when the request wants more than one
+     * element of the family, every row reads the same joint fold, in which each random-element roll lands on
+     * `min(k, wanted)` of the wanted elements. Folding each row on its own credited every roll in full to every row — a
+     * "+X on 1 random element" resistance counted on all four elements, so four per-element rows of 640 read 649–669
+     * where the scorer (which places each roll once) read 538–586.
      */
     private fun foldedElementalStat(characteristic: Characteristic): IntVar =
         when (characteristic) {
-            in ELEMENTARY_MASTERIES -> elementMasteryVars(listOf(characteristic)).getValue(characteristic)
-            in ELEMENTARY_RESISTANCES -> elementResistanceVars(listOf(characteristic)).getValue(characteristic)
+            in ELEMENTARY_MASTERIES ->
+                elementMasteryVars(familyFoldElements(ElementFamily.MASTERY, characteristic))
+                    .also { elementRowReads.putAll(it) }
+                    .getValue(characteristic)
+
+            in ELEMENTARY_RESISTANCES ->
+                elementResistanceVars(familyFoldElements(ElementFamily.RESISTANCE, characteristic))
+                    .also { elementRowReads.putAll(it) }
+                    .getValue(characteristic)
+
             else -> actualStat(characteristic)
         }
+
+    /**
+     * The elements of the ONE fold [characteristic]'s rows read: every wanted element of its [family], in canonical order,
+     * when the family is read jointly — per-element rows with a target over several elements
+     * ([readsJointPerElementRows]), or beside the aggregate row, which wants all four and reads this very fold. Otherwise
+     * just [characteristic], whose single-element fold credits every roll in full: exact for one wanted element, and
+     * harmless for a 0-valued row, which weighs nothing (the fold these rows read before, bit for bit).
+     */
+    private fun familyFoldElements(
+        family: ElementFamily,
+        characteristic: Characteristic,
+    ): List<Characteristic> {
+        val targetStats = params.targetStats
+        val wanted = family.wanted(targetStats).keys
+        val joint =
+            wanted.size > 1 &&
+                characteristic in wanted &&
+                (
+                    targetStats.any { it.characteristic == family.aggregate } ||
+                        targetStats.readsJointPerElementRows(family, params.scoreComputationMode)
+                )
+        return if (joint) family.elements.filter { it in wanted } else listOf(characteristic)
+    }
 
     /**
      * Actual value of a *required* (most-masteries) target. Same as [foldedElementalStat], except
@@ -1930,7 +1975,8 @@ internal class StatBuilder(
      */
     private fun requiredActualStat(characteristic: Characteristic): IntVar =
         if (characteristic == Characteristic.RESISTANCE_ELEMENTARY) {
-            val elementResistances = elementResistanceVars(ELEMENTARY_RESISTANCES)
+            // The family's joint fold (the aggregate wants all four), shared with any per-element resistance row.
+            val elementResistances = elementResistanceVars(ELEMENTARY_RESISTANCES).also { elementRowReads.putAll(it) }
             val minVar = model.newIntVar(-STAT_WITH_PERCENT_ABS_MAX, STAT_WITH_PERCENT_ABS_MAX, "minElementResistance")
             model.addMinEquality(minVar, elementResistances.values.toTypedArray())
             minVar
@@ -2024,7 +2070,10 @@ internal class StatBuilder(
         targets: Map<Characteristic, Int>,
         randomByCount: List<Pair<Characteristic, Int>>,
     ): Map<Characteristic, IntVar> {
-        val key = genericCharacteristic to wantedElements.toList()
+        // Keyed by the element SET: one fold per (family, wanted elements) whatever order a caller lists them in, so two
+        // reads of the same elements can never place the same roll twice (the order only matters to the greedy fold's
+        // tie-breaking, built once from the aggregate's canonical list).
+        val key = genericCharacteristic to wantedElements.toSet()
         return elementCache.getOrPut(key) {
             val genericBase = prePercentStat(genericCharacteristic)
             val baseElements =
@@ -2044,22 +2093,30 @@ internal class StatBuilder(
             // provably-suboptimal heuristic, so we let CP-SAT pick the random assignment FREELY (only the
             // cardinality constraint) — the objective drives it to the true optimum — which also removes the
             // O(elements²) ordering that exploded the multi-element pool. The scorer mirrors this exactly.
-            //  - most-masteries: the objective is a MIN (mastery always; aggregate resistance when
-            //    RESISTANCE_ELEMENTARY is requested) ⇒ exact max-min scorer ([assignMaxMinMasteryRandomValues]).
+            //  - most-masteries: the mastery objective is a MIN ⇒ exact max-min scorer
+            //    ([assignMaxMinMasteryRandomValues]); the aggregate RESISTANCE_ELEMENTARY alone is a min too
+            //    ([assignMaxMinResistanceRandomValues]); per-element resistance rows ⇒ [ElementRowObjective].
             //  - precision: the objective is the capped sum (both mastery and resistance) ⇒ exact max-capped
-            //    scorer ([assignMaxCappedMasteryRandomValues]).
-            // max-damage stays greedy (the objective plays a single element ⇒ assignment is degenerate anyway).
+            //    scorer ([assignMaxCappedMasteryRandomValues]), or [ElementRowObjective] for per-element rows.
+            //  - max-damage: per-element resistance rows with a target ⇒ [ElementRowObjective]. The aggregate-only
+            //    resistance fold stays greedy (mirrored by the scorer's deficit-greedy), and the scenario mastery is
+            //    a single-element fold (its assignment is degenerate).
             val freeAssignment =
                 when (params.scoreComputationMode) {
                     ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
                         genericCharacteristic == Characteristic.MASTERY_ELEMENTARY ||
                             (
                                 genericCharacteristic == Characteristic.RESISTANCE_ELEMENTARY &&
-                                    params.targetStats.any { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY }
+                                    (
+                                        params.targetStats.any { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY } ||
+                                            params.targetStats.readsJointPerElementRows(ElementFamily.RESISTANCE, params.scoreComputationMode)
+                                    )
                             )
 
                     ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT -> true
-                    ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> false
+                    ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE ->
+                        genericCharacteristic == Characteristic.RESISTANCE_ELEMENTARY &&
+                            params.targetStats.readsJointPerElementRows(ElementFamily.RESISTANCE, params.scoreComputationMode)
                 }
             val prePercentElements =
                 applyGreedyRandom(wantedElements, baseElements, targets, buildRandomEntries(randomByCount), freeAssignment)

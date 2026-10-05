@@ -32,7 +32,8 @@ object FindClosestBuildFromInputScoring {
                 characterBaseCharacteristics,
                 targetStats.masteryElementsWanted,
                 targetStats.resistanceElementsWanted,
-                scoreComputationMode = ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
+                scoreComputationMode = ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT,
+                elementRows = targetStats.elementRowObjectives(ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT)
             )
 
         var totalActualScore = calculateTotalActualScore(targetStats, actualCharacteristicsValues, targetStats.expectedScoreByCharacteristic, canExceedPerfectScore = false)
@@ -161,6 +162,10 @@ fun computeCharacteristicsValues(
     // unweighted (the default / common path). See FindMostMasteriesFromInputScoring.computeScore.
     masteryRollWeights: Map<Characteristic, Long>? = null,
     masteryRollOffset: Long = 0L,
+    // A family read through PER-ELEMENT rows over more than one element (TargetStats.elementRowObjectives): its random
+    // rolls are placed at the exact optimum of the solver's objective for those rows, overriding the branches below for
+    // that family — the solver reads such rows from ONE joint fold. Null ⇒ the per-mode assignment of each family.
+    elementRows: ElementRowObjectives? = null,
 ): Map<Characteristic, Int> {
     val eachCharacteristicValueLineByEquipment =
         buildCombination.equipments
@@ -261,6 +266,10 @@ fun computeCharacteristicsValues(
         val masteryRandoms = getMasteryRandoms(eachCharacteristicValueLineByEquipment)
         val specificMasteryElementsWithRandomValuesAssigned =
             when {
+                // Per-element mastery rows (precision): the exact optimum of the solver's objective for those rows.
+                elementRows?.mastery != null ->
+                    elementRows.mastery.assign(masteryRolls(masteryRandoms), currentSpecificMasteryElements)
+
                 // Most-masteries maximizes the MIN over [masteryElementsToMinimize]; precision maximizes the capped
                 // sum. Both objectives have a provably-suboptimal deficit-greedy, so each gets its EXACT assignment
                 // (consistent with the correspondingly-freed CP-SAT model). max-damage (m=1) falls through to greedy.
@@ -291,6 +300,10 @@ fun computeCharacteristicsValues(
         val resistanceRandoms = getResistanceRandoms(eachCharacteristicValueLineByEquipment)
         val specificResistanceElementsWithRandomValuesAssigned =
             when {
+                // Per-element resistance rows (every mode): the exact optimum of the solver's objective for those rows.
+                elementRows?.resistance != null ->
+                    elementRows.resistance.assign(resistanceRolls(resistanceRandoms), resistanceElementsCurrent)
+
                 scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT && resistanceElementsToMinimize != null ->
                     // Aggregate RESISTANCE_ELEMENTARY in most-masteries maximizes the MIN resistance (exact max-min).
                     assignMaxMinResistanceRandomValues(resistanceRandoms, resistanceElementsCurrent, resistanceElementsWanted, resistanceElementsToMinimize)
