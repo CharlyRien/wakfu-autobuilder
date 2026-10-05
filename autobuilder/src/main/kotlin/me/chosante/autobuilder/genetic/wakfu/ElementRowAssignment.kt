@@ -440,7 +440,25 @@ internal class ElementRowObjective private constructor(
         // biggest mass first, which tightens the bounds early (equal rolls end up adjacent: the memo folds their orders).
         val order = compareByDescending<Roll> { it.value.toLong() * it.cover }.thenByDescending { it.value }.thenBy { it.cover }
         val choice = negative.sortedWith(order) + positive.sortedWith(order)
-        val search = Search(choice, negative.size, start, nodeBudget, keepZeroTargetRows && hasZeroTargetRows)
+        val constrained = keepZeroTargetRows && hasZeroTargetRows
+        // The same build is read several times over (its score, the stats column, the max-damage penalty, each emission of a
+        // search) and a loaded build is read on the UI thread: an identical search returns the placement it already found.
+        val key = PlacementKey(signature, start.toList(), choice.map { it.value to it.cover }, nodeBudget, constrained)
+        synchronized(PLACEMENTS) { if (PLACEMENTS.containsKey(key)) return PLACEMENTS[key] }
+        val placement = solve(choice, negative.size, start, nodeBudget, constrained, rolls.size)
+        synchronized(PLACEMENTS) { PLACEMENTS[key] = placement }
+        return placement
+    }
+
+    private fun solve(
+        choice: List<Roll>,
+        negativeCount: Int,
+        start: IntArray,
+        nodeBudget: Long,
+        constrained: Boolean,
+        rollCount: Int,
+    ): Placement? {
+        val search = Search(choice, negativeCount, start, nodeBudget, constrained)
         val best = search.run() ?: return null
         val result = LinkedHashMap<Characteristic, Int>()
         elements.forEachIndexed { e, element -> result[element] = best[e] }
@@ -450,13 +468,26 @@ internal class ElementRowObjective private constructor(
             if (hits and (hits - 1) == 0L) {
                 val gap = if (search.rootBound == Long.MAX_VALUE) "" else ", its primary within ${search.rootBound - primary(best)} solver units of the optimum"
                 logger.warn {
-                    "Per-element-row placement of ${rolls.size} random-element lines over $elements stopped at its $nodeBudget-node budget " +
+                    "Per-element-row placement of $rollCount random-element lines over $elements stopped at its $nodeBudget-node budget " +
                         "(hit $hits time(s) so far): the best placement found is kept$gap."
                 }
             }
         }
         return Placement(result, search.nodes, search.exact)
     }
+
+    // Everything a placement depends on besides its values and rolls: the objective itself (rebuilt for each request read).
+    private val signature: List<Any> =
+        listOf(mode, elements, rowElement.toList(), rowTarget.toList(), rowWeight.toList(), hasAggregate, aggregateTarget, aggregateWeight)
+
+    /** What a placement depends on — a pure function of it, so [PLACEMENTS] may hand an earlier result back. */
+    private data class PlacementKey(
+        val signature: List<Any>,
+        val start: List<Int>,
+        val choice: List<Pair<Int, Int>>,
+        val nodeBudget: Long,
+        val keepZeroTargetRows: Boolean,
+    )
 
     private class Roll(
         val value: Int,
@@ -1216,6 +1247,13 @@ internal class ElementRowObjective private constructor(
         // How many placements ran out of [NODE_BUDGET] in this JVM (rate-limits the warning).
         private val BUDGET_HITS = AtomicLong()
 
+        // The last placements of this JVM (least recently used out first), see [search]. Shared by every thread: guarded by itself.
+        private const val PLACEMENT_MEMO_SIZE = 512
+        private val PLACEMENTS =
+            object : LinkedHashMap<PlacementKey, Placement?>(64, 0.75f, true) {
+                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<PlacementKey, Placement?>): Boolean = size > PLACEMENT_MEMO_SIZE
+            }
+
         // Beyond this many visited states the memo stops growing (the search stays exact, only deduplicates less).
         private const val MEMO_LIMIT = 1_000_000
 
@@ -1245,7 +1283,11 @@ internal class ElementRowObjective private constructor(
             if (!targetStats.readsJointPerElementRows(family, mode)) return null
             val wanted = family.wanted(targetStats).keys
             val elements = family.elements.filter { it in wanted }
-            val rows = targetStats.filter { it.characteristic in elements }
+            // In element order (the request is a hash set): the same rows always give the same objective, and the same memo key.
+            val rows =
+                targetStats
+                    .filter { it.characteristic in elements }
+                    .sortedWith(compareBy({ elements.indexOf(it.characteristic) }, { it.target }, { it.userDefinedWeight }))
             val aggregate = targetStats.firstOrNull { it.characteristic == family.aggregate }
             return ElementRowObjective(
                 mode = mode,
