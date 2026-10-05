@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.14.2](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.14.1...wakfu-autobuilder-1.14.2) (2026-10-05)
+
+
+### Bug Fixes
+
+* a precision row of target 0 keeps the random roll that stops the score halving ([cabbe55](https://github.com/CharlyRien/wakfu-autobuilder/commit/cabbe555625c1974b23e7fb2e88697772dfb842c))
+* a saved build of a request on several elements of one family no longer restores a proof ([b818f55](https://github.com/CharlyRien/wakfu-autobuilder/commit/b818f5513f15a56f5bcff49dabb21dd34e0eacb2))
+* precision halves the score once, like the solver, however many rows of target 0 are below 0 ([1a72266](https://github.com/CharlyRien/wakfu-autobuilder/commit/1a7226617561481da2239ce107603e719586124b))
+* say why a request on several elements gets no optimality badge ([546bb55](https://github.com/CharlyRien/wakfu-autobuilder/commit/546bb553ade0e07993a33fdd89ce12debec8ece9))
+* targets on several elements count each random-element roll once ([ee8559d](https://github.com/CharlyRien/wakfu-autobuilder/commit/ee8559dc648f25645374b7ccd79a9d9103b7bb7f))
+* the multi-element item pre-selection keeps well-rounded items ([2761399](https://github.com/CharlyRien/wakfu-autobuilder/commit/276139960785bb173af93270d4e494adcf793f6d))
+* the scorer keeps random-element rolls once the targets are met ([0e6ed86](https://github.com/CharlyRien/wakfu-autobuilder/commit/0e6ed86815c4e8f567956bdfd066a86c393b4155))
+
+
+### Performance Improvements
+
+* a build's per-element-row placement is searched once, not on every read ([3ae3f5a](https://github.com/CharlyRien/wakfu-autobuilder/commit/3ae3f5a517c6921fb4a229e06e9ee2b0108063ed))
+
 ## [1.14.1](https://github.com/CharlyRien/wakfu-autobuilder/compare/wakfu-autobuilder-1.14.0...wakfu-autobuilder-1.14.1) (2026-10-04)
 
 
