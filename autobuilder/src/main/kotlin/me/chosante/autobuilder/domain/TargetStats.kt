@@ -54,6 +54,15 @@ class TargetStats(
         }.associate { it.characteristic to it.target }
 
     /**
+     * Whether one elemental family of this request wants more than one element: several per-element rows of it, or its
+     * aggregate row ("all resistances", "elemental mastery"). Such a request is searched on a heuristically pre-filtered
+     * item pool, so no search of it is ever PROVEN optimal (`WakfuBuildSolver.needsItemPrefilter` reads this), and a proof
+     * an older version stored for one cannot be trusted either.
+     */
+    val needsItemPrefilter: Boolean
+        get() = masteryElementsWanted.size > 1 || resistanceElementsWanted.size > 1
+
+    /**
      * Elements the "most-masteries" objective takes the *minimum* elemental mastery over. Specific
      * elements win: if the user asked for any of fire/earth/water/air, those define the set, so a
      * co-requested [Characteristic.MASTERY_ELEMENTARY] ("all elements") only lifts them via generic
