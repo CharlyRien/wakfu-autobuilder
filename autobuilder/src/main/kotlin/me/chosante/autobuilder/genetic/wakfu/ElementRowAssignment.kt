@@ -5,6 +5,7 @@ import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.common.Characteristic
 import java.util.BitSet
+import java.util.Collections
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.abs
 import kotlin.math.roundToLong
@@ -391,8 +392,9 @@ internal class ElementRowObjective private constructor(
     ): Map<Characteristic, Int> = place(rolls, current).values
 
     /**
-     * A placement [place] returned: every element's final [values], the search [nodes] it took, and whether it is [exact] —
-     * the proven optimum, i.e. the search ended within its node budget (else the best placement it met, see [NODE_BUDGET]).
+     * A placement [place] returned: every element's final [values] (read-only — the memo shares it), the search [nodes] it took,
+     * and whether it is [exact] — the proven optimum, i.e. the search ended within its node budget (else the best placement it
+     * met, see [NODE_BUDGET]).
      */
     internal class Placement(
         val values: Map<Characteristic, Int>,
@@ -473,7 +475,8 @@ internal class ElementRowObjective private constructor(
                 }
             }
         }
-        return Placement(result, search.nodes, search.exact)
+        // Read-only: the memo hands this very placement to every later identical search, so no caller may write into it.
+        return Placement(Collections.unmodifiableMap(result), search.nodes, search.exact)
     }
 
     // Everything a placement depends on besides its values and rolls: the objective itself (rebuilt for each request read).
