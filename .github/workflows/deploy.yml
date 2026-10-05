@@ -21,7 +21,7 @@ jobs:
             # make Conveyor package each OS with its own Skiko + native (needs Compose >= 1.11 / Skiko
             # >= 0.144 so the JVM Skiko variant resolves unambiguously — SKIKO-1013).
             -   name: Run Conveyor
-                uses: hydraulic-software/conveyor/actions/build@v22.1
+                uses: hydraulic-software/conveyor/actions/build@v22.3
                 env:
                     OAUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                 with:
