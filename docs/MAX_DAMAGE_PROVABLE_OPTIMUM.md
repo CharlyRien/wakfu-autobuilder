@@ -317,6 +317,16 @@ beaten by brute force — `RandomElementAssignmentTest` locks each exact assignm
 locked end-to-end: the solver's optimum == the exact-scorer exhaustive optimum on small pools with random items,
 for aggregate mastery, the unequal-target multi-specific case, aggregate resistance, AND precision aggregate.
 
+**Tie-break (2026-10): every roll is placed.** Both exact assignments used to start from "no roll placed" and to replace
+it only on a STRICT gain of their own objective, so a roll the objective cannot see vanished from the displayed stats:
+in precision once the non-random stats already met every target (nothing can raise `Σ min(value, target)`, and the
+score above 100 % then read no roll at all — the freed model, whose overflow bonus does count them, ranked builds the
+re-scorer disagreed with), in most-masteries when the minimum cannot move. They now start from a complete water-fill
+placement and break ties deterministically, the primary objective untouched: precision — capped sum, then the score's
+own reading above 100 %, `Σ weight · value` (its rows weighted like `TargetStats.weight`); most-masteries — the minimum,
+then the mastery on the minimised elements. Locked against an exhaustive lexicographic optimum in
+`RandomRollsTieBreakTest`, plus the solver's optimum == the scorer's best when only the rolls tell the builds apart.
+
 **Result (lvl-245, prefiltered production pool):** aggregate **most-masteries FEASIBLE 204 s → OPTIMAL 3.8 s**
 (constraints 10 379 → 2 139), proven optimum **rose 4336 → 4755** (greedy was leaving mastery on the table); the
 full unprefiltered pool now even proves (≈72 s) to the same 4755. Aggregate **precision → OPTIMAL 1.6 s**. The
