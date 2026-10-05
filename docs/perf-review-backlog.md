@@ -1544,6 +1544,9 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
       "no solver knob" verdict was reached on max-damage, not on this workload);
     - `xelor200` never proves.
   - **GUI message, three states:** checking the full catalog / proven / not concluded (timed out, stopped, disabled).
+    Today's interim message says the opposite ("can't be proven, even with more time"): the stats headline explains the
+    missing badge (`UiState.prefilteredRequest`, `Tr.NO_PROOF_TITLE` / `Tr.NO_PROOF_BODY`) and `BuildSearchModel.search` does
+    not start the post-search check for such a request. Rework both with this feature.
   - **Then a compute-settings panel:** cores used (and why), a simple priority / mode choice, and an on/off for the
     optimality badge, each with a clear explanation in Settings. Today the "Check optimality after the search" switch
     (`UiState.verifyOptimality`, persisted by `LibraryPreferences`) and the `proofState` pipeline exist; there is no

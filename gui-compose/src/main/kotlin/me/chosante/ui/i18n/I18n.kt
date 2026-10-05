@@ -290,6 +290,22 @@ enum class Tr(
         "Meilleur trouvé parmi les séquences de réduction de résistance — cette structure de tour est explorée heuristiquement, donc plus de temps n'y changera pas grand-chose."
     ),
 
+    // A request on several elements searches a pre-filtered item pool, so it never earns an optimality badge, whatever the search
+    // duration: this explanation replaces the "raise the search duration" hint there (which would be false advice). The title says
+    // WHAT is missing, the body WHY, and that it is not a defect of the build.
+    NO_PROOF_TITLE(
+        "No optimality proof for this request",
+        "Pas de preuve d'optimalité pour cette requête"
+    ),
+    NO_PROOF_BODY(
+        "Your request targets several elements. To keep the search fast, the engine only compares a selection of the strongest items, " +
+            "not the whole catalog. The build found is very likely the best, but it can't be proven, even with more time. " +
+            "Single-element requests are not affected.",
+        "Ta requête vise plusieurs éléments. Pour que la recherche reste rapide, le moteur ne compare qu'une sélection des meilleurs " +
+            "objets, pas tout le catalogue. Le build trouvé est très probablement le meilleur, mais on ne peut pas le prouver, même " +
+            "avec plus de temps. Les requêtes sur un seul élément ne sont pas concernées."
+    ),
+
     // Max-damage certificate proof state (P4.4). The %s is the elapsed time ("2 min 10 s").
     PROVING_OPTIMALITY("Verifying optimality… (%s)", "Vérification de l'optimalité… (%s)"),
     PROOF_CONSTRUCTING("Building the proven optimal build… (%s)", "Construction du build optimal prouvé… (%s)"),

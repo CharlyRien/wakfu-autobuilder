@@ -294,6 +294,12 @@ internal fun MatchHero(
                             )
                         }
                     }
+                    // A request on several elements is searched on a heuristic selection of the items, so NO search of it is ever
+                    // proven: say so, instead of the "raise the search duration" hint below, which would send the player after a
+                    // badge nothing can earn. A search the user stopped keeps its own hint (its build is a best-so-far, not that
+                    // search's result), and every badge state above still wins.
+                    ui.prefilteredRequest && !showOptimal && !ui.searchStopped ->
+                        NoProofExplanation(modifier = Modifier.padding(top = 4.dp))
                     // Certificate unavailable because of forced runes/subs — name the reason (honest, not "proven").
                     ui.proofState == ProofState.Unavailable &&
                         !showOptimal &&
@@ -327,6 +333,31 @@ internal fun MatchHero(
                 )
             }
         }
+    }
+}
+
+/** Test tag of the "no optimality proof for this request" explanation (see [NoProofExplanation]). */
+internal const val NO_PROOF_TAG = "no-proof-explanation"
+
+/**
+ * Why a request on several elements gets no optimality badge ([UiState.prefilteredRequest]): the engine compares a selection of
+ * the strongest items, not the whole catalog, so a proof is impossible however long the search runs. The title says WHAT is
+ * missing ([Tr.NO_PROOF_TITLE]), the body WHY — and that it is no defect of the build ([Tr.NO_PROOF_BODY]).
+ */
+@Composable
+internal fun NoProofExplanation(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.testTag(NO_PROOF_TAG),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(
+            text = tr(Tr.NO_PROOF_TITLE),
+            style = WTypography.labelSmall.copy(color = WColor.muted, fontWeight = FontWeight.SemiBold)
+        )
+        Text(
+            text = tr(Tr.NO_PROOF_BODY),
+            style = WTypography.labelSmall.copy(color = WColor.faint)
+        )
     }
 }
 
