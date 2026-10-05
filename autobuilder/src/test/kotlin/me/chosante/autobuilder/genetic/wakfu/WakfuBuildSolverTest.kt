@@ -4260,11 +4260,18 @@ class WakfuBuildSolverTest {
         }
 
     /**
-     * The SHORT-SEARCH rescue (cascade + E8 construct): a deliberately tiny budget leaves a WEAK
+     * The SHORT-SEARCH rescue (cascade + E8 construct): a deliberately short budget leaves a WEAK
      * incumbent, so the certificate ceiling sits far above it and the flow legitimately ends UNPROVEN
      * at its duration. The async proof path (what the CLI/GUI run next) must then confirm the argmax
      * through the CASCADED certificate — one cell at a time, not a tier-1.5 pass per survivor — and
      * CONSTRUCT the proven-optimal build. Production path (tuning = null); generous wall asserts.
+     * The budget must still let CP-SAT emit: the proof compares the incumbent's raw proxy, which only a solver
+     * solution carries — a search that ends on the greedy warm start alone gets no proof at all. Since the rune choice
+     * collapse keeps explicit picks while a Neutralité-family cap is choosable (CERTIFIER_VERSION 54), the first CP-SAT
+     * incumbent of this request lands ~3× later on the production path (4 cores: ~0.8 s → ~2.7 s on an Apple M5), so on a
+     * slower 4-core machine the former 3 s budget ends on the greedy build (reproduced on 4 cores with 1–1.5 s budgets;
+     * most likely the 2026-10-05 nightly failure on the 4-vCPU runner). The wall assert times the RESCUE only (proof +
+     * construct), so the search budget can never eat into it.
      */
     @Test
     @Tag("slow")
@@ -4274,16 +4281,20 @@ class WakfuBuildSolverTest {
                 fireMaxDamageParams(110).copy(
                     useRunes = true,
                     useSublimations = true,
-                    searchDuration = 3.seconds
+                    searchDuration = 20.seconds
                 )
             val pool = fullEpicPool(110)
             MaxDamageCertificateCache.clear()
-            val startMs = System.currentTimeMillis()
             val results =
                 MaxDamageSearch
                     .run(params, pool, WakfuBestBuildFinderAlgorithm.runes, WakfuBestBuildFinderAlgorithm.sublimations)
                     .toList()
             val best = results.last()
+            // Fail on a budget that ended before CP-SAT's first solution with that cause, not as a lost proof.
+            assertThat(best.maxDamageRawProxy ?: best.maxDamageObjective)
+                .describedAs("the %s search must hand the proof a CP-SAT incumbent, not only the greedy warm start", params.searchDuration)
+                .isNotNull
+            val startMs = System.currentTimeMillis()
             // The async proof path, exactly as the CLI/GUI run it after the flow closes.
             val proof = MaxDamageSearch.proveOptimality(params, pool, WakfuBestBuildFinderAlgorithm.runes, WakfuBestBuildFinderAlgorithm.sublimations, best)
             val proven =
@@ -4305,7 +4316,7 @@ class WakfuBuildSolverTest {
                 }
             val elapsedMs = System.currentTimeMillis() - startMs
             assertThat(proven)
-                .describedAs("a 3 s search must still end PROVEN via the async cascaded construct (proof=%s)", proof)
+                .describedAs("a %s search must still end PROVEN via the async cascaded construct (proof=%s)", params.searchDuration, proof)
                 .isTrue
             assertThat(elapsedMs)
                 .describedAs("the rescue must not degenerate into the full batch (took %d ms)", elapsedMs)
@@ -4350,14 +4361,24 @@ class WakfuBuildSolverTest {
     @Test
     @Tag("slow")
     fun `max-damage proves the runes+subs level-110 optimum via search plus certificate`() {
-        // Deterministic, DELIBERATELY-short search (canonical 1-worker + interleave protocol): the incumbent
-        // reliably falls short of the certificate optimum, so this exercises the E8 construct rescue —
-        // provenance-restricted re-solve first, full-pool `rawScore ≥ bound` feasibility fallback second —
-        // on EVERY run, instead of flaking on whether a multi-worker race happened to reach the optimum
-        // by itself (with a budget that DOES reach it, the test only ever takes the ProvenOptimal arm).
+        // Deterministic, DELIBERATELY-weak incumbent (canonical 1-worker + interleave protocol, stopped at CP-SAT's FIRST
+        // solution): the incumbent reliably falls short of the certificate optimum, so this exercises the E8 construct
+        // rescue — provenance-restricted re-solve first, full-pool `rawScore ≥ bound` feasibility fallback second — on
+        // EVERY run, instead of flaking on whether a multi-worker race happened to reach the optimum by itself (with a
+        // budget that DOES reach it, the test only ever takes the ProvenOptimal arm). It stops at the first solution, not
+        // at a fixed det budget, because WHEN that solution lands depends on the model's size: since the rune choice
+        // collapse keeps explicit picks while a Neutralité-family cap is choosable (CERTIFIER_VERSION 54,
+        // docs/RUNE_CHOICE_COLLAPSE_FIX.md) it lands at det ≈ 17 instead of ≈ 3, and the former det-10 budget ended with
+        // no build at all. The det cap is only a hang backstop.
         assertRunesSubsProvenViaCertificate(
             110,
-            searchTuning = WakfuBuildSolver.SolverTuning(numSearchWorkers = 1, interleaveSearch = true, maxDeterministicTime = 10.0)
+            searchTuning =
+                WakfuBuildSolver.SolverTuning(
+                    numSearchWorkers = 1,
+                    interleaveSearch = true,
+                    maxDeterministicTime = 120.0,
+                    stopAtFirstSolution = true
+                )
         )
     }
 

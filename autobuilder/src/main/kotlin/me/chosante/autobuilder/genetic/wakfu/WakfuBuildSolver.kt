@@ -698,10 +698,12 @@ object WakfuBuildSolver {
         // see [MostMasteriesWarmStart]) on the tuned path. Default false keeps every existing
         // deterministic test byte-identical; production follows its own gate in [optimize].
         val greedyWarmStart: Boolean = false,
-        // E8 fallback: stop the search at the FIRST solution instead of running the budget out. Only
-        // meaningful together with [optimize]'s `maxDamageRawFloor` — there ANY feasible solution already
-        // sits at the certificate bound (the floor is a sound per-cell upper bound), so proving optimality
-        // on top is pure waste; the final emission delivers the stopped-at solution.
+        // Stop the search at the FIRST solution instead of running the budget out; the final emission delivers
+        // the stopped-at solution. Two uses: the E8 fallback, with [optimize]'s `maxDamageRawFloor` — there ANY
+        // feasible solution already sits at the certificate bound (the floor is a sound per-cell upper bound), so
+        // proving optimality on top is pure waste; and tests that need the WEAKEST incumbent a search can hand
+        // over — with 1 worker + interleave it is the same on every machine, however long the model takes to
+        // reach it (a fixed det budget can end before the first solution once the model grows).
         val stopAtFirstSolution: Boolean = false,
         // P0.5 diagnostics (manual harnesses only — never production, see docs/MOST_MASTERIES_PERF_PLAN.md):
         // receive CP-SAT's own search log lines (dual-bound trajectory + per-subsolver attribution) —
