@@ -1005,10 +1005,14 @@ private fun StatRow(
     achieved: Int,
     mode: ScoreComputationMode,
 ) {
-    val targetValue = target.value.toIntOrNull() ?: 0
+    val typedValue = target.value.toIntOrNull()
+    val targetValue = typedValue ?: 0
     val exact = target.isExact(mode)
-    val status =
+    val status: StatStatus? =
         when {
+            // A blank constraint sends no row: the engine checks nothing there, so the value is shown without a verdict. (A typed
+            // 0 is a row — "never below 0" — and a maximized mastery counts whatever its field holds.)
+            typedValue == null && exact -> null
             exact && achieved >= targetValue -> StatStatus.Ok
             exact -> StatStatus.Miss
             targetValue > 0 && achieved >= targetValue -> StatStatus.Ok
@@ -1054,17 +1058,17 @@ private fun StatRow(
                 }
             }
             Text(
-                text = status.icon,
+                text = status?.icon.orEmpty(),
                 style =
                     WTypography.bodyMedium.copy(
-                        color = status.color,
+                        color = status?.color ?: WColor.muted,
                         textAlign = TextAlign.Center,
                         lineHeight = 18.sp
                     ),
                 modifier = Modifier.width(18.dp)
             )
         }
-        if (targetValue > 0) {
+        if (status != null && targetValue > 0) {
             Meter(
                 fill = progress,
                 color = status.color,
