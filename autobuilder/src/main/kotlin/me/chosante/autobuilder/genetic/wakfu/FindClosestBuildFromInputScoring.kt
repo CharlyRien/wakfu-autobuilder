@@ -4,6 +4,7 @@ import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.autobuilder.domain.associateWeights
 import me.chosante.autobuilder.domain.perElementDiMastery
 import me.chosante.common.Characteristic
 import me.chosante.common.ItemType
@@ -17,6 +18,7 @@ import java.math.MathContext
 import java.math.RoundingMode
 import kotlin.math.min
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 object FindClosestBuildFromInputScoring {
     fun computeScore(
@@ -419,6 +421,11 @@ fun assignUniformlyResistanceRandomValues(
  * (WakfuBuildSolver.applyGreedyRandom, most-masteries path) reaches the SAME optimal minimum, so the two engines
  * stay consistent. The per-element distribution may differ from the solver's — only the resulting minimum is
  * observable by the objective, which both maximize.
+ *
+ * EVERY roll is placed, including those that cannot lift the minimum (one 1-element roll over two equal elements):
+ * ties on the minimum go to the placement with the most mastery on the minimised elements, which is a complete one,
+ * and then to the one that fills the lowest elements first. A roll must never vanish from the displayed per-element
+ * stats just because the objective cannot see it.
  */
 fun assignMaxMinMasteryRandomValues(
     randomElements: Map<Characteristic, List<Int>>,
@@ -445,6 +452,11 @@ fun assignMaxMinResistanceRandomValues(
  * Optimal random-element assignment for the PRECISION objective, which maximizes `Σ min(value_e, target_e)` over
  * the requested elements (each capped at its target). As with max-min there is no optimal greedy (the deficit-sort
  * is beatable — RandomElementAssignmentTest), so we solve it exactly; this matches precision's freed CP-SAT model.
+ *
+ * Ties on that sum go to the assignment the score reads best ABOVE 100 %, where it stops capping and reads
+ * `Σ weight_e · value_e` (and the freed model's overflow bonus rewards the same quantity): without that, once the
+ * non-random stats already meet the targets no placement beat "no roll placed" and every random-element mastery
+ * vanished from the displayed values and from the score above 100 %. See [assignMaxCapped].
  */
 fun assignMaxCappedMasteryRandomValues(
     randomElements: Map<Characteristic, List<Int>>,
@@ -515,6 +527,12 @@ private fun resistanceRolls(randomElements: Map<Characteristic, List<Int>>) =
  * one roll at a time, pruning with the admissible bound `min ≤ (Σ subset + reachable remaining mass) / |subset|`.
  * This is exactly what the freed CP-SAT model computes, keeping the two engines consistent. Surplus is then
  * spilled onto the lowest non-subset wanted elements for a faithful per-element display.
+ *
+ * The search starts from a COMPLETE placement — the water-fill, largest roll first onto the lowest elements — and only a
+ * STRICTLY higher minimum replaces it. It used to start from "no roll placed", which no placement could beat whenever
+ * the minimum could not move (one 1-element roll over two equal elements), so those rolls vanished from the per-element
+ * stats. Covering as many subset elements as possible never lowers the minimum, so the result is the lexicographic
+ * optimum of (minimum, total mastery on the subset); the water-fill start only picks which tied placement is shown.
  */
 private fun MutableMap<Characteristic, Int>.assignMaxMin(
     rolls: List<Pair<Int, Int>>,
@@ -546,7 +564,18 @@ private fun MutableMap<Characteristic, Int>.assignMaxMin(
 
     fun objective(arr: IntArray): Long = if (weights == null) arr.min().toLong() else subset.indices.minOf { weightArr[it] * maxOf(0L, offset + arr[it].toLong()) }
 
-    val best = IntArray(subset.size) { subsetBase[it] }
+    // What the minimum sees of element [i]: its plain value, or the weighted `weight_e·max(0, offset + value_e)`.
+    fun level(
+        arr: IntArray,
+        i: Int,
+    ): Long = if (weights == null) arr[i].toLong() else weightArr[i] * maxOf(0L, offset + arr[i].toLong())
+
+    // The incumbent is a COMPLETE placement (the water-fill), never "nothing placed": rolls on equipped items always apply.
+    val best = subsetBase.copyOf()
+    for ((value, cover) in subsetRolls) {
+        val lowestFirst = subset.indices.sortedBy { level(best, it) }
+        for (i in if (value > 0) lowestFirst.take(cover) else lowestFirst.takeLast(cover)) best[i] += value
+    }
     var bestMin = objective(best)
     val current = subsetBase.copyOf()
     // Remaining reachable subset mass after roll index i (suffix sums), for the average bound.
@@ -593,16 +622,33 @@ private fun MutableMap<Characteristic, Int>.assignMaxMin(
 /**
  * Assigns atomic [rolls] (value, count) to MAXIMIZE `Σ min(value_e, target_e)` over [wanted] (precision's capped
  * objective), EXACTLY — branch & bound over the ≤4 element values, pruning with the admissible bound
- * `capped ≤ current capped + min(remaining reachable mass, remaining room-to-target)`. Mirrors the freed CP-SAT model.
+ * `capped ≤ current capped + min(remaining positive mass, remaining room-to-target)`. Mirrors the freed CP-SAT model.
+ *
+ * Among the assignments that tie on that sum — all of them once the non-random stats already meet every target, so no
+ * placement can raise it — the result is the one the score reads best ABOVE 100 %: there the precision score stops
+ * capping and reads `Σ weight_e · value_e` (`calculateTotalActualScore` with `canExceedPerfectScore`, and the freed
+ * model's overflow bonus), each row weighted by [precisionRowWeight]. The result is the lexicographic optimum of the two,
+ * in that order (the second within [TIE_BREAK_NODE_BUDGET] nodes, see below), and EVERY roll is placed: rolls on equipped
+ * items always apply, so "nothing placed" is never a candidate (starting from it
+ * made every random-element mastery vanish from the displayed values, and from the score above 100 %, once the
+ * targets were met). Elements are taken in enum order so the result never depends on the iteration order of the caller's
+ * map (the targets live in a HashSet of identity-hashed enums, which differs from one run of the JVM to the next).
+ *
+ * The incumbent is a greedy complete placement — per roll, the elements that gain the most capped sum, then carry the
+ * heaviest rows, then are the lowest (water-fill) — so with every target met, or with equal rows, it is already optimal
+ * and the search stops at once; only a STRICTLY better (capped sum, weighted sum) replaces it. The capped sum is solved
+ * exactly whatever it costs; the weighted tie-break is bounded by [TIE_BREAK_NODE_BUDGET] explored nodes (deterministic).
  */
 private fun MutableMap<Characteristic, Int>.assignMaxCapped(
     rolls: List<Pair<Int, Int>>,
     wanted: List<Characteristic>,
     targets: Map<Characteristic, Int>,
 ): MutableMap<Characteristic, Int> {
-    val n = wanted.size
+    val elements = wanted.sortedBy { it.ordinal }
+    val n = elements.size
     if (n == 0 || rolls.isEmpty()) return this
-    val target = IntArray(n) { targets[wanted[it]] ?: Int.MAX_VALUE }
+    val target = IntArray(n) { targets[elements[it]] ?: Int.MAX_VALUE }
+    val weight = LongArray(n) { precisionRowWeight(target[it]) }
     val effRolls =
         rolls
             .mapNotNull { (value, count) ->
@@ -610,33 +656,132 @@ private fun MutableMap<Characteristic, Int>.assignMaxCapped(
                 if (value == 0 || eff == 0) null else value to eff
             }.sortedByDescending { it.first.toLong() * it.second }
     if (effRolls.isEmpty()) return this
-
-    val current = IntArray(n) { this[wanted[it]]!! }
-    val best = current.copyOf()
+    val combosByCover = (0..n).associateWith { k -> indexCombinations(n, k) }
 
     fun cappedSum(arr: IntArray): Long {
         var s = 0L
         for (i in 0 until n) s += minOf(arr[i], target[i]).toLong()
         return s
     }
-    var bestCapped = cappedSum(current)
-    val suffixMass = LongArray(effRolls.size + 1)
-    for (i in effRolls.indices.reversed()) suffixMass[i] = suffixMass[i + 1] + effRolls[i].first.toLong() * effRolls[i].second
-    val combosByCover = (0..n).associateWith { k -> indexCombinations(n, k) }
+
+    fun weightedSum(arr: IntArray): Long {
+        var s = 0L
+        for (i in 0 until n) s += weight[i] * arr[i]
+        return s
+    }
+
+    val start = IntArray(n) { this[elements[it]]!! }
+    val best = start.copyOf()
+    for ((value, cover) in effRolls) {
+        // A malus (the one negative random resistance in the data) goes to the lightest rows and the highest elements.
+        val sign = if (value > 0) 1 else -1
+        var chosen = combosByCover.getValue(cover).first()
+        var chosenGain = Long.MIN_VALUE
+        var chosenWeight = Long.MIN_VALUE
+        var chosenLevel = Long.MAX_VALUE
+        for (combo in combosByCover.getValue(cover)) {
+            var gain = 0L
+            var comboWeight = 0L
+            var level = 0L
+            for (idx in combo) {
+                gain += minOf(best[idx].toLong() + value, target[idx].toLong()) - minOf(best[idx], target[idx])
+                comboWeight += weight[idx]
+                level += best[idx]
+            }
+            comboWeight *= sign
+            level *= sign
+            if (gain > chosenGain || (gain == chosenGain && (comboWeight > chosenWeight || (comboWeight == chosenWeight && level < chosenLevel)))) {
+                chosen = combo
+                chosenGain = gain
+                chosenWeight = comboWeight
+                chosenLevel = level
+            }
+        }
+        for (idx in chosen) best[idx] += value
+    }
+    var bestCapped = cappedSum(best)
+    var bestWeighted = weightedSum(best)
+
+    // Admissible bounds on what the rolls still to place can add, indexed by the first roll left (positive rolls only for
+    // `capped`, which a malus can never raise; a malus can only lower `weighted`):
+    //  - capped: by no more than the positive mass left, nor than what each element can still take — its room to the target,
+    //    and the positive values still to come (a roll adds to one element at most its value, once);
+    //  - weighted: each roll at best on its `cover` heaviest rows (a malus: on its lightest).
+    val weightsDescending = weight.sortedDescending()
+    val heaviest = LongArray(n + 1)
+    val lightest = LongArray(n + 1)
+    for (k in 1..n) {
+        heaviest[k] = heaviest[k - 1] + weightsDescending[k - 1]
+        lightest[k] = lightest[k - 1] + weightsDescending[n - k]
+    }
+    val suffixPositiveMass = LongArray(effRolls.size + 1)
+    val suffixPositiveValue = LongArray(effRolls.size + 1)
+    val suffixPositiveGain = LongArray(effRolls.size + 1)
+    val suffixNegativeGain = LongArray(effRolls.size + 1)
+    for (i in effRolls.indices.reversed()) {
+        val (value, cover) = effRolls[i]
+        suffixPositiveMass[i] = suffixPositiveMass[i + 1] + maxOf(value, 0).toLong() * cover
+        suffixPositiveValue[i] = suffixPositiveValue[i + 1] + maxOf(value, 0)
+        suffixPositiveGain[i] = suffixPositiveGain[i + 1] + maxOf(value, 0).toLong() * heaviest[cover]
+        suffixNegativeGain[i] = suffixNegativeGain[i + 1] + minOf(value, 0).toLong() * lightest[cover]
+    }
+    val heaviestFirst = (0 until n).sortedByDescending { weight[it] }
+    val usable = LongArray(n)
+    var tieBreakNodes = 0
+
+    val current = start.copyOf()
 
     fun recurse(rollIndex: Int) {
+        val capped = cappedSum(current)
+        val weighted = weightedSum(current)
         if (rollIndex == effRolls.size) {
-            val c = cappedSum(current)
-            if (c > bestCapped) {
-                bestCapped = c
+            if (capped > bestCapped || (capped == bestCapped && weighted > bestWeighted)) {
+                bestCapped = capped
+                bestWeighted = weighted
                 System.arraycopy(current, 0, best, 0, n)
             }
             return
         }
-        // Admissible: extra capped ≤ min(remaining mass, remaining room-to-target).
-        var room = 0L
-        for (i in 0 until n) room += maxOf(0, target[i] - current[i]).toLong()
-        if (cappedSum(current) + minOf(suffixMass[rollIndex], room) <= bestCapped) return
+        val mass = suffixPositiveMass[rollIndex]
+        val perElementCap = suffixPositiveValue[rollIndex]
+        var capacity = 0L
+        for (i in 0 until n) {
+            usable[i] = minOf(maxOf(0L, target[i].toLong() - current[i]), perElementCap)
+            capacity += usable[i]
+        }
+        val cappedBound = capped + minOf(mass, capacity)
+        if (cappedBound < bestCapped) return
+        var weightedBound = weighted + suffixPositiveGain[rollIndex] + suffixNegativeGain[rollIndex]
+        if (cappedBound == bestCapped) {
+            // The tie-break only orders placements the capped sum cannot tell apart: it gets a fixed budget (counted in nodes, so
+            // the result stays deterministic), the capped search above and the incumbent below it being untouched by it.
+            if (++tieBreakNodes > TIE_BREAK_NODE_BUDGET) return
+            // Only a TIE on the capped sum can still win, by its weighted sum — and a tie means the capped bound is reached:
+            // either all the mass lands within the rooms (mass ≤ capacity), or every room gets filled (mass > capacity).
+            // The best weighted sum under that is a fractional knapsack over the rows, heaviest first — much tighter than
+            // "every roll on its heaviest rows" when the rooms are small, which is what keeps unequal rows with unmet targets cheap.
+            var gain = 0L
+            if (mass <= capacity) {
+                var left = mass
+                for (i in heaviestFirst) {
+                    val take = minOf(usable[i], left)
+                    gain += weight[i] * take
+                    left -= take
+                }
+            } else {
+                var surplus = mass - capacity
+                for (i in 0 until n) gain += weight[i] * usable[i]
+                for (i in heaviestFirst) {
+                    val extra = minOf(perElementCap - usable[i], surplus)
+                    gain += weight[i] * extra
+                    surplus -= extra
+                }
+                // The mass cannot fill every room within what each element can take: the capped bound is out of reach.
+                if (surplus > 0L) return
+            }
+            weightedBound = minOf(weightedBound, weighted + gain + suffixNegativeGain[rollIndex])
+            if (weightedBound <= bestWeighted) return
+        }
         val (value, cover) = effRolls[rollIndex]
         for (combo in combosByCover.getValue(cover)) {
             for (idx in combo) current[idx] += value
@@ -646,8 +791,30 @@ private fun MutableMap<Characteristic, Int>.assignMaxCapped(
     }
     recurse(0)
 
-    wanted.forEachIndexed { i, element -> this[element] = best[i] }
+    elements.forEachIndexed { i, element -> this[element] = best[i] }
     return this
+}
+
+/**
+ * How many nodes [assignMaxCapped]'s weighted tie-break may explore. The capped sum itself is always solved exactly, with no budget;
+ * the tie-break only picks, among its optima, the placement the score reads best above 100 %. It spends almost nothing when the
+ * incumbent is already optimal (every target met, or equal rows) and the exhaustive locks stay far below it. It binds only with four
+ * UNMET rows of unequal weight under 12 or more random lines (about 4 % of such random requests in a sample, ~10 ms): the best
+ * placement found so far is then kept — still complete and capped-optimal, and within 0.3 score points above 100 % of the optimum
+ * (0.02 on average).
+ */
+private const val TIE_BREAK_NODE_BUDGET = 200_000
+
+/**
+ * What the precision score multiplies a requested row of [target] by — [TargetStats.weight] at the default priority,
+ * `100 / target` rounded to 2 decimals — as an exact integer in HUNDREDTHS, so the tie-break above compares Longs. The
+ * assignment sees the targets only, not the user's per-row priority: a priority rescales a whole row's weight and so
+ * can only change WHICH of the equally-capped placements reads best above 100 %, never the capped sum itself.
+ */
+private fun precisionRowWeight(target: Int): Long {
+    val row = TargetStat(Characteristic.MASTERY_ELEMENTARY, target)
+    // Never negative (a negative target is no real request): the bounds in [assignMaxCapped] rely on it.
+    return (listOf(row).associateWeights(100).getValue(row) * 100).roundToLong().coerceAtLeast(0L)
 }
 
 /** All k-element index subsets of [0, n). */
