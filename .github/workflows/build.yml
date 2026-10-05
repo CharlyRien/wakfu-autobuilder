@@ -51,3 +51,15 @@ jobs:
 
             -   name: Run the heavy full-pool proof tests
                 run: ./gradlew :autobuilder:slowTest
+
+            # The console only names a failed test and its first frame in the test class (often the `runBlocking`
+            # line), and prints nothing for a passing one: the JUnit XML carries each failure's message and stack,
+            # each test's stdout / stderr and its duration. Uploaded even when a test failed or timed out.
+            -   name: Upload the slow-test results
+                if: always()
+                uses: actions/upload-artifact@v7.0.1
+                with:
+                    name: slow-test-results
+                    path: |
+                        autobuilder/build/test-results/slowTest
+                        autobuilder/build/reports/tests/slowTest
