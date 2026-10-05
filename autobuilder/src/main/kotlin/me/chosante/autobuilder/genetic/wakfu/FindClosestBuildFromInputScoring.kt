@@ -38,16 +38,18 @@ object FindClosestBuildFromInputScoring {
 
         var totalActualScore = calculateTotalActualScore(targetStats, actualCharacteristicsValues, targetStats.expectedScoreByCharacteristic, canExceedPerfectScore = false)
 
-        // Apply penalty on asked characteristics with target 0 and negative value on the current build
-        targetStats
-            .filter { it.target == 0 }
-            .forEach { targetStat ->
-                actualCharacteristicsValues[targetStat.characteristic]?.let {
-                    if (it < 0) {
-                        totalActualScore /= 2
-                    }
-                }
+        // A row of target 0 that reads below 0 HALVES the score — once, however many do, exactly like the solver's objective
+        // (StatBuilder.negativeTargetPenalty, which leaves the aggregate rows out too). It used to halve once PER such row, so where
+        // a halving was already unavoidable (say the GUI's default "dodge 0" under a negative-dodge ring) the placement the solver
+        // rightly ranks first could read as halved twice.
+        val belowZero =
+            targetStats.any {
+                it.target == 0 &&
+                    it.characteristic != Characteristic.MASTERY_ELEMENTARY &&
+                    it.characteristic != Characteristic.RESISTANCE_ELEMENTARY &&
+                    (actualCharacteristicsValues[it.characteristic] ?: 0) < 0
             }
+        if (belowZero) totalActualScore /= 2
 
         val successPercentage = (totalActualScore / targetStats.totalExpectedScore) * 100.0
 
@@ -376,7 +378,7 @@ fun computeCharacteristicsValues(
             ?: resistancePlaced
     if (masteryKept == masteryPlaced && resistanceKept == resistancePlaced) return placed
     val kept = withPlacements(masteryKept, resistanceKept)
-    // Ties keep the rows of target 0 at 0 or more: the score halves for each one below 0.
+    // Ties keep the rows of target 0 at 0 or more (what the stats column then shows).
     return if (precisionModelObjective(rows.targetStats, kept, sumWithPassives) >= precisionModelObjective(rows.targetStats, placed, sumWithPassives)) kept else placed
 }
 
