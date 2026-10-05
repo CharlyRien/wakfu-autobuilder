@@ -44,7 +44,9 @@ object FindMaxDamageScoring {
                 // Mode + scenario let the sublimation fold gate scenario-specific effects (and apply the
                 // build-static conditional ones) for the chosen build's stats.
                 scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
-                damageScenario = scenario
+                damageScenario = scenario,
+                // Per-element resistance rows read the solver's joint fold: place the rolls as it does.
+                elementRows = targetStats.elementRowObjectives(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE)
             )
 
         val expectedDamage = expectedDamage(stats, scenario)
