@@ -1542,13 +1542,15 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     through its own single-element fold, so a random-element roll counts in full on every element — the over-count #238
     removes from the target rows. #238 leaves the proxy as it is and documents why: no scorer mirrors it and no
     certificate reads it.
-  - **PRECISION: A 0-TARGET ROW OF A FAMILY NOT READ JOINTLY HALVES ON TWO DIFFERENT READS — OPEN (solver / score
-    consistency; found by #238's review, pre-existing).** A row of target 0 that reads below 0 halves the whole
-    precision objective (`StatBuilder.negativeTargetPenalty`). The solver reads such a row's UNFOLDED stat (no "+all
-    elements" lines, no random rolls; #238 moves only a jointly read family's rows onto the joint fold) while the
-    displayed score halves on the FOLDED value. What is left after #238 is a family that is not read jointly — e.g.
-    "all resistances" beside the GUI's default air-resistance 0 row. `precisionModelObjective` (#238) mirrors the
-    solver's read, the score does not.
+  - **PRECISION: A 0-TARGET ROW OF A FAMILY NOT READ JOINTLY HALVES ON TWO DIFFERENT READS — ✅ CLOSED (2026-10-05,
+    zero-target rows).** A row of target 0 that reads below 0 halves the whole precision objective
+    (`StatBuilder.negativeTargetPenalty`). The solver read such a row's UNFOLDED stat (no "+all elements" lines, no random
+    rolls) while the displayed score halved on the FOLDED value. Rows of target 0 on a required stat are now FLOORS in
+    every mode (AGENTS.md "Rows of target 0"): a resistance one wants no element and both sides read it WITHOUT the rolls
+    but WITH the "+all elements" lines (`StatBuilder.floorReads` / `computeCharacteristicsValues(resistanceFloorElements)`);
+    a mastery one reads its element's fold on both sides; a 0-valued row beside a row that targets the same element ("all
+    resistances" + the default air 0) is left to that row. `precisionModelObjective` and the score share `precisionHalves`.
+    Locked by `ZeroTargetRowsTest`'s seeded fuzz.
   - **THE PER-ELEMENT-ROW PLACEMENT SEARCH CAN FLIP A HARD-LEG "MET" STATUS WHEN ITS NODE BUDGET BINDS — OPEN (hard-leg
     status; found by #238's review; documented in the `NODE_BUDGET` KDoc).** `ElementRowAssignment` places a jointly
     read family's rolls with an exact branch and bound under a deterministic 2M-node budget. Within the budget the
