@@ -58,6 +58,48 @@ class BuildSearchModelElementRowsGridTest {
     private val boots = item(960_002, ItemType.BOOTS, mapOf(Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT to 50))
 
     @Test
+    fun `the stats column shows a floor row's value without any roll - its own lines plus the generic ones`(): Unit =
+        runBlocking {
+            // The default "air resistance 0" beside a "fire resistance 100" target: air is a floor nobody's roll lands on.
+            val airAmulet = item(960_003, ItemType.AMULET, mapOf(Characteristic.RESISTANCE_ELEMENTARY_WIND to -20, Characteristic.RESISTANCE_ELEMENTARY to 25))
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            try {
+                val model =
+                    BuildSearchModel(
+                        scope = scope,
+                        buildFinder = { params ->
+                            val build = BuildCombination(listOf(airAmulet, boots), CharacterSkills(params.character.level))
+                            flowOf(SolverResult(build, WakfuBestBuildFinderAlgorithm.rescore(params, build), progressPercentage = 100, isOptimal = false))
+                        },
+                        optimalityProver = { _, _, _, _ -> MaxDamageSearch.MaxDamageProof.Unavailable },
+                        zenithBuilder = { "" },
+                        mainDispatcher = Dispatchers.Unconfined,
+                        ioDispatcher = Dispatchers.Unconfined,
+                        libraryPreferences = LibraryPreferences(null),
+                        backgroundProofCanceller = {},
+                        buildRescorer = { _, _ -> BigDecimal.ONE },
+                        historyRepository = HistoryRepository(baseDir = Files.createTempDirectory("wakfu-test-history"), ioDispatcher = Dispatchers.Unconfined)
+                    )
+                model.setMode(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT)
+                model.addTarget(Characteristic.RESISTANCE_ELEMENTARY_FIRE)
+                model.updateTargetValue(Characteristic.RESISTANCE_ELEMENTARY_FIRE.name, "100")
+                model.setDuration("1")
+                model.search()
+                withTimeout(25.seconds) {
+                    while (model.ui.phase != Phase.Done) delay(20.milliseconds)
+                }
+                val achieved = model.ui.achieved
+                // Air: −20 own + 25 on all elements = 5 (≥ 0: the row reads met); the roll went to fire, the one wanted element.
+                assertEquals(5, achieved[Characteristic.RESISTANCE_ELEMENTARY_WIND])
+                assertEquals(75, achieved[Characteristic.RESISTANCE_ELEMENTARY_FIRE])
+                // A request on ONE resistance element: no heuristic prefilter, so the stats panel does not explain a missing badge.
+                assertEquals(false, model.ui.prefilteredRequest)
+            } finally {
+                scope.cancel()
+            }
+        }
+
+    @Test
     fun `the stats column places a random roll where the solver's joint fold does`(): Unit =
         runBlocking {
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

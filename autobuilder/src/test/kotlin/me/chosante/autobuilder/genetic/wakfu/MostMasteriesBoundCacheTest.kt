@@ -477,16 +477,38 @@ class MostMasteriesBoundCacheTest {
         }
 
     @Test
-    fun `prefiltered zero resistance requests neither warm nor compute a quality bound`(): Unit =
+    fun `an all-resistances-0 request is a floor, not a multi-element one - it warms and computes its quality bound`(): Unit =
         runBlocking {
             val p =
                 params(
                     1,
                     targets = listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1), TargetStat(Characteristic.RESISTANCE_ELEMENTARY, 0))
                 )
-            // The DP itself can bound this shape over a full pool: zero resistance rows have no
-            // weight. Proof policy must still bail because the SEARCH uses the heuristic prefilter.
+            // "All resistances 0" only holds each element at 0 or more (TargetStats.resistanceFloorElements): it wants no element,
+            // so the search runs on the full pool (no heuristic prefilter) and the bound — a relaxation of the floors — applies.
             assertThat(MostMasteriesCertificate.supportsRequest(p, emptyList())).isTrue()
+            assertThat(WakfuBuildSolver.needsItemPrefilter(p.targetStats)).isFalse()
+            MostMasteriesBoundCache.certificateForTest = { _, _, _ -> fakeBound(2_000) }
+            val before = computes()
+            warm(p, pool, emptyList(), flowOf(result(1_000))).toList()
+            assertThat(MostMasteriesBoundCache.bound(p, pool)).isNotNull
+            assertThat(computes() - before).describedAs("one warm-up, reused by the proof").isEqualTo(1)
+        }
+
+    @Test
+    fun `prefiltered requests compute no quality bound, even when asked directly`(): Unit =
+        runBlocking {
+            // Two wanted mastery elements: the search uses the heuristic prefilter, so no bound may ever be computed for it.
+            val p =
+                params(
+                    2,
+                    targets =
+                        listOf(
+                            TargetStat(Characteristic.MASTERY_ELEMENTARY_FIRE, 1),
+                            TargetStat(Characteristic.MASTERY_ELEMENTARY_WATER, 1),
+                            TargetStat(Characteristic.MOVEMENT_POINT, 4)
+                        )
+                )
             assertThat(WakfuBuildSolver.needsItemPrefilter(p.targetStats)).isTrue()
             MostMasteriesBoundCache.certificateForTest = { _, _, _ -> fakeBound(2_000) }
             val before = computes()

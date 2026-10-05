@@ -144,6 +144,27 @@ certificates and research harnesses call it — never re-derive `i⁶ / powScale
 continuous factor at `MAX_PENALTY_MULTIPLIER` to match. The opt-in survivability floor's gentle power-2 table
 is floored at 1 the same way.
 
+### Rows of target 0: FLOORS ("never negative"), in every mode
+A row of target 0 on a REQUIRED stat (`isRequiredMostMasteriesTarget()`: a resistance, dodge, lock, AP… — the GUI's default
+"air resistance 0" / "dodge 0" rows) is a **floor**: `TargetStats.floorCharacteristics` + `TargetStats.resistanceFloorElements`,
+read ONCE for the solver and the scorers (`StatBuilder.floorReads`, `TargetFloors.kt`):
+- most-masteries / max-damage **hard leg**: `actual ≥ 0` (`addRequiredTargetHardConstraints`); a request whose only required rows
+  are floors runs the hard leg too (`MaxDamageSearch.optimizeHardThenSoft`, `TargetStats.hasFloors`);
+- their **soft legs**: the penalized objective is HALVED (once, however many floors are broken) while a floor is below 0
+  (`applyConstraintPenalty`; the scorers divide by 2 — `FLOOR_BROKEN_DIVISOR`) — a factor ≤ 1 after the power-6 multiplier, so the
+  leg stays feasible and every certificate (which ignores floors) stays an upper bound;
+- **precision**: its existing halving (`precisionHalves`), which also reads masteries of target 0 (`TargetStats.zeroMasteries`).
+
+A resistance row of target 0 **wants no element** (`resistanceElementsWanted` skips it), so it never makes a request
+multi-element (`needsItemPrefilter`) nor jointly read; its floor reads the element WITHOUT the random-element rolls (own lines +
+"+all elements", percent skills) — rolls only land on wanted elements, in the model and the scorers alike
+(`computeCharacteristicsValues(resistanceFloorElements = …)`), so the two always agree. "All resistances 0" is a floor on each
+element no other row wants. A 0-valued row on a stat another row targets with a non-zero value is left to that row (no floor). A
+floor no build of the pool can break (tracked reach ≥ 0) adds nothing to the model. Maximized masteries keep their meaning: no
+floor, an element of target 0 stays wanted (most-masteries maximizes it). The certificates ignore floors (a relaxation — sound);
+the E8 construct re-solves with the hard leg whenever the request has floors, so the build it crowns meets them. Locks:
+`ZeroTargetRowsTest` (unit cases per mode / leg, the E8 construct, a seeded model ⇔ scorer fuzz).
+
 ### Inputs: `WakfuBestBuildParams`
 `character`, `targetStats: TargetStats`, `searchDuration`, `stopWhenBuildMatch`, `maxRarity`,
 `forcedItems`, `excludedItems`, `excludedRarities`, `scoreComputationMode`. `TargetStats` normalizes
@@ -178,7 +199,8 @@ clause there — and bumping `CERTIFIER_VERSION`, since the certificates' pool c
 
 ### The multi-element item pre-filter (a HEURISTIC: what a multi-element search sees, and why it never earns a badge)
 A request wanting more than one element of mastery or resistance (`WakfuBuildSolver.needsItemPrefilter`: two specific
-elements, or the aggregate `MASTERY_ELEMENTARY` / `RESISTANCE_ELEMENTARY`) would blow up the random-element modelling on
+elements, or the aggregate `MASTERY_ELEMENTARY` / `RESISTANCE_ELEMENTARY` — a resistance row of target 0 wants nothing, see
+"Rows of target 0") would blow up the random-element modelling on
 the full late-game pool, so `buildModel` shrinks every slot first (`prefilterRelevantEquipments`, BEFORE the domination
 filter): the forced items, the top 8 items of each relevant characteristic, and the top 8 by a **combined mastery score**
 (`combinedMasteryScore`: the sum over the wanted elements of the specific mastery, plus the generic one and each

@@ -470,8 +470,8 @@ object WakfuBestBuildFinderAlgorithm {
      * build ONLY when it provably reaches the DP bound (SOUND — else null ⇒ the caller keeps [result]). Meant to run
      * async right after a `ProvenWithin` verdict: it reuses that same cached ledger, so it adds ~one explain-pass DP.
      * Returns null for a non-max-damage request, one carrying a required (non-maximized) target — a MAXIMIZED-mastery
-     * row such as the GUI's default "distance mastery 1" does not count, max-damage ignores it — or when construction
-     * can't reach the bound. Bounded: its open-ended full-pool fallback gives up after
+     * row such as the GUI's default "distance mastery 1" does not count, max-damage ignores it, nor does a floor (a row of
+     * target 0, which the construct enforces) — or when construction can't reach the bound. Bounded: its open-ended full-pool fallback gives up after
      * [WakfuBuildSolver.E8_FALLBACK_WALL_CAP_SECONDS]; [isCancelled] (polled during the whole rescue — the GUI passes its
      * proof-cancel flag) abandons it early when the proof is superseded.
      */

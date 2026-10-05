@@ -151,8 +151,9 @@ class E8ConstructGateTest {
     }
 
     @Test
-    fun `zero-valued rows stay inert like before`() {
-        // The GUI's seeded placeholder rows (weight 0 ⇒ no constraint, no penalty) never refused the construct.
+    fun `zero-valued rows are floors the construct enforces, so they stay admitted`() {
+        // The GUI's seeded default rows are FLOORS (`actual ≥ 0`): the ledger ignores them (a relaxation), and the construct's
+        // re-solves run the hard leg, so the build it returns meets them (ZeroTargetRowsTest locks the construct itself).
         assertThat(shape(Characteristic.HP to 0, Characteristic.RESISTANCE_ELEMENTARY_WIND to 0, Characteristic.DODGE to 0, Characteristic.MASTERY_DISTANCE to 1)).isTrue()
     }
 

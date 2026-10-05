@@ -43,7 +43,8 @@ class ElementRowAssignmentTest {
             val read: List<Long> =
                 when (row.characteristic) {
                     family.aggregate -> family.elements.map { v.getValue(it).toLong() }
-                    in family.elements -> listOf(v.getValue(row.characteristic).toLong())
+                    // A resistance row of target 0 on an element nobody wants is a FLOOR, no element of the objective.
+                    in family.elements -> listOf((v[row.characteristic] ?: continue).toLong())
                     else -> continue
                 }
             val aggregate = row.characteristic == family.aggregate
@@ -290,16 +291,24 @@ class ElementRowAssignmentTest {
         }
         // ...but a per-element row beside it joins the same fold.
         assertThat(rows(Characteristic.RESISTANCE_ELEMENTARY to 400, fire to 500).readsJointPerElementRows(ElementFamily.RESISTANCE, mm)).isTrue()
-        // Max-damage: 0-valued rows weigh nothing (the GUI's default wind 0 beside the aggregate keeps the greedy fold).
+        // A 0-valued resistance row wants no element (it is a floor): the GUI's default wind 0 beside the aggregate keeps the
+        // aggregate's fold, and beside one fire row it leaves a request on ONE element — in every mode.
         assertThat(
             rows(Characteristic.RESISTANCE_ELEMENTARY to 400, Characteristic.RESISTANCE_ELEMENTARY_WIND to 0).readsJointPerElementRows(ElementFamily.RESISTANCE, maxDamage)
         ).isFalse()
-        assertThat(rows(Characteristic.RESISTANCE_ELEMENTARY_WIND to 0, fire to 300).readsJointPerElementRows(ElementFamily.RESISTANCE, maxDamage)).isTrue()
+        for (mode in ScoreComputationMode.entries) {
+            assertThat(rows(Characteristic.RESISTANCE_ELEMENTARY_WIND to 0, fire to 300).readsJointPerElementRows(ElementFamily.RESISTANCE, mode)).describedAs("$mode").isFalse()
+        }
+        assertThat(rows(Characteristic.RESISTANCE_ELEMENTARY_WIND to 0, fire to 300, water to 100).readsJointPerElementRows(ElementFamily.RESISTANCE, maxDamage)).isTrue()
         // Masteries: per row in precision only (most-masteries maximizes their min; max-damage reads the scenario element).
         val twoMasteries = rows(Characteristic.MASTERY_ELEMENTARY_FIRE to 100, Characteristic.MASTERY_ELEMENTARY_WATER to 100)
         assertThat(twoMasteries.readsJointPerElementRows(ElementFamily.MASTERY, precision)).isTrue()
         assertThat(twoMasteries.readsJointPerElementRows(ElementFamily.MASTERY, mm)).isFalse()
         assertThat(twoMasteries.readsJointPerElementRows(ElementFamily.MASTERY, maxDamage)).isFalse()
+        // Precision: a mastery row of target 0 halves the score on its element's fold, so it reads the family jointly too.
+        val zeroMasteries = rows(Characteristic.MASTERY_ELEMENTARY_FIRE to 0, Characteristic.MASTERY_ELEMENTARY_WATER to 0)
+        assertThat(zeroMasteries.readsJointPerElementRows(ElementFamily.MASTERY, precision)).isTrue()
+        assertThat(zeroMasteries.readsJointPerElementRows(ElementFamily.MASTERY, mm)).isFalse()
     }
 
     @Test
