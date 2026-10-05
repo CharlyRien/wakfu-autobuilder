@@ -1279,18 +1279,8 @@ class BuildSearchModel(
                         try {
                             provenOptimumConstructor(params, result, { cancelled.get() })?.let { up ->
                                 val upBuild = up.individual
-                                val upAchieved =
-                                    computeCharacteristicsValues(
-                                        buildCombination = upBuild,
-                                        characterBaseCharacteristics = character.baseCharacteristicValues,
-                                        masteryElementsWanted = params.targetStats.masteryElementsWanted,
-                                        resistanceElementsWanted = params.targetStats.resistanceElementsWanted,
-                                        scoreComputationMode = params.scoreComputationMode,
-                                        masteryElementsToMinimize = null,
-                                        resistanceElementsToMinimize = null,
-                                        elementRows = params.targetStats.elementRowObjectives(params.scoreComputationMode),
-                                        resistanceFloorElements = params.targetStats.resistanceFloorElements
-                                    )
+                                // The stats column's own read of a build, as for every streamed one ([achievedStats]).
+                                val upAchieved = achievedStats(upBuild, params)
                                 val upRotation = SpellRotationOptimizer.bestSequencedRotation(upBuild, character, character.clazz, damageScenario)
                                 val upScenario =
                                     SpellRotationOptimizer.scenarioBreakdown(
@@ -1711,10 +1701,10 @@ class BuildSearchModel(
      * The per-stat grid the stats column shows for [build] under [params]'s request, resolved with the SAME random-element
      * assignment the scorer used so the displayed values match the score: most-masteries → exact max-min, precision → exact
      * max-capped, max-damage → greedy, and per-element rows over several elements (the four resistance rows "all
-     * resistances" expands to, fire + water mastery in precision…) → the exact optimum of the solver's joint fold
-     * (`elementRowObjectives`). Mirrors FindMostMasteriesFromInputScoring; omitting the mode would fall to the greedy
-     * `else` branch and diverge from the score. A search's streamed builds and a reloaded saved build both read their stats
-     * here, so the two can never disagree about the same build.
+     * resistances" expands to, fire + water mastery in precision…) or a resistance floor ("air resistance 0") → the exact
+     * optimum of the solver's joint fold (`elementRowObjectives`). Mirrors FindMostMasteriesFromInputScoring; omitting the mode
+     * would fall to the greedy `else` branch and diverge from the score. A search's streamed builds and a reloaded saved build
+     * both read their stats here, so the two can never disagree about the same build.
      */
     private fun achievedStats(
         build: BuildCombination,
@@ -1743,11 +1733,13 @@ class BuildSearchModel(
             scoreComputationMode = params.scoreComputationMode,
             masteryElementsToMinimize = masteryElementsToMinimize,
             resistanceElementsToMinimize = resistanceElementsToMinimize,
-            // Per-element rows over several elements: the scorers' exact placement of the solver's joint fold.
-            elementRows = targetStats.elementRowObjectives(params.scoreComputationMode),
-            // A row of target 0 on a resistance ("air resistance 0") is a floor nobody's rolls land on: its own lines plus the
-            // "+all elements" ones — the value the engine checks against 0, so the row's status reads what the search enforced.
-            resistanceFloorElements = targetStats.resistanceFloorElements
+            // Max-damage: the scenario gates its sublimation effects (berserk, orientation, range…) as it does for the scorer and
+            // the solver, so a gated dodge or lock shows where the search counted it. (No other mode reads it.)
+            damageScenario = params.damageScenario,
+            // Per-element rows over several elements, and the floors ("air resistance 0"): the scorers' exact placement of the
+            // solver's joint fold — a floor's value with the random rolls the player puts there, so the row's status reads what the
+            // search enforced.
+            elementRows = targetStats.elementRowObjectives(params.scoreComputationMode)
         )
     }
 

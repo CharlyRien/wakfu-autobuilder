@@ -20,6 +20,7 @@ import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildParams
 import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
+import me.chosante.autobuilder.genetic.wakfu.elementRowObjectives
 import me.chosante.common.Character
 import me.chosante.common.Characteristic.ACTION_POINT
 import me.chosante.common.Characteristic.MASTERY_CRITICAL
@@ -211,8 +212,10 @@ class BuildSearchModelE2ETest {
                         characterBaseCharacteristics = Character(model.ui.clazz, model.ui.level, model.ui.minLevel).baseCharacteristicValues,
                         masteryElementsWanted = model.ui.toTargetStats().masteryElementsWanted,
                         resistanceElementsWanted = model.ui.toTargetStats().resistanceElementsWanted,
-                        // The default "air resistance 0" row is a floor: its own lines plus the "+all elements" ones, no roll.
-                        resistanceFloorElements = model.ui.toTargetStats().resistanceFloorElements
+                        scoreComputationMode = model.ui.mode,
+                        // The default "air resistance 0" row is a floor: air read on the joint fold, its random rolls placed as the
+                        // engine places them.
+                        elementRows = model.ui.toTargetStats().elementRowObjectives(model.ui.mode)
                     )
                 assertEquals(expectedAchieved, model.ui.achieved)
                 assertNotNull(model.ui.achieved[ACTION_POINT])

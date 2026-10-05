@@ -82,11 +82,13 @@ class TargetStats(
 
     /**
      * The elemental resistances kept at 0 or more without being WANTED ([resistanceElementsWanted]): those a row of target 0
-     * names — its element, or all four for "all resistances 0" — that no row with a non-zero target wants. Each is read WITHOUT
-     * the random-element rolls: its own lines plus the "+all elements" ones (and percent skills), never a roll, since the
-     * rolls only land on wanted elements — in the solver's model and in the scorers alike, so the two always agree on whether
-     * such a floor holds (and the read is conservative: a roll the player could put there is not counted). In the solver's
-     * canonical element order (water, fire, earth, air).
+     * names — its element, or all four for "all resistances 0" — that no row with a non-zero target wants. Each is read as the
+     * game reads it: its own lines, the "+all elements" ones (and percent skills) and the random-element rolls the player puts
+     * there. Such a request places the family's rolls over the wanted and the floored elements together — one joint fold, each
+     * roll on as many of them as it can reach (a negative one on as few as it must, the elements no row names taking the rest) —
+     * in the solver's model and in the scorers alike, so the two always agree on whether such a floor holds. A floor never makes
+     * a request multi-element ([needsItemPrefilter] reads the wanted elements only). In the solver's canonical element order
+     * (water, fire, earth, air).
      */
     val resistanceFloorElements: List<Characteristic> =
         run {
@@ -137,6 +139,19 @@ class TargetStats(
      */
     val needsItemPrefilter: Boolean
         get() = masteryElementsWanted.size > 1 || resistanceElementsWanted.size > 1
+
+    /**
+     * Whether a version before rows of target 0 became floors searched this request on the pre-filtered pool ([needsItemPrefilter]
+     * under the old reading): it counted a resistance row of target 0 as a WANTED element, so "air resistance 0" beside "fire
+     * resistance 100" — or "all resistances 0" — made the request multi-element. A build saved from such a search may carry a
+     * "proven optimal" flag proven over that reduced pool (1.13 stamped CP-SAT's OPTIMAL there; the guard came in 1.14.0), which a
+     * reload must not restore, though the request now searches the whole catalog.
+     */
+    val legacyNeedsItemPrefilter: Boolean
+        get() =
+            needsItemPrefilter ||
+                any { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY } ||
+                filter { it.characteristic in ELEMENTAL_RESISTANCES }.map { it.characteristic }.distinct().size > 1
 
     /**
      * Elements the "most-masteries" objective takes the *minimum* elemental mastery over. Specific

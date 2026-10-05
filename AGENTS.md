@@ -156,14 +156,27 @@ read ONCE for the solver and the scorers (`StatBuilder.floorReads`, `TargetFloor
 - **precision**: its existing halving (`precisionHalves`), which also reads masteries of target 0 (`TargetStats.zeroMasteries`).
 
 A resistance row of target 0 **wants no element** (`resistanceElementsWanted` skips it), so it never makes a request
-multi-element (`needsItemPrefilter`) nor jointly read; its floor reads the element WITHOUT the random-element rolls (own lines +
-"+all elements", percent skills) — rolls only land on wanted elements, in the model and the scorers alike
-(`computeCharacteristicsValues(resistanceFloorElements = …)`), so the two always agree. "All resistances 0" is a floor on each
-element no other row wants. A 0-valued row on a stat another row targets with a non-zero value is left to that row (no floor). A
-floor no build of the pool can break (tracked reach ≥ 0) adds nothing to the model. Maximized masteries keep their meaning: no
-floor, an element of target 0 stays wanted (most-masteries maximizes it). The certificates ignore floors (a relaxation — sound);
-the E8 construct re-solves with the hard leg whenever the request has floors, so the build it crowns meets them. Locks:
-`ZeroTargetRowsTest` (unit cases per mode / leg, the E8 construct, a seeded model ⇔ scorer fuzz).
+multi-element (`needsItemPrefilter` reads the wanted elements only). Its floor reads the element **as the game does**: a request
+with a resistance floor places the family's random-element rolls over the wanted AND the floored elements together — ONE joint
+fold (`foldElements`; `readsJointPerElementRows` is true in every mode), each roll on `rollCover` of them: a positive roll on
+`min(k, n)` (it can lift a floor instead of feeding a row), a negative one on as few as the elements outside the fold leave it
+(`freeSinks` = 4 − n take the rest, so "−30 on 1 random element" only hits a floor when every element is read). The model
+(`StatBuilder.familyFoldElements` / `applyGreedyRandom`, free placement) and the scorers (`ElementRowObjective` with its floors kept
+by `placeKeepingFloors`, the keep-or-break choice made on the whole build by `keepsFloorsFirst`: precision by its own objective,
+most-masteries / max-damage by what the score divides by, `requiredPenaltyFactor`) follow that rule exactly. (A family without a
+floor keeps the historical rule: every roll on `min(k, wanted)` wanted elements, a negative one included — conservative.) "All
+resistances 0" is a floor on each element no other row wants. A 0-valued row on a stat another row targets with a non-zero value
+is left to that row (no floor). A floor no build of the pool can break (tracked reach ≥ 0) adds nothing to the model. Maximized
+masteries keep their meaning: no floor, an element of target 0 stays wanted (most-masteries maximizes it). The certificates ignore
+floors and never read resistance rolls (a relaxation — sound, `CERTIFIER_VERSION` untouched); the E8 construct's fast re-solve
+runs the hard leg whenever the request has floors, so the build it crowns meets them, and its full-pool fallback is skipped then (a
+fast miss behind a floor means a binding floor the ledger ignores — the fallback could only run out its cap). Every max-damage
+reader resolves its stats through ONE function, `FindMaxDamageScoring.penaltyStats` (the mode and scenario included, so a
+scenario-gated sublimation — "Esquive Berserk III" — counts as the solver counts it). The GUI sends a row only for a field the
+player filled in (a typed 0 is a floor, a blank field nothing), and a reloaded save whose request the OLD reading pre-filtered
+(`TargetStats.legacyNeedsItemPrefilter`: a resistance 0-row counted as wanted) never gets its stored proof flag back. Locks:
+`ZeroTargetRowsTest` (unit cases per mode / leg, the review's repros, the E8 construct, a seeded model ⇔ scorer fuzz, the wider
+fuzz with real sublimations / runes / scenarios), `ElementRowAssignmentTest` (exhaustive placements with floors and free sinks).
 
 ### Inputs: `WakfuBestBuildParams`
 `character`, `targetStats: TargetStats`, `searchDuration`, `stopWhenBuildMatch`, `maxRarity`,

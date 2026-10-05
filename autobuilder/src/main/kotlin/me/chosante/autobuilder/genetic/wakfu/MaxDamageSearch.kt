@@ -821,17 +821,8 @@ object MaxDamageSearch {
         build: BuildCombination,
     ): Boolean {
         if (params.targetStats.none { it.characteristic.isRequiredMostMasteriesTarget() }) return true
-        val stats =
-            computeCharacteristicsValues(
-                buildCombination = build,
-                characterBaseCharacteristics = params.character.baseCharacteristicValues,
-                masteryElementsWanted = mapOf(params.damageScenario.element.masteryCharacteristic to 1),
-                resistanceElementsWanted = params.targetStats.resistanceElementsWanted,
-                // Per-element resistance rows: the rolls placed where the solver's joint fold places them.
-                elementRows = params.targetStats.elementRowObjectives(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE),
-                // Resistance floors: their roll-free reads, as the solver's floors.
-                resistanceFloorElements = params.targetStats.resistanceFloorElements
-            )
+        // The scorer's own stats: scenario-gated sublimation effects included, rolls placed as the solver's fold places them.
+        val stats = FindMaxDamageScoring.penaltyStats(params.targetStats, build, params.character.baseCharacteristicValues, params.damageScenario)
         return FindMaxDamageScoring.requiredConstraintPenaltyFactor(params.targetStats, stats).compareTo(BigDecimal.ONE) <= 0
     }
 
@@ -851,17 +842,8 @@ object MaxDamageSearch {
                 .bestSequencedRotation(build, params.character, params.character.clazz, params.damageScenario)
                 .totalExpectedDamage
 
-        val stats =
-            computeCharacteristicsValues(
-                buildCombination = build,
-                characterBaseCharacteristics = params.character.baseCharacteristicValues,
-                masteryElementsWanted = mapOf(params.damageScenario.element.masteryCharacteristic to 1),
-                resistanceElementsWanted = params.targetStats.resistanceElementsWanted,
-                // Per-element resistance rows: the rolls placed where the solver's joint fold places them.
-                elementRows = params.targetStats.elementRowObjectives(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE),
-                // Resistance floors: their roll-free reads, as the solver's floors.
-                resistanceFloorElements = params.targetStats.resistanceFloorElements
-            )
+        // The scorer's own stats: scenario-gated sublimation effects included, rolls placed as the solver's fold places them.
+        val stats = FindMaxDamageScoring.penaltyStats(params.targetStats, build, params.character.baseCharacteristicValues, params.damageScenario)
         val penalty = FindMaxDamageScoring.requiredConstraintPenaltyFactor(params.targetStats, stats)
         return totalDamage.toBigDecimal().divide(penalty, 4, RoundingMode.FLOOR)
     }

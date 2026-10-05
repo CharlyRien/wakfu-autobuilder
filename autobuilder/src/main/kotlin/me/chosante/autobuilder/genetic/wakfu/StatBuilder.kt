@@ -1186,7 +1186,7 @@ internal class StatBuilder(
         low: Long,
         high: Long,
     ): IntVar {
-        // The halving reads every floor ([floorReads]: a resistance floor without the random rolls, "all resistances 0" on each
+        // The halving reads every floor ([floorReads]: a resistance floor on its family's joint fold, "all resistances 0" on each
         // element) and every mastery of target 0 ([TargetStats.zeroMasteries]) on its fold — an element's random rolls placed,
         // jointly when its family is read jointly, so where they land decides the halving. Mirrored by [precisionModelObjective].
         val reads =
@@ -1939,18 +1939,23 @@ internal class StatBuilder(
         }
 
     /**
-     * The elements of the ONE fold [characteristic]'s rows read: every wanted element of its [family], in canonical order,
-     * when the family is read jointly — per-element rows with a target over several elements
-     * ([readsJointPerElementRows]), or beside the aggregate row, which wants all four and reads this very fold. Otherwise
-     * just [characteristic], whose single-element fold credits every roll in full: exact for one wanted element. (A row of
-     * target 0 reads no fold: on a resistance it is a floor read without the rolls, [floorReads]; the penalty and overshoot
-     * sums leave it out, and precision reads a mastery's on its element's fold — jointly once its family is read jointly.)
+     * The elements of the ONE fold [characteristic]'s rows read: in a family with a FLOOR ([floorElements]), its wanted and
+     * floored elements together ([foldElements]) — every row and every floor reads that fold, each roll landing on as many of
+     * them as the game lets it ([rollCover]); otherwise every wanted element of its [family], in canonical order, when the
+     * family is read jointly — per-element rows with a target over several elements ([readsJointPerElementRows]), or beside the
+     * aggregate row, which wants all four and reads this very fold. Otherwise just [characteristic], whose single-element fold
+     * credits every roll in full: exact for one wanted element. (The penalty and overshoot sums leave a row of target 0 out, and
+     * precision reads a mastery's on its element's fold — jointly once its family is read jointly.)
      */
     private fun familyFoldElements(
         family: ElementFamily,
         characteristic: Characteristic,
     ): List<Characteristic> {
         val targetStats = params.targetStats
+        if (targetStats.floorElements(family).isNotEmpty()) {
+            val fold = targetStats.foldElements(family)
+            if (characteristic in fold) return fold
+        }
         val wanted = family.wanted(targetStats).keys
         val joint =
             wanted.size > 1 &&
@@ -1985,19 +1990,18 @@ internal class StatBuilder(
     /**
      * The FLOORS of the request ([TargetStats.floorCharacteristics], [TargetStats.resistanceFloorElements]) — what each of its
      * rows of target 0 on a required stat keeps at 0 or more, by name: a stat's own value ([actualStat]), an elemental
-     * resistance's ROLL-FREE value ([unrolledElementStat] — no row wants that element, so no random roll lands on it, in the
-     * scorers either: [computeCharacteristicsValues] returns exactly this for it). "All resistances 0" is a floor on each
-     * element no other row wants. Read by the hard leg ([addRequiredTargetHardConstraints]: each `≥ 0`), the soft legs
-     * ([floorViolation]: a halving) and precision's halving ([negativeTargetPenalty]). The resistance reads are also test
-     * row reads ([elementRowReads]). A floor no build of the pool can break — its tracked reach, a sound over-estimate of every
-     * build's value, never goes below 0 (no negative line on it) — is left out: it would constrain nothing.
+     * resistance's value on its family's joint fold ([foldedElementalStat] over [foldElements]: its own lines, the "+all
+     * elements" ones and the random-element rolls the solver places there — the game lets the player put a roll on any element,
+     * and the scorers' exact placement does the same). "All resistances 0" is a floor on each element no other row wants. Read
+     * by the hard leg ([addRequiredTargetHardConstraints]: each `≥ 0`), the soft legs ([floorViolation]: a halving) and
+     * precision's halving ([negativeTargetPenalty]). The resistance reads are also test row reads ([elementRowReads]). A floor no
+     * build of the pool can break — its tracked reach, a sound over-estimate of every build's value, never goes below 0 (no
+     * negative line nor roll on it) — is left out: it would constrain nothing.
      */
     internal val floorReads: List<Pair<Characteristic, IntVar>> by lazy {
         (
             params.targetStats.floorCharacteristics.map { it to actualStat(it) } +
-                params.targetStats.resistanceFloorElements.map { element ->
-                    element to unrolledElementStat(element).also { elementRowReads[element] = it }
-                }
+                params.targetStats.resistanceFloorElements.map { element -> element to foldedElementalStat(element) }
         ).filter { (_, read) -> tracker.of(read).first < 0L }
             .also { floorReadsBuilt = true }
     }
@@ -2011,33 +2015,6 @@ internal class StatBuilder(
      */
     internal var halvingFlagForTest: BoolVar? = null
         private set
-
-    private val unrolledCache = mutableMapOf<Characteristic, IntVar>()
-
-    /**
-     * [element]'s value WITHOUT any random-element roll: its own lines + its family's "+all elements" ones ([elementVars]'
-     * per-element base), percent skills applied — the scorers' value of an element no row wants (`currentStatSpecificElements`
-     * then the per-key percent pass), which is what a floor of it reads.
-     */
-    private fun unrolledElementStat(element: Characteristic): IntVar =
-        unrolledCache.getOrPut(element) {
-            val generic = if (element in ELEMENTARY_RESISTANCES) Characteristic.RESISTANCE_ELEMENTARY else Characteristic.MASTERY_ELEMENTARY
-            val base =
-                tSumNaive(
-                    name = "floorPre_${element.name}",
-                    terms = listOf(Term(prePercentStat(element), 1L), Term(prePercentStat(generic), 1L)),
-                    constant = 0L,
-                    guardLo = -STAT_WITH_PERCENT_ABS_MAX,
-                    guardHi = STAT_WITH_PERCENT_ABS_MAX
-                )
-            val percentTerms = skillTerms.percent[element].orEmpty()
-            if (percentTerms.isEmpty()) {
-                base
-            } else {
-                val percent = tSumNaive("floorPct_${element.name}", percentTerms, 0L, -PERCENT_ABS_MAX, PERCENT_ABS_MAX)
-                tPercent(base, percent, "floor_${element.name}")
-            }
-        }
 
     /**
      * A boolean that holds iff one of [reads] is below 0 (each reified both ways, so it is EXACT, not a one-sided bound), or null
@@ -2172,6 +2149,10 @@ internal class StatBuilder(
         // reads of the same elements can never place the same roll twice (the order only matters to the greedy fold's
         // tie-breaking, built once from the aggregate's canonical list).
         val key = genericCharacteristic to wantedElements.toSet()
+        // A family with a floor: its ONE fold over the wanted and floored elements follows the game ([rollCover]) — the elements
+        // outside it absorb what a roll cannot put there. Every other fold keeps the historical rule.
+        val family = if (genericCharacteristic == Characteristic.RESISTANCE_ELEMENTARY) ElementFamily.RESISTANCE else ElementFamily.MASTERY
+        val freeSinks = params.targetStats.freeSinks(family)?.takeIf { key.second == params.targetStats.foldElements(family).toSet() }
         return elementCache.getOrPut(key) {
             val genericBase = prePercentStat(genericCharacteristic)
             val baseElements =
@@ -2199,25 +2180,27 @@ internal class StatBuilder(
             //  - max-damage: per-element resistance rows with a target ⇒ [ElementRowObjective]. The aggregate-only
             //    resistance fold stays greedy (mirrored by the scorer's deficit-greedy), and the scenario mastery is
             //    a single-element fold (its assignment is degenerate).
+            //  - a family with a floor, every mode ⇒ [ElementRowObjective] (the floors kept or not, decided on the build).
             val freeAssignment =
-                when (params.scoreComputationMode) {
-                    ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
-                        genericCharacteristic == Characteristic.MASTERY_ELEMENTARY ||
-                            (
-                                genericCharacteristic == Characteristic.RESISTANCE_ELEMENTARY &&
-                                    (
-                                        params.targetStats.any { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY } ||
-                                            params.targetStats.readsJointPerElementRows(ElementFamily.RESISTANCE, params.scoreComputationMode)
-                                    )
-                            )
+                freeSinks != null ||
+                    when (params.scoreComputationMode) {
+                        ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
+                            genericCharacteristic == Characteristic.MASTERY_ELEMENTARY ||
+                                (
+                                    genericCharacteristic == Characteristic.RESISTANCE_ELEMENTARY &&
+                                        (
+                                            params.targetStats.any { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY } ||
+                                                params.targetStats.readsJointPerElementRows(ElementFamily.RESISTANCE, params.scoreComputationMode)
+                                        )
+                                )
 
-                    ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT -> true
-                    ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE ->
-                        genericCharacteristic == Characteristic.RESISTANCE_ELEMENTARY &&
-                            params.targetStats.readsJointPerElementRows(ElementFamily.RESISTANCE, params.scoreComputationMode)
-                }
+                        ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT -> true
+                        ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE ->
+                            genericCharacteristic == Characteristic.RESISTANCE_ELEMENTARY &&
+                                params.targetStats.readsJointPerElementRows(ElementFamily.RESISTANCE, params.scoreComputationMode)
+                    }
             val prePercentElements =
-                applyGreedyRandom(wantedElements, baseElements, targets, buildRandomEntries(randomByCount), freeAssignment)
+                applyGreedyRandom(wantedElements, baseElements, targets, buildRandomEntries(randomByCount), freeAssignment, freeSinks)
 
             prePercentElements.mapValues { (element, preElement) ->
                 val percentTerms = skillTerms.percent[element].orEmpty()
@@ -2241,16 +2224,20 @@ internal class StatBuilder(
         // CP-SAT to the optimal assignment. This drops the O(elements²) reified ordering that forces the
         // suboptimal deficit-greedy and explodes the multi-element pool. When false: the original greedy.
         freeAssignment: Boolean,
+        // [rollCover]'s free sinks: in a family with a floor, the elements outside [wantedElements] a roll may land on instead
+        // (so a negative roll only lands here when it must). Null: the historical rule (every roll on `min(count, wanted)`).
+        freeSinks: Int? = null,
     ): Map<Characteristic, IntVar> {
         if (wantedElements.isEmpty()) return baseElements
-        if (targets.isEmpty()) return baseElements
+        // No wanted element (only floors) still places the rolls: a floor reads them.
+        if (targets.isEmpty() && freeSinks == null) return baseElements
         if (randomEntries.isEmpty()) return baseElements
 
         if (wantedElements.size == 1) {
             val element = wantedElements.single()
             val terms = mutableListOf(Term(baseElements.getValue(element), 1L))
             randomEntries
-                .filter { min(it.count, 1) > 0 }
+                .filter { rollCover(it.value, it.count, 1, freeSinks) > 0 }
                 .groupingBy { it.equipVar }
                 .fold(0L) { acc, entry -> acc + entry.value.toLong() }
                 .forEach { (equipVar, value) ->
@@ -2274,7 +2261,7 @@ internal class StatBuilder(
 
         var current = baseElements
         randomEntries.forEachIndexed { index, entry ->
-            val effectiveCount = min(entry.count, elementCount)
+            val effectiveCount = rollCover(entry.value, entry.count, elementCount, freeSinks)
             if (effectiveCount == 0) return@forEachIndexed
 
             if (effectiveCount == elementCount) {

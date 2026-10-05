@@ -1546,11 +1546,12 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     zero-target rows).** A row of target 0 that reads below 0 halves the whole precision objective
     (`StatBuilder.negativeTargetPenalty`). The solver read such a row's UNFOLDED stat (no "+all elements" lines, no random
     rolls) while the displayed score halved on the FOLDED value. Rows of target 0 on a required stat are now FLOORS in
-    every mode (AGENTS.md "Rows of target 0"): a resistance one wants no element and both sides read it WITHOUT the rolls
-    but WITH the "+all elements" lines (`StatBuilder.floorReads` / `computeCharacteristicsValues(resistanceFloorElements)`);
-    a mastery one reads its element's fold on both sides; a 0-valued row beside a row that targets the same element ("all
-    resistances" + the default air 0) is left to that row. `precisionModelObjective` and the score share `precisionHalves`.
-    Locked by `ZeroTargetRowsTest`'s seeded fuzz.
+    every mode (AGENTS.md "Rows of target 0"): a resistance one wants no element, and both sides read it on the family's
+    joint fold over the wanted and floored elements, rolls placed as the game lets the player place them (`StatBuilder.floorReads`
+    / `ElementRowObjective.placeKeepingFloors`; a first version read it without the rolls — conservative for a positive roll,
+    blind to a negative one, both wrong-badge risks the PR's review caught); a mastery one reads its element's fold on both
+    sides; a 0-valued row beside a row that targets the same element ("all resistances" + the default air 0) is left to that
+    row. `precisionModelObjective` and the score share `precisionHalves`. Locked by `ZeroTargetRowsTest`'s seeded fuzzes.
   - **THE PER-ELEMENT-ROW PLACEMENT SEARCH CAN FLIP A HARD-LEG "MET" STATUS WHEN ITS NODE BUDGET BINDS — OPEN (hard-leg
     status; found by #238's review; documented in the `NODE_BUDGET` KDoc).** `ElementRowAssignment` places a jointly
     read family's rolls with an exact branch and bound under a deterministic 2M-node budget. Within the budget the
