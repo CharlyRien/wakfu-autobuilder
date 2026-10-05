@@ -547,7 +547,7 @@ object WakfuBuildSolver {
      * tractability gain, so we now solve those on the full pool. Multi-element / aggregate requests still
      * prefilter (the explosion is real for them); pool dominance-pruning to drop it there too is future work.
      */
-    internal fun needsItemPrefilter(targetStats: TargetStats): Boolean = targetStats.masteryElementsWanted.size > 1 || targetStats.resistanceElementsWanted.size > 1
+    internal fun needsItemPrefilter(targetStats: TargetStats): Boolean = targetStats.needsItemPrefilter
 
     /**
      * Restricts each slot to the items that can plausibly matter for the requested stats. The full
@@ -3398,7 +3398,8 @@ object WakfuBuildSolver {
         val build = solutionToBuild(params, built.allEquips, built.equipVars, built.skillVars, built.runeModel, built.subModel) { solver.value(it) }
         return ElementRowSolve(
             status = status,
-            objective = solver.objectiveValue().toLong(),
+            // Rounded, not truncated: the objective comes back as a double (961354.9999 must read 961355).
+            objective = Math.round(solver.objectiveValue()),
             build = build,
             modelElementValues = built.elementRowReads.mapValues { (_, v) -> solver.value(v) }
         )

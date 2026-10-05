@@ -2027,14 +2027,17 @@ class BuildSearchModel(
      * ([toSearchParams]), stats grid ([achievedStats]) and scorer ([buildRescorer], by default [WakfuBestBuildFinderAlgorithm.rescore]) —
      * and costs milliseconds, no solver. The items and sublimations come from the save itself, so a build whose items left the catalog
      * re-scores too. A proof belongs to the rules it was made under: a build whose score moved ([isStoredScore]) loses its stored
-     * "proven optimal" flag. Only a build the scorer cannot read at all keeps its stored numbers.
+     * "proven optimal" flag, and so does any build of a request no search can prove ([TargetStats.needsItemPrefilter]: several
+     * elements of one family): an older version may have stored a proof made by a model that counted every random-element roll on
+     * every element. Only a build the scorer cannot read at all keeps its stored numbers.
      */
     private fun UiState.rescored(): UiState {
         val shown = build ?: return this
         return runCatching {
             val params = toSearchParams()
             val score = buildRescorer(params, shown)
-            copy(match = score, achieved = achievedStats(shown, params), optimal = optimal && isStoredScore(score, match))
+            val provable = !params.targetStats.needsItemPrefilter
+            copy(match = score, achieved = achievedStats(shown, params), optimal = optimal && provable && isStoredScore(score, match))
         }.getOrDefault(this)
     }
 

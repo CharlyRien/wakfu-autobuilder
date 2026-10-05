@@ -383,6 +383,36 @@ class BuildSearchModelSecondaryCapReloadTest {
         }
 
     @Test
+    fun `a stored proof of a request with several elements of one family is not restored, even when the score holds`(): Unit =
+        runBlocking {
+            // Fire and water resistance rows: one family, two elements — a pre-filtered request no search can prove. A save
+            // made before the joint per-element fold may carry a proof of a model that counted every random-element roll on
+            // every element, so the flag is dropped on load whatever the re-score says.
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            try {
+                val score = BigDecimal("1488")
+                val grid = gridOf(savedBuild, mostMasteries, fireAndDistance)
+                val twoResistances =
+                    listOf(
+                        TargetSnapshot(Characteristic.MASTERY_ELEMENTARY_FIRE, "1"),
+                        TargetSnapshot(Characteristic.MASTERY_DISTANCE, "1"),
+                        TargetSnapshot(Characteristic.RESISTANCE_ELEMENTARY_FIRE, "10"),
+                        TargetSnapshot(Characteristic.RESISTANCE_ELEMENTARY_WATER, "10")
+                    )
+                val multi = modelWithLoaded(scope, oldSave(mostMasteries, twoResistances, savedBuild, grid, score, optimal = true)) { _, _ -> score }
+                assertThat(multi.ui.match).isEqualByComparingTo(score)
+                assertFalse(multi.ui.optimal, "a request with several elements of one family is never proven, so a stored proof is dropped")
+
+                // Control: one resistance row is a single element, still provable — the unchanged score keeps the flag.
+                val oneResistance = twoResistances.dropLast(1)
+                val single = modelWithLoaded(scope, oldSave(mostMasteries, oneResistance, savedBuild, grid, score, optimal = true)) { _, _ -> score }
+                assertTrue(single.ui.optimal, "a single-element request keeps the proof flag of an unchanged score")
+            } finally {
+                scope.cancel()
+            }
+        }
+
+    @Test
     fun `a saved build the scorer cannot read keeps its stored numbers`(): Unit =
         runBlocking {
             val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
