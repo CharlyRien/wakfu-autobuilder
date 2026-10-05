@@ -4,7 +4,6 @@ import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.common.Characteristic
 import java.math.BigDecimal
-import java.math.RoundingMode
 
 object FindMostMasteriesFromInputScoring {
     private val masteryCharacteristicsWithoutElementaries =
@@ -63,8 +62,7 @@ object FindMostMasteriesFromInputScoring {
             resistanceElementsToMinimize = resistanceElementsToMinimize,
             masteryRollWeights = masteryRollWeights,
             masteryRollOffset = masteryRollOffset,
-            elementRows = elementRows,
-            resistanceFloorElements = targetStats.resistanceFloorElements
+            elementRows = elementRows
         )
 
         // First pass (unweighted rolls). Its non-element masteries + DI are roll-independent, so they yield the
@@ -90,39 +88,12 @@ object FindMostMasteriesFromInputScoring {
             }
         val actualCharacteristicsValues = if (masteryRollWeights != null) stats(masteryRollWeights, nonElemNeg.toLong()) else firstPass
 
-        val totalActualScore =
-            targetStats
-                .sumOf { targetStat ->
-                    val weight = targetStats.weight(targetStat)
-                    val actualScore =
-                        if (targetStat.characteristic.isRequiredMostMasteriesTarget()) {
-                            (actualCharacteristicsValues[targetStat.characteristic] ?: 0) * weight
-                        } else {
-                            0.0
-                        }
-                    actualScore.coerceAtMost(targetStats.expectedScoreByCharacteristic[targetStat] ?: 0.0)
-                }.toBigDecimal()
-                .setScale(4, RoundingMode.FLOOR)
-
-        val totalExpectedScore =
-            targetStats
-                .filter { it.characteristic.isRequiredMostMasteriesTarget() }
-                .sumOf { it.target * targetStats.weight(it) }
-                .toBigDecimal()
-                .setScale(4, RoundingMode.FLOOR)
-
-        val successPercentageOnAskedCharacteristic =
-            ((totalActualScore.coerceAtLeast(1.0.toBigDecimal()) / totalExpectedScore.coerceAtLeast(1.0.toBigDecimal())) * 100.0.toBigDecimal()).coerceAtMost(100.0.toBigDecimal())
-        // we calculate a penalty factor to penalize the score if the stats asked are too low compared to the stats we have.
-        // Capped at MAX_PENALTY_MULTIPLIER like the solver's floored multiplier ([penaltyMultiplier]): a build whose
-        // targets are far out of reach (< ~10%) keeps its core's gradient instead of dividing down by up to 1e12.
-        // A floor below 0 (a required row of target 0: "air resistance 0", "dodge 0"…) HALVES the score, once — the solver's soft leg
-        // halves its penalized objective the same way (applyConstraintPenalty); its hard leg never returns such a build.
-        val penaltyFactor =
-            (100.0.toBigDecimal().setScale(4) / successPercentageOnAskedCharacteristic.coerceAtLeast(1.0.toBigDecimal()))
-                .pow(6)
-                .coerceAtMost(MAX_PENALTY_MULTIPLIER.toBigDecimal())
-                .let { if (targetStats.floorBroken(actualCharacteristicsValues)) it * FLOOR_BROKEN_DIVISOR else it }
+        // The penalty for the stats asked that the build falls short of: the shortfall factor `(100 / success%)⁶` (capped at
+        // MAX_PENALTY_MULTIPLIER like the solver's floored multiplier — [penaltyMultiplier] — so a build whose targets are far out of
+        // reach keeps its core's gradient), doubled while a floor is below 0 (a required row of target 0: "air resistance 0", "dodge
+        // 0"…) — the solver's soft leg halves its penalized objective the same way (applyConstraintPenalty); its hard leg never
+        // returns such a build.
+        val penaltyFactor = targetStats.requiredPenaltyFactor(actualCharacteristicsValues)
 
         // Per-element fold mirroring StatBuilder.diAdjustedPerElementMasteryScore: maximize mastery × (1 + DI/100)
         // so the proxy is damage-faithful, but EACH requested element's damage line uses its OWN per-element DI

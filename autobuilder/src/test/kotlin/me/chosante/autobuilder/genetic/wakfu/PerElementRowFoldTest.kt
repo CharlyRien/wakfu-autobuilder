@@ -83,8 +83,7 @@ class PerElementRowFoldTest {
                     scoreComputationMode = p.scoreComputationMode,
                     masteryElementsToMinimize = ts.masteryElementsToMinimize,
                     resistanceElementsToMinimize = if (ts.any { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY }) ts.resistanceElementsWanted.keys.toList() else null,
-                    elementRows = rows,
-                    resistanceFloorElements = ts.resistanceFloorElements
+                    elementRows = rows
                 )
 
             ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT ->
@@ -94,8 +93,7 @@ class PerElementRowFoldTest {
                     ts.masteryElementsWanted,
                     ts.resistanceElementsWanted,
                     scoreComputationMode = p.scoreComputationMode,
-                    elementRows = rows,
-                    resistanceFloorElements = ts.resistanceFloorElements
+                    elementRows = rows
                 )
 
             ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE ->
@@ -106,8 +104,7 @@ class PerElementRowFoldTest {
                     ts.resistanceElementsWanted,
                     scoreComputationMode = p.scoreComputationMode,
                     damageScenario = p.damageScenario,
-                    elementRows = rows,
-                    resistanceFloorElements = ts.resistanceFloorElements
+                    elementRows = rows
                 )
         }
     }
@@ -363,22 +360,32 @@ class PerElementRowFoldTest {
     }
 
     @Test
-    fun `precision - a resistance row of target 0 is a floor no roll lands on`() {
-        // The GUI's precision request: the user's "fire resistance 300" beside the default "air resistance 0". Air is NOT wanted:
-        // it is a floor read without the random rolls (its own lines + "−20 on all elements" = −20), so the "+30 resistance on 1
-        // random element" can only go to fire, whatever fire needs — and the score is halved.
-        val p =
-            params(
-                ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT,
-                listOf(TargetStat(Characteristic.RESISTANCE_ELEMENTARY_FIRE, 300), TargetStat(Characteristic.RESISTANCE_ELEMENTARY_WIND, 0))
-            )
-        assertThat(p.targetStats.elementRowObjectives(p.scoreComputationMode)).describedAs("one wanted element: no joint read").isNull()
+    fun `precision - a resistance floor below 0 halves the score, so a free roll lifts it when that is worth more`() {
+        // The GUI's precision request: the user's "fire resistance 300" beside the default "air resistance 0". Air is not wanted —
+        // a request on one element — but it is a floor read on the family's joint fold: the game lets the player put the "+30
+        // resistance on 1 random element" on air. A "−20 on all elements" line leaves air at −20, which halves the whole score.
+        val fire = Characteristic.RESISTANCE_ELEMENTARY_FIRE
+        val air = Characteristic.RESISTANCE_ELEMENTARY_WIND
+        val p = params(ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT, listOf(TargetStat(fire, 300), TargetStat(air, 0)))
+        assertThat(p.targetStats.needsItemPrefilter).describedAs("one wanted element").isFalse()
+        assertThat(
+            p.targetStats
+                .elementRowObjectives(p.scoreComputationMode)!!
+                .resistance!!
+                .elements
+        ).containsExactly(fire, air)
         val roll = item(2, ItemType.BOOTS, mapOf(Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT to 30))
-        for (amuletFire in listOf(330, 305, 40)) {
-            val amulet = item(1, ItemType.AMULET, mapOf(Characteristic.RESISTANCE_ELEMENTARY_FIRE to amuletFire, Characteristic.RESISTANCE_ELEMENTARY to -20))
+
+        fun check(
+            amuletFire: Int,
+            expectedFire: Int,
+            expectedAir: Int,
+        ) {
+            val amulet = item(1, ItemType.AMULET, mapOf(fire to amuletFire, Characteristic.RESISTANCE_ELEMENTARY to -20))
             val stats = scorerStats(p, BuildCombination(listOf(amulet, roll), CharacterSkills(1)))
-            assertThat(stats[Characteristic.RESISTANCE_ELEMENTARY_FIRE]).describedAs("fire, amulet fire $amuletFire").isEqualTo(amuletFire + 10)
-            assertThat(stats[Characteristic.RESISTANCE_ELEMENTARY_WIND]).describedAs("air, amulet fire $amuletFire").isEqualTo(-20)
+            assertThat(stats[fire]).describedAs("fire, amulet fire $amuletFire").isEqualTo(expectedFire)
+            assertThat(stats[air]).describedAs("air, amulet fire $amuletFire").isEqualTo(expectedAir)
+            // The solver, build pinned, takes the same placement for the same objective.
             val solved =
                 WakfuBuildSolver.elementRowSolveForTest(
                     p,
@@ -390,17 +397,24 @@ class PerElementRowFoldTest {
                 )
             assertThat(solved.modelElementValues)
                 .describedAs("model, amulet fire $amuletFire")
-                .isEqualTo(mapOf(Characteristic.RESISTANCE_ELEMENTARY_FIRE to (amuletFire + 10).toLong(), Characteristic.RESISTANCE_ELEMENTARY_WIND to -20L))
-            assertThat(solved.modelHalved).isTrue()
+                .isEqualTo(mapOf(fire to expectedFire.toLong(), air to expectedAir.toLong()))
+            assertThat(solved.modelHalved).isEqualTo(expectedAir < 0)
             assertThat(precisionModelObjective(p.targetStats, stats)).describedAs("objective, amulet fire $amuletFire").isEqualTo(solved.objective)
         }
+
+        // Fire already met (310): the roll on air lifts it to 10 — 103.3 %, not the halved 50 % of the roll on fire.
+        check(amuletFire = 330, expectedFire = 310, expectedAir = 10)
+        // Fire 15 short: lifting air still beats meeting fire under a halved score (285 unhalved against 315 halved).
+        check(amuletFire = 305, expectedFire = 285, expectedAir = 10)
+        // Fire far short (20): the roll's 30 on fire more than doubles the capped sum, worth more than the halving costs.
+        check(amuletFire = 40, expectedFire = 50, expectedAir = -20)
     }
 
     @Test
     fun `precision halves once, like the solver, however many rows of target 0 are below 0`() {
         // The GUI's precision defaults (air resistance 0, dodge 0) beside the user's "fire resistance 300"; a ring with −5 dodge
-        // breaks the dodge floor too. Air is a floor no roll lands on: the roll goes to fire and air stays at −20 — and the score
-        // must read that build halved once (50 %), not once per floor below 0 (25 %).
+        // breaks the dodge floor whatever the rolls, so the halving is certain: the roll goes to fire and air stays at −20 — and
+        // the score must read that build halved once (50 %), not once per floor below 0 (25 %).
         val p =
             params(
                 ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT,
@@ -469,9 +483,8 @@ class PerElementRowFoldTest {
             family.elements.shuffled(random).take(2 + random.nextInt(3)).forEachIndexed { index, element ->
                 // Precision: the occasional row of target 0, whose sign halves the whole objective — never the first (a mastery
                 // row of target 0 keeps its element wanted: the family stays jointly read), nor the second of a resistance family
-                // (a resistance row of target 0 is a floor that wants nothing — the GUI's default "air resistance 0": two rows
-                // with a target keep the family jointly read). The other modes also get the CLI's 0-weight rows, which the hard
-                // leg still requires.
+                // (a resistance row of target 0 is a floor that wants nothing — the GUI's default "air resistance 0" — though it
+                // joins the family's fold). The other modes also get the CLI's 0-weight rows, which the hard leg still requires.
                 val firstZeroIndex = if (family == ElementFamily.RESISTANCE) 2 else 1
                 if (precision && index >= firstZeroIndex && random.nextInt(3) == 0) {
                     rows += TargetStat(element, 0, 1 + random.nextInt(5))
@@ -560,7 +573,10 @@ class PerElementRowFoldTest {
                 return
             }
             val (value, count) = rolls[i]
-            val combos = mutableListOf<List<Int>>().also { subsets(minOf(count, n), 0, emptyList(), it) }
+            // A family with a floor places a roll as the game does: a negative one lands on the fold only when it must.
+            val sinks = p.targetStats.freeSinks(family)
+            val cover = if (sinks != null && value < 0) (count - sinks).coerceIn(0, n) else minOf(count, n)
+            val combos = mutableListOf<List<Int>>().also { subsets(cover, 0, emptyList(), it) }
             for (combo in combos) {
                 for (e in combo) v[e] += value
                 rec(i + 1, v)
@@ -610,10 +626,12 @@ class PerElementRowFoldTest {
                 val objectives =
                     listOfNotNull(ElementRowObjective.of(p.targetStats, ElementFamily.MASTERY, mode), ElementRowObjective.of(p.targetStats, ElementFamily.RESISTANCE, mode))
                 assertThat(objectives).describedAs(described).isNotEmpty()
-                // Precision with a row of target 0: its halving is decided on the whole build (the per-family primary can then
-                // lose to keeping that row at 0 or more), so the build-level objective is what is compared.
-                // (A resistance row of target 0 is a floor read without the rolls: no placement moves it. A mastery one can.)
-                val halvable = mode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT && p.targetStats.zeroMasteries.isNotEmpty()
+                // Precision with a row of target 0 — a mastery one, or a resistance floor on the family's fold: its halving is
+                // decided on the whole build (the per-family primary can then lose to keeping that row at 0 or more), so the
+                // build-level objective is what is compared.
+                val halvable =
+                    mode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT &&
+                        (p.targetStats.zeroMasteries.isNotEmpty() || p.targetStats.resistanceFloorElements.isNotEmpty())
                 val metBuilds = mutableListOf<Pair<List<Equipment>, BigDecimal>>()
                 for (items in allBuilds(case.pool)) {
                     val ids = items.map { it.equipmentId }.toSet()
