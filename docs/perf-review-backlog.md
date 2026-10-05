@@ -98,6 +98,7 @@ with an ordered roadmap in §C)**, and tiny hygiene items (D). See each item's `
 | Deferred | C6, C7, C8(2)/(3) | **C7 ✅ CLOSED 2026-07-09: re-implemented from the staged derivation (sound, guards green, fires on the engineered pool) — MEASURED-INERT on the flagship shapes (self-disables; byte-identical A/B), stays OFF.** C6 not started (run C4 screen first). C8(2) measured-NO / (3) blocked. See each item's block in §C. |
 | Anytime | D1, D3, D4 | Tiny hygiene — D1 CLI wording, D3 nightly-test flake, D4 doc note. |
 | Next | E0 → E1 | **TODO (opened 2026-10-02):** measure-first perf pass on the current engine — baseline the user-visible timings on 4 cores, then check the leads in §E. |
+| Later | The October 2026 follow-ups (end of §E) | **OPEN, decided "later" (recorded 2026-10-05):** eight leftovers of the per-element random-roll work (#237, #238) — the max-damage hard-leg proof time, the unweighted precision primary and the priority that never reaches the assignment, `assignMaxMin`'s cost, the EHP proxy, the two reads of precision's halving, the placement search's node budget, one re-measure — plus the PLANNED background full-catalog proof for multi-element requests. |
 
 ---
 
@@ -1466,6 +1467,86 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     2,172,270: the −120 rear no longer funds distance beside Neutralité III). Saved most-masteries / precision builds still
     show the stats they were saved with (a loaded build is not re-scored, by design); a loaded max-damage build's
     rotation is, so it drops the bonus.
+- **OCTOBER 2026 FOLLOW-UPS — leftovers of the per-element random-roll work (#237, #238) — all OPEN, decided "later"
+  (recorded 2026-10-05).** #237 (`0e6ed868`) made the scorer keep every random-element roll once the targets are met;
+  #238 makes a family read through several per-element rows fold each roll ONCE, jointly (still open when this was
+  written: `ElementRowAssignment.kt` and the joint fold live on its branch until it merges). Both left the points
+  below; none is started.
+  - **MAX-DAMAGE HARD LEG WITH SEVERAL PER-ELEMENT RESISTANCE ROWS: SLOWER SINCE THE JOINT FOLD — OPEN (perf; found by
+    #238's A/B and its review).** The joint fold adds choices (where each roll lands) and the hard leg pays for them.
+    Fixture `maxdmg200res` (max-damage, fire + water resistance rows), 1 worker, seeds 1–3, 120 det-s: the mean final
+    build is about −0.2 % against main (66 438.7 on main; 66 320.7 and 66 424.8 in two runs with the fold), and the
+    proof takes about 3× longer (OPTIMAL at 290.6 det-s against main's 94.8–115.8). The old builds were truly feasible —
+    re-scored with the exact placement they meet the rows — so main's lead is real, not a phantom of its over-count.
+    These requests are prefiltered, so they never earn a badge: the longer proof only delays the search's early stop.
+    - Tried and dropped: hinting the `assign_*` booleans from a deficit greedy — worse.
+    - Idea (not built): solve the OLD over-counting model first, as a RELAXATION — same objective, looser rows, so a
+      superset of the new model's builds. If its optimum meets the rows under the exact placement, it is the proven
+      optimum of the new model too.
+  - **PRECISION RANDOM-ELEMENT ASSIGNMENT: THE PRIMARY IS THE UNWEIGHTED CAPPED SUM — OPEN (scorer consistency; found
+    during #237).** `assignMaxCapped` (`FindClosestBuildFromInputScoring.kt`) maximizes `Σ min(value_e, target_e)` first
+    and breaks only its ties by the weighted sum, while the score and the solver weight every row (`TargetStats.weight`
+    = `100 / target` × the row's priority). The two rank placements alike only when the unmet rows share a weight.
+    - Re-check first: #238 routes every family it reads jointly through its own weighted assignment
+      (`ElementRowObjective`: the solver's weights, priority included) and states that such a family never reaches
+      `assignMaxCapped`. By `readsJointPerElementRows`, what still reaches it in precision is a family with one wanted
+      element, or with no per-element row that has a target (the aggregate's four rows share one weight; 0-valued rows
+      weigh nothing) — so this item and the next may be unreachable once #238 lands. Confirm, then close both or keep
+      them as a guard.
+  - **THE USER'S PER-ROW PRIORITY NEVER REACHES THE RANDOM-ELEMENT ASSIGNMENT — OPEN (scorer consistency; found during
+    #237).** The assignments receive the targets only, so `precisionRowWeight` weighs a row as a default-priority row
+    of its target: with non-default priorities the assignment's tie-break reads default weights. Same re-check as the
+    previous item, which is its other half (the primary ignores weights altogether).
+  - **`assignMaxMin` IS A NEAR-EXHAUSTIVE ENUMERATION — OPEN (perf; found during #237).** The exact max-min
+    assignment of most-masteries (`FindClosestBuildFromInputScoring.kt`; the aggregate resistance row uses it too)
+    tries every way to put each roll on its elements. Its only prune is the average bound
+    `(Σ subset + mass left) / |subset| ≤ best minimum`, which bites only at perfect balance (and the weighted
+    per-element-DI fold has no bound at all). About 40 ms on a real 10-line aggregate build; 1.5–5 s on synthetic
+    4-element / 12-mixed-line instances.
+  - **THE EHP SURVIVABILITY PROXY STILL FOLDS PER-ELEMENT ROWS ONE AT A TIME — OPEN (model-only; found during #238).**
+    `StatBuilder.effectiveHpVar`, the proxy of the opt-in survivability soft floor, reads each of the four resistances
+    through its own single-element fold, so a random-element roll counts in full on every element — the over-count #238
+    removes from the target rows. #238 leaves the proxy as it is and documents why: no scorer mirrors it and no
+    certificate reads it.
+  - **PRECISION: A 0-TARGET ROW OF A FAMILY NOT READ JOINTLY HALVES ON TWO DIFFERENT READS — OPEN (solver / score
+    consistency; found by #238's review, pre-existing).** A row of target 0 that reads below 0 halves the whole
+    precision objective (`StatBuilder.negativeTargetPenalty`). The solver reads such a row's UNFOLDED stat (no "+all
+    elements" lines, no random rolls; #238 moves only a jointly read family's rows onto the joint fold) while the
+    displayed score halves on the FOLDED value. What is left after #238 is a family that is not read jointly — e.g.
+    "all resistances" beside the GUI's default air-resistance 0 row. `precisionModelObjective` (#238) mirrors the
+    solver's read, the score does not.
+  - **THE PER-ELEMENT-ROW PLACEMENT SEARCH CAN FLIP A HARD-LEG "MET" STATUS WHEN ITS NODE BUDGET BINDS — OPEN (hard-leg
+    status; found by #238's review; documented in the `NODE_BUDGET` KDoc).** `ElementRowAssignment` places a jointly
+    read family's rolls with an exact branch and bound under a deterministic 2M-node budget. Within the budget the
+    solver's hard leg and the scorer's placement agree on "met"; when the budget binds, the placement kept is complete
+    but can read a row as missed (one point short) that the hard leg meets. Seen on synthetic aggregate + per-element
+    shapes with tight targets: about 1.7–3.1 % of such probes. Never on real items: 0 of 12k probes, the worst real
+    case 593k nodes / 65 ms. Follow-up: a feasibility-first repair when the budget binds — #238 expects no clear gain,
+    since its pass 1 already looks for the all-met completions first.
+  - **PRECISION OBJECTIVE VS DISPLAYED SCORE MISMATCH ON `x9prec245` — OPEN (measurement: re-measure after #237 and
+    #238).** Seen with the full pool: solver objective +2.7 % vs displayed −21 %. Very likely explained by the two bugs
+    fixed in #237 (rolls dropped once the targets are met) and #238 (the per-element over-count). Re-measure once both
+    are on main; a gap that survives needs its own diagnosis.
+- **BACKGROUND FULL-CATALOG PROOF FOR MULTI-ELEMENT (PREFILTERED) REQUESTS — PLANNED, "later" (a feature, not a defect;
+  Phase 0 measured; recorded 2026-10-05).** A request on several elements of one family — two specific ones, or an
+  aggregate "all masteries" / "all resistances" row — searches a prefiltered pool (`needsItemPrefilter`: a heuristic
+  top-N per stat; see "The multi-element item pre-filter" in `AGENTS.md`, and `docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md`
+  §7b–§7c for its origin), so CP-SAT's `OPTIMAL` proves nothing global and the request never earns an optimality badge
+  (#227). The plan: after the search, prove the build over the FULL catalog in the background, and tell the player in
+  the GUI what happened.
+  - **Phase 0 — measured** (full pool + domination, hinted with the prefiltered build):
+    - 9 workers: 25 of 26 most-masteries fixtures proven, median 17.5 s, max about 64 s;
+    - 4 workers with CP-SAT's default portfolio: only 4 of 12;
+    - 4 workers with the subsolvers `[max_lp, reduced_costs, core, default_lp]`: 25 of 26, median 12 s, max 79 s, ≤ 2 GB
+      RSS. Single samples, so repeat before shipping (§C4: multi-worker proof times are variance-dominated, and its
+      "no solver knob" verdict was reached on max-damage, not on this workload);
+    - `xelor200` never proves.
+  - **GUI message, three states:** checking the full catalog / proven / not concluded (timed out, stopped, disabled).
+  - **Then a compute-settings panel:** cores used (and why), a simple priority / mode choice, and an on/off for the
+    optimality badge, each with a clear explanation in Settings. Today the "Check optimality after the search" switch
+    (`UiState.verifyOptimality`, persisted by `LibraryPreferences`) and the `proofState` pipeline exist; there is no
+    Settings screen yet.
+  - Open question: what the GUI shows when the full-catalog solve finds a BETTER build than the prefiltered one.
 
 ---
 
