@@ -63,7 +63,8 @@ object FindMostMasteriesFromInputScoring {
             resistanceElementsToMinimize = resistanceElementsToMinimize,
             masteryRollWeights = masteryRollWeights,
             masteryRollOffset = masteryRollOffset,
-            elementRows = elementRows
+            elementRows = elementRows,
+            resistanceFloorElements = targetStats.resistanceFloorElements
         )
 
         // First pass (unweighted rolls). Its non-element masteries + DI are roll-independent, so they yield the
@@ -115,10 +116,13 @@ object FindMostMasteriesFromInputScoring {
         // we calculate a penalty factor to penalize the score if the stats asked are too low compared to the stats we have.
         // Capped at MAX_PENALTY_MULTIPLIER like the solver's floored multiplier ([penaltyMultiplier]): a build whose
         // targets are far out of reach (< ~10%) keeps its core's gradient instead of dividing down by up to 1e12.
+        // A floor below 0 (a required row of target 0: "air resistance 0", "dodge 0"…) HALVES the score, once — the solver's soft leg
+        // halves its penalized objective the same way (applyConstraintPenalty); its hard leg never returns such a build.
         val penaltyFactor =
             (100.0.toBigDecimal().setScale(4) / successPercentageOnAskedCharacteristic.coerceAtLeast(1.0.toBigDecimal()))
                 .pow(6)
                 .coerceAtMost(MAX_PENALTY_MULTIPLIER.toBigDecimal())
+                .let { if (targetStats.floorBroken(actualCharacteristicsValues)) it * FLOOR_BROKEN_DIVISOR else it }
 
         // Per-element fold mirroring StatBuilder.diAdjustedPerElementMasteryScore: maximize mastery × (1 + DI/100)
         // so the proxy is damage-faithful, but EACH requested element's damage line uses its OWN per-element DI

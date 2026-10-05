@@ -210,7 +210,9 @@ class BuildSearchModelE2ETest {
                         buildCombination = build,
                         characterBaseCharacteristics = Character(model.ui.clazz, model.ui.level, model.ui.minLevel).baseCharacteristicValues,
                         masteryElementsWanted = model.ui.toTargetStats().masteryElementsWanted,
-                        resistanceElementsWanted = model.ui.toTargetStats().resistanceElementsWanted
+                        resistanceElementsWanted = model.ui.toTargetStats().resistanceElementsWanted,
+                        // The default "air resistance 0" row is a floor: its own lines plus the "+all elements" ones, no roll.
+                        resistanceFloorElements = model.ui.toTargetStats().resistanceFloorElements
                     )
                 assertEquals(expectedAchieved, model.ui.achieved)
                 assertNotNull(model.ui.achieved[ACTION_POINT])

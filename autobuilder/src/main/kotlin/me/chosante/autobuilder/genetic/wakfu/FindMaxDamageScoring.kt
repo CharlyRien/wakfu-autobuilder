@@ -46,7 +46,9 @@ object FindMaxDamageScoring {
                 scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
                 damageScenario = scenario,
                 // Per-element resistance rows read the solver's joint fold: place the rolls as it does.
-                elementRows = targetStats.elementRowObjectives(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE)
+                elementRows = targetStats.elementRowObjectives(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE),
+                // ...and a resistance floor ("air resistance 0") reads its roll-free value, as the solver's floor does.
+                resistanceFloorElements = targetStats.resistanceFloorElements
             )
 
         val expectedDamage = expectedDamage(stats, scenario)
@@ -98,12 +100,22 @@ object FindMaxDamageScoring {
     /**
      * Replicates the most-masteries shortfall penalty: builds that fall short of the required hard
      * targets (AP/MP/range/HP/…) are divided down by `(100 / successPercentage)^6`, so the solver and
-     * scorer both prefer constraint-satisfying builds. Returns 1 when every required target is met (or
-     * none are requested). Capped at [MAX_PENALTY_MULTIPLIER] like the solver's floored multiplier
+     * scorer both prefer constraint-satisfying builds. Returns 1 when every required target is met and
+     * no floor is broken (or none are requested). Capped at [MAX_PENALTY_MULTIPLIER] like the solver's floored multiplier
      * ([penaltyMultiplier]): far-out-of-reach builds (< ~10%) keep their damage gradient — the external
      * loop ranks probe results by this score, so an uncapped ~1e12 divisor read every such build as 0.
+     * A floor below 0 (a required row of target 0 — see [floorBroken]) doubles the divisor, as the solver's soft leg
+     * halves its objective; [stats] must carry the floors' roll-free reads (`resistanceFloorElements`).
      */
     internal fun requiredConstraintPenaltyFactor(
+        targetStats: TargetStats,
+        stats: Map<Characteristic, Int>,
+    ): BigDecimal {
+        val shortfall = shortfallPenaltyFactor(targetStats, stats)
+        return if (targetStats.floorBroken(stats)) shortfall * FLOOR_BROKEN_DIVISOR else shortfall
+    }
+
+    private fun shortfallPenaltyFactor(
         targetStats: TargetStats,
         stats: Map<Characteristic, Int>,
     ): BigDecimal {

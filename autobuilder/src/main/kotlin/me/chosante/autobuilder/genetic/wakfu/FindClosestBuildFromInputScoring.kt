@@ -33,23 +33,18 @@ object FindClosestBuildFromInputScoring {
                 targetStats.masteryElementsWanted,
                 targetStats.resistanceElementsWanted,
                 scoreComputationMode = ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT,
-                elementRows = targetStats.elementRowObjectives(ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT)
+                elementRows = targetStats.elementRowObjectives(ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT),
+                resistanceFloorElements = targetStats.resistanceFloorElements
             )
 
         var totalActualScore = calculateTotalActualScore(targetStats, actualCharacteristicsValues, targetStats.expectedScoreByCharacteristic, canExceedPerfectScore = false)
 
-        // A row of target 0 that reads below 0 HALVES the score — once, however many do, exactly like the solver's objective
-        // (StatBuilder.negativeTargetPenalty, which leaves the aggregate rows out too). It used to halve once PER such row, so where
-        // a halving was already unavoidable (say the GUI's default "dodge 0" under a negative-dodge ring) the placement the solver
-        // rightly ranks first could read as halved twice.
-        val belowZero =
-            targetStats.any {
-                it.target == 0 &&
-                    it.characteristic != Characteristic.MASTERY_ELEMENTARY &&
-                    it.characteristic != Characteristic.RESISTANCE_ELEMENTARY &&
-                    (actualCharacteristicsValues[it.characteristic] ?: 0) < 0
-            }
-        if (belowZero) totalActualScore /= 2
+        // A floor below 0 (a row of target 0 on a required stat — "air resistance 0" read without the random rolls, "dodge 0"…;
+        // "all resistances 0" holds each element), or a mastery of target 0 below 0, HALVES the score — once, however many do,
+        // exactly like the solver's objective (StatBuilder.negativeTargetPenalty, see precisionHalves). It used to halve once PER
+        // such row, so where a halving was already unavoidable (say the GUI's default "dodge 0" under a negative-dodge ring) the
+        // placement the solver rightly ranks first could read as halved twice.
+        if (targetStats.precisionHalves(actualCharacteristicsValues)) totalActualScore /= 2
 
         val successPercentage = (totalActualScore / targetStats.totalExpectedScore) * 100.0
 
@@ -169,6 +164,11 @@ fun computeCharacteristicsValues(
     // that family — the solver reads such rows from ONE joint fold (in precision, with precision's halving for its rows of
     // target 0 decided on the whole build, see the end). Null ⇒ the per-mode assignment of each family.
     elementRows: ElementRowObjectives? = null,
+    // The request's resistance FLOORS (TargetStats.resistanceFloorElements: elements a row of target 0 keeps at 0 or more,
+    // which no row wants): each is returned as its element's own lines plus the "+all elements" ones — never a random roll,
+    // since the rolls only land on wanted elements — the exact value the solver's floor reads (StatBuilder.floorReads), and
+    // what the stats column shows for the row. Empty ⇒ such an element keeps its own lines only, as any unrequested one.
+    resistanceFloorElements: Collection<Characteristic> = emptyList(),
 ): Map<Characteristic, Int> {
     val eachCharacteristicValueLineByEquipment =
         buildCombination.equipments
@@ -334,6 +334,20 @@ fun computeCharacteristicsValues(
             placed.forEach { mutableActualCharacteristics[it.key] = it.value }
             placed.minOfOrNull { it.value }?.let { mutableActualCharacteristics[Characteristic.RESISTANCE_ELEMENTARY] = it }
         }
+        // Floors: their own lines + "+all elements", no roll (a floor is never a wanted element). Once the floors and the wanted
+        // elements cover all four, the "all resistances" value is their minimum, as for four wanted elements.
+        if (resistanceFloorElements.isNotEmpty()) {
+            val generic = sumWithPassives[Characteristic.RESISTANCE_ELEMENTARY] ?: 0
+            for (element in resistanceFloorElements) {
+                if (resistance?.containsKey(element) == true) continue
+                mutableActualCharacteristics[element] = (sumWithPassives[element] ?: 0) + generic
+            }
+            val covered = resistanceFloorElements.toSet() + resistance?.keys.orEmpty()
+            if (ElementFamily.RESISTANCE.elements.all { it in covered }) {
+                mutableActualCharacteristics[Characteristic.RESISTANCE_ELEMENTARY] =
+                    ElementFamily.RESISTANCE.elements.minOf { mutableActualCharacteristics[it] ?: 0 }
+            }
+        }
 
         // Percent skills are applied per characteristic key, at the very end, on the accumulated value.
         // NOTE: the Major "% Inflicted Damage" aptitude is modeled as a FIXED contribution to the dedicated
@@ -362,10 +376,11 @@ fun computeCharacteristicsValues(
 
     val placed = withPlacements(masteryPlaced, resistancePlaced)
 
-    // Precision HALVES its whole objective while a row of target 0 reads below 0 (StatBuilder.negativeTargetPenalty), which for a
-    // jointly read family depends on where its rolls land — a request-wide trade no per-family objective can weigh alone. So
-    // such a family also gets its best placement keeping those rows at 0 or more, and the build keeps whichever of the two the
-    // solver's own objective ([precisionModelObjective], on every stat) ranks first — the placement the solver itself takes.
+    // Precision HALVES its whole objective while a mastery row of target 0 reads below 0 (StatBuilder.negativeTargetPenalty), which
+    // for a jointly read family depends on where its rolls land — a request-wide trade no per-family objective can weigh alone.
+    // So such a family also gets its best placement keeping those rows at 0 or more, and the build keeps whichever of the two
+    // the solver's own objective ([precisionModelObjective], on every stat) ranks first — the placement the solver itself takes.
+    // (A resistance row of target 0 is a floor read without the rolls: no placement moves it.)
     val rows = elementRows ?: return placed
     val masteryKeeping = rows.mastery?.takeIf { it.hasZeroTargetRows }
     val resistanceKeeping = rows.resistance?.takeIf { it.hasZeroTargetRows }
@@ -379,7 +394,7 @@ fun computeCharacteristicsValues(
     if (masteryKept == masteryPlaced && resistanceKept == resistancePlaced) return placed
     val kept = withPlacements(masteryKept, resistanceKept)
     // Ties keep the rows of target 0 at 0 or more (what the stats column then shows).
-    return if (precisionModelObjective(rows.targetStats, kept, sumWithPassives) >= precisionModelObjective(rows.targetStats, placed, sumWithPassives)) kept else placed
+    return if (precisionModelObjective(rows.targetStats, kept) >= precisionModelObjective(rows.targetStats, placed)) kept else placed
 }
 
 /**
