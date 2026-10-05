@@ -4454,6 +4454,40 @@ class WakfuBuildSolverTest {
             .isGreaterThanOrEqualTo(LVL245_PROVEN_OPTIMUM)
     }
 
+    /**
+     * The same oracle with the GUI's floors on the request (rows of target 0: "air resistance 0", "dodge 0", plus lock and water). The
+     * certificate ignores floors — a relaxation: a floor only removes builds or halves their objective — and reads no resistance
+     * roll, so no per-cell bound may move: a floored request is certified by the very ledger of the free one (no `CERTIFIER_VERSION`
+     * bump). (Added by the zero-target-rows review, which banked it bit-identical.)
+     */
+    @Test
+    @Tag("slow")
+    fun `lvl-245 fast certifier ledger ignores the floors - bit-identical to the banked oracle`() {
+        val floors =
+            TargetStats(
+                listOf(
+                    TargetStat(Characteristic.RESISTANCE_ELEMENTARY_WIND, 0),
+                    TargetStat(Characteristic.DODGE, 0),
+                    TargetStat(Characteristic.LOCK, 0),
+                    TargetStat(Characteristic.RESISTANCE_ELEMENTARY_WATER, 0)
+                )
+            )
+        val params = fireMaxDamageParams(245).copy(useRunes = true, useSublimations = true, targetStats = floors)
+        assertThat(params.targetStats.hasFloors).isTrue()
+        val ledger =
+            WakfuBuildSolver.certifyLedgerForTest(
+                params,
+                fullEpicPool(245),
+                WakfuBestBuildFinderAlgorithm.runes,
+                WakfuBestBuildFinderAlgorithm.sublimations,
+                applyDomination = true,
+                incumbentObjective = Long.MAX_VALUE / 2,
+                forceTier2All = false
+            )
+        assertThat(ledger.bailedCells).isEmpty()
+        assertThat(ledger.cellObjectives.toSortedMap()).containsExactlyEntriesOf(LVL245_FAST_LEDGER_ORACLE.toSortedMap())
+    }
+
     @Test
     @Tag("manual")
     fun `manual max-damage level-245 incumbent shape`() =
