@@ -24,7 +24,7 @@ junit = "6.1.3"
 ktlint = "14.2.0"
 # Compose Multiplatform: `compose` drives the org.jetbrains.compose plugin and the per-OS Desktop
 # artifacts (they share that version). Material3 ships on a separate cadence, hence its own version.
-compose = "1.12.0"
+compose = "1.12.1"
 composeMaterial3 = "1.9.0"
 
 [libraries]
