@@ -1653,7 +1653,13 @@ class BuildSearchModel(
     }
 
     private fun UiState.toTargetStats(): TargetStats {
-        val raw = targets.map { TargetStat(it.characteristic, it.value.toIntOrNull() ?: 0, it.weight) }
+        // A typed 0 is a row ("never below 0"); a blank — or cleared — field asks for nothing, so it sends no row at all. Except a
+        // mastery most-masteries maximizes: its row is a checkbox there (no field, its value never read), so it always counts.
+        val raw =
+            targets.mapNotNull { row ->
+                val value = row.value.toIntOrNull() ?: if (row.isMaximized(mode)) 0 else return@mapNotNull null
+                TargetStat(row.characteristic, value, row.weight)
+            }
         // Most-masteries only: split a single "all resistances" target into the four per-element ones
         // so the solver gets four graceful constraints instead of one brittle min-over-four. The UI
         // keeps a single editable row; the split happens here, on the way to the engine.
@@ -2039,14 +2045,17 @@ class BuildSearchModel(
      * re-scores too. A proof belongs to the rules it was made under: a build whose score moved ([isStoredScore]) loses its stored
      * "proven optimal" flag, and so does any build of a request no search can prove ([UiState.prefilteredRequest], read from
      * [TargetStats.needsItemPrefilter]: several elements of one family): an older version may have stored a proof made by a model
-     * that counted every random-element roll on every element. Only a build the scorer cannot read at all keeps its stored numbers.
+     * that counted every random-element roll on every element. So does a build of a request an older version searched on the
+     * pre-filtered pool because it counted a resistance row of target 0 as a wanted element ([TargetStats.legacyNeedsItemPrefilter]:
+     * "fire resistance 100" beside the default "air resistance 0") — its stored proof covers that reduced pool only, though the
+     * request now searches the whole catalog. Only a build the scorer cannot read at all keeps its stored numbers.
      */
     private fun UiState.rescored(): UiState {
         val shown = build ?: return this
         return runCatching {
             val params = toSearchParams()
             val score = buildRescorer(params, shown)
-            val provable = !prefilteredRequest
+            val provable = !prefilteredRequest && !params.targetStats.legacyNeedsItemPrefilter
             copy(match = score, achieved = achievedStats(shown, params), optimal = optimal && provable && isStoredScore(score, match))
         }.getOrDefault(this)
     }

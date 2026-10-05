@@ -9,10 +9,14 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.domain.TargetStat
+import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.genetic.SolverResult
+import me.chosante.autobuilder.genetic.wakfu.FindMostMasteriesFromInputScoring
 import me.chosante.autobuilder.genetic.wakfu.MaxDamageSearch
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
+import me.chosante.common.Character
 import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
@@ -40,7 +44,8 @@ import kotlin.time.Duration.Companion.seconds
  * A row of target 0 on a required stat is a FLOOR ("never below 0") since the zero-target-rows change: a saved build whose air
  * resistance is negative under the default "air resistance 0" row was scored as if the row did not exist. Loaded, it is
  * re-scored under the current rules (#232): the score is halved, so the stored "proven optimal" flag — a proof for the old
- * rules — is not restored. A save that keeps every floor reads exactly as saved, flag included.
+ * rules — is not restored. A save that keeps every floor reads exactly as saved, flag included — unless an older version
+ * searched its request on the pre-filtered pool, which counted a resistance row of target 0 as a wanted element.
  */
 class BuildSearchModelFloorReloadTest {
     private fun item(
@@ -63,6 +68,7 @@ class BuildSearchModelFloorReloadTest {
     private fun oldSave(
         build: BuildCombination,
         match: BigDecimal,
+        targets: List<TargetSnapshot> = this.targets,
     ) = HistoryEntry(
         id = "old-floor-save",
         name = "Old floor save",
@@ -143,6 +149,46 @@ class BuildSearchModelFloorReloadTest {
                 assertThat(model.ui.match).isEqualByComparingTo(BigDecimal(100))
                 assertTrue(model.ui.optimal, "the current rules agree with the save: its proof flag holds")
                 assertEquals(5, model.ui.achieved[Characteristic.RESISTANCE_ELEMENTARY_WIND])
+            } finally {
+                scope.cancel()
+            }
+        }
+
+    @Test
+    fun `an old save of fire resistance 100 beside the default air 0 loses its proof flag - its search ran on the pre-filtered pool`(): Unit =
+        runBlocking {
+            // The review's repro: before rows of target 0 became floors, "air resistance 0" was a WANTED element, so "fire resistance
+            // 100" beside it made the request multi-element and searched it on the pre-filtered pool — and 1.13 stamped CP-SAT's
+            // OPTIMAL over that reduced pool as "proven optimal". A request on one element now, it re-scores exactly as saved: only
+            // the old reading can tell its stored proof does not cover the whole catalog.
+            val build =
+                BuildCombination(
+                    listOf(
+                        item(
+                            980_001,
+                            mapOf(
+                                Characteristic.MASTERY_DISTANCE to 100,
+                                Characteristic.RESISTANCE_ELEMENTARY_FIRE to 120,
+                                Characteristic.RESISTANCE_ELEMENTARY_WIND to 5
+                            )
+                        )
+                    ),
+                    skills
+                )
+            val rows =
+                listOf(
+                    TargetStat(Characteristic.MASTERY_DISTANCE, 1),
+                    TargetStat(Characteristic.RESISTANCE_ELEMENTARY_FIRE, 100),
+                    TargetStat(Characteristic.RESISTANCE_ELEMENTARY_WIND, 0)
+                )
+            val stored = FindMostMasteriesFromInputScoring.computeScore(TargetStats(rows), build, Character(CharacterClass.CRA, 110, 0, skills).baseCharacteristicValues)
+            val saved = rows.map { TargetSnapshot(it.characteristic, it.target.toString()) }
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            try {
+                val model = loaded(scope, oldSave(build, stored, saved))
+                assertFalse(model.ui.prefilteredRequest, "a request on one element now")
+                assertThat(model.ui.match).isEqualByComparingTo(stored)
+                assertFalse(model.ui.optimal, "a proof over the old pre-filtered pool is not restored")
             } finally {
                 scope.cancel()
             }
