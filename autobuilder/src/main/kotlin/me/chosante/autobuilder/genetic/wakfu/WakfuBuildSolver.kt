@@ -40,7 +40,6 @@ import java.math.BigInteger
 import java.math.RoundingMode
 import kotlin.math.ceil
 import kotlin.math.min
-import kotlin.math.roundToLong
 
 /**
  * Two-tier max-damage certificate for a single element (see `docs/CERTIFICATE_PROD_PLAN.md` §P3). All
@@ -440,15 +439,6 @@ object WakfuBuildSolver {
     // Internal (not private) so the §8.2 S-A outer driver can fold interval bounds in the same units.
     internal const val OVERSHOOT_SCALE = 10_000L
 
-    // The GA scorers weight each target by a Double = (100 / target) * userDefinedWeight, which is
-    // almost always < 1 for high targets (e.g. HP target 2000 -> 0.05). Truncating that to Long with
-    // .toLong() collapsed those weights to 0, silently dropping HP and any target > 100 from the
-    // objective. We instead carry the weight in fixed-point (x WEIGHT_SCALE), which preserves both
-    // the per-target 100/target normalization and userDefinedWeight. Because the same scale is
-    // applied to the expected and the actual score, the success ratio that drives the penalty is
-    // unchanged.
-    private const val WEIGHT_SCALE = 1_000L
-
     internal val NON_ELEMENTARY_MASTERIES =
         listOf(
             Characteristic.MASTERY_BACK,
@@ -518,24 +508,16 @@ object WakfuBuildSolver {
         solver.solve(model)
     }
 
-    /** Fixed-point version of [TargetStats.weight] so sub-unit weights survive integer arithmetic. */
-    internal fun TargetStats.scaledWeight(targetStat: TargetStat): Long = (weight(targetStat) * WEIGHT_SCALE).roundToLong()
+    /**
+     * Fixed-point version of [TargetStats.weight] so sub-unit weights survive integer arithmetic — the one definition
+     * ([fixedPointWeight], × [TARGET_WEIGHT_SCALE]) the scorers' per-element-row objective ([ElementRowObjective]) reads too.
+     */
+    internal fun TargetStats.scaledWeight(targetStat: TargetStat): Long = fixedPointWeight(targetStat)
 
-    internal val ELEMENTARY_MASTERIES =
-        listOf(
-            Characteristic.MASTERY_ELEMENTARY_WATER,
-            Characteristic.MASTERY_ELEMENTARY_FIRE,
-            Characteristic.MASTERY_ELEMENTARY_EARTH,
-            Characteristic.MASTERY_ELEMENTARY_WIND
-        )
+    // The canonical element order of every multi-element fold — shared with the scorers through [ElementFamily].
+    internal val ELEMENTARY_MASTERIES = ElementFamily.MASTERY.elements
 
-    internal val ELEMENTARY_RESISTANCES =
-        listOf(
-            Characteristic.RESISTANCE_ELEMENTARY_WATER,
-            Characteristic.RESISTANCE_ELEMENTARY_FIRE,
-            Characteristic.RESISTANCE_ELEMENTARY_EARTH,
-            Characteristic.RESISTANCE_ELEMENTARY_WIND
-        )
+    internal val ELEMENTARY_RESISTANCES = ElementFamily.RESISTANCE.elements
 
     // Upper bound for the "exceed the target once everything is met" tie-breaker. Far above any
     // realistic scaled overflow, so the clamp never triggers in practice while keeping the
@@ -550,19 +532,9 @@ object WakfuBuildSolver {
 
     // Per-element random lines paired with how many distinct elements each rolls onto. Used to fold
     // random masteries/resistances into specific elements exactly as the scorers do.
-    internal val MASTERY_RANDOM_BY_COUNT =
-        listOf(
-            Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT to 1,
-            Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT to 2,
-            Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT to 3
-        )
+    internal val MASTERY_RANDOM_BY_COUNT = ElementFamily.MASTERY.randomByCount
 
-    internal val RESISTANCE_RANDOM_BY_COUNT =
-        listOf(
-            Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT to 1,
-            Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT to 2,
-            Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT to 3
-        )
+    internal val RESISTANCE_RANDOM_BY_COUNT = ElementFamily.RESISTANCE.randomByCount
 
     /**
      * The prefilter (a top-N-per-stat plus top-N-by-combined-mastery HEURISTIC that trades global optimality for
@@ -1132,6 +1104,9 @@ object WakfuBuildSolver {
         val certifierAuxObjectivesForTest: Map<Int, Long> = emptyMap(),
         // Max-damage only (v47): per AP cell, the relaxed capped aux world's objective vs the exact capped split's.
         val certifierAuxRelaxedVsSplitForTest: Map<Int, Pair<Long, Long>> = emptyMap(),
+        // Test seam ([elementRowSolveForTest]): the per-element vars the request's elemental target rows read — each
+        // family's fold — so a lock compares the model's claimed per-element values with the scorer's.
+        val elementRowReads: Map<Characteristic, IntVar> = emptyMap(),
     )
 
     /**
@@ -1386,6 +1361,7 @@ object WakfuBuildSolver {
         // §8.5 S-D: the hard leg's assumption literals (target → literal).
         var mmAssumptionLits: Map<Characteristic, com.google.ortools.sat.BoolVar>? = null
         var actualStatVars: Map<Characteristic, IntVar> = emptyMap()
+        var elementRowReads: Map<Characteristic, IntVar> = emptyMap()
         val objective =
             when (params.scoreComputationMode) {
                 ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT -> {
@@ -1409,7 +1385,8 @@ object WakfuBuildSolver {
                             mmDiFactorInterval,
                             mmDiFactorFoldedObjective,
                             mmHardTargetsAsAssumptions,
-                            mmSoftNoGoodCore
+                            mmSoftNoGoodCore,
+                            onStatBuilder = { elementRowReads = it.elementRowReads }
                         )
                     maxDamageStaticallyInfeasible = mm.staticallyInfeasible
                     mmPenaltyProbeVars = mm.penaltyBucketProbeVars
@@ -1437,6 +1414,7 @@ object WakfuBuildSolver {
                         )
                     val obj = model.buildPrecisionObjective(params, statBuilder)
                     precisionTracked = statBuilder.tracker.tracked()
+                    elementRowReads = statBuilder.elementRowReads
                     obj
                 }
 
@@ -1494,6 +1472,7 @@ object WakfuBuildSolver {
                     certifierExplain = statBuilder.certifierExplainForTest
                     certifierExplainItemIds = statBuilder.certifierExplainItemIds
                     critDiffJointCutBound = statBuilder.critDiffJointCutBoundForTest
+                    elementRowReads = statBuilder.elementRowReads
                     // Proof/research profiles only (stat-bound pins + reported actual stats): building
                     // actualStat(HP) adds the pre-HP sum + %HP product chain to every PRODUCTION model
                     // that has no HP target (pre-release review 2026-10-01 — main never paid it).
@@ -1542,7 +1521,8 @@ object WakfuBuildSolver {
             mmAssumptionLits,
             actualStatVars,
             certifierAuxObjectives,
-            certifierAuxRelaxedVsSplit
+            certifierAuxRelaxedVsSplit,
+            elementRowReads
         )
     }
 
@@ -3349,6 +3329,81 @@ object WakfuBuildSolver {
         )
     }
 
+    /** Result of [elementRowSolveForTest]. */
+    internal class ElementRowSolve(
+        val status: com.google.ortools.sat.CpSolverStatus,
+        val objective: Long?,
+        val build: BuildCombination?,
+        // The model's claimed value of every per-element var the elemental target rows read (each family's fold).
+        val modelElementValues: Map<Characteristic, Long>,
+    ) {
+        val hasSolution: Boolean get() = objective != null
+        val isOptimal: Boolean get() = status == com.google.ortools.sat.CpSolverStatus.OPTIMAL
+    }
+
+    /**
+     * Test seam (the per-element-row fold locks): builds the [params] model on exactly [equipmentsByItemType] (no
+     * prefilter, no domination, unless [forceFullPool] is false), the required targets as HARD constraints when
+     * [hardConstraints], optionally PINS a build — [pinnedEquipmentIds] (every other item off), [pinSkillsToZero] (no skill
+     * point spent) and/or [pinnedDecisions] (every decision var by name, an absent one 0) — solves it with the deterministic
+     * [tuning], and returns the solved build beside the model's own claimed value of every per-element var its rows read.
+     */
+    internal fun elementRowSolveForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        tuning: SolverTuning,
+        hardConstraints: Boolean,
+        runes: List<RuneType> = emptyList(),
+        sublimations: List<Sublimation> = emptyList(),
+        pinnedEquipmentIds: Set<Int>? = null,
+        pinSkillsToZero: Boolean = false,
+        pinnedDecisions: Map<String, Long>? = null,
+        forceFullPool: Boolean = true,
+    ): ElementRowSolve {
+        val built =
+            buildModel(
+                params,
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                forceFullPool = forceFullPool,
+                hardConstraints = hardConstraints,
+                maxDamageExperiment = tuning.maxDamageExperiment
+            )
+        if (built.maxDamageStaticallyInfeasible) {
+            return ElementRowSolve(com.google.ortools.sat.CpSolverStatus.INFEASIBLE, null, null, emptyMap())
+        }
+        pinnedEquipmentIds?.let { ids ->
+            for ((equip, v) in built.equipVars) built.model.addEquality(v, if (equip.equipmentId in ids) 1L else 0L)
+        }
+        if (pinSkillsToZero) for (v in built.skillVars.values) built.model.addEquality(v, 0L)
+        pinnedDecisions?.let { values ->
+            val decisions = diagnosticVars(built)
+            val missing = values.keys - decisions.map { it.name }.toSet()
+            require(missing.isEmpty()) { "pinned decisions absent from the model: $missing" }
+            for (v in decisions) built.model.addEquality(v, values[v.name] ?: 0L)
+        }
+        val solver = CpSolver()
+        solver.parameters.logSearchProgress = false
+        solver.parameters.numSearchWorkers = tuning.numSearchWorkers
+        solver.parameters.randomSeed = tuning.randomSeed
+        solver.parameters.maxDeterministicTime = tuning.maxDeterministicTime
+        if (tuning.interleaveSearch) solver.parameters.interleaveSearch = true
+        if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) solver.parameters.linearizationLevel = 2
+        val status = solver.solve(built.model)
+        val hasSolution =
+            status == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                status == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+        if (!hasSolution) return ElementRowSolve(status, null, null, emptyMap())
+        val build = solutionToBuild(params, built.allEquips, built.equipVars, built.skillVars, built.runeModel, built.subModel) { solver.value(it) }
+        return ElementRowSolve(
+            status = status,
+            objective = solver.objectiveValue().toLong(),
+            build = build,
+            modelElementValues = built.elementRowReads.mapValues { (_, v) -> solver.value(v) }
+        )
+    }
+
     /** Test seam: the per-slot domination pre-filter applied to [pool], pinning [pinned] to equality (empty = full). */
     internal fun filterDominatedPoolForTest(
         pool: Map<ItemType, List<Equipment>>,
@@ -3809,6 +3864,8 @@ object WakfuBuildSolver {
         // §8.5 S-D seams — see [SolverTuning.mmHardTargetsAsAssumptions] / [SolverTuning.mmSoftNoGoodCore].
         mmHardTargetsAsAssumptions: Boolean = false,
         mmSoftNoGoodCore: Set<Characteristic>? = null,
+        // Hands the stat builder to [buildModel] (its row-read test seam); no effect on the model.
+        onStatBuilder: (StatBuilder) -> Unit = {},
     ): MostMasteriesObjectiveVars {
         val statBuilder =
             StatBuilder(
@@ -3824,7 +3881,7 @@ object WakfuBuildSolver {
                 tight = mmProductEncoding != MmProductEncoding.CURRENT,
                 // Decouple from the max-damage experiment default (see [MaxDamageExperimentConfig.NON_MAX_DAMAGE]).
                 maxDamageExperiment = MaxDamageExperimentConfig.NON_MAX_DAMAGE
-            )
+            ).also(onStatBuilder)
         statBuilder.applyOutOfCombatCaps()
         val targetStats = params.targetStats
         val targetCharacteristics = targetStats.map { it.characteristic }.toSet()
@@ -4306,7 +4363,9 @@ object WakfuBuildSolver {
                 // Pass the real resistance targets so the penalty's stats see RESISTANCE_ELEMENTARY / per-
                 // element resistances (an emptyMap made them read 0, mis-ranking builds when the user sets a
                 // required resistance in max-damage mode).
-                resistanceElementsWanted = params.targetStats.resistanceElementsWanted
+                resistanceElementsWanted = params.targetStats.resistanceElementsWanted,
+                // ...with their random rolls placed where the solver's joint per-element fold places them.
+                elementRows = params.targetStats.elementRowObjectives(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE)
             )
         val penalty = FindMaxDamageScoring.requiredConstraintPenaltyFactor(params.targetStats, stats)
         return rotationDamage.divide(penalty, 4, RoundingMode.FLOOR)

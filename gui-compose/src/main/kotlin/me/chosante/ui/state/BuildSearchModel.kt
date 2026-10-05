@@ -32,6 +32,7 @@ import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildParams
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver
 import me.chosante.autobuilder.genetic.wakfu.computeCharacteristicsValues
+import me.chosante.autobuilder.genetic.wakfu.elementRowObjectives
 import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.common.Character
 import me.chosante.common.Characteristic
@@ -1276,7 +1277,8 @@ class BuildSearchModel(
                                         resistanceElementsWanted = params.targetStats.resistanceElementsWanted,
                                         scoreComputationMode = params.scoreComputationMode,
                                         masteryElementsToMinimize = null,
-                                        resistanceElementsToMinimize = null
+                                        resistanceElementsToMinimize = null,
+                                        elementRows = params.targetStats.elementRowObjectives(params.scoreComputationMode)
                                     )
                                 val upRotation = SpellRotationOptimizer.bestSequencedRotation(upBuild, character, character.clazz, damageScenario)
                                 val upScenario =
@@ -1697,7 +1699,9 @@ class BuildSearchModel(
     /**
      * The per-stat grid the stats column shows for [build] under [params]'s request, resolved with the SAME random-element
      * assignment the scorer used so the displayed values match the score: most-masteries → exact max-min, precision → exact
-     * max-capped, max-damage → greedy. Mirrors FindMostMasteriesFromInputScoring; omitting the mode would fall to the greedy
+     * max-capped, max-damage → greedy, and per-element rows over several elements (the four resistance rows "all
+     * resistances" expands to, fire + water mastery in precision…) → the exact optimum of the solver's joint fold
+     * (`elementRowObjectives`). Mirrors FindMostMasteriesFromInputScoring; omitting the mode would fall to the greedy
      * `else` branch and diverge from the score. A search's streamed builds and a reloaded saved build both read their stats
      * here, so the two can never disagree about the same build.
      */
@@ -1727,7 +1731,9 @@ class BuildSearchModel(
             resistanceElementsWanted = targetStats.resistanceElementsWanted,
             scoreComputationMode = params.scoreComputationMode,
             masteryElementsToMinimize = masteryElementsToMinimize,
-            resistanceElementsToMinimize = resistanceElementsToMinimize
+            resistanceElementsToMinimize = resistanceElementsToMinimize,
+            // Per-element rows over several elements: the scorers' exact placement of the solver's joint fold.
+            elementRows = targetStats.elementRowObjectives(params.scoreComputationMode)
         )
     }
 

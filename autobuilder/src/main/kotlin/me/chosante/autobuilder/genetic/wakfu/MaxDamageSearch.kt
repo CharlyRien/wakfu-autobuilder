@@ -826,7 +826,9 @@ object MaxDamageSearch {
                 buildCombination = build,
                 characterBaseCharacteristics = params.character.baseCharacteristicValues,
                 masteryElementsWanted = mapOf(params.damageScenario.element.masteryCharacteristic to 1),
-                resistanceElementsWanted = params.targetStats.resistanceElementsWanted
+                resistanceElementsWanted = params.targetStats.resistanceElementsWanted,
+                // Per-element resistance rows: the rolls placed where the solver's joint fold places them.
+                elementRows = params.targetStats.elementRowObjectives(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE)
             )
         return FindMaxDamageScoring.requiredConstraintPenaltyFactor(params.targetStats, stats).compareTo(BigDecimal.ONE) <= 0
     }
@@ -852,7 +854,9 @@ object MaxDamageSearch {
                 buildCombination = build,
                 characterBaseCharacteristics = params.character.baseCharacteristicValues,
                 masteryElementsWanted = mapOf(params.damageScenario.element.masteryCharacteristic to 1),
-                resistanceElementsWanted = params.targetStats.resistanceElementsWanted
+                resistanceElementsWanted = params.targetStats.resistanceElementsWanted,
+                // Per-element resistance rows: the rolls placed where the solver's joint fold places them.
+                elementRows = params.targetStats.elementRowObjectives(ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE)
             )
         val penalty = FindMaxDamageScoring.requiredConstraintPenaltyFactor(params.targetStats, stats)
         return totalDamage.toBigDecimal().divide(penalty, 4, RoundingMode.FLOOR)

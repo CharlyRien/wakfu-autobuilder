@@ -22,14 +22,16 @@ object FindMostMasteriesFromInputScoring {
         buildCombination: BuildCombination,
         characterBaseCharacteristics: Map<Characteristic, Int>,
     ): BigDecimal {
-        // Aggregate RESISTANCE_ELEMENTARY makes the resistance score a min over the four elements (water-fill
-        // optimally); specific per-element resistance targets stay capped/greedy.
+        // Aggregate RESISTANCE_ELEMENTARY alone makes the resistance score a min over the four elements (water-fill
+        // optimally). Per-element resistance rows over several elements read the solver's joint fold instead: their rolls
+        // are placed at the exact optimum of the rows' penalty total ([elementRows], which takes precedence).
         val resistanceElementsToMinimize =
             if (targetStats.any { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY }) {
                 targetStats.resistanceElementsWanted.keys.toList()
             } else {
                 null
             }
+        val elementRows = targetStats.elementRowObjectives(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT)
         val minElements = targetStats.masteryElementsToMinimize
         val targetCharacteristics = targetStats.map { it.characteristic }
         val masteriesStatsWithoutElementary = targetStats.filter { it.characteristic in masteryCharacteristicsWithoutElementaries }
@@ -60,7 +62,8 @@ object FindMostMasteriesFromInputScoring {
             masteryElementsToMinimize = minElements,
             resistanceElementsToMinimize = resistanceElementsToMinimize,
             masteryRollWeights = masteryRollWeights,
-            masteryRollOffset = masteryRollOffset
+            masteryRollOffset = masteryRollOffset,
+            elementRows = elementRows
         )
 
         // First pass (unweighted rolls). Its non-element masteries + DI are roll-independent, so they yield the
