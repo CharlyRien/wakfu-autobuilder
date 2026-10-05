@@ -86,11 +86,13 @@ enum class ElementFamily(
  *  - precision: both families.
  *  - max-damage: the RESISTANCE rows. The scenario's element mastery is a single-element fold.
  *
- * Only once a per-element row has a target: a 0-valued row weighs nothing in any mode (no penalty share, no overshoot, no
- * hard constraint, skipped by precision), so the family otherwise keeps its earlier folds bit for bit — the aggregate row's
- * own exact fold (the GUI's default "wind resistance 0" row beside "all resistances" in precision / max-damage), or
- * single-element folds. A family with one wanted element keeps its single-element fold, which credits every roll in full —
- * exact there.
+ * Only once a per-element row has a target: a 0-valued row weighs nothing (no penalty share, no overshoot, no hard
+ * constraint, no capped term), so without one the family keeps its earlier placements — the aggregate row's own exact one
+ * (the GUI's default "wind resistance 0" row beside "all resistances" in precision / max-damage), or single-element folds.
+ * (The solver's fold beside an aggregate row is the aggregate's joint one, which such a 0-valued row now reads too; nothing
+ * weighs it there, and precision's halving keeps reading its unfolded stat.) Within a jointly read family, a 0-valued row
+ * still matters in precision, whose halving reads the joint fold for it: see [ElementRowObjective.placeKeepingZeroTargetRows].
+ * A family with one wanted element keeps its single-element fold, which credits every roll in full — exact there.
  */
 internal fun TargetStats.readsJointPerElementRows(
     family: ElementFamily,
@@ -112,6 +114,8 @@ internal fun TargetStats.readsJointPerElementRows(
 class ElementRowObjectives internal constructor(
     internal val mastery: ElementRowObjective?,
     internal val resistance: ElementRowObjective?,
+    // The whole request: precision's halving decision reads every row ([precisionModelObjective]).
+    internal val targetStats: TargetStats,
 )
 
 /**
@@ -123,7 +127,64 @@ class ElementRowObjectives internal constructor(
 fun TargetStats.elementRowObjectives(mode: ScoreComputationMode): ElementRowObjectives? {
     val mastery = ElementRowObjective.of(this, ElementFamily.MASTERY, mode)
     val resistance = ElementRowObjective.of(this, ElementFamily.RESISTANCE, mode)
-    return if (mastery == null && resistance == null) null else ElementRowObjectives(mastery, resistance)
+    return if (mastery == null && resistance == null) null else ElementRowObjectives(mastery, resistance, this)
+}
+
+/**
+ * What the solver's PRECISION objective (`StatBuilder.precisionScore`) reads for a build whose every stat is [stats], in its
+ * integer units — a mirror the scorers use to take the placement the solver itself takes where one family cannot decide
+ * alone (the halving, see [ElementRowObjective.placeKeepingZeroTargetRows]):
+ *  - the capped sum `Σ min(W·read, W·t)` of the rows with a weight (an aggregate row averages its four elements with the
+ *    solver's truncating division), HALVED (truncated) while some row of target 0 reads below 0 — the joint fold's value for
+ *    a jointly read family's row, else the solver's unfolded value ([unfoldedStats] for an elemental row: its own lines only,
+ *    without the "+all elements" lines and the random rolls), the stat itself for any other row;
+ *  - plus, once that reaches the expected total (every target met, no halving), the overflow `Σ W·read − capped sum`.
+ */
+internal fun precisionModelObjective(
+    targetStats: TargetStats,
+    stats: Map<Characteristic, Int>,
+    unfoldedStats: Map<Characteristic, Int>,
+): Long {
+    var capped = 0L
+    var uncapped = 0L
+    var expected = 0L
+    for (row in targetStats) {
+        val weight = targetStats.fixedPointWeight(row)
+        if (weight == 0L) continue
+        val rowExpected = row.target.toLong() * weight
+        val family = ElementFamily.entries.firstOrNull { it.aggregate == row.characteristic }
+        if (family != null) {
+            var familyCapped = 0L
+            var familyUncapped = 0L
+            for (element in family.elements) {
+                val value = (stats[element] ?: 0).toLong()
+                familyCapped += minOf(weight * value, rowExpected)
+                familyUncapped += weight * value
+            }
+            capped += familyCapped / family.elements.size
+            uncapped += familyUncapped / family.elements.size
+        } else {
+            val value = (stats[row.characteristic] ?: 0).toLong()
+            capped += minOf(weight * value, rowExpected)
+            uncapped += weight * value
+        }
+        expected += rowExpected
+    }
+    val halved =
+        targetStats.any { row ->
+            if (row.target != 0 || ElementFamily.entries.any { it.aggregate == row.characteristic }) return@any false
+            val family = ElementFamily.entries.firstOrNull { row.characteristic in it.elements }
+            val read =
+                when {
+                    family == null -> stats[row.characteristic]
+                    targetStats.readsJointPerElementRows(family, ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT) -> stats[row.characteristic]
+                    else -> unfoldedStats[row.characteristic]
+                } ?: 0
+            read < 0
+        }
+    val penalized = if (halved) capped / 2 else capped
+    val bonus = if (penalized >= expected.coerceAtLeast(1L)) minOf(maxOf(uncapped - capped, 0L), PRECISION_OVERFLOW_BOUND) else 0L
+    return penalized + bonus
 }
 
 /**
@@ -138,9 +199,11 @@ fun TargetStats.elementRowObjectives(mode: ScoreComputationMode): ElementRowObje
  *       solver's bucketed power-6 table and the scorers' continuous `(100 / success%)⁶` — is non-decreasing in it, and
  *       resistance feeds neither the mastery core nor the damage, so the larger the better in both engines. On the hard
  *       leg it is maximal iff every row is met (`Σ W·t`), so "the solver says the targets are met" ⇔ "this assignment
- *       meets them".
+ *       meets them" (within the search's [NODE_BUDGET], see there).
  *     - precision: the capped sum `Σ min(W · read, W · t)` (`StatBuilder.precisionScore`; the aggregate row averages its
- *       four capped elements with the solver's truncating division by 4).
+ *       four capped elements with the solver's truncating division by 4). A row of target 0 weighs nothing there, but the
+ *       solver halves its whole objective while one reads below 0 — a trade against the rest of the request, so the
+ *       scorers also ask [placeKeepingZeroTargetRows] and let [precisionModelObjective] pick on the whole build.
  *  2. [zeroWeightMet] — most-masteries / max-damage: how many rows with a target but a 0 weight are met. The penalty
  *     ignores them but the hard leg requires them; with every weight positive (the GUI's priorities are 1..5) a primary
  *     optimum already meets every reachable row, so this only matters for a 0 weight.
@@ -185,6 +248,28 @@ internal class ElementRowObjective private constructor(
         rowWeight.all { it >= 0L } &&
             rowTarget.all { it >= 0L } &&
             (!hasAggregate || (aggregateWeight >= 0L && aggregateTarget >= 0L))
+
+    /**
+     * Precision only: the elements of the family's rows of target 0 — the GUI's default "air resistance 0" beside a fire
+     * resistance target makes {fire, air} one jointly read family. Such a row weighs nothing, but precision HALVES the whole
+     * objective while one of them reads below 0 (`StatBuilder.negativeTargetPenalty`, which reads the joint fold for them),
+     * a request-wide effect no per-family objective can weigh alone: [placeKeepingZeroTargetRows] gives the best placement
+     * that keeps them all ≥ 0, and [precisionModelObjective] decides between the two on the whole build.
+     */
+    private val zeroTargetElements: IntArray =
+        if (mode != ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT) {
+            IntArray(0)
+        } else {
+            rowElement.indices
+                .filter { rowTarget[it] == 0L }
+                .map { rowElement[it] }
+                .distinct()
+                .sorted()
+                .toIntArray()
+        }
+
+    /** Whether this family has rows of target 0 whose sign precision's halving reads (see [zeroTargetElements]). */
+    internal val hasZeroTargetRows: Boolean get() = zeroTargetElements.isNotEmpty()
 
     // The lattice the bounds round down to. The values are integers and every term is a weight times an integer, so in
     // most-masteries / max-damage the family's primary and secondary are multiples of the weights' gcd — at least 10, the
@@ -320,7 +405,24 @@ internal class ElementRowObjective private constructor(
         rolls: List<Pair<Int, Int>>,
         current: Map<Characteristic, Int>,
         nodeBudget: Long = NODE_BUDGET,
-    ): Placement {
+    ): Placement = checkNotNull(search(rolls, current, nodeBudget, keepZeroTargetRows = false))
+
+    /**
+     * Precision: the same optimum restricted to the placements that keep every row of target 0 at 0 or more
+     * ([zeroTargetElements]) — null when none does. Every roll is placed.
+     */
+    internal fun placeKeepingZeroTargetRows(
+        rolls: List<Pair<Int, Int>>,
+        current: Map<Characteristic, Int>,
+        nodeBudget: Long = NODE_BUDGET,
+    ): Placement? = search(rolls, current, nodeBudget, keepZeroTargetRows = true)
+
+    private fun search(
+        rolls: List<Pair<Int, Int>>,
+        current: Map<Characteristic, Int>,
+        nodeBudget: Long,
+        keepZeroTargetRows: Boolean,
+    ): Placement? {
         val start = IntArray(n) { current[elements[it]] ?: 0 }
         val negative = mutableListOf<Roll>()
         val positive = mutableListOf<Roll>()
@@ -338,8 +440,8 @@ internal class ElementRowObjective private constructor(
         // biggest mass first, which tightens the bounds early (equal rolls end up adjacent: the memo folds their orders).
         val order = compareByDescending<Roll> { it.value.toLong() * it.cover }.thenByDescending { it.value }.thenBy { it.cover }
         val choice = negative.sortedWith(order) + positive.sortedWith(order)
-        val search = Search(choice, negative.size, start, nodeBudget)
-        val best = search.run()
+        val search = Search(choice, negative.size, start, nodeBudget, keepZeroTargetRows && hasZeroTargetRows)
+        val best = search.run() ?: return null
         val result = LinkedHashMap<Characteristic, Int>()
         elements.forEachIndexed { e, element -> result[element] = best[e] }
         if (!search.exact) {
@@ -387,13 +489,15 @@ internal class ElementRowObjective private constructor(
 
     /**
      * One branch-and-bound over [choice] (the rolls that leave a choice; its first [negativeCount] are the negative ones),
-     * from the per-element values [start].
+     * from the per-element values [start]. With [keepZeroTargets], only the placements keeping every [zeroTargetElements]
+     * element ≥ 0 count (see [placeKeepingZeroTargetRows]).
      */
     private inner class Search(
         choice: List<Roll>,
         private val negativeCount: Int,
         start: IntArray,
         private val nodeBudget: Long,
+        private val keepZeroTargets: Boolean,
     ) {
         private val depths = choice.size
         private val rollValue = IntArray(depths) { choice[it].value }
@@ -480,9 +584,14 @@ internal class ElementRowObjective private constructor(
 
         /**
          * The best placement, at most [nodeBudget] nodes in: exact ([exact]) when a pass completes in time. Pass 1 gets half the
-         * budget, so pass 2 — whose first dive is never pruned — always reaches a complete placement.
+         * budget, so pass 2 — whose first dive is never pruned — always reaches a complete placement. Null only with
+         * [keepZeroTargets], when no placement met within the budget keeps every row of target 0 at 0 or more.
          */
-        fun run(): IntArray {
+        fun run(): IntArray? {
+            if (keepZeroTargets && !zeroTargetNeedsFit(0)) {
+                exact = true
+                return null
+            }
             if (prunable && depths > 0) {
                 // Pass 1: the root's primary bound is very often the optimum itself, and a search for completions that can
                 // still REACH it skips everything a weak first leaf would leave open. Reached ⇒ primary-optimal, and the pass
@@ -502,7 +611,7 @@ internal class ElementRowObjective private constructor(
             // (Never fewer nodes than a first dive takes, which no bound prunes before a leaf is found.)
             passLimit = maxOf(nodeBudget, nodes + depths + 1)
             exact = completes()
-            return best
+            return if (found) best else null
         }
 
         /** Runs one pass of [descend] from the root; false when it ran out of its [passLimit]. */
@@ -522,6 +631,7 @@ internal class ElementRowObjective private constructor(
         ) {
             if (++nodes > passLimit) throw BudgetExhausted()
             if (depth == depths) {
+                if (keepZeroTargets && zeroTargetElements.any { current[it] < 0 }) return
                 val p = primary(current)
                 val m = zeroWeightMet(current)
                 val s = secondary(current)
@@ -534,6 +644,8 @@ internal class ElementRowObjective private constructor(
                 }
                 return
             }
+            // No completion can lift every row of target 0 back to 0: nothing below counts (and [zeroNeed] is now this node's).
+            if (keepZeroTargets && !zeroTargetNeedsFit(depth)) return
             var pUpper = inheritedUpper
             if (prunable && (found || aspiration != Long.MIN_VALUE)) {
                 // Every ancestor's bound also bounds this subtree: keep the tightest (the hull bound alone is not monotone).
@@ -640,22 +752,27 @@ internal class ElementRowObjective private constructor(
             if (precision) {
                 // 4·P = 4·Σ rows + 4·trunc(Y / 4), Y the aggregate's capped sum: ≤ 4·Σ rows + Y once Y cannot end negative (the
                 // truncation is then a floor) — past the negative rolls Y only grows — else + 3 (a negative Y truncates up).
+                // Keeping the rows of target 0 at 0 or more, each such element first takes the mass [zeroNeed] it needs to get
+                // there (filled for this node): the terms are read at the lifted values, that mass counted as spent, and above it
+                // the gain is a plain interval (what an element takes past a forced part is no subset sum of the rolls).
                 var scaled = 0L
                 var aggregateSum = 0L
                 for (i in rowElement.indices) {
-                    val r = current[rowElement[i]].toLong()
+                    val e = rowElement[i]
+                    val r = current[e].toLong() + liftOf(e)
                     scaled += 4L * minOf(rowWeight[i] * r, rowWeight[i] * rowTarget[i])
-                    addRoomPiece(depth, rowElement[i], 4L * rowWeight[i], rowTarget[i] - r)
+                    addGainPiece(depth, e, 4L * rowWeight[i], rowTarget[i] - r)
                 }
                 if (hasAggregate) {
                     for (e in 0 until n) {
-                        val r = current[e].toLong()
+                        val r = current[e].toLong() + liftOf(e)
                         aggregateSum += minOf(aggregateWeight * r, aggregateWeight * aggregateTarget)
-                        addRoomPiece(depth, e, aggregateWeight, aggregateTarget - r)
+                        addGainPiece(depth, e, aggregateWeight, aggregateTarget - r)
                     }
                 }
                 val slack = if (!hasAggregate || (depth >= negativeCount && aggregateSum >= 0L)) 0L else 3L
-                return Math.floorDiv(roundDownToStep(scaled + aggregateSum + maxGain(depth)) + slack, 4L)
+                val gain = maxGain(depth, if (keepZeroTargets) zeroNeed else null)
+                return Math.floorDiv(roundDownToStep(scaled + aggregateSum + gain) + slack, 4L)
             }
             var upper = 0L
             for (i in rowElement.indices) {
@@ -810,6 +927,63 @@ internal class ElementRowObjective private constructor(
             }
         }
 
+        // [zeroTargetNeedsFit]'s output: the mass each row-of-target-0 element still needs to get back to 0 (rounded up to a sum
+        // the remaining rolls can form), 0 elsewhere.
+        private val zeroNeed = LongArray(n)
+
+        /** The forced lift of element [e] at this node: its [zeroNeed] when keeping the rows of target 0, else nothing. */
+        private fun liftOf(e: Int): Long = if (keepZeroTargets) zeroNeed[e] else 0L
+
+        /** [addRoomPiece], or a plain interval above an element's forced lift (see [primaryUpper]). */
+        private fun addGainPiece(
+            depth: Int,
+            e: Int,
+            slope: Long,
+            room: Long,
+        ) {
+            if (liftOf(e) > 0L) addInterval(e, slope, 0L, room) else addRoomPiece(depth, e, slope, room)
+        }
+
+        /**
+         * Fills [zeroNeed] for this node; false when the remaining rolls cannot lift every row-of-target-0 element back to 0
+         * together: some element's deficit is no sum they can form, or some k of them need more than `capacity[depth][k]`.
+         * (Negative rolls still to come only make it harder: the check stays a necessary condition.)
+         */
+        private fun zeroTargetNeedsFit(depth: Int): Boolean {
+            zeroNeed.fill(0L)
+            val sums = subsetSums[depth]
+            for (e in zeroTargetElements) {
+                val deficit = -current[e].toLong()
+                if (deficit <= 0L) continue
+                if (deficit > Int.MAX_VALUE - 1L) return false
+                val reach = sums.nextSetBit(deficit.toInt())
+                if (reach < 0) return false
+                zeroNeed[e] = reach.toLong()
+            }
+            return needsFitCapacities(depth, zeroNeed)
+        }
+
+        /** Whether the k largest of [needs] fit `capacity[depth][k]` for every k. */
+        private fun needsFitCapacities(
+            depth: Int,
+            needs: LongArray,
+        ): Boolean {
+            for (e in 0 until n) {
+                var at = e
+                while (at > 0 && scratch[at - 1] < needs[e]) {
+                    scratch[at] = scratch[at - 1]
+                    at--
+                }
+                scratch[at] = needs[e]
+            }
+            var largest = 0L
+            for (k in 1..n) {
+                largest += scratch[k - 1]
+                if (largest > capacity[depth][k]) return false
+            }
+            return true
+        }
+
         // [liftToTargets]'s output: the mass each element still needs to meet every weighed row on it, and the values after.
         private val need = LongArray(n)
         private val lifted = IntArray(n)
@@ -828,6 +1002,8 @@ internal class ElementRowObjective private constructor(
             if (hasAggregate && aggregateWeight != 0L) {
                 for (e in 0 until n) need[e] = maxOf(need[e], aggregateTarget - current[e])
             }
+            // Keeping the rows of target 0 at 0 or more: those elements must also get back to 0.
+            if (keepZeroTargets) for (e in zeroTargetElements) need[e] = maxOf(need[e], -current[e].toLong())
             // What an element receives is a subset sum of the remaining positive rolls (negative ones only lower it): meeting
             // a need takes at least the smallest such sum that reaches it.
             val sums = subsetSums[depth]
@@ -839,19 +1015,7 @@ internal class ElementRowObjective private constructor(
                 need[e] = reach.toLong()
             }
             // The k largest needs together must fit the k-set capacity.
-            for (e in 0 until n) {
-                var at = e
-                while (at > 0 && scratch[at - 1] < need[e]) {
-                    scratch[at] = scratch[at - 1]
-                    at--
-                }
-                scratch[at] = need[e]
-            }
-            var largest = 0L
-            for (k in 1..n) {
-                largest += scratch[k - 1]
-                if (largest > capacity[depth][k]) return false
-            }
+            if (!needsFitCapacities(depth, need)) return false
             for (e in 0 until n) lifted[e] = (current[e] + need[e]).toInt()
             return true
         }
@@ -1036,12 +1200,16 @@ internal class ElementRowObjective private constructor(
         /**
          * How many search nodes one placement may visit. The problem is NP-hard (two elements and one-element rolls already
          * make it a partition problem), so a fixed, deterministic budget bounds the scorers' worst case (0.1–0.7 µs a node).
-         * Real builds stay far below it: over 2 400 random real builds (levels 110–245) under every request shape the GUI can
-         * send, the largest search took 893 k nodes (~0.6 s: max-damage with "all resistances" beside per-element resistance
-         * rows) and every other shape at most 46 k (~7 ms). Only synthetic shapes with the aggregate row beside per-element rows
-         * in most-masteries / max-damage (twelve to fourteen rolls of 10–800 on 1–3 elements) reach it: 52 of 40 000 in a
-         * sweep, where the placement kept — the best found, complete — was within 0.05 % of the optimum's primary (≤ 450 solver
-         * units). That is the one place the model can claim more than the scorer reads; a warning is logged when it happens.
+         * Real builds stay below it: over thousands of random real builds (levels 110–245) under every request shape the GUI
+         * can send, the largest searches took 893 k nodes (~0.6 s: max-damage with "all resistances" beside per-element
+         * resistance rows) and 593 k (65 ms: most-masteries' four resistance rows with the Kel'Dwa ring's −250 on one random
+         * element), most shapes a few thousand at most. Only synthetic shapes with the aggregate row beside per-element rows in
+         * most-masteries / max-damage (twelve to sixteen rolls of 10–800 on 1–3 elements) reach it: 52 of 40 000 in a sweep,
+         * where the placement kept — the best found, complete — was within 0.05 % of the optimum's primary (≤ 450 solver units).
+         * That is the one place the model can claim more than the scorer reads, a warning being logged when it happens: such a
+         * cut placement can even read a row as missed (one point short) that the full search — and the solver's hard leg — meets.
+         * So "the solver says the targets are met ⇔ the scorer's placement meets them" holds within this budget; no tight probe
+         * on real items (12 000 of them, targets set to an achievable placement) came near it.
          */
         internal const val NODE_BUDGET = 2_000_000L
 

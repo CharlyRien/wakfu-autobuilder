@@ -1192,7 +1192,16 @@ internal class StatBuilder(
 
         val flagsSum = LinearExpr.newBuilder()
         for (targetStat in zeroTargets) {
-            val actual = actualStat(targetStat.characteristic)
+            // A row of a jointly read family reads that family's fold, the value the scorer checks: its random-element rolls
+            // placed, so where they land decides the halving (the GUI's default "air resistance 0" beside a fire resistance
+            // target). Any other row keeps reading its unfolded stat. Mirrored by [precisionModelObjective].
+            val family = ElementFamily.entries.firstOrNull { targetStat.characteristic in it.elements }
+            val actual =
+                if (family != null && targetStats.readsJointPerElementRows(family, params.scoreComputationMode)) {
+                    foldedElementalStat(targetStat.characteristic)
+                } else {
+                    actualStat(targetStat.characteristic)
+                }
             val isNegative = model.newBoolVar("precNeg_${targetStat.characteristic.name}")
             model.addLessOrEqual(actual, -1L).onlyEnforceIf(isNegative)
             model.addGreaterOrEqual(actual, 0L).onlyEnforceIf(isNegative.not())

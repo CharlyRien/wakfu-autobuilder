@@ -160,6 +160,49 @@ class ElementRowAssignmentTest {
     }
 
     @Test
+    fun `precision - the placement keeping the rows of target 0 at 0 or more is the exhaustive optimum among those, or none`() {
+        val precision = ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
+        val random = Random(4711)
+        var checked = 0
+        var infeasible = 0
+        repeat(5000) {
+            val family = if (random.nextBoolean()) ElementFamily.RESISTANCE else ElementFamily.MASTERY
+            // The first row has a target, so the family is read jointly; the others sometimes have target 0.
+            val rows =
+                family.elements.shuffled(random).take(2 + random.nextInt(3)).mapIndexed { index, element ->
+                    TargetStat(element, if (index > 0 && random.nextInt(2) == 0) 0 else 5 + random.nextInt(60), 1 + random.nextInt(5))
+                } + if (random.nextInt(4) == 0) listOf(TargetStat(family.aggregate, 5 + random.nextInt(60), 1 + random.nextInt(5))) else emptyList()
+            val targetStats = TargetStats(rows)
+            val objective = ElementRowObjective.of(targetStats, family, precision) ?: return@repeat
+            if (!objective.hasZeroTargetRows) return@repeat
+            val zeroTarget = rows.filter { it.target == 0 }.map { it.characteristic }
+            val base = objective.elements.associateWith { random.nextInt(-30, 40) }
+            val rolls =
+                List(random.nextInt(0, 6)) {
+                    Roll(value = if (random.nextInt(10) == 0) -random.nextInt(1, 20) else random.nextInt(1, 30), count = 1 + random.nextInt(3))
+                }
+
+            val kept = objective.placeKeepingZeroTargetRows(rolls.map { it.value to it.count }, base)
+            val keeping = allAssignments(base, objective.elements, rolls).filter { state -> zeroTarget.all { state.getValue(it) >= 0 } }
+            val described = "rows=${rows.map { "${it.characteristic}:${it.target}x${it.userDefinedWeight}" }} base=$base rolls=$rolls"
+            if (keeping.isEmpty()) {
+                assertThat(kept).describedAs(described).isNull()
+                infeasible++
+                return@repeat
+            }
+            assertThat(kept).describedAs(described).isNotNull()
+            assertThat(kept!!.exact).isTrue()
+            assertThat(keeping).describedAs(described).contains(kept.values)
+            assertThat(solverKey(targetStats, family, precision, kept.values))
+                .describedAs(described)
+                .isEqualTo(keeping.map { solverKey(targetStats, family, precision, it) }.maxWith(keyOrder))
+            checked++
+        }
+        assertThat(checked).isGreaterThan(500)
+        assertThat(infeasible).isGreaterThan(10)
+    }
+
+    @Test
     fun `the placement depends neither on the order of the rolls nor on the order of the rows`() {
         // A streamed build and the same build reloaded from a save list their items (so their rolls) in different orders, and
         // the request's rows come in the user's order: both must show the same per-element stats.
@@ -259,21 +302,27 @@ class ElementRowAssignmentTest {
     }
 
     @Test
-    fun `the scorer and the solver share one fixed-point weight and one element order`() {
-        val random = Random(7)
-        repeat(500) {
-            val stats =
-                TargetStats(
-                    List(1 + random.nextInt(5)) { TargetStat(Characteristic.entries[random.nextInt(Characteristic.entries.size)], random.nextInt(0, 30000), random.nextInt(-2, 7)) }
-                )
-            for (row in stats) {
-                assertThat(stats.fixedPointWeight(row)).isEqualTo(with(WakfuBuildSolver) { stats.scaledWeight(row) })
-            }
+    fun `a row's fixed-point weight is its scorer weight in thousandths - a multiple of 10 the bounds' lattice relies on`() {
+        // The solver reads the very same function (WakfuBuildSolver.scaledWeight delegates to it), so this pins the units: 100 /
+        // target at 2 decimals, times the priority, in thousandths. Every weight being a multiple of 10 is what lets the search
+        // round its bounds down to a lattice of 10 or more (only a speed matter: the rounding uses the actual gcd).
+        fun weight(
+            target: Int,
+            priority: Int = 1,
+        ): Long {
+            val row = TargetStat(Characteristic.RESISTANCE_ELEMENTARY_FIRE, target, priority)
+            return TargetStats(listOf(row)).fixedPointWeight(row)
         }
-        assertThat(WakfuBuildSolver.ELEMENTARY_MASTERIES).isEqualTo(ElementFamily.MASTERY.elements)
-        assertThat(WakfuBuildSolver.ELEMENTARY_RESISTANCES).isEqualTo(ElementFamily.RESISTANCE.elements)
-        assertThat(WakfuBuildSolver.MASTERY_RANDOM_BY_COUNT).isEqualTo(ElementFamily.MASTERY.randomByCount)
-        assertThat(WakfuBuildSolver.RESISTANCE_RANDOM_BY_COUNT).isEqualTo(ElementFamily.RESISTANCE.randomByCount)
+        assertThat(weight(300)).isEqualTo(330L)
+        assertThat(weight(300, priority = 5)).isEqualTo(1_650L)
+        assertThat(weight(640, priority = 4)).isEqualTo(640L)
+        assertThat(weight(2000)).isEqualTo(50L)
+        assertThat(weight(1)).isEqualTo(100_000L)
+        assertThat(weight(0)).isEqualTo(0L)
+        val random = Random(7)
+        repeat(2000) {
+            assertThat(weight(1 + random.nextInt(30_000), 1 + random.nextInt(5)) % 10L).isZero()
+        }
     }
 
     private fun rowsOf(vararg rows: Triple<Characteristic, Int, Int>) = TargetStats(rows.map { (c, target, weight) -> TargetStat(c, target, weight) })
