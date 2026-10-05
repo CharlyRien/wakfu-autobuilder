@@ -87,8 +87,9 @@ data class ProofProgress(
 sealed interface ProofState {
     /**
      * No verdict: not max-damage / most-masteries, before the async computation starts, or the check was stopped before
-     * it knew anything ([BuildSearchModel.stopProof]) or switched off ([UiState.verifyOptimality]). The stats panel then
-     * shows the usual "not proven" hint.
+     * it knew anything ([BuildSearchModel.stopProof]) or switched off ([UiState.verifyOptimality]), or the request is one no
+     * search can prove ([UiState.prefilteredRequest]: no check is started for it). The stats panel then shows the usual
+     * "not proven" hint — or, for such a request, its explanation.
      */
     data object Idle : ProofState
 
@@ -303,6 +304,17 @@ data class UiState(
      */
     val maxDamageStructural: Boolean = false,
     /**
+     * True when the request the shown result was computed for is one no search can prove: it wants more than one element of
+     * mastery or resistance ([me.chosante.autobuilder.domain.TargetStats.needsItemPrefilter]), so the engine searches a
+     * heuristic selection of the items and never awards an optimality badge, however long the search runs. The stats panel
+     * then explains that instead of suggesting a longer search.
+     *
+     * It belongs to the RESULT, like [maxDamageStructural]: read from the request a search was started with
+     * ([BuildSearchModel.search]) or a saved build was restored with ([BuildSearchModel.loadBuild]), never from the target rows
+     * as they are now — editing the rows after a search must not change what that search's result says about itself.
+     */
+    val prefilteredRequest: Boolean = false,
+    /**
      * Max-damage mode only: the AP-cell certificate's optimality verdict for the finished build (P4.4).
      * Computed asynchronously AFTER the search completes (a full exact solve can take minutes), so it starts
      * [ProofState.Idle], becomes [ProofState.Proving], then resolves. It can prove optimality CP-SAT left
@@ -404,6 +416,7 @@ data class ShownResult(
     val match: BigDecimal = BigDecimal.ZERO,
     val optimal: Boolean = false,
     val maxDamageStructural: Boolean = false,
+    val prefilteredRequest: Boolean = false,
     val proofState: ProofState = ProofState.Idle,
     val searchStopped: Boolean = false,
     val staleDataVersion: String? = null,
@@ -437,6 +450,7 @@ fun UiState.shownResult(): ShownResult =
         match = match,
         optimal = optimal,
         maxDamageStructural = maxDamageStructural,
+        prefilteredRequest = prefilteredRequest,
         proofState = proofState,
         searchStopped = searchStopped,
         staleDataVersion = staleDataVersion,
@@ -456,6 +470,7 @@ fun UiState.withResult(result: ShownResult): UiState =
         match = result.match,
         optimal = result.optimal,
         maxDamageStructural = result.maxDamageStructural,
+        prefilteredRequest = result.prefilteredRequest,
         proofState = result.proofState,
         searchStopped = result.searchStopped,
         staleDataVersion = result.staleDataVersion,
