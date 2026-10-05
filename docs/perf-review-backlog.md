@@ -1363,8 +1363,8 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     ✅ FIXED, CERTIFIER_VERSION 54 (next item); and the multi-element item PREFILTER (a top-8 heuristic) let
     most-masteries / precision report CP-SAT `OPTIMAL` as "proven optimal" — ✅ FIXED by #227 (`d4f69bbb`: prefiltered
     requests withhold every optimality proof).
-- **RUNE CHOICE COLLAPSE — ✅ FIXED (2026-10-04, CERTIFIER_VERSION 54; #226, superseded by its rebase + mitigation).**
-  Details and measurements: `docs/RUNE_CHOICE_COLLAPSE_FIX.md`.
+- **RUNE CHOICE COLLAPSE — ✅ FIXED (2026-10-04, CERTIFIER_VERSION 54; #226, superseded by its rebase + mitigation); its
+  search cost — OPEN (follow-up below).** Details and measurements: `docs/RUNE_CHOICE_COLLAPSE_FIX.md`.
   - **The bug.** The collapse keyed a carrier's best M-feeding rune under the range-band mastery, so the Neutralité
     family's `secondary masteries ≤ 0` charged elemental runes: CRA 80 fire / melee / face proved 796,125 on main while
     797,775 exists (Neutralité III + Inflexibilité II + Ambition III). A wrong "Optimal proven" badge was possible.
@@ -1386,7 +1386,39 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     build than main's "proven" 796,125 (797,775 — the pruned model reaches it in 121 s on 10 cores); with the four caps
     excluded the pruned model proves all three at main's values and speed (15 / 36 / 49 s), and the v54 certificate bounds
     those shapes 4–5 % above the best builds. **OPEN follow-up:** a tighter world-N (capped-world) bound, or a cap-free /
-    capped world split of the search.
+    capped world split of the search — the split would also give short searches their badge back (next bullet): its
+    cap-free world is the old compact collapse, whose first solution lands at det ≈ 2.
+  - **Its first-solution cost (measured 2026-10-05, when the nightly broke).** The explicit picks also delay CP-SAT's
+    FIRST solution, which every max-damage proof needs: the badge and the E8 rescue read the incumbent's raw proxy, and
+    only a solver solution carries one, so a search that ends on the greedy warm start gets no badge and no rescue at all.
+    CRA 110 fire / distance / face, free request, runes + subs; presolved model and det to the first solution, 1 worker +
+    interleave + seed 1:
+
+    | Commit | Full pool (the tests' path) | Production pool (domination on) |
+    |---|---|---|
+    | `d4f69bbb` (v53) | 2,792 vars / 515 constraints, det 3.2 | 2,522 / 477, det 2.75 |
+    | `8df87864` (#226, v54) | 7,553 / 1,973, det 18.6 | 6,795 / 1,793, det 17.6 |
+    | `f81b8b41` (pruning + gates) | 6,289 / 1,973, det 15.5 | 5,648 / 1,791, det 14.6 |
+    | `e0751351` (per-stat, v56) → `606211a4` | 4,914 / 1,426, det 16.9 | 4,301 / 1,252, det 14.6 |
+    | `0e6ed868`, the six cap subs excluded | — | 2,111 / 427, det 2.05 |
+
+    On the production path (`MaxDamageSearch.run`, 4 JVM cores) the shown build carries a solver proxy after 0.73–0.91 s
+    on `d4f69bbb` and 2.64–2.85 s now (Apple M5 performance cores); on its efficiency cores alone, 3.5–4.6 s before and
+    11.5 s or more now (two of three 10 s searches got none). So a free max-damage runes + subs search needs ~3 s on a fast
+    4-core machine, and 10 s or more on slow cores, before it can get any badge; a shorter one shows the greedy build with
+    no badge (before, ~1 s on fast cores was enough). The certificate and the construct are unaffected: from any solver
+    incumbent (the first solution, 18,000; a det-30 search, 1,229,685; a 3 s search, 1,053,430) they prove and construct the
+    same 1,447,590 optimum as `d4f69bbb`, the E8 fast step in 0.4–0.6 s; the certificate itself costs 23–31 s instead of
+    17 s (1 thread, 512 MB heap). The GUI-default request is unaffected: its HP / resistance / dodge rows select the general
+    rune fold, not the collapse (12,452 / 2,356 → 12,463 / 2,372 vars / constraints, first solution det 20.1 → 22.3), and at
+    the default durations (GUI 120 s, CLI 60 s) the badge and the rescue behave as before. The two short-budget nightly
+    proof tests broke on it (2026-10-05): the det-10 search of `max-damage proves the runes+subs level-110 optimum …` returned
+    no build, and the 3 s search of `a short max-damage search still ends proven …` most likely ended on the greedy build on
+    the 4-vCPU runner (the console showed only the failed assertion; reproduced on 4 cores with 1–1.5 s budgets, where
+    `d4f69bbb` still gets a solver incumbent at 1 s). The first now stops at CP-SAT's first solution, the second searches
+    20 s and asserts a solver incumbent; the nightly uploads its JUnit results. `MaxDamageFirstSolutionLatencyTest`
+    (the default `test` task, ~9 s) holds the production-pool first solution under det 20 — against FURTHER growth only (it
+    would not have caught #226, det 17.6); a budget of ~6 only makes sense once the world split exists.
   - **Locks:** `RuneChoiceCollapseTest` (RED on main), `RuneChoicePruningTest` (the rule per slot on the real catalog,
     the gates' sub sets, forced / opaque readers; pruned + gated == full-choice == general fold on 24 seeded pools,
     mutation-checked), the manual fuzz knobs `WAKFU_REVIEW_MD_COLLAPSE` / `_NEUTRALITE` / `_PRUNE`.
