@@ -75,7 +75,28 @@ internal class RuneModel(
      * certifier, which never reads it, bounds a relaxation of the same optimum.
      */
     val choiceGates: Map<IntVar, Set<Sublimation>> = emptyMap(),
+    /**
+     * CERTIFIER_VERSION 57: the [singleTypePerItem] carriers whose vars are per-type COUNTS (0..slots, `Σ = slots·selected`)
+     * instead of picks — a carrier offering a type a single-type fill cannot represent exactly
+     * ([MaxDamageRuneReads.mixedStats]: a budgeted secondary cap, a forced condition, a required row, …). Empty
+     * without the fold (every carrier is then a count carrier by [singleTypePerItem] alone).
+     */
+    val countCarriers: Set<Equipment> = emptySet(),
+    // Each [countCarriers] var → its carrier's socket count (a gated count is posted as `count ≤ slots·Σ subVar`).
+    private val countVarSlots: Map<IntVar, Long> = emptyMap(),
 ) {
+    /** Whether [equip]'s rune vars are boolean single-type PICKS (else per-type counts 0..slots). */
+    fun isPickCarrier(equip: Equipment): Boolean = singleTypePerItem && equip !in countCarriers
+
+    /** The upper bound of [equip]'s rune vars: 1 for a pick, the socket count for a count. */
+    fun runeVarHi(equip: Equipment): Long = if (isPickCarrier(equip)) 1L else equip.maxShardSlots.toLong()
+
+    /** Sockets one unit of [equip]'s rune var fills: all of them for a pick, one for a count. */
+    fun runeVarMultiplier(equip: Equipment): Long = if (isPickCarrier(equip)) equip.maxShardSlots.toLong() else 1L
+
+    /** The largest value a gated choice var takes (1 for a pick, the carrier's sockets for a count). */
+    fun gateScale(variable: IntVar): Long = countVarSlots[variable] ?: 1L
+
     fun runeTypeFor(
         variable: IntVar,
         characteristic: Characteristic,
