@@ -4,6 +4,7 @@ import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.common.Characteristic
 import me.chosante.common.CriterionComparison
 import me.chosante.common.ItemEquipCriterion
+import me.chosante.common.ItemPlayerStateAtom
 import me.chosante.common.ItemStatGate
 import me.chosante.ui.i18n.Lang
 import org.assertj.core.api.Assertions.assertThat
@@ -58,7 +59,7 @@ class ItemEquipConditionsTest {
     @Test
     fun `each player-state function is localized and marked assumed met`() {
         assertLines(19545, "Militia rank ≥ 2 (assumed met)", "Rang de milice ≥ 2 (supposé rempli)", true)
-        assertLines(14422, "Achievement #1509 completed (assumed met)", "Succès n°1509 accompli (supposé rempli)", true)
+        assertLines(14422, "Achievement “The Meridian Effect” completed (assumed met)", "Succès « L'Effet Méryde » accompli (supposé rempli)", true)
         assertLines(9963, "Stasis gauge > 40 (assumed met)", "Jauge de Stasis > 40 (supposé rempli)", true)
         assertLines(9964, "Wakfu gauge > 35 (assumed met)", "Jauge de Wakfu > 35 (supposé rempli)", true)
         assertLines(9615, "Crime score ≥ 500 (assumed met)", "Score de crime ≥ 500 (supposé rempli)", true)
@@ -101,5 +102,18 @@ class ItemEquipConditionsTest {
     fun `strict less-than comparison stays strict`() {
         val criterion = ItemEquipCriterion(1, raw = "", statGates = listOf(ItemStatGate(Characteristic.RANGE, comparison = CriterionComparison.LT, value = 3)))
         assertThat(formatItemEquipConditions(criterion, emptyMap(), Lang.EN)).containsExactly(ItemConditionLine("Range < 3 (not checked by the search yet)", true))
+    }
+
+    @Test
+    fun `unknown achievement ids fall back in both languages including negated conditions`() {
+        val atom = ItemPlayerStateAtom("IsAchievementComplete", args = listOf("999999"))
+        val criterion = ItemEquipCriterion(1, raw = "", playerState = listOf(atom))
+        assertThat(formatItemEquipConditions(criterion, emptyMap(), Lang.EN)).containsExactly(ItemConditionLine("Achievement #999999 completed (assumed met)", true))
+        assertThat(formatItemEquipConditions(criterion, emptyMap(), Lang.FR)).containsExactly(ItemConditionLine("Succès n°999999 accompli (supposé rempli)", true))
+        val negated = criterion.copy(playerState = listOf(atom.copy(negated = true)))
+        assertThat(formatItemEquipConditions(negated, emptyMap(), Lang.FR)).containsExactly(ItemConditionLine("Succès n°999999 non accompli (supposé rempli)", true))
+        val named = criterion.copy(playerState = listOf(atom.copy(args = listOf("1509"), negated = true)))
+        assertThat(formatItemEquipConditions(named, emptyMap(), Lang.EN)).containsExactly(ItemConditionLine("Achievement “The Meridian Effect” not completed (assumed met)", true))
+        assertThat(formatItemEquipConditions(named, emptyMap(), Lang.FR)).containsExactly(ItemConditionLine("Succès « L'Effet Méryde » non accompli (supposé rempli)", true))
     }
 }

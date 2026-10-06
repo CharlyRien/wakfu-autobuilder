@@ -462,6 +462,10 @@ as **fixed-name** JSON files (no version in the filename):
    It also writes **`item-criteria.json`** (`ItemCriteria.kt` + `ItemCriterionParser.kt`): the EQUIP criteria of the
    `equipments.json` items (so it runs after `equipments-extractor`), raw expression + typed form (`ItemEquipCriterion`:
    required / forbidden item ids, classes, never, unique-equipped, stat gates, player-state atoms), sorted by item id.
+   It also writes **`achievement-names.json`**: only achievement ids referenced by those criteria, with FR/EN/ES/PT names.
+   The Achievement table id is read from the table-type enum, the full schema from `SchemaGenerator`, and the name
+   namespace from the achievement UI model’s public field keys + `getName()` lookup. Missing records/locales or ambiguous
+   bytecode shapes fail loudly. See `docs/ACHIEVEMENT_NAMES_EXTRACTION.md`. This is display-only, with no engine change.
    Everything is found STRUCTURALLY in the client bytecode, never by an obfuscated name: the table id from the table-type
    enum's `ITEM` constant, the record PREFIX from the ITEM binary-data classes' `read(reader)` calls up to the first
    `String[]` (the alternating (kind, expression) criteria — only that prefix is decoded, each record by its own
