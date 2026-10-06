@@ -476,10 +476,17 @@ enum class Tr(
 
     // A build computed with other game data than the app's (a saved build loaded after a game update): a small note on its My
     // Builds card and in the stats column. %s = the game-data version it was saved with.
-    SAVED_WITH_OTHER_DATA(
-        "Saved with game data %s — re-run the search to update",
-        "Enregistré avec les données de jeu %s — relance la recherche pour mettre à jour"
+    OBSOLETE_BADGE("Obsolete", "Obsolète"),
+    OBSOLETE_DATA_REASON(
+        "Game data updated since this build was saved (%s): new items, sublimations or runes may give a better build. Re-run the search.",
+        "Données du jeu mises à jour depuis (%s) : de nouveaux objets, sublimations ou runes peuvent donner un meilleur build. Relance la recherche."
     ),
+    OBSOLETE_ENGINE_REASON(
+        "The engine was improved since this build was saved: re-running the search may find a better build or score.",
+        "Le moteur a été amélioré depuis l'enregistrement de ce build : relancer la recherche peut trouver un meilleur build ou un meilleur score."
+    ),
+    OBSOLETE_STORED_SCORE("When saved: %s", "À l'enregistrement : %s"),
+    ACTION_RERUN_SEARCH("Re-run the search", "Relancer la recherche"),
     LIBRARY_ALL_BUILDS("All builds", "Tous les builds"),
     LIBRARY_CLASSES("Classes", "Classes"),
     LIBRARY_TAGS("Tags", "Tags"),
