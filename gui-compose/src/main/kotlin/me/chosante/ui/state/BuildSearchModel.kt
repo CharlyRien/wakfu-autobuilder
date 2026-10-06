@@ -2323,8 +2323,9 @@ class BuildSearchModel(
      * pre-filtered pool because it counted a resistance row of target 0 — or a blank field, which it read as 0 — as a wanted element
      * ([TargetStats.legacyNeedsItemPrefilter] on the rows read that way, [legacyTargetStats]: "fire resistance 100" beside the default
      * "air resistance 0", or beside a blank air field; "fire mastery 50" beside a blank water mastery) — its stored proof covers that
-     * reduced pool only, though the request now searches the whole catalog. Only a build the scorer cannot read at all keeps its
-     * stored numbers.
+     * reduced pool only, though the request now searches the whole catalog. So does a build the game refuses
+     * ([WakfuBestBuildFinderAlgorithm.equipConditionViolation]: a save made before the item EQUIP conditions were enforced may wear a
+     * nation sword without its ring). Only a build the scorer cannot read at all keeps its stored numbers.
      */
     private fun UiState.rescored(): UiState {
         val shown = build ?: return this
@@ -2332,7 +2333,10 @@ class BuildSearchModel(
             val params = toSearchParams()
             val score = buildRescorer(params, shown)
             val provable = !prefilteredRequest && !legacyTargetStats().legacyNeedsItemPrefilter
-            copy(match = score, achieved = achievedStats(shown, params), optimal = optimal && provable && isStoredScore(score, match))
+            // A build the game refuses (an item EQUIP condition: a save made before they were enforced may wear a nation sword
+            // without its ring) is no proven optimum, whatever was stored with it.
+            val wearable = WakfuBestBuildFinderAlgorithm.equipConditionViolation(shown, params.character.clazz) == null
+            copy(match = score, achieved = achievedStats(shown, params), optimal = optimal && provable && wearable && isStoredScore(score, match))
         }.getOrDefault(this)
     }
 
