@@ -1539,8 +1539,9 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     4-element / 12-mixed-line instances.
   - **THE EHP SURVIVABILITY PROXY STILL FOLDS PER-ELEMENT ROWS ONE AT A TIME — OPEN (model-only; found during #238).**
     `StatBuilder.effectiveHpVar`, the proxy of the opt-in survivability soft floor, reads each of the four resistances
-    through its own single-element fold, so a random-element roll counts in full on every element — the over-count #238
-    removes from the target rows. #238 leaves the proxy as it is and documents why: no scorer mirrors it and no
+    through its own single-element fold, so a positive random-element roll counts in full on every element — the
+    over-count #238 removes from the target rows (a negative one counts nowhere since #242: every resistance fold leaves it
+    to the elements it does not read). #238 leaves the proxy as it is and documents why: no scorer mirrors it and no
     certificate reads it.
   - **PRECISION: A 0-TARGET ROW OF A FAMILY NOT READ JOINTLY HALVES ON TWO DIFFERENT READS — ✅ CLOSED (2026-10-05,
     zero-target rows).** A row of target 0 that reads below 0 halves the whole precision objective
