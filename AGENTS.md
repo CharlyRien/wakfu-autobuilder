@@ -182,6 +182,26 @@ back. Locks: `ZeroTargetRowsTest` (unit cases per mode / leg, the review's repro
 and the wider fuzz with real sublimations / runes / scenarios — both also checked against a game oracle that tries every in-game
 placement of the rolls), `ElementRowAssignmentTest` (exhaustive placements with floors and free sinks).
 
+### Relax-then-check: the most-masteries legs of a request with floors
+The floors slow CP-SAT's most-masteries proof down (the GUI default carries two), while the best build very often keeps them
+anyway. So a most-masteries leg — hard or soft — of a request with floors runs in two stages against ONE deadline
+(`WakfuBuildSolver.relaxThenCheck`):
+1. the RELAXED model (`StatBuilder.relaxFloors`: no floor read — no `≥ 0`, no halving — each resistance family folded over its
+   wanted elements alone) on at most half the budget (`RELAXED_STAGE_SHARE`). It shows a build only when the scorers' read keeps
+   every floor (and meets every target, hard leg), never stamps a certificate-comparable objective, and sends no final;
+2. the FLOORED model on what is left of the budget, hinted with the relaxed solution and cut by `objective ≤ U` — U the relaxed
+   optimum read EXACTLY off the objective variable, else its proven bound when a double carries it exactly, else no cut.
+
+Why it is sound: for every build, floored objective ≤ relaxed objective (the hard leg's objective reads no floor; the soft leg's
+halving only lowers a core ≥ 0; the relaxed folds place the rolls as the game does over the wanted elements, and both objectives
+only grow with them — a request with a negative target or priority takes the direct solve). So the cut removes no floored build,
+and the floored stage's OPTIMAL — the leg's only optimality stamp — is CP-SAT's own proof. When the relaxed optimum keeps its floors
+at the same objective, the hint closes the floored stage's gap at once; when a floor binds, the floored stage searches on from the
+hint under the cut. A relaxed stage proven INFEASIBLE proves the floored leg infeasible. A floored stage that ends unproven below
+the best build the relaxed stage showed delivers that build. Max-damage and precision keep their direct floored solves. Locks:
+`RelaxThenCheckTest` (relaxed ≥ floored objective build by build on seeded pools, the leg ends on the direct floored solve's
+optimum when the floors hold and when one binds, nothing shown breaks a hard-leg floor, the budget split).
+
 ### Inputs: `WakfuBestBuildParams`
 `character`, `targetStats: TargetStats`, `searchDuration`, `stopWhenBuildMatch`, `maxRarity`,
 `forcedItems`, `excludedItems`, `excludedRarities`, `scoreComputationMode`. `TargetStats` normalizes

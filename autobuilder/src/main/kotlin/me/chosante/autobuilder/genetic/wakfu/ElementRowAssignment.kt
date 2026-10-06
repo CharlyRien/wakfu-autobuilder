@@ -94,14 +94,16 @@ enum class ElementFamily(
  * nowhere — the three other elements take it — exact there, see [rollCover]). A resistance row of
  * target 0 wants nothing: it is a floor, which joins the fold in every mode — a roll can lift it, the game letting the player put
  * a roll on any element. A 0-valued row on an element another row already targets is left to that row (no floor, no row of the
- * objective). Within a jointly read family, a mastery row of target 0 matters in precision, whose halving reads the joint fold
+ * objective). [withFloors] false reads the request as if it had no floor (the relaxed model of `WakfuBuildSolver.relaxThenCheck`).
+ * Within a jointly read family, a mastery row of target 0 matters in precision, whose halving reads the joint fold
  * for it, and a floor everywhere: see [ElementRowObjective.placeKeepingFloors].
  */
 internal fun TargetStats.readsJointPerElementRows(
     family: ElementFamily,
     mode: ScoreComputationMode,
+    withFloors: Boolean = true,
 ): Boolean {
-    if (floorElements(family).isNotEmpty()) return true
+    if (withFloors && floorElements(family).isNotEmpty()) return true
     if (family.wanted(this).size < 2) return false
     val readsARow =
         any { it.characteristic in family.elements && it.target > 0 } ||

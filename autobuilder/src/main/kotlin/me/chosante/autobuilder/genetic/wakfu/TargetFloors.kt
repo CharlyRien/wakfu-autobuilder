@@ -15,6 +15,8 @@ import java.math.RoundingMode
 //    shortfall multiplier as an extra divisor: the certificates, which ignore the floors, keep bounding the halved objective;
 //  - precision: its halving ([precisionHalves]), which also reads the request's masteries of target 0
 //    ([TargetStats.zeroMasteries]).
+// Most-masteries solves either leg without its floors first, then with them under the relaxed bound
+// (`WakfuBuildSolver.relaxThenCheck`): the same semantics, the optimum proven on the floored model.
 // A floor of an elemental resistance reads its element as the game does: its own lines, the "+all elements" ones and the
 // random-element rolls the player puts there. In a request with such a floor the resistance family's rolls are placed over
 // the wanted AND the floored elements together ([foldElements]): each roll lands on as many of them as the game lets it, the
@@ -27,6 +29,16 @@ internal val FLOOR_BROKEN_DIVISOR: BigDecimal = BigDecimal(2)
 /** Whether a floor of this request reads below 0 in [stats], the scorers' resolved stats (resistance floors included). */
 internal fun TargetStats.floorBroken(stats: Map<Characteristic, Int>): Boolean =
     floorCharacteristics.any { (stats[it] ?: 0) < 0 } || resistanceFloorElements.any { (stats[it] ?: 0) < 0 }
+
+/**
+ * Whether [stats] — the scorers' read of a build, its resistance rolls placed as the request reads them — is a build of the
+ * most-masteries HARD leg: every required row with a target met (the aggregate resistance on the minimum of the four) and every
+ * floor held. The hard leg's own feasibility, read the scorers' way (`ZeroTargetRowsTest` locks the two together); what the
+ * relaxed stage of relax-then-check may show (`WakfuBuildSolver.relaxThenCheck`).
+ */
+internal fun TargetStats.hardLegHolds(stats: Map<Characteristic, Int>): Boolean =
+    none { it.characteristic.isRequiredMostMasteriesTarget() && it.target > 0 && (stats[it.characteristic] ?: 0) < it.target } &&
+        !floorBroken(stats)
 
 /**
  * Whether precision halves its score on [stats]: a floor below 0 ([floorBroken]), or a mastery of target 0 below 0
