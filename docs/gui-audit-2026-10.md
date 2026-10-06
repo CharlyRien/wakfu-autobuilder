@@ -216,6 +216,8 @@ are the branch's own: a rebase-merge rewrites them, the subjects stay.
 
 The remaining English fallbacks are the save/import/duplicate error handlers in `BuildSearchModel` (N4: raw exception messages or
 "Could not save build", "Could not import build", "Could not duplicate build"), historical release-note text when no FR
-translation exists, and unknown skill names in `skillLabel`. Game-data names/descriptions also intentionally fall back to the
+translation exists, unknown skill names in `skillLabel`, and the tiny fallback icon glyphs in `UiState.statCatalog`
+(`AP`/`MP`/`WP`, `Wa`/`Fi`/`Ea`/`Ai`, `Me`/`Re`/`He`, `Ws`/`Lk`/`Wl`/`Bl`, etc.; used by `StatGlyphIcon` when no PNG is available).
+Game-data names/descriptions also intentionally fall back to the
 other language when one translation is missing. App branding and unit symbols (`s`, `%`, `×`) are language-independent.
 The scan also found raw class/rarity/monster accessibility names and the hard-coded "Sublimations" tooltip heading; fixed in B3.
