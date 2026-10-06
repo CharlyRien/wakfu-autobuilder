@@ -21,6 +21,12 @@ subprojects {
     // Jupiter only logs a warning for non-void @Test methods and silently omits them. Inspect the
     // compiled signatures before discovery, so inferred Kotlin expression-body returns fail CI.
     tasks.withType<Test>().configureEach {
+        // A failed test's assertion message and stack in the console: CI keeps no JUnit XML for the per-push shards, and
+        // Gradle's default prints only the exception class and one line, which hides WHY it failed.
+        testLogging {
+            events(org.gradle.api.tasks.testing.logging.TestLogEvent.FAILED)
+            exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        }
         doFirst {
             URLClassLoader(classpath.files.map { it.toURI().toURL() }.toTypedArray(), ClassLoader.getPlatformClassLoader()).use { loader ->
                 val invalid =
