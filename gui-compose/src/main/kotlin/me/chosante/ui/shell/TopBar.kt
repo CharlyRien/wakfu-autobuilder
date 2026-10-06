@@ -65,6 +65,7 @@ import me.chosante.ui.components.rememberClasspathBitmap
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
+import me.chosante.ui.i18n.label
 import me.chosante.ui.i18n.sortedByLocalized
 import me.chosante.ui.i18n.tr
 import me.chosante.ui.state.Phase
@@ -75,8 +76,6 @@ import me.chosante.ui.state.onlyDigits
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WType
 import me.chosante.ui.theme.WTypography
-
-private fun CharacterClass.displayName(): String = name.lowercase().replaceFirstChar { it.titlecase() }
 
 /**
  * Below this window width the single-row TopBar can't fit the longest (French) content for a build
@@ -537,7 +536,7 @@ private fun ClassDropdown(
             Spacer(modifier = Modifier.width(9.dp))
             BreedIcon(clazz = selected, size = 22.dp)
             Spacer(modifier = Modifier.width(6.dp))
-            Text(text = selected.displayName(), style = WTypography.titleMedium)
+            Text(text = selected.label(LocalLang.current), style = WTypography.titleMedium)
             Spacer(modifier = Modifier.width(10.dp))
             Text(text = "▾", style = WTypography.labelSmall.copy(textAlign = TextAlign.Center, lineHeight = 10.sp))
         }
@@ -550,13 +549,13 @@ private fun ClassDropdown(
         ) {
             CharacterClass.entries
                 .filter { it != CharacterClass.UNKNOWN }
-                .sortedByLocalized(lang) { it.displayName() }
+                .sortedByLocalized(lang) { it.label(lang) }
                 .forEach { item ->
                     DropdownMenuItem(
                         leadingIcon = { BreedIcon(clazz = item, size = 22.dp) },
                         text = {
                             Text(
-                                text = item.displayName(),
+                                text = item.label(lang),
                                 style =
                                     WTypography.bodyMedium.copy(
                                         color = if (item == selected) WColor.accent else WColor.text
