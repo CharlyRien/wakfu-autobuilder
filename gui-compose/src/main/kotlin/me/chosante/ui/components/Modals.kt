@@ -61,6 +61,7 @@ import me.chosante.autobuilder.domain.PassiveCatalog
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.ItemEquipCriterion
 import me.chosante.common.ItemType
 import me.chosante.common.Monster
 import me.chosante.common.Rarity
@@ -528,6 +529,7 @@ private fun ItemPickerModal(
                 }.toList()
                 .sortedByLocalized(lang) { it.localizedName(lang) }
         }
+    val catalogById = remember(equipmentCatalog) { equipmentCatalog.orEmpty().associateBy { it.equipmentId } }
     val title = if (mode == PickerMode.Forced) tr(Tr.REQUIRE_ITEM_TITLE) else tr(Tr.BAN_ITEM_TITLE)
     val accent = if (mode == PickerMode.Forced) WColor.success else WColor.danger
     ModalCard(title = title) {
@@ -551,7 +553,7 @@ private fun ItemPickerModal(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(results, key = { it.equipmentId }) { equipment ->
-                ItemResultRow(equipment = equipment, mode = mode, accent = accent, onClick = { onPick(equipment) })
+                ItemResultRow(equipment = equipment, catalog = catalogById, mode = mode, accent = accent, onClick = { onPick(equipment) })
             }
         }
         if (results.isEmpty()) {
@@ -626,53 +628,61 @@ private fun LoadingState(message: String) {
     }
 }
 
-/** A lazy item row; keep item metadata together so equip-condition lines can be added here. */
+/** A compact lazy item row with the game's equip conditions below its name. */
 @Composable
 private fun ItemResultRow(
     equipment: Equipment,
+    catalog: Map<Int, Equipment>,
     mode: PickerMode,
     accent: Color,
     onClick: () -> Unit,
 ) {
     val lang = LocalLang.current
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(9.dp))
-                .background(WColor.raised)
-                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-                .clickable(onClick = onClick)
-                .padding(horizontal = 11.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        ItemThumbnail(equipment = equipment, size = 38.dp)
-        Column(modifier = Modifier.weight(1f)) {
-            val name = if (lang == Lang.FR) equipment.name.fr.ifBlank { equipment.name.en } else equipment.name.en.ifBlank { equipment.name.fr }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                RarityIcon(rarity = equipment.rarity, size = 14.dp)
+    val conditions =
+        remember(equipment, catalog, lang) {
+            formatItemEquipConditions(equipment.equipCriterion ?: ItemEquipCriterion(equipment.equipmentId, raw = ""), catalog, lang)
+        }
+    ItemConditionsHover(conditions) {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(WColor.raised)
+                    .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                    .clickable(onClick = onClick)
+                    .padding(horizontal = 11.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            ItemThumbnail(equipment = equipment, size = 38.dp)
+            Column(modifier = Modifier.weight(1f)) {
+                val name = if (lang == Lang.FR) equipment.name.fr.ifBlank { equipment.name.en } else equipment.name.en.ifBlank { equipment.name.fr }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    RarityIcon(rarity = equipment.rarity, size = 14.dp)
+                    Text(
+                        text = name,
+                        style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                ItemConditionLines(conditions, compact = true)
                 Text(
-                    text = name,
-                    style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
+                    text = "Lv ${equipment.level} · ${equipment.itemType.label(lang)} · ${equipment.rarity.label(lang)}",
+                    style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
             Text(
-                text = "Lv ${equipment.level} · ${equipment.itemType.label(lang)} · ${equipment.rarity.label(lang)}",
-                style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                text = tr(if (mode == PickerMode.Forced) Tr.REQUIRE else Tr.BAN),
+                style = WTypography.labelMedium.copy(color = accent)
             )
         }
-        Text(
-            text = tr(if (mode == PickerMode.Forced) Tr.REQUIRE else Tr.BAN),
-            style = WTypography.labelMedium.copy(color = accent)
-        )
     }
 }
 

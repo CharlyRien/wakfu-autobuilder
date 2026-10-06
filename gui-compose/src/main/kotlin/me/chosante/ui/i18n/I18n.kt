@@ -5,6 +5,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import me.chosante.autobuilder.domain.Orientation
 import me.chosante.autobuilder.domain.RangeBand
+import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
@@ -73,6 +74,42 @@ enum class Tr(
     ),
 
     // Item equip conditions (the game's own rules on who may wear an item, and with what)
+    EQUIP_NEEDS("Needs %s", "Nécessite %s"),
+    EQUIP_INCOMPATIBLE("Can't be worn with %s", "Incompatible avec %s"),
+    EQUIP_CLASS_ONLY("%s only", "Réservé à la classe %s"),
+    EQUIP_NEVER("Cannot be equipped", "Non équipable"),
+    EQUIP_NOT_CHECKED("not checked by the search yet", "pas encore vérifié par la recherche"),
+    EQUIP_ASSUMED_MET("assumed met", "supposé rempli"),
+    EQUIP_MILITIA_RANK("Militia rank", "Rang de milice"),
+    EQUIP_ACHIEVEMENT("Achievement #%s completed", "Succès n°%s accompli"),
+    EQUIP_ACHIEVEMENT_NOT_COMPLETED("Achievement #%s not completed", "Succès n°%s non accompli"),
+    EQUIP_STASIS_GAUGE("Stasis gauge", "Jauge de Stasis"),
+    EQUIP_WAKFU_GAUGE("Wakfu gauge", "Jauge de Wakfu"),
+    EQUIP_CRIME_SCORE("Crime score", "Score de crime"),
+    EQUIP_ITEM_FALLBACK("Item #%d", "Objet n°%d"),
+    EQUIP_MORE("+%d more", "+%d autres"),
+
+    // Shared by the class picker and item conditions.
+    CLASS_FECA("Feca", "Féca"),
+    CLASS_OSAMODAS("Osamodas", "Osamodas"),
+    CLASS_ENUTROF("Enutrof", "Enutrof"),
+    CLASS_SRAM("Sram", "Sram"),
+    CLASS_XELOR("Xelor", "Xélor"),
+    CLASS_ECAFLIP("Ecaflip", "Écaflip"),
+    CLASS_ENIRIPSA("Eniripsa", "Eniripsa"),
+    CLASS_IOP("Iop", "Iop"),
+    CLASS_CRA("Cra", "Crâ"),
+    CLASS_SADIDA("Sadida", "Sadida"),
+    CLASS_SACRIEUR("Sacrier", "Sacrieur"),
+    CLASS_PANDAWA("Pandawa", "Pandawa"),
+    CLASS_ROUBLARD("Rogue", "Roublard"),
+    CLASS_ZOBAL("Masqueraider", "Zobal"),
+    CLASS_OUGINAK("Ouginak", "Ouginak"),
+    CLASS_STEAMER("Foggernaut", "Steamer"),
+    CLASS_ELIOTROPE("Eliotrope", "Eliotrope"),
+    CLASS_HUPPERMAGE("Huppermage", "Huppermage"),
+    CLASS_UNKNOWN("Unknown", "Inconnue"),
+
     FORCED_ITEM_WRONG_CLASS(
         "is reserved to another class — it can't be equipped by this character. Reserved to:",
         "est réservé à une autre classe — ce personnage ne peut pas l'équiper. Réservé à :"
@@ -815,3 +852,27 @@ fun ItemType.label(lang: Lang): String =
         ItemType.MOUNTS -> if (lang == Lang.FR) "Monture" else "Mount"
         ItemType.BELT -> if (lang == Lang.FR) "Ceinture" else "Belt"
     }
+
+/** Shared localized class names. */
+fun CharacterClass.label(lang: Lang): String =
+    when (this) {
+        CharacterClass.FECA -> Tr.CLASS_FECA
+        CharacterClass.OSAMODAS -> Tr.CLASS_OSAMODAS
+        CharacterClass.ENUTROF -> Tr.CLASS_ENUTROF
+        CharacterClass.SRAM -> Tr.CLASS_SRAM
+        CharacterClass.XELOR -> Tr.CLASS_XELOR
+        CharacterClass.ECAFLIP -> Tr.CLASS_ECAFLIP
+        CharacterClass.ENIRIPSA -> Tr.CLASS_ENIRIPSA
+        CharacterClass.IOP -> Tr.CLASS_IOP
+        CharacterClass.CRA -> Tr.CLASS_CRA
+        CharacterClass.SADIDA -> Tr.CLASS_SADIDA
+        CharacterClass.SACRIEUR -> Tr.CLASS_SACRIEUR
+        CharacterClass.PANDAWA -> Tr.CLASS_PANDAWA
+        CharacterClass.ROUBLARD -> Tr.CLASS_ROUBLARD
+        CharacterClass.ZOBAL -> Tr.CLASS_ZOBAL
+        CharacterClass.OUGINAK -> Tr.CLASS_OUGINAK
+        CharacterClass.STEAMER -> Tr.CLASS_STEAMER
+        CharacterClass.ELIOTROPE -> Tr.CLASS_ELIOTROPE
+        CharacterClass.HUPPERMAGE -> Tr.CLASS_HUPPERMAGE
+        CharacterClass.UNKNOWN -> Tr.CLASS_UNKNOWN
+    }.value(lang)

@@ -62,10 +62,12 @@ import me.chosante.common.Equipment
 import me.chosante.common.RuneColor
 import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
+import me.chosante.ui.components.ItemConditionLines
 import me.chosante.ui.components.RarityIcon
 import me.chosante.ui.components.iconResourcePath
 import me.chosante.ui.components.itemResourcePath
 import me.chosante.ui.components.rememberClasspathBitmap
+import me.chosante.ui.components.rememberItemConditionLines
 import me.chosante.ui.components.sublimationEffectText
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
@@ -748,7 +750,8 @@ private fun ItemTooltip(
                 .atLevel(characterLevel)
                 .characteristics.entries
                 .sortedBy { it.key.ordinal }
-        if (stats.isNotEmpty()) {
+        val conditions = rememberItemConditionLines(equipment)
+        if (stats.isNotEmpty() || conditions.isNotEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
             Column(
                 modifier =
@@ -758,6 +761,7 @@ private fun ItemTooltip(
                         .verticalScroll(statsScroll),
                 verticalArrangement = Arrangement.spacedBy(5.dp)
             ) {
+                ItemConditionLines(conditions)
                 stats.forEach { (characteristic, value) ->
                     TooltipStatRow(characteristic = characteristic, value = value, lang = lang)
                 }
