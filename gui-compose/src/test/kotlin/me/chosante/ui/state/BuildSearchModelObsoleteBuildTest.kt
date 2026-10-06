@@ -44,6 +44,7 @@ class BuildSearchModelObsoleteBuildTest {
         id: String,
         engineVersion: Int?,
         dataVersion: String = data,
+        targets: List<TargetSnapshot> = listOf(TargetSnapshot(Characteristic.MASTERY_DISTANCE, "1")),
     ) = HistoryEntry(
         id = id,
         name = "Build $id",
@@ -59,7 +60,7 @@ class BuildSearchModelObsoleteBuildTest {
                 maxRarity = Rarity.EPIC,
                 duration = "1",
                 stopAtMatch = false,
-                targets = listOf(TargetSnapshot(Characteristic.MASTERY_DISTANCE, "1")),
+                targets = targets,
                 forcedItems = emptyList(),
                 excludedItems = emptyList()
             ),
@@ -77,6 +78,8 @@ class BuildSearchModelObsoleteBuildTest {
         scope: CoroutineScope,
         dir: Path,
         vararg library: HistoryEntry,
+        rescoreDelayMs: Long = 0,
+        realRescorer: Boolean = false,
     ): BuildSearchModel {
         val repository = HistoryRepository(baseDir = dir, ioDispatcher = Dispatchers.Unconfined)
         library.forEach { repository.save(it) }
@@ -95,9 +98,15 @@ class BuildSearchModelObsoleteBuildTest {
             dataVersion = data,
             engineResultsVersion = engine,
             historyRepository = repository,
-            buildRescorer = { _, _ ->
+            buildRescorer = { params, build ->
                 rescores.incrementAndGet()
-                BigDecimal("1234")
+                if (rescoreDelayMs > 0) Thread.sleep(rescoreDelayMs)
+                if (realRescorer) {
+                    me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
+                        .rescore(params, build)
+                } else {
+                    BigDecimal("1234")
+                }
             }
         ).also { model -> awaitUntil { model.ui.savedBuilds.size == library.size } }
     }
@@ -252,6 +261,59 @@ class BuildSearchModelObsoleteBuildTest {
                 model.ui.savedBuilds
                     .single()
                     .result
+        }
+    }
+
+    @Test
+    fun `leaving the library stops its re-scoring, and so does a search`(
+        @TempDir dir: Path,
+    ) = withScope { scope ->
+        val library = (1..30).map { saved("b$it", engineVersion = engine) }.toTypedArray()
+        val model = newModel(scope, dir, *library, rescoreDelayMs = 40)
+
+        model.goToScreen(Screen.Library)
+        awaitUntil { rescores.get() >= 2 }
+        model.goToScreen(Screen.Builder)
+        val atLeave = rescores.get()
+        delay(500.milliseconds)
+        assertThat(rescores.get()).describedAs("at most the build in flight finishes").isLessThanOrEqualTo(atLeave + 1)
+
+        model.goToScreen(Screen.Library)
+        awaitUntil { rescores.get() > atLeave + 1 }
+        model.search()
+        val atSearch = rescores.get()
+        delay(500.milliseconds)
+        assertThat(rescores.get()).isLessThanOrEqualTo(atSearch + 1)
+    }
+
+    @Test
+    fun `a card and a reload show the same numbers on the real rescorer, blank field or typed 0`(
+        @TempDir dir: Path,
+    ) = withScope { scope ->
+        fun request(air: String) =
+            listOf(
+                TargetSnapshot(Characteristic.MASTERY_DISTANCE, "1"),
+                TargetSnapshot(Characteristic.RESISTANCE_ELEMENTARY_FIRE, "100"),
+                TargetSnapshot(Characteristic.RESISTANCE_ELEMENTARY_WIND, air)
+            )
+        val model =
+            newModel(
+                scope,
+                dir,
+                saved("blank", engineVersion = engine, targets = request("")),
+                saved("zero", engineVersion = engine, targets = request("0")),
+                realRescorer = true
+            )
+        model.goToScreen(Screen.Library)
+        awaitUntil { model.ui.libraryRescores.size == 2 }
+        val cards = listOf("blank", "zero").associateWith { id -> model.ui.shownEntry(model.ui.savedBuilds.first { it.id == id }).result }
+
+        for ((id, card) in cards) {
+            assertThat(card.optimal).describedAs("%s: an older version searched this request on the pre-filtered pool", id).isFalse()
+            model.loadBuild(id)
+            assertThat(model.ui.optimal).describedAs("%s: the reload agrees with the card", id).isEqualTo(card.optimal)
+            assertThat(model.ui.match.toDouble()).describedAs("%s: score", id).isEqualTo(card.match)
+            assertThat(model.ui.achieved).describedAs("%s: stats", id).isEqualTo(card.achieved)
         }
     }
 }

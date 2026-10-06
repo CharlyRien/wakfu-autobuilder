@@ -109,6 +109,15 @@ named `genetic` for historical reasons.
 equipments by `ItemType` (applying level/rarity/forced/excluded filters), then hands them to the
 solver.
 
+> **`ENGINE_RESULTS_VERSION` (`autobuilder/.../domain/EngineResultsVersion.kt`) — bump it on ANY change that can alter which
+> build a search returns or a build's score**: the solver, the scorers, the item pre-filter, the rune or sublimation modelling,
+> the certificates. **A `CERTIFIER_VERSION` bump implies an `ENGINE_RESULTS_VERSION` bump**; a pure speed-up that returns the
+> same builds needs none. Every saved build records it (`HistoryEntry.engineResultsVersion`), and "My Builds" badges a save
+> with a lower one (or none: saved before the field existed) as **obsolete** — a re-run may find a better build or score —
+> beside the game-data reason (`HistoryEntry.dataVersion` ≠ `WakfuData.VERSION`). It is a plain constant, NOT in
+> `WakfuBuildSolver` (whose init loads OR-Tools), so the GUI reads it for free. `EngineResultsVersionTest` locks the pair
+> (`CERTIFIER_VERSION`, `ENGINE_RESULTS_VERSION`): update it with the bump.
+
 > A genetic-algorithm engine used to be selectable via a `WakfuSolver` enum. **It has been removed —
 > OR-Tools is the only solver.** Any reference to a GA, a `WakfuSolver` enum / solver toggle, or
 > `genetic/{GeneticAlgorithm,Selection}.kt` / `genetic/wakfu/{Population,Cross,Mutation}.kt` is stale.
@@ -291,13 +300,6 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
   exact pass, orchestrator, scaling formula, world/sub enumeration). It keys the in-memory per-cell
   cache alongside `WakfuData.VERSION`, so a bump invalidates every cached bound instead of serving a
   stale (possibly now-unsound) one.
-- **`ENGINE_RESULTS_VERSION` (`autobuilder/.../domain/EngineResultsVersion.kt`) must be bumped on ANY change that can
-  alter which build a search returns or a build's score**: the solver, the scorers, the item pre-filter, the rune or
-  sublimation modelling, the certificates. **A `CERTIFIER_VERSION` bump implies an `ENGINE_RESULTS_VERSION` bump**; a pure
-  speed-up that returns the same builds needs none. Every saved build records it (`HistoryEntry.engineResultsVersion`), and
-  "My Builds" badges a save with a lower one (or none: saved before the field existed) as **obsolete** — a re-run may find a
-  better build or score — beside the game-data reason (`HistoryEntry.dataVersion` ≠ `WakfuData.VERSION`). It is a plain
-  constant, NOT in `WakfuBuildSolver` (whose init loads OR-Tools), so the GUI reads it for free.
 - **Hard-leg results get a TARGET-AWARE ledger (CERTIFIER_VERSION 52).** A result of the hard-constraints leg
   (`SolverResult.maxDamageHardConstraintsMet`) of a request with a positive AP / MP / CC / RANGE row is compared with a
   ledger that enforces those rows in every pass (`StatBuilder.certifierTargetAware`; each filter reads a sound

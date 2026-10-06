@@ -51,6 +51,7 @@ import me.chosante.ui.components.Hairline
 import me.chosante.ui.components.InfoTip
 import me.chosante.ui.components.ItemThumbnail
 import me.chosante.ui.components.ObsoleteBadge
+import me.chosante.ui.components.OlderEngineProof
 import me.chosante.ui.components.RerunSearchLink
 import me.chosante.ui.components.SpellIcon
 import me.chosante.ui.components.elementLabel
@@ -193,10 +194,22 @@ private fun SideColumn(
                 )
             }
             val headline = compareHeadline(entry)
-            Text(
-                text = headline + if (entry.result.optimal) " · ${tr(Tr.OPTIMAL_PROVEN)}" else "",
-                style = WTypography.labelMedium.copy(color = if (entry.result.optimal) WColor.success else WColor.text)
-            )
+            // A proof made by an older engine (reason B of the obsolete badge) shows dimmed, with a tooltip saying so.
+            val olderEngineProof = entry.result.optimal && entry.provenByOlderEngine()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = headline,
+                    style = WTypography.labelMedium.copy(color = if (entry.result.optimal && !olderEngineProof) WColor.success else WColor.text)
+                )
+                if (entry.result.optimal) {
+                    val proven = " · ${tr(Tr.OPTIMAL_PROVEN)}"
+                    if (olderEngineProof) {
+                        OlderEngineProof(text = proven, style = WTypography.labelMedium)
+                    } else {
+                        Text(text = proven, style = WTypography.labelMedium.copy(color = WColor.success))
+                    }
+                }
+            }
             entry.restoredBoss()?.let { boss ->
                 Text(
                     text = tr(Tr.VS_BOSS).format(boss.name.localized(LocalLang.current)),

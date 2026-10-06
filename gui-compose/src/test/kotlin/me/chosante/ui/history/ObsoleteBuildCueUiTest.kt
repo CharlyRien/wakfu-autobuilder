@@ -48,6 +48,7 @@ class ObsoleteBuildCueUiTest {
         name: String,
         dataVersion: String,
         engineVersion: Int? = ENGINE_RESULTS_VERSION,
+        optimal: Boolean = false,
     ) = HistoryEntry(
         id = id,
         name = name,
@@ -73,7 +74,7 @@ class ObsoleteBuildCueUiTest {
                 skills = emptyMap(),
                 achieved = mapOf(Characteristic.MASTERY_DISTANCE to 1_210),
                 match = 1_210.0,
-                optimal = false
+                optimal = optimal
             )
     )
 
@@ -204,6 +205,19 @@ class ObsoleteBuildCueUiTest {
             onNodeWithText("1,500").assertExists()
             assertThat(onAllNodesWithText("1,210").fetchSemanticsNodes()).describedAs("the stored score is no longer the headline").isEmpty()
             onNodeWithContentDescription(Tr.OBSOLETE_STORED_SCORE.en.format("1,210 ${Tr.MASTERY_SHORT.en}"), substring = true).assertExists()
+        }
+
+    @Test
+    fun `a proof made by an older engine is dimmed with a tooltip saying so, a current proof is not`() =
+        runComposeUiTest {
+            library(
+                Lang.EN,
+                entry("old", "Proven long ago", current, engineVersion = null, optimal = true),
+                entry("new", "Proven today", current, optimal = true)
+            )
+
+            onAllNodesWithText(Tr.OPTIMAL_PROVEN.en).assertCountEquals(2)
+            onAllNodesWithContentDescription(Tr.PROVEN_BY_OLDER_ENGINE.en).assertCountEquals(1)
         }
 
     // -- the stats column of a loaded build --------------------------------------------------------------------------------

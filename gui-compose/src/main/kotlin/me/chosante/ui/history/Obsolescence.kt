@@ -22,12 +22,38 @@ data class Obsolescence(
 ) {
     val dataUpdated: Boolean get() = savedDataVersion != null
 
+    /**
+     * The save comes from NEWER game data than this app ships (imported from a newer app, or saved before a downgrade): nothing
+     * says a search here would do better, so reason (A) then only states the fact.
+     */
+    val savedWithNewerData: Boolean get() = savedDataVersion?.let { compareVersions(it, currentDataVersion) > 0 } == true
+
     /** One plain-words sentence per reason, (A) first, each ending with the suggestion to re-run the search. */
     fun reasons(lang: Lang): List<String> =
         buildList {
-            savedDataVersion?.let { add(Tr.OBSOLETE_DATA_REASON.value(lang).format(versionChange(it, currentDataVersion))) }
+            savedDataVersion?.let { saved ->
+                if (savedWithNewerData) {
+                    add(Tr.OBSOLETE_DATA_OTHER.value(lang).format(versionOf(saved, currentDataVersion)))
+                } else {
+                    add(Tr.OBSOLETE_DATA_REASON.value(lang).format(versionChange(saved, currentDataVersion)))
+                }
+            }
             if (engineImproved) add(Tr.OBSOLETE_ENGINE_REASON.value(lang))
         }
+}
+
+/** Orders two dotted game-data versions numerically ("1.100" is after "1.93"); a non-numeric part counts as 0. */
+internal fun compareVersions(
+    a: String,
+    b: String,
+): Int {
+    val left = a.split('.').map { it.toIntOrNull() ?: 0 }
+    val right = b.split('.').map { it.toIntOrNull() ?: 0 }
+    for (i in 0 until maxOf(left.size, right.size)) {
+        val diff = left.getOrElse(i) { 0 }.compareTo(right.getOrElse(i) { 0 })
+        if (diff != 0) return diff
+    }
+    return 0
 }
 
 /**
@@ -58,6 +84,12 @@ fun HistoryEntry.obsolescence(
 ): Obsolescence? = obsolescenceOf(dataVersion, engineResultsVersion, currentDataVersion, currentEngineVersion)
 
 /**
+ * True when this save's stored proof ("optimal proven") was made by an older engine than this app's (reason B): the engine got a
+ * fix since, so the proof holds for that version's rules only. The cards keep showing it, dimmed, with a tooltip saying so.
+ */
+fun HistoryEntry.provenByOlderEngine(currentEngineVersion: Int = ENGINE_RESULTS_VERSION): Boolean = engineResultsVersion.let { it == null || it < currentEngineVersion }
+
+/**
  * Whether the build on screen is an obsolete saved build, and why — read from the stamps a loaded build carries
  * ([UiState.staleDataVersion], [UiState.staleEngine]); null for a build found by this app (or no build).
  */
@@ -75,8 +107,13 @@ fun UiState.obsolescence(currentDataVersion: String = WakfuBestBuildFinderAlgori
 internal fun versionChange(
     saved: String,
     current: String,
+): String = "${versionOf(saved, current)} → ${versionOf(current, saved)}"
+
+/** [version] cut to its major.minor when that is enough to tell it from [other], in full otherwise. */
+internal fun versionOf(
+    version: String,
+    other: String,
 ): String {
-    fun short(version: String) = version.split('.').take(2).joinToString(".")
-    val (from, to) = if (short(saved) != short(current)) short(saved) to short(current) else saved to current
-    return "$from → $to"
+    fun short(v: String) = v.split('.').take(2).joinToString(".")
+    return if (short(version) != short(other)) short(version) else version
 }

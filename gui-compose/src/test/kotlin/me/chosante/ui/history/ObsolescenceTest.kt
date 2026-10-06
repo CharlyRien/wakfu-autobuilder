@@ -70,6 +70,23 @@ class ObsolescenceTest {
     }
 
     @Test
+    fun `a save from NEWER game data gets a neutral sentence, not the suggestion that new items may do better`() {
+        val obsolescence = of("1.94.1.70", engine)!!
+
+        assertThat(obsolescence.savedWithNewerData).isTrue()
+        assertThat(obsolescence.reasons(Lang.EN)).containsExactly("Saved with other game data (1.94).")
+        assertThat(obsolescence.reasons(Lang.FR)).containsExactly("Enregistré avec d'autres données du jeu (1.94).")
+        assertThat(of("1.92.1.58", engine)!!.savedWithNewerData).isFalse()
+    }
+
+    @Test
+    fun `versions are ordered numerically, not as text`() {
+        assertThat(compareVersions("1.100.0.1", "1.93.1.62")).isPositive()
+        assertThat(compareVersions("1.93.1.9", "1.93.1.62")).isNegative()
+        assertThat(compareVersions("1.93", "1.93.0.0")).isZero()
+    }
+
+    @Test
     fun `a version change reads major-minor when that tells them apart, in full otherwise`() {
         assertThat(versionChange("1.92.1.58", "1.93.1.62")).isEqualTo("1.92 → 1.93")
         assertThat(versionChange("1.93.1.58", "1.93.2.62")).isEqualTo("1.93.1.58 → 1.93.2.62")

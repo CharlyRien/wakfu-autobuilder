@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -135,5 +136,36 @@ internal fun ObsoleteCue(
             }
             RerunSearchLink(onRerun = onRerun)
         }
+    }
+}
+
+/**
+ * A stored "optimal proven" made by an older engine version (reason B of [Obsolescence]): shown dimmed rather than as a success,
+ * with a tooltip (also its description) saying the proof belongs to that older version.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun OlderEngineProof(
+    text: String,
+    style: TextStyle,
+) {
+    val explanation = tr(Tr.PROVEN_BY_OLDER_ENGINE)
+    TooltipArea(
+        delayMillis = 250,
+        tooltip = {
+            Box(
+                modifier =
+                    Modifier
+                        .widthIn(max = 320.dp)
+                        .clip(RoundedCornerShape(7.dp))
+                        .background(WColor.raised)
+                        .border(1.dp, WColor.border, RoundedCornerShape(7.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                Text(text = explanation, style = WTypography.labelSmall.copy(color = WColor.text))
+            }
+        }
+    ) {
+        Text(text = text, style = style.copy(color = WColor.faint), modifier = Modifier.semantics { contentDescription = explanation })
     }
 }

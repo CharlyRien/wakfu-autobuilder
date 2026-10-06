@@ -486,6 +486,11 @@ enum class Tr(
         "Le moteur a été amélioré depuis l'enregistrement de ce build : relancer la recherche peut trouver un meilleur build ou un meilleur score."
     ),
     OBSOLETE_STORED_SCORE("When saved: %s", "À l'enregistrement : %s"),
+    OBSOLETE_DATA_OTHER("Saved with other game data (%s).", "Enregistré avec d'autres données du jeu (%s)."),
+    PROVEN_BY_OLDER_ENGINE(
+        "Proven by an older engine version: re-run the search to prove it with the current one.",
+        "Prouvé par une ancienne version du moteur : relance la recherche pour le prouver avec la version actuelle."
+    ),
     ACTION_RERUN_SEARCH("Re-run the search", "Relancer la recherche"),
     LIBRARY_ALL_BUILDS("All builds", "Tous les builds"),
     LIBRARY_CLASSES("Classes", "Classes"),

@@ -132,6 +132,10 @@ private fun isStoredScore(
     stored: java.math.BigDecimal,
 ): Boolean = rescored.toDouble() == stored.toDouble()
 
+/** The library re-score publishes every [RESCORE_BATCH_SIZE] builds or [RESCORE_BATCH_NANOS], whichever comes first. */
+private const val RESCORE_BATCH_SIZE = 20
+private const val RESCORE_BATCH_NANOS = 100_000_000L
+
 class BuildSearchModel(
     private val scope: CoroutineScope,
     private val buildFinder: BuildFinder = { WakfuBestBuildFinderAlgorithm.run(it) },
@@ -216,6 +220,9 @@ class BuildSearchModel(
             val showsLibrary = value.screen == Screen.Library || value.screen == Screen.Compare
             if (showsLibrary && (previous.screen != value.screen || previous.savedBuilds !== value.savedBuilds)) {
                 rescoreLibrary(value.savedBuilds)
+            } else if (!showsLibrary && previous.screen != value.screen) {
+                // Nobody looks at the cards any more: stop (the cache keeps every build already re-scored).
+                rescoreJob?.cancel()
             }
         }
 
@@ -257,8 +264,12 @@ class BuildSearchModel(
         val engineResultsVersion: Int,
     )
 
-    /** Saved builds already re-scored under the current rules, so reopening the library recomputes nothing. */
-    private val rescoreCache = java.util.concurrent.ConcurrentHashMap<RescoreKey, me.chosante.common.history.ResultSnapshot>()
+    /**
+     * Saved builds already re-scored under the current rules, so reopening the library recomputes nothing. One slot per entry id,
+     * holding the full key it was computed for: a changed entry replaces its slot, and a deleted one costs one stale slot at most.
+     */
+    private val rescoreCache =
+        java.util.concurrent.ConcurrentHashMap<String, Pair<RescoreKey, me.chosante.common.history.ResultSnapshot>>()
 
     private var rescoreJob: Job? = null
 
@@ -1054,6 +1065,8 @@ class BuildSearchModel(
     }
 
     fun search() {
+        // A search wants every core: the library re-score (if any) waits for the library to open again.
+        rescoreJob?.cancel()
         val snapshot = ui
         val params = snapshot.toSearchParams()
         val character = params.character
@@ -2174,41 +2187,9 @@ class BuildSearchModel(
                 null
             }
         val restored =
-            ui.copy(
+            ui.withSavedRequest(entry).copy(
                 screen = Screen.Builder,
                 modal = null,
-                clazz = entry.restoredClass(),
-                level = entry.request.level,
-                minLevel = entry.request.minLevel,
-                mode = entry.restoredMode(),
-                // The loaded request replaces the whole workspace: no other mode's parked work survives it.
-                modeWorkspaces = emptyMap(),
-                scenario = entry.restoredScenario(),
-                // The boss the build was searched against comes back with it (none for a build saved without one).
-                selectedBoss = loadedBoss,
-                bossElement = loadedBossElement,
-                bossDifficulty = entry.restoredBossDifficulty(),
-                maxRarity = entry.request.maxRarity,
-                duration = entry.request.duration,
-                stopAtMatch = entry.request.stopAtMatch,
-                targets = entry.toTargetRows(),
-                forcedItems = entry.toForcedChips(),
-                excludedItems = entry.toExcludedChips(),
-                useSublimations = entry.request.useSublimations,
-                maxSublimationTier = entry.request.maxSublimationTier,
-                // Builds saved before the July 2026 sublimation rename ("Carnage II" → "Carnage III")
-                // keep their forced/excluded chips working under the current names.
-                forcedSublimations =
-                    entry.request.forcedSublimations
-                        .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)
-                        .distinct(),
-                excludedSublimations =
-                    entry.request.excludedSublimations
-                        .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)
-                        .distinct(),
-                excludedRarities = entry.request.excludedRarities,
-                forcedPassives = entry.request.forcedPassives,
-                forcedRunesByItem = entry.request.forcedRunesByItem,
                 phase = Phase.Done,
                 progress = 100,
                 // The STORED score, proof flag and stats: [rescored] swaps them for the current rules' just below.
@@ -2267,6 +2248,47 @@ class BuildSearchModel(
     }
 
     /**
+     * This state with [entry]'s request in place of its own — exactly what [loadBuild] restores, and what [rescoreSaved] scores a
+     * library card with, so a card and a reload of the same build can never read its request differently. Unlike the remembered
+     * workspace ([withRememberedRequest]) it clamps nothing: a save is replayed as it was searched.
+     */
+    private fun UiState.withSavedRequest(entry: HistoryEntry): UiState =
+        copy(
+            clazz = entry.restoredClass(),
+            level = entry.request.level,
+            minLevel = entry.request.minLevel,
+            mode = entry.restoredMode(),
+            // The loaded request replaces the whole workspace: no other mode's parked work survives it.
+            modeWorkspaces = emptyMap(),
+            scenario = entry.restoredScenario(),
+            // The boss the build was searched against comes back with it (none for a build saved without one).
+            selectedBoss = entry.restoredBoss(),
+            bossElement = entry.restoredBossElement(),
+            bossDifficulty = entry.restoredBossDifficulty(),
+            maxRarity = entry.request.maxRarity,
+            duration = entry.request.duration,
+            stopAtMatch = entry.request.stopAtMatch,
+            targets = entry.toTargetRows(),
+            forcedItems = entry.toForcedChips(),
+            excludedItems = entry.toExcludedChips(),
+            useSublimations = entry.request.useSublimations,
+            maxSublimationTier = entry.request.maxSublimationTier,
+            // Builds saved before the July 2026 sublimation rename ("Carnage II" → "Carnage III")
+            // keep their forced/excluded chips working under the current names.
+            forcedSublimations =
+                entry.request.forcedSublimations
+                    .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)
+                    .distinct(),
+            excludedSublimations =
+                entry.request.excludedSublimations
+                    .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)
+                    .distinct(),
+            excludedRarities = entry.request.excludedRarities,
+            forcedPassives = entry.request.forcedPassives,
+            forcedRunesByItem = entry.request.forcedRunesByItem
+        )
+
+    /**
      * This freshly loaded saved build with the score and stats of the CURRENT rules in place of the stored ones. A save keeps
      * the numbers of the rules it was found under, and the rules move: a build saved while the Neutralité family read the SUM of the
      * secondary masteries came back showing a bonus the game never grants. The re-score is the search's own — the same request
@@ -2304,15 +2326,31 @@ class BuildSearchModel(
         if (builds.isEmpty()) return
         rescoreJob =
             scope.launch(backgroundDispatcher) {
+                val batch = LinkedHashMap<String, RescoredResult>()
+                var lastPublish = System.nanoTime()
+
+                suspend fun publish() {
+                    if (batch.isEmpty()) return
+                    val landed = batch.toMap()
+                    batch.clear()
+                    lastPublish = System.nanoTime()
+                    withContext(mainDispatcher) {
+                        val changed = landed.filter { (id, rescore) -> ui.libraryRescores[id] != rescore }
+                        if (changed.isNotEmpty()) ui = ui.copy(libraryRescores = ui.libraryRescores + changed)
+                    }
+                }
                 for (entry in builds) {
                     ensureActive()
                     val key = RescoreKey(entry.id, entry.request, entry.result, dataVersion, engineResultsVersion)
-                    val current = rescoreCache[key] ?: rescoreSaved(entry).also { rescoreCache[key] = it }
-                    val rescore = RescoredResult(stored = entry.result, current = current)
-                    withContext(mainDispatcher) {
-                        if (ui.libraryRescores[entry.id] != rescore) ui = ui.copy(libraryRescores = ui.libraryRescores + (entry.id to rescore))
-                    }
+                    val current =
+                        rescoreCache[entry.id]?.takeIf { it.first == key }?.second
+                            // One unreadable save must not stop the others (nor reach the app's scope): it keeps its stored numbers.
+                            ?: runCatching { rescoreSaved(entry) }.getOrElse { entry.result }.also { rescoreCache[entry.id] = key to it }
+                    batch[entry.id] = RescoredResult(stored = entry.result, current = current)
+                    // In batches, so a large library costs a few state writes, not one recomposition per build.
+                    if (batch.size >= RESCORE_BATCH_SIZE || System.nanoTime() - lastPublish >= RESCORE_BATCH_NANOS) publish()
                 }
+                publish()
             }
     }
 
@@ -2323,16 +2361,8 @@ class BuildSearchModel(
     private fun rescoreSaved(entry: HistoryEntry): me.chosante.common.history.ResultSnapshot {
         val restored =
             UiState()
-                .withRememberedRequest(entry.request)
+                .withSavedRequest(entry)
                 .copy(
-                    forcedSublimations =
-                        entry.request.forcedSublimations
-                            .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)
-                            .distinct(),
-                    excludedSublimations =
-                        entry.request.excludedSublimations
-                            .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)
-                            .distinct(),
                     build = entry.toBuildCombination(),
                     match = entry.result.match.toBigDecimal(),
                     optimal = entry.result.optimal,

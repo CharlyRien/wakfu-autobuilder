@@ -53,6 +53,7 @@ import me.chosante.ui.components.BreedBackground
 import me.chosante.ui.components.BreedIllustration
 import me.chosante.ui.components.ItemThumbnail
 import me.chosante.ui.components.ObsoleteBadge
+import me.chosante.ui.components.OlderEngineProof
 import me.chosante.ui.components.RerunSearchLink
 import me.chosante.ui.components.localized
 import me.chosante.ui.i18n.LocalLang
@@ -927,20 +928,24 @@ private fun HeadlineBadge(entry: HistoryEntry) {
     val (value, label) = headline(entry)
     // A precision build that meets every target says so, and a proven optimum says so: both can hold at once, then both show.
     val targetsMet = !entry.isMasteryMode() && !entry.isDamageMode() && entry.meetsAllTargets()
-    val statuses =
-        buildList {
-            if (targetsMet) add(tr(Tr.TARGETS_MET))
-            if (entry.result.optimal) add(tr(Tr.OPTIMAL_PROVEN))
-        }
-    val good = statuses.isNotEmpty()
+    // A proof made by an older engine (reason B of the obsolete badge) still shows, dimmed, with a tooltip saying so: the engine
+    // improved since, so it proves the build optimal for the rules of that version only.
+    val olderEngineProof = entry.result.optimal && entry.provenByOlderEngine()
+    val good = targetsMet || (entry.result.optimal && !olderEngineProof)
     Column(horizontalAlignment = Alignment.End) {
         Text(
             text = value,
             style = WTypography.titleMedium.copy(fontFamily = WType.mono, color = if (good) WColor.success else WColor.text)
         )
-        if (good) {
-            statuses.forEach { Text(text = it, style = WTypography.labelSmall.copy(color = WColor.success)) }
-        } else {
+        if (targetsMet) Text(text = tr(Tr.TARGETS_MET), style = WTypography.labelSmall.copy(color = WColor.success))
+        if (entry.result.optimal) {
+            if (olderEngineProof) {
+                OlderEngineProof(text = tr(Tr.OPTIMAL_PROVEN), style = WTypography.labelSmall)
+            } else {
+                Text(text = tr(Tr.OPTIMAL_PROVEN), style = WTypography.labelSmall.copy(color = WColor.success))
+            }
+        }
+        if (!targetsMet && !entry.result.optimal) {
             Text(text = label, style = WTypography.labelSmall.copy(color = WColor.muted))
         }
     }
