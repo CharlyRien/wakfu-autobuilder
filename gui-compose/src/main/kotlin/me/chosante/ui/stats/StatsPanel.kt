@@ -13,6 +13,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -757,8 +758,7 @@ private fun DesiredVsAchieved(ui: UiState) {
                 style = WTypography.labelMedium.copy(color = WColor.muted),
                 modifier = Modifier.padding(top = if (groupIndex == 0) 0.dp else 10.dp, bottom = 2.dp)
             )
-            group.targets.forEachIndexed { index, target ->
-                if (index > 0) Hairline()
+            StatGrid(group.targets) { target, _ ->
                 StatRow(
                     target = target,
                     achieved = ui.achieved[target.characteristic] ?: 0,
@@ -889,32 +889,69 @@ private fun BuildSheet(ui: UiState) {
                 modifier = Modifier.padding(vertical = 6.dp)
             )
         } else {
-            rows.forEachIndexed { index, (characteristic, value) ->
+            StatGrid(rows) { (characteristic, value), compact ->
+                SheetStat(
+                    characteristic = characteristic,
+                    value = if (value > 0) "+${value.formatCompact()}" else value.formatCompact(),
+                    compact = compact,
+                    color = if (value < 0) WColor.danger else WColor.text
+                )
+            }
+        }
+    }
+}
+
+/** Two stat columns once each cell has at least 174 dp. One width threshold, no animated measuring/reflow. */
+@Composable
+private fun <T> StatGrid(
+    values: List<T>,
+    content: @Composable (T, Boolean) -> Unit,
+) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val columns = if (maxWidth >= 360.dp) 2 else 1
+        Column {
+            values.chunked(columns).forEachIndexed { index, row ->
                 if (index > 0) Hairline()
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    CharacteristicIcon(characteristic = characteristic, size = 16.dp)
-                    Spacer(modifier = Modifier.width(9.dp))
-                    Text(
-                        text = characteristic.label(LocalLang.current),
-                        style = WTypography.bodyMedium.copy(color = if (value < 0) WColor.danger else WColor.text),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = if (value > 0) "+${value.formatCompact()}" else value.formatCompact(),
-                        style =
-                            WTypography.bodyMedium.copy(
-                                fontFamily = WType.mono,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (value < 0) WColor.danger else WColor.muted
-                            )
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    row.forEach { value ->
+                        Box(Modifier.weight(1f)) { content(value, columns == 2) }
+                    }
+                    if (row.size < columns) Spacer(Modifier.weight(1f))
                 }
             }
+        }
+    }
+}
+
+/** Keep the complete value on its own line in a half-width cell; labels can wrap in either layout. */
+@Composable
+private fun SheetStat(
+    characteristic: Characteristic,
+    value: String,
+    compact: Boolean,
+    color: Color,
+) {
+    val valueColor = if (color == WColor.danger) WColor.danger else WColor.muted
+    Column(Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CharacteristicIcon(characteristic = characteristic, size = 15.dp)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = characteristic.label(LocalLang.current),
+                style = WTypography.bodySmall.copy(color = color),
+                modifier = Modifier.weight(1f)
+            )
+            if (!compact) {
+                Spacer(Modifier.width(8.dp))
+                Text(value, style = WTypography.bodySmall.copy(fontFamily = WType.mono, color = valueColor))
+            }
+        }
+        if (compact) {
+            Text(
+                value,
+                style = WTypography.bodySmall.copy(fontFamily = WType.mono, color = valueColor),
+                modifier = Modifier.align(Alignment.End).padding(top = 3.dp)
+            )
         }
     }
 }
@@ -927,22 +964,8 @@ private fun MasteryGroup(
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(text = title, style = WTypography.labelSmall.copy(color = WColor.muted))
-        values.forEach { (characteristic, value) ->
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                CharacteristicIcon(characteristic = characteristic, size = 15.dp)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = characteristic.label(LocalLang.current),
-                    style = WTypography.bodySmall.copy(color = if (muted) WColor.faint else WColor.text),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = value.formatCompact(),
-                    style = WTypography.bodySmall.copy(fontFamily = WType.mono, color = WColor.muted)
-                )
-            }
+        StatGrid(values) { (characteristic, value), compact ->
+            SheetStat(characteristic, value.formatCompact(), compact, if (muted) WColor.faint else WColor.text)
         }
     }
 }
@@ -1041,32 +1064,12 @@ private fun StatRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = target.characteristic.label(LocalLang.current),
-                    style = WTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    style = WTypography.bodyMedium.copy(fontWeight = FontWeight.Medium)
                 )
                 Text(
                     text = tr(if (exact) Tr.TAG_EXACT else Tr.TAG_MAXIMIZE),
                     style = WTypography.labelSmall
                 )
-            }
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = achieved.formatCompact(),
-                    style =
-                        WTypography.bodyMedium.copy(
-                            fontFamily = WType.mono,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (status == StatStatus.Miss) WColor.warning else WColor.text
-                        )
-                )
-                if (targetValue > 0) {
-                    Text(text = " / ", style = WTypography.bodySmall.copy(color = WColor.faint))
-                    Text(
-                        text = targetValue.formatCompact(),
-                        style = WTypography.bodySmall.copy(fontFamily = WType.mono, color = WColor.muted)
-                    )
-                }
             }
             Text(
                 text = status?.icon.orEmpty(),
@@ -1078,6 +1081,24 @@ private fun StatRow(
                     ),
                 modifier = Modifier.width(18.dp)
             )
+        }
+        Row(modifier = Modifier.fillMaxWidth().padding(start = 34.dp, top = 4.dp), verticalAlignment = Alignment.Bottom) {
+            Text(
+                text = achieved.formatCompact(),
+                style =
+                    WTypography.bodyMedium.copy(
+                        fontFamily = WType.mono,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (status == StatStatus.Miss) WColor.warning else WColor.text
+                    )
+            )
+            if (targetValue > 0) {
+                Text(text = " / ", style = WTypography.bodySmall.copy(color = WColor.faint))
+                Text(
+                    text = targetValue.formatCompact(),
+                    style = WTypography.bodySmall.copy(fontFamily = WType.mono, color = WColor.muted)
+                )
+            }
         }
         if (status != null && targetValue > 0) {
             Meter(
