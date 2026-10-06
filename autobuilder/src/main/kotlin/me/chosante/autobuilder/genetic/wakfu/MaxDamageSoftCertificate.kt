@@ -1596,7 +1596,7 @@ internal object MaxDamageSoftCertificate {
         // Rings: exact distinct-name pairs.
         run {
             val perRing = pool[ItemType.RING].orEmpty().map { it to prune(wornOpts(it)) }
-            // v58: never two rings of one name NOR two rings that exclude each other ([ringPairingKeys]) — exactly the game's
+            // Never two rings of one name NOR two rings that exclude each other ([ringPairingKeys]) — exactly the game's
             // rule on every clique of conflicting rings (all of today's data); a non-clique component keeps the name rule.
             val ringKeys = ringPairingKeys(perRing.map { it.first })
             val options = mutableListOf(Opt(0L, 0))

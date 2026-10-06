@@ -2812,7 +2812,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // (Σ same-fr-name ring vars ≤ 1 — a Wakfu rule), so the ring-pair stage must never pair a
     // Mythic with its own Legendary sibling. Both certificate fantasies at cell 16 were exactly
     // such pairs (Souvenir ancestral ×2, then Anneau Chuchotis ancestral ×2).
-    // v58: the key is the ring's PAIRING key ([ringPairingKeys]) — its name, or one key for a whole clique of rings that exclude
+    // The key is the ring's PAIRING key ([ringPairingKeys]) — its name, or one key for a whole clique of rings that exclude
     // each other (the FORBIDS triples), so every pairing rule below (the fast / tier-1.5 pair loop, the exact pass's top-2 per
     // cost cell and its cross-cell runner-up, the MP rings, the explain) refuses those pairs exactly as it refuses a same-name
     // pair. A bundle entry (a nation sword fused with its ring) keeps the sword's name.

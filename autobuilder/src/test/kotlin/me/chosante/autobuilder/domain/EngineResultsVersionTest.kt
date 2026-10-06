@@ -18,6 +18,6 @@ class EngineResultsVersionTest {
                 "CERTIFIER_VERSION and ENGINE_RESULTS_VERSION changed: a CERTIFIER_VERSION bump implies an ENGINE_RESULTS_VERSION " +
                     "bump, and ENGINE_RESULTS_VERSION is bumped on any change that can alter a search's build or a build's score " +
                     "(AGENTS.md §4). Bump as the rule asks, then update this pair."
-            ).isEqualTo(58 to 3)
+            ).isEqualTo(57 to 2)
     }
 }

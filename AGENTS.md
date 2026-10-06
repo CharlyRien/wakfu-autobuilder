@@ -289,7 +289,7 @@ re-checks the whole equipped set, so every rule is a rule on the FINAL build. Th
   an item's own bonus counts) and player-state conditions (company rank, achievement, gauges, crime score: assumed
   satisfied). `not HasAnotherSameEquipment()` is the existing same-name ring rule.
 
-The certificates read REQUIRES (CERTIFIER_VERSION 57) and FORBIDS (58): every certificate pairs rings on
+The certificates read REQUIRES and FORBIDS (both CERTIFIER_VERSION 57): every certificate pairs rings on
 `ringPairingKeys` — the lowercased French name, or ONE key for a whole connected component of the (same-name ∪ FORBIDS)
 conflict graph when it is a clique (the data's five excluding triples), so a bound never pairs two rings the game refuses
 together; a component that is not a clique keeps the name keys (the old relaxation: sound, looser). The AP-cell certifier — the max-damage proof authority — splits every world in

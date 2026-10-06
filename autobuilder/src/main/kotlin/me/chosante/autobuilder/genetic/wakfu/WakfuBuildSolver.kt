@@ -407,17 +407,19 @@ object WakfuBuildSolver {
      * own slot (the epic budget counted, the ring slot over-counted by at most one ring). FORBIDS stay a relaxation (two
      * rings that exclude each other may pair in a bound). Every bound stays an upper bound of the constrained optimum; the
      * lvl-245 ledger's cells 12–17 fell 1.0–2.3 % (the v56 proven optimum wore Épée de Brâkmar without its ring).
-     * 58: the epic / relic budgets follow the game's "only one equipped at a time" GROUPS ([me.chosante.common.ExclusiveGroup],
-     * the CDN item properties 12 / 8), not the rarity: the EPIC group also holds two COMMON items (18691 Piquants du Guerrier
-     * Trool anciens, AP +1; 18693 Sain Turastil ancienne, MP +1), which the game refuses beside an epic item. Every certificate's
-     * epic bit is now the group's — the budget exact, an EPIC-group COMMON item also passing for an epic-SUB carrier (a sound
-     * over-count: the carrier is the rarity) — and the domination pre-filter's budget clause reads the group too. A bound can
-     * only fall: the builds it drops (such an item beside an epic) are illegal in game. And FORBIDS are priced exactly: every
-     * certificate pairs rings on [me.chosante.autobuilder.domain.ringPairingKeys] — the name, or one key for a whole clique of
-     * rings that exclude each other (the five excluding triples of the data) — so no bound pairs two rings the game refuses
-     * together (the review of #246 measured up to +16 % on seeded pools).
+     * Still 57 — no release shipped it (1.14.2 has 56), so its follow-ups reuse it; a bound cached by an earlier v57 build
+     * stays an upper bound, as each follow-up only drops builds the game refuses. The epic / relic budgets follow the game's
+     * "only one equipped at a time" GROUPS ([me.chosante.common.ExclusiveGroup], the CDN item properties 12 / 8), not the
+     * rarity: the EPIC group also holds two COMMON items (18691 Piquants du Guerrier Trool anciens, AP +1; 18693 Sain Turastil
+     * ancienne, MP +1), which the game refuses beside an epic item. Every certificate's epic bit is now the group's — the
+     * budget exact, an EPIC-group COMMON item also passing for an epic-SUB carrier (a sound over-count: the carrier is the
+     * rarity) — and the domination pre-filter's budget clause reads the group too (the lvl-245 ledger closes AP cell 17). And
+     * FORBIDS, the first v57 build's relaxation, are priced exactly: every certificate pairs rings on
+     * [me.chosante.autobuilder.domain.ringPairingKeys] — the name, or one key for a whole clique of rings that exclude each
+     * other (the five excluding triples of the data) — so no bound pairs two rings the game refuses together (the review of
+     * #246 measured up to +16 % on seeded pools).
      */
-    const val CERTIFIER_VERSION: Int = 58
+    const val CERTIFIER_VERSION: Int = 57
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing

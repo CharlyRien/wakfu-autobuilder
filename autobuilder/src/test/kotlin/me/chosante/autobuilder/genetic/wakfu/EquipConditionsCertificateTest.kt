@@ -23,10 +23,10 @@ import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * The certificates and the item EQUIP conditions (CERTIFIER_VERSION 57, 58). REQUIRES: an item that needs another (a nation
+ * The certificates and the item EQUIP conditions (CERTIFIER_VERSION 57). REQUIRES: an item that needs another (a nation
  * sword needs its zero-stat EPIC ring) is offered FUSED with it, so it takes the epic budget and never pairs with another epic
- * item, and the AP-cell certifier splits its worlds on it (lazily, v58). FORBIDS: rings that exclude each other share a
- * pairing key when they form a clique ([me.chosante.autobuilder.domain.ringPairingKeys], v58), so no bound pairs them. Locks,
+ * item, and the AP-cell certifier splits its worlds on it ([CertWorld.bundle]). FORBIDS: rings that exclude each other share a
+ * pairing key when they form a clique ([me.chosante.autobuilder.domain.ringPairingKeys]), so no bound pairs them. Locks,
  * on seeded pools where the unconstrained optimum wears the sword beside an epic item:
  *  - SOUNDNESS (release-blocking): every AP-cell pass and the ledger upper-bound the CONSTRAINED CP-SAT optimum, and the
  *    most-masteries bound upper-bounds the constrained soft objective;
@@ -195,7 +195,7 @@ class EquipConditionsCertificateTest {
         }
         assertThat(compared).isGreaterThan(40)
         assertThat(tightened).describedAs("the split must tighten the pools whose relaxed optimum wears the sword beside the epic").isGreaterThanOrEqualTo(6)
-        // The bundle world counts the sword's ring slot exactly, and (CERTIFIER_VERSION 58) the excluding rings are priced
+        // The bundle world counts the sword's ring slot exactly, and the excluding rings are priced
         // exactly ([ringPairingKeys]): the ledger lands ON the constrained optimum, FORBIDS pair or not.
         assertThat(conflictFree).isEqualTo(8)
         assertThat(tight).describedAs("the ledger must be TIGHT (== the constrained optimum) on every pool").isEqualTo(16)
@@ -383,7 +383,7 @@ class EquipConditionsCertificateTest {
         assertThat(compared).isGreaterThan(50)
         assertThat(twoSwordPools).describedAs("pools with two swords").isGreaterThanOrEqualTo(2)
         assertThat(swordOptima).describedAs("pools whose optimum wears a sword with its ring").isGreaterThanOrEqualTo(2)
-        // CERTIFIER_VERSION 58: the excluding triple is a clique of conflicting rings, priced exactly ([ringPairingKeys]) — with
+        // The excluding triple is a clique of conflicting rings, priced exactly ([ringPairingKeys]) — with
         // the REQUIRES split exact too, the ledger lands ON the constrained optimum (the review of #246 measured up to +16 %
         // on these pools while FORBIDS were a relaxation).
         assertThat(tight).describedAs("the ledger is the constrained optimum on every certified pool (%d)", certified).isEqualTo(certified)

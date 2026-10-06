@@ -10,4 +10,4 @@ package me.chosante.autobuilder.domain
  * constant beside the domain types, rather than in `WakfuBuildSolver` — whose initialisation loads the native OR-Tools
  * library — so the GUI can read it at any time for free. See AGENTS.md §4.
  */
-const val ENGINE_RESULTS_VERSION: Int = 3
+const val ENGINE_RESULTS_VERSION: Int = 2

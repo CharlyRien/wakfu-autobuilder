@@ -35,7 +35,7 @@ import kotlin.time.Duration.Companion.seconds
  *   ./gradlew :autobuilder:test --tests '*RequirementSplitTimingHarnessTest*' --rerun -i
  * ```
  *
- * What it measured (4-core container, CERTIFIER_VERSION 58), for the record of the LAZY split the review proposed and that was
+ * What it measured (4-core container, CERTIFIER_VERSION 57 with the exclusivity groups), for the record of the LAZY split the review proposed and that was
  * NOT shipped. Running the fast tier on the UNSPLIT worlds (the sword fused with its ring — a sound relaxation of both halves)
  * cut the pure fast tier by ~17 %, but on this shape the top surviving cell's unsplit argmax IS the over-counted fused-sword
  * composition (sword + its ring + two other rings), so the split is needed exactly where the proof refines: every lazy variant

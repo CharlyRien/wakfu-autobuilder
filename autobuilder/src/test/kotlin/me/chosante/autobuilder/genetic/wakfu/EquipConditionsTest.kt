@@ -315,7 +315,7 @@ class EquipConditionsTest {
     }
 
     /**
-     * The certificates' ring pairing key (CERTIFIER_VERSION 58): one key per clique of conflicting rings — same name, or a
+     * The certificates' ring pairing key (CERTIFIER_VERSION 57): one key per clique of conflicting rings — same name, or a
      * FORBIDS either way — so a bound refuses exactly the pairs the game refuses; a component that is not a clique keeps the
      * name keys (the old relaxation: sound, looser), so no key ever separates a pair the game allows.
      */
