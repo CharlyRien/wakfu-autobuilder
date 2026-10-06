@@ -263,11 +263,17 @@ re-checks the whole equipped set, so every rule is a rule on the FINAL build. Th
 - **REQUIRES** (`HasEquipmentId(x)`): the four nation swords (RELIC, +3 AP) each need their zero-stat EPIC ring — CP-SAT
   `x_sword ≤ x_ring` (`addEquipConditionConstraints`); the pool drops an item whose required item can't be worn in the
   request (`withRequirementsMet` in `groupAndFilterEquipments`: rarity cap, level band, exclusion); forcing the sword
-  forces its ring (`forcedNamesWithRequirements`); the multi-element prefilter and the E8 provenance keep the ring.
+  forces its ring (`forcedNamesWithRequirements`: kept beside the forced items, counted by `validateRequest`); the
+  multi-element prefilter and the E8 provenance keep the ring. Only the USER's forced names narrow a slot, and the RING
+  slot is never narrowed: a build wears two rings, so forcing one ring (or a sword, whose ring takes one) leaves the second
+  free — the model's `Σ same-name ≥ 1` equips each forced item. (Narrowing it to the forced names made CP-SAT prove OPTIMAL
+  a forced-sword build 7.4 % below the true forced optimum; every certificate bails on a forced item.)
 - **FORBIDS** (`not HasEquipmentId(x)`), read as the SYMMETRIC closure (the Lieute rings list their bans only in their
   CRAFT criterion): `x_a + x_b ≤ 1` per pair — five ring triples of different names (Issé Sceau's triple shares a name).
 - **CLASS-ONLY** (`IsBreed`, mapped to `CharacterClass` by breed id: the client's SACRIER is our SACRIEUR) and **NEVER**
-  (`False`): static pool filters (`isWearableBy`). A character of class `UNKNOWN` (CLI without `--class`) wears no class item.
+  (`False`): static pool filters (`isWearableBy`), and forced off in the CP-SAT model too (`x = 0` in
+  `addEquipConditionConstraints`), so a raw pool — the lvl-245 oracle's, a research harness's — never returns another
+  class's item. A character of class `UNKNOWN` (CLI without `--class`) wears no class item.
 - `BuildCombination.isValid(characterClass)` checks all four; the greedy warm start never picks a requiring item alone
   (each sword + ring BUNDLE is a candidate, ranked by `rescore`) and never pairs excluding rings; `validateRequest`
   rejects a wrong-class / never / requirement-unavailable forced item and two excluding forced items (`RequestValidationProblem`).
@@ -483,12 +489,15 @@ is no FXML/XML.** Package root `me.chosante.ui`, organized by feature: `shell`, 
   `achieved` of the rules it was found under, so the shown ones are recomputed with the search's own request
   mapping, stats grid and scorer (`WakfuBestBuildFinderAlgorithm.rescore`, no solver); the stored ones are
   only a fallback, and a score that moved drops the stored "proven optimal" flag (compared as the stored
-  `Double`, not as `BigDecimal`). The E8 constructed-optimum swap stores that same `rescore`, so a swapped
-  build reloads unchanged. The library cards and the compare view show the same re-score: `BuildSearchModel.rescoreLibrary`
-  re-scores the saved builds off the UI thread when either view opens (cancellable, cached per entry + data + engine version,
-  published as `UiState.libraryRescores`, read through `UiState.shownEntry`); the stored numbers show until it lands. A save
-  made with other game data or an older `ENGINE_RESULTS_VERSION` gets the **obsolete** badge (`history/Obsolescence.kt`,
-  `components/ObsoleteBuildCue.kt`) with its reasons and a "Re-run the search" action (`BuildSearchModel.rerunSearch`).
+  `Double`, not as `BigDecimal`), and so does a build that breaks an item EQUIP condition
+  (`WakfuBestBuildFinderAlgorithm.equipConditionViolation`, which reads the catalog's criteria by item id: a save carries none —
+  one made before the conditions were enforced may wear a nation sword without its ring). The E8 constructed-optimum swap stores
+  that same `rescore`, so a swapped build reloads unchanged. The library cards and the compare view show the same re-score:
+  `BuildSearchModel.rescoreLibrary` re-scores the saved builds off the UI thread when either view opens (cancellable, cached per
+  entry + data + engine version, published as `UiState.libraryRescores`, read through `UiState.shownEntry`); the stored numbers
+  show until it lands. A save made with other game data or an older `ENGINE_RESULTS_VERSION` gets the **obsolete** badge
+  (`history/Obsolescence.kt`, `components/ObsoleteBuildCue.kt`) with its reasons and a "Re-run the search" action
+  (`BuildSearchModel.rerunSearch`).
 - **`AppShell`** (`shell/`) — `TopBar` (brand logo, language toggle, class, level/min-level, the
   progress + match/mastery meters, Search button) above a 3-column body:
   - **`RequestPanel`** (`request/`) — search mode, target-stats editor, constraints (per-rarity
