@@ -394,4 +394,166 @@ class MixedRuneSecondaryBudgetTest {
         }
         assertThat(diverged).describedAs("cases where the all-or-nothing fold (≤ v56) misses the mixed optimum (the lock's sensitivity)").isGreaterThanOrEqualTo(10)
     }
+
+    // ---- General fold: required rows, floors, the survivability floor ------------------------------------------------
+
+    /**
+     * Small general-fold pools (no sublimation, so no secondary cap masks a row): a few 4-socket items of fire mastery
+     * with HP / per-element / "all resistances" / random-element resistance / dodge lines — negative in most pools — and
+     * one of five request shapes, each reaching the fold through a different threshold read:
+     *  0. an "all resistances" row of 0 (a floor; max-damage keeps it unsplit) with negative lines — the row's key (a);
+     *  1. an "all resistances" row with a positive target — the row's key (a);
+     *  2. a per-element resistance row of 0 with negative AGGREGATE / random-element lines — the negative source (b);
+     *  3. the survivability floor (HP × resistances through `min(EHP, floor)`) beside an "all resistances" 0 row (c);
+     *  4. HP and dodge rows with negative HP / dodge lines (the rule as first shipped).
+     */
+    private fun generalCase(seed: Long): Case {
+        val rng = java.util.Random(seed * 7_919L + 3L)
+        val shape = (seed % 5).toInt()
+        val level = listOf(20, 35, 50, 80, 110)[rng.nextInt(5)]
+        val fire = Characteristic.RESISTANCE_ELEMENTARY_FIRE
+        val allRes = Characteristic.RESISTANCE_ELEMENTARY
+        val negative = shape != 3 && rng.nextInt(4) != 0
+        var id = 830_000 + (seed % 1_000).toInt() * 10
+        val items =
+            listOf(ItemType.HELMET, ItemType.CHEST_PLATE, ItemType.BOOTS, ItemType.AMULET).take(3 + rng.nextInt(2)).map { type ->
+                val stats = mutableMapOf<Characteristic, Int>(Characteristic.MASTERY_ELEMENTARY_FIRE to 40 + rng.nextInt(level * 3))
+                if (negative && rng.nextInt(3) == 0) {
+                    when (shape) {
+                        0, 1 -> stats[if (rng.nextBoolean()) allRes else fire] = -(10 + rng.nextInt(120))
+                        2 -> stats[if (rng.nextBoolean()) allRes else Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT] = -(10 + rng.nextInt(120))
+                        else -> stats[if (rng.nextBoolean()) Characteristic.HP else Characteristic.DODGE] = -(10 + rng.nextInt(level * 4))
+                    }
+                }
+                if (rng.nextInt(3) == 0) stats[Characteristic.HP] = (stats[Characteristic.HP] ?: 0) + rng.nextInt(level * 3)
+                id++
+                item(id, type, level, stats.filterValues { it != 0 }, listOf(2, 3, 4, 4)[rng.nextInt(4)])
+            }
+        val distance = TargetStat(Characteristic.MASTERY_DISTANCE, 1)
+        val baseHp = 50 + level * 10
+        val (targets, scenario) =
+            when (shape) {
+                0 -> listOf(distance, TargetStat(allRes, 0)) to DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+                1 -> listOf(distance, TargetStat(allRes, 5 + rng.nextInt(level * 2))) to DamageScenario(rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+                2 -> listOf(distance, TargetStat(fire, 0)) to DamageScenario(rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+                3 ->
+                    listOf(distance, TargetStat(allRes, 0)) to
+                        DamageScenario(
+                            rangeBand = RangeBand.DISTANCE,
+                            orientation = Orientation.FACE,
+                            survivabilityFloor = true,
+                            minEffectiveHp = baseHp + rng.nextInt(baseHp)
+                        )
+                else ->
+                    listOf(distance, TargetStat(Characteristic.HP, baseHp + rng.nextInt(level * 6)), TargetStat(Characteristic.DODGE, 0)) to
+                        DamageScenario(rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+            }
+        return Case(
+            "general seed$seed shape$shape lvl$level negative=$negative items=${items.map { it.characteristics }} targets=${targets.map { it.characteristic to it.target }} " +
+                "ehp=${scenario.minEffectiveHp}",
+            params(level, scenario, targets).copy(useSublimations = false),
+            items.groupBy { it.itemType },
+            emptyList()
+        )
+    }
+
+    /**
+     * The general fold (a non-damage rune type in the request) against the count model on [generalCase] pools, both legs:
+     * the fold with count carriers proves the count optimum, and the all-or-nothing fold misses it often enough to keep the
+     * lock sensitive. RED without each of the three general-fold reads (an "all resistances" row keyed on its four
+     * elements, a negative aggregate resistance line expanded onto them, the survivability floor).
+     */
+    @Test
+    fun `the general fold proves the count-model optimum under rows, floors and the survivability floor`() {
+        var diverged = 0
+        val divergedShapes = HashSet<Int>()
+        for (seed in 0L until 15L) {
+            val c = generalCase(seed)
+            for (hard in listOf(false, true)) {
+                val count = solve(c.params, c.pool, c.subs, count = true, hard = hard)
+                if (!count.hasSolution) continue
+                val fixed = solve(c.params, c.pool, c.subs, hard = hard)
+                val oldFold = solve(c.params, c.pool, c.subs, mixed = false, hard = hard)
+                println(
+                    "MIXED_GENERAL ${c.label} hard=$hard oldFold=${oldFold.objective}/${oldFold.isOptimal} " +
+                        "count=${count.objective}/${count.isOptimal} fixed=${fixed.objective}/${fixed.isOptimal}"
+                )
+                assertThat(count.isOptimal).describedAs("%s hard=%s: the count model proves its optimum", c.label, hard).isTrue()
+                assertThat(fixed.isOptimal).describedAs("%s hard=%s: the fold proves its optimum", c.label, hard).isTrue()
+                assertThat(fixed.objective).describedAs("%s hard=%s: the fold's optimum is the count model's", c.label, hard).isEqualTo(count.objective)
+                if (oldFold.isOptimal && oldFold.objective < count.objective) {
+                    diverged++
+                    divergedShapes += (seed % 5).toInt()
+                }
+            }
+        }
+        println("MIXED_GENERAL diverged=$diverged shapes=$divergedShapes")
+        assertThat(divergedShapes).describedAs("request shapes where the all-or-nothing fold misses the optimum").contains(0, 1)
+        assertThat(diverged).isGreaterThanOrEqualTo(4)
+    }
+
+    /**
+     * The review's repros of the three general-fold threshold reads the first rule missed (no sublimation; CRA fire /
+     * distance / face). Level 200: helmet A (500 fire + a negative resistance line), helmet B (200 fire), chest and boots
+     * (300 fire), all level 200 with 4 sockets.
+     *  (a) an "all resistances" 0-row (max-damage keeps it unsplit) with −105 FIRE resistance on helmet A — and −160 on
+     *      every element: the row is keyed on the four per-element runes;
+     *  (b) a FIRE resistance 0-row with −105 on EVERY element (an aggregate line): the negative source is expanded;
+     *  (c) the survivability floor (level 20, three 4-socket items of 60 fire, an "all resistances" 0-row, no negative line)
+     *      swept over its EHP floor.
+     * Each: the all-or-nothing fold proves less than the count model, the fold with count carriers proves the same.
+     */
+    @Test
+    fun `an aggregate resistance row, an aggregate negative line and the survivability floor are thresholds`() {
+        val scenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+        val fireRes = Characteristic.RESISTANCE_ELEMENTARY_FIRE
+        val allRes = Characteristic.RESISTANCE_ELEMENTARY
+
+        fun level200Pool(negative: Pair<Characteristic, Int>) =
+            listOf(
+                item(840_001, ItemType.HELMET, 200, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 500, negative)),
+                item(840_002, ItemType.HELMET, 200, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 200)),
+                item(840_003, ItemType.CHEST_PLATE, 200, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300)),
+                item(840_004, ItemType.BOOTS, 200, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300))
+            ).groupBy { it.itemType }
+
+        fun check(
+            label: String,
+            p: WakfuBestBuildParams,
+            pool: Map<ItemType, List<Equipment>>,
+        ): Boolean {
+            var missed = false
+            for (hard in listOf(false, true)) {
+                val oldFold = solve(p, pool, emptyList(), mixed = false, hard = hard)
+                val count = solve(p, pool, emptyList(), count = true, hard = hard)
+                val fixed = solve(p, pool, emptyList(), hard = hard)
+                println(
+                    "MIXED_THRESHOLD $label hard=$hard oldFold=${oldFold.objective}/${oldFold.isOptimal} count=${count.objective}/${count.isOptimal} fixed=${fixed.objective}/${fixed.isOptimal}"
+                )
+                if (!count.hasSolution) continue
+                for (outcome in listOf(oldFold, count, fixed)) assertThat(outcome.isOptimal).describedAs("%s hard=%s", label, hard).isTrue()
+                assertThat(fixed.objective).describedAs("%s hard=%s: the fold reaches the count optimum", label, hard).isEqualTo(count.objective)
+                if (oldFold.objective < count.objective) missed = true
+            }
+            return missed
+        }
+        val distance = TargetStat(Characteristic.MASTERY_DISTANCE, 1)
+        val rows = { row: TargetStat -> params(200, scenario, listOf(distance, row)).copy(useSublimations = false) }
+        assertThat(check("(a) all-res 0, -105 fire", rows(TargetStat(allRes, 0)), level200Pool(fireRes to -105))).isTrue()
+        assertThat(check("(a) all-res 0, -160 all", rows(TargetStat(allRes, 0)), level200Pool(allRes to -160))).isTrue()
+        assertThat(check("(b) fire-res 0, -105 all", rows(TargetStat(fireRes, 0)), level200Pool(allRes to -105))).isTrue()
+
+        val small =
+            listOf(ItemType.HELMET, ItemType.CHEST_PLATE, ItemType.BOOTS)
+                .mapIndexed { i, type -> item(840_101 + i, type, 20, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 60)) }
+                .groupBy { it.itemType }
+        var survivabilityMissed = 0
+        for (floor in 420..520 step 20) {
+            val p =
+                params(20, scenario.copy(survivabilityFloor = true, minEffectiveHp = floor), listOf(distance, TargetStat(allRes, 0)))
+                    .copy(useSublimations = false)
+            if (check("(c) survivability $floor", p, small)) survivabilityMissed++
+        }
+        assertThat(survivabilityMissed).describedAs("EHP floors where the all-or-nothing fold misses the optimum").isGreaterThan(0)
+    }
 }
