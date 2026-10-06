@@ -475,7 +475,7 @@ JDK 25 required. Use the Gradle wrapper.
 
 ```sh
 ./gradlew build                                   # build everything
-./gradlew test                                    # run all tests (this is what CI runs)
+./gradlew test                                    # run all tests (CI runs the same set, sharded)
 ./gradlew ktlintCheck                             # lint  (ktlintFormat to auto-fix)
 
 ./gradlew :gui-compose:run                        # launch the Compose Desktop GUI
@@ -508,7 +508,9 @@ WAKFU_COMPOSE_SCREENSHOT=/tmp/out.png ./gradlew :gui-compose:run
   build, e.g.: `conveyor -f gui-compose/conveyor-local.conf -Kapp.machines=mac.aarch64 make mac-app`.
 - Builds are **unsigned** (no paid signing certificate; macOS gets an ad-hoc signature) — users must
   bypass OS security on first launch; keep that constraint in mind for any packaging change.
-- CI: `.github/workflows/build.yml` runs `./gradlew test` on every push.
+- CI: `.github/workflows/build.yml` runs the per-push tests on every push, split into parallel matrix shards
+  (`-PciTestShard=<name>`; a catch-all `remaining` shard runs every class not assigned to a named one) behind one
+  aggregate `build` check. Rebalancing: `docs/CI_TEST_SHARDS.md`.
   `.github/workflows/deploy.yml` builds jars + runs Conveyor against `gui-compose/conveyor.conf`
   (`make copied-site`). It is chained **automatically** by `release-please.yml` (via `workflow_call`)
   when merging the release PR publishes a release — releasing = merge the release-please PR, nothing

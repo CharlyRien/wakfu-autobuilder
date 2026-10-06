@@ -10,8 +10,13 @@ on:
         -   cron: '17 3 * * *'
 
 jobs:
-    build:
+    test-shards:
         runs-on: ubuntu-latest
+        strategy:
+            # Finish every shard even if another fails, preserving all test results.
+            fail-fast: false
+            matrix:
+                shard: [most-masteries, solver, floors-soft, medium, remaining]
         steps:
             -   name: Checkout project sources
                 uses: actions/checkout@v7.0.1
@@ -19,8 +24,27 @@ jobs:
             -   name: Setup Gradle
                 uses: gradle/actions/setup-gradle@v6
 
-            -   name: Verify everything is working fine (fast tests)
-                run: ./gradlew test
+            -   name: Run the assigned tests
+                env:
+                    SHARD: ${{ matrix.shard }}
+                run: |
+                    if [ "$SHARD" = remaining ]; then
+                        ./gradlew test -PciTestShard="$SHARD"
+                    else
+                        ./gradlew :autobuilder:test -PciTestShard="$SHARD"
+                    fi
+
+    build:
+        # One gate for pushes and reusable deploy calls. always() prevents a failed/cancelled
+        # shard from turning this gate into a skipped (and potentially green) check.
+        needs: [test-shards]
+        if: always()
+        runs-on: ubuntu-latest
+        steps:
+            -   name: Require every test shard to pass
+                env:
+                    SHARD_RESULT: ${{ needs.test-shards.result }}
+                run: test "$SHARD_RESULT" = success
 
     release-note-scripts:
         # Scenario tests of the release-note tooling (filing on the release PR, the PR gate, the commit-msg hook) on
