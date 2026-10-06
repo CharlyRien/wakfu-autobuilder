@@ -1100,6 +1100,9 @@ object WakfuBuildSolver {
     // The smallest stage budget worth a solve (wall seconds or deterministic units): OR-Tools reads a limit of 0 as no limit.
     private const val MIN_STAGE_BUDGET = 0.05
 
+    // Below this magnitude (2^52) a double carries every integer exactly: CP-SAT's objective value, read back as one, is exact there.
+    private const val EXACT_DOUBLE_INTEGER_LIMIT = 4_503_599_627_370_496.0
+
     /**
      * Whether [optimize] solves this leg by [relaxThenCheck]: a most-masteries request with floors — in production, or on a tuned
      * solve that opts in ([SolverTuning.relaxFloorsFirst]) and sets none of the measurement seams, which read a single model. Not
@@ -1176,14 +1179,16 @@ object WakfuBuildSolver {
      *     It shows a build only when that build keeps every floor (and, on the hard leg, meets every target) in the scorers' exact
      *     read ([keepsFloors]) and scores no less than one already shown, and stamps none with a certificate-comparable objective
      *     (its objective is the relaxed one). Its final build is no result of the leg;
-     *  2. when it PROVED its optimum v (read EXACTLY off the objective variable), the CHECK: the floored model with `objective = v`,
-     *     hinted with the relaxed solution, on at most [CHECK_STAGE_SHARE] of the budget and as long as the relaxed solve ran
-     *     ([MIN_CHECK_TIME]). A build it finds keeps every floor at objective v: the floored optimum (the argument below). That build
-     *     is the leg's result, proven;
-     *  3. otherwise — a floor binds (the check proves no floored build reaches v), the check ran out, or the relaxed stage proved
-     *     nothing — the FLOORED stage solves the real leg on what is left of the budget, hinted with the relaxed solution and NOT cut:
-     *     a redundant `objective ≤ v` made CP-SAT's floored proof 5-10× slower on a floor that binds (measured), so the relaxed
-     *     optimum only serves the check. Its final is the leg's result, its OPTIMAL CP-SAT's own proof.
+     *  2. the CHECK: the floored model with `objective = w`, w the relaxed stage's objective value (read EXACTLY: the objective
+     *     variable's value, taken only when the response's own objective reads the same), hinted with the relaxed solution, on at most
+     *     [CHECK_STAGE_SHARE] of the budget and as long as the relaxed solve ran ([MIN_CHECK_TIME]). Its build, once the scorers' read
+     *     confirms it keeps every floor, is a floored build worth w: when the relaxed stage PROVED w to be its optimum v, that is the
+     *     floored optimum (the argument below) — the leg's result, proven; when the relaxed stage ran out unproven, it is shown and
+     *     handed to the floored stage as its hint (a floored build, where the relaxed incumbent may break a floor);
+     *  3. otherwise — a floor binds (the check proves no floored build reaches v), the check ran out, or the relaxed stage was
+     *     unproven — the FLOORED stage solves the real leg on what is left of the budget, hinted, and NOT cut: a redundant
+     *     `objective ≤ v` made CP-SAT's floored proof 5-10× slower on a floor that binds (measured), so the relaxed optimum only
+     *     serves the check. Its final is the leg's result, its OPTIMAL CP-SAT's own proof.
      * The leg's optimality stamp comes from the check (by the argument) or from the floored stage's OPTIMAL — never from the relaxed
      * stage.
      *
@@ -1298,11 +1303,21 @@ object WakfuBuildSolver {
         val relaxedSolved =
             relaxedStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
                 relaxedStatus == com.google.ortools.sat.CpSolverStatus.FEASIBLE
-        // v: the relaxed optimum, EXACT (an integer variable's value, never a double), when the relaxed stage proved it.
-        val relaxedOptimum =
-            if (relaxedStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL && solver != null) runCatching { solver.value(relaxed.objective) }.getOrNull() else null
+        val relaxedProven = relaxedStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL
+        // w: the relaxed incumbent's objective (v, the relaxed OPTIMUM, when proven), EXACT — the objective variable's value, taken only
+        // when the response's own objective (a double, exact below 2^52) reads the same: two reads of one number, or no check.
+        val relaxedValue =
+            if (relaxedSolved && solver != null) {
+                runCatching {
+                    val value = solver.value(relaxed.objective)
+                    val reported = solver.objectiveValue()
+                    value.takeIf { kotlin.math.abs(reported) < EXACT_DOUBLE_INTEGER_LIMIT && reported == value.toDouble() }
+                }.getOrNull()
+            } else {
+                null
+            }
         // Same params ⇒ the same decision variables, by name, in every model (the floors only change how the stats are read).
-        val hint = if (relaxedSolved && solver != null) runCatching { diagnosticVars(relaxed).associate { it.name to solver.value(it) } }.getOrNull() else null
+        var hint = if (relaxedSolved && solver != null) runCatching { diagnosticVars(relaxed).associate { it.name to solver.value(it) } }.getOrNull() else null
         // The relaxed final build is no result of the leg, but one that keeps the floors may still be delivered at the end.
         val relaxedFinal = relaxedOutcome?.finalBuild
         val relaxedFinalScore = relaxedOutcome?.finalScore
@@ -1311,14 +1326,16 @@ object WakfuBuildSolver {
 
         fun hinted(built: BuiltModel) = built.also { hint?.let { values -> for (v in diagnosticVars(built)) values[v.name]?.let { built.model.addHint(v, it) } } }
 
-        // ---- 2. The CHECK: a floored build at the proven relaxed optimum v is the floored optimum.
-        if (relaxedOptimum != null) {
+        // ---- 2. The CHECK: a floored build at the relaxed stage's value w. When w is the PROVEN relaxed optimum v, that build is the
+        // floored optimum; when the relaxed stage ran out unproven, it is no proof but the best start the floored stage can get.
+        if (relaxedValue != null) {
             val check = model(relaxFloors = false)
             // No build can keep a floor (or meet a target): nothing to deliver — the relaxed stage showed none either.
             if (check.maxDamageStaticallyInfeasible) return null
             if (!scope.isActive) return relaxedOutcome
-            check.model.addEquality(check.objective, relaxedOptimum)
+            check.model.addEquality(check.objective, relaxedValue)
             hinted(check)
+            var checkSolver: CpSolver? = null
             // As long as the relaxed solve ran at most, so a floor that binds costs the check little.
             val checkWallSeconds = minOf(checkStageBudget(totalWallMs, elapsedMs()) / 1000.0, maxOf(relaxedSolveSeconds, MIN_CHECK_TIME))
             val checkDeterministic =
@@ -1336,17 +1353,54 @@ object WakfuBuildSolver {
                         check.maxDamageRawScore,
                         scope,
                         tuning,
-                        onSolverReady = { solverHandle.set(it) },
-                        suppressBelowScore = listOfNotNull(warmScore, shown.get()?.second).maxOrNull(),
+                        onSolverReady = {
+                            solverHandle.set(it)
+                            checkSolver = it
+                        },
+                        // Silent: its one build is sent below, once read back and verified.
+                        emitFilter = { _, _ -> false },
+                        sendFinal = false,
                         maxWallSecondsOverride = checkWallSeconds,
                         maxDeterministicTimeOverride = checkDeterministic,
-                        progressStartMs = legStartMs,
-                        mmObjectiveComparable = mmObjectiveComparable,
-                        mmHardLegMultiplier = mmHardLegMultiplier
+                        progressStartMs = legStartMs
                     )
-                // Found: a floored build worth v — the floored optimum, sent as the leg's final (its objective fixed, CP-SAT's
-                // OPTIMAL comes with the first solution).
-                if (checked?.finalBuild != null) return checked
+                // Found: a floored build worth w, once the scorers' read confirms it keeps its floors (and targets).
+                val checkedBuild = checked?.finalBuild
+                val checkedScore = checked?.finalScore
+                if (checkedBuild != null && checkedScore != null) {
+                    if (keepsFloors(params, checkedBuild, hardConstraints)) {
+                        // w = v proven: the floored optimum, the leg's result — stamped with v, its objective (fixed by the check's model).
+                        if (relaxedProven) {
+                            if (scope.isActive) {
+                                scope.send(
+                                    SolverResult(
+                                        individual = checkedBuild,
+                                        matchPercentage = checkedScore,
+                                        progressPercentage = 100,
+                                        isOptimal = !needsItemPrefilter(params.targetStats),
+                                        mostMasteriesObjective = mmStampedObjective(relaxedValue, mmObjectiveComparable, mmHardLegMultiplier, null)
+                                    )
+                                )
+                            }
+                            return checked
+                        }
+                        // Unproven w: shown (its floored objective is w, fixed by the check's model), and the floored stage starts from
+                        // it — a floored build, unlike the relaxed incumbent.
+                        if (offer(checkedBuild, checkedScore) && scope.isActive) {
+                            scope.trySend(
+                                SolverResult(
+                                    individual = checkedBuild,
+                                    matchPercentage = checkedScore,
+                                    progressPercentage = (elapsedMs() / totalWallMs * 100).toInt().coerceIn(0, 99),
+                                    mostMasteriesObjective = mmStampedObjective(relaxedValue, mmObjectiveComparable, mmHardLegMultiplier, null)
+                                )
+                            )
+                        }
+                        checkSolver?.let { found -> hint = runCatching { diagnosticVars(check).associate { it.name to found.value(it) } }.getOrNull() ?: hint }
+                    } else {
+                        logger.error { "Relax-then-check: the check's build reads a broken floor in the scorers' read — solving the floored leg instead." }
+                    }
+                }
                 spentDeterministic += checked?.deterministicTime ?: 0.0
             }
             if (!scope.isActive) return relaxedOutcome
