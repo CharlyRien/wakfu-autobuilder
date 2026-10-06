@@ -187,6 +187,7 @@ fun AppShell(
                 onDismiss = model::closeModal,
                 suggestedSaveName = model.suggestedSaveName(),
                 isEditingExisting = ui.activeBuildId != null,
+                takenNamesForNew = model.takenBuildNames(asNew = true),
                 // Save dialog excludes the *active* build's name; the Edit dialog must exclude the
                 // *edited* build's name (it may differ from the active build) so its inline
                 // duplicate-name warning matches what editBuild() will actually accept.

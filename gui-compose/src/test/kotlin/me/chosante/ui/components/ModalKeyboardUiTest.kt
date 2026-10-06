@@ -6,13 +6,16 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -25,6 +28,7 @@ import me.chosante.common.history.RequestSnapshot
 import me.chosante.common.history.ResultSnapshot
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
+import me.chosante.ui.i18n.Tr
 import me.chosante.ui.state.Modal
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
@@ -377,6 +381,29 @@ class ModalKeyboardUiTest {
             field(0).press(Key.Enter)
 
             assertThat(spy.renames).isEmpty()
+        }
+    }
+
+    @Test
+    fun `Save as new prefills a free name and rejects every existing name in both languages`() {
+        for (lang in Lang.entries) {
+            runComposeUiTest {
+                val spy = Spy()
+                open(Modal.SaveBuild, spy, suggestedSaveName = "Daily", isEditingExisting = true, takenNames = setOf("daily (2)", "other"), lang = lang)
+                onNodeWithText(Tr.SAVE_AS_NEW.value(lang)).performClick()
+                onNodeWithText("Daily (3)").assertExists()
+                assertThat(spy.saves).isEmpty()
+                for (taken in listOf(" DAILY ", "daily (2)", "other")) {
+                    field(0).performTextReplacement(taken)
+                    onNodeWithText(Tr.SAVE_NAME_TAKEN.value(lang)).assertExists()
+                    onNodeWithText(Tr.SAVE.value(lang), useUnmergedTree = true).assertHasNoClickAction()
+                    field(0).press(Key.Enter)
+                    assertThat(spy.saves).isEmpty()
+                }
+                field(0).performTextReplacement("Daily (3)")
+                field(0).press(Key.Enter)
+                assertThat(spy.saves).containsExactly(Triple("Daily (3)", null, true))
+            }
         }
     }
 }

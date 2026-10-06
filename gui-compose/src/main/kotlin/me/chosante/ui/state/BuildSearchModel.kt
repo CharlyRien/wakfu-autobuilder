@@ -2113,7 +2113,10 @@ class BuildSearchModel(
      * "Cra 110 · Distance" — made unique against the library ("… (2)") so that suggestion never collides with a build you
      * already saved, which would open the dialog with Save disabled and the "name already used" warning showing.
      */
-    fun suggestedSaveName(): String = ui.activeBuildName ?: uniqueLibraryName(ui.suggestedBuildName())
+    fun suggestedSaveName(asNew: Boolean = false): String {
+        val base = ui.activeBuildName ?: ui.suggestedBuildName()
+        return if (asNew || ui.activeBuildId == null) uniqueLibraryName(base) else base
+    }
 
     /**
      * The game-data version a snapshot of the build on screen is stamped with: the one it was COMPUTED with. That is this app's
@@ -2131,13 +2134,13 @@ class BuildSearchModel(
     private fun UiState.resultEngineVersion(): Int? = staleEngine.let { if (it == null) engineResultsVersion else it.savedVersion }
 
     /**
-     * Names already used by *other* saved builds (the active build's own name is excluded so updating
+     * Names already used by saved builds (all of them for a copy; the active build is excluded so updating
      * it isn't blocked). The save dialog rejects these so two builds never share a name — which would
      * make the library and the compare view ambiguous.
      */
-    fun takenBuildNames(): Set<String> =
+    fun takenBuildNames(asNew: Boolean = false): Set<String> =
         ui.savedBuilds
-            .filter { it.id != ui.activeBuildId }
+            .filter { asNew || it.id != ui.activeBuildId }
             .map { it.name.trim().lowercase() }
             .toSet()
 
@@ -2152,6 +2155,10 @@ class BuildSearchModel(
         asNew: Boolean,
     ) {
         val trimmedName = name.trim().ifBlank { ui.suggestedBuildName() }
+        if (trimmedName.lowercase() in takenBuildNames(asNew)) {
+            ui = ui.copy(error = UiError(Tr.SAVE_NAME_TAKEN.value(ui.lang)))
+            return
+        }
         val overwrite = !asNew && ui.activeBuildId != null
         val id = if (overwrite) ui.activeBuildId!! else idGenerator()
         // Overwriting rebuilds the entry from the workspace, which doesn't carry user metadata (tags,
@@ -2446,10 +2453,7 @@ class BuildSearchModel(
     private fun uniqueLibraryName(base: String): String {
         val trimmed = base.trim().ifBlank { Tr.IMPORTED_BUILD_NAME.value(ui.lang) }
         val taken = ui.savedBuilds.map { it.name.trim().lowercase() }.toSet()
-        if (trimmed.lowercase() !in taken) return trimmed
-        var n = 2
-        while ("$trimmed ($n)".lowercase() in taken) n++
-        return "$trimmed ($n)"
+        return freeBuildName(trimmed, taken)
     }
 
     /** Clears the active-build identity (the workspace becomes an "unsaved build" again, unlocked). */
