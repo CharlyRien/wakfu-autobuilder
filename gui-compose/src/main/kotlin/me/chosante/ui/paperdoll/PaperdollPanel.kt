@@ -94,13 +94,9 @@ fun PaperdollPanel(
     modifier: Modifier = Modifier,
 ) {
     val slots = remember(ui.build) { slotAssignments(ui.build?.equipments.orEmpty()) }
-    // "Explain the solver's choices": why each empty slot is empty. The sub-condition hint is factual as
-    // soon as the sub is in the build; the generic "nothing improves the request here" one is only true of
-    // a FINISHED search (mid-search an empty slot may simply not have been chosen yet), so gate it on Idle.
     val emptyHints =
-        remember(ui.build, ui.phase) {
-            emptySlotHints(slots, ui.build)
-                .filterValues { it !is EmptySlotHint.NoUsefulItem || ui.phase == Phase.Idle }
+        remember(ui.build, ui.phase, ui.searchStopped, ui.mode) {
+            visibleEmptySlotHints(slots, ui)
         }
     Column(modifier = modifier.fillMaxSize()) {
         Box(
