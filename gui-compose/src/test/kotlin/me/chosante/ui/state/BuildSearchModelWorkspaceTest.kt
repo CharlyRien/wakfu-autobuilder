@@ -280,6 +280,43 @@ class BuildSearchModelWorkspaceTest {
         assertThat(WorkspaceStore(baseDir = dir).read()?.request?.level).describedAs("the edit is not lost to the quit").isEqualTo(150)
     }
 
+    /** A store whose FIRST write blocks until [release] opens, after signalling [writing]: a slow disk mid-write. */
+    private class BlockingFirstWriteStore(
+        dir: Path,
+    ) : WorkspaceStore(baseDir = dir, ioDispatcher = Dispatchers.IO) {
+        val writing = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        private val first =
+            java.util.concurrent.atomic
+                .AtomicBoolean(true)
+
+        override fun saveBlocking(snapshot: me.chosante.common.workspace.WorkspaceSnapshot) {
+            if (first.getAndSet(false)) {
+                writing.countDown()
+                release.await()
+            }
+            super.saveBlocking(snapshot)
+        }
+    }
+
+    @Test
+    fun `an edit made while the previous one is being written is written too`(
+        @TempDir dir: Path,
+    ) = withScope { scope ->
+        val store = BlockingFirstWriteStore(dir)
+        val model = newModel(scope, dir, store = store)
+        awaitUntil { model.isReady }
+
+        model.setLevel("150")
+        assertThat(store.writing.await(30, java.util.concurrent.TimeUnit.SECONDS)).describedAs("the first write started").isTrue()
+        model.setLevel("160") // during the write of 150
+        store.release.countDown()
+
+        awaitUntil { WorkspaceStore(baseDir = dir).read()?.request?.level == 160 }
+        model.flushWorkspace()
+        assertThat(WorkspaceStore(baseDir = dir).read()?.request?.level).isEqualTo(160)
+    }
+
     private fun item(frenchName: String) =
         me.chosante.common.Equipment(
             equipmentId = frenchName.hashCode(),

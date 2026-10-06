@@ -47,11 +47,12 @@ open class WorkspaceStore(
 
     /** Writes [snapshot] atomically on the calling thread. Never throws. */
     @Synchronized
-    fun saveBlocking(snapshot: WorkspaceSnapshot) {
+    open fun saveBlocking(snapshot: WorkspaceSnapshot) {
         runCatching {
             file.parent.createDirectories()
-            // One fixed temp name (writes are serialized): a crash mid-write leaves at most this one file, replaced by the next write.
-            val temp = file.resolveSibling("$FILE_NAME.tmp")
+            // One temp name per process (writes within it are serialized): a crash mid-write leaves at most this one file, replaced
+            // by the next write, and two app instances never move each other's half-written file into place.
+            val temp = file.resolveSibling("$FILE_NAME.${ProcessHandle.current().pid()}.tmp")
             try {
                 Files.writeString(temp, encode(snapshot))
                 runCatching {
