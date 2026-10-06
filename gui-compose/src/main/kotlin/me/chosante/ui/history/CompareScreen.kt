@@ -192,7 +192,7 @@ private fun SideColumn(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 BreedIcon(clazz = entry.restoredClass(), size = 20.dp)
                 Text(
-                    text = "${entry.classDisplayName()} · ${tr(Tr.LEVEL_SHORT)} ${entry.request.level} · ${tr(entry.modeLabel())}",
+                    text = "${entry.classDisplayName(LocalLang.current)} · ${tr(Tr.LEVEL_SHORT)} ${entry.request.level} · ${tr(entry.modeLabel())}",
                     style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
                 )
             }
@@ -651,7 +651,7 @@ private fun SpellDamageRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            val meta = listOfNotNull(elementLabel, spell.apCost?.let { "$it AP" }).joinToString(" · ")
+            val meta = listOfNotNull(elementLabel, spell.apCost?.let { Tr.STAT_AP_AMOUNT.value(lang).format(it) }).joinToString(" · ")
             if (meta.isNotEmpty()) {
                 Text(text = meta, style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono))
             }

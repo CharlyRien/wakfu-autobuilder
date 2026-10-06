@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.domain.resistancePercent
 import me.chosante.common.Monster
+import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WType
 import me.chosante.ui.theme.WTypography
@@ -121,7 +122,7 @@ internal fun MonsterIcon(
         if (bitmap != null) {
             Image(
                 bitmap = bitmap,
-                contentDescription = monster.name.en,
+                contentDescription = monster.name.localized(LocalLang.current),
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.size(size).padding(3.dp)
             )

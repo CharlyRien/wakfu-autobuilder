@@ -528,7 +528,7 @@ private fun ProofSpinner(
 }
 
 @Composable
-private fun SpellRotationCard(ui: UiState) {
+internal fun SpellRotationCard(ui: UiState) {
     val rotation = ui.spellRotation ?: return
     val lang = LocalLang.current
     ResultCard(
@@ -558,8 +558,7 @@ private fun SpellRotationCard(ui: UiState) {
         rotation.debuffCasts.forEach { cast ->
             Text(
                 text =
-                    "↳ ${cast.spell.name.let { if (lang == Lang.FR) it.fr else it.en }} " +
-                        "(${cast.apCost} AP, −${cast.spell.targetResistanceReductionFlat} res)",
+                    tr(Tr.SPELL_DEBUFF_CAST).format(cast.spell.name.localized(lang), cast.apCost, cast.spell.targetResistanceReductionFlat),
                 style = WTypography.labelSmall.copy(color = WColor.accent2),
                 modifier = Modifier.padding(bottom = 4.dp)
             )
@@ -568,7 +567,7 @@ private fun SpellRotationCard(ui: UiState) {
         // final value, not what each individual debuff reaches).
         if (rotation.debuffCasts.isNotEmpty() && rotation.effectiveResistancePercent != null) {
             Text(
-                text = "→ ${rotation.effectiveResistancePercent}% res after debuffs",
+                text = tr(Tr.SPELL_DEBUFF_RESISTANCE).format(rotation.effectiveResistancePercent),
                 style = WTypography.labelSmall.copy(color = WColor.accent2),
                 modifier = Modifier.padding(bottom = 4.dp)
             )
@@ -604,7 +603,7 @@ private fun SpellRotationCard(ui: UiState) {
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = "${rotation.totalExpectedDamage.toLong().formatCompact()}  (${rotation.apUsed}/${rotation.apBudget} AP)",
+                text = tr(Tr.SPELL_ROTATION_TOTAL).format(rotation.totalExpectedDamage.toLong().formatCompact(), rotation.apUsed, rotation.apBudget),
                 style = WTypography.bodyMedium.copy(fontFamily = WType.mono)
             )
         }
@@ -715,7 +714,7 @@ private fun SpellCastRow(
             modifier = Modifier.weight(1f)
         )
         Text(
-            text = "${cast.apCost} AP",
+            text = tr(Tr.STAT_AP_AMOUNT).format(cast.apCost),
             style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono)
         )
         Spacer(modifier = Modifier.width(10.dp))
@@ -1439,7 +1438,7 @@ private fun SublimationsResult(ui: UiState) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(text = sub.name.let { if (ui.lang == me.chosante.ui.i18n.Lang.FR) it.fr else it.en }, style = WTypography.labelMedium.copy(color = WColor.text))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = sub.rarity.name, style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono))
+                        Text(text = sub.rarity.label(LocalLang.current), style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono))
                         Spacer(modifier = Modifier.width(8.dp))
                         me.chosante.ui.components
                             .SublimationStackBadge(sub)
@@ -1456,7 +1455,7 @@ private fun SublimationsResult(ui: UiState) {
 /** The selected passive loadout, each as an icon + name (+ flat stats), with the in-game text on hover. */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun PassivesResult(ui: UiState) {
+internal fun PassivesResult(ui: UiState) {
     val passives = ui.build?.passives.orEmpty()
     if (passives.isEmpty()) return
     val lang = LocalLang.current
@@ -1494,7 +1493,7 @@ private fun PassivesResult(ui: UiState) {
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
-                        val flat = passive.flatStats.entries.joinToString("  ") { "+${it.value} ${it.key.name}" }
+                        val flat = passive.flatStats.entries.joinToString("  ") { "+${it.value} ${it.key.label(lang)}" }
                         if (flat.isNotBlank()) {
                             Text(
                                 text = flat,

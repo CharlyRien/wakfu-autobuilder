@@ -138,7 +138,8 @@ fun LibraryScreen(
             ui.libraryClassFilter,
             ui.libraryGroupByClass,
             ui.librarySelectedTags,
-            ui.libraryFolder
+            ui.libraryFolder,
+            ui.lang
         ) {
             organizeLibrary(
                 builds = ui.savedBuilds,
@@ -147,7 +148,8 @@ fun LibraryScreen(
                 classFilter = ui.libraryClassFilter,
                 groupByClass = ui.libraryGroupByClass,
                 selectedTags = ui.librarySelectedTags,
-                folder = ui.libraryFolder
+                folder = ui.libraryFolder,
+                lang = ui.lang
             )
         }
 
@@ -229,7 +231,7 @@ private fun LibraryGroupSection(
     if (group.clazz != null) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = group.clazz.libraryLabel(),
+                text = group.clazz.libraryLabel(LocalLang.current),
                 style = WTypography.labelMedium.copy(color = WColor.muted, fontWeight = FontWeight.SemiBold)
             )
             Text(
@@ -370,7 +372,7 @@ private fun LibrarySidebar(
             counts.forEach { (clazz, count) ->
                 val selected = ui.libraryClassFilter == clazz
                 SidebarRow(
-                    label = clazz.libraryLabel(),
+                    label = clazz.libraryLabel(LocalLang.current),
                     count = count,
                     selected = selected,
                     onClick = { onClassFilterChange(if (selected) null else clazz) }
@@ -957,7 +959,7 @@ private fun PillsRow(entry: HistoryEntry) {
     // wrap 3-per-row so a long set never overflows the card.
     val metaPills =
         listOf(
-            entry.classDisplayName(),
+            entry.classDisplayName(LocalLang.current),
             "${tr(Tr.LEVEL_SHORT)} ${entry.request.level}",
             tr(entry.modeLabel())
         )
