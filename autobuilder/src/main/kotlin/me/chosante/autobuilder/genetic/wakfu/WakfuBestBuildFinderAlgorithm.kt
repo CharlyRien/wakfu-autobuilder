@@ -50,11 +50,27 @@ object WakfuBestBuildFinderAlgorithm {
     // Each item carries its EQUIP criterion ([Equipment.equipCriterion], joined by id from [itemCriteria]), so every
     // consumer of a pool reads the item's conditions from the item itself.
     val equipments: List<Equipment> by lazy {
-        val criteria = itemCriteria.associateBy { it.itemId }
         EmbeddedResources.decodeList<Equipment>("equipments.json")!!.map { equipment ->
-            criteria[equipment.equipmentId]?.let { equipment.copy(equipCriterion = it) } ?: equipment
+            criteriaById[equipment.equipmentId]?.let { equipment.copy(equipCriterion = it) } ?: equipment
         }
     }
+
+    private val criteriaById: Map<Int, ItemEquipCriterion> by lazy { itemCriteria.associateBy { it.itemId } }
+
+    /**
+     * The first item EQUIP condition [build] breaks for a [characterClass] (null when the game lets it wear the build), each
+     * item's criterion read from the catalog by id — an item that carries none of its own included: a build read back from a
+     * save or an import has none ([Equipment.equipCriterion] is never saved), and one saved before the conditions were
+     * enforced may wear a nation sword without its ring. See [me.chosante.autobuilder.domain.equipConditionViolation].
+     */
+    fun equipConditionViolation(
+        build: BuildCombination,
+        characterClass: CharacterClass,
+    ): String? =
+        me.chosante.autobuilder.domain.equipConditionViolation(
+            build.equipments.map { item -> item.equipCriterion?.let { item } ?: criteriaById[item.equipmentId]?.let { item.copy(equipCriterion = it) } ?: item },
+            characterClass
+        )
 
     /**
      * The EQUIP criteria of the catalog's items (`item-criteria.json`, decoded from the local client's Item table by
@@ -582,20 +598,24 @@ object WakfuBestBuildFinderAlgorithm {
                 // model, scorers, both certificates, the build handed to the GUI / CLI / Zenith) then reads plain stats.
                 .map { equipment -> equipment.atLevel(character.level) }
                 .toList()
-        // Forcing an item forces what it needs: a forced nation sword brings its ring, so a ring slot narrowed to its
-        // forced rings below keeps the key (the model's `sword ≤ ring` then equips it).
-        val itemsToForce = forcedNamesWithRequirements(forcedItems, eligibleEquipments)
+        // Only the USER's forced names narrow a slot (the model's `Σ same-name ≥ 1` then equips each of them); what a
+        // forced item requires (a forced nation sword's ring) is kept beside them in that slot, never narrows one on its
+        // own — the model's `sword ≤ ring` equips it. The RING slot is never narrowed: a build wears TWO rings, so
+        // forcing one (or a sword, whose key ring takes one) leaves the second free — narrowing it to the forced rings
+        // took that second ring away, and CP-SAT then proved OPTIMAL a build worse than the true forced-item optimum.
+        val userForced = forcedItems.mapTo(HashSet()) { it.lowercase() }
+        val itemsToKeep = forcedNamesWithRequirements(forcedItems, eligibleEquipments)
         val forcedWeaponTypes =
             eligibleEquipments
-                .filter { it.name.fr.lowercase() in itemsToForce }
+                .filter { it.name.fr.lowercase() in userForced }
                 .map { it.itemType }
                 .toSet()
         val equipmentsByItemType =
             eligibleEquipments
                 .groupBy { it.itemType }
-                .mapValues { (_, value) ->
-                    if (value.any { it.name.fr.lowercase() in itemsToForce }) {
-                        value.filter { it.name.fr.lowercase() in itemsToForce || itemsToForce.isEmpty() }
+                .mapValues { (type, value) ->
+                    if (type != ItemType.RING && value.any { it.name.fr.lowercase() in userForced }) {
+                        value.filter { it.name.fr.lowercase() in itemsToKeep }
                     } else {
                         value
                     }

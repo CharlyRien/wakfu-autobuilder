@@ -21,9 +21,11 @@ import me.chosante.autobuilder.domain.SpellRotationOptimizer
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.domain.forbiddenItemIds
+import me.chosante.autobuilder.domain.isWearableBy
 import me.chosante.autobuilder.domain.requiredItemIds
 import me.chosante.autobuilder.domain.requirementClosure
 import me.chosante.autobuilder.genetic.SolverResult
+import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
@@ -1791,7 +1793,7 @@ object WakfuBuildSolver {
         // ≤1-normal-sub-per-item cap live in createSublimationModel; rune capacity (Σ runes ≤ sockets) lives in
         // createRuneModel. The two no longer share a socket budget.
 
-        model.addBuildValidityConstraints(allEquips, equipVars)
+        model.addBuildValidityConstraints(allEquips, equipVars, params.character.clazz)
         model.addForcedItemsEquippedConstraints(params, allEquips, equipVars)
         bmMark("validity")
 
@@ -4219,6 +4221,7 @@ object WakfuBuildSolver {
     private fun CpModel.addBuildValidityConstraints(
         allEquips: List<Equipment>,
         equipVars: Map<Equipment, IntVar>,
+        characterClass: CharacterClass,
     ) {
         val itemTypesLimits =
             mapOf(
@@ -4291,23 +4294,30 @@ object WakfuBuildSolver {
                 addLessOrEqual(sumExpr, 1L)
             }
         }
-        addEquipConditionConstraints(allEquips, equipVars)
+        addEquipConditionConstraints(allEquips, equipVars, characterClass)
     }
 
     /**
-     * The item EQUIP conditions of the pool (AGENTS.md §4 "Item equip conditions"; class-only and never-equippable items
-     * are already out of the pool): an item is worn only with each item it requires — `x_item ≤ x_key`, and a key the
+     * The item EQUIP conditions of the pool (AGENTS.md §4 "Item equip conditions"): an item a [characterClass] can't wear
+     * (another class's emblem / amulet, a never-equippable `False` item) is forced off — the production pool
+     * ([WakfuBestBuildFinderAlgorithm.poolFor]) already filtered them, but a raw pool (the lvl-245 oracle's, a research
+     * harness's) still carries them; an item is worn only with each item it requires — `x_item ≤ x_key`, and a key the
      * pool lacks forces the item off (the pool filter normally dropped it already) — and two items either of which
      * forbids the other are never worn together — `x_a + x_b ≤ 1`, once per unordered pair (the symmetric closure).
      */
     private fun CpModel.addEquipConditionConstraints(
         allEquips: List<Equipment>,
         equipVars: Map<Equipment, IntVar>,
+        characterClass: CharacterClass,
     ) {
         val byId = allEquips.associateBy { it.equipmentId }
         val excludedPairs = HashSet<Pair<Int, Int>>()
         for (item in allEquips) {
             val itemVar = equipVars.getValue(item)
+            if (!item.isWearableBy(characterClass)) {
+                addEquality(itemVar, 0L)
+                continue
+            }
             for (keyId in item.requiredItemIds) {
                 val key = byId[keyId]
                 if (key == null) {
