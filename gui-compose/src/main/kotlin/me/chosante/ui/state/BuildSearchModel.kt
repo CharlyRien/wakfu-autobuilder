@@ -6,6 +6,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.conflate
@@ -13,6 +14,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.swing.Swing
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import me.chosante.ZenithInputParameters
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
@@ -41,6 +43,7 @@ import me.chosante.common.ItemType
 import me.chosante.common.Monster
 import me.chosante.common.Rarity
 import me.chosante.common.history.HistoryEntry
+import me.chosante.common.workspace.WorkspaceSnapshot
 import me.chosante.createZenithBuild
 import me.chosante.ui.components.BreedAssets
 import me.chosante.ui.components.IconPreloader
@@ -59,6 +62,7 @@ import me.chosante.ui.history.toBuildCombination
 import me.chosante.ui.history.toExcludedChips
 import me.chosante.ui.history.toForcedChips
 import me.chosante.ui.history.toHistoryEntry
+import me.chosante.ui.history.toRequestSnapshot
 import me.chosante.ui.history.toTargetRows
 import me.chosante.ui.i18n.Tr
 import java.awt.Desktop
@@ -180,9 +184,37 @@ class BuildSearchModel(
     // search's own result. Injectable so tests can hand back a score of any shape, or time the load without it.
     private val buildRescorer: (WakfuBestBuildParams, BuildCombination) -> java.math.BigDecimal =
         { params, build -> WakfuBestBuildFinderAlgorithm.rescore(params, build) },
+    /**
+     * Where the request being edited is remembered between launches ([WorkspaceStore]), or null to remember nothing. Null by
+     * default so a model built by a test never reads or writes the user's real workspace: the app passes its store (Main.kt).
+     */
+    private val workspaceStore: WorkspaceStore? = null,
+    /** How long the request must stay unchanged before it is written ([WorkspaceStore]); typing a value writes once. */
+    private val workspaceSaveDebounce: kotlin.time.Duration = 800.milliseconds,
+    /** The game data a remembered request is checked against when it comes back. Injectable for tests. */
+    private val workspaceCatalog: () -> WorkspaceCatalog = { WorkspaceCatalog.fromGameData() },
 ) {
-    var ui by androidx.compose.runtime.mutableStateOf(UiState())
-        private set
+    private val uiState = androidx.compose.runtime.mutableStateOf(UiState())
+
+    var ui: UiState
+        get() = uiState.value
+        private set(value) {
+            uiState.value = value
+            rememberWorkspaceLater(value)
+        }
+
+    // --- Remembered workspace (see [WorkspaceStore]) ---
+
+    /**
+     * False until the remembered request has been put back ([restoreWorkspace]): writing before that would replace the file
+     * with the defaults the app starts from.
+     */
+    private var workspaceRestored = false
+
+    /** The request last handed to the store (or restored from it): an unchanged request is never written again. */
+    private var rememberedRequest: me.chosante.common.history.RequestSnapshot? = null
+
+    private var workspaceSaveJob: Job? = null
 
     /**
      * `true` once the app is ready to show its main UI: OR-Tools' one-time cold start has been paid
@@ -269,6 +301,14 @@ class BuildSearchModel(
                 verifyOptimality = libraryPreferences.loadVerifyOptimality()
             )
 
+        // Read the remembered request while the engine warms up (a small local file, long read by the time warm-up ends); it
+        // is put back when the loading screen gives way to the main UI, never earlier — and never in screenshot mode, whose
+        // captures must show the default request.
+        val rememberedWorkspace =
+            workspaceStore
+                ?.takeUnless { isScreenshotMode }
+                ?.let { store -> scope.async(ioDispatcher) { store.load() } }
+
         // Load the saved-build library off the UI thread. A read failure must never block startup —
         // it just yields an empty library that fills in as the user saves builds.
         scope.launch(ioDispatcher) {
@@ -336,9 +376,13 @@ class BuildSearchModel(
                     // Always reveal the UI: a warm-up failure must never leave the app stuck on the
                     // loading screen.
                     ticker.cancel()
+                    // Bounded: the main UI must never wait on a slow disk. A request still unread by then is simply not restored.
+                    val remembered = rememberedWorkspace?.let { read -> runCatching { withTimeoutOrNull(2.seconds) { read.await() } }.getOrNull() }
                     withContext(mainDispatcher) {
                         warmupProgress = 1f
                         warmupEtaSeconds = null
+                        // In the same frame as the reveal, so the main UI never shows the defaults first.
+                        if (rememberedWorkspace != null) restoreWorkspace(remembered)
                         isReady = true
                     }
                 }
@@ -350,6 +394,57 @@ class BuildSearchModel(
                 startIconPreload()
             }
         }
+    }
+
+    /**
+     * Puts the remembered request ([snapshot], null when there is none to use) back into the workspace, then starts remembering
+     * every later change. The game data may have changed since it was written: once the catalogs are loaded (off the UI thread),
+     * the items, sublimations, passives and runes it no longer knows are dropped, with a toast saying how many.
+     */
+    private fun restoreWorkspace(snapshot: WorkspaceSnapshot?) {
+        if (snapshot != null) ui = ui.withRememberedRequest(snapshot.request)
+        rememberedRequest = ui.toRequestSnapshot(keepBossInAnyMode = true)
+        workspaceRestored = true
+        if (snapshot == null) return
+        scope.launch(backgroundDispatcher) {
+            val catalog = runCatching { workspaceCatalog() }.getOrNull() ?: return@launch
+            withContext(mainDispatcher) {
+                // Applied to the request as it is NOW: the user may have edited it meanwhile, and only unknown names go.
+                val (cleaned, dropped) = ui.withoutUnknownEntries(catalog)
+                if (cleaned == ui) return@withContext
+                ui = if (dropped > 0) cleaned.copy(toast = Tr.TOAST_WORKSPACE_ENTRIES_REMOVED.value(ui.lang).format(dropped)) else cleaned
+            }
+        }
+    }
+
+    /**
+     * Writes [state]'s request to the [workspaceStore] once it has stayed unchanged for [workspaceSaveDebounce]. Called on every
+     * state change: anything that is not the request (a search's progress, a result, a modal) changes nothing here.
+     */
+    private fun rememberWorkspaceLater(state: UiState) {
+        val store = workspaceStore ?: return
+        if (!workspaceRestored) return
+        val request = state.toRequestSnapshot(keepBossInAnyMode = true)
+        if (request == rememberedRequest) return
+        rememberedRequest = request
+        workspaceSaveJob?.cancel()
+        val snapshot = WorkspaceSnapshot(dataVersion = dataVersion, request = request)
+        workspaceSaveJob =
+            scope.launch(ioDispatcher) {
+                delay(workspaceSaveDebounce)
+                store.save(snapshot)
+            }
+    }
+
+    /**
+     * Writes the request on screen right away, skipping the debounce — for the window's close request, after which a pending
+     * write would never run. A small atomic file write on the calling thread.
+     */
+    fun flushWorkspace() {
+        val store = workspaceStore ?: return
+        if (!workspaceRestored) return
+        workspaceSaveJob?.cancel()
+        store.saveBlocking(ui.toWorkspaceSnapshot(dataVersion))
     }
 
     /**
