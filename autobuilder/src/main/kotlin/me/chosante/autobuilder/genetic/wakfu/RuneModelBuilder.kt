@@ -368,8 +368,10 @@ internal class MaxDamageRuneReads(
      *  - a FORCED condition (its effect gated by the condition, possibly a malus) or a non-`≤` comparison: the build may
      *    want to cross the threshold from either side — always mixed;
      *  - [thresholdReads]: a ramp's steps, a per-element compare;
-     *  - a required target row (`actual ≥ target` on the hard leg, the shortfall penalty on the soft one) whose target
-     *    is positive or whose stat a source can make negative — else every build meets it whatever its runes.
+     *  - a required target row (`actual ≥ target` on the hard leg, the shortfall penalty on the soft one; a 0-target row
+     *    is a floor) whose target is positive or whose stat a source can make negative — else every build meets it
+     *    whatever its runes. Keyed per rune type: an "all resistances" row reads the four per-element resistances;
+     *  - the survivability floor (HP and the four resistances), a non-crit conversion's source (its rounding step).
      * The set is exact for the candidate types of the collapse and for the general fold's types alike: a stat no
      * threshold reads is one more linear read.
      */
@@ -485,9 +487,20 @@ internal fun maxDamageRuneReads(
     val converted = HashSet<Characteristic>()
     val thresholds = HashSet<Characteristic>()
     val rows = LinkedHashMap<Characteristic, Long>()
-    params.targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }.forEach {
-        opaque += it.characteristic
-        rows[it.characteristic] = maxOf(rows[it.characteristic] ?: Long.MIN_VALUE, it.target.toLong())
+    params.targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }.forEach { row ->
+        // Keyed like the rune types ([relevantRuneStats]): an "all resistances" row (max-damage keeps it unsplit) reads
+        // each per-element resistance rune.
+        for (stat in runeKeysOf(row.characteristic)) {
+            opaque += stat
+            rows[stat] = maxOf(rows[stat] ?: Long.MIN_VALUE, row.target.toLong())
+        }
+    }
+    // The survivability floor reads HP and the four resistances through `min(EHP, floor)` and a bucket table: a
+    // threshold on each of them (see [StatBuilder]'s effective-HP proxy).
+    val scenario = params.damageScenario
+    if (scenario.survivabilityFloor && scenario.minEffectiveHp > 0) {
+        thresholds += Characteristic.HP
+        thresholds += ELEMENTARY_RESISTANCES
     }
     val (forced, choosable) = modelledSublimations(params, sublimations)
     for (sub in forced + choosable) {
@@ -514,7 +527,13 @@ internal fun maxDamageRuneReads(
                 conversion.from == Characteristic.MASTERY_CRITICAL &&
                     conversion.to.foldedToUsableStat() in damageStats &&
                     conversion.percent in 0..100
-            if (critIntoDamage) converted += conversion.from else opaque += conversion.from
+            if (critIntoDamage) {
+                converted += conversion.from
+            } else {
+                // Any other conversion moves `floor(pct · stat)`: a rounding step a part-fill can land on.
+                opaque += conversion.from
+                thresholds += conversion.from
+            }
         }
         sub.perStatStep?.let {
             opaque += it.source
@@ -541,15 +560,43 @@ internal fun negativeStatSources(
 ): Set<Characteristic> {
     val out = HashSet<Characteristic>()
     for (equip in allEquips) {
-        for ((stat, value) in equip.characteristics) if (value < 0) out += stat.foldedToUsableStat()
+        for ((stat, value) in equip.characteristics) if (value < 0) out += negativeTargets(stat)
     }
     for (sub in sublimations) {
         for (effect in sub.effects.filterIsInstance<me.chosante.common.SublimationEffect.StatEffect>()) {
-            if (effect.magnitudeAtLevel(characterLevel) < 0) out += effect.characteristic.foldedToUsableStat()
+            if (effect.magnitudeAtLevel(characterLevel) < 0) out += negativeTargets(effect.characteristic)
         }
     }
     return out
 }
+
+/**
+ * The per-element stats a negative line of [stat] can lower: an aggregate or random-element resistance (mastery) line
+ * lands on the four elements (16 catalog items carry a negative "all resistances" line), any other line on its own
+ * (MAX_* folded) stat.
+ */
+private fun negativeTargets(stat: Characteristic): Set<Characteristic> =
+    when (stat) {
+        Characteristic.RESISTANCE_ELEMENTARY,
+        Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT,
+        Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT,
+        Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT,
+        -> ELEMENTARY_RESISTANCES.toSet() + stat
+        Characteristic.MASTERY_ELEMENTARY,
+        Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT,
+        Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT,
+        Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT,
+        -> ELEMENTARY_MASTERIES.toSet() + stat
+        else -> setOf(stat.foldedToUsableStat())
+    }
+
+/** The rune types a target row on [stat] reads — the same keys as [relevantRuneStats]. */
+private fun runeKeysOf(stat: Characteristic): List<Characteristic> =
+    when (stat) {
+        Characteristic.RESISTANCE_ELEMENTARY -> ELEMENTARY_RESISTANCES.toList()
+        Characteristic.MASTERY_ELEMENTARY, in ELEMENTARY_MASTERIES -> listOf(Characteristic.MASTERY_ELEMENTARY)
+        else -> listOf(stat)
+    }
 
 /**
  * The rune-coverable stats worth modelling for this request: requested stats that have a rune.
