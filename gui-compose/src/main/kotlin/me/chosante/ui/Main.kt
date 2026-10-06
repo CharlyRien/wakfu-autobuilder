@@ -56,6 +56,9 @@ fun main() {
         val scope = rememberCoroutineScope()
         // The workspace is remembered between launches, except by the screenshot smoke test (which must capture the defaults).
         val model = remember { BuildSearchModel(scope, workspaceStore = WorkspaceStore().takeIf { screenshotPath == null }) }
+        // Cmd+Q, Dock → Quit and a logout end the JVM without the window's close request: flush the remembered workspace from a
+        // shutdown hook too (it writes a plain snapshot, never Compose state, so any thread is fine).
+        remember(model) { Runtime.getRuntime().addShutdownHook(Thread { model.flushWorkspace() }) }
         // The window opens *floating* (small, centered) and is only maximised once warm-up is done —
         // see the LaunchedEffect below. Opening maximised looked attractive but reintroduced the
         // startup freeze it was meant to fix: applying Maximized runs the macOS zoom transition the

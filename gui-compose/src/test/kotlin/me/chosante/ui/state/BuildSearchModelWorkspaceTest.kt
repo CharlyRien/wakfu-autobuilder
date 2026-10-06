@@ -1,5 +1,6 @@
 package me.chosante.ui.state
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -11,6 +12,7 @@ import kotlinx.coroutines.withTimeout
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.genetic.SolverResult
 import me.chosante.common.CharacterClass
+import me.chosante.common.Characteristic
 import me.chosante.common.Rarity
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.ui.history.HistoryRepository
@@ -25,6 +27,7 @@ import kotlin.io.path.exists
 import kotlin.io.path.readText
 import kotlin.io.path.writeText
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -42,6 +45,9 @@ class BuildSearchModelWorkspaceTest {
     private fun newModel(
         scope: CoroutineScope,
         dir: Path,
+        store: WorkspaceStore = WorkspaceStore(baseDir = dir, ioDispatcher = Dispatchers.IO),
+        debounce: kotlin.time.Duration = 20.milliseconds,
+        readWait: kotlin.time.Duration = 2.seconds,
     ): BuildSearchModel =
         BuildSearchModel(
             scope = scope,
@@ -53,9 +59,10 @@ class BuildSearchModelWorkspaceTest {
             ioDispatcher = Dispatchers.Unconfined,
             libraryPreferences = LibraryPreferences(null),
             historyRepository = HistoryRepository(baseDir = dir.resolve("library"), ioDispatcher = Dispatchers.Unconfined),
-            workspaceStore = WorkspaceStore(baseDir = dir, ioDispatcher = Dispatchers.IO),
-            workspaceSaveDebounce = 20.milliseconds,
-            workspaceCatalog = { catalog }
+            workspaceStore = store,
+            workspaceSaveDebounce = debounce,
+            workspaceCatalog = { catalog },
+            workspaceReadWait = readWait
         ).also { it.windowShown.complete(Unit) }
 
     private suspend fun awaitUntil(predicate: () -> Boolean) {
@@ -163,6 +170,98 @@ class BuildSearchModelWorkspaceTest {
         assertThat(second.ui.duration).isEqualTo("1")
         assertThat(second.ui.build).isNull()
         assertThat(second.ui.phase).isEqualTo(Phase.Idle)
+    }
+
+    @Test
+    fun `a blank field and a typed 0 come back as they were: no row for the blank, a floor for the 0`(
+        @TempDir dir: Path,
+    ) = withScope { scope ->
+        val first = newModel(scope, dir)
+        awaitUntil { first.isReady }
+        first.addTarget(Characteristic.RESISTANCE_ELEMENTARY_FIRE)
+        first.addTarget(Characteristic.RESISTANCE_ELEMENTARY_WIND)
+        val fire = first.ui.targets.single { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY_FIRE }
+        val air = first.ui.targets.single { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY_WIND }
+        first.updateTargetValue(fire.id, "")
+        first.updateTargetValue(air.id, "0")
+        first.flushWorkspace()
+
+        val second = newModel(scope, dir)
+        awaitUntil { second.isReady }
+
+        val rows = second.ui.targets.associate { it.characteristic to it.value }
+        assertThat(rows[Characteristic.RESISTANCE_ELEMENTARY_FIRE]).isEqualTo("")
+        assertThat(rows[Characteristic.RESISTANCE_ELEMENTARY_WIND]).isEqualTo("0")
+        val stats = with(second) { second.ui.toTargetStats() }
+        assertThat(stats.map { it.characteristic }).describedAs("a blank field asks for nothing").doesNotContain(Characteristic.RESISTANCE_ELEMENTARY_FIRE)
+        assertThat(stats.resistanceFloorElements).describedAs("a typed 0 is a floor").contains(Characteristic.RESISTANCE_ELEMENTARY_WIND)
+    }
+
+    @Test
+    fun `a flush writes the last edit at once, without waiting for the debounce`(
+        @TempDir dir: Path,
+    ) = withScope { scope ->
+        val model = newModel(scope, dir, debounce = 10.minutes)
+        awaitUntil { model.isReady }
+        model.setLevel("199")
+        assertThat(WorkspaceStore(baseDir = dir).read()?.request?.level).describedAs("still debounced").isNotEqualTo(199)
+
+        model.flushWorkspace()
+
+        assertThat(WorkspaceStore(baseDir = dir).read()?.request?.level).isEqualTo(199)
+    }
+
+    /** A store whose read only returns once [gate] completes: a disk slower than the reveal's wait. */
+    private class SlowStore(
+        dir: Path,
+        val gate: CompletableDeferred<Unit> = CompletableDeferred(),
+    ) : WorkspaceStore(baseDir = dir, ioDispatcher = Dispatchers.IO) {
+        override suspend fun load(): me.chosante.common.workspace.WorkspaceSnapshot? {
+            gate.await()
+            return super.load()
+        }
+    }
+
+    private fun rememberLevel(
+        dir: Path,
+        level: Int,
+    ) = WorkspaceStore(baseDir = dir).saveBlocking(
+        UiState(level = level).toWorkspaceSnapshot("v")
+    )
+
+    @Test
+    fun `a read slower than the reveal is applied when it lands, and nothing is written before`(
+        @TempDir dir: Path,
+    ) = withScope { scope ->
+        rememberLevel(dir, 177)
+        val store = SlowStore(dir)
+        val model = newModel(scope, dir, store = store, readWait = 50.milliseconds)
+        awaitUntil { model.isReady }
+        assertThat(model.ui.level).describedAs("the defaults show meanwhile").isEqualTo(UiState().level)
+
+        store.gate.complete(Unit)
+
+        awaitUntil { model.ui.level == 177 }
+        assertThat(WorkspaceStore(baseDir = dir).read()?.request?.level).isEqualTo(177)
+    }
+
+    @Test
+    fun `an edit made while a slow read runs never overwrites the file before the read lands, and then wins`(
+        @TempDir dir: Path,
+    ) = withScope { scope ->
+        rememberLevel(dir, 177)
+        val store = SlowStore(dir)
+        val model = newModel(scope, dir, store = store, readWait = 50.milliseconds)
+        awaitUntil { model.isReady }
+
+        model.setLevel("150")
+        delay(300.milliseconds) // well past the debounce
+        assertThat(WorkspaceStore(baseDir = dir).read()?.request?.level).describedAs("the remembered request is not overwritten yet").isEqualTo(177)
+
+        store.gate.complete(Unit)
+
+        awaitUntil { WorkspaceStore(baseDir = dir).read()?.request?.level == 150 }
+        assertThat(model.ui.level).describedAs("the user's edit wins over the late read").isEqualTo(150)
     }
 
     private fun item(frenchName: String) =
