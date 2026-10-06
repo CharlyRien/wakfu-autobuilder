@@ -2,6 +2,7 @@ package me.chosante.autobuilder.domain
 
 import me.chosante.common.CharacterClass
 import me.chosante.common.Equipment
+import me.chosante.common.ExclusiveGroup
 
 // The item EQUIP conditions the engine ENFORCES (AGENTS.md §4 "Item equip conditions"), read from the item's own
 // [Equipment.equipCriterion] (joined from `item-criteria.json` when the catalog loads). Every consumer — the pool
@@ -90,4 +91,17 @@ fun <K> withRequirementsMet(pool: Map<K, List<Equipment>>): Map<K, List<Equipmen
                 .mapValues { (_, items) -> items.filter { item -> item.requiredItemIds.all { it in ids } } }
                 .filterValues { it.isNotEmpty() }
     }
+}
+
+/**
+ * The first "only one equipped at a time" rule [equipments] break (null when none): two items of the EPIC exclusivity
+ * group — every EPIC item and two COMMON ones, 18691 / 18693 — or two of the RELIC group ([Equipment.exclusiveGroup], the
+ * CDN item properties 12 and 8). Human-readable — it names the items by French name.
+ */
+fun exclusiveGroupViolation(equipments: Collection<Equipment>): String? {
+    for (group in listOf(ExclusiveGroup.EPIC, ExclusiveGroup.RELIC)) {
+        val members = equipments.filter { it.exclusiveGroup == group }
+        if (members.size > 1) return "${members.joinToString(" and ") { it.name.fr }} are all in the $group exclusivity group (one at a time)"
+    }
+    return null
 }

@@ -80,6 +80,10 @@ class WakfuBuildSolverTest {
         // REQUIRES world split), so those cells no longer pair a sword with another epic item — the v56 optimum wore Épée
         // de Brâkmar without its ring, illegal in game (v56 bank: 15_121_470 / 16_236_875 / 16_630_860 / 17_304_250 /
         // 17_766_150 / 17_323_520 for cells 12–17).
+        // CERTIFIER_VERSION 58 (the epic budget follows the game's EPIC exclusivity group, which also holds the COMMON 18691
+        // Piquants du Guerrier Trool anciens, AP +1) CLOSED AP cell 17 (16_932_240 → 0) and left cells 0–16 unchanged: every
+        // AP-17 build of the pool wore 18691 beside an epic item — illegal in game (the review of #246's pinned AP-17 CP-SAT
+        // build: 18691 + Tyra 'neau) — so no legal build reaches 17 AP.
         // Re-bank from `WAKFU_MAX_DAMAGE_CERT_LEDGER=1 …_LEVEL=245 …_INCUMBENT=99999999999999` on the manual
         // `certifyLedger end-to-end` test (a huge incumbent eliminates every cell ⇒ pure fast tier, ~80 s).
         val LVL245_FAST_LEDGER_ORACLE =
@@ -101,7 +105,7 @@ class WakfuBuildSolverTest {
                 14 to 16_322_070L,
                 15 to 17_128_500L,
                 16 to 17_517_150L,
-                17 to 16_932_240L,
+                17 to 0L,
                 18 to 0L,
                 19 to 0L,
                 20 to 0L

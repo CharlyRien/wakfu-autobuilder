@@ -1,5 +1,6 @@
 package me.chosante.common
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
@@ -13,6 +14,43 @@ enum class Rarity {
     RELIC,
     SOUVENIR,
     EPIC,
+}
+
+/**
+ * The game's "only one item of this group equipped at a time" rule — what the "at most one epic and one relic item" budget
+ * really is. Ankama's CDN data carries it as two item PROPERTIES (`items.json` → `properties`, named in
+ * `itemProperties.json`): 12 `EXCLUSIVE_EQUIPMENT_ITEM_2` ("[Relique2]") for [EPIC] and 8 `EXCLUSIVE_EQUIPMENT_ITEM`
+ * ("[Relique]") for [RELIC]. On the 1.93 data property 8 is on exactly the 99 RELIC items, and property 12 on all 115 EPIC
+ * items plus two COMMON ones (18691 Piquants du Guerrier Trool anciens, 18693 Sain Turastil ancienne): the game refuses
+ * either of those two next to an epic item, or next to each other. An item reads its group through
+ * [Equipment.exclusiveGroup].
+ *
+ * The group decides the BUDGET only. Which item can host an epic / relic SUBLIMATION stays its [Rarity]: the exclusivity
+ * properties say nothing about a sublimation socket — the CDN names that with properties of its own (19 `EPIC_GEMMABLE` / 20
+ * `RELIC_GEMMABLE`, "adds an epic / relic gem slot to an item", carried only by the four nation rings and five swords, which
+ * are EPIC / RELIC already) — and neither COMMON item of the EPIC group carries one.
+ */
+@Serializable
+enum class ExclusiveGroup {
+    /** In no group: any number of such items may be worn together. */
+    NONE,
+
+    /** Property 12 `EXCLUSIVE_EQUIPMENT_ITEM_2`: every EPIC item, and two COMMON ones. */
+    EPIC,
+
+    /** Property 8 `EXCLUSIVE_EQUIPMENT_ITEM`: every RELIC item. */
+    RELIC,
+    ;
+
+    companion object {
+        /** The group an item of [rarity] is in when its data says nothing else: EPIC and RELIC items in theirs, others in none. */
+        fun ofRarity(rarity: Rarity): ExclusiveGroup =
+            when (rarity) {
+                Rarity.EPIC -> EPIC
+                Rarity.RELIC -> RELIC
+                else -> NONE
+            }
+    }
 }
 
 @Serializable
@@ -66,7 +104,20 @@ data class Equipment(
     // from equipments.json (a CDN artifact) nor written into a saved build.
     @Transient
     val equipCriterion: ItemEquipCriterion? = null,
+    // The item's "only one equipped at a time" group when it is NOT its rarity's ([ExclusiveGroup], read through
+    // [exclusiveGroup]): null = the rarity's group. `equipments-extractor` reads it from the CDN item properties and writes it
+    // only for such an exception (on the 1.93 data, the two COMMON items in the EPIC group), so a synthetic item (tests), a
+    // copy with another rarity, and a build saved before the field existed all follow their rarity.
+    @SerialName("exclusiveGroup")
+    val exclusiveGroupOverride: ExclusiveGroup? = null,
 ) {
+    /**
+     * The "only one equipped at a time" group this item is in ([ExclusiveGroup]): a build wears at most one [ExclusiveGroup.EPIC]
+     * and one [ExclusiveGroup.RELIC] item. Its [rarity]'s group unless the data says otherwise ([exclusiveGroupOverride]).
+     */
+    val exclusiveGroup: ExclusiveGroup
+        get() = exclusiveGroupOverride ?: ExclusiveGroup.ofRarity(rarity)
+
     /**
      * This item as worn by a level-[characterLevel] character: every [percentOfLevel] line resolved into
      * [characteristics] (`floor(percent · level / 100)`, [percentOfLevelMagnitude]) and cleared. Clearing makes the copy

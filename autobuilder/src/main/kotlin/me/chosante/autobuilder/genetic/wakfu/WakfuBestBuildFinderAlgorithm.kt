@@ -18,6 +18,7 @@ import me.chosante.autobuilder.genetic.SolverResult
 import me.chosante.common.Character
 import me.chosante.common.CharacterClass
 import me.chosante.common.Equipment
+import me.chosante.common.ExclusiveGroup
 import me.chosante.common.I18nText
 import me.chosante.common.ItemEquipCriterion
 import me.chosante.common.ItemType
@@ -57,20 +58,36 @@ object WakfuBestBuildFinderAlgorithm {
 
     private val criteriaById: Map<Int, ItemEquipCriterion> by lazy { itemCriteria.associateBy { it.itemId } }
 
+    // The catalog's exclusivity-group exceptions by id ([Equipment.exclusiveGroupOverride]: the two COMMON items of the EPIC group).
+    private val exclusiveGroupOverrideById: Map<Int, ExclusiveGroup> by lazy {
+        equipments.mapNotNull { item -> item.exclusiveGroupOverride?.let { item.equipmentId to it } }.toMap()
+    }
+
     /**
-     * The first item EQUIP condition [build] breaks for a [characterClass] (null when the game lets it wear the build), each
-     * item's criterion read from the catalog by id — an item that carries none of its own included: a build read back from a
-     * save or an import has none ([Equipment.equipCriterion] is never saved), and one saved before the conditions were
-     * enforced may wear a nation sword without its ring. See [me.chosante.autobuilder.domain.equipConditionViolation].
+     * The first item EQUIP condition or "only one equipped at a time" rule [build] breaks for a [characterClass] (null when
+     * the game lets it wear the build), each item's criterion and exclusivity group read from the catalog by id — an item
+     * that carries none of its own included: a build read back from a save or an import has no criterion
+     * ([Equipment.equipCriterion] is never saved), and one saved before the conditions were enforced may wear a nation
+     * sword without its ring; one saved before the exclusivity groups were read follows its rarity, so it may wear 18691
+     * (COMMON, EPIC group) beside an epic item. See [me.chosante.autobuilder.domain.equipConditionViolation] and
+     * [me.chosante.autobuilder.domain.exclusiveGroupViolation].
      */
     fun equipConditionViolation(
         build: BuildCombination,
         characterClass: CharacterClass,
-    ): String? =
-        me.chosante.autobuilder.domain.equipConditionViolation(
-            build.equipments.map { item -> item.equipCriterion?.let { item } ?: criteriaById[item.equipmentId]?.let { item.copy(equipCriterion = it) } ?: item },
-            characterClass
-        )
+    ): String? {
+        val items =
+            build.equipments.map { item ->
+                val withCriterion = item.equipCriterion?.let { item } ?: criteriaById[item.equipmentId]?.let { item.copy(equipCriterion = it) } ?: item
+                withCriterion.exclusiveGroupOverride?.let { withCriterion }
+                    ?: exclusiveGroupOverrideById[item.equipmentId]?.let { withCriterion.copy(exclusiveGroupOverride = it) }
+                    ?: withCriterion
+            }
+        return me.chosante.autobuilder.domain
+            .equipConditionViolation(items, characterClass)
+            ?: me.chosante.autobuilder.domain
+                .exclusiveGroupViolation(items)
+    }
 
     /**
      * The EQUIP criteria of the catalog's items (`item-criteria.json`, decoded from the local client's Item table by
@@ -662,7 +679,8 @@ object WakfuBestBuildFinderAlgorithm {
      * rarity above [WakfuBestBuildParams.maxRarity] / in [WakfuBestBuildParams.excludedRarities]); a forced
      * item that is also excluded; more distinct forced items than a slot can host (1 per slot, 2 rings); a
      * forced two-handed weapon combined with a forced one-handed / off-hand weapon (a 2H occupies both hands);
-     * more than one forced epic / relic ITEM (a build equips at most one of each); more than one forced epic /
+     * more than one forced item of the epic / relic exclusivity group (a build equips at most one of each; the epic group
+     * also holds two COMMON items — [me.chosante.common.ExclusiveGroup]); more than one forced epic /
      * relic SUBLIMATION (same ≤1 rule); a forced epic/relic sublimation whose carrier-item rarity the search
      * excludes (it could never be socketed); and more forced sublimations than a build can host (10). The item EQUIP
      * conditions add: a forced item the game never lets anyone wear, another class's item, an item whose required item
@@ -759,16 +777,16 @@ object WakfuBestBuildFinderAlgorithm {
             problems += RequestValidationProblem.ForcedWeaponsConflict((forcedTwoHanded + forcedOtherHands).map { it.name })
         }
 
-        // Item rarity budget: a valid build equips at most one EPIC and one RELIC item. A name counts against
-        // the budget only when EVERY item it resolves to has that rarity (an ambiguous multi-rarity name could
-        // still be satisfied by another variant).
-        for (rarity in listOf(Rarity.EPIC, Rarity.RELIC)) {
-            val ofRarity =
+        // Exclusivity budget: a valid build equips at most one item of the EPIC group (every EPIC item and two COMMON ones,
+        // [Equipment.exclusiveGroup]) and one of the RELIC group. A name counts against a budget only when EVERY item it
+        // resolves to is in that group (an ambiguous multi-rarity name could still be satisfied by another variant).
+        for ((group, rarity) in listOf(ExclusiveGroup.EPIC to Rarity.EPIC, ExclusiveGroup.RELIC to Rarity.RELIC)) {
+            val inGroup =
                 forcedWithRequirements.values
-                    .filter { matches -> matches.all { it.rarity == rarity } }
+                    .filter { matches -> matches.all { it.exclusiveGroup == group } }
                     .map { it.first() }
-            if (ofRarity.size > 1) {
-                problems += RequestValidationProblem.ForcedItemRarityBudgetExceeded(rarity, ofRarity.map { it.name })
+            if (inGroup.size > 1) {
+                problems += RequestValidationProblem.ForcedItemRarityBudgetExceeded(rarity, inGroup.map { it.name })
             }
         }
 
@@ -885,7 +903,10 @@ sealed interface RequestValidationProblem {
         val items: List<I18nText>,
     ) : RequestValidationProblem
 
-    /** More than one forced item of [rarity] (epic or relic); a valid build equips at most one of each. */
+    /**
+     * More than one forced item of the [rarity] exclusivity group (epic or relic — [me.chosante.common.ExclusiveGroup]: the
+     * EPIC group also holds two COMMON items); a valid build equips at most one of each.
+     */
     data class ForcedItemRarityBudgetExceeded(
         val rarity: Rarity,
         val items: List<I18nText>,
@@ -940,7 +961,7 @@ fun RequestValidationProblem.describe(): String =
         is RequestValidationProblem.ForcedWeaponsConflict ->
             "a forced two-handed weapon can't be combined with a forced one-handed/off-hand weapon: ${items.joinToString { it.en }}"
         is RequestValidationProblem.ForcedItemRarityBudgetExceeded ->
-            "a build equips at most one $rarity item, got: ${items.joinToString { it.en }}"
+            "a build equips at most one item of the $rarity exclusivity group, got: ${items.joinToString { it.en }}"
         is RequestValidationProblem.ForcedSublimationRarityExceeded ->
             "a build hosts at most one $rarity sublimation, got: ${sublimations.joinToString { it.en }}"
         is RequestValidationProblem.ForcedSublimationNoCarrier ->

@@ -62,8 +62,8 @@ enum class Tr(
         "Une arme à deux mains imposée occupe les deux mains — elle ne peut pas être combinée avec :"
     ),
     FORCED_ITEM_RARITY_BUDGET(
-        "A build can equip only one epic and one relic item — remove one of:",
-        "Un build ne peut équiper qu'un objet épique et une relique — retire l'un de :"
+        "A build can equip only one epic item (a few common items count as epic) and one relic item — remove one of:",
+        "Un build ne peut équiper qu'un objet épique (quelques objets communs comptent comme épiques) et une relique — retire l'un de :"
     ),
     FORCED_SUBLIMATION_NO_CARRIER(
         "needs an equipped item of its rarity (epic/relic), but that rarity is excluded from the search.",

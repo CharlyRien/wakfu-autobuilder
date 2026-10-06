@@ -1146,8 +1146,10 @@ internal object MostMasteriesCertificate {
                     mp = statOf(e, Characteristic.MOVEMENT_POINT),
                     cc = statOf(e, Characteristic.CRITICAL_HIT),
                     hp = statOf(e, Characteristic.HP),
-                    epic = e.rarity == me.chosante.common.Rarity.EPIC,
-                    relic = e.rarity == me.chosante.common.Rarity.RELIC,
+                    // The "only one equipped at a time" groups ([Equipment.exclusiveGroup]): the budget is exact; an EPIC-group
+                    // COMMON item (18691, 18693) also passes for an epic-sub carrier here, a sound over-count (it hosts none).
+                    epic = e.exclusiveGroup == me.chosante.common.ExclusiveGroup.EPIC,
+                    relic = e.exclusiveGroup == me.chosante.common.ExclusiveGroup.RELIC,
                     block = if (blockAtLeastMax > 0) statOf(e, Characteristic.BLOCK_PERCENTAGE) else 0,
                     // LOW dims: per-item options are exact, so the SIGNED value (negative lines
                     // included) is the tightest valid under-approximation. The AP read is the

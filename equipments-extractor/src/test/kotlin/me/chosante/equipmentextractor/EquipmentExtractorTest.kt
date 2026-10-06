@@ -4,12 +4,15 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.ExclusiveGroup
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import me.chosante.equipmentextractor.dataretriever.WakfuData
 import me.chosante.equipmentextractor.dataretriever.dtos.Effect
+import me.chosante.equipmentextractor.dataretriever.dtos.ItemProperty
 import me.chosante.equipmentextractor.dataretriever.dtos.ItemSerializer
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -65,15 +68,32 @@ class EquipmentExtractorTest {
     private val levelPercentParams = "[0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 100.0, 0.0]"
     private val levelPercentEffect = effect(417992, 999, levelPercentParams, subEffects = "[$masteryChild]")
 
-    private fun pourpre(vararg equipEffects: String): String =
+    /** The CDN's `itemProperties.json` (1.93.1.62, descriptions trimmed). */
+    private val itemProperties =
+        """
+        [{"id":1,"name":"TREASURE","description":"Objet trésor (interface spéciale)"},
+         {"id":7,"name":"SHOP_ITEM","description":"Item proposé uniquement au shop"},
+         {"id":8,"name":"EXCLUSIVE_EQUIPMENT_ITEM","description":"[Relique] Il ne peut y avoir qu'un seul Item ayant cette propriété équipé à la fois"},
+         {"id":12,"name":"EXCLUSIVE_EQUIPMENT_ITEM_2","description":"[Relique2] Il ne peut y avoir qu'un seul Item ayant cette propriété équipé à la fois"},
+         {"id":13,"name":"NOT_RECYCLABLE","description":"L'objet ne peut pas être recyclé"},
+         {"id":19,"name":"EPIC_GEMMABLE","description":"Ajoute un slot de gemme épique à un objet"},
+         {"id":20,"name":"RELIC_GEMMABLE","description":"Ajoute un slot de gemme relique à un objet "},
+         {"id":24,"name":"EXCLUDE_FROM_ENCYCLOPEDIA","description":"Objet exclus de l'encyclopédie in-game"}]
+        """.trimIndent()
+
+    private fun pourpre(
+        vararg equipEffects: String,
+        rarity: Int = 5,
+        properties: String = "[8]",
+    ): String =
         """
         {"definition": {
            "item": {"id": 33395, "level": 170,
-             "baseParameters": {"itemTypeId": 646, "itemSetId": 0, "rarity": 5, "bindType": 0, "minimumShardSlotNumber": 0, "maximumShardSlotNumber": 0},
+             "baseParameters": {"itemTypeId": 646, "itemSetId": 0, "rarity": $rarity, "bindType": 0, "minimumShardSlotNumber": 0, "maximumShardSlotNumber": 0},
              "useParameters": {"useCostAp": 0, "useCostMp": 0, "useCostWp": 0, "useRangeMin": 0, "useRangeMax": 0, "useTestFreeCell": false,
                "useTestLos": false, "useTestOnlyLine": false, "useTestNoBorderCell": false, "useWorldTarget": 0},
              "graphicParameters": {"gfxId": 53133395, "femaleGfxId": 53133395},
-             "properties": [8]},
+             "properties": $properties},
            "useEffects": [], "useCriticalEffects": [],
            "equipEffects": [${equipEffects.joinToString(",")}]},
          "title": {"fr": "Dofus Pourpre", "en": "Crimson Dofus", "es": "Dofus Púrpura", "pt": "Dofus Púrpura"}}
@@ -85,7 +105,8 @@ class EquipmentExtractorTest {
                 items = cdnJson.decodeFromString(ListSerializer(ItemSerializer), "[$item]"),
                 jobs = emptyList(),
                 effects = cdnJson.decodeFromString(ListSerializer(Effect.serializer()), actions),
-                itemTypes = cdnJson.decodeFromString(ListSerializer(CdnItemType.serializer()), emblemType)
+                itemTypes = cdnJson.decodeFromString(ListSerializer(CdnItemType.serializer()), emblemType),
+                itemProperties = cdnJson.decodeFromString(ListSerializer(ItemProperty.serializer()), itemProperties)
             )
         ).single()
 
@@ -127,5 +148,40 @@ class EquipmentExtractorTest {
         // An action absent from actions.json: its effect would be dropped, so the extraction stops and names it.
         val error = assertThrows<IllegalStateException> { extract(pourpre(apEffect, effect(2, 4242, "[1.0, 0.0]"))) }
         assertTrue("4242" in error.message.orEmpty(), error.message)
+    }
+
+    @Test
+    fun `the exclusivity properties give the item its group, written only where the rarity disagrees`() {
+        // A RELIC item with property 8 and an EPIC item with property 12: their rarity's group, nothing written.
+        val relic = extract(pourpre(apEffect))
+        assertEquals(ExclusiveGroup.RELIC, relic.exclusiveGroup)
+        assertNull(relic.exclusiveGroupOverride)
+        val epic = extract(pourpre(apEffect, rarity = 7, properties = "[12, 19]"))
+        assertEquals(ExclusiveGroup.EPIC, epic.exclusiveGroup)
+        assertNull(epic.exclusiveGroupOverride)
+        // A COMMON item with property 12 (18691 Piquants du Guerrier Trool anciens: [12, 13, 24]): in the EPIC group.
+        val commonInEpicGroup = extract(pourpre(apEffect, rarity = 0, properties = "[12, 13, 24]"))
+        assertEquals(Rarity.COMMON, commonInEpicGroup.rarity)
+        assertEquals(ExclusiveGroup.EPIC, commonInEpicGroup.exclusiveGroup)
+        assertEquals(ExclusiveGroup.EPIC, commonInEpicGroup.exclusiveGroupOverride)
+        // An EPIC item WITHOUT property 12 would be in no group: written, so it does not follow its rarity.
+        val epicOutOfGroup = extract(pourpre(apEffect, rarity = 7, properties = "[]"))
+        assertEquals(ExclusiveGroup.NONE, epicOutOfGroup.exclusiveGroup)
+        assertEquals(ExclusiveGroup.NONE, epicOutOfGroup.exclusiveGroupOverride)
+        // Serialized, only the exception carries the field: every other item keeps its JSON as it was.
+        val json = Json.encodeToString(ListSerializer(Equipment.serializer()), listOf(relic, commonInEpicGroup))
+        assertEquals(1, Regex("exclusiveGroup").findAll(json).count(), json)
+        assertEquals(listOf(ExclusiveGroup.RELIC, ExclusiveGroup.EPIC), Json.decodeFromString(ListSerializer(Equipment.serializer()), json).map { it.exclusiveGroup })
+    }
+
+    @Test
+    fun `an item in both exclusivity groups, or a CDN that no longer names them, fails the extraction`() {
+        assertThrows<IllegalStateException> { extract(pourpre(apEffect, properties = "[8, 12]")) }
+        val renamed = itemProperties.replace("EXCLUSIVE_EQUIPMENT_ITEM_2", "SOMETHING_ELSE")
+        val error =
+            assertThrows<IllegalStateException> {
+                exclusiveGroupPropertyIds(cdnJson.decodeFromString(ListSerializer(ItemProperty.serializer()), renamed))
+            }
+        assertTrue("EXCLUSIVE_EQUIPMENT_ITEM_2" in error.message.orEmpty(), error.message)
     }
 }

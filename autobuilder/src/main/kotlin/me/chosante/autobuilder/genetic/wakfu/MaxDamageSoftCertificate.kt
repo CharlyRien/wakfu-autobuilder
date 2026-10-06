@@ -1371,8 +1371,10 @@ internal object MaxDamageSoftCertificate {
                             if (foldNegativeMaxMp) minOf(e.characteristics[Characteristic.MAX_MOVEMENT_POINT] ?: 0, 0) else 0,
                     cc = statOf(e, Characteristic.CRITICAL_HIT),
                     hp = statOf(e, Characteristic.HP),
-                    epic = e.rarity == me.chosante.common.Rarity.EPIC,
-                    relic = e.rarity == me.chosante.common.Rarity.RELIC,
+                    // The "only one equipped at a time" groups ([Equipment.exclusiveGroup]): the budget is exact; an EPIC-group
+                    // COMMON item (18691, 18693) also passes for an epic-sub carrier here, a sound over-count (it hosts none).
+                    epic = e.exclusiveGroup == me.chosante.common.ExclusiveGroup.EPIC,
+                    relic = e.exclusiveGroup == me.chosante.common.ExclusiveGroup.RELIC,
                     block = if (blockAtLeastMax > 0) statOf(e, Characteristic.BLOCK_PERCENTAGE) else 0,
                     // LOW read = the solver's pre-combat `valueFor(AP)` = signed AP + MAX_ACTION_POINT
                     // (review fix 2026-10-01: itemAp() drops the MAX_AP fold exactly in assume-AP
@@ -1953,8 +1955,8 @@ internal object MaxDamageSoftCertificate {
             fun itemOpt(e: Equipment) =
                 NegOpt(
                     negativeSecondaryLines(e.characteristics),
-                    epic = e.rarity == me.chosante.common.Rarity.EPIC,
-                    relic = e.rarity == me.chosante.common.Rarity.RELIC
+                    epic = e.exclusiveGroup == me.chosante.common.ExclusiveGroup.EPIC,
+                    relic = e.exclusiveGroup == me.chosante.common.ExclusiveGroup.RELIC
                 )
 
             fun combine(

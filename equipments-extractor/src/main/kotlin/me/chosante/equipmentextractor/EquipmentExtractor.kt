@@ -2,6 +2,7 @@ package me.chosante.equipmentextractor
 
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.ExclusiveGroup
 import me.chosante.common.I18nText
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
@@ -9,6 +10,7 @@ import me.chosante.equipmentextractor.dataretriever.WakfuData
 import me.chosante.equipmentextractor.dataretriever.dtos.Effect
 import me.chosante.equipmentextractor.dataretriever.dtos.EffectData
 import me.chosante.equipmentextractor.dataretriever.dtos.Item
+import me.chosante.equipmentextractor.dataretriever.dtos.ItemProperty
 
 val rarityIdToRarity =
     mapOf(
@@ -96,8 +98,45 @@ private const val ACTION_PERCENT_OF_LEVEL = 999
  */
 private val STAT_FREE_UNDESCRIBED_ACTIONS = setOf(400, 1020)
 
+/**
+ * The CDN item properties that put an item in an "only one equipped at a time" group ([ExclusiveGroup]), by their
+ * `itemProperties.json` NAME (ids 8 and 12 on the 1.93 data) — resolved by name so a renumbering cannot silently swap them.
+ */
+private val EXCLUSIVE_GROUP_PROPERTIES =
+    mapOf(
+        "EXCLUSIVE_EQUIPMENT_ITEM" to ExclusiveGroup.RELIC,
+        "EXCLUSIVE_EQUIPMENT_ITEM_2" to ExclusiveGroup.EPIC
+    )
+
+/** The property id → exclusive group map of [itemProperties]; fails when the CDN no longer names both properties. */
+internal fun exclusiveGroupPropertyIds(itemProperties: List<ItemProperty>): Map<Int, ExclusiveGroup> {
+    val byName = itemProperties.associateBy { it.name }
+    return EXCLUSIVE_GROUP_PROPERTIES.entries.associate { (name, group) ->
+        val property =
+            checkNotNull(byName[name]) {
+                "itemProperties.json has no property $name: the epic / relic exclusivity groups can't be read (got ${itemProperties.map { it.name }})"
+            }
+        property.id to group
+    }
+}
+
+/**
+ * The "only one equipped at a time" group of the item [itemId] from its CDN [properties] ([groupByPropertyId]: see
+ * [exclusiveGroupPropertyIds]); fails on an item in both groups, which the build budgets can't express.
+ */
+internal fun exclusiveGroupOf(
+    itemId: Int,
+    properties: List<Int>,
+    groupByPropertyId: Map<Int, ExclusiveGroup>,
+): ExclusiveGroup {
+    val groups = properties.mapNotNull { groupByPropertyId[it] }.distinct()
+    check(groups.size <= 1) { "Item $itemId is in several exclusivity groups $groups (properties $properties)" }
+    return groups.singleOrNull() ?: ExclusiveGroup.NONE
+}
+
 fun extractData(wakfuData: WakfuData): List<Equipment> {
     val itemTypeIdToTypeName = wakfuData.itemTypes.associate { it.definition.id to it.title.fr.toItemType() }
+    val exclusiveGroupByPropertyId = exclusiveGroupPropertyIds(wakfuData.itemProperties)
     val effectsByEffectId = wakfuData.effects.associateBy { it.definition.id }
     val jobsDict = wakfuData.jobs.associate { it.definition.id to it.title.fr }
 
@@ -121,6 +160,9 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
                 )
             }
         val rarity = rarityIdToRarity.getValue(equipment.definition.item.baseParameters.rarity)
+        // The item's "only one equipped at a time" group, written only where it is not its rarity's (Equipment.exclusiveGroup):
+        // on the 1.93 data, the two COMMON items in the EPIC group (18691, 18693).
+        val exclusiveGroup = exclusiveGroupOf(equipment.definition.item.id, equipment.definition.item.properties, exclusiveGroupByPropertyId)
 
         // Number of enchantment sockets ("châsses") the item can hold — drives rune socketing in the
         // solver (Equipment.maxShardSlots). Must be carried through here or every regenerated build
@@ -206,7 +248,8 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
                 characteristics = bonus,
                 maxShardSlots = maxShardSlots,
                 levelRestricted = levelRestricted,
-                percentOfLevel = percentOfLevel
+                percentOfLevel = percentOfLevel,
+                exclusiveGroupOverride = exclusiveGroup.takeIf { it != ExclusiveGroup.ofRarity(rarity) }
             )
         equipments.add(outputDict)
     }

@@ -6,6 +6,7 @@ import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.requiredItemIds
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.ExclusiveGroup
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
@@ -2610,14 +2611,10 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             // the DP host it for free, certifying a real AP-14 build into the AP-16 cell.
             (apI[e] ?: 0).toInt(),
             (crI[e] ?: 0).toInt(),
-            if (e.rarity ==
-                Rarity.EPIC
-            ) {
-                1
-            } else {
-                0
-            },
-            if (e.rarity == Rarity.RELIC) 1 else 0,
+            // The "only one equipped at a time" groups ([Equipment.exclusiveGroup]): the budget is exact; an EPIC-group COMMON
+            // item (18691, 18693) also passes for an epic-sub carrier here — a sound over-count, it hosts none in the game.
+            if (e.exclusiveGroup == ExclusiveGroup.EPIC) 1 else 0,
+            if (e.exclusiveGroup == ExclusiveGroup.RELIC) 1 else 0,
             // mp stays floored at 0: it is a VALUE axis (feeds the MP→DI ramp), never a cell
             // coordinate, so the floor only widens the bound (sound) — negative-MP tank items
             // would otherwise drag the frontier for no soundness gain.
@@ -2755,7 +2752,9 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // v52 (pre-existing under-count): an EPIC / RELIC item is a resource even with no stat the scenario reads — it is the
     // carrier an epic / relic sub needs (Σ subRarity ≤ Σ itemRarity). Before v52 such an item never entered the DP, so a
     // build socketing Mesure III (+20 DI) on a damage-less epic belt was out of every pass's reach (−15 % on the
-    // `MaxDamageTargetAwareCertificateTest` repro). Appended last so every other item keeps its order.
+    // `MaxDamageTargetAwareCertificateTest` repro). Appended last so every other item keeps its order. Read on the RARITY:
+    // an EPIC-group COMMON item with no read stat carries no sub, so leaving it out drops only builds no better than the
+    // same build without it.
     val itemEquips =
         (
             diI.keys + mI.keys + cmI.keys + apI.keys + crI.keys + mpI.keys +
@@ -3355,8 +3354,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 )
             }
         }
-        val epicItems = allEquips.count { it.rarity == Rarity.EPIC }
-        val relicItems = allEquips.count { it.rarity == Rarity.RELIC }
+        val epicItems = allEquips.count { it.exclusiveGroup == ExclusiveGroup.EPIC }
+        val relicItems = allEquips.count { it.exclusiveGroup == ExclusiveGroup.RELIC }
         System.err.println("CERT_DEBUG_RARITY epicItems=$epicItems relicItems=$relicItems")
     }
 
