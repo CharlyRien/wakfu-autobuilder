@@ -24,13 +24,13 @@ import kotlin.io.path.readText
  * place, so a crash mid-write leaves the previous file whole. Blocking IO runs on [ioDispatcher]; [saveBlocking] is the one
  * exception, for the window's close request, where there is no later moment to write in.
  */
-class WorkspaceStore(
+open class WorkspaceStore(
     baseDir: Path = appDataDir(),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     private val file: Path = baseDir.resolve(FILE_NAME)
 
-    suspend fun load(): WorkspaceSnapshot? = withContext(ioDispatcher) { read() }
+    open suspend fun load(): WorkspaceSnapshot? = withContext(ioDispatcher) { read() }
 
     suspend fun save(snapshot: WorkspaceSnapshot) {
         withContext(ioDispatcher) { saveBlocking(snapshot) }
@@ -50,7 +50,8 @@ class WorkspaceStore(
     fun saveBlocking(snapshot: WorkspaceSnapshot) {
         runCatching {
             file.parent.createDirectories()
-            val temp = Files.createTempFile(file.parent, "workspace-", ".json.tmp")
+            // One fixed temp name (writes are serialized): a crash mid-write leaves at most this one file, replaced by the next write.
+            val temp = file.resolveSibling("$FILE_NAME.tmp")
             try {
                 Files.writeString(temp, encode(snapshot))
                 runCatching {

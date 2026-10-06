@@ -193,6 +193,11 @@ class BuildSearchModel(
     private val workspaceSaveDebounce: kotlin.time.Duration = 800.milliseconds,
     /** The game data a remembered request is checked against when it comes back. Injectable for tests. */
     private val workspaceCatalog: () -> WorkspaceCatalog = { WorkspaceCatalog.fromGameData() },
+    /**
+     * How long the reveal of the main UI waits for the remembered request still being read. Past it, the UI shows the defaults
+     * and the request is applied when the read lands (if the user has not edited meanwhile). Injectable for tests.
+     */
+    private val workspaceReadWait: kotlin.time.Duration = 2.seconds,
 ) {
     private val uiState = androidx.compose.runtime.mutableStateOf(UiState())
 
@@ -213,6 +218,20 @@ class BuildSearchModel(
 
     /** The request last handed to the store (or restored from it): an unchanged request is never written again. */
     private var rememberedRequest: me.chosante.common.history.RequestSnapshot? = null
+
+    /**
+     * The request exactly as [restoreWorkspace] put it back, until the game-data check of [restoreWorkspace] has run: that check
+     * only cleans the request while it is still this one (a build loaded meanwhile is not "your last session").
+     */
+    private var restoredRequest: me.chosante.common.history.RequestSnapshot? = null
+
+    /**
+     * The latest request not yet known to be on disk — what [flushWorkspace] writes. Volatile and a plain value so the JVM
+     * shutdown hook (Main.kt: Cmd+Q, Dock → Quit and logout skip the window's close request) can write it from its own thread
+     * without reading Compose state.
+     */
+    @Volatile
+    private var pendingWorkspace: WorkspaceSnapshot? = null
 
     private var workspaceSaveJob: Job? = null
 
@@ -376,14 +395,21 @@ class BuildSearchModel(
                     // Always reveal the UI: a warm-up failure must never leave the app stuck on the
                     // loading screen.
                     ticker.cancel()
-                    // Bounded: the main UI must never wait on a slow disk. A request still unread by then is simply not restored.
-                    val remembered = rememberedWorkspace?.let { read -> runCatching { withTimeoutOrNull(2.seconds) { read.await() } }.getOrNull() }
+                    // Bounded: the main UI must never wait on a slow disk. A read still running by then is applied when it lands.
+                    val landed = rememberedWorkspace?.let { read -> runCatching { withTimeoutOrNull(workspaceReadWait) { read.await() } } }
                     withContext(mainDispatcher) {
                         warmupProgress = 1f
                         warmupEtaSeconds = null
-                        // In the same frame as the reveal, so the main UI never shows the defaults first.
-                        if (rememberedWorkspace != null) restoreWorkspace(remembered)
-                        isReady = true
+                        try {
+                            // In the same frame as the reveal, so the main UI never shows the defaults first.
+                            if (rememberedWorkspace != null) {
+                                val read = landed?.getOrNull()
+                                if (read != null || rememberedWorkspace.isCompleted) restoreWorkspaceSafely(read) else restoreWorkspaceWhenRead(rememberedWorkspace)
+                            }
+                        } finally {
+                            // Nothing about the remembered workspace may keep the app on the loading screen.
+                            isReady = true
+                        }
                     }
                 }
                 // Only start decoding item icons once the engine is warm. During warm-up every core
@@ -406,10 +432,15 @@ class BuildSearchModel(
         rememberedRequest = ui.toRequestSnapshot(keepBossInAnyMode = true)
         workspaceRestored = true
         if (snapshot == null) return
+        restoredRequest = rememberedRequest
         scope.launch(backgroundDispatcher) {
             val catalog = runCatching { workspaceCatalog() }.getOrNull() ?: return@launch
             withContext(mainDispatcher) {
-                // Applied to the request as it is NOW: the user may have edited it meanwhile, and only unknown names go.
+                // Only while the request is still the restored one: once the user edited it or loaded a build, what is on screen
+                // is no longer "your last session" (and nothing the user picked since can be unknown anyway).
+                val untouched = restoredRequest != null && ui.toRequestSnapshot(keepBossInAnyMode = true) == restoredRequest
+                restoredRequest = null
+                if (!untouched) return@withContext
                 val (cleaned, dropped) = ui.withoutUnknownEntries(catalog)
                 if (cleaned == ui) return@withContext
                 ui = if (dropped > 0) cleaned.copy(toast = Tr.TOAST_WORKSPACE_ENTRIES_REMOVED.value(ui.lang).format(dropped)) else cleaned
@@ -417,34 +448,77 @@ class BuildSearchModel(
         }
     }
 
+    /** [restoreWorkspace], falling back to the defaults (and remembering from them on) if putting [snapshot] back throws. */
+    private fun restoreWorkspaceSafely(snapshot: WorkspaceSnapshot?) {
+        runCatching { restoreWorkspace(snapshot) }.onFailure { if (!workspaceRestored) runCatching { restoreWorkspace(null) } }
+    }
+
+    /**
+     * The remembered request was still being read when the main UI was revealed (a slow disk): the defaults show meanwhile, and
+     * NOTHING is written until the read lands — otherwise the user's first edit would overwrite the request still being read. When
+     * it lands, it is put back if the request is still the untouched defaults; if the user already edited, their edit wins and
+     * is remembered from then on.
+     */
+    private fun restoreWorkspaceWhenRead(read: kotlinx.coroutines.Deferred<WorkspaceSnapshot?>) {
+        val atReveal = ui.toRequestSnapshot(keepBossInAnyMode = true)
+        scope.launch(mainDispatcher) {
+            val snapshot = runCatching { read.await() }.getOrNull()
+            val untouched = ui.toRequestSnapshot(keepBossInAnyMode = true) == atReveal
+            restoreWorkspaceSafely(snapshot?.takeIf { untouched })
+            // The user's edits made while the read ran were not written (saving was not armed yet): write them now.
+            if (!untouched) rememberWorkspaceLater(ui, force = true)
+        }
+    }
+
     /**
      * Writes [state]'s request to the [workspaceStore] once it has stayed unchanged for [workspaceSaveDebounce]. Called on every
      * state change: anything that is not the request (a search's progress, a result, a modal) changes nothing here.
      */
-    private fun rememberWorkspaceLater(state: UiState) {
+    private fun rememberWorkspaceLater(
+        state: UiState,
+        force: Boolean = false,
+    ) {
         val store = workspaceStore ?: return
         if (!workspaceRestored) return
         val request = state.toRequestSnapshot(keepBossInAnyMode = true)
-        if (request == rememberedRequest) return
+        if (request == rememberedRequest && !force) return
         rememberedRequest = request
         workspaceSaveJob?.cancel()
         val snapshot = WorkspaceSnapshot(dataVersion = dataVersion, request = request)
+        pendingWorkspace = snapshot
         workspaceSaveJob =
             scope.launch(ioDispatcher) {
                 delay(workspaceSaveDebounce)
-                store.save(snapshot)
+                writeIfPending(store, snapshot)
             }
     }
 
+    private val workspaceWriteLock = Any()
+
     /**
-     * Writes the request on screen right away, skipping the debounce — for the window's close request, after which a pending
-     * write would never run. A small atomic file write on the calling thread.
+     * Writes [snapshot] if it is still the latest unsaved request. Under one lock with every other write, so a debounced write
+     * that lost a race with a flush can never land after it and put an older request back on disk.
+     */
+    private fun writeIfPending(
+        store: WorkspaceStore,
+        snapshot: WorkspaceSnapshot,
+    ) {
+        synchronized(workspaceWriteLock) {
+            if (pendingWorkspace !== snapshot) return
+            store.saveBlocking(snapshot)
+            pendingWorkspace = null
+        }
+    }
+
+    /**
+     * Writes the latest unsaved request right away, skipping the debounce — for the window's close request and the JVM shutdown
+     * hook (Main.kt), after which a pending write would never run. Reads only [pendingWorkspace], never Compose state, so it is
+     * safe from any thread. A small atomic file write on the calling thread; nothing to do when everything is already written.
      */
     fun flushWorkspace() {
         val store = workspaceStore ?: return
-        if (!workspaceRestored) return
-        workspaceSaveJob?.cancel()
-        store.saveBlocking(ui.toWorkspaceSnapshot(dataVersion))
+        val snapshot = pendingWorkspace ?: return
+        writeIfPending(store, snapshot)
     }
 
     /**
@@ -1747,7 +1821,7 @@ class BuildSearchModel(
         }
     }
 
-    private fun UiState.toTargetStats(): TargetStats {
+    internal fun UiState.toTargetStats(): TargetStats {
         // A typed 0 is a row ("never below 0"); a blank — or cleared — field asks for nothing, so it sends no row at all. Except a
         // mastery most-masteries maximizes: its row is a checkbox there (no field, its value never read), so it always counts.
         val raw =
