@@ -187,8 +187,9 @@ The floors slow CP-SAT's most-masteries proof down (the GUI default carries two)
 anyway. So a most-masteries leg — hard or soft — of a request with floors runs in stages against ONE deadline
 (`WakfuBuildSolver.relaxThenCheck`):
 1. the RELAXED model (`StatBuilder.relaxFloors`: no floor read — no `≥ 0`, no halving — each resistance family folded over its
-   wanted elements alone) on at most half the budget (`RELAXED_STAGE_SHARE`). It shows a build only when the scorers' read keeps
-   every floor (and meets every target, hard leg), never stamps a certificate-comparable objective, and sends no final;
+   wanted elements alone) on at most half the budget (`RELAXED_STAGE_SHARE`). On the hard leg it shows a build only when the
+   scorers' read keeps every floor and meets every target (on the soft leg any build, its score halved when a floor breaks); it
+   never stamps a certificate-comparable objective and sends no final;
 2. the CHECK: the floored model with `objective = w`, w the relaxed objective read EXACTLY (the objective variable's value, taken
    only when the response's own objective agrees), hinted, silent, for at most as long as the relaxed solve ran (and a tenth of the
    budget). Its build, once the scorers' read confirms its floors, is a floored build worth w: the floored optimum — the leg's result,
@@ -202,7 +203,10 @@ only grow with them — a request with a negative target or priority takes the d
 the relaxed optimum v, and a floored build worth v — all the check's model accepts — is the floored optimum. The leg's optimality
 stamp comes from the check (that argument) or from the floored stage's own OPTIMAL, never from the relaxed stage. A relaxed stage
 proven INFEASIBLE proves the floored leg infeasible. A floored stage that ends unproven below the best build the relaxed stage
-showed delivers that build. Max-damage and precision keep their direct floored solves. Locks: `RelaxThenCheckTest` (relaxed ≥
+showed delivers that build; a relaxed stage with no solution at all leaves the floored stage the greedy warm start, as the direct
+solve. The price of splitting one budget: a leg that needs more than half of it to find ANY solution, with no warm start, can end
+with no build where the direct solve finds one (the slow fuzz's two-element soft legs on 1 worker; production always hints the warm
+start). Max-damage and precision keep their direct floored solves. Locks: `RelaxThenCheckTest` (relaxed ≥
 floored objective build by build on seeded pools, the leg ends on the direct floored solve's optimum when the floors hold and when
 one binds, on real data too, nothing shown breaks a hard-leg floor, the budget split).
 
@@ -536,6 +540,10 @@ WAKFU_COMPOSE_SCREENSHOT=/tmp/out.png ./gradlew :gui-compose:run
   via `-Pwakfu.install=`) — maintainer-local (like `bdata-extractor`), not part of the normal build, run on
   demand. It is no longer a network download.
 - Tests use JUnit 5 + AssertJ (`autobuilder` also uses `kotlin-test`).
+- **A tuned solve is reproducible only within one JVM run.** `TargetStats` is a `HashSet` whose order follows the
+  `Characteristic` enum's identity hash, which depends on the JVM run (down to which tests ran before in the same JVM); the
+  model's row order, and so CP-SAT's search, follows it. A tuned test close to its deterministic budget can pass alone and fail
+  in a suite: give it headroom.
 - There is no `LICENSE` file yet despite README references; contact is Discord `Chosante`.
 
 ---

@@ -100,15 +100,19 @@ class RelaxThenCheckTest {
         build: BuildCombination,
     ) = FindMostMasteriesFromInputScoring.resolvedStats(p.targetStats, build, p.character.baseCharacteristicValues)
 
-    /** The relax-then-check leg and the direct floored one end on the same result: same score, same objective, both proven. */
+    /**
+     * The relax-then-check leg and the direct floored one end on the same result: same score, same objective, both proven — each on
+     * [budget] deterministic units, which relax-then-check splits between its stages.
+     */
     private fun assertSameResult(
         p: WakfuBestBuildParams,
         pool: Map<ItemType, List<Equipment>>,
         hard: Boolean,
         described: String,
+        budget: Double = direct.maxDeterministicTime,
     ) {
-        val directLeg = solve(p, pool, direct, hard)
-        val relaxedLeg = solve(p, pool, relaxing, hard)
+        val directLeg = solve(p, pool, direct.copy(maxDeterministicTime = budget), hard)
+        val relaxedLeg = solve(p, pool, relaxing.copy(maxDeterministicTime = budget), hard)
         val expected = directLeg.final
         val actual = relaxedLeg.final
         assertThat(actual == null).describedAs("a result iff the direct floored leg has one; $described").isEqualTo(expected == null)
@@ -286,10 +290,17 @@ class RelaxThenCheckTest {
     private fun allBuilds(pool: Map<ItemType, List<Equipment>>): List<List<Equipment>> =
         pool.values.fold(listOf(emptyList())) { acc, items -> acc.flatMap { partial -> listOf(partial) + items.map { partial + it } } }
 
+    // [budget]: the end-to-end comparison's deterministic units, for each leg. Relax-then-check gives its relaxed stage half of them
+    // and its floored stage what is left, so a leg needing more than half to find ANY solution can end empty where the direct solve
+    // does not (the documented price of the split, [WakfuBuildSolver.relaxThenCheck]). The full run's two-element soft legs need up
+    // to ~17 units to their first solution and proof on 1 worker, and how many varies with the JVM run (the model's row order follows
+    // [TargetStats]' hash order, which enum identity hashes make run-dependent): it compares on 100 units, about 3× that per stage.
+    // The quick run's cases need under 1.3 units.
     private fun runFuzz(
         seed: Int,
         cases: Int,
         maxWanted: Int,
+        budget: Double,
     ): Int {
         val random = Random(seed)
         var checked = 0
@@ -314,7 +325,7 @@ class RelaxThenCheckTest {
                     checked++
                 }
                 // End to end.
-                assertSameResult(p, case.pool, hard, "$described hard=$hard")
+                assertSameResult(p, case.pool, hard, "$described hard=$hard", budget)
             }
         }
         return checked
@@ -322,13 +333,13 @@ class RelaxThenCheckTest {
 
     @Test
     fun `seeded fuzz - the relaxed objective bounds the floored one, build by build, and the leg ends on the floored optimum`() {
-        assertThat(runFuzz(seed = 20261006, cases = 30, maxWanted = 1)).isGreaterThan(500)
+        assertThat(runFuzz(seed = 20261006, cases = 30, maxWanted = 1, budget = 30.0)).isGreaterThan(500)
     }
 
     @Test
     @Tag("slow")
     fun `seeded fuzz, full run - the relaxed objective bounds the floored one, build by build, and the leg ends on the floored optimum`() {
-        assertThat(runFuzz(seed = 20261007, cases = 60, maxWanted = 2)).isGreaterThan(1_000)
+        assertThat(runFuzz(seed = 20261007, cases = 60, maxWanted = 2, budget = 100.0)).isGreaterThan(1_000)
     }
 
     // ---- Real data ---------------------------------------------------------------------------------------------------
