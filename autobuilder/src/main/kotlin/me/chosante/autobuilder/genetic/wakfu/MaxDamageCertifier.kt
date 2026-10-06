@@ -1909,7 +1909,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     //    never reads: it bounds a relaxation of the same optimum;
     //  - the GENERAL single-type fold: a target row (HP, a resistance, dodge, lock, initiative, an off-scenario
     //    secondary mastery — even 0-valued) put a non-damage rune stat in the model, so EVERY modeled type is its
-    //    own pick bool with `Σ picks = equipped`. The item's own stats form its base Raw and each pick becomes one
+    //    own pick bool with `Σ picks = equipped` — or, on a count carrier (below; every carrier once a type is a
+    //    threshold read), its own count. The item's own stats form its base Raw and each pick (count vertex) becomes one
     //    per-item OPTION (base + that pick's contribution on every certifier axis). A socket holding an HP /
     //    resistance / dodge rune is an option whose delta is ZERO on every axis — dominated by the best
     //    M-feeding option, which is exactly "credit the best damage rune instead": an over-count, so sound;
@@ -1925,7 +1926,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // No rune feeds AP / crit today; those axes are EXACT per-carrier sums, so a rune there bails.
     val generalRuneFold = runeModel.runeVars.isNotEmpty() && runeModel.singleTypePerItem && !runeModel.maxDamageChoiceCollapse
     // v54: a secondary-capped carrier can keep explicit choices beside other carriers' collapsed
-    // defaults. Only explicit picks leave the item base; an equip-var alias must keep its item stats.
+    // defaults. Only explicit picks (and a count carrier's counts, v57) leave the item base; an equip-var alias must keep
+    // its item stats.
     val explicitRunePickItems =
         if (runeModel.singleTypePerItem) {
             runeModel.runeVars.keys.filterTo(HashSet()) { e -> equipVars[e] !in runeModel.runeVars.getValue(e).values }
