@@ -1714,8 +1714,6 @@ class BuildSearchModel(
         val build = snapshot.build ?: return
         job?.cancel()
         cancelProof()
-        val character = Character(snapshot.clazz, snapshot.level, snapshot.minLevel).copy(characterSkills = build.characterSkills)
-        val damageScenario = snapshot.currentDamageScenario()
         // The build moves to the max-damage view WITH its rows, but the mode it came from keeps its work: going back there
         // restores the original result and rows, so this view can always be undone.
         val parked = snapshot.modeWorkspaces + (snapshot.mode to ModeWorkspace(snapshot.targets, snapshot.shownResult().atRest()))
@@ -1725,6 +1723,7 @@ class BuildSearchModel(
                 modeWorkspaces = parked - ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE,
                 phase = Phase.Done,
                 progress = 100,
+                match = java.math.BigDecimal.ZERO,
                 optimal = false,
                 proofState = ProofState.Idle,
                 spellRotation = null,
@@ -1732,23 +1731,30 @@ class BuildSearchModel(
                 error = null,
                 toast = null
             )
-        scope.launch(backgroundDispatcher) {
-            val rotation = SpellRotationOptimizer.bestSequencedRotation(build, character, character.clazz, damageScenario)
-            val breakdown =
-                SpellRotationOptimizer.scenarioBreakdown(
-                    build,
-                    character,
-                    character.clazz,
-                    damageScenario,
-                    includeBerserk = (snapshot.achieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
-                    configuredRotationTotal = rotation.totalExpectedDamage
-                )
-            withContext(mainDispatcher) {
-                if (ui.build == build && ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
-                    ui = ui.copy(spellRotation = rotation, scenarioDamages = breakdown)
+        val params = ui.toSearchParams()
+        val character = params.character
+        val damageScenario = params.damageScenario
+        job =
+            scope.launch(backgroundDispatcher) {
+                // The same score the max-damage result path streams, including required-target shortfalls.
+                val match = buildRescorer(params, build)
+                val achieved = achievedStats(build, params)
+                val rotation = SpellRotationOptimizer.bestSequencedRotation(build, character, character.clazz, damageScenario)
+                val breakdown =
+                    SpellRotationOptimizer.scenarioBreakdown(
+                        build,
+                        character,
+                        character.clazz,
+                        damageScenario,
+                        includeBerserk = (achieved[Characteristic.MASTERY_BERSERK] ?: 0) > 0,
+                        configuredRotationTotal = rotation.totalExpectedDamage
+                    )
+                withContext(mainDispatcher) {
+                    if (ui.build == build && ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
+                        ui = ui.copy(match = match, achieved = achieved, spellRotation = rotation, scenarioDamages = breakdown)
+                    }
                 }
             }
-        }
     }
 
     private fun UiState.currentDamageScenario(): DamageScenario = scenario.aimedAt(selectedBoss, bossElement)
