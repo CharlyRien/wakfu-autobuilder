@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -147,6 +148,14 @@ internal fun ObsoleteCue(
 @Composable
 internal fun OlderEngineProof(
     text: String,
+    style: TextStyle,
+) = OlderEngineProof(text = AnnotatedString(text), style = style)
+
+/** [OlderEngineProof] for a line whose spans carry their own colours (the dimmed colour applies to the rest). */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun OlderEngineProof(
+    text: AnnotatedString,
     style: TextStyle,
 ) {
     val explanation = tr(Tr.PROVEN_BY_OLDER_ENGINE)

@@ -34,8 +34,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import me.chosante.autobuilder.domain.BuildSpellDamage
 import me.chosante.autobuilder.domain.RangeBand
@@ -194,21 +197,24 @@ private fun SideColumn(
                 )
             }
             val headline = compareHeadline(entry)
-            // A proof made by an older engine (reason B of the obsolete badge) shows dimmed, with a tooltip saying so.
+            // One line, the headline then the proof. A proof made by an older engine (reason B of the obsolete badge) is dimmed,
+            // with a tooltip saying so; a current one keeps the success colour on the whole line.
             val olderEngineProof = entry.result.optimal && entry.provenByOlderEngine()
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = headline,
-                    style = WTypography.labelMedium.copy(color = if (entry.result.optimal && !olderEngineProof) WColor.success else WColor.text)
+            val proven = if (entry.result.optimal) " · ${tr(Tr.OPTIMAL_PROVEN)}" else ""
+            if (olderEngineProof) {
+                OlderEngineProof(
+                    text =
+                        buildAnnotatedString {
+                            withStyle(SpanStyle(color = WColor.text)) { append(headline) }
+                            append(proven)
+                        },
+                    style = WTypography.labelMedium
                 )
-                if (entry.result.optimal) {
-                    val proven = " · ${tr(Tr.OPTIMAL_PROVEN)}"
-                    if (olderEngineProof) {
-                        OlderEngineProof(text = proven, style = WTypography.labelMedium)
-                    } else {
-                        Text(text = proven, style = WTypography.labelMedium.copy(color = WColor.success))
-                    }
-                }
+            } else {
+                Text(
+                    text = headline + proven,
+                    style = WTypography.labelMedium.copy(color = if (entry.result.optimal) WColor.success else WColor.text)
+                )
             }
             entry.restoredBoss()?.let { boss ->
                 Text(
