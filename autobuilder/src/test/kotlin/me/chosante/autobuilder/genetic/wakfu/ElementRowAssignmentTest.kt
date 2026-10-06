@@ -14,8 +14,8 @@ import kotlin.random.Random
 /**
  * Locks [ElementRowObjective] — the scorers' random-element placement for a family read through one joint fold (per-element
  * rows over several elements, or a resistance floor) — against EXHAUSTIVE enumeration: over every way to put each roll on its
- * [rollCover] distinct fold elements (`min(k, n)`; in a family with a floor, a negative roll on as few as the elements outside
- * the fold leave it), the assignment it returns reaches the lexicographic optimum of the solver's objective for those rows
+ * [rollCover] distinct fold elements (`min(k, n)`; a negative resistance roll on as few as the elements outside the fold leave
+ * it), the assignment it returns reaches the lexicographic optimum of the solver's objective for those rows
  * (primary, 0-weight rows met, secondary), recomputed here from the request's rows with the solver's formulas — never through
  * the class's own evaluation — and places every roll; the placement keeping the floors is the optimum among those that do.
  */
@@ -88,9 +88,9 @@ class ElementRowAssignmentTest {
     }
 
     /**
-     * Every reachable final per-element map, each roll on its cover of distinct fold elements: `min(count, wanted)`, or — in a family
-     * with a floor ([freeSinks] = the elements outside the fold) — as the game places it, a negative roll on `count − freeSinks` of
-     * them at least. (Spelled out here, not through [rollCover].)
+     * Every reachable final per-element map, each roll on its cover of distinct fold elements: `min(count, wanted)`, or — for a
+     * resistance family ([freeSinks] = the elements outside the fold) — as the game places it, a negative roll on `count − freeSinks`
+     * of them at least. (Spelled out here, not through [rollCover].)
      */
     private fun allAssignments(
         base: Map<Characteristic, Int>,

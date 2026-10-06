@@ -455,29 +455,17 @@ fun assignUniformlyMasteryRandomValues(
     return result.assignValues(valueToNumberOfCharacteristicAssignable, characteristicToValueWanted)
 }
 
+/**
+ * The deficit-sorted greedy ([assignValues]) for a resistance family read on its own (max-damage's aggregate row, a single wanted
+ * element), each roll on the elements the game puts it on ([placedResistanceRolls]).
+ */
 fun assignUniformlyResistanceRandomValues(
     randomElements: Map<Characteristic, List<Int>>,
     characteristicToValueCurrent: Map<Characteristic, Int>,
     characteristicToValueWanted: Map<Characteristic, Int>,
-): Map<Characteristic, Int> {
-    val result = mutableMapOf<Characteristic, Int>()
-    for ((characteristic, _) in characteristicToValueWanted) {
-        result[characteristic] = characteristicToValueCurrent[characteristic] ?: 0
-    }
-
-    val valueToNumberOfCharacteristicAssignable = mutableListOf<Pair<Int, Int>>()
-    for (value in randomElements[Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT] ?: listOf()) {
-        valueToNumberOfCharacteristicAssignable.add(value to 1)
-    }
-    for (value in randomElements[Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT] ?: listOf()) {
-        valueToNumberOfCharacteristicAssignable.add(value to 2)
-    }
-    for (value in randomElements[Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT] ?: listOf()) {
-        valueToNumberOfCharacteristicAssignable.add(value to 3)
-    }
-
-    return result.assignValues(valueToNumberOfCharacteristicAssignable, characteristicToValueWanted)
-}
+): Map<Characteristic, Int> =
+    seededFrom(characteristicToValueCurrent, characteristicToValueWanted)
+        .assignValues(placedResistanceRolls(randomElements, characteristicToValueWanted.size), characteristicToValueWanted)
 
 /**
  * Optimal random-element assignment for the "most-masteries" objective, which maximizes the MINIMUM mastery
@@ -507,7 +495,10 @@ fun assignMaxMinMasteryRandomValues(
     seededFrom(characteristicToValueCurrent, characteristicToValueWanted)
         .assignMaxMin(masteryRolls(randomElements), characteristicToValueWanted.keys.toList(), elementsToMaximizeMinOver, weights, offset)
 
-/** Resistance analogue of [assignMaxMinMasteryRandomValues] (aggregate RESISTANCE_ELEMENTARY in most-masteries). */
+/**
+ * Resistance analogue of [assignMaxMinMasteryRandomValues] (aggregate RESISTANCE_ELEMENTARY in most-masteries), each roll on the
+ * elements the game puts it on ([placedResistanceRolls]).
+ */
 fun assignMaxMinResistanceRandomValues(
     randomElements: Map<Characteristic, List<Int>>,
     characteristicToValueCurrent: Map<Characteristic, Int>,
@@ -515,7 +506,11 @@ fun assignMaxMinResistanceRandomValues(
     elementsToMaximizeMinOver: List<Characteristic>,
 ): Map<Characteristic, Int> =
     seededFrom(characteristicToValueCurrent, characteristicToValueWanted)
-        .assignMaxMin(resistanceRolls(randomElements), characteristicToValueWanted.keys.toList(), elementsToMaximizeMinOver)
+        .assignMaxMin(
+            placedResistanceRolls(randomElements, characteristicToValueWanted.size),
+            characteristicToValueWanted.keys.toList(),
+            elementsToMaximizeMinOver
+        )
 
 /**
  * Optimal random-element assignment for the PRECISION objective, which maximizes `Σ min(value_e, target_e)` over
@@ -535,14 +530,21 @@ fun assignMaxCappedMasteryRandomValues(
     seededFrom(characteristicToValueCurrent, characteristicToValueWanted)
         .assignMaxCapped(masteryRolls(randomElements), characteristicToValueWanted.keys.toList(), characteristicToValueWanted)
 
-/** Resistance analogue of [assignMaxCappedMasteryRandomValues] (precision). */
+/**
+ * Resistance analogue of [assignMaxCappedMasteryRandomValues] (precision), each roll on the elements the game puts it on
+ * ([placedResistanceRolls]).
+ */
 fun assignMaxCappedResistanceRandomValues(
     randomElements: Map<Characteristic, List<Int>>,
     characteristicToValueCurrent: Map<Characteristic, Int>,
     characteristicToValueWanted: Map<Characteristic, Int>,
 ): Map<Characteristic, Int> =
     seededFrom(characteristicToValueCurrent, characteristicToValueWanted)
-        .assignMaxCapped(resistanceRolls(randomElements), characteristicToValueWanted.keys.toList(), characteristicToValueWanted)
+        .assignMaxCapped(
+            placedResistanceRolls(randomElements, characteristicToValueWanted.size),
+            characteristicToValueWanted.keys.toList(),
+            characteristicToValueWanted
+        )
 
 /** The wanted elements seeded with their current (non-random) values — the start state every assignment builds on. */
 private fun seededFrom(
@@ -585,6 +587,22 @@ private fun resistanceRolls(randomElements: Map<Characteristic, List<Int>>) =
         Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT,
         Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT
     )
+
+/**
+ * The resistance rolls as the game places them on a family read over [readElements] of the four elements: each `(value, count)`
+ * becomes `(value, cover)`, the [rollCover] read elements it lands on — a positive roll on as many as it can, a negative one on as
+ * few as it must, the elements outside the family ([resistanceFreeSinks]) taking the rest — and a roll that lands on none of them
+ * is dropped. "−30 on 1 random element" beside "fire resistance 10" alone goes to water, never to fire; with all four read (the
+ * aggregate row) every roll keeps its count, as before. The solver's folds place them the same way (`StatBuilder.applyGreedyRandom`).
+ */
+private fun placedResistanceRolls(
+    randomElements: Map<Characteristic, List<Int>>,
+    readElements: Int,
+): List<Pair<Int, Int>> =
+    resistanceRolls(randomElements).mapNotNull { (value, count) ->
+        val cover = rollCover(value, count, readElements, resistanceFreeSinks(readElements))
+        if (cover > 0) value to cover else null
+    }
 
 /**
  * Assigns atomic [rolls] (value, count) to MAXIMIZE the minimum over [subset], EXACTLY. Each roll lands on

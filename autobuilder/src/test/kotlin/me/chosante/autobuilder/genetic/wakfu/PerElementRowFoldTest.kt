@@ -573,7 +573,7 @@ class PerElementRowFoldTest {
                 return
             }
             val (value, count) = rolls[i]
-            // A family with a floor places a roll as the game does: a negative one lands on the fold only when it must.
+            // A resistance family places a roll as the game does: a negative one lands on the fold only when it must.
             val sinks = p.targetStats.freeSinks(family)
             val cover = if (sinks != null && value < 0) (count - sinks).coerceIn(0, n) else minOf(count, n)
             val combos = mutableListOf<List<Int>>().also { subsets(cover, 0, emptyList(), it) }
