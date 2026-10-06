@@ -36,7 +36,9 @@ import kotlin.time.Duration.Companion.seconds
  */
 class MaxDamageFirstSolutionLatencyTest {
     private companion object {
-        // Measured 14.6 (CERTIFIER_VERSION 56, Wakfu data 1.93, OR-Tools as pinned); ~35 % headroom.
+        // Measured 14.6 (CERTIFIER_VERSION 56, Wakfu data 1.93, OR-Tools as pinned); 8.95 / 10.27 with the mixed-rune count
+        // carriers (CERTIFIER_VERSION 57, before / after merging the item equip conditions) — a tuned solve varies between JVM
+        // runs (AGENTS.md §9), so the budget keeps its headroom.
         const val DET_BUDGET = 20.0
     }
 
