@@ -1,0 +1,6730 @@
+[
+  {
+    "itemId": 2022,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 2036,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 3018,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 3026,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 4224,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 4988,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 6739,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 8248,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 9371,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 9509,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 9554,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 9615,
+    "raw": "GetCrimeScore() >= 500",
+    "playerState": [
+      {
+        "function": "GetCrimeScore",
+        "comparison": "GE",
+        "value": 500
+      }
+    ]
+  },
+  {
+    "itemId": 9616,
+    "raw": "GetCrimeScore() >= 500",
+    "playerState": [
+      {
+        "function": "GetCrimeScore",
+        "comparison": "GE",
+        "value": 500
+      }
+    ]
+  },
+  {
+    "itemId": 9723,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 9933,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 9963,
+    "raw": "GetStasisGauge() > 40",
+    "playerState": [
+      {
+        "function": "GetStasisGauge",
+        "comparison": "GT",
+        "value": 40
+      }
+    ]
+  },
+  {
+    "itemId": 9964,
+    "raw": "GetWakfuGauge() > 35",
+    "playerState": [
+      {
+        "function": "GetWakfuGauge",
+        "comparison": "GT",
+        "value": 35
+      }
+    ]
+  },
+  {
+    "itemId": 9966,
+    "raw": "GetWakfuGauge() > 30",
+    "playerState": [
+      {
+        "function": "GetWakfuGauge",
+        "comparison": "GT",
+        "value": 30
+      }
+    ]
+  },
+  {
+    "itemId": 9967,
+    "raw": "GetStasisGauge() > 55",
+    "playerState": [
+      {
+        "function": "GetStasisGauge",
+        "comparison": "GT",
+        "value": 55
+      }
+    ]
+  },
+  {
+    "itemId": 9968,
+    "raw": "GetWakfuGauge() > 45",
+    "playerState": [
+      {
+        "function": "GetWakfuGauge",
+        "comparison": "GT",
+        "value": 45
+      }
+    ]
+  },
+  {
+    "itemId": 9969,
+    "raw": "GetStasisGauge() > 45",
+    "playerState": [
+      {
+        "function": "GetStasisGauge",
+        "comparison": "GT",
+        "value": 45
+      }
+    ]
+  },
+  {
+    "itemId": 9970,
+    "raw": "GetWakfuGauge() > 55",
+    "playerState": [
+      {
+        "function": "GetWakfuGauge",
+        "comparison": "GT",
+        "value": 55
+      }
+    ]
+  },
+  {
+    "itemId": 9971,
+    "raw": "GetStasisGauge() > 40",
+    "playerState": [
+      {
+        "function": "GetStasisGauge",
+        "comparison": "GT",
+        "value": 40
+      }
+    ]
+  },
+  {
+    "itemId": 9972,
+    "raw": "GetWakfuGauge() > 50",
+    "playerState": [
+      {
+        "function": "GetWakfuGauge",
+        "comparison": "GT",
+        "value": 50
+      }
+    ]
+  },
+  {
+    "itemId": 9973,
+    "raw": "GetStasisGauge() > 35",
+    "playerState": [
+      {
+        "function": "GetStasisGauge",
+        "comparison": "GT",
+        "value": 35
+      }
+    ]
+  },
+  {
+    "itemId": 9974,
+    "raw": "GetWakfuGauge() > 50",
+    "playerState": [
+      {
+        "function": "GetWakfuGauge",
+        "comparison": "GT",
+        "value": 50
+      }
+    ]
+  },
+  {
+    "itemId": 9975,
+    "raw": "GetStasisGauge() > 30",
+    "playerState": [
+      {
+        "function": "GetStasisGauge",
+        "comparison": "GT",
+        "value": 30
+      }
+    ]
+  },
+  {
+    "itemId": 9976,
+    "raw": "GetWakfuGauge() > 45",
+    "playerState": [
+      {
+        "function": "GetWakfuGauge",
+        "comparison": "GT",
+        "value": 45
+      }
+    ]
+  },
+  {
+    "itemId": 9980,
+    "raw": "GetStasisGauge() > 35",
+    "playerState": [
+      {
+        "function": "GetStasisGauge",
+        "comparison": "GT",
+        "value": 35
+      }
+    ]
+  },
+  {
+    "itemId": 9981,
+    "raw": "GetWakfuGauge() > 40",
+    "playerState": [
+      {
+        "function": "GetWakfuGauge",
+        "comparison": "GT",
+        "value": 40
+      }
+    ]
+  },
+  {
+    "itemId": 10365,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 10775,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 10787,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 10788,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 11010,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 11018,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 11020,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 11386,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 11410,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 11875,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 12178,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 12195,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 12196,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 12197,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 12372,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 12384,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 12438,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 12454,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 12474,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 12598,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 12602,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 12631,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 12768,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 12831,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 12861,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 12891,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 13547,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 13574,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 13581,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 14041,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 14042,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 14125,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 14132,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 14363,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 14422,
+    "raw": "IsAchievementComplete(1509)",
+    "playerState": [
+      {
+        "function": "IsAchievementComplete",
+        "args": [
+          "1509"
+        ]
+      }
+    ]
+  },
+  {
+    "itemId": 14426,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 14440,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 14482,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 14590,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 14592,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 14633,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 14656,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 14707,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 14733,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 14874,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 14878,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 14888,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 15015,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 15036,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 15150,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 15153,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 15155,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 15163,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 15196,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 15201,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 15209,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 15257,
+    "raw": "IsBreed(\"IOP\")",
+    "classes": [
+      "IOP"
+    ]
+  },
+  {
+    "itemId": 15258,
+    "raw": "IsBreed(\"CRA\")",
+    "classes": [
+      "CRA"
+    ]
+  },
+  {
+    "itemId": 15260,
+    "raw": "IsBreed(\"SACRIER\")",
+    "classes": [
+      "SACRIEUR"
+    ]
+  },
+  {
+    "itemId": 15261,
+    "raw": "IsBreed(\"ECAFLIP\")",
+    "classes": [
+      "ECAFLIP"
+    ]
+  },
+  {
+    "itemId": 15262,
+    "raw": "IsBreed(\"ENIRIPSA\")",
+    "classes": [
+      "ENIRIPSA"
+    ]
+  },
+  {
+    "itemId": 15263,
+    "raw": "IsBreed(\"SADIDA\")",
+    "classes": [
+      "SADIDA"
+    ]
+  },
+  {
+    "itemId": 15264,
+    "raw": "IsBreed(\"XELOR\")",
+    "classes": [
+      "XELOR"
+    ]
+  },
+  {
+    "itemId": 15265,
+    "raw": "IsBreed(\"ENUTROF\")",
+    "classes": [
+      "ENUTROF"
+    ]
+  },
+  {
+    "itemId": 15266,
+    "raw": "IsBreed(\"ROUBLARD\")",
+    "classes": [
+      "ROUBLARD"
+    ]
+  },
+  {
+    "itemId": 15267,
+    "raw": "IsBreed(\"PANDAWA\")",
+    "classes": [
+      "PANDAWA"
+    ]
+  },
+  {
+    "itemId": 15268,
+    "raw": "IsBreed(\"FECA\")",
+    "classes": [
+      "FECA"
+    ]
+  },
+  {
+    "itemId": 15269,
+    "raw": "IsBreed(\"OSAMODAS\")",
+    "classes": [
+      "OSAMODAS"
+    ]
+  },
+  {
+    "itemId": 15270,
+    "raw": "IsBreed(\"STEAMER\")",
+    "classes": [
+      "STEAMER"
+    ]
+  },
+  {
+    "itemId": 15271,
+    "raw": "IsBreed(\"SRAM\")",
+    "classes": [
+      "SRAM"
+    ]
+  },
+  {
+    "itemId": 15403,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 15414,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 15578,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 15739,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 15959,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 15960,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 16028,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 16040,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 16044,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 16059,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 16064,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 16084,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 16109,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 16139,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 16149,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 16758,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 16771,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 16776,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 16789,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 16803,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 16896,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 16974,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 17181,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 17185,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 17189,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 17240,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 17245,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 17260,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 17265,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 17272,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 17281,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 17292,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 17311,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 17318,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 17325,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 17340,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 17353,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 17755,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 17768,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 17791,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 17792,
+    "raw": "GetStasisGauge() > 30",
+    "playerState": [
+      {
+        "function": "GetStasisGauge",
+        "comparison": "GT",
+        "value": 30
+      }
+    ]
+  },
+  {
+    "itemId": 18162,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 18173,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 18188,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 18432,
+    "raw": "IsBreed(\"ZOBAL\")",
+    "classes": [
+      "ZOBAL"
+    ]
+  },
+  {
+    "itemId": 18553,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 18554,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 18555,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 18634,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 18635,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 18636,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 18691,
+    "raw": "GetCharacteristicMax(\"AP\", \"target\") <= 11",
+    "statGates": [
+      {
+        "characteristic": "ACTION_POINT",
+        "max": true,
+        "comparison": "LE",
+        "value": 11
+      }
+    ]
+  },
+  {
+    "itemId": 19050,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19056,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19129,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19142,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19210,
+    "raw": "IsBreed(\"ELIOTROPE\")",
+    "classes": [
+      "ELIOTROPE"
+    ]
+  },
+  {
+    "itemId": 19344,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19354,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19365,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19411,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19424,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19425,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19447,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19497,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19503,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19545,
+    "raw": "GetCompanyRank() >= 2",
+    "playerState": [
+      {
+        "function": "GetCompanyRank",
+        "comparison": "GE",
+        "value": 2
+      }
+    ]
+  },
+  {
+    "itemId": 19546,
+    "raw": "GetCompanyRank() >= 4",
+    "playerState": [
+      {
+        "function": "GetCompanyRank",
+        "comparison": "GE",
+        "value": 4
+      }
+    ]
+  },
+  {
+    "itemId": 19547,
+    "raw": "GetCompanyRank() >= 4",
+    "playerState": [
+      {
+        "function": "GetCompanyRank",
+        "comparison": "GE",
+        "value": 4
+      }
+    ]
+  },
+  {
+    "itemId": 19548,
+    "raw": "GetCompanyRank() >= 6",
+    "playerState": [
+      {
+        "function": "GetCompanyRank",
+        "comparison": "GE",
+        "value": 6
+      }
+    ]
+  },
+  {
+    "itemId": 19549,
+    "raw": "GetCompanyRank() >= 6",
+    "playerState": [
+      {
+        "function": "GetCompanyRank",
+        "comparison": "GE",
+        "value": 6
+      }
+    ]
+  },
+  {
+    "itemId": 19550,
+    "raw": "GetCompanyRank() >= 6",
+    "playerState": [
+      {
+        "function": "GetCompanyRank",
+        "comparison": "GE",
+        "value": 6
+      }
+    ]
+  },
+  {
+    "itemId": 19551,
+    "raw": "GetCompanyRank() >= 9",
+    "playerState": [
+      {
+        "function": "GetCompanyRank",
+        "comparison": "GE",
+        "value": 9
+      }
+    ]
+  },
+  {
+    "itemId": 19552,
+    "raw": "GetCompanyRank() >= 9",
+    "playerState": [
+      {
+        "function": "GetCompanyRank",
+        "comparison": "GE",
+        "value": 9
+      }
+    ]
+  },
+  {
+    "itemId": 19553,
+    "raw": "GetCompanyRank() >= 9",
+    "playerState": [
+      {
+        "function": "GetCompanyRank",
+        "comparison": "GE",
+        "value": 9
+      }
+    ]
+  },
+  {
+    "itemId": 19554,
+    "raw": "GetCompanyRank() >= 9",
+    "playerState": [
+      {
+        "function": "GetCompanyRank",
+        "comparison": "GE",
+        "value": 9
+      }
+    ]
+  },
+  {
+    "itemId": 19555,
+    "raw": "GetCompanyRank() >= 5",
+    "playerState": [
+      {
+        "function": "GetCompanyRank",
+        "comparison": "GE",
+        "value": 5
+      }
+    ]
+  },
+  {
+    "itemId": 19556,
+    "raw": "GetCompanyRank() >= 5",
+    "playerState": [
+      {
+        "function": "GetCompanyRank",
+        "comparison": "GE",
+        "value": 5
+      }
+    ]
+  },
+  {
+    "itemId": 19557,
+    "raw": "GetCompanyRank() >= 5",
+    "playerState": [
+      {
+        "function": "GetCompanyRank",
+        "comparison": "GE",
+        "value": 5
+      }
+    ]
+  },
+  {
+    "itemId": 19558,
+    "raw": "GetCompanyRank() >= 5",
+    "playerState": [
+      {
+        "function": "GetCompanyRank",
+        "comparison": "GE",
+        "value": 5
+      }
+    ]
+  },
+  {
+    "itemId": 19608,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19609,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19610,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19611,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19612,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19697,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19698,
+    "raw": "not HasAnotherSameEquipment() and not HasEquipmentId(22226) and not HasEquipmentId(22227)",
+    "forbidsItems": [
+      22226,
+      22227
+    ],
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19709,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19710,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19718,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19719,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19724,
+    "raw": "IsAchievementComplete(1509)",
+    "playerState": [
+      {
+        "function": "IsAchievementComplete",
+        "args": [
+          "1509"
+        ]
+      }
+    ]
+  },
+  {
+    "itemId": 19725,
+    "raw": "IsAchievementComplete(1509)",
+    "playerState": [
+      {
+        "function": "IsAchievementComplete",
+        "args": [
+          "1509"
+        ]
+      }
+    ]
+  },
+  {
+    "itemId": 19726,
+    "raw": "IsAchievementComplete(1509)",
+    "playerState": [
+      {
+        "function": "IsAchievementComplete",
+        "args": [
+          "1509"
+        ]
+      }
+    ]
+  },
+  {
+    "itemId": 19859,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 19866,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19867,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19876,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19877,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19888,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19889,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19894,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 19899,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 19998,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20039,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20055,
+    "raw": "IsBreed(\"ROUBLARD\")",
+    "classes": [
+      "ROUBLARD"
+    ]
+  },
+  {
+    "itemId": 20056,
+    "raw": "IsBreed(\"FECA\")",
+    "classes": [
+      "FECA"
+    ]
+  },
+  {
+    "itemId": 20057,
+    "raw": "IsBreed(\"ZOBAL\")",
+    "classes": [
+      "ZOBAL"
+    ]
+  },
+  {
+    "itemId": 20058,
+    "raw": "IsBreed(\"ELIOTROPE\")",
+    "classes": [
+      "ELIOTROPE"
+    ]
+  },
+  {
+    "itemId": 20059,
+    "raw": "IsBreed(\"XELOR\")",
+    "classes": [
+      "XELOR"
+    ]
+  },
+  {
+    "itemId": 20060,
+    "raw": "IsBreed(\"STEAMER\")",
+    "classes": [
+      "STEAMER"
+    ]
+  },
+  {
+    "itemId": 20061,
+    "raw": "IsBreed(\"IOP\")",
+    "classes": [
+      "IOP"
+    ]
+  },
+  {
+    "itemId": 20062,
+    "raw": "IsBreed(\"ENUTROF\")",
+    "classes": [
+      "ENUTROF"
+    ]
+  },
+  {
+    "itemId": 20063,
+    "raw": "IsBreed(\"SACRIER\")",
+    "classes": [
+      "SACRIEUR"
+    ]
+  },
+  {
+    "itemId": 20064,
+    "raw": "IsBreed(\"SADIDA\")",
+    "classes": [
+      "SADIDA"
+    ]
+  },
+  {
+    "itemId": 20065,
+    "raw": "IsBreed(\"ENIRIPSA\")",
+    "classes": [
+      "ENIRIPSA"
+    ]
+  },
+  {
+    "itemId": 20066,
+    "raw": "IsBreed(\"OSAMODAS\")",
+    "classes": [
+      "OSAMODAS"
+    ]
+  },
+  {
+    "itemId": 20067,
+    "raw": "IsBreed(\"HUPPERMAGE\")",
+    "classes": [
+      "HUPPERMAGE"
+    ]
+  },
+  {
+    "itemId": 20068,
+    "raw": "IsBreed(\"CRA\")",
+    "classes": [
+      "CRA"
+    ]
+  },
+  {
+    "itemId": 20069,
+    "raw": "IsBreed(\"ECAFLIP\")",
+    "classes": [
+      "ECAFLIP"
+    ]
+  },
+  {
+    "itemId": 20070,
+    "raw": "IsBreed(\"SRAM\")",
+    "classes": [
+      "SRAM"
+    ]
+  },
+  {
+    "itemId": 20071,
+    "raw": "IsBreed(\"PANDAWA\")",
+    "classes": [
+      "PANDAWA"
+    ]
+  },
+  {
+    "itemId": 20160,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20169,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20201,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20209,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20219,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20248,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20277,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20367,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 20378,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20384,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20399,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20562,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20563,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20666,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20728,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20730,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20927,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20939,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20944,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20945,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20950,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20969,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20970,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20982,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 20996,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21132,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21139,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21145,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21155,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21160,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21171,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21208,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21209,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21210,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21211,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21230,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21233,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21246,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21256,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21257,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21258,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21268,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21269,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21271,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21278,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21279,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21293,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21330,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21334,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21337,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21388,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21435,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21442,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21485,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21491,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21504,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21512,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21526,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21534,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21540,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21544,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21548,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21560,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21562,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21570,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21578,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21580,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21589,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21692,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21697,
+    "raw": "not HasAnotherSameEquipment()\r\nand GetCharac(\"FEROCITY\") > -10",
+    "uniqueEquipped": true,
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 21704,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21711,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21712,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21723,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21731,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21733,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21734,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21735,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21751,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21752,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21762,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21783,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21784,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21785,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21786,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21829,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21832,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21833,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21836,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21847,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21850,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21851,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21856,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21865,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21869,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21870,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21871,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21872,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21873,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21874,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21875,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21876,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21877,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21878,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21879,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21880,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21881,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21882,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21883,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21975,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21976,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21977,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 21978,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22011,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22181,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22182,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22183,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22188,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22189,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22196,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22201,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22205,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 22216,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22217,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22226,
+    "raw": "not HasAnotherSameEquipment() and not HasEquipmentId(22227) and not HasEquipmentId(19698)",
+    "forbidsItems": [
+      22227,
+      19698
+    ],
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22227,
+    "raw": "not HasAnotherSameEquipment() and not HasEquipmentId(22226) and not HasEquipmentId(19698)",
+    "forbidsItems": [
+      22226,
+      19698
+    ],
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22234,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22241,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22259,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22260,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22261,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22276,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22277,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22282,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22283,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22284,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22296,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22315,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22320,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22321,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22339,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22342,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22345,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22376,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22377,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22378,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22385,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22395,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22410,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22411,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22446,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22451,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22453,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 22464,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22471,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22475,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22524,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22531,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22649,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22650,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22657,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22658,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22684,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22685,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22704,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22705,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22706,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22727,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22728,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22748,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22749,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22750,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22762,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22777,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22778,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22810,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22811,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22812,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22833,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22834,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22850,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22851,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22852,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22855,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22856,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22857,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22870,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22871,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22880,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22902,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22903,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22913,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22914,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22945,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22946,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22954,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22955,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22956,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22968,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22969,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 22992,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23016,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23017,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23035,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23037,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23041,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23042,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23043,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23058,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23059,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23087,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23088,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23089,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23102,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23103,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23105,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23106,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23110,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23128,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23129,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23171,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 23172,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23179,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23188,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23201,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23251,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23252,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23256,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23262,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23277,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23285,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23323,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23324,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23342,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23363,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23366,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23384,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23388,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23404,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23417,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23423,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23463,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23468,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23481,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23482,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23506,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23507,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23522,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23523,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23534,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23536,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23551,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23559,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23560,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23571,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23613,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23638,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23639,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23648,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23654,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23655,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23670,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23689,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23690,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23698,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23700,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23707,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23773,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23774,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23784,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23850,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23866,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23959,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 23969,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 23970,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 23981,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23982,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 23983,
+    "raw": "not HasAnotherSameEquipment() and GetCharac(\"FEROCITY\") > -10",
+    "uniqueEquipped": true,
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 23984,
+    "raw": "not HasAnotherSameEquipment() and GetCharac(\"FEROCITY\") > -10",
+    "uniqueEquipped": true,
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 24028,
+    "raw": "not HasAnotherSameEquipment() and GetCharac(\"FEROCITY\") > -10",
+    "uniqueEquipped": true,
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 24116,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 24117,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24118,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24123,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 24146,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 24253,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 24299,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24307,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 24315,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 24321,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 24323,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24325,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 24328,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 24331,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 24337,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24349,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 24350,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 24353,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24354,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24356,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 24359,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 24392,
+    "raw": "not HasAnotherSameEquipment()\r\nand not HasEquipmentId(24408)\r\nand not HasEquipmentId(24426)",
+    "forbidsItems": [
+      24408,
+      24426
+    ],
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24408,
+    "raw": "not HasAnotherSameEquipment()\r\nand not HasEquipmentId(24426)\r\nand not HasEquipmentId(24392)",
+    "forbidsItems": [
+      24426,
+      24392
+    ],
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24426,
+    "raw": "not HasAnotherSameEquipment()\r\nand not HasEquipmentId(24408)\r\nand not HasEquipmentId(24392)",
+    "forbidsItems": [
+      24408,
+      24392
+    ],
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24440,
+    "raw": "not HasAnotherSameEquipment()\r\nand not HasEquipmentId(24473)\r\nand not HasEquipmentId(24456)",
+    "forbidsItems": [
+      24473,
+      24456
+    ],
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24456,
+    "raw": "not HasAnotherSameEquipment()\r\nand not HasEquipmentId(24473)\r\nand not HasEquipmentId(24440)",
+    "forbidsItems": [
+      24473,
+      24440
+    ],
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24473,
+    "raw": "not HasAnotherSameEquipment()\r\nand not HasEquipmentId(24456)\r\nand not HasEquipmentId(24440)",
+    "forbidsItems": [
+      24456,
+      24440
+    ],
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24488,
+    "raw": "not HasAnotherSameEquipment()\r\nand not HasEquipmentId(24505)\r\nand not HasEquipmentId(24521)",
+    "forbidsItems": [
+      24505,
+      24521
+    ],
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24505,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24521,
+    "raw": "not HasAnotherSameEquipment()\r\nand not HasEquipmentId(24488)\r\nand not HasEquipmentId(24505)",
+    "forbidsItems": [
+      24488,
+      24505
+    ],
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24537,
+    "raw": "not HasAnotherSameEquipment()\r\nand not HasEquipmentId(24567)\r\nand not HasEquipmentId(24552)",
+    "forbidsItems": [
+      24567,
+      24552
+    ],
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24552,
+    "raw": "not HasAnotherSameEquipment()\r\nand not HasEquipmentId(24567)\r\nand not HasEquipmentId(24537)",
+    "forbidsItems": [
+      24567,
+      24537
+    ],
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24567,
+    "raw": "not HasAnotherSameEquipment()\r\nand not HasEquipmentId(24552)\r\nand not HasEquipmentId(24537)",
+    "forbidsItems": [
+      24552,
+      24537
+    ],
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24585,
+    "raw": "not HasAnotherSameEquipment()\r\nand not HasEquipmentId(24601)\r\nand not HasEquipmentId(24615)",
+    "forbidsItems": [
+      24601,
+      24615
+    ],
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24601,
+    "raw": "not HasAnotherSameEquipment()\r\nand not HasEquipmentId(24585)\r\nand not HasEquipmentId(24615)",
+    "forbidsItems": [
+      24585,
+      24615
+    ],
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24615,
+    "raw": "not HasAnotherSameEquipment()\r\nand not HasEquipmentId(24585)\r\nand not HasEquipmentId(24601)",
+    "forbidsItems": [
+      24585,
+      24601
+    ],
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24635,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 24666,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 24667,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 24712,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24735,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24798,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24811,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 24812,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25042,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25072,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25075,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 25079,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25135,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25139,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25140,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25141,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25147,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25148,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25149,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25162,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25163,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25249,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25250,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25251,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25280,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25281,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25290,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25315,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 25317,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25318,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25329,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25331,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25351,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25352,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25353,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25354,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25361,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25368,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25370,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25384,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25385,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25401,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25402,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25416,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25439,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25440,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25454,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25498,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25500,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25504,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25505,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25506,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25525,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25534,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25535,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25553,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 25554,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 25585,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25590,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25591,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25607,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25608,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25609,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25610,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25628,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 25629,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 25630,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 25659,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25660,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25663,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 25664,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 25681,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25682,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25683,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25684,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25685,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25686,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25687,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25739,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25740,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25741,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25742,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25766,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25767,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25768,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25789,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25790,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25805,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25806,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25807,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25808,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25811,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25812,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25813,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25814,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25849,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25850,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25851,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25899,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25900,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25901,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25908,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25909,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25910,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25911,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 25912,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 25958,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25959,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25960,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 25961,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26003,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26004,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26017,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26018,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26019,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26020,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26043,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26044,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26247,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26248,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26249,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26262,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26289,
+    "raw": "GetCharacMax(\"MP\") <= 5",
+    "statGates": [
+      {
+        "characteristic": "MOVEMENT_POINT",
+        "max": true,
+        "comparison": "LE",
+        "value": 5
+      }
+    ]
+  },
+  {
+    "itemId": 26290,
+    "raw": "GetCharac(\"TACKLE\") >= 500 and GetCharac(\"TACKLE\") <= 600",
+    "statGates": [
+      {
+        "characteristic": "LOCK",
+        "comparison": "GE",
+        "value": 500
+      },
+      {
+        "characteristic": "LOCK",
+        "comparison": "LE",
+        "value": 600
+      }
+    ]
+  },
+  {
+    "itemId": 26291,
+    "raw": "GetCharac(\"BLOCK\") <= 20",
+    "statGates": [
+      {
+        "characteristic": "BLOCK_PERCENTAGE",
+        "comparison": "LE",
+        "value": 20
+      }
+    ]
+  },
+  {
+    "itemId": 26292,
+    "raw": "GetCharac(\"RANGED_DMG\") >= 400 && GetCharac(\"RANGED_DMG\") <= 500",
+    "statGates": [
+      {
+        "characteristic": "MASTERY_DISTANCE",
+        "comparison": "GE",
+        "value": 400
+      },
+      {
+        "characteristic": "MASTERY_DISTANCE",
+        "comparison": "LE",
+        "value": 500
+      }
+    ]
+  },
+  {
+    "itemId": 26295,
+    "raw": "GetCharac(\"RANGE\") <= 3",
+    "statGates": [
+      {
+        "characteristic": "RANGE",
+        "comparison": "LE",
+        "value": 3
+      }
+    ]
+  },
+  {
+    "itemId": 26296,
+    "raw": "GetCharacMax(\"AP\") >= 13",
+    "statGates": [
+      {
+        "characteristic": "ACTION_POINT",
+        "max": true,
+        "comparison": "GE",
+        "value": 13
+      }
+    ]
+  },
+  {
+    "itemId": 26297,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26298,
+    "raw": "GetCharacMax(\"WP\") <= 4",
+    "statGates": [
+      {
+        "characteristic": "WAKFU_POINT",
+        "max": true,
+        "comparison": "LE",
+        "value": 4
+      }
+    ]
+  },
+  {
+    "itemId": 26299,
+    "raw": "GetCharac(\"TACKLE\") >= 500 && GetCharac(\"TACKLE\") <= 600",
+    "statGates": [
+      {
+        "characteristic": "LOCK",
+        "comparison": "GE",
+        "value": 500
+      },
+      {
+        "characteristic": "LOCK",
+        "comparison": "LE",
+        "value": 600
+      }
+    ]
+  },
+  {
+    "itemId": 26300,
+    "raw": "GetCharacMax(\"WP\") >= 8",
+    "statGates": [
+      {
+        "characteristic": "WAKFU_POINT",
+        "max": true,
+        "comparison": "GE",
+        "value": 8
+      }
+    ]
+  },
+  {
+    "itemId": 26301,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26302,
+    "raw": "GetCharac(\"FEROCITY\") >= 40 && GetCharac(\"FEROCITY\") <= 50",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GE",
+        "value": 40
+      },
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "LE",
+        "value": 50
+      }
+    ]
+  },
+  {
+    "itemId": 26303,
+    "raw": "GetCharac(\"FEROCITY\") <= 25",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "LE",
+        "value": 25
+      }
+    ]
+  },
+  {
+    "itemId": 26304,
+    "raw": "GetCharac(\"DODGE\") >= 500 && GetCharac(\"DODGE\") <= 600",
+    "statGates": [
+      {
+        "characteristic": "DODGE",
+        "comparison": "GE",
+        "value": 500
+      },
+      {
+        "characteristic": "DODGE",
+        "comparison": "LE",
+        "value": 600
+      }
+    ]
+  },
+  {
+    "itemId": 26310,
+    "raw": "GetCharacMax(\"MP\") <= 5",
+    "statGates": [
+      {
+        "characteristic": "MOVEMENT_POINT",
+        "max": true,
+        "comparison": "LE",
+        "value": 5
+      }
+    ]
+  },
+  {
+    "itemId": 26311,
+    "raw": "GetCharac(\"TACKLE\") >= 500 && GetCharac(\"TACKLE\") <= 600",
+    "statGates": [
+      {
+        "characteristic": "LOCK",
+        "comparison": "GE",
+        "value": 500
+      },
+      {
+        "characteristic": "LOCK",
+        "comparison": "LE",
+        "value": 600
+      }
+    ]
+  },
+  {
+    "itemId": 26312,
+    "raw": "GetCharac(\"BLOCK\") <= 20",
+    "statGates": [
+      {
+        "characteristic": "BLOCK_PERCENTAGE",
+        "comparison": "LE",
+        "value": 20
+      }
+    ]
+  },
+  {
+    "itemId": 26313,
+    "raw": "GetCharac(\"RANGED_DMG\") >= 400 && GetCharac(\"RANGED_DMG\") <= 500",
+    "statGates": [
+      {
+        "characteristic": "MASTERY_DISTANCE",
+        "comparison": "GE",
+        "value": 400
+      },
+      {
+        "characteristic": "MASTERY_DISTANCE",
+        "comparison": "LE",
+        "value": 500
+      }
+    ]
+  },
+  {
+    "itemId": 26316,
+    "raw": "GetCharac(\"RANGE\") <= 3",
+    "statGates": [
+      {
+        "characteristic": "RANGE",
+        "comparison": "LE",
+        "value": 3
+      }
+    ]
+  },
+  {
+    "itemId": 26317,
+    "raw": "GetCharacMax(\"AP\") >= 13",
+    "statGates": [
+      {
+        "characteristic": "ACTION_POINT",
+        "max": true,
+        "comparison": "GE",
+        "value": 13
+      }
+    ]
+  },
+  {
+    "itemId": 26318,
+    "raw": "GetCharac(\"TACKLE\") >= 500 && GetCharac(\"TACKLE\") <= 600",
+    "statGates": [
+      {
+        "characteristic": "LOCK",
+        "comparison": "GE",
+        "value": 500
+      },
+      {
+        "characteristic": "LOCK",
+        "comparison": "LE",
+        "value": 600
+      }
+    ]
+  },
+  {
+    "itemId": 26319,
+    "raw": "GetCharacMax(\"WP\") >= 8",
+    "statGates": [
+      {
+        "characteristic": "WAKFU_POINT",
+        "max": true,
+        "comparison": "GE",
+        "value": 8
+      }
+    ]
+  },
+  {
+    "itemId": 26321,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26322,
+    "raw": "GetCharac(\"FEROCITY\") >= 40 && GetCharac(\"FEROCITY\") <= 50",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GE",
+        "value": 40
+      },
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "LE",
+        "value": 50
+      }
+    ]
+  },
+  {
+    "itemId": 26323,
+    "raw": "GetCharac(\"FEROCITY\") <= 25",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "LE",
+        "value": 25
+      }
+    ]
+  },
+  {
+    "itemId": 26324,
+    "raw": "GetCharac(\"DODGE\") >= 500 && GetCharac(\"DODGE\") <= 600",
+    "statGates": [
+      {
+        "characteristic": "DODGE",
+        "comparison": "GE",
+        "value": 500
+      },
+      {
+        "characteristic": "DODGE",
+        "comparison": "LE",
+        "value": 600
+      }
+    ]
+  },
+  {
+    "itemId": 26356,
+    "raw": "IsBreed(\"HUPPERMAGE\")",
+    "classes": [
+      "HUPPERMAGE"
+    ]
+  },
+  {
+    "itemId": 26357,
+    "raw": "IsBreed(\"OUGINAK\")",
+    "classes": [
+      "OUGINAK"
+    ]
+  },
+  {
+    "itemId": 26358,
+    "raw": "IsBreed(\"OUGINAK\")",
+    "classes": [
+      "OUGINAK"
+    ]
+  },
+  {
+    "itemId": 26484,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26494,
+    "raw": "HasEquipmentId(26575)",
+    "requiresItems": [
+      26575
+    ]
+  },
+  {
+    "itemId": 26495,
+    "raw": "HasEquipmentId(26576)",
+    "requiresItems": [
+      26576
+    ]
+  },
+  {
+    "itemId": 26496,
+    "raw": "HasEquipmentId(26577)",
+    "requiresItems": [
+      26577
+    ]
+  },
+  {
+    "itemId": 26497,
+    "raw": "HasEquipmentId(26578)",
+    "requiresItems": [
+      26578
+    ]
+  },
+  {
+    "itemId": 26504,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26514,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26516,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26517,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26518,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26536,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26537,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26567,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 26575,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26576,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26577,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26578,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26579,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 26593,
+    "raw": "GetCharac(\"WILLPOWER\") <= 20",
+    "statGates": [
+      {
+        "characteristic": "WILLPOWER",
+        "comparison": "LE",
+        "value": 20
+      }
+    ]
+  },
+  {
+    "itemId": 26628,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26629,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26630,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26631,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26641,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26642,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26643,
+    "raw": "IsBreed(\"XELOR\")",
+    "classes": [
+      "XELOR"
+    ]
+  },
+  {
+    "itemId": 26751,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26752,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26755,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26756,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26769,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26770,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26771,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26772,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26773,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26774,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26775,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26791,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26792,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26795,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26796,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26797,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26813,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26814,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26835,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26836,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26837,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26845,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26846,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26847,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26875,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26876,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26877,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26892,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26893,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26894,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26895,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26896,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26897,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26919,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26920,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26921,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26940,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26941,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26942,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 26953,
+    "raw": "GetCharac(\"TACKLE\") >= 500 and GetCharac(\"TACKLE\") <= 600",
+    "statGates": [
+      {
+        "characteristic": "LOCK",
+        "comparison": "GE",
+        "value": 500
+      },
+      {
+        "characteristic": "LOCK",
+        "comparison": "LE",
+        "value": 600
+      }
+    ]
+  },
+  {
+    "itemId": 26954,
+    "raw": "GetCharac(\"TACKLE\") >= 500 and GetCharac(\"TACKLE\") <= 600",
+    "statGates": [
+      {
+        "characteristic": "LOCK",
+        "comparison": "GE",
+        "value": 500
+      },
+      {
+        "characteristic": "LOCK",
+        "comparison": "LE",
+        "value": 600
+      }
+    ]
+  },
+  {
+    "itemId": 26994,
+    "raw": "GetCharacMax(\"WP\") >= 8",
+    "statGates": [
+      {
+        "characteristic": "WAKFU_POINT",
+        "max": true,
+        "comparison": "GE",
+        "value": 8
+      }
+    ]
+  },
+  {
+    "itemId": 26995,
+    "raw": "GetCharacMax(\"WP\") >= 8",
+    "statGates": [
+      {
+        "characteristic": "WAKFU_POINT",
+        "max": true,
+        "comparison": "GE",
+        "value": 8
+      }
+    ]
+  },
+  {
+    "itemId": 26996,
+    "raw": "GetCharacMax(\"WP\") >= 8",
+    "statGates": [
+      {
+        "characteristic": "WAKFU_POINT",
+        "max": true,
+        "comparison": "GE",
+        "value": 8
+      }
+    ]
+  },
+  {
+    "itemId": 26997,
+    "raw": "GetCharacMax(\"MP\") <= 5",
+    "statGates": [
+      {
+        "characteristic": "MOVEMENT_POINT",
+        "max": true,
+        "comparison": "LE",
+        "value": 5
+      }
+    ]
+  },
+  {
+    "itemId": 26998,
+    "raw": "GetCharacMax(\"MP\") <= 5",
+    "statGates": [
+      {
+        "characteristic": "MOVEMENT_POINT",
+        "max": true,
+        "comparison": "LE",
+        "value": 5
+      }
+    ]
+  },
+  {
+    "itemId": 27004,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27005,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27281,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27287,
+    "raw": "GetCharac(\"RANGE\") >= 2",
+    "statGates": [
+      {
+        "characteristic": "RANGE",
+        "comparison": "GE",
+        "value": 2
+      }
+    ]
+  },
+  {
+    "itemId": 27288,
+    "raw": "GetCharac(\"RANGE\") >= 2",
+    "statGates": [
+      {
+        "characteristic": "RANGE",
+        "comparison": "GE",
+        "value": 2
+      }
+    ]
+  },
+  {
+    "itemId": 27289,
+    "raw": "GetCharacMax(\"AP\") >= 13",
+    "statGates": [
+      {
+        "characteristic": "ACTION_POINT",
+        "max": true,
+        "comparison": "GE",
+        "value": 13
+      }
+    ]
+  },
+  {
+    "itemId": 27290,
+    "raw": "GetCharacMax(\"AP\") >= 13",
+    "statGates": [
+      {
+        "characteristic": "ACTION_POINT",
+        "max": true,
+        "comparison": "GE",
+        "value": 13
+      }
+    ]
+  },
+  {
+    "itemId": 27291,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27292,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27293,
+    "raw": "GetCharac(\"BLOCK\") >= 40 and GetCharac(\"BLOCK\") <= 50",
+    "statGates": [
+      {
+        "characteristic": "BLOCK_PERCENTAGE",
+        "comparison": "GE",
+        "value": 40
+      },
+      {
+        "characteristic": "BLOCK_PERCENTAGE",
+        "comparison": "LE",
+        "value": 50
+      }
+    ]
+  },
+  {
+    "itemId": 27294,
+    "raw": "GetCharac(\"BLOCK\") >= 40 and GetCharac(\"BLOCK\") <= 50",
+    "statGates": [
+      {
+        "characteristic": "BLOCK_PERCENTAGE",
+        "comparison": "GE",
+        "value": 40
+      },
+      {
+        "characteristic": "BLOCK_PERCENTAGE",
+        "comparison": "LE",
+        "value": 50
+      }
+    ]
+  },
+  {
+    "itemId": 27297,
+    "raw": "GetCharac(\"TACKLE\") >= 500 and GetCharac(\"TACKLE\") <= 600",
+    "statGates": [
+      {
+        "characteristic": "LOCK",
+        "comparison": "GE",
+        "value": 500
+      },
+      {
+        "characteristic": "LOCK",
+        "comparison": "LE",
+        "value": 600
+      }
+    ]
+  },
+  {
+    "itemId": 27298,
+    "raw": "GetCharac(\"TACKLE\") >= 500 and GetCharac(\"TACKLE\") <= 600",
+    "statGates": [
+      {
+        "characteristic": "LOCK",
+        "comparison": "GE",
+        "value": 500
+      },
+      {
+        "characteristic": "LOCK",
+        "comparison": "LE",
+        "value": 600
+      }
+    ]
+  },
+  {
+    "itemId": 27299,
+    "raw": "GetCharac(\"RANGE\") <= 3",
+    "statGates": [
+      {
+        "characteristic": "RANGE",
+        "comparison": "LE",
+        "value": 3
+      }
+    ]
+  },
+  {
+    "itemId": 27300,
+    "raw": "GetCharac(\"RANGE\") <= 3",
+    "statGates": [
+      {
+        "characteristic": "RANGE",
+        "comparison": "LE",
+        "value": 3
+      }
+    ]
+  },
+  {
+    "itemId": 27303,
+    "raw": "GetCharacMax(\"AP\") <= 11",
+    "statGates": [
+      {
+        "characteristic": "ACTION_POINT",
+        "max": true,
+        "comparison": "LE",
+        "value": 11
+      }
+    ]
+  },
+  {
+    "itemId": 27304,
+    "raw": "GetCharacMax(\"AP\") <= 11",
+    "statGates": [
+      {
+        "characteristic": "ACTION_POINT",
+        "max": true,
+        "comparison": "LE",
+        "value": 11
+      }
+    ]
+  },
+  {
+    "itemId": 27353,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27357,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27377,
+    "raw": "GetCharac(\"RANGE\") <= 3",
+    "statGates": [
+      {
+        "characteristic": "RANGE",
+        "comparison": "LE",
+        "value": 3
+      }
+    ]
+  },
+  {
+    "itemId": 27378,
+    "raw": "GetCharac(\"RANGE\") <= 3",
+    "statGates": [
+      {
+        "characteristic": "RANGE",
+        "comparison": "LE",
+        "value": 3
+      }
+    ]
+  },
+  {
+    "itemId": 27384,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27385,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27386,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27407,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27408,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27409,
+    "raw": "GetCharacMax(\"AP\") <= 11",
+    "statGates": [
+      {
+        "characteristic": "ACTION_POINT",
+        "max": true,
+        "comparison": "LE",
+        "value": 11
+      }
+    ]
+  },
+  {
+    "itemId": 27410,
+    "raw": "GetCharacMax(\"AP\") <= 11",
+    "statGates": [
+      {
+        "characteristic": "ACTION_POINT",
+        "max": true,
+        "comparison": "LE",
+        "value": 11
+      }
+    ]
+  },
+  {
+    "itemId": 27414,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27415,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27416,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27437,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27438,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27443,
+    "raw": "GetCharac(\"TACKLE\") >= 400 and GetCharac(\"TACKLE\") <= 500",
+    "statGates": [
+      {
+        "characteristic": "LOCK",
+        "comparison": "GE",
+        "value": 400
+      },
+      {
+        "characteristic": "LOCK",
+        "comparison": "LE",
+        "value": 500
+      }
+    ]
+  },
+  {
+    "itemId": 27444,
+    "raw": "GetCharac(\"TACKLE\") >= 400 and GetCharac(\"TACKLE\") <= 500",
+    "statGates": [
+      {
+        "characteristic": "LOCK",
+        "comparison": "GE",
+        "value": 400
+      },
+      {
+        "characteristic": "LOCK",
+        "comparison": "LE",
+        "value": 500
+      }
+    ]
+  },
+  {
+    "itemId": 27445,
+    "raw": "GetCharac(\"FEROCITY\") >= 40 and GetCharac(\"FEROCITY\") <= 50",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GE",
+        "value": 40
+      },
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "LE",
+        "value": 50
+      }
+    ]
+  },
+  {
+    "itemId": 27446,
+    "raw": "GetCharac(\"FEROCITY\") >= 40 and GetCharac(\"FEROCITY\") <= 50",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GE",
+        "value": 40
+      },
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "LE",
+        "value": 50
+      }
+    ]
+  },
+  {
+    "itemId": 27447,
+    "raw": "GetCharacMax(\"AP\") <= 11",
+    "statGates": [
+      {
+        "characteristic": "ACTION_POINT",
+        "max": true,
+        "comparison": "LE",
+        "value": 11
+      }
+    ]
+  },
+  {
+    "itemId": 27448,
+    "raw": "GetCharacMax(\"AP\") <= 11",
+    "statGates": [
+      {
+        "characteristic": "ACTION_POINT",
+        "max": true,
+        "comparison": "LE",
+        "value": 11
+      }
+    ]
+  },
+  {
+    "itemId": 27449,
+    "raw": "GetCharacMax(\"MP\") <= 5",
+    "statGates": [
+      {
+        "characteristic": "MOVEMENT_POINT",
+        "max": true,
+        "comparison": "LE",
+        "value": 5
+      }
+    ]
+  },
+  {
+    "itemId": 27450,
+    "raw": "GetCharacMax(\"MP\") <= 5",
+    "statGates": [
+      {
+        "characteristic": "MOVEMENT_POINT",
+        "max": true,
+        "comparison": "LE",
+        "value": 5
+      }
+    ]
+  },
+  {
+    "itemId": 27459,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27460,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27461,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27462,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27503,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27504,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27505,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27506,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27507,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27508,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27555,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27564,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27580,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27581,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27620,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27621,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27634,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27638,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27639,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27678,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27679,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27689,
+    "raw": "not HasAnotherSameEquipment()\r\nand GetCharac(\"FEROCITY\") > -10",
+    "uniqueEquipped": true,
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 27693,
+    "raw": "GetCharacMax(\"MP\") <= 5",
+    "statGates": [
+      {
+        "characteristic": "MOVEMENT_POINT",
+        "max": true,
+        "comparison": "LE",
+        "value": 5
+      }
+    ]
+  },
+  {
+    "itemId": 27695,
+    "raw": "GetCharac(\"FEROCITY\") >= 40 and GetCharac(\"FEROCITY\") <= 50",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GE",
+        "value": 40
+      },
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "LE",
+        "value": 50
+      }
+    ]
+  },
+  {
+    "itemId": 27698,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27699,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27725,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27726,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27727,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27728,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27729,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27730,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27747,
+    "raw": "GetCharac(\"RANGED_DMG\") >= 400 && GetCharac(\"RANGED_DMG\") <= 500",
+    "statGates": [
+      {
+        "characteristic": "MASTERY_DISTANCE",
+        "comparison": "GE",
+        "value": 400
+      },
+      {
+        "characteristic": "MASTERY_DISTANCE",
+        "comparison": "LE",
+        "value": 500
+      }
+    ]
+  },
+  {
+    "itemId": 27749,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 27752,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 27753,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27754,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27755,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27760,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27761,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27774,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27775,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27776,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27789,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27790,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27791,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27805,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 27806,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 27809,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 27814,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28060,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28061,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28064,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28065,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28066,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28135,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28136,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28161,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28162,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28224,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28225,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28257,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28258,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28259,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28260,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28265,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28266,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28287,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28288,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28320,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28321,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28329,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 28409,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 29051,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29052,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29074,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29075,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29076,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29081,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29082,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29083,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29095,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29096,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29109,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29115,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 29116,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 29127,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29128,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29129,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29143,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29144,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29145,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29161,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29162,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29163,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29167,
+    "raw": "GetCharac(\"FEROCITY\") > -10 and not HasAnotherSameEquipment()",
+    "uniqueEquipped": true,
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 29168,
+    "raw": "GetCharac(\"FEROCITY\") > -10 and not HasAnotherSameEquipment()",
+    "uniqueEquipped": true,
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 29177,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 29178,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 29183,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29184,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29185,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29219,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29220,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29237,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29238,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29239,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 29240,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 29243,
+    "raw": "GetCharac(\"FEROCITY\") > -10 and not HasAnotherSameEquipment()",
+    "uniqueEquipped": true,
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 29257,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 29258,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 29259,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 29263,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29264,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29273,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29274,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29285,
+    "raw": "GetCharac(\"FEROCITY\") > -10 and not HasAnotherSameEquipment()",
+    "uniqueEquipped": true,
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 29286,
+    "raw": "GetCharac(\"FEROCITY\") > -10 and not HasAnotherSameEquipment()",
+    "uniqueEquipped": true,
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 29287,
+    "raw": "GetCharac(\"FEROCITY\") > -10 and not HasAnotherSameEquipment()",
+    "uniqueEquipped": true,
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 29327,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29328,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29343,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29344,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29442,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 29455,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29457,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29458,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29528,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29529,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29534,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29535,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29818,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29855,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29858,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29880,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29881,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29906,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 29907,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30138,
+    "raw": "GetCharacteristicMax(\"AP\", \"target\") <= 11",
+    "statGates": [
+      {
+        "characteristic": "ACTION_POINT",
+        "max": true,
+        "comparison": "LE",
+        "value": 11
+      }
+    ]
+  },
+  {
+    "itemId": 30150,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30151,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30167,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30168,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30246,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30247,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30248,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30253,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30323,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30324,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30325,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30326,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30327,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30335,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30336,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30371,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30372,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30373,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30407,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30408,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30430,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30431,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30677,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 30678,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 30683,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30684,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30702,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30793,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 30794,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 30903,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30904,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30920,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 30921,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31073,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31074,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31075,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31095,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31096,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31097,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31116,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31117,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31118,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31238,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31239,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31255,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31256,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31257,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31275,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31276,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31293,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31294,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31330,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31331,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31343,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 31344,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 31351,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 31352,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 31359,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31360,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31455,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31552,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31553,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31555,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31847,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31848,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31849,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31855,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 31856,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 31867,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31868,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31869,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 31870,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 31887,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31888,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31889,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31907,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31908,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31927,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31928,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31929,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31947,
+    "raw": "not HasAnotherSameEquipment()\r\nand GetCharac(\"FEROCITY\") > -10",
+    "uniqueEquipped": true,
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 31948,
+    "raw": "not HasAnotherSameEquipment()\r\nand GetCharac(\"FEROCITY\") > -10",
+    "uniqueEquipped": true,
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 31967,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31968,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31969,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31987,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 31988,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32007,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32008,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32009,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32027,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32028,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32087,
+    "raw": "not HasAnotherSameEquipment()\r\nand GetCharac(\"FEROCITY\") > -10",
+    "uniqueEquipped": true,
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 32089,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32090,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32111,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32112,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32171,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32172,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32173,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32179,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32180,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32194,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32195,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32198,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 32199,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 32200,
+    "raw": "GetCharac(\"FEROCITY\") > -10",
+    "statGates": [
+      {
+        "characteristic": "CRITICAL_HIT",
+        "comparison": "GT",
+        "value": -10
+      }
+    ]
+  },
+  {
+    "itemId": 32216,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32217,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32326,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32337,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32517,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32518,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32540,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32541,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32542,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32543,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  },
+  {
+    "itemId": 32988,
+    "raw": "False",
+    "never": true
+  },
+  {
+    "itemId": 33375,
+    "raw": "False",
+    "never": true
+  },
+  {
+    "itemId": 33376,
+    "raw": "False",
+    "never": true
+  },
+  {
+    "itemId": 33377,
+    "raw": "False",
+    "never": true
+  },
+  {
+    "itemId": 33389,
+    "raw": "not HasAnotherSameEquipment()",
+    "uniqueEquipped": true
+  }
+]
