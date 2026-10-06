@@ -81,6 +81,7 @@ import me.chosante.ui.i18n.tr
 import me.chosante.ui.state.Modal
 import me.chosante.ui.state.PickerMode
 import me.chosante.ui.state.color
+import me.chosante.ui.state.freeBuildName
 import me.chosante.ui.state.statCatalog
 import me.chosante.ui.state.tagInputSuggestions
 import me.chosante.ui.theme.WColor
@@ -117,6 +118,7 @@ fun ModalHost(
     suggestedSaveName: String = "",
     isEditingExisting: Boolean = false,
     takenNames: Set<String> = emptySet(),
+    takenNamesForNew: Set<String> = takenNames + if (isEditingExisting) setOf(suggestedSaveName.trim().lowercase()) else emptySet(),
     editingEntry: HistoryEntry? = null,
     existingFolders: List<String> = emptyList(),
     existingTags: List<String> = emptyList(),
@@ -192,6 +194,7 @@ fun ModalHost(
                     initialName = suggestedSaveName,
                     isEditingExisting = isEditingExisting,
                     takenNames = takenNames,
+                    takenNamesForNew = takenNamesForNew,
                     onSave = onSaveBuild,
                     onCancel = onDismiss
                 )
@@ -1355,18 +1358,20 @@ private fun SaveBuildModal(
     initialName: String,
     isEditingExisting: Boolean,
     takenNames: Set<String>,
+    takenNamesForNew: Set<String>,
     onSave: (name: String, note: String?, asNew: Boolean) -> Unit,
     onCancel: () -> Unit,
 ) {
     var name by remember { mutableStateOf(initialName) }
     var note by remember { mutableStateOf("") }
-    val nameTaken = name.trim().lowercase() in takenNames
+    var asNew by remember { mutableStateOf(false) }
+    val nameTaken = name.trim().lowercase() in if (asNew) takenNamesForNew else takenNames
     // Block any save whose name collides with a *different* saved build, so two builds never
     // share a name (which would make the library and compare view ambiguous).
     val canSave = name.isNotBlank() && !nameTaken
     // Enter in the name field and Ctrl/Cmd+Enter anywhere in the dialog do what the highlighted button does ("Update" for a
     // loaded build, "Save" otherwise), and nothing while that button is disabled.
-    val submit = { if (canSave) onSave(name, note.ifBlank { null }, false) }
+    val submit = { if (canSave) onSave(name, note.ifBlank { null }, asNew) }
     ModalCard(title = tr(Tr.SAVE_DIALOG_TITLE), modifier = Modifier.onSubmitShortcut(submit)) {
         LabeledField(
             label = tr(Tr.SAVE_NAME_LABEL),
@@ -1390,7 +1395,7 @@ private fun SaveBuildModal(
             onValueChange = { note = it },
             placeholder = ""
         )
-        if (isEditingExisting) {
+        if (isEditingExisting && !asNew) {
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = tr(Tr.SAVE_UPDATE_HINT),
@@ -1400,13 +1405,16 @@ private fun SaveBuildModal(
         Spacer(modifier = Modifier.height(WDimens.gap))
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             DialogButton(text = tr(Tr.CANCEL), filled = false, color = WColor.border, onClick = onCancel, modifier = Modifier.weight(1f))
-            if (isEditingExisting) {
+            if (isEditingExisting && !asNew) {
                 DialogButton(
                     text = tr(Tr.SAVE_AS_NEW),
                     filled = false,
                     color = WColor.accent2,
                     enabled = canSave,
-                    onClick = { onSave(name, note.ifBlank { null }, true) },
+                    onClick = {
+                        name = freeBuildName(name, takenNamesForNew)
+                        asNew = true
+                    },
                     modifier = Modifier.weight(1f)
                 )
                 DialogButton(
@@ -1414,7 +1422,7 @@ private fun SaveBuildModal(
                     filled = true,
                     color = WColor.accent,
                     enabled = canSave,
-                    onClick = { onSave(name, note.ifBlank { null }, false) },
+                    onClick = submit,
                     modifier = Modifier.weight(1f)
                 )
             } else {
@@ -1423,7 +1431,7 @@ private fun SaveBuildModal(
                     filled = true,
                     color = WColor.accent,
                     enabled = canSave,
-                    onClick = { onSave(name, note.ifBlank { null }, false) },
+                    onClick = submit,
                     modifier = Modifier.weight(1f)
                 )
             }
