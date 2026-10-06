@@ -86,6 +86,11 @@ internal class RuneModel(
     val countCarriers: Set<Equipment> = emptySet(),
     // Each [countCarriers] var → its carrier's socket count (a gated count is posted as `count ≤ slots·Σ subVar`).
     private val countVarSlots: Map<IntVar, Long> = emptyMap(),
+    /**
+     * One `mixed` bool per [countCarriers] carrier (see `gatedCounts` in [createRuneModel]): 0 ⇒ the carrier is the
+     * fold's single-type pick, 1 ⇒ any fill. Auxiliary — no stat reads it; [buildModel] hints each at 0.
+     */
+    val mixedFlags: List<IntVar> = emptyList(),
 ) {
     /** Whether [equip]'s rune vars are boolean single-type PICKS (else per-type counts 0..slots). */
     fun isPickCarrier(equip: Equipment): Boolean = singleTypePerItem && equip !in countCarriers

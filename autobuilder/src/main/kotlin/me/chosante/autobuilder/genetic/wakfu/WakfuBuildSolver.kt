@@ -1812,6 +1812,10 @@ object WakfuBuildSolver {
                         emptySet()
                     }
             )
+        // Start the search in the all-or-nothing fold's subtree: a count carrier's `mixed` bool hinted 0 (advisory; the
+        // greedy warm start carries no runes, so there is no pick to hint). A hint is not a solver parameter: the optimum
+        // and its proof are unchanged.
+        for (flag in runeModel.mixedFlags) model.addHint(flag, 0L)
         bmMark("runeModel")
         val subModel = model.createSublimationModel(params, allEquips, equipVars, sublimations)
         // The collapse's gated rune choices (`pick ≤ Σ subVar`): the reads come from the same modelled-sub list, so
