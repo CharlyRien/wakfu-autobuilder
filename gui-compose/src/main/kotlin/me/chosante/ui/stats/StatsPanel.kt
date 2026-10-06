@@ -62,8 +62,8 @@ import me.chosante.common.skills.SkillCharacteristic
 import me.chosante.ui.components.CharacteristicIcon
 import me.chosante.ui.components.Hairline
 import me.chosante.ui.components.InfoTip
+import me.chosante.ui.components.ObsoleteCue
 import me.chosante.ui.components.PassiveIcon
-import me.chosante.ui.components.StaleDataCue
 import me.chosante.ui.components.StatGlyphIcon
 import me.chosante.ui.components.VerticalScrollHints
 import me.chosante.ui.components.displayName
@@ -71,6 +71,7 @@ import me.chosante.ui.components.iconResourcePath
 import me.chosante.ui.components.localized
 import me.chosante.ui.components.rememberClasspathBitmap
 import me.chosante.ui.components.sublimationEffectText
+import me.chosante.ui.history.obsolescence
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
@@ -107,6 +108,7 @@ fun StatsPanel(
     onViewAsDamage: () -> Unit,
     onStopProof: () -> Unit = {},
     onRetryError: () -> Unit = {},
+    onRerunSearch: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
@@ -122,8 +124,9 @@ fun StatsPanel(
             verticalArrangement = Arrangement.spacedBy(WDimens.gap)
         ) {
             MatchHero(ui, onStopProof)
-            // A build loaded from other game data than the app ships now: a quiet note under the headline, nothing blocked.
-            ui.staleDataVersion?.takeIf { ui.build != null }?.let { StaleDataCue(version = it, boxed = true) }
+            // A loaded saved build a new search may improve (game data updated and/or engine improved since it was saved): a
+            // quiet note under the headline that says why and offers the re-run; nothing is blocked.
+            ui.obsolescence()?.let { ObsoleteCue(obsolescence = it, onRerun = onRerunSearch) }
             if (ui.phase == Phase.Idle && ui.build == null) {
                 // No build yet: the ActionsCard (which normally carries the error banner) isn't shown,
                 // so surface a pre-search error — e.g. an invalid min/max level range — here instead.

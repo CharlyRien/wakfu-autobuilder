@@ -3,6 +3,7 @@ package me.chosante.ui.history
 import kotlinx.serialization.json.Json
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.ENGINE_RESULTS_VERSION
 import me.chosante.autobuilder.domain.Orientation
 import me.chosante.autobuilder.domain.RangeBand
 import me.chosante.autobuilder.domain.SpellElement
@@ -59,6 +60,7 @@ fun UiState.toHistoryEntry(
     dataVersion: String,
     tags: List<String> = emptyList(),
     folder: String? = null,
+    engineResultsVersion: Int? = ENGINE_RESULTS_VERSION,
 ): HistoryEntry? {
     val build = this.build ?: return null
     return HistoryEntry(
@@ -67,6 +69,7 @@ fun UiState.toHistoryEntry(
         createdAt = createdAt,
         note = note?.takeIf { it.isNotBlank() },
         dataVersion = dataVersion,
+        engineResultsVersion = engineResultsVersion,
         request = toRequestSnapshot(),
         result =
             ResultSnapshot(

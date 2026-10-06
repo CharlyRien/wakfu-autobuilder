@@ -122,6 +122,7 @@ fun AppShell(
                                 ui = ui,
                                 onImport = model::requestImport,
                                 onLoad = model::loadBuild,
+                                onRerun = model::rerunSearch,
                                 onCompare = model::startCompare,
                                 onDuplicate = model::duplicateBuild,
                                 onEdit = model::requestEdit,
@@ -147,6 +148,7 @@ fun AppShell(
                                 onPick = model::setCompareSlot,
                                 onClear = model::clearCompareSlot,
                                 onAdd = model::addCompareSlot,
+                                onRerun = model::rerunSearch,
                                 onBack = { model.goToScreen(Screen.Library) }
                             )
                     }
@@ -303,7 +305,8 @@ private fun BuilderBody(
                                 onExport = model::exportBuild,
                                 onViewAsDamage = model::viewCurrentBuildAsMaxDamage,
                                 onStopProof = model::stopProof,
-                                onRetryError = model::retryAfterError
+                                onRetryError = model::retryAfterError,
+                                onRerunSearch = model::confirmReSearch
                             )
                         }
                     }

@@ -109,6 +109,15 @@ named `genetic` for historical reasons.
 equipments by `ItemType` (applying level/rarity/forced/excluded filters), then hands them to the
 solver.
 
+> **`ENGINE_RESULTS_VERSION` (`autobuilder/.../domain/EngineResultsVersion.kt`) — bump it on ANY change that can alter which
+> build a search returns or a build's score**: the solver, the scorers, the item pre-filter, the rune or sublimation modelling,
+> the certificates. **A `CERTIFIER_VERSION` bump implies an `ENGINE_RESULTS_VERSION` bump**; a pure speed-up that returns the
+> same builds needs none. Every saved build records it (`HistoryEntry.engineResultsVersion`), and "My Builds" badges a save
+> with a lower one (or none: saved before the field existed) as **obsolete** — a re-run may find a better build or score —
+> beside the game-data reason (`HistoryEntry.dataVersion` ≠ `WakfuData.VERSION`). It is a plain constant, NOT in
+> `WakfuBuildSolver` (whose init loads OR-Tools), so the GUI reads it for free. `EngineResultsVersionTest` locks the pair
+> (`CERTIFIER_VERSION`, `ENGINE_RESULTS_VERSION`): update it with the bump.
+
 > A genetic-algorithm engine used to be selectable via a `WakfuSolver` enum. **It has been removed —
 > OR-Tools is the only solver.** Any reference to a GA, a `WakfuSolver` enum / solver toggle, or
 > `genetic/{GeneticAlgorithm,Selection}.kt` / `genetic/wakfu/{Population,Cross,Mutation}.kt` is stale.
@@ -429,7 +438,11 @@ is no FXML/XML.** Package root `me.chosante.ui`, organized by feature: `shell`, 
   mapping, stats grid and scorer (`WakfuBestBuildFinderAlgorithm.rescore`, no solver); the stored ones are
   only a fallback, and a score that moved drops the stored "proven optimal" flag (compared as the stored
   `Double`, not as `BigDecimal`). The E8 constructed-optimum swap stores that same `rescore`, so a swapped
-  build reloads unchanged. The library cards and the compare view still read the stored entry.
+  build reloads unchanged. The library cards and the compare view show the same re-score: `BuildSearchModel.rescoreLibrary`
+  re-scores the saved builds off the UI thread when either view opens (cancellable, cached per entry + data + engine version,
+  published as `UiState.libraryRescores`, read through `UiState.shownEntry`); the stored numbers show until it lands. A save
+  made with other game data or an older `ENGINE_RESULTS_VERSION` gets the **obsolete** badge (`history/Obsolescence.kt`,
+  `components/ObsoleteBuildCue.kt`) with its reasons and a "Re-run the search" action (`BuildSearchModel.rerunSearch`).
 - **`AppShell`** (`shell/`) — `TopBar` (brand logo, language toggle, class, level/min-level, the
   progress + match/mastery meters, Search button) above a 3-column body:
   - **`RequestPanel`** (`request/`) — search mode, target-stats editor, constraints (per-rarity
