@@ -20,6 +20,9 @@ import me.chosante.autobuilder.domain.PassiveCatalog
 import me.chosante.autobuilder.domain.SpellRotationOptimizer
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.autobuilder.domain.forbiddenItemIds
+import me.chosante.autobuilder.domain.requiredItemIds
+import me.chosante.autobuilder.domain.requirementClosure
 import me.chosante.autobuilder.genetic.SolverResult
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
@@ -389,8 +392,20 @@ object WakfuBuildSolver {
      * cheap per-stat tightening: the MM world-B M-cap is also bounded by Σ over the requested masteries of (t + what
      * lands outside the first-turn read). The true optimum can only fall (the rule is stricter), so old bounds were
      * sound but may be loose — and the pick set changed: invalidate every cached cell.
+     * 57: the item EQUIP conditions (`item-criteria.json`, AGENTS.md §4 "Item equip conditions") change the POOL every
+     * certificate reads, not the certifiers: a never-equippable item and another class's emblem / amulet leave it, so does an
+     * item whose required item can't be worn in the request (a nation sword whose EPIC ring is above the rarity cap), and the
+     * domination pre-filter keeps every required item (the four stat-identical, zero-stat nation rings used to evict each
+     * other — and any 4-socket ring evicted them) while an item with a requirement / an exclusion only dominates one with at
+     * least the same. And the certifiers read REQUIRES: the AP-cell certifier splits every world in two
+     * ([CertWorld.bundle]) — the builds wearing no nation sword (the swords removed) and the builds wearing one (the sword
+     * and its ring as ONE ring-stage entry, the weapon slot left to off-hands), so the epic budget and the ring slot the
+     * ring takes are counted exactly; the most-masteries and soft certificates offer the sword FUSED with its ring in its
+     * own slot (the epic budget counted, the ring slot over-counted by at most one ring). FORBIDS stay a relaxation (two
+     * rings that exclude each other may pair in a bound). Every bound stays an upper bound of the constrained optimum; the
+     * lvl-245 ledger's cells 12–17 fell 1.0–2.3 % (the v56 proven optimum wore Épée de Brâkmar without its ring).
      */
-    const val CERTIFIER_VERSION: Int = 56
+    const val CERTIFIER_VERSION: Int = 57
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
@@ -582,29 +597,43 @@ object WakfuBuildSolver {
                 .filter { it in NON_ELEMENTARY_MASTERIES }
                 .distinct()
 
-        return equipmentsByItemType.mapValues { (_, items) ->
-            val keep = LinkedHashSet<Equipment>()
-            items.filter { it.name.fr.lowercase() in forced }.forEach { keep.add(it) }
-            // Scored once per slot: the rankings below read it for every characteristic.
-            val scored = items.map { it to combinedMasteryScore(it, wantedElements, wantedNonElemental) }
-            for (characteristic in relevant) {
+        val kept =
+            equipmentsByItemType.mapValues { (_, items) ->
+                val keep = LinkedHashSet<Equipment>()
+                items.filter { it.name.fr.lowercase() in forced }.forEach { keep.add(it) }
+                // Scored once per slot: the rankings below read it for every characteristic.
+                val scored = items.map { it to combinedMasteryScore(it, wantedElements, wantedNonElemental) }
+                for (characteristic in relevant) {
+                    scored
+                        .asSequence()
+                        .filter { (item, _) -> item.valueFor(characteristic) > 0 }
+                        .sortedWith(
+                            compareByDescending<Pair<Equipment, Int>> { (item, _) -> item.valueFor(characteristic) }
+                                .thenByDescending { (_, combined) -> combined }
+                        ).take(topPerCharacteristic)
+                        .forEach { (item, _) -> keep.add(item) }
+                }
                 scored
                     .asSequence()
-                    .filter { (item, _) -> item.valueFor(characteristic) > 0 }
-                    .sortedWith(
-                        compareByDescending<Pair<Equipment, Int>> { (item, _) -> item.valueFor(characteristic) }
-                            .thenByDescending { (_, combined) -> combined }
-                    ).take(topPerCharacteristic)
+                    .filter { (_, combined) -> combined > 0 }
+                    .sortedByDescending { (_, combined) -> combined }
+                    .take(topPerCharacteristic)
                     .forEach { (item, _) -> keep.add(item) }
+                if (keep.isEmpty()) items else keep.toList()
             }
-            scored
-                .asSequence()
-                .filter { (_, combined) -> combined > 0 }
-                .sortedByDescending { (_, combined) -> combined }
-                .take(topPerCharacteristic)
-                .forEach { (item, _) -> keep.add(item) }
-            if (keep.isEmpty()) items else keep.toList()
+        // A kept item keeps what it can't be worn without (a nation sword's ring: no stat, so no ranking keeps it) —
+        // the closure runs over every slot, to a fixpoint (a key's own keys).
+        val allById = equipmentsByItemType.values.flatten().associateBy { it.equipmentId }
+        val closed = kept.mapValues { (_, items) -> LinkedHashSet(items) }.toMutableMap()
+        var frontier = kept.values.flatten()
+        while (frontier.isNotEmpty()) {
+            frontier =
+                frontier
+                    .flatMap { it.requiredItemIds }
+                    .mapNotNull { allById[it] }
+                    .filter { key -> closed.getOrPut(key.itemType) { LinkedHashSet() }.add(key) }
         }
+        return closed.mapValues { (_, items) -> items.toList() }
     }
 
     /**
@@ -3639,6 +3668,9 @@ object WakfuBuildSolver {
                     isCancelled = isCancelled
                 )
             ).toSet()
+                // The certifier ignores the item EQUIP conditions (a relaxation), so its argmax may wear a nation sword
+                // without the ring the sword needs: the restricted re-solve gets the ring too, or it could never wear it.
+                .let { ids -> requirementClosure(ids, equipmentsByItemType.values.flatten()) }
         // A cancelled explain bailed with no ids — stop here instead of falling through to the full-pool fallback.
         if (isCancelled()) return null
         val debug = System.getenv("WAKFU_E8_DEBUG") == "1"
@@ -3681,8 +3713,8 @@ object WakfuBuildSolver {
         // For a FREE shape objective == raw proxy (no penalty); maxDamageObjective is always populated, the raw
         // proxy only when its var survives — so fall back. Both are the ledger-comparable scaled units.
         val fastProxy = fast?.let { it.maxDamageRawProxy ?: it.maxDamageObjective }
-        if (debug) System.err.println("E8_DBG fast cell=$cell bound=$bound proxy=$fastProxy valid=${fast?.individual?.isValid()}")
-        if (fast != null && fastProxy != null && fastProxy >= bound && fast.individual.isValid()) {
+        if (debug) System.err.println("E8_DBG fast cell=$cell bound=$bound proxy=$fastProxy valid=${fast?.individual?.isValid(params.character.clazz)}")
+        if (fast != null && fastProxy != null && fastProxy >= bound && fast.individual.isValid(params.character.clazz)) {
             // A floored re-solve is a hard leg: the build meets every floor in the solver's exact arithmetic.
             return fast.copy(isOptimal = true, maxDamageHardConstraintsMet = hardFloors)
         }
@@ -3729,8 +3761,8 @@ object WakfuBuildSolver {
         if (fallbackRun.end == CollectEnd.CANCELLED || isCancelled()) return null
         val fallback = fallbackRun.items.maxByOrNull { it.matchPercentage } ?: return null
         val proxy = fallback.maxDamageRawProxy ?: fallback.maxDamageObjective ?: return null
-        if (debug) System.err.println("E8_DBG fallback cell=$cell bound=$bound proxy=$proxy valid=${fallback.individual.isValid()}")
-        return if (proxy >= bound && fallback.individual.isValid()) fallback.copy(isOptimal = true) else null
+        if (debug) System.err.println("E8_DBG fallback cell=$cell bound=$bound proxy=$proxy valid=${fallback.individual.isValid(params.character.clazz)}")
+        return if (proxy >= bound && fallback.individual.isValid(params.character.clazz)) fallback.copy(isOptimal = true) else null
     }
 
     /**
@@ -4257,6 +4289,37 @@ object WakfuBuildSolver {
             if (equips.size > 1) {
                 val sumExpr = LinearExpr.sum(equips.map { equipVars.getValue(it) }.toTypedArray())
                 addLessOrEqual(sumExpr, 1L)
+            }
+        }
+        addEquipConditionConstraints(allEquips, equipVars)
+    }
+
+    /**
+     * The item EQUIP conditions of the pool (AGENTS.md §4 "Item equip conditions"; class-only and never-equippable items
+     * are already out of the pool): an item is worn only with each item it requires — `x_item ≤ x_key`, and a key the
+     * pool lacks forces the item off (the pool filter normally dropped it already) — and two items either of which
+     * forbids the other are never worn together — `x_a + x_b ≤ 1`, once per unordered pair (the symmetric closure).
+     */
+    private fun CpModel.addEquipConditionConstraints(
+        allEquips: List<Equipment>,
+        equipVars: Map<Equipment, IntVar>,
+    ) {
+        val byId = allEquips.associateBy { it.equipmentId }
+        val excludedPairs = HashSet<Pair<Int, Int>>()
+        for (item in allEquips) {
+            val itemVar = equipVars.getValue(item)
+            for (keyId in item.requiredItemIds) {
+                val key = byId[keyId]
+                if (key == null) {
+                    addEquality(itemVar, 0L)
+                } else {
+                    addLessOrEqual(LinearExpr.weightedSum(arrayOf(itemVar, equipVars.getValue(key)), longArrayOf(1L, -1L)), 0L)
+                }
+            }
+            for (forbiddenId in item.forbiddenItemIds) {
+                val other = byId[forbiddenId] ?: continue
+                val pair = minOf(item.equipmentId, forbiddenId) to maxOf(item.equipmentId, forbiddenId)
+                if (excludedPairs.add(pair)) addLessOrEqual(LinearExpr.sum(arrayOf(itemVar, equipVars.getValue(other))), 1L)
             }
         }
     }

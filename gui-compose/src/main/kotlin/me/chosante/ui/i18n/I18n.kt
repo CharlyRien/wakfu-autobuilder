@@ -71,6 +71,24 @@ enum class Tr(
         "A build can socket at most 10 sublimations — remove some forced sublimations.",
         "Un build ne peut recevoir que 10 sublimations au maximum — retire des sublimations imposées."
     ),
+
+    // Item equip conditions (the game's own rules on who may wear an item, and with what)
+    FORCED_ITEM_WRONG_CLASS(
+        "is reserved to another class — it can't be equipped by this character. Reserved to:",
+        "est réservé à une autre classe — ce personnage ne peut pas l'équiper. Réservé à :"
+    ),
+    FORCED_ITEM_NEVER_EQUIPPABLE(
+        "can't be equipped in the game — remove it from the forced items.",
+        "n'est pas équipable dans le jeu — retire-le des objets imposés."
+    ),
+    FORCED_ITEM_REQUIRES_ITEM(
+        "can only be worn together with an item this search can't equip (its level or rarity is outside the search, or it is excluded):",
+        "ne peut être porté qu'avec un objet que cette recherche ne peut pas équiper (niveau ou rareté hors de la recherche, ou objet exclu) :"
+    ),
+    FORCED_ITEMS_MUTUALLY_EXCLUSIVE(
+        "These forced items can't be worn together in the game — remove one of:",
+        "Ces objets imposés ne peuvent pas être portés ensemble dans le jeu — retire l'un de :"
+    ),
     REQUEST_ERRORS_TITLE(
         "Can't search yet",
         "Recherche impossible"

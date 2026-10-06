@@ -10,10 +10,16 @@ import me.chosante.autobuilder.VERSION
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.autobuilder.domain.equipConflict
+import me.chosante.autobuilder.domain.isWearableBy
+import me.chosante.autobuilder.domain.requiredItemIds
+import me.chosante.autobuilder.domain.withRequirementsMet
 import me.chosante.autobuilder.genetic.SolverResult
 import me.chosante.common.Character
+import me.chosante.common.CharacterClass
 import me.chosante.common.Equipment
 import me.chosante.common.I18nText
+import me.chosante.common.ItemEquipCriterion
 import me.chosante.common.ItemType
 import me.chosante.common.Monster
 import me.chosante.common.Rarity
@@ -41,8 +47,23 @@ object WakfuBestBuildFinderAlgorithm {
     //
     // The RAW catalog: an item's level-scaled lines ([Equipment.percentOfLevel]) are not in its characteristics yet.
     // Search with [poolFor] (or resolve with [Equipment.atLevel]) — a pool built straight from this list misses them.
+    // Each item carries its EQUIP criterion ([Equipment.equipCriterion], joined by id from [itemCriteria]), so every
+    // consumer of a pool reads the item's conditions from the item itself.
     val equipments: List<Equipment> by lazy {
-        EmbeddedResources.decodeList<Equipment>("equipments.json")!!
+        val criteria = itemCriteria.associateBy { it.itemId }
+        EmbeddedResources.decodeList<Equipment>("equipments.json")!!.map { equipment ->
+            criteria[equipment.equipmentId]?.let { equipment.copy(equipCriterion = it) } ?: equipment
+        }
+    }
+
+    /**
+     * The EQUIP criteria of the catalog's items (`item-criteria.json`, decoded from the local client's Item table by
+     * `bdata-extractor`): a nation sword needs its ring, class emblems / amulets are for their class, some rings
+     * exclude each other — see [me.chosante.autobuilder.domain.isWearableBy] and the AGENTS.md §4 "Item equip
+     * conditions". Required: a missing file would silently drop every condition.
+     */
+    val itemCriteria: List<ItemEquipCriterion> by lazy {
+        EmbeddedResources.decodeList<ItemEquipCriterion>("item-criteria.json")!!
     }
 
     /**
@@ -545,7 +566,6 @@ object WakfuBestBuildFinderAlgorithm {
         character: Character,
     ): Map<ItemType, List<Equipment>> {
         val itemsExcluded = excludedItems.map { it.lowercase() }
-        val itemsToForce = forcedItems.map { it.lowercase() }
         val eligibleEquipments =
             equipments
                 .asSequence()
@@ -555,11 +575,16 @@ object WakfuBestBuildFinderAlgorithm {
                     equipment.isLevelExemptCompanion ||
                         (equipment.level <= character.level && equipment.level >= character.minLevel)
                 }.filter { equipment -> equipment.name.fr.lowercase() !in itemsExcluded }
+                // The static EQUIP conditions: an item no character can wear, and another class's emblem / amulet, go.
+                .filter { equipment -> equipment.isWearableBy(character.clazz) }
                 // Level-scaled lines (the Dofus Pourpre's "100% of level as Elemental Mastery") resolved at the
                 // character's level HERE, once per request: every consumer of the pool (domination, prefilter, CP-SAT
                 // model, scorers, both certificates, the build handed to the GUI / CLI / Zenith) then reads plain stats.
                 .map { equipment -> equipment.atLevel(character.level) }
                 .toList()
+        // Forcing an item forces what it needs: a forced nation sword brings its ring, so a ring slot narrowed to its
+        // forced rings below keeps the key (the model's `sword ≤ ring` then equips it).
+        val itemsToForce = forcedNamesWithRequirements(forcedItems, eligibleEquipments)
         val forcedWeaponTypes =
             eligibleEquipments
                 .filter { it.name.fr.lowercase() in itemsToForce }
@@ -581,7 +606,32 @@ object WakfuBestBuildFinderAlgorithm {
         } else if (ItemType.ONE_HANDED_WEAPONS in forcedWeaponTypes || ItemType.OFF_HAND_WEAPONS in forcedWeaponTypes) {
             equipmentsByItemType.remove(ItemType.TWO_HANDED_WEAPONS)
         }
-        return equipmentsByItemType
+        // An item whose required item did not make it into the pool (above the rarity cap, out of the level band,
+        // excluded by name, crowded out of a forced slot) can't be worn in this request: it goes too.
+        return withRequirementsMet(equipmentsByItemType)
+    }
+
+    /**
+     * The lower-cased French [forcedItems] names plus the names of the items they require (a nation sword's ring), to a
+     * fixpoint, resolved among [catalog] — what "forcing" an item means for the pool: its slot keeps it AND whatever it
+     * can't be worn without.
+     */
+    internal fun forcedNamesWithRequirements(
+        forcedItems: List<String>,
+        catalog: List<Equipment>,
+    ): Set<String> {
+        val byId = catalog.associateBy { it.equipmentId }
+        val names = forcedItems.mapTo(LinkedHashSet()) { it.lowercase() }
+        var frontier: Set<String> = names.toSet()
+        while (frontier.isNotEmpty()) {
+            frontier =
+                catalog
+                    .filter { it.name.fr.lowercase() in frontier }
+                    .flatMap { it.requiredItemIds }
+                    .mapNotNull { byId[it]?.name?.fr?.lowercase() }
+                    .filterTo(LinkedHashSet()) { names.add(it) }
+        }
+        return names
     }
 
     /**
@@ -594,9 +644,12 @@ object WakfuBestBuildFinderAlgorithm {
      * forced two-handed weapon combined with a forced one-handed / off-hand weapon (a 2H occupies both hands);
      * more than one forced epic / relic ITEM (a build equips at most one of each); more than one forced epic /
      * relic SUBLIMATION (same ≤1 rule); a forced epic/relic sublimation whose carrier-item rarity the search
-     * excludes (it could never be socketed); and more forced sublimations than a build can host (10). A forced
-     * item/sub name that matches nothing is ignored (a typo can't be equipped). [allEquipments] /
-     * [allSublimations] are injectable for tests.
+     * excludes (it could never be socketed); and more forced sublimations than a build can host (10). The item EQUIP
+     * conditions add: a forced item the game never lets anyone wear, another class's item, an item whose required item
+     * the search can't equip (a nation sword whose ring is excluded or above the rarity cap), and two forced items that
+     * exclude each other — and a forced item's required items count as forced in the slot and rarity budgets (the
+     * sword's EPIC ring takes a ring slot and the epic budget). A forced item/sub name that matches nothing is ignored
+     * (a typo can't be equipped). [allEquipments] / [allSublimations] are injectable for tests.
      */
     fun validateRequest(
         params: WakfuBestBuildParams,
@@ -620,6 +673,10 @@ object WakfuBestBuildFinderAlgorithm {
                 .associateWith { name -> allEquipments.filter { it.name.fr.lowercase() == name } }
                 .filterValues { it.isNotEmpty() }
 
+        val catalogById = allEquipments.associateBy { it.equipmentId }
+
+        // Whether the search could equip [item] at all: level / rarity band, not excluded by name, its class's.
+        fun searchCanEquip(item: Equipment) = item.isEquippableFor(params) && item.name.fr.lowercase() !in excludedNames && item.isWearableBy(character.clazz)
         for ((name, matches) in forcedItemMatches) {
             if (matches.none { it.isEquippableFor(params) }) {
                 problems += RequestValidationProblem.ForcedItemNotEquippable(matches.first(), character.minLevel, character.level)
@@ -627,13 +684,49 @@ object WakfuBestBuildFinderAlgorithm {
             if (name in excludedNames) {
                 problems += RequestValidationProblem.ForcedItemAlsoExcluded(matches.first())
             }
+            // The item EQUIP conditions the game checks before anything else (AGENTS.md §4 "Item equip conditions").
+            if (matches.all { it.equipCriterion?.never == true }) {
+                problems += RequestValidationProblem.ForcedItemNeverEquippable(matches.first())
+            } else if (matches.none { it.isWearableBy(character.clazz) }) {
+                val classes = matches.flatMap { it.equipCriterion?.classes.orEmpty() }.distinct()
+                problems += RequestValidationProblem.ForcedItemWrongClass(matches.first(), classes, character.clazz)
+            }
+            // A forced item needs its required items equippable too (a nation sword needs its EPIC ring: a rarity cap
+            // below epic, or excluding the ring, makes the sword impossible). Reported when EVERY otherwise
+            // equippable match of the name misses one of its requirements.
+            val wearable = matches.filter(::searchCanEquip)
+            val missing = wearable.map { item -> item.requiredItemIds.firstOrNull { id -> catalogById[id]?.let(::searchCanEquip) != true } }
+            if (wearable.isNotEmpty() && missing.all { it != null }) {
+                val requiredId = missing.first()!!
+                val requiredName = catalogById[requiredId]?.name ?: I18nText("#$requiredId", "#$requiredId", "#$requiredId", "#$requiredId")
+                problems += RequestValidationProblem.ForcedItemRequirementUnavailable(wearable.first(), requiredName)
+            }
+        }
+
+        // Forcing an item forces what it needs (a nation sword brings its ring — the pool does the same), so the slot
+        // and rarity budgets below count those required items as forced too.
+        val forcedWithRequirements: Map<String, List<Equipment>> =
+            forcedNamesWithRequirements(forcedItemMatches.keys.toList(), allEquipments)
+                .associateWith { name -> allEquipments.filter { it.name.fr.lowercase() == name } }
+                .filterValues { it.isNotEmpty() }
+
+        // Two forced items the game refuses together (an equip condition forbids one with the other; either way round).
+        val forcedNames = forcedWithRequirements.keys.toList()
+        for (i in forcedNames.indices) {
+            for (j in i + 1 until forcedNames.size) {
+                val a = forcedWithRequirements.getValue(forcedNames[i])
+                val b = forcedWithRequirements.getValue(forcedNames[j])
+                if (a.all { x -> b.all { y -> equipConflict(x, y) } }) {
+                    problems += RequestValidationProblem.ForcedItemsMutuallyExclusive(listOf(a.first().name, b.first().name))
+                }
+            }
         }
 
         // Slot contention among DISTINCT forced names: every slot hosts one item, except rings (two slots —
         // and two forced rings are always distinct names here, so both can equip). Weapons are checked as a
         // cross-type conflict below (a two-handed weapon occupies both hands).
         val weaponTypes = setOf(ItemType.TWO_HANDED_WEAPONS, ItemType.ONE_HANDED_WEAPONS, ItemType.OFF_HAND_WEAPONS)
-        val forcedByType = forcedItemMatches.values.map { it.first() }.groupBy { it.itemType }
+        val forcedByType = forcedWithRequirements.values.map { it.first() }.groupBy { it.itemType }
         for ((type, items) in forcedByType) {
             val capacity = if (type == ItemType.RING) 2 else 1
             if (items.size > capacity) {
@@ -651,7 +744,7 @@ object WakfuBestBuildFinderAlgorithm {
         // still be satisfied by another variant).
         for (rarity in listOf(Rarity.EPIC, Rarity.RELIC)) {
             val ofRarity =
-                forcedItemMatches.values
+                forcedWithRequirements.values
                     .filter { matches -> matches.all { it.rarity == rarity } }
                     .map { it.first() }
             if (ofRarity.size > 1) {
@@ -734,6 +827,32 @@ sealed interface RequestValidationProblem {
         val item: Equipment,
     ) : RequestValidationProblem
 
+    /** A forced [item] is reserved to other [classes] by its equip condition; a [characterClass] can't wear it. */
+    data class ForcedItemWrongClass(
+        val item: Equipment,
+        val classes: List<CharacterClass>,
+        val characterClass: CharacterClass,
+    ) : RequestValidationProblem
+
+    /** A forced [item] can never be equipped in the game (its equip condition is `False`). */
+    data class ForcedItemNeverEquippable(
+        val item: Equipment,
+    ) : RequestValidationProblem
+
+    /**
+     * A forced [item] can only be worn together with [required] (its equip condition), which this search can't equip
+     * (its level or rarity is outside the search, it is excluded, or it is another class's item).
+     */
+    data class ForcedItemRequirementUnavailable(
+        val item: Equipment,
+        val required: I18nText,
+    ) : RequestValidationProblem
+
+    /** Two forced [items] the game refuses together (an equip condition of one forbids the other). */
+    data class ForcedItemsMutuallyExclusive(
+        val items: List<I18nText>,
+    ) : RequestValidationProblem
+
     /** More distinct forced [items] than the [itemType] slot can host ([capacity]: 1, rings 2). */
     data class ForcedItemsSlotConflict(
         val itemType: ItemType,
@@ -788,6 +907,14 @@ fun RequestValidationProblem.describe(): String =
             "forced item '${item.name.en}' can't be equipped (level/rarity outside the search)"
         is RequestValidationProblem.ForcedItemAlsoExcluded ->
             "'${item.name.en}' is both forced and excluded"
+        is RequestValidationProblem.ForcedItemWrongClass ->
+            "forced item '${item.name.en}' is for ${classes.joinToString()} only, not $characterClass"
+        is RequestValidationProblem.ForcedItemNeverEquippable ->
+            "forced item '${item.name.en}' can never be equipped in the game"
+        is RequestValidationProblem.ForcedItemRequirementUnavailable ->
+            "forced item '${item.name.en}' can only be worn with '${required.en}', which this search can't equip"
+        is RequestValidationProblem.ForcedItemsMutuallyExclusive ->
+            "these forced items can't be worn together: ${items.joinToString { it.en }}"
         is RequestValidationProblem.ForcedItemsSlotConflict ->
             "the $itemType slot can host $capacity forced item(s), got: ${items.joinToString { it.en }}"
         is RequestValidationProblem.ForcedWeaponsConflict ->

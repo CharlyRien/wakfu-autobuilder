@@ -797,8 +797,14 @@ class PerElementRowFoldTest {
                 .filter { it.startsWith("equip_") }
                 .map { it.removePrefix("equip_").toInt() }
                 .toSet()
-        // The build's own items only: the decisions it pins are all the model needs.
-        val pool = WakfuBestBuildFinderAlgorithm.poolFor(p).mapValues { (_, items) -> items.filter { it.equipmentId in ids } }.filterValues { it.isNotEmpty() }
+        // The build's own items only: the decisions it pins are all the model needs. The build predates the item equip
+        // conditions — it wears Épée de Brâkmar without the ring the game requires with it — so its items are read without
+        // them (the pin would otherwise contradict `sword ≤ ring`): this test is about the resistance reading.
+        val pool =
+            WakfuBestBuildFinderAlgorithm
+                .poolFor(p)
+                .mapValues { (_, items) -> items.filter { it.equipmentId in ids }.map { it.copy(equipCriterion = null) } }
+                .filterValues { it.isNotEmpty() }
         assertThat(pool.values.sumOf { it.size }).describedAs("the audit build's items are in the 1.93 catalog").isEqualTo(ids.size)
         val subs = WakfuBestBuildFinderAlgorithm.activeSublimations(p)
         val runes = WakfuBestBuildFinderAlgorithm.runes
