@@ -11,8 +11,8 @@ import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.RESISTANCE_RANDOM_
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.valueFor
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.ExclusiveGroup
 import me.chosante.common.ItemType
-import me.chosante.common.Rarity
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.common.skills.assignRandomPoints
 
@@ -264,22 +264,21 @@ internal object MostMasteriesWarmStart {
             }
         }
 
-        // Rarity-budget repair: while a scarce rarity is over budget, downgrade the pick whose best
-        // same-slot alternative loses the least greedy value (dropping the slot if none). Alternatives
-        // exclude BOTH scarce rarities: replacing an over-budget epic with a relic (or vice versa) made
-        // the two repairs PING-PONG on pools where epic/relic items dominate every slot — repair(EPIC)
-        // inflated the relic count to 10, repair(RELIC) pushed epics back to 5, and the warm start
-        // silently self-cancelled on every end-game max-damage request.
-        fun repair(rarity: Rarity) {
-            while (picks.count { it.rarity == rarity } > 1) {
+        // Exclusivity-budget repair: while an "only one equipped at a time" group (the EPIC group — every EPIC item and
+        // two COMMON ones — or the RELIC group, [Equipment.exclusiveGroup]) is over budget, downgrade the pick whose best
+        // same-slot alternative loses the least greedy value (dropping the slot if none). Alternatives are in NEITHER
+        // group: replacing an over-budget epic with a relic (or vice versa) made the two repairs PING-PONG on pools where
+        // epic/relic items dominate every slot — repair(EPIC) inflated the relic count to 10, repair(RELIC) pushed epics
+        // back to 5, and the warm start silently self-cancelled on every end-game max-damage request.
+        fun repair(group: ExclusiveGroup) {
+            while (picks.count { it.exclusiveGroup == group } > 1) {
                 val candidates =
-                    picks.filter { it.rarity == rarity && it !in prePicks }.map { pick ->
+                    picks.filter { it.exclusiveGroup == group && it !in prePicks }.map { pick ->
                         val alternative =
                             byType
                                 .getValue(pick.itemType)
                                 .filter { alt ->
-                                    alt.rarity != Rarity.EPIC &&
-                                        alt.rarity != Rarity.RELIC &&
+                                    alt.exclusiveGroup == ExclusiveGroup.NONE &&
                                         alt !in picks &&
                                         (
                                             pick.itemType != ItemType.RING ||
@@ -294,8 +293,8 @@ internal object MostMasteriesWarmStart {
                 cheapest.second?.let { picks.add(it) }
             }
         }
-        repair(Rarity.EPIC)
-        repair(Rarity.RELIC)
+        repair(ExclusiveGroup.EPIC)
+        repair(ExclusiveGroup.RELIC)
 
         // Target-aware skill fill (deterministic seed): assign each branch's points among the skills
         // matching the requested characteristics — the AP/MP majors and %HP lines carry required targets.

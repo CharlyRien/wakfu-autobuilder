@@ -9,6 +9,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import me.chosante.equipmentextractor.dataretriever.dtos.Effect
+import me.chosante.equipmentextractor.dataretriever.dtos.ItemProperty
 import me.chosante.equipmentextractor.dataretriever.dtos.ItemSerializer
 import me.chosante.equipmentextractor.dataretriever.dtos.ItemType
 import me.chosante.equipmentextractor.dataretriever.dtos.Jobs
@@ -82,10 +83,22 @@ suspend fun getWakfuRawData(version: String): WakfuData =
                     )
             }
 
+        val itemProperties =
+            async(ioDispatcher) {
+                "$baseUrlWithVersion/itemProperties.json"
+                    .httpGet()
+                    .awaitResult(kotlinxDeserializerOf(loader = ListSerializer(ItemProperty.serializer()), json = CDN_JSON))
+                    .fold(
+                        success = { it },
+                        failure = { throw IllegalStateException(it) }
+                    )
+            }
+
         WakfuData(
             items = items.await(),
             jobs = jobs.await(),
             effects = effect.await(),
-            itemTypes = itemTypes.await()
+            itemTypes = itemTypes.await(),
+            itemProperties = itemProperties.await()
         )
     }

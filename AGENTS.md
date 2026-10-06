@@ -81,7 +81,16 @@ These types are the vocabulary of the whole codebase — learn them first.
 - **`ItemType`**: the 14 equippable slots (amulet, ring, boots, helmet, cape, belt, chestplate,
   shoulder pads, emblem, pet, mount, 1H/2H/off-hand weapons). Each carries Ankama's numeric `id`.
 - **`Rarity`**: ordered enum `COMMON < UNCOMMON < RARE < MYTHIC < LEGENDARY < RELIC < SOUVENIR < EPIC`.
-  Build validity caps: at most **1 EPIC** and at most **1 RELIC** per build.
+- **`ExclusiveGroup`** (`Equipment.exclusiveGroup`): the game's "only one equipped at a time" groups — the CDN item
+  properties 12 `EXCLUSIVE_EQUIPMENT_ITEM_2` (**EPIC** group) and 8 `EXCLUSIVE_EQUIPMENT_ITEM` (**RELIC** group). Build
+  validity caps: at most **1 item of each group** per build. That is the old "≤ 1 EPIC, ≤ 1 RELIC" rule, except that the
+  EPIC group also holds two COMMON items (18691 Piquants du Guerrier Trool anciens, AP +1; 18693 Sain Turastil ancienne,
+  MP +1). An item follows its rarity's group unless `equipments.json` says otherwise (`"exclusiveGroup"`, written for those
+  two only), so synthetic test items keep their meaning. Every budget reads the group (CP-SAT, `isValid`, warm start,
+  `validateRequest`, domination, the declared domains, the certificates); the epic / relic **sublimation carrier** stays the
+  RARITY — an ASSUMPTION (game knowledge; the CDN does not settle it: its "epic / relic gem slot" properties 19 / 20 are on
+  only the nation rings and swords), pending a client-bytecode check. The certificates already let an EPIC-group item pass
+  for a carrier (sound either way).
 - **`Characteristic`**: ~50 stats (elemental/melee/distance/etc. masteries, resistances, AP/MP/WP,
   range, HP, crit, control, lock, dodge, wisdom, prospection, block %, armor %, …).
 - **Skills** (`skills/`): `CharacterSkills` exposes 5 branches — `Intelligence`, `Strength`,
@@ -243,8 +252,9 @@ may evict `B` only if it can replace `B` in EVERY build of the model with no los
 certificate reads from an item (CERTIFIER_VERSION 53 audit, `docs/perf-review-backlog.md` §E):
 - stats `≥` on the compared stats, `==` on the pinned ones (stats a ≤ / exact / parity sub condition reads, AP / MP /
   WP and their MAX_* riders), `≤` on the minimized ones; sockets `≥` (rune capacity, normal-sub carrier);
-- rarity both ways: `A` epic ⇒ `B` epic (the ≤1-epic / ≤1-relic budget), and `B` epic ⇒ `A` epic while an epic sub is
-  modelled (`B` may be the only carrier of the build's epic sub) — relic alike;
+- exclusivity and rarity: `A` in a group ⇒ `B` in the same one (the ≤1-per-group budget: an EPIC-group COMMON item never
+  evicts a free one), and `B` EPIC-rarity ⇒ `A` EPIC-rarity while an epic sub is modelled (`B` may be the only carrier of the
+  build's epic sub) — relic alike;
 - runes: the item's LEVEL caps its rune level, so `A`'s rune-level cap must be `≥` `B`'s (`==`, with equal sockets in
   max-damage, when a modelled rune type is a pinned stat);
 - rings: `B` goes only when its dominators span two different NAMES (two rings of one name are never worn together).
@@ -281,15 +291,22 @@ re-checks the whole equipped set, so every rule is a rule on the FINAL build. Th
   an item's own bonus counts) and player-state conditions (company rank, achievement, gauges, crime score: assumed
   satisfied). `not HasAnotherSameEquipment()` is the existing same-name ring rule.
 
-The certificates read REQUIRES (CERTIFIER_VERSION 57) and ignore FORBIDS (a relaxation: two rings that exclude each
-other may pair in a bound — sound, looser). The AP-cell certifier — the max-damage proof authority — splits every world in
+The certificates read REQUIRES and FORBIDS (both CERTIFIER_VERSION 57): every ring pairing that tightens a bound reads
+`ringPairingKeys` (the soft certificate's `secondaryNegativeBudgetCap`, a max-debit cap that more pairs only raise, keeps
+the name rule: sound) — the lowercased French name, or ONE key for a whole connected component of the (same-name ∪ FORBIDS)
+conflict graph when it is a clique (the data's five excluding triples), so a bound never pairs two rings the game refuses
+together; a component that is not a clique keeps the name keys (the old relaxation: sound, looser). The AP-cell certifier — the max-damage proof authority — splits every world in
 two ([CertWorld.bundle], `requirementBundleSplit`): the builds wearing no nation sword (swords removed) and the builds
 wearing one (sword + ring as ONE ring-stage entry, weapon slot left to off-hands), so the epic budget AND the ring slot the
 ring takes are exact (the lvl-245 ledger fell 1.0–2.3 % on cells 12–17: the v56 proven optimum wore Épée de Brâkmar
-without its ring). The most-masteries and soft certificates offer the sword FUSED with its ring in its own slot (`wornOpts`:
-stats, runes, rarity summed), which counts the epic budget but leaves the ring's slot free — an over-count of at most one
-ring. Locks: `EquipConditionsTest`, `EquipConditionsCertificateTest` (soundness on every pass, and the AP-cell ledger EXACT
-on conflict-free seeded pools), `EmbeddedItemCriteriaDataTest`.
+without its ring). The split costs ~1.5× on every pass; making it lazy (fast tier on the unsplit, fused worlds; split only
+the surviving cells) was measured and NOT shipped: the top surviving cell's unsplit argmax is the over-counted fused-sword
+build, so the split is needed exactly where the proof refines, and without the per-half fast rows the tier-1.5 skip and exact
+c-loop prune got slower (`RequirementSplitTimingHarnessTest` KDoc). The most-masteries and soft certificates offer the sword
+FUSED with its ring in its own slot (`wornOpts`: stats, runes, rarity summed), which counts the epic budget but leaves the
+ring's slot free — an over-count of at most one ring. Locks: `EquipConditionsTest`, `EquipConditionsCertificateTest`
+(soundness on every pass, and the AP-cell ledger EXACT on every seeded pool, excluding rings included),
+`EmbeddedItemCriteriaDataTest`.
 
 ### The multi-element item pre-filter (a HEURISTIC: what a multi-element search sees, and why it never earns a badge)
 A request wanting more than one element of mastery or resistance (`WakfuBuildSolver.needsItemPrefilter`: two specific
@@ -388,11 +405,14 @@ Item data is **not** fetched at runtime by the apps — it is baked into `autobu
 as **fixed-name** JSON files (no version in the filename):
 
 1. `equipments-extractor` downloads `items.json`, `equipmentItemTypes.json`, `actions.json`,
-   `recipeCategories.json` from `https://wakfu.cdn.ankama.com/gamedata/:version` (the `:version` is read
+   `recipeCategories.json`, `itemProperties.json` from `https://wakfu.cdn.ankama.com/gamedata/:version` (the `:version` is read
    from `WakfuData.VERSION`, not auto-detected, so every extractor pins the same version) and writes
    `equipments.json` (the `Equipment` list). Equip lines are decoded from their `actions.json` description;
    action 999 (no description: "X% of the level", the stat in its `subEffects`) becomes `percentOfLevel`, states
-   (304) are skipped, and any other undescribed action fails the run unless it is known to grant no stat.
+   (304) are skipped, and any other undescribed action fails the run unless it is known to grant no stat. The item
+   properties `EXCLUSIVE_EQUIPMENT_ITEM` / `_2` (resolved by NAME in `itemProperties.json`) become the item's
+   `exclusiveGroup`, written only where it differs from the rarity's (§3) — an ADDITION to a group only: an item in both
+   groups, an EPIC / RELIC item outside its rarity's group, or a CDN that no longer names the properties fails the run.
 2. `spells-extractor` → `spells.json`. (Monsters are no longer scraped — see `bdata-extractor` below.)
 3. `WakfuBestBuildFinderAlgorithm` / `SpellCatalog` / `PassiveCatalog` load these by fixed name via the
    classpath at startup (e.g. `equipments.json`).

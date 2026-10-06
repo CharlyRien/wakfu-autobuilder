@@ -4,8 +4,10 @@ import com.google.ortools.sat.IntVar
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.requiredItemIds
+import me.chosante.autobuilder.domain.ringPairingKeys
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.ExclusiveGroup
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
@@ -2610,14 +2612,10 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
             // the DP host it for free, certifying a real AP-14 build into the AP-16 cell.
             (apI[e] ?: 0).toInt(),
             (crI[e] ?: 0).toInt(),
-            if (e.rarity ==
-                Rarity.EPIC
-            ) {
-                1
-            } else {
-                0
-            },
-            if (e.rarity == Rarity.RELIC) 1 else 0,
+            // The "only one equipped at a time" groups ([Equipment.exclusiveGroup]): the budget is exact; an EPIC-group COMMON
+            // item (18691, 18693) also passes for an epic-sub carrier here — a sound over-count, it hosts none in the game.
+            if (e.exclusiveGroup == ExclusiveGroup.EPIC) 1 else 0,
+            if (e.exclusiveGroup == ExclusiveGroup.RELIC) 1 else 0,
             // mp stays floored at 0: it is a VALUE axis (feeds the MP→DI ramp), never a cell
             // coordinate, so the floor only widens the bound (sound) — negative-MP tank items
             // would otherwise drag the frontier for no soundness gain.
@@ -2755,7 +2753,9 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // v52 (pre-existing under-count): an EPIC / RELIC item is a resource even with no stat the scenario reads — it is the
     // carrier an epic / relic sub needs (Σ subRarity ≤ Σ itemRarity). Before v52 such an item never entered the DP, so a
     // build socketing Mesure III (+20 DI) on a damage-less epic belt was out of every pass's reach (−15 % on the
-    // `MaxDamageTargetAwareCertificateTest` repro). Appended last so every other item keeps its order.
+    // `MaxDamageTargetAwareCertificateTest` repro). Appended last so every other item keeps its order. Read on the RARITY:
+    // an EPIC-group COMMON item with no read stat carries no sub, so leaving it out drops only builds no better than the
+    // same build without it.
     val itemEquips =
         (
             diI.keys + mI.keys + cmI.keys + apI.keys + crI.keys + mpI.keys +
@@ -2812,6 +2812,14 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // (Σ same-fr-name ring vars ≤ 1 — a Wakfu rule), so the ring-pair stage must never pair a
     // Mythic with its own Legendary sibling. Both certificate fantasies at cell 16 were exactly
     // such pairs (Souvenir ancestral ×2, then Anneau Chuchotis ancestral ×2).
+    // The key is the ring's PAIRING key ([ringPairingKeys]) — its name, or one key for a whole clique of rings that exclude
+    // each other (the FORBIDS triples), so every pairing rule below (the fast / tier-1.5 pair loop, the exact pass's top-2 per
+    // cost cell and its cross-cell runner-up, the MP rings, the explain) refuses those pairs exactly as it refuses a same-name
+    // pair. A bundle entry (a nation sword fused with its ring) keeps the sword's name.
+    val ringKeys = ringPairingKeys(allEquips.filter { it.itemType == ItemType.RING })
+
+    fun ringKey(e: Equipment): String = ringKeys[e.equipmentId] ?: e.name.fr.lowercase()
+
     data class RingEntry(
         val nameKey: String,
         val options: List<Raw>,
@@ -2822,7 +2830,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 .filter { it.itemType == ItemType.RING }
                 .filter { keepIfForced(it) }
                 .filter { inWorldSlot(it) } + bundleRings
-        ).map { RingEntry(it.name.fr.lowercase(), rawOptions(it)) }
+        ).map { RingEntry(ringKey(it), rawOptions(it)) }
     // The ring stage keeps only each ring's best GRAW per cost cell — any ring DI would be silently
     // DROPPED (an under-count). No ring in the current dataset carries Damage Inflicted, but bail if
     // one ever does rather than certify a value below the true cell max.
@@ -3355,8 +3363,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 )
             }
         }
-        val epicItems = allEquips.count { it.rarity == Rarity.EPIC }
-        val relicItems = allEquips.count { it.rarity == Rarity.RELIC }
+        val epicItems = allEquips.count { it.exclusiveGroup == ExclusiveGroup.EPIC }
+        val relicItems = allEquips.count { it.exclusiveGroup == ExclusiveGroup.RELIC }
         System.err.println("CERT_DEBUG_RARITY epicItems=$epicItems relicItems=$relicItems")
     }
 
@@ -4978,7 +4986,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                                 for (r in rawOptions(e)) {
                                     if (r.ap > apCeil + apOff || r.crit > critItemHigh + critOff) continue
                                     val g = grawOf(r)
-                                    if (b == null || g > b.g) b = BestRing(g, ringCk(r), e.name.en, e.name.fr.lowercase(), e.equipmentId)
+                                    if (b == null || g > b.g) b = BestRing(g, ringCk(r), e.name.en, ringKey(e), e.equipmentId)
                                 }
                                 // Mirrors the ring stage's v52 skip rule: worthless only at zero graw AND a zero cost cell.
                                 if (b == null || (b.g <= 0 && b.ck == ringCk(Raw(0, 0, 0, 0, 0, 0, 0)))) continue
@@ -5020,7 +5028,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                                 }
                             }
                             for (i in mpRings.indices) {
-                                val nameI = mpRings[i].name.fr.lowercase()
+                                val nameI = ringKey(mpRings[i])
                                 for (r in rawOptions(mpRings[i])) {
                                     if (r.ap > apCeil + apOff || r.crit > critItemHigh + critOff) continue
                                     val g = grawOf(r)
@@ -5042,7 +5050,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                                             )
                                     }
                                     for (j in i + 1 until mpRings.size) {
-                                        if (mpRings[j].name.fr.lowercase() == nameI) continue
+                                        if (ringKey(mpRings[j]) == nameI) continue
                                         for (r2 in rawOptions(mpRings[j])) {
                                             if (r2.ap > apCeil + apOff || r2.crit > critItemHigh + critOff) continue
                                             res +=

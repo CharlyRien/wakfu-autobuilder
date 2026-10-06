@@ -23,8 +23,8 @@ import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.sumVar
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.valueFor
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.ExclusiveGroup
 import me.chosante.common.ItemType
-import me.chosante.common.Rarity
 import me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationKind
@@ -371,11 +371,13 @@ internal class StatBuilder(
             val relic: Int,
         )
 
+        // The budgets are the "only one equipped at a time" groups the model constrains ([Equipment.exclusiveGroup]): an
+        // EPIC-group COMMON item (18691, 18693) takes the epic slot here as it does there.
         fun counts(equip: Equipment): Pair<Int, Int> =
-            when (equip.rarity) {
-                Rarity.EPIC -> 1 to 0
-                Rarity.RELIC -> 0 to 1
-                else -> 0 to 0
+            when (equip.exclusiveGroup) {
+                ExclusiveGroup.EPIC -> 1 to 0
+                ExclusiveGroup.RELIC -> 0 to 1
+                ExclusiveGroup.NONE -> 0 to 0
             }
 
         fun topByRarity(entries: List<Pair<Equipment, LongRange>>): List<Option> {
