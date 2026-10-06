@@ -88,7 +88,9 @@ These types are the vocabulary of the whole codebase — learn them first.
   MP +1). An item follows its rarity's group unless `equipments.json` says otherwise (`"exclusiveGroup"`, written for those
   two only), so synthetic test items keep their meaning. Every budget reads the group (CP-SAT, `isValid`, warm start,
   `validateRequest`, domination, the declared domains, the certificates); the epic / relic **sublimation carrier** stays the
-  RARITY (the CDN names that socket with properties of its own, 19 / 20, and neither COMMON item has one).
+  RARITY — an ASSUMPTION (game knowledge; the CDN does not settle it: its "epic / relic gem slot" properties 19 / 20 are on
+  only the nation rings and swords), pending a client-bytecode check. The certificates already let an EPIC-group item pass
+  for a carrier (sound either way).
 - **`Characteristic`**: ~50 stats (elemental/melee/distance/etc. masteries, resistances, AP/MP/WP,
   range, HP, crit, control, lock, dodge, wisdom, prospection, block %, armor %, …).
 - **Skills** (`skills/`): `CharacterSkills` exposes 5 branches — `Intelligence`, `Strength`,
@@ -289,8 +291,9 @@ re-checks the whole equipped set, so every rule is a rule on the FINAL build. Th
   an item's own bonus counts) and player-state conditions (company rank, achievement, gauges, crime score: assumed
   satisfied). `not HasAnotherSameEquipment()` is the existing same-name ring rule.
 
-The certificates read REQUIRES and FORBIDS (both CERTIFIER_VERSION 57): every certificate pairs rings on
-`ringPairingKeys` — the lowercased French name, or ONE key for a whole connected component of the (same-name ∪ FORBIDS)
+The certificates read REQUIRES and FORBIDS (both CERTIFIER_VERSION 57): every ring pairing that tightens a bound reads
+`ringPairingKeys` (the soft certificate's `secondaryNegativeBudgetCap`, a max-debit cap that more pairs only raise, keeps
+the name rule: sound) — the lowercased French name, or ONE key for a whole connected component of the (same-name ∪ FORBIDS)
 conflict graph when it is a clique (the data's five excluding triples), so a bound never pairs two rings the game refuses
 together; a component that is not a clique keeps the name keys (the old relaxation: sound, looser). The AP-cell certifier — the max-damage proof authority — splits every world in
 two ([CertWorld.bundle], `requirementBundleSplit`): the builds wearing no nation sword (swords removed) and the builds
@@ -408,8 +411,8 @@ as **fixed-name** JSON files (no version in the filename):
    action 999 (no description: "X% of the level", the stat in its `subEffects`) becomes `percentOfLevel`, states
    (304) are skipped, and any other undescribed action fails the run unless it is known to grant no stat. The item
    properties `EXCLUSIVE_EQUIPMENT_ITEM` / `_2` (resolved by NAME in `itemProperties.json`) become the item's
-   `exclusiveGroup`, written only where it differs from the rarity's (§3); an item in both groups, or a CDN that no longer
-   names them, fails the run.
+   `exclusiveGroup`, written only where it differs from the rarity's (§3) — an ADDITION to a group only: an item in both
+   groups, an EPIC / RELIC item outside its rarity's group, or a CDN that no longer names the properties fails the run.
 2. `spells-extractor` → `spells.json`. (Monsters are no longer scraped — see `bdata-extractor` below.)
 3. `WakfuBestBuildFinderAlgorithm` / `SpellCatalog` / `PassiveCatalog` load these by fixed name via the
    classpath at startup (e.g. `equipments.json`).

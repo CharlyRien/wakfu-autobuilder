@@ -64,7 +64,7 @@ data class BuildCombination(
     /**
      * Sublimation legality, mirroring the solver constraints: at most 10 NORMAL sublimations + 1 epic + 1 relic,
      * and each one on a valid carrier item — epic on an EPIC-rarity item, relic on a RELIC one (the rarity, not the
-     * exclusivity group: a COMMON item of the EPIC group hosts no epic sub — see [me.chosante.common.ExclusiveGroup]), a normal
+     * exclusivity group: a COMMON item of the EPIC group is assumed to host no epic sub — see [me.chosante.common.ExclusiveGroup]), a normal
      * sub on a ≥3-socket item with at most one normal sub per item. A normal sub does NOT consume rune
      * sockets: golden runes form its colour pattern while still carrying their stat, so the carrier keeps a
      * full rune set alongside the sub (the solver model since 54761dc6 — see the "does not steal rune

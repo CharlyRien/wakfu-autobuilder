@@ -414,10 +414,11 @@ object WakfuBuildSolver {
      * ancienne, MP +1), which the game refuses beside an epic item. Every certificate's epic bit is now the group's — the
      * budget exact, an EPIC-group COMMON item also passing for an epic-SUB carrier (a sound over-count: the carrier is the
      * rarity) — and the domination pre-filter's budget clause reads the group too (the lvl-245 ledger closes AP cell 17). And
-     * FORBIDS, the first v57 build's relaxation, are priced exactly: every certificate pairs rings on
+     * FORBIDS, the first v57 build's relaxation, are priced exactly: every ring pairing that tightens a bound reads
      * [me.chosante.autobuilder.domain.ringPairingKeys] — the name, or one key for a whole clique of rings that exclude each
      * other (the five excluding triples of the data) — so no bound pairs two rings the game refuses together (the review of
-     * #246 measured up to +16 % on seeded pools).
+     * #246 measured up to +16 % on seeded pools); the soft certificate's max-debit cap, which more pairs only raise, keeps
+     * the name rule.
      */
     const val CERTIFIER_VERSION: Int = 57
 

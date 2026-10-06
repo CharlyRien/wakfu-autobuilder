@@ -1986,6 +1986,8 @@ internal object MaxDamageSoftCertificate {
             val ringItems = pool[ItemType.RING].orEmpty()
             val ringOptions = mutableListOf(NegOpt(0L))
             ringOptions += ringItems.map(::itemOpt)
+            // The name rule, not [ringPairingKeys]: this is a cap on the debit, and offering a pair the game refuses only
+            // raises it — sound, just looser.
             for (i in ringItems.indices) {
                 for (j in i + 1 until ringItems.size) {
                     if (ringItems[i].name.fr.lowercase() == ringItems[j].name.fr.lowercase()) continue

@@ -148,8 +148,9 @@ internal fun CpModel.createSublimationModel(
     // (Σ sub − Σ carrier ≤ 0). This also caps each sub at ≤1 since epic/relic items are themselves ≤1
     // (addBuildValidityConstraints). Forcing such a sub therefore forces its carrier item to be
     // equipped; with no carrier in the pool the request is correctly infeasible (it cannot be hosted).
-    // The carrier is the item's RARITY, not its exclusivity group: the two COMMON items of the EPIC group
-    // (18691, 18693) take the epic budget but host no epic sub (see [me.chosante.common.ExclusiveGroup]).
+    // The carrier is the item's RARITY, not its exclusivity group — an assumption the CDN does not settle: the two COMMON
+    // items of the EPIC group (18691, 18693) take the epic budget but are taken to host no epic sub (see
+    // [me.chosante.common.ExclusiveGroup]).
     gateSublimationsOnCarrierItems(subVars, allEquips, equipVars, SublimationRarity.EPIC, Rarity.EPIC)
     gateSublimationsOnCarrierItems(subVars, allEquips, equipVars, SublimationRarity.RELIC, Rarity.RELIC)
 

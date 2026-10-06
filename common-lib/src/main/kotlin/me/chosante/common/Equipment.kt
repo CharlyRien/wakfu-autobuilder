@@ -25,10 +25,13 @@ enum class Rarity {
  * either of those two next to an epic item, or next to each other. An item reads its group through
  * [Equipment.exclusiveGroup].
  *
- * The group decides the BUDGET only. Which item can host an epic / relic SUBLIMATION stays its [Rarity]: the exclusivity
- * properties say nothing about a sublimation socket — the CDN names that with properties of its own (19 `EPIC_GEMMABLE` / 20
- * `RELIC_GEMMABLE`, "adds an epic / relic gem slot to an item", carried only by the four nation rings and five swords, which
- * are EPIC / RELIC already) — and neither COMMON item of the EPIC group carries one.
+ * The group decides the BUDGET only. Which item can host an epic / relic SUBLIMATION stays its [Rarity]: we ASSUME the
+ * carrier is the rarity (game knowledge: epic subs go on epic items) — the CDN does not settle it. Its properties 19
+ * `EPIC_GEMMABLE` / 20 `RELIC_GEMMABLE` ("adds an epic / relic gem slot to an item") sit on only 4 of the 115 epics and 5 of
+ * the 99 relics (the nation rings and swords), so they are not what gives an epic item its socket, and they say nothing
+ * about the two COMMON items. A check against the client bytecode is still to do. If the carrier were the group instead, the
+ * certificates would stay sound (they already let an EPIC-group item pass for a carrier), but CP-SAT would miss the builds
+ * hosting an epic sub on 18691 / 18693.
  */
 @Serializable
 enum class ExclusiveGroup {
