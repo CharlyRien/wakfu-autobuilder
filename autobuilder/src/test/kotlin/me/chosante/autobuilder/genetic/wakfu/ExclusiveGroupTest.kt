@@ -247,11 +247,17 @@ class ExclusiveGroupTest {
                 targetStats = TargetStats(listOf(TargetStat(Characteristic.ACTION_POINT, 30))),
                 scoreComputationMode = ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
             )
+        // 18691's own stat gate (max AP ≤ 11, StatGatesTest) would keep it out of any AP-maximizing build: lifted here, so the
+        // test isolates the exclusivity-group rule.
         val apPool =
             WakfuBestBuildFinderAlgorithm
                 .poolFor(p)
                 .filterKeys { it in setOf(ItemType.SHOULDER_PADS, ItemType.AMULET, ItemType.CAPE) }
-                .mapValues { (_, items) -> items.filter { (it.characteristics[Characteristic.ACTION_POINT] ?: 0) > 0 } }
+                .mapValues { (_, items) ->
+                    items
+                        .filter { (it.characteristics[Characteristic.ACTION_POINT] ?: 0) > 0 }
+                        .map { item -> item.copy(equipCriterion = item.equipCriterion?.copy(statGates = emptyList())) }
+                }
         assertThat(apPool.getValue(ItemType.SHOULDER_PADS).map { it.equipmentId }).contains(18691)
         val stripped = apPool.mapValues { (_, items) -> items.map { if (it.equipmentId == 18691) it.copy(exclusiveGroupOverride = ExclusiveGroup.NONE) else it } }
 
