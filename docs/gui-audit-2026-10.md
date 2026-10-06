@@ -4,7 +4,7 @@ A read-only audit of the Compose Desktop GUI, followed by the quick wins for **1
 **1.13.0**. It looked at `main` as it stood just before the 1.12.0 release commit (`a7d6a4a5`, where the window still read
 "Version 1.11.0 · Game data 1.93.1.62"). This file keeps the findings so the rest stay a backlog: items **F1–F6** are fixed in
 1.12.1 and **B1, B2, B4, B5** in 1.13.0 (each with its commit; B7 was fixed on the way), **B3, B6, B8, B9** are still open, and
-**N1–N9** were found while fixing.
+**N1–N10** were found while fixing.
 
 ## Method
 
@@ -210,3 +210,4 @@ are the branch's own: a rebase-merge rewrites them, the subjects stay.
 | N7 | A Max Damage result's Mastery Summary opens on "Requested mastery 0" (and a trailing `0` in its header) when no mastery was requested. Not changed: B4 covers the headline only. | `StatsPanel.MasterySummary` always shows the metric. |
 | N8 | "Save as new" on a loaded build leaves the build's own name in the box, and only the OTHER builds' names are refused, so two builds can end up with the same name (the library and Compare then show two identical titles). | `SaveBuildModal` / `BuildSearchModel.takenBuildNames` (excludes the active build). Not changed. |
 | N9 | 17 of the 18 tests of `BuildSearchModelLibraryTest` never run: they are written `= runBlocking { … }`, so they return their last assertion, and JUnit ignores a `@Test` method that returns a value. With `: Unit` all 18 run and pass. | `gui-compose/src/test/.../state/BuildSearchModelLibraryTest.kt`; `BuildSearchModelSavedBossTest` already uses `): Unit = runBlocking {`. Not changed (follow-up task flagged). |
+| N10 | The "Stop at 100% match" / "Arrêter à 100%" switch is ignored: the GUI passes `stopWhenBuildMatch`, but no engine code reads it, so a precision search never stops at its first 100 % build. | **Decision (maintainer): make it work later.** When on, stop the precision search at the first build whose capped score reaches 100 %, without the overflow tie-break. Documentation only; behaviour unchanged. |

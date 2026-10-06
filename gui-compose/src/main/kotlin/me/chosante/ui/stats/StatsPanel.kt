@@ -63,6 +63,7 @@ import me.chosante.ui.components.CharacteristicIcon
 import me.chosante.ui.components.Hairline
 import me.chosante.ui.components.InfoTip
 import me.chosante.ui.components.ObsoleteCue
+import me.chosante.ui.components.OlderEngineProof
 import me.chosante.ui.components.PassiveIcon
 import me.chosante.ui.components.StatGlyphIcon
 import me.chosante.ui.components.VerticalScrollHints
@@ -266,16 +267,20 @@ internal fun MatchHero(
                 // "optimum not proven" headline (one line, worded as a bound) instead of stacking a second, apparently
                 // contradictory, line under it.
                 val within = (ui.proofState as? ProofState.ProvenWithin)?.takeIf { !ui.optimal }
-                Text(
-                    text =
+                Box(modifier = Modifier.padding(top = 3.dp)) {
+                    val text =
                         when {
                             showOptimal -> tr(Tr.OPTIMAL_PROVEN)
                             within != null -> tr(Tr.BEST_FOUND_WITHIN).format(formatBoundPercent(within.fraction, LocalLang.current))
                             else -> tr(Tr.BEST_FOUND)
-                        },
-                    style = WTypography.labelSmall.copy(color = if (showOptimal) WColor.success else WColor.warning),
-                    modifier = Modifier.padding(top = 3.dp)
-                )
+                        }
+                    val style = WTypography.labelSmall.copy(color = if (showOptimal) WColor.success else WColor.warning)
+                    if (showOptimal && ui.staleEngine != null) {
+                        OlderEngineProof(text = text, style = style)
+                    } else {
+                        Text(text = text, style = style)
+                    }
+                }
                 when {
                     // The certificate is still running — show the phase and a live elapsed timer with a
                     // spinner, so a minutes-long proof never looks like a hang.
