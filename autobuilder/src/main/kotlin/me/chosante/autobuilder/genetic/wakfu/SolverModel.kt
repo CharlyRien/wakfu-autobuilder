@@ -47,9 +47,11 @@ internal class RuneModel(
     val runeByCharacteristic: Map<Characteristic, RuneType>,
     val runeVars: Map<Equipment, Map<Characteristic, IntVar>>,
     /**
-     * True ⇒ [runeVars] are boolean single-type PICKS (one chosen type fills every socket of the item)
-     * rather than per-stat counts, so a pick contributes `slots·coeff` and its leaf domain is 0..1. See
-     * the rune fold in [createRuneModel].
+     * True ⇒ the max-damage rune FOLD ([createRuneModel]): a carrier's [runeVars] are boolean single-type PICKS (one
+     * chosen type fills every socket of the item; a pick contributes `slots·coeff`, leaf domain 0..1) — EXCEPT on the
+     * [countCarriers], whose vars are per-type counts (0..slots, `coeff` each) because a threshold read can make a
+     * part-filled item optimal. Read a var through [isPickCarrier] / [runeVarHi] / [runeVarMultiplier], never through
+     * this flag alone. False ⇒ the per-stat count model on every carrier.
      */
     val singleTypePerItem: Boolean = false,
     private val runeTypeByVar: Map<IntVar, RuneType> = emptyMap(),
