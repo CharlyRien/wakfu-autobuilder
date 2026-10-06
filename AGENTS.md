@@ -117,7 +117,7 @@ solver.
 > with a lower one (or none: saved before the field existed) as **obsolete** — a re-run may find a better build or score —
 > beside the game-data reason (`HistoryEntry.dataVersion` ≠ `WakfuData.VERSION`). It is a plain constant, NOT in
 > `WakfuBuildSolver` (whose init loads OR-Tools), so the GUI reads it for free. `EngineResultsVersionTest` locks the pair
-> (`CERTIFIER_VERSION`, `ENGINE_RESULTS_VERSION`): update it with the bump.
+> (`CERTIFIER_VERSION`, `ENGINE_RESULTS_VERSION`): update it with the bump. Bump at most once per release: if the constant's current value is higher than the one in the latest release tag (`git show <tag>:<file>`), it has not shipped yet, so reuse it and extend its history entry. Otherwise take the next number. (For `CERTIFIER_VERSION`, see the disk-cache caveat below.)
 
 > A genetic-algorithm engine used to be selectable via a `WakfuSolver` enum. **It has been removed —
 > OR-Tools is the only solver.** Any reference to a GA, a `WakfuSolver` enum / solver toggle, or
@@ -339,7 +339,7 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
 - **`CERTIFIER_VERSION` (`WakfuBuildSolver.kt`) must be bumped on ANY certifier change** (fast pass,
   exact pass, orchestrator, scaling formula, world/sub enumeration). It keys the in-memory per-cell
   cache alongside `WakfuData.VERSION`, so a bump invalidates every cached bound instead of serving a
-  stale (possibly now-unsound) one.
+  stale (possibly now-unsound) one. Bump at most once per release: if the constant's current value is higher than the one in the latest release tag (`git show <tag>:<file>`), it has not shipped yet, so reuse it and extend its history entry. Otherwise take the next number. Reusing an unreleased `CERTIFIER_VERSION` is sound only if the change cannot make a bound cached on DISK by an earlier build of the same number (`MaxDamageCertificateDiskCache`, keyed on the data version and this constant) too LOW: it only removes builds, tightens a pass, or leaves every bound identical. A change that RAISES the optimum a bound must cover (relaxes the model, makes more builds legal, loosens a pass) takes the next number even when unreleased.
 - **Hard-leg results get a TARGET-AWARE ledger (CERTIFIER_VERSION 52).** A result of the hard-constraints leg
   (`SolverResult.maxDamageHardConstraintsMet`) of a request with a positive AP / MP / CC / RANGE row is compared with a
   ledger that enforces those rows in every pass (`StatBuilder.certifierTargetAware`; each filter reads a sound
@@ -347,6 +347,15 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
   flag is part of the certificate cache key (memory and disk); soft-leg and free results keep the target-blind ledger.
   Kill switch `WAKFU_MD_TARGET_AWARE=0`; locks in `MaxDamageTargetAwareCertificateTest` (oracle: the pinned hard-leg
   CP-SAT optimum per AP cell).
+- **Rune fold vs mixed items (CERTIFIER_VERSION 57).** Max-damage fills a socketed item with ONE rune type (a pick
+  bool per type) — exact only while every reader of a rune is linear in its count. A threshold read breaks it: a
+  `secondary ≤ 0` cap with a budget (an item's NEGATIVE line of that secondary), a forced condition, a required row or
+  floor (keyed per rune type: an "all resistances" row reads the four resistance runes; a negative aggregate line lowers
+  all four), the survivability floor, a ramp (`MaxDamageRuneReads.mixedStats`; the full reader list is in
+  `docs/MIXED_RUNE_SECONDARY_BUDGET.md`). A carrier offering such a type keeps per-type COUNTS
+  (`RuneModel.countCarriers`); the certificate reads each of its types at its full-fill vertex, which bounds every mixed
+  fill (each pass's valuation is convex in the counts). Adding a new non-linear reader of a rune stat means adding it to
+  `mixedStats`. Locks: `MixedRuneSecondaryBudgetTest` (reference: the per-stat count model, `forceRuneCountModel`).
 - **Guards:** a CI-runnable fuzz lock (`WakfuBuildSolverTest`, seeded random pools → `certExact/fast ≥`
   pinned CP-SAT, ledger `≥` true optimum) plus a nightly `@Tag("slow")` lvl-245 ledger oracle keyed on
   `WakfuData.VERSION`. The full campaign log lives in `docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md`; the plan +

@@ -40,6 +40,9 @@ internal fun CpModel.createRuneModel(
     // pruning), resp. posts no choice gate. Production keeps both on.
     choicePruning: Boolean = true,
     choiceGating: Boolean = true,
+    // The rune types a single-type fill cannot represent exactly ([MaxDamageRuneReads.mixedStats]): a fold carrier
+    // offering one of them beside another type gets per-type COUNTS instead of picks. Empty ⇒ the pure fold.
+    mixedStats: Set<Characteristic> = emptySet(),
 ): RuneModel {
     if (runes.isEmpty()) return RuneModel.EMPTY
     val runeById = runes.associateBy { it.id }
@@ -111,7 +114,13 @@ internal fun CpModel.createRuneModel(
     // The solver still chooses the type per item (build-dependent: mastery vs crit-mastery, elemental vs a
     // secondary for the secondary=0 subs) and items still differ — only the never-optimal intra-item mix is
     // dropped. Gated to where it is provably sound; forced runes / secondary-cap>0 subs keep the count model.
+    // That premise holds only while the rune's every reader is LINEAR in its count (the damage objective). A
+    // threshold read — a `secondary ≤ t` cap with a budget (an item's NEGATIVE line of that secondary, or t > 0), a
+    // forced condition, a required row — can make a PART-fill optimal (3 rear runes absorbed by a −120-rear line, the
+    // 4th socket elemental): such carriers keep per-type COUNTS ([mixedStats], CERTIFIER_VERSION 57).
     val singleTypePerItem = allowRuneFold && maxDamageFreeFill && forcedRuneStats.isEmpty()
+    // The fold carriers modelled with per-type counts (0..slots each, Σ = slots·selected) instead of picks.
+    val countCarriers = LinkedHashSet<Equipment>()
     val maxDamageMasteryRuneStats =
         if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
             buildSet {
@@ -138,6 +147,8 @@ internal fun CpModel.createRuneModel(
     val suppressedBy = HashMap<Pair<Equipment, Characteristic>, IntVar>()
     // Insertion-ordered: the gates are posted in this order (a hash order of IntVar keys would vary between JVMs).
     val choiceGates = LinkedHashMap<IntVar, Set<Sublimation>>()
+    // The count carriers' vars → their socket count (a count var's gate is `count ≤ slots·Σ subVar`).
+    val countVarSlots = HashMap<IntVar, Long>()
     val runeVars = mutableMapOf<Equipment, Map<Characteristic, IntVar>>()
     for (equip in allEquips) {
         val slots = equip.maxShardSlots
@@ -160,8 +171,21 @@ internal fun CpModel.createRuneModel(
             val choices = LinkedHashMap<Characteristic, Pair<RuneType, Long>>()
             kept.forEach { choices[it.stat] = it.rune to it.value }
 
+            // A carrier whose choices include a type a single-type fill cannot represent exactly ([mixedStats]: a
+            // threshold read with a budget) keeps per-type COUNTS over its kept types: the per-socket Pareto argument
+            // and the gates hold rune by rune, so pruning stays exact; only the all-or-nothing fill goes.
+            val mixed = choices.size >= 2 && choices.keys.any { it in mixedStats }
             val perStat =
-                if (choices.size == 1) {
+                if (mixed) {
+                    countCarriers += equip
+                    val vars = choices.keys.associateWith { stat -> newIntVar(0, slots.toLong(), "runeCount_${equip.equipmentId}_${stat.name}") }
+                    val capExpr = LinearExpr.newBuilder()
+                    vars.values.forEach { capExpr.addTerm(it, 1L) }
+                    capExpr.addTerm(equipVars.getValue(equip), -slots.toLong())
+                    addEquality(capExpr.build(), 0L)
+                    vars.values.forEach { countVarSlots[it] = slots.toLong() }
+                    vars
+                } else if (choices.size == 1) {
                     // The single surviving choice is forced whenever the item is equipped: substitute the
                     // equipment variable directly and skip a redundant rune bool + equality.
                     mapOf(choices.keys.single() to equipVars.getValue(equip))
@@ -203,7 +227,7 @@ internal fun CpModel.createRuneModel(
                 }
             }
             runeVars[equip] = perStat
-        } else if (singleTypePerItem) {
+        } else if (singleTypePerItem && !(runeStats.size >= 2 && runeStats.any { it in mixedStats })) {
             // One boolean per type; exactly one type fills all the item's sockets when equipped, none otherwise.
             val perStat = runeStats.associateWith { stat -> newBoolVar("runePick_${equip.equipmentId}_${stat.name}") }
             val pickExpr = LinearExpr.newBuilder()
@@ -212,6 +236,9 @@ internal fun CpModel.createRuneModel(
             addEquality(pickExpr.build(), 0L)
             runeVars[equip] = perStat
         } else {
+            // The count model — or, under the general fold, a carrier offering a [mixedStats] type (exact: every type
+            // counted, `= slots·selected` like the fold's picks).
+            if (singleTypePerItem) countCarriers += equip
             val perStat = runeStats.associateWith { stat -> newIntVar(0, slots.toLong(), "rune_${equip.equipmentId}_${stat.name}") }
             // Sockets only count when the item is equipped: Σ runeCount {= max-damage | ≤ other modes} slots·selected.
             val capExpr = LinearExpr.newBuilder()
@@ -261,7 +288,9 @@ internal fun CpModel.createRuneModel(
         extraTerms,
         suppressedBy,
         maxDamageChoiceCollapse = maxDamageRuneChoiceCollapse,
-        choiceGates = choiceGates
+        choiceGates = choiceGates,
+        countCarriers = countCarriers,
+        countVarSlots = countVarSlots
     )
 }
 
@@ -298,19 +327,69 @@ internal class MaxDamageRuneReads(
     private val damageStats: Set<Characteristic>,
     private val bounds: List<Bound>,
     private val opaque: Set<Characteristic>,
+    // The sources of a modelled conversion that is NOT opaque (crit mastery → an M-feeding stat at ≤ 100 %): a rune of
+    // such a type is worth something to the objective even while a `≤ 0` cap holds its own stat at or below 0.
+    private val convertedSources: Set<Characteristic> = emptySet(),
+    // The opaque types whose reader is NOT linear in the rune count — a per-stat-step ramp's source, a best-element
+    // concentration's masteries: a part-fill can cross one of their thresholds.
+    private val thresholdReads: Set<Characteristic> = emptySet(),
+    // The required target rows (stat → target): the shortfall penalty / the hard leg's `actual ≥ target` is a threshold.
+    private val rowTargets: Map<Characteristic, Long> = emptyMap(),
 ) {
     internal enum class Side { LOWER, HIGHER, EXACT }
 
     /**
      * One stat of a modelled condition: `stat ⋚ threshold` (a multi-stat condition — the Neutralité family's six
      * secondaries — is one [Bound] per stat, each held on its own), the side the build prefers, and its CHOOSABLE sub
-     * (null when forced).
+     * (null when forced). [comparison] / [threshold] are the condition's own (read by [mixedStats]).
      */
     internal data class Bound(
         val stat: Characteristic,
         val side: Side,
         val choosableSub: Sublimation?,
+        val comparison: ConditionComparison = ConditionComparison.AT_MOST,
+        val threshold: Long = 0L,
     )
+
+    /**
+     * The rune types a single-type fill can NOT represent exactly (CERTIFIER_VERSION 57): a carrier offering one of them
+     * beside another type gets per-type counts ([createRuneModel]). The fold's premise — fill an item with its best type
+     * — holds while every reader of a rune is linear in its count: the damage objective is (`Graw` is linear in M and
+     * K at a fixed crit rate, convex through its `max(0, ·)` clamps, so a vertex — one type — maximises it over a
+     * carrier's fills). A THRESHOLD read breaks it:
+     *  - a CHOOSABLE `stat ≤ t` cap (the Neutralité family, Critical Secret) while it is taken leaves the stat's runes a
+     *    BUDGET — `t` minus everything else on the read — that a part-fill can match where a whole item overshoots:
+     *    rear 3 × 33 absorbed by an item's −120 rear line, the 4th socket elemental. The budget can be positive only if
+     *    `t > 0` or some source can make the stat NEGATIVE ([negativeSources]: an item line, a sub effect — skills and
+     *    the base never are); with neither, a taken cap holds every rune of the stat at 0 and the other types stay
+     *    linear. The runes the budget buys must also be WORTH something: an M-feeding type always is; critical
+     *    mastery while a `≤ t ≤ 0` cap holds it is clamped to 0 in `Graw` (`5c·max(0, K)`) unless a conversion moves it
+     *    into M ([convertedSources]) or t > 0. While the cap is not taken it restricts nothing: the fill is linear;
+     *  - a FORCED condition (its effect gated by the condition, possibly a malus) or a non-`≤` comparison: the build may
+     *    want to cross the threshold from either side — always mixed;
+     *  - [thresholdReads]: a ramp's steps, a per-element compare;
+     *  - a required target row (`actual ≥ target` on the hard leg, the shortfall penalty on the soft one; a 0-target row
+     *    is a floor) whose target is positive or whose stat a source can make negative — else every build meets it
+     *    whatever its runes. Keyed per rune type: an "all resistances" row reads the four per-element resistances;
+     *  - the survivability floor (HP and the four resistances), a non-crit conversion's source (its rounding step).
+     * The set is exact for the candidate types of the collapse and for the general fold's types alike: a stat no
+     * threshold reads is one more linear read.
+     */
+    fun mixedStats(negativeSources: Set<Characteristic>): Set<Characteristic> {
+        val out = LinkedHashSet<Characteristic>(thresholdReads)
+        for ((stat, target) in rowTargets) if (target > 0 || stat in negativeSources) out += stat
+        for (b in bounds) {
+            val s = b.stat
+            if (b.choosableSub == null || b.comparison != ConditionComparison.AT_MOST) {
+                out += s
+                continue
+            }
+            val budget = b.threshold > 0 || s in negativeSources
+            val worth = s in damageStats || b.threshold > 0 || s in convertedSources || s in opaque
+            if (budget && worth) out += s
+        }
+        return out
+    }
 
     /**
      * Whether choice [q] is at least as good as choice [p] ON THE SAME CARRIER (same socket count) for every read
@@ -405,7 +484,24 @@ internal fun maxDamageRuneReads(
     val damageStats = scenarioMasteryStats(params.damageScenario).toSet()
     val bounds = mutableListOf<MaxDamageRuneReads.Bound>()
     val opaque = HashSet<Characteristic>(percentSkillStats)
-    params.targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }.forEach { opaque += it.characteristic }
+    val converted = HashSet<Characteristic>()
+    val thresholds = HashSet<Characteristic>()
+    val rows = LinkedHashMap<Characteristic, Long>()
+    params.targetStats.filter { it.characteristic.isRequiredMostMasteriesTarget() }.forEach { row ->
+        // Keyed like the rune types ([relevantRuneStats]): an "all resistances" row (max-damage keeps it unsplit) reads
+        // each per-element resistance rune.
+        for (stat in runeKeysOf(row.characteristic)) {
+            opaque += stat
+            rows[stat] = maxOf(rows[stat] ?: Long.MIN_VALUE, row.target.toLong())
+        }
+    }
+    // The survivability floor reads HP and the four resistances through `min(EHP, floor)` and a bucket table: a
+    // threshold on each of them (see [StatBuilder]'s effective-HP proxy).
+    val scenario = params.damageScenario
+    if (scenario.survivabilityFloor && scenario.minEffectiveHp > 0) {
+        thresholds += Characteristic.HP
+        thresholds += ELEMENTARY_RESISTANCES
+    }
     val (forced, choosable) = modelledSublimations(params, sublimations)
     for (sub in forced + choosable) {
         // A combat-conditional sub is never credited, so its condition is never reified (buildSublimationTerms).
@@ -422,20 +518,85 @@ internal fun maxDamageRuneReads(
                 }
             // EACH stat is its own bound (the Neutralité family holds every secondary mastery ≤ t separately, never
             // their sum): a choice dominates another only if it reads no more of ANY of them.
-            for (stat in spec.stats.distinct()) bounds += MaxDamageRuneReads.Bound(stat, side, if (isForced) null else sub)
+            for (stat in spec.stats.distinct()) {
+                bounds += MaxDamageRuneReads.Bound(stat, side, if (isForced) null else sub, spec.comparison, spec.threshold.toLong())
+            }
         }
         sub.conversion?.let { conversion ->
             val critIntoDamage =
                 conversion.from == Characteristic.MASTERY_CRITICAL &&
                     conversion.to.foldedToUsableStat() in damageStats &&
                     conversion.percent in 0..100
-            if (!critIntoDamage) opaque += conversion.from
+            if (critIntoDamage) {
+                converted += conversion.from
+            } else {
+                // Any other conversion moves `floor(pct · stat)`: a rounding step a part-fill can land on.
+                opaque += conversion.from
+                thresholds += conversion.from
+            }
         }
-        sub.perStatStep?.let { opaque += it.source }
-        if (sub.bestElementConcentration != null) opaque += ELEMENT_MASTERY_CHARACTERISTICS
+        sub.perStatStep?.let {
+            opaque += it.source
+            thresholds += it.source
+        }
+        if (sub.bestElementConcentration != null) {
+            opaque += ELEMENT_MASTERY_CHARACTERISTICS
+            thresholds += ELEMENT_MASTERY_CHARACTERISTICS
+        }
     }
-    return MaxDamageRuneReads(damageStats, bounds, opaque)
+    return MaxDamageRuneReads(damageStats, bounds, opaque, converted, thresholds, rows)
 }
+
+/**
+ * The characteristics some source of this request can make NEGATIVE on the sheet a modelled condition reads — an item
+ * of [allEquips] (already resolved to the wearer's level) or a modelled sub's stat effect (every timing and gate: a
+ * superset). Skills, runes and the base never are. Read by [MaxDamageRuneReads.mixedStats]: a `≤ t ≤ 0` cap leaves a
+ * stat's runes a budget only if one of these exists.
+ */
+internal fun negativeStatSources(
+    allEquips: List<Equipment>,
+    sublimations: List<Sublimation>,
+    characterLevel: Int,
+): Set<Characteristic> {
+    val out = HashSet<Characteristic>()
+    for (equip in allEquips) {
+        for ((stat, value) in equip.characteristics) if (value < 0) out += negativeTargets(stat)
+    }
+    for (sub in sublimations) {
+        for (effect in sub.effects.filterIsInstance<me.chosante.common.SublimationEffect.StatEffect>()) {
+            if (effect.magnitudeAtLevel(characterLevel) < 0) out += negativeTargets(effect.characteristic)
+        }
+    }
+    return out
+}
+
+/**
+ * The per-element stats a negative line of [stat] can lower: an aggregate or random-element resistance (mastery) line
+ * lands on the four elements (16 catalog items carry a negative "all resistances" line), any other line on its own
+ * (MAX_* folded) stat.
+ */
+private fun negativeTargets(stat: Characteristic): Set<Characteristic> =
+    when (stat) {
+        Characteristic.RESISTANCE_ELEMENTARY,
+        Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT,
+        Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT,
+        Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT,
+        -> ELEMENTARY_RESISTANCES.toSet() + stat
+        Characteristic.MASTERY_ELEMENTARY,
+        Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT,
+        Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT,
+        Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT,
+        -> ELEMENTARY_MASTERIES.toSet() + stat
+        else -> setOf(stat.foldedToUsableStat())
+    }
+
+/** The rune types a target row on [stat] reads — the same keys as [relevantRuneStats]. */
+private fun runeKeysOf(stat: Characteristic): List<Characteristic> =
+    when (stat) {
+        Characteristic.RESISTANCE_ELEMENTARY -> ELEMENTARY_RESISTANCES.toList()
+        Characteristic.MASTERY_ELEMENTARY, in ELEMENTARY_MASTERIES -> listOf(Characteristic.MASTERY_ELEMENTARY)
+        else -> listOf(stat)
+    }
 
 /**
  * The rune-coverable stats worth modelling for this request: requested stats that have a rune.

@@ -1422,21 +1422,24 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
   - **Locks:** `RuneChoiceCollapseTest` (RED on main), `RuneChoicePruningTest` (the rule per slot on the real catalog,
     the gates' sub sets, forced / opaque readers; pruned + gated == full-choice == general fold on 24 seeded pools,
     mutation-checked), the manual fuzz knobs `WAKFU_REVIEW_MD_COLLAPSE` / `_NEUTRALITE` / `_PRUNE`.
-- **SINGLE-TYPE RUNE FOLD UNDER A POSITIVE SECONDARY BUDGET — OPEN (soundness; found 2026-10-04 by the #226 review).**
-  The max-damage fold (and the collapse built on it) fills each item with ONE rune type, on the premise (comment in
-  `WakfuBuildSolver.buildModel`) that a `secondary ≤ 0` cap rules an intra-item mix out. It does not: an item's NEGATIVE
-  secondary line gives the cap a positive budget, which a mixed item (part secondary, part elemental) can fill exactly
-  while no single type fits. (Measured under the old SUM reading; since CERTIFIER_VERSION 56 a negative line funds only
-  ITS OWN stat — each secondary is capped on its own — so the gap is per stat; not re-measured.) Evidence (the review's collapse-shape fuzz, a scratch harness: free requests, and requests
-  with AP / MP / RANGE / CC rows): the per-stat COUNT model (`forceRuneCountModel`) beat the fold in 12 of 130
-  comparisons — 6 seeded pools, each diverging identically with Neutralité III choosable and forced — by 0.032 % /
-  0.063 % / 0.049 % (free, seeds 71015 / 71036 / 71037) and 0.072 % / 0.481 % / 0.129 % (rows, seeds 72006 / 72014 /
-  72023); the general fold equalled the collapse every time. Re-run on the pruned collapse (CERTIFIER_VERSION 54 as
-  shipped, fresh seeds 91000–91029 free and 92000–92019 with rows, both Neutralité modes): 7 of 50 pools, +0.032–0.242 %,
-  collapse == general fold again in all 100 comparisons. The certificate bounds the folded model, so a "proven optimal"
-  badge can sit up to that far below a mixed-rune build. Not started. Options: keep the count model (or bail the
-  certificate) when a modelled secondary cap meets a negative secondary line in the pool; or offer a mixed option only on
-  the carriers that can need it.
+- **SINGLE-TYPE RUNE FOLD UNDER A POSITIVE SECONDARY BUDGET — ✅ FIXED (2026-10-06, CERTIFIER_VERSION 57; found
+  2026-10-04 by the #226 review).** The max-damage fold (and the collapse built on it) filled each item with ONE rune
+  type, on the premise that a `secondary ≤ 0` cap rules an intra-item mix out. It does not: an item's NEGATIVE secondary
+  line gives that stat's cap (each secondary is capped on its own since v56) a positive budget, which a mixed item (part
+  secondary, part elemental) fills exactly while no single type fits — and CP-SAT's `OPTIMAL` over the fold was then a
+  wrong "Optimal proven" badge. Re-measured per stat on `main` (v56) with a seeded negative-biased count-vs-fold fuzz
+  (seeds 4–80; Neutralité family choosable and one forced; free requests and AP / MP / RANGE / CC rows, soft and hard
+  leg): the count model beat the fold in 64 of 456 comparisons — 13 of 77 pools, each in every mode it ran — by
+  +0.049 % to +2.857 %. Fix: a carrier offering a rune type that a threshold reads with a budget keeps per-type COUNTS
+  (`MaxDamageRuneReads.mixedStats`, `RuneModel.countCarriers`); the certificate reads each of its types at its full-fill
+  vertex (the same options as the v56 picks; bounds unchanged). Every certificate ledger of the fuzz was already ≥ the
+  count optimum (convexity: see `docs/MIXED_RUNE_SECONDARY_BUDGET.md`) — the wrong badge came from CP-SAT's proof over the
+  folded model. The same flaw exists with no sublimation at all: a required HP row the build falls just short of is topped
+  up by one HP rune (CRA 50 sweep: 28 of 102 points, +0.21–0.44 %, hard and soft leg) — a GUI-default request has an HP
+  row — and the same rule (a required row is a threshold) covers it. Cost and A/B: `docs/MIXED_RUNE_SECONDARY_BUDGET.md`.
+  The adversarial review then found three general-fold threshold reads the first rule missed (an unsplit "all
+  resistances" row, a negative aggregate resistance line, the survivability floor — up to +8 % at a 0-row): now keyed per
+  rune type. Locks: `MixedRuneSecondaryBudgetTest`.
 - **NEUTRALITÉ FAMILY READ AS A SUM — ✅ FIXED (2026-10-04, CERTIFIER_VERSION 56).** The engine credited Neutralité,
   Ambition, Inflexibilité and Prétention whenever the SUM of the six secondary masteries was ≤ 0; the game requires EACH
   of them to be ≤ 0, so a positive secondary could be offset by a negative one of another stat — bonuses the game never
@@ -1470,7 +1473,7 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
     — needs a bail on negative crit-mastery sub lines for Dénouement's conversion) and price a negative line of one
     secondary at nothing for the others (only valid per stat; not uniformly tighter on sources with negative elemental and
     positive scenario secondary). The capped world sits ~30 % below the normal worlds on real shapes, so neither moves a
-    production badge today. The single-type fold gap below is per stat now (a negative line funds ITS stat only).
+    production badge today. The single-type fold gap above was per stat (a negative line funds ITS stat only) — fixed in v57.
   - **Measured** (production path, 4-core profile `-XX:ActiveProcessorCount=4 -Xmx3g`, main `ed97adfa` → this fix):
     - the player's request (Xelor 200, most-masteries, the saved rows, Vivacité II / Visibilité II excluded, Mémoire
       forced, fire / distance / back, 240 s): main returned 8,470 and 8,532 — both carrying Neutralité III + Ambition III
