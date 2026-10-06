@@ -42,8 +42,9 @@ import kotlin.time.Duration.Companion.seconds
  *
  * Knobs (all env): `WAKFU_E0_FIXTURES` (default = the eight v38 fixtures; `SAC230` = the production request of the
  * known minutes-long refinement shape, and `SAC230R` = that shape routed into the soft-leg branch the way
- * `MaxDamageSoftCertificateTest` does — no search, see [runSoftRouted] — and the free face requests `MD80MF` /
- * `MD200MF` / `MD230DF` (level, melee / distance) only run when named; `WAKFU_E0_ORACLE_WORKERS`
+ * `MaxDamageSoftCertificateTest` does — no search, see [runSoftRouted] — the free face requests `MD80MF` /
+ * `MD200MF` / `MD230DF` (level, melee / distance) and `MM110L` / `MM110LB` (`MM110` plus "lock 0": a floor the relaxed optimum
+ * breaks, then one that binds) only run when named; `WAKFU_E0_ORACLE_WORKERS`
  * sets the oracle's CP-SAT workers, 8), `WAKFU_E0_SECONDS` (search budget, 120; a comma list
  * runs every fixture once per budget, ids get an `@<n>s` suffix — a short budget exercises the post-search badge
  * path of searches CP-SAT leaves un-proven), `WAKFU_E0_REPS` (repeat everything n times in the same JVM, `#k`
@@ -154,6 +155,7 @@ class PerfBaselineE0Test {
 
     /** Fixtures outside the v38 table — they only run when named in `WAKFU_E0_FIXTURES`. */
     private fun extraFixtures(cfg: Config): List<Fixture> {
+        val mm = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
         val md = ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE
         val sacrieur230 =
             params(
@@ -172,6 +174,26 @@ class PerfBaselineE0Test {
         ) = params(level, md, listOf(TargetStat(band.masteryCharacteristic, 1)), cfg)
             .copy(damageScenario = DamageScenario(element = SpellElement.FIRE, rangeBand = band, orientation = Orientation.FACE))
         return listOf(
+            // The GUI's default request plus "lock 0" (WakfuBuildSolver.relaxThenCheck): the best build without the floors has lock
+            // −140 (Visibilité II), yet another build reaches the same optimum with every floor kept — the floor does not bind.
+            Fixture("MM110L", params(110, mm, guiTargets() + TargetStat(Characteristic.LOCK, 0), cfg)),
+            // ...and with the sublimations that lift dodge or lock excluded, it BINDS: the floored optimum is 1782 against the
+            // relaxed 1787 — relax-then-check's slow path, its floored stage searching past the relaxed optimum.
+            Fixture(
+                "MM110LB",
+                params(110, mm, guiTargets() + TargetStat(Characteristic.LOCK, 0), cfg).copy(
+                    excludedSublimations =
+                        listOf(
+                            "Evasion III",
+                            "Interception III",
+                            "Combat rapproché II",
+                            "Force Herculéenne",
+                            "Furie",
+                            "Esquive Berserk III",
+                            "Tacle Berserk III"
+                        )
+                )
+            ),
             // The production request of MaxDamageSoftCertificateTest `sacrieur230-apmp`: on data 1.93 its hard leg
             // meets the targets, so the post-search chain is the hard-leg ledger and the refinement never applies.
             Fixture("SAC230", sacrieur230),

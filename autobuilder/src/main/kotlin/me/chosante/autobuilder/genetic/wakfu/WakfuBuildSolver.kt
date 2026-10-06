@@ -755,6 +755,10 @@ object WakfuBuildSolver {
         val mmHardTargetsAsAssumptions: Boolean = false,
         val mmInfeasibilityCoreCapture: ((Set<Characteristic>) -> Unit)? = null,
         val mmSoftNoGoodCore: Set<Characteristic>? = null,
+        // Relax-then-check ([relaxThenCheck]) on the TUNED path: production always solves a most-masteries request with floors
+        // that way; a deterministic solve opts in here (its deterministic time split like the wall budget), so every existing
+        // tuned test keeps the direct floored solve.
+        val relaxFloorsFirst: Boolean = false,
     )
 
     fun optimize(
@@ -820,6 +824,8 @@ object WakfuBuildSolver {
                     .AtomicReference<CpSolver?>()
             val job =
                 launch(Dispatchers.IO) {
+                    // The leg's start: relax-then-check runs its two stages against ONE deadline from here.
+                    val legStartMs = System.currentTimeMillis()
                     // C8(3) greedy warm start — computed BEFORE buildModel (which is ~seconds on the lvl-245
                     // max-damage shape and used to gate the first emission at ~6.4 s): the greedy needs only
                     // the raw pre-filtered pool, so the first build streams in ~0.3 s. The CP-SAT hint is
@@ -852,6 +858,56 @@ object WakfuBuildSolver {
                             hardConstraints &&
                             params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
                             params.targetStats.any { it.characteristic.isRequiredMostMasteriesTarget() }
+                    // Backup certificate (§8.9bis): the emitted objective is certificate-comparable on
+                    // the MM SOFT leg only (penalized units = the certificate's foldedBound units). NOT on
+                    // the hard leg with required targets: its objective is the bare `core × 10⁴ + bonus`,
+                    // while the soft objective multiplies the core by power6(bucket) — ≈1e6 even when every
+                    // target is met — so comparing the two awarded "proven within ~1 000 000 %" badges
+                    // (pre-release review 2026-10-01, reproduced on dist+AP+MP+HP at level 200). The hard
+                    // leg is CONVERTED instead ([mmHardLegMultiplier] below), never stamped raw.
+                    val mmObjectiveComparable =
+                        params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+                            // (the model's exact fold predicate — a 0-valued required target still folds the objective)
+                            (!hardConstraints || params.targetStats.none { it.characteristic.isRequiredMostMasteriesTarget() }) &&
+                            // The measurement seams replace the searched objective — never comparable.
+                            tuning?.mmPenaltyBucketInterval == null &&
+                            tuning?.mmDiFactorInterval == null
+                    // ...but the hard leg IS convertible: every emission meets the targets, so the same
+                    // build's soft objective is `core × fullTargetsMultiplier × SCALE + bonus`. Not for the
+                    // P2b two-stage solve (its stage 1 searches the bare primary, no overshoot bonus).
+                    val mmHardLegMultiplier =
+                        if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+                            hardConstraints &&
+                            !mmTwoStage &&
+                            tuning?.mmPenaltyBucketInterval == null &&
+                            tuning?.mmDiFactorInterval == null
+                        ) {
+                            MostMasteriesCertificate.fullTargetsMultiplier(params)
+                        } else {
+                            null
+                        }
+                    // A most-masteries request with FLOORS: the relaxed model first, then the floored one ([relaxThenCheck]).
+                    if (relaxesFloorsFirst(params, tuning, mmTwoStage, maxDamageRawFloor)) {
+                        val outcome =
+                            relaxThenCheck(
+                                this@callbackFlow,
+                                params,
+                                equipmentsByItemType,
+                                runes,
+                                sublimations,
+                                tuning,
+                                hardConstraints,
+                                warmStart,
+                                warmScore,
+                                legStartMs,
+                                solverHandle,
+                                mmObjectiveComparable,
+                                mmHardLegMultiplier
+                            )
+                        onTermination?.invoke(outcome)
+                        close()
+                        return@launch
+                    }
                     val built =
                         buildModel(
                             params,
@@ -904,34 +960,6 @@ object WakfuBuildSolver {
                     tuning?.assignmentHint?.let { hint ->
                         for (v in diagnosticVars(built)) hint[v.name]?.let { built.model.addHint(v, it) }
                     }
-                    // Backup certificate (§8.9bis): the emitted objective is certificate-comparable on
-                    // the MM SOFT leg only (penalized units = the certificate's foldedBound units). NOT on
-                    // the hard leg with required targets: its objective is the bare `core × 10⁴ + bonus`,
-                    // while the soft objective multiplies the core by power6(bucket) — ≈1e6 even when every
-                    // target is met — so comparing the two awarded "proven within ~1 000 000 %" badges
-                    // (pre-release review 2026-10-01, reproduced on dist+AP+MP+HP at level 200). The hard
-                    // leg is CONVERTED instead ([mmHardLegMultiplier] below), never stamped raw.
-                    val mmObjectiveComparable =
-                        params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
-                            // (the model's exact fold predicate — a 0-valued required target still folds the objective)
-                            (!hardConstraints || params.targetStats.none { it.characteristic.isRequiredMostMasteriesTarget() }) &&
-                            // The measurement seams replace the searched objective — never comparable.
-                            tuning?.mmPenaltyBucketInterval == null &&
-                            tuning?.mmDiFactorInterval == null
-                    // ...but the hard leg IS convertible: every emission meets the targets, so the same
-                    // build's soft objective is `core × fullTargetsMultiplier × SCALE + bonus`. Not for the
-                    // P2b two-stage solve (its stage 1 searches the bare primary, no overshoot bonus).
-                    val mmHardLegMultiplier =
-                        if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
-                            hardConstraints &&
-                            !mmTwoStage &&
-                            tuning?.mmPenaltyBucketInterval == null &&
-                            tuning?.mmDiFactorInterval == null
-                        ) {
-                            MostMasteriesCertificate.fullTargetsMultiplier(params)
-                        } else {
-                            null
-                        }
                     val outcome =
                         executeSolverAndEmitResults(
                             built.model,
@@ -1053,6 +1081,265 @@ object WakfuBuildSolver {
             built.subModel.subVars.values +
             built.subModel.copyVars.values
                 .flatten()
+
+    /** The share of a relax-then-check leg's budget its relaxed stage may spend ([relaxThenCheck]); the floored stage gets the rest. */
+    internal const val RELAXED_STAGE_SHARE = 0.5
+
+    // The smallest stage budget worth a solve (wall seconds or deterministic units): OR-Tools reads a limit of 0 as no limit.
+    private const val MIN_STAGE_BUDGET = 0.05
+
+    // Below this magnitude (2^52) a double carries every integer exactly — a CP-SAT bound read back as one is exact there.
+    private const val EXACT_DOUBLE_INTEGER_LIMIT = 4_503_599_627_370_496.0
+
+    /**
+     * Whether [optimize] solves this leg by [relaxThenCheck]: a most-masteries request with floors — in production, or on a tuned
+     * solve that opts in ([SolverTuning.relaxFloorsFirst]) and sets none of the measurement seams, which read a single model. Not
+     * a request with a negative target or priority (a CLI-only shape): its objective no longer only grows with every stat a row
+     * reads, which the relaxation's argument needs.
+     */
+    private fun relaxesFloorsFirst(
+        params: WakfuBestBuildParams,
+        tuning: SolverTuning?,
+        mmTwoStage: Boolean,
+        maxDamageRawFloor: Long?,
+    ): Boolean =
+        params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT &&
+            params.targetStats.hasFloors &&
+            params.targetStats.none { it.target < 0 || it.userDefinedWeight < 0 } &&
+            !mmTwoStage &&
+            maxDamageRawFloor == null &&
+            (
+                tuning == null ||
+                    (
+                        tuning.relaxFloorsFirst &&
+                            tuning.assignmentHint == null &&
+                            tuning.captureAssignment == null &&
+                            tuning.mmMasteryScoreUpperBound == null &&
+                            tuning.mmPenaltyBucketInterval == null &&
+                            tuning.mmPenaltyBucketSolutionCapture == null &&
+                            tuning.mmDiFactorInterval == null &&
+                            !tuning.mmHardTargetsAsAssumptions &&
+                            tuning.mmInfeasibilityCoreCapture == null &&
+                            tuning.mmSoftNoGoodCore == null
+                    )
+            )
+
+    /**
+     * Relax-then-check's RELAXED stage budget out of a leg's [total] (wall milliseconds, or a tuned solve's deterministic time)
+     * once [spent] of it is gone: at most [RELAXED_STAGE_SHARE] of it, never past its end. Never negative.
+     */
+    internal fun relaxedStageBudget(
+        total: Double,
+        spent: Double,
+    ): Double = minOf(total * RELAXED_STAGE_SHARE, total - spent).coerceAtLeast(0.0)
+
+    /**
+     * Relax-then-check's FLOORED stage budget: what is left of the leg's [total] once [spent] of it is gone (the relaxed stage and
+     * both model builds included). Never negative — so the two stages never add up to more than [total].
+     */
+    internal fun flooredStageBudget(
+        total: Double,
+        spent: Double,
+    ): Double = (total - spent).coerceAtLeast(0.0)
+
+    /** CP-SAT's bound on a maximized integer objective rounded down to a Long, or null where a double no longer carries every integer. */
+    private fun exactUpperBound(bound: Double): Long? = if (bound.isFinite() && kotlin.math.abs(bound) < EXACT_DOUBLE_INTEGER_LIMIT) kotlin.math.floor(bound).toLong() else null
+
+    /**
+     * Whether [build] is a build of [params]' FLOORED leg as the scorers read it: every floor held and, on the hard leg, every
+     * target met ([hardLegHolds]). What the relaxed stage of [relaxThenCheck] may show.
+     */
+    private fun keepsFloors(
+        params: WakfuBestBuildParams,
+        build: BuildCombination,
+        hardLeg: Boolean,
+    ): Boolean {
+        val stats = FindMostMasteriesFromInputScoring.resolvedStats(params.targetStats, build, params.character.baseCharacteristicValues)
+        return if (hardLeg) params.targetStats.hardLegHolds(stats) else !params.targetStats.floorBroken(stats)
+    }
+
+    /**
+     * RELAX THEN CHECK — how [optimize] solves a most-masteries leg, hard or soft, of a request with FLOORS (rows of target 0 on a
+     * required stat: the GUI's default "air resistance 0" / "dodge 0"). The floors slow CP-SAT's proof down (a `≥ 0` per floor on
+     * the hard leg, a reified halving on the soft one), yet the best build very often keeps them anyway. So:
+     *
+     *  1. the RELAXED stage solves the same leg WITHOUT the floors ([StatBuilder.relaxFloors]: no floor read — no `≥ 0`, no
+     *     halving — each resistance family folded over its wanted elements alone), on at most [RELAXED_STAGE_SHARE] of the budget.
+     *     It shows a build only when that build keeps every floor (and, on the hard leg, meets every target) in the scorers' exact
+     *     read ([keepsFloors]) and scores no less than one already shown, and stamps none with a certificate-comparable objective
+     *     (its objective is the relaxed one). Its final build is no result of the leg;
+     *  2. the FLOORED stage solves the real leg on what is left of the budget, hinted with the relaxed stage's final solution and
+     *     cut by `objective ≤ U`, U the relaxed stage's upper bound: its optimum, read EXACTLY off the objective variable, when it
+     *     proved one; else its proven bound when a double carries it exactly; else no cut. Its final is the leg's result, and its
+     *     OPTIMAL the only optimality stamp the leg gives.
+     *
+     * THE ARGUMENT — for every build x, `floored objective(x) ≤ relaxed objective(x)`:
+     *  - hard leg: both objectives are the mastery × DI core then the targets' overshoot, and neither reads a floor; the floored leg
+     *    only forbids builds the relaxed one allows;
+     *  - soft leg: the floored objective halves the core while a floor is broken — the core is ≥ 0, so that only lowers it — and
+     *    is the relaxed one otherwise;
+     *  - the random-element rolls: each relaxed fold reads the wanted elements alone and places every roll as the game lets it
+     *    ([rollCover]: a positive roll on as many of them as it reaches, a negative one on as few as it must), so for any in-game
+     *    placement — the floored model's included — it has one that reads every wanted element at least as high, and both
+     *    objectives only grow with the wanted elements (every target and priority being ≥ 0, [relaxesFloorsFirst]).
+     * So `floored objective(x) ≤ relaxed objective(x) ≤ U` for every build: the cut removes no floored build, the floored stage
+     * solves exactly the floored leg, and its OPTIMAL is CP-SAT's own proof of it. When the relaxed optimum v keeps every floor at
+     * the same objective — the common case — the hint hands the floored stage a solution at v = U, which closes its gap at once:
+     * the relaxed optimum IS the floored one. When a floor binds, the floored stage searches on from the hint, under the cut. A
+     * relaxed stage proven INFEASIBLE proves the floored leg infeasible (it allows every floored build).
+     *
+     * BUDGET — ONE deadline for the leg, from its start ([legStartMs], before both model builds): the relaxed stage gets at most
+     * [RELAXED_STAGE_SHARE] of the budget ([relaxedStageBudget]), the floored stage what is left when it starts
+     * ([flooredStageBudget]) — never more than the request's budget in all (two legs each given the whole budget would burn twice
+     * it). A tuned solve splits its deterministic time the same way. A floored stage with no budget left, or that ends unproven
+     * below the best build the relaxed stage showed (or with none), delivers that build instead, unproven.
+     */
+    private suspend fun relaxThenCheck(
+        scope: ProducerScope<SolverResult<BuildCombination>>,
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        tuning: SolverTuning?,
+        hardConstraints: Boolean,
+        warmStart: BuildCombination?,
+        warmScore: BigDecimal?,
+        legStartMs: Long,
+        solverHandle: java.util.concurrent.atomic.AtomicReference<CpSolver?>,
+        mmObjectiveComparable: Boolean,
+        mmHardLegMultiplier: Long?,
+    ): SolveOutcome? {
+        fun model(relaxFloors: Boolean) =
+            buildModel(
+                params,
+                equipmentsByItemType,
+                runes,
+                sublimations,
+                applyDomination = tuning?.applyDominationOverride ?: (tuning == null),
+                maxDamageExperiment = tuning?.maxDamageExperiment ?: MaxDamageExperimentConfig.DEFAULT,
+                hardConstraints = hardConstraints,
+                mmOvershootEncoding = tuning?.mmOvershootEncoding ?: MmOvershootEncoding.CURRENT,
+                mmProductEncoding = tuning?.mmProductEncoding ?: MmProductEncoding.CURRENT,
+                relaxFloors = relaxFloors
+            )
+        val totalWallMs = params.searchDuration.inWholeMilliseconds.toDouble()
+
+        fun elapsedMs() = (System.currentTimeMillis() - legStartMs).toDouble()
+
+        // The best build shown so far, its floors held: the display never regresses, and a floored stage that misses delivers it.
+        val shown =
+            java.util.concurrent.atomic
+                .AtomicReference<Pair<BuildCombination, BigDecimal>?>(null)
+
+        fun offer(
+            build: BuildCombination,
+            score: BigDecimal,
+        ): Boolean {
+            if (!keepsFloors(params, build, hardConstraints)) return false
+            val best = shown.get()
+            if (best != null && score < best.second) return false
+            shown.set(build to score)
+            return true
+        }
+
+        // ---- 1. The RELAXED stage.
+        val relaxed = model(relaxFloors = true)
+        // The relaxed leg allows every floored build: nothing for it, nothing for the floored leg.
+        if (relaxed.maxDamageStaticallyInfeasible || !scope.isActive) return null
+        warmStart?.let { combination ->
+            val picked = combination.equipments.toHashSet()
+            for ((equip, v) in relaxed.equipVars) relaxed.model.addHint(v, if (equip in picked) 1L else 0L)
+        }
+        var relaxedSolver: CpSolver? = null
+        val relaxedOutcome =
+            executeSolverAndEmitResults(
+                relaxed.model,
+                params,
+                relaxed.allEquips,
+                relaxed.equipVars,
+                relaxed.skillVars,
+                relaxed.runeModel,
+                relaxed.subModel,
+                relaxed.maxDamageRawScore,
+                scope,
+                tuning,
+                onSolverReady = {
+                    solverHandle.set(it)
+                    relaxedSolver = it
+                },
+                suppressBelowScore = warmScore,
+                maxWallSecondsOverride = (relaxedStageBudget(totalWallMs, elapsedMs()) / 1000.0).coerceAtLeast(MIN_STAGE_BUDGET),
+                maxDeterministicTimeOverride = tuning?.let { relaxedStageBudget(it.maxDeterministicTime, 0.0) },
+                emitFilter = ::offer,
+                sendFinal = false,
+                progressStartMs = legStartMs
+            )
+        if (!scope.isActive) return relaxedOutcome
+        val relaxedStatus = relaxedOutcome?.status
+        if (relaxedStatus == com.google.ortools.sat.CpSolverStatus.INFEASIBLE) return relaxedOutcome
+        val solver = relaxedSolver
+        val relaxedSolved =
+            relaxedStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
+                relaxedStatus == com.google.ortools.sat.CpSolverStatus.FEASIBLE
+        // U: the relaxed optimum, exact, when proven — else the proven bound when a double carries it exactly — else no cut.
+        val upperBound =
+            when {
+                solver == null -> null
+                relaxedStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL -> runCatching { solver.value(relaxed.objective) }.getOrNull()
+                else -> exactUpperBound(solver.bestObjectiveBound())
+            }
+        // Same params ⇒ the same decision variables, by name, in both models (the floors only change how the stats are read).
+        val hint = if (relaxedSolved && solver != null) runCatching { diagnosticVars(relaxed).associate { it.name to solver.value(it) } }.getOrNull() else null
+        // The relaxed final build is no result of the leg, but one that keeps the floors may still be delivered at the end.
+        val relaxedFinal = relaxedOutcome?.finalBuild
+        val relaxedFinalScore = relaxedOutcome?.finalScore
+        if (relaxedFinal != null && relaxedFinalScore != null) offer(relaxedFinal, relaxedFinalScore)
+
+        // ---- 2. The FLOORED stage.
+        val floored = model(relaxFloors = false)
+        // No build can keep a floor (or meet a target): nothing to deliver — the relaxed stage showed none either.
+        if (floored.maxDamageStaticallyInfeasible) return null
+        if (!scope.isActive) return relaxedOutcome
+        upperBound?.let { floored.model.addLessOrEqual(floored.objective, it) }
+        hint?.let { values -> for (v in diagnosticVars(floored)) values[v.name]?.let { floored.model.addHint(v, it) } }
+        val wallLeftSeconds = flooredStageBudget(totalWallMs, elapsedMs()) / 1000.0
+        val deterministicLeft = tuning?.let { flooredStageBudget(it.maxDeterministicTime, relaxedOutcome?.deterministicTime ?: 0.0) }
+        val flooredOutcome =
+            if ((deterministicLeft ?: wallLeftSeconds) < MIN_STAGE_BUDGET) {
+                null
+            } else {
+                executeSolverAndEmitResults(
+                    floored.model,
+                    params,
+                    floored.allEquips,
+                    floored.equipVars,
+                    floored.skillVars,
+                    floored.runeModel,
+                    floored.subModel,
+                    floored.maxDamageRawScore,
+                    scope,
+                    tuning,
+                    onSolverReady = { solverHandle.set(it) },
+                    suppressBelowScore = listOfNotNull(warmScore, shown.get()?.second).maxOrNull(),
+                    maxWallSecondsOverride = wallLeftSeconds,
+                    maxDeterministicTimeOverride = deterministicLeft,
+                    progressStartMs = legStartMs,
+                    mmObjectiveComparable = mmObjectiveComparable,
+                    mmHardLegMultiplier = mmHardLegMultiplier
+                )
+            }
+        // Unproven, the floored stage never ends below what the relaxed stage showed: that build is the leg's result then.
+        val best = shown.get()
+        val flooredScore = flooredOutcome?.finalScore
+        if (best != null &&
+            flooredOutcome?.status != com.google.ortools.sat.CpSolverStatus.OPTIMAL &&
+            (flooredScore == null || flooredScore < best.second) &&
+            scope.isActive
+        ) {
+            scope.send(SolverResult(best.first, best.second, 100))
+        }
+        return flooredOutcome ?: relaxedOutcome
+    }
 
     private class BuiltModel(
         val model: CpModel,
@@ -1255,6 +1542,9 @@ object WakfuBuildSolver {
         // CERTIFIER_VERSION 52: the certificate is for a HARD-LEG result ⇒ the target-aware ledger (see
         // [StatBuilder.certifierTargetAware]). False keeps the target-blind certifier.
         certifierTargetAware: Boolean = false,
+        // Most-masteries only: the model WITHOUT the request's floors ([StatBuilder.relaxFloors]) — relax-then-check's relaxed
+        // stage ([relaxThenCheck]).
+        relaxFloors: Boolean = false,
     ): BuiltModel {
         // Phase timing (WAKFU_BUILD_MODEL_TIMING=1): where the ~seconds of model construction go on the
         // big shapes — one stderr line per buildModel call. No behavior change.
@@ -1395,6 +1685,7 @@ object WakfuBuildSolver {
                             mmDiFactorFoldedObjective,
                             mmHardTargetsAsAssumptions,
                             mmSoftNoGoodCore,
+                            relaxFloors = relaxFloors,
                             onStatBuilder = { mmStatBuilder = it }
                         )
                     mmStatBuilder?.let { statBuilder ->
@@ -3400,6 +3691,7 @@ object WakfuBuildSolver {
      * [hardConstraints], optionally PINS a build — [pinnedEquipmentIds] (every other item off), [pinSkillsToZero] (no skill
      * point spent) and/or [pinnedDecisions] (every decision var by name, an absent one 0) — solves it with the deterministic
      * [tuning], and returns the solved build beside the model's own claimed value of every per-element var its rows read.
+     * [relaxFloors]: the most-masteries model without the request's floors, relax-then-check's relaxed stage ([relaxThenCheck]).
      */
     internal fun elementRowSolveForTest(
         params: WakfuBestBuildParams,
@@ -3412,6 +3704,7 @@ object WakfuBuildSolver {
         pinSkillsToZero: Boolean = false,
         pinnedDecisions: Map<String, Long>? = null,
         forceFullPool: Boolean = true,
+        relaxFloors: Boolean = false,
     ): ElementRowSolve {
         val built =
             buildModel(
@@ -3421,7 +3714,8 @@ object WakfuBuildSolver {
                 sublimations,
                 forceFullPool = forceFullPool,
                 hardConstraints = hardConstraints,
-                maxDamageExperiment = tuning.maxDamageExperiment
+                maxDamageExperiment = tuning.maxDamageExperiment,
+                relaxFloors = relaxFloors
             )
         if (built.maxDamageStaticallyInfeasible) {
             return ElementRowSolve(com.google.ortools.sat.CpSolverStatus.INFEASIBLE, null, null, emptyMap())
@@ -3920,6 +4214,8 @@ object WakfuBuildSolver {
         // §8.5 S-D seams — see [SolverTuning.mmHardTargetsAsAssumptions] / [SolverTuning.mmSoftNoGoodCore].
         mmHardTargetsAsAssumptions: Boolean = false,
         mmSoftNoGoodCore: Set<Characteristic>? = null,
+        // Relax-then-check's relaxed stage: the model without the request's floors ([StatBuilder.relaxFloors]).
+        relaxFloors: Boolean = false,
         // Hands the stat builder to [buildModel] (its row-read test seam); no effect on the model.
         onStatBuilder: (StatBuilder) -> Unit = {},
     ): MostMasteriesObjectiveVars {
@@ -3936,7 +4232,8 @@ object WakfuBuildSolver {
                 // big-Ms and declared domains consume the same reachable ranges. CURRENT is byte-identical.
                 tight = mmProductEncoding != MmProductEncoding.CURRENT,
                 // Decouple from the max-damage experiment default (see [MaxDamageExperimentConfig.NON_MAX_DAMAGE]).
-                maxDamageExperiment = MaxDamageExperimentConfig.NON_MAX_DAMAGE
+                maxDamageExperiment = MaxDamageExperimentConfig.NON_MAX_DAMAGE,
+                relaxFloors = relaxFloors
             ).also(onStatBuilder)
         statBuilder.applyOutOfCombatCaps()
         val targetStats = params.targetStats
@@ -4487,6 +4784,15 @@ object WakfuBuildSolver {
         // primary — stamp the PINNED stage-1 primary instead so the final displayed emission keeps
         // a certificate-comparable objective (else the backup badge gate reads null and never runs).
         mmObjectiveOverride: Long? = null,
+        // Relax-then-check ([relaxThenCheck]) — the knobs of its two stages:
+        //  - the TUNED path's deterministic budget of this stage (null = the tuning's whole budget);
+        maxDeterministicTimeOverride: Double? = null,
+        //  - an intermediate build is shown only when this accepts it (the relaxed stage: its floors held in the scorers' read);
+        emitFilter: ((BuildCombination, BigDecimal) -> Boolean)? = null,
+        //  - false: no final send (the relaxed stage's final build is no result of the leg — its outcome carries it instead);
+        sendFinal: Boolean = true,
+        //  - the leg's start, which the progress percentage counts from (null = this solve's own start).
+        progressStartMs: Long? = null,
     ): SolveOutcome? {
         val solver = CpSolver()
         onSolverReady(solver)
@@ -4526,7 +4832,7 @@ object WakfuBuildSolver {
             // optimality proof finishes quickly.
             solver.parameters.numSearchWorkers = tuning.numSearchWorkers
             solver.parameters.randomSeed = tuning.randomSeed
-            solver.parameters.maxDeterministicTime = tuning.maxDeterministicTime
+            solver.parameters.maxDeterministicTime = maxDeterministicTimeOverride ?: tuning.maxDeterministicTime
             if (tuning.interleaveSearch) solver.parameters.interleaveSearch = true
             tuning.maxPresolveIterationsOverride?.let { solver.parameters.maxPresolveIterations = it }
             tuning.linearizationLevelOverride?.let { solver.parameters.linearizationLevel = it }
@@ -4541,6 +4847,7 @@ object WakfuBuildSolver {
         }
 
         val startTime = System.currentTimeMillis()
+        val progressOrigin = progressStartMs ?: startTime
 
         val cb =
             object : CpSolverSolutionCallback() {
@@ -4575,8 +4882,9 @@ object WakfuBuildSolver {
                     val combination = solutionToBuild(params, allEquips, equipVars, skillVars, runeModel, subModel) { value(it) }
                     val actualScore = scoreFor(params, combination)
                     if (suppressBelowScore != null && actualScore < suppressBelowScore) return
+                    if (emitFilter != null && !emitFilter(combination, actualScore)) return
 
-                    val progress = ((now - startTime).toDouble() / params.searchDuration.inWholeMilliseconds.toDouble() * 100).toInt()
+                    val progress = ((now - progressOrigin).toDouble() / params.searchDuration.inWholeMilliseconds.toDouble() * 100).toInt()
                     scope.trySend(
                         SolverResult(
                             combination,
@@ -4602,7 +4910,7 @@ object WakfuBuildSolver {
                 // Guaranteed delivery (suspending send, not trySend): intermediate best-so-far
                 // emissions are best-effort progress and may be dropped under back-pressure, but the
                 // final/optimal build must never be lost to a saturated callbackFlow buffer.
-                if (scope.isActive) {
+                if (sendFinal && scope.isActive) {
                     scope.send(
                         SolverResult(
                             individual = finalComb,
@@ -4626,7 +4934,9 @@ object WakfuBuildSolver {
                     bestObjectiveBound = solver.bestObjectiveBound().toLong(),
                     deterministicTime = deterministicTimeFrom(solver.responseStats()),
                     branches = solver.numBranches(),
-                    conflicts = solver.numConflicts()
+                    conflicts = solver.numConflicts(),
+                    finalBuild = finalComb,
+                    finalScore = finalScore
                 )
             } else {
                 SolveOutcome(
@@ -4656,6 +4966,9 @@ object WakfuBuildSolver {
         val deterministicTime: Double,
         val branches: Long,
         val conflicts: Long,
+        // The solve's final build and its score, when it has one — sent or not (relax-then-check's relaxed stage sends none).
+        val finalBuild: BuildCombination? = null,
+        val finalScore: BigDecimal? = null,
     )
 
     /**
