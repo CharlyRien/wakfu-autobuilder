@@ -46,12 +46,14 @@ class WakfuBuildSolverTest {
         // nightly test fails loudly (naming this version vs the current one); re-bank intentionally.
         const val LVL245_LEDGER_ORACLE_VERSION = "1.93.1.62" // banked for the 1.93 data bump (v38); re-banked for B1 (v49)
 
-        // The lvl-245 max-damage optimum (runes + subs, full EPIC pool) PROVEN on the 1.93.1.62 data: the search
-        // (det 120) reached 17,659,080, the certificate bounded it within 0.31 %, and the E8 construct rescue
-        // delivered the proven optimum 17,713,860. The FAST ledger's max must stay ≥ it (a fast value below it
-        // would let the orchestrator eliminate the winning cell — a wrong "proven optimal" badge).
-        // (1.92.1.58 history: pre-stacking proven optimum 16,909,590.)
-        const val LVL245_PROVEN_OPTIMUM = 17_713_860L
+        // The lvl-245 max-damage optimum (runes + subs, full EPIC pool) PROVEN on the 1.93.1.62 data under the item equip
+        // conditions (CERTIFIER_VERSION 57): the search (det 120) reached 15,856,320, the certificate bounded it within
+        // 9.42 %, and the E8 construct rescue delivered the proven optimum 17,350,320 (a two-hander, no nation sword). The
+        // FAST ledger's max must stay ≥ it (a fast value below it would let the orchestrator eliminate the winning cell — a
+        // wrong "proven optimal" badge).
+        // (History: v56 proved 17,713,860 — a build wearing Épée de Brâkmar without the ring the game requires with it;
+        // 1.92.1.58 pre-stacking proven optimum 16,909,590.)
+        const val LVL245_PROVEN_OPTIMUM = 17_350_320L
 
         // The lvl-245 tier-1 FAST certificate ledger for the production shape (runes + subs, full EPIC pool):
         // AP cell → the sound per-cell upper bound the two-tier orchestrator uses to ELIMINATE cells. This is
@@ -73,6 +75,11 @@ class WakfuBuildSolverTest {
         // CERTIFIER_VERSION 55 (the Dofus Pourpre's +level Elemental Mastery, resolved into the pool like production does
         // — see [fullEpicPool]) left EVERY cell unchanged: the build's one relic always buys more elsewhere. With every
         // other relic removed, the resolved Pourpre does raise cells 6–17 (by 0.02–3.1 %).
+        // CERTIFIER_VERSION 57 (item equip conditions) LOWERED cells 12–17 by 1.0–2.3 % and left cells 0–11 unchanged:
+        // a nation sword (RELIC, +3 AP) is now only certified with the zero-stat EPIC ring the game requires with it (the
+        // REQUIRES world split), so those cells no longer pair a sword with another epic item — the v56 optimum wore Épée
+        // de Brâkmar without its ring, illegal in game (v56 bank: 15_121_470 / 16_236_875 / 16_630_860 / 17_304_250 /
+        // 17_766_150 / 17_323_520 for cells 12–17).
         // Re-bank from `WAKFU_MAX_DAMAGE_CERT_LEDGER=1 …_LEVEL=245 …_INCUMBENT=99999999999999` on the manual
         // `certifyLedger end-to-end` test (a huge incumbent eliminates every cell ⇒ pure fast tier, ~80 s).
         val LVL245_FAST_LEDGER_ORACLE =
@@ -89,12 +96,12 @@ class WakfuBuildSolverTest {
                 9 to 12_259_800L,
                 10 to 13_141_235L,
                 11 to 14_437_890L,
-                12 to 15_121_470L,
-                13 to 16_236_875L,
-                14 to 16_630_860L,
-                15 to 17_304_250L,
-                16 to 17_766_150L,
-                17 to 17_323_520L,
+                12 to 14_934_855L,
+                13 to 16_031_450L,
+                14 to 16_322_070L,
+                15 to 17_128_500L,
+                16 to 17_517_150L,
+                17 to 16_932_240L,
                 18 to 0L,
                 19 to 0L,
                 20 to 0L

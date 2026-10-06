@@ -76,7 +76,8 @@ These types are the vocabulary of the whole codebase — learn them first.
   today). Those depend on the wearer's level, so the per-request pool resolves them into `characteristics`
   (`Equipment.atLevel`, in `WakfuBestBuildFinderAlgorithm.poolFor`): every stat reader downstream sees plain
   stats. The raw `WakfuBestBuildFinderAlgorithm.equipments` catalog is unresolved — never build a pool from it
-  without `atLevel`.
+  without `atLevel`. The catalog also joins each item's EQUIP criterion (`equipCriterion`, `@Transient`: never read from
+  `equipments.json` nor saved) from `item-criteria.json` — see §4 "Item equip conditions".
 - **`ItemType`**: the 14 equippable slots (amulet, ring, boots, helmet, cape, belt, chestplate,
   shoulder pads, emblem, pet, mount, 1H/2H/off-hand weapons). Each carries Ankama's numeric `id`.
 - **`Rarity`**: ordered enum `COMMON < UNCOMMON < RARE < MYTHIC < LEGENDARY < RELIC < SOUVENIR < EPIC`.
@@ -248,8 +249,41 @@ certificate reads from an item (CERTIFIER_VERSION 53 audit, `docs/perf-review-ba
   max-damage, when a modelled rune type is a pinned stat);
 - rings: `B` goes only when its dominators span two different NAMES (two rings of one name are never worn together).
 
+- equip conditions (see below): an item another pool item REQUIRES is never evicted, and `A`'s required items and
+  conflict partners must be subsets of `B`'s.
+
 Adding anything the model reads from an `Equipment` (a new field, a level- or name-dependent term) means adding its
 clause there — and bumping `CERTIFIER_VERSION`, since the certificates' pool changes.
+
+### Item equip conditions (what the game lets a character wear)
+The client's Item table carries an EQUIP criterion per item (`ItemEquipCriterion`, decoded into `item-criteria.json` by
+`bdata-extractor`, §5; joined onto each catalog item as `Equipment.equipCriterion`). The game checks it at equip time AND
+re-checks the whole equipped set, so every rule is a rule on the FINAL build. The engine enforces (one set of helpers,
+`domain/EquipConditions.kt`, read by every consumer):
+- **REQUIRES** (`HasEquipmentId(x)`): the four nation swords (RELIC, +3 AP) each need their zero-stat EPIC ring — CP-SAT
+  `x_sword ≤ x_ring` (`addEquipConditionConstraints`); the pool drops an item whose required item can't be worn in the
+  request (`withRequirementsMet` in `groupAndFilterEquipments`: rarity cap, level band, exclusion); forcing the sword
+  forces its ring (`forcedNamesWithRequirements`); the multi-element prefilter and the E8 provenance keep the ring.
+- **FORBIDS** (`not HasEquipmentId(x)`), read as the SYMMETRIC closure (the Lieute rings list their bans only in their
+  CRAFT criterion): `x_a + x_b ≤ 1` per pair — five ring triples of different names (Issé Sceau's triple shares a name).
+- **CLASS-ONLY** (`IsBreed`, mapped to `CharacterClass` by breed id: the client's SACRIER is our SACRIEUR) and **NEVER**
+  (`False`): static pool filters (`isWearableBy`). A character of class `UNKNOWN` (CLI without `--class`) wears no class item.
+- `BuildCombination.isValid(characterClass)` checks all four; the greedy warm start never picks a requiring item alone
+  (each sword + ring BUNDLE is a candidate, ranked by `rescore`) and never pairs excluding rings; `validateRequest`
+  rejects a wrong-class / never / requirement-unavailable forced item and two excluding forced items (`RequestValidationProblem`).
+- NOT enforced, kept for display: stat gates (`GetCharac` / `GetCharacMax` bounds — pending an in-game check of whether
+  an item's own bonus counts) and player-state conditions (company rank, achievement, gauges, crime score: assumed
+  satisfied). `not HasAnotherSameEquipment()` is the existing same-name ring rule.
+
+The certificates read REQUIRES (CERTIFIER_VERSION 57) and ignore FORBIDS (a relaxation: two rings that exclude each
+other may pair in a bound — sound, looser). The AP-cell certifier — the max-damage proof authority — splits every world in
+two ([CertWorld.bundle], `requirementBundleSplit`): the builds wearing no nation sword (swords removed) and the builds
+wearing one (sword + ring as ONE ring-stage entry, weapon slot left to off-hands), so the epic budget AND the ring slot the
+ring takes are exact (the lvl-245 ledger fell 1.0–2.3 % on cells 12–17: the v56 proven optimum wore Épée de Brâkmar
+without its ring). The most-masteries and soft certificates offer the sword FUSED with its ring in its own slot (`wornOpts`:
+stats, runes, rarity summed), which counts the epic budget but leaves the ring's slot free — an over-count of at most one
+ring. Locks: `EquipConditionsTest`, `EquipConditionsCertificateTest` (soundness on every pass, and the AP-cell ledger EXACT
+on conflict-free seeded pools), `EmbeddedItemCriteriaDataTest`.
 
 ### The multi-element item pre-filter (a HEURISTIC: what a multi-element search sees, and why it never earns a badge)
 A request wanting more than one element of mastery or resistance (`WakfuBuildSolver.needsItemPrefilter`: two specific
@@ -399,6 +433,18 @@ as **fixed-name** JSON files (no version in the filename):
    (regular, hidden from the GUI boss picker). It needs a local Wakfu install (the binaries are **not** on
    the CDN), so unlike the other extractors it **cannot run in CI** — the JSON it produces stays committed.
    See `docs/SPELL_CAST_LIMITS_EXTRACTION.md` / `docs/SPELL_PASSIVES_EXTRACTION.md` for the format.
+   It also writes **`item-criteria.json`** (`ItemCriteria.kt` + `ItemCriterionParser.kt`): the EQUIP criteria of the
+   `equipments.json` items (so it runs after `equipments-extractor`), raw expression + typed form (`ItemEquipCriterion`:
+   required / forbidden item ids, classes, never, unique-equipped, stat gates, player-state atoms), sorted by item id.
+   Everything is found STRUCTURALLY in the client bytecode, never by an obfuscated name: the table id from the table-type
+   enum's `ITEM` constant, the record PREFIX from the ITEM binary-data classes' `read(reader)` calls up to the first
+   `String[]` (the alternating (kind, expression) criteria — only that prefix is decoded, each record by its own
+   offset + seed, so a field Ankama appends later never breaks it), the kinds from the enum holding `EQUIP` /
+   `USE_IN_FIGHT` / `PICK_UP`, the breed ids from the class-name enum. Guards that fail the run: a record whose first field
+   is not its index id, an odd criteria list, an unknown kind, two EQUIP entries, and — in the typed parse of a pool
+   item's expression (`Critere.g`: `and`/`et`/`&&`, `or`/`ou`/`||`, `not`/`non`/`!`, comparisons, arithmetic, `#…#`) — an
+   unknown function, an `or`, a negated conjunction or an unmapped characteristic / breed. CI lock on the committed file:
+   `EmbeddedItemCriteriaDataTest`; install-gated reproduction: `ItemCriteriaDecodeTest`.
 
 **The data version is a single source of truth:** `WakfuData.VERSION` in `common-lib`
 (`common-lib/.../WakfuData.kt`). The apps stamp it as `dataVersion`; the extractors fetch CDN assets for
