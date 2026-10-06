@@ -407,6 +407,8 @@ enum class Tr(
     REQUIRE_ITEM_TITLE("Require item", "Imposer un objet"),
     BAN_ITEM_TITLE("Ban item", "Exclure un objet"),
     SEARCH_ITEMS("Search items (FR / EN)…", "Rechercher des objets (FR / EN)…"),
+    ALL_SLOTS("All slots", "Tous les emplacements"),
+    PICKER_MATCH_COUNT("Matches: %d", "Résultats : %d"),
     NO_MATCHING_ITEM("No matching item", "Aucun objet correspondant"),
     EQUIPPABLE_ONLY("Equippable only", "Équipables uniquement"),
     RARITY_ALL("All", "Toutes"),
