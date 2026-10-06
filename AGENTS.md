@@ -289,15 +289,21 @@ re-checks the whole equipped set, so every rule is a rule on the FINAL build. Th
   an item's own bonus counts) and player-state conditions (company rank, achievement, gauges, crime score: assumed
   satisfied). `not HasAnotherSameEquipment()` is the existing same-name ring rule.
 
-The certificates read REQUIRES (CERTIFIER_VERSION 57) and ignore FORBIDS (a relaxation: two rings that exclude each
-other may pair in a bound — sound, looser). The AP-cell certifier — the max-damage proof authority — splits every world in
+The certificates read REQUIRES (CERTIFIER_VERSION 57) and FORBIDS (58): every certificate pairs rings on
+`ringPairingKeys` — the lowercased French name, or ONE key for a whole connected component of the (same-name ∪ FORBIDS)
+conflict graph when it is a clique (the data's five excluding triples), so a bound never pairs two rings the game refuses
+together; a component that is not a clique keeps the name keys (the old relaxation: sound, looser). The AP-cell certifier — the max-damage proof authority — splits every world in
 two ([CertWorld.bundle], `requirementBundleSplit`): the builds wearing no nation sword (swords removed) and the builds
 wearing one (sword + ring as ONE ring-stage entry, weapon slot left to off-hands), so the epic budget AND the ring slot the
 ring takes are exact (the lvl-245 ledger fell 1.0–2.3 % on cells 12–17: the v56 proven optimum wore Épée de Brâkmar
-without its ring). The most-masteries and soft certificates offer the sword FUSED with its ring in its own slot (`wornOpts`:
-stats, runes, rarity summed), which counts the epic budget but leaves the ring's slot free — an over-count of at most one
-ring. Locks: `EquipConditionsTest`, `EquipConditionsCertificateTest` (soundness on every pass, and the AP-cell ledger EXACT
-on conflict-free seeded pools), `EmbeddedItemCriteriaDataTest`.
+without its ring). The split costs ~1.5× on every pass; making it lazy (fast tier on the unsplit, fused worlds; split only
+the surviving cells) was measured and NOT shipped: the top surviving cell's unsplit argmax is the over-counted fused-sword
+build, so the split is needed exactly where the proof refines, and without the per-half fast rows the tier-1.5 skip and exact
+c-loop prune got slower (`RequirementSplitTimingHarnessTest` KDoc). The most-masteries and soft certificates offer the sword
+FUSED with its ring in its own slot (`wornOpts`: stats, runes, rarity summed), which counts the epic budget but leaves the
+ring's slot free — an over-count of at most one ring. Locks: `EquipConditionsTest`, `EquipConditionsCertificateTest`
+(soundness on every pass, and the AP-cell ledger EXACT on every seeded pool, excluding rings included),
+`EmbeddedItemCriteriaDataTest`.
 
 ### The multi-element item pre-filter (a HEURISTIC: what a multi-element search sees, and why it never earns a badge)
 A request wanting more than one element of mastery or resistance (`WakfuBuildSolver.needsItemPrefilter`: two specific

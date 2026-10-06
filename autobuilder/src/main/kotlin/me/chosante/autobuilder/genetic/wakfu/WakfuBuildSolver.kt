@@ -412,7 +412,10 @@ object WakfuBuildSolver {
      * Trool anciens, AP +1; 18693 Sain Turastil ancienne, MP +1), which the game refuses beside an epic item. Every certificate's
      * epic bit is now the group's — the budget exact, an EPIC-group COMMON item also passing for an epic-SUB carrier (a sound
      * over-count: the carrier is the rarity) — and the domination pre-filter's budget clause reads the group too. A bound can
-     * only fall: the builds it drops (such an item beside an epic) are illegal in game.
+     * only fall: the builds it drops (such an item beside an epic) are illegal in game. And FORBIDS are priced exactly: every
+     * certificate pairs rings on [me.chosante.autobuilder.domain.ringPairingKeys] — the name, or one key for a whole clique of
+     * rings that exclude each other (the five excluding triples of the data) — so no bound pairs two rings the game refuses
+     * together (the review of #246 measured up to +16 % on seeded pools).
      */
     const val CERTIFIER_VERSION: Int = 58
 

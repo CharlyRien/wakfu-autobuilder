@@ -23,10 +23,11 @@ import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * The certificates and the item EQUIP conditions (CERTIFIER_VERSION 57). The certifiers ignore REQUIRES / FORBIDS — a
- * relaxation — except one sound tightening: an item that needs another (a nation sword needs its zero-stat EPIC ring) is
- * offered FUSED with it, so it takes the epic budget and never pairs with another epic item. Locks, on seeded pools where
- * the unconstrained optimum wears the sword beside an epic item:
+ * The certificates and the item EQUIP conditions (CERTIFIER_VERSION 57, 58). REQUIRES: an item that needs another (a nation
+ * sword needs its zero-stat EPIC ring) is offered FUSED with it, so it takes the epic budget and never pairs with another epic
+ * item, and the AP-cell certifier splits its worlds on it (lazily, v58). FORBIDS: rings that exclude each other share a
+ * pairing key when they form a clique ([me.chosante.autobuilder.domain.ringPairingKeys], v58), so no bound pairs them. Locks,
+ * on seeded pools where the unconstrained optimum wears the sword beside an epic item:
  *  - SOUNDNESS (release-blocking): every AP-cell pass and the ledger upper-bound the CONSTRAINED CP-SAT optimum, and the
  *    most-masteries bound upper-bounds the constrained soft objective;
  *  - TIGHTENING: the fused bound never exceeds the bound of the same pool without the conditions, and drops below it
@@ -189,17 +190,15 @@ class EquipConditionsCertificateTest {
             assertThat(bound).describedAs("seed %d: the split bound (%d) never exceeds the relaxed one (%d)", seed, bound, relaxed).isLessThanOrEqualTo(relaxed)
             println("EQ_CERT seed=$seed conflicts=$conflicts optimum=$trueOptimum bound=$bound relaxed=$relaxed")
             if (bound < relaxed) tightened++
-            if (!conflicts) {
-                conflictFree++
-                if (bound == trueOptimum) tight++
-            }
+            if (!conflicts) conflictFree++
+            if (bound == trueOptimum) tight++
         }
         assertThat(compared).isGreaterThan(40)
         assertThat(tightened).describedAs("the split must tighten the pools whose relaxed optimum wears the sword beside the epic").isGreaterThanOrEqualTo(6)
-        // The bundle world counts the sword's ring slot exactly: without a FORBIDS pair the ledger lands ON the optimum.
-        assertThat(tight).describedAs("the ledger must be TIGHT (== the constrained optimum) on most conflict-free pools (%d)", conflictFree).isGreaterThanOrEqualTo(
-            conflictFree - 1
-        )
+        // The bundle world counts the sword's ring slot exactly, and (CERTIFIER_VERSION 58) the excluding rings are priced
+        // exactly ([ringPairingKeys]): the ledger lands ON the constrained optimum, FORBIDS pair or not.
+        assertThat(conflictFree).isEqualTo(8)
+        assertThat(tight).describedAs("the ledger must be TIGHT (== the constrained optimum) on every pool").isEqualTo(16)
     }
 
     @Test
@@ -343,6 +342,8 @@ class EquipConditionsCertificateTest {
         var compared = 0
         var swordOptima = 0
         var twoSwordPools = 0
+        var certified = 0
+        var tight = 0
         for (seed in 0 until 10) {
             val pool = adversarialPool(seed)
             val domination = seed % 2 == 1
@@ -375,10 +376,18 @@ class EquipConditionsCertificateTest {
             if (pool.values.flatten().any { it.equipmentId in ids && it.equipCriterion?.requiresItems?.isNotEmpty() == true }) swordOptima++
             val ledger = WakfuBuildSolver.certifyLedgerForTest(maxDamageParams, pool, applyDomination = domination, forceTier2All = true).maxCellObjective ?: continue
             assertThat(ledger).describedAs("seed %d: the ledger (%d) must upper-bound the constrained optimum (%d)", seed, ledger, optimum).isGreaterThanOrEqualTo(optimum)
+            println("EQ_ADV seed=$seed domination=$domination optimum=$optimum ledger=$ledger")
+            certified++
+            if (ledger == optimum) tight++
         }
         assertThat(compared).isGreaterThan(50)
         assertThat(twoSwordPools).describedAs("pools with two swords").isGreaterThanOrEqualTo(2)
         assertThat(swordOptima).describedAs("pools whose optimum wears a sword with its ring").isGreaterThanOrEqualTo(2)
+        // CERTIFIER_VERSION 58: the excluding triple is a clique of conflicting rings, priced exactly ([ringPairingKeys]) — with
+        // the REQUIRES split exact too, the ledger lands ON the constrained optimum (the review of #246 measured up to +16 %
+        // on these pools while FORBIDS were a relaxation).
+        assertThat(tight).describedAs("the ledger is the constrained optimum on every certified pool (%d)", certified).isEqualTo(certified)
+        assertThat(certified).isGreaterThanOrEqualTo(8)
     }
 
     /**

@@ -105,3 +105,46 @@ fun exclusiveGroupViolation(equipments: Collection<Equipment>): String? {
     }
     return null
 }
+
+/**
+ * The key the certificates pair rings on, per ring of [rings] (by equipment id): a bound offers two rings together only when
+ * their keys differ. The game refuses two rings of one (French) name and two rings either of which FORBIDS the other
+ * ([equipConflict]). These conflicts form a graph; where a connected component of it is a CLIQUE — every two of its rings
+ * conflict — one key for the whole component is EXACTLY the game's rule (on the 1.93 data: every name class, the five
+ * different-name FORBIDS triples, Issé Sceau's three rarities). A component that is not a clique keeps the plain name keys:
+ * its FORBIDS pairs are then offered — the relaxation the certificates used before, sound and looser. A FORBIDS partner that is
+ * not one of [rings] is ignored (also a relaxation). So a key never separates two rings the game lets a build wear together.
+ */
+fun ringPairingKeys(rings: Collection<Equipment>): Map<Int, String> {
+    val list = rings.distinctBy { it.equipmentId }
+    val byId = list.associateBy { it.equipmentId }
+    val nameKey = list.associate { it.equipmentId to it.name.fr.lowercase() }
+    val parent = HashMap<Int, Int>().apply { list.forEach { put(it.equipmentId, it.equipmentId) } }
+
+    fun find(id: Int): Int {
+        var root = id
+        while (parent.getValue(root) != root) root = parent.getValue(root)
+        return root
+    }
+
+    fun union(
+        a: Int,
+        b: Int,
+    ) {
+        val ra = find(a)
+        val rb = find(b)
+        if (ra != rb) parent[maxOf(ra, rb)] = minOf(ra, rb)
+    }
+    list.groupBy { nameKey.getValue(it.equipmentId) }.values.forEach { same -> same.zipWithNext { a, b -> union(a.equipmentId, b.equipmentId) } }
+    for (ring in list) {
+        for (other in ring.forbiddenItemIds) if (other in byId) union(ring.equipmentId, other)
+    }
+    val keys = HashMap<Int, String>()
+    for (members in list.groupBy { find(it.equipmentId) }.values) {
+        val names = members.map { nameKey.getValue(it.equipmentId) }.distinct()
+        val clique = members.all { a -> members.all { b -> a === b || nameKey[a.equipmentId] == nameKey[b.equipmentId] || equipConflict(a, b) } }
+        val componentKey = if (names.size > 1 && clique) "forbids#${members.minOf { it.equipmentId }}" else null
+        for (m in members) keys[m.equipmentId] = componentKey ?: nameKey.getValue(m.equipmentId)
+    }
+    return keys
+}

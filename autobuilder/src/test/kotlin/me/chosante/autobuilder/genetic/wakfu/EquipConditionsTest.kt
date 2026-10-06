@@ -5,6 +5,7 @@ import kotlinx.coroutines.runBlocking
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.autobuilder.domain.ringPairingKeys
 import me.chosante.common.Character
 import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
@@ -311,5 +312,52 @@ class EquipConditionsTest {
         assertThat(problems(params(CharacterClass.IOP, 200, forced = listOf("Epée de Brâkmar")))).isEmpty()
         assertThat(problems(params(CharacterClass.IOP, 200, forced = listOf("Le Tig", "Le Lieute"))))
             .containsExactly(RequestValidationProblem.ForcedItemsMutuallyExclusive(listOf(catalog(24488).name, catalog(24505).name)))
+    }
+
+    /**
+     * The certificates' ring pairing key (CERTIFIER_VERSION 58): one key per clique of conflicting rings — same name, or a
+     * FORBIDS either way — so a bound refuses exactly the pairs the game refuses; a component that is not a clique keeps the
+     * name keys (the old relaxation: sound, looser), so no key ever separates a pair the game allows.
+     */
+    @Test
+    fun `ring pairing keys - one key per clique of conflicting rings, names elsewhere`() {
+        // A triangle by the symmetric closure: t3 lists nothing, yet t1 and t2 both forbid it.
+        val t1 = item(9031, ItemType.RING, 1, name = "t1", criterion = forbids(9031, 9032, 9033))
+        val t2 = item(9032, ItemType.RING, 1, name = "t2", criterion = forbids(9032, 9033))
+        val t3 = item(9033, ItemType.RING, 1, name = "t3")
+        // A path p1 – p2 – p3 (p1 and p3 may pair): no clique.
+        val p1 = item(9041, ItemType.RING, 1, name = "p1", criterion = forbids(9041, 9042))
+        val p2 = item(9042, ItemType.RING, 1, name = "p2", criterion = forbids(9042, 9043))
+        val p3 = item(9043, ItemType.RING, 1, name = "p3")
+        // a forbids b, but a has a same-name sibling a' that b does not exclude: {a, a', b} is no clique.
+        val a = item(9051, ItemType.RING, 1, Rarity.MYTHIC, name = "a", criterion = forbids(9051, 9053))
+        val aSibling = item(9052, ItemType.RING, 1, Rarity.LEGENDARY, name = "A")
+        val b = item(9053, ItemType.RING, 1, name = "b")
+        // A plain name class, and a ring whose FORBIDS partner is not a ring of the pool.
+        val n1 = item(9061, ItemType.RING, 1, Rarity.MYTHIC, name = "n")
+        val n2 = item(9062, ItemType.RING, 1, Rarity.LEGENDARY, name = "N")
+        val lone = item(9071, ItemType.RING, 1, name = "lone", criterion = forbids(9071, 9999))
+        val keys = ringPairingKeys(listOf(t1, t2, t3, p1, p2, p3, a, aSibling, b, n1, n2, lone))
+        assertThat(setOf(keys[9031], keys[9032], keys[9033])).containsExactly("forbids#9031")
+        assertThat(listOf(keys[9041], keys[9042], keys[9043])).containsExactly("p1", "p2", "p3")
+        assertThat(listOf(keys[9051], keys[9052], keys[9053])).containsExactly("a", "a", "b")
+        assertThat(listOf(keys[9061], keys[9062], keys[9071])).containsExactly("n", "n", "lone")
+    }
+
+    @Test
+    fun `real catalog - the ring pairing keys join the five excluding triples, every other ring keeps its name`() {
+        val rings = WakfuBestBuildFinderAlgorithm.equipments.filter { it.itemType == ItemType.RING }
+        val keys = ringPairingKeys(rings)
+        val joined = rings.filter { keys.getValue(it.equipmentId).startsWith("forbids#") }.groupBy({ keys.getValue(it.equipmentId) }, { it.equipmentId })
+        assertThat(joined.values.map { it.toSet() }).containsExactlyInAnyOrder(
+            setOf(24392, 24408, 24426),
+            setOf(24440, 24456, 24473),
+            setOf(24488, 24505, 24521),
+            setOf(24537, 24552, 24567),
+            setOf(24585, 24601, 24615)
+        )
+        // Issé Sceau's three rarities exclude each other AND share a name: their name key already says so.
+        assertThat(listOf(19698, 22226, 22227).map { keys.getValue(it) }.toSet()).containsExactly("issé sceau")
+        assertThat(rings.filter { keys.getValue(it.equipmentId) != it.name.fr.lowercase() }).hasSize(15)
     }
 }

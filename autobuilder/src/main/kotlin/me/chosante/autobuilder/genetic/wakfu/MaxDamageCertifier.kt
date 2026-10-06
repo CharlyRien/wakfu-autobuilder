@@ -4,6 +4,7 @@ import com.google.ortools.sat.IntVar
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.requiredItemIds
+import me.chosante.autobuilder.domain.ringPairingKeys
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.ExclusiveGroup
@@ -2811,6 +2812,14 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // (Σ same-fr-name ring vars ≤ 1 — a Wakfu rule), so the ring-pair stage must never pair a
     // Mythic with its own Legendary sibling. Both certificate fantasies at cell 16 were exactly
     // such pairs (Souvenir ancestral ×2, then Anneau Chuchotis ancestral ×2).
+    // v58: the key is the ring's PAIRING key ([ringPairingKeys]) — its name, or one key for a whole clique of rings that exclude
+    // each other (the FORBIDS triples), so every pairing rule below (the fast / tier-1.5 pair loop, the exact pass's top-2 per
+    // cost cell and its cross-cell runner-up, the MP rings, the explain) refuses those pairs exactly as it refuses a same-name
+    // pair. A bundle entry (a nation sword fused with its ring) keeps the sword's name.
+    val ringKeys = ringPairingKeys(allEquips.filter { it.itemType == ItemType.RING })
+
+    fun ringKey(e: Equipment): String = ringKeys[e.equipmentId] ?: e.name.fr.lowercase()
+
     data class RingEntry(
         val nameKey: String,
         val options: List<Raw>,
@@ -2821,7 +2830,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                 .filter { it.itemType == ItemType.RING }
                 .filter { keepIfForced(it) }
                 .filter { inWorldSlot(it) } + bundleRings
-        ).map { RingEntry(it.name.fr.lowercase(), rawOptions(it)) }
+        ).map { RingEntry(ringKey(it), rawOptions(it)) }
     // The ring stage keeps only each ring's best GRAW per cost cell — any ring DI would be silently
     // DROPPED (an under-count). No ring in the current dataset carries Damage Inflicted, but bail if
     // one ever does rather than certify a value below the true cell max.
@@ -4977,7 +4986,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                                 for (r in rawOptions(e)) {
                                     if (r.ap > apCeil + apOff || r.crit > critItemHigh + critOff) continue
                                     val g = grawOf(r)
-                                    if (b == null || g > b.g) b = BestRing(g, ringCk(r), e.name.en, e.name.fr.lowercase(), e.equipmentId)
+                                    if (b == null || g > b.g) b = BestRing(g, ringCk(r), e.name.en, ringKey(e), e.equipmentId)
                                 }
                                 // Mirrors the ring stage's v52 skip rule: worthless only at zero graw AND a zero cost cell.
                                 if (b == null || (b.g <= 0 && b.ck == ringCk(Raw(0, 0, 0, 0, 0, 0, 0)))) continue
@@ -5019,7 +5028,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                                 }
                             }
                             for (i in mpRings.indices) {
-                                val nameI = mpRings[i].name.fr.lowercase()
+                                val nameI = ringKey(mpRings[i])
                                 for (r in rawOptions(mpRings[i])) {
                                     if (r.ap > apCeil + apOff || r.crit > critItemHigh + critOff) continue
                                     val g = grawOf(r)
@@ -5041,7 +5050,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                                             )
                                     }
                                     for (j in i + 1 until mpRings.size) {
-                                        if (mpRings[j].name.fr.lowercase() == nameI) continue
+                                        if (ringKey(mpRings[j]) == nameI) continue
                                         for (r2 in rawOptions(mpRings[j])) {
                                             if (r2.ap > apCeil + apOff || r2.crit > critItemHigh + critOff) continue
                                             res +=
