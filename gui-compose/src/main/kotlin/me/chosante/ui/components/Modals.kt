@@ -675,7 +675,7 @@ private fun ItemResultRow(
                 }
                 ItemConditionLines(conditions, compact = true)
                 Text(
-                    text = "Lv ${equipment.level} · ${equipment.itemType.label(lang)} · ${equipment.rarity.label(lang)}",
+                    text = "${tr(Tr.LEVEL_PREFIX_SHORT)} ${equipment.level} · ${equipment.itemType.label(lang)} · ${equipment.rarity.label(lang)}",
                     style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -777,7 +777,7 @@ private fun SublimationResultRow(
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = sub.rarity.name,
+                text = sub.rarity.label(lang),
                 style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = sub.rarity.displayColor())
             )
             Text(
@@ -1022,7 +1022,7 @@ private fun BossResultRow(
                     modifier = Modifier.weight(1f)
                 )
                 Text(
-                    text = "Lv ${monster.level}",
+                    text = "${tr(Tr.BOSS_LEVEL_SHORT)} ${monster.level}",
                     style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
                 )
             }

@@ -299,18 +299,18 @@ fun HistoryEntry.requestedMasteryTotal(): Int =
     )
 
 /** Class display name, e.g. `Cra`. */
-fun HistoryEntry.classDisplayName(): String = request.clazz.lowercase().replaceFirstChar { it.titlecase() }
+fun HistoryEntry.classDisplayName(lang: Lang = Lang.EN): String = restoredClass().label(lang)
 
 /**
  * A sensible pre-filled name for the save dialog, e.g. `Cra 110 · Distance` — class, level, and the
  * build's focus (first maximized mastery, else first mastery target). The user can edit it.
  */
 fun UiState.suggestedBuildName(): String {
-    val cls = clazz.name.lowercase().replaceFirstChar { it.titlecase() }
+    val cls = clazz.label(lang)
     val focus =
         targets.firstOrNull { it.characteristic.isMaximizableMastery() }?.characteristic
             ?: targets.firstOrNull { it.characteristic.name.startsWith("MASTERY") }?.characteristic
-    val focusLabel = focus?.label(Lang.EN)?.removeSuffix(" Mastery")
+    val focusLabel = focus?.label(lang)?.removeSuffix(" Mastery")?.removePrefix("Maîtrise ")
     return buildString {
         append(cls)
         append(' ')

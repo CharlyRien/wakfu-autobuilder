@@ -9,6 +9,7 @@ import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
+import me.chosante.common.SublimationRarity
 
 enum class Lang(
     val label: String,
@@ -30,7 +31,7 @@ enum class Tr(
 ) {
     // Brand / top bar
     CLASS("Class", "Classe"),
-    LEVEL_SHORT("Lvl", "Niv"),
+    LEVEL_SHORT("Lv", "Niv."),
     MIN_SHORT("Min", "Min"),
     LEVEL_RANGE_INVALID(
         "Min level can't be higher than the character level. Lower the min, or raise the level.",
@@ -196,6 +197,12 @@ enum class Tr(
     TURNS_TO_KILL("Turns to kill", "Tours pour tuer"),
     EXPECTED_DAMAGE("Expected damage", "Dégâts attendus"),
     SPELL_ROTATION("Spell Rotation", "Rotation de sorts"),
+    STAT_AP_AMOUNT("%d AP", "%d PA"),
+    STAT_WP_AMOUNT("%d WP", "%d PW"),
+    SPELL_DEBUFF_CAST("↳ %s (%d AP, −%d res)", "↳ %s (%d PA, −%d rés.)"),
+    SPELL_DEBUFF_RESISTANCE("→ %d%% res after debuffs", "→ %d %% rés. après les malus"),
+    SPELL_ROTATION_TOTAL("%s  (%d/%d AP)", "%s  (%d/%d PA)"),
+    SUBLIMATION_NORMAL("Normal", "Normale"),
     SPELL_ROTATION_SUB("best spells for this build's AP", "meilleurs sorts pour les PA du build"),
     SPELL_ROTATION_PER_TURN("expected damage / turn", "dégâts attendus / tour"),
     SPELL_ROTATION_EMPTY(
@@ -302,7 +309,7 @@ enum class Tr(
         "Aucun objet ici n'améliore les stats demandées"
     ),
     LEVEL_PREFIX_LONG("Level", "Niveau"),
-    LEVEL_PREFIX_SHORT("Lv", "Niv"),
+    LEVEL_PREFIX_SHORT("Lv", "Niv."),
     DISCLAIMER(
         "Unofficial fan tool - not affiliated with Ankama - item art © Ankama (community-sourced)",
         "Outil de fan non officiel - non affilié à Ankama - visuels © Ankama (communautaires)"
@@ -876,3 +883,11 @@ fun CharacterClass.label(lang: Lang): String =
         CharacterClass.HUPPERMAGE -> Tr.CLASS_HUPPERMAGE
         CharacterClass.UNKNOWN -> Tr.CLASS_UNKNOWN
     }.value(lang)
+
+/** Epic and relic share the equipment rarity labels; normal is specific to sublimations. */
+fun SublimationRarity.label(lang: Lang): String =
+    when (this) {
+        SublimationRarity.EPIC -> Rarity.EPIC.label(lang)
+        SublimationRarity.RELIC -> Rarity.RELIC.label(lang)
+        SublimationRarity.NORMAL -> Tr.SUBLIMATION_NORMAL.value(lang)
+    }
