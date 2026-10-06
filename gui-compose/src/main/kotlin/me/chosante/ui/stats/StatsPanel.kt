@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import me.chosante.autobuilder.domain.BossDisplay
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
+import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.common.Characteristic
 import me.chosante.common.SpellElement
 import me.chosante.common.skills.Assignable
@@ -770,7 +771,7 @@ private fun DesiredVsAchieved(ui: UiState) {
 }
 
 @Composable
-private fun MasterySummary(ui: UiState) {
+internal fun MasterySummary(ui: UiState) {
     val elementalMasteries =
         listOf(
             Characteristic.MASTERY_ELEMENTARY_WATER,
@@ -806,17 +807,20 @@ private fun MasterySummary(ui: UiState) {
 
     // The engine-faithful number: requested specialized summed + the weakest *requested* element.
     val requestedMastery = ui.requestedMasteryTotal()
+    val hasRequestedMastery = requested.any { it.isMaximizableMastery() }
 
     ResultCard(
         title = tr(Tr.MASTERY_SUMMARY),
-        trailing = requestedMastery.formatCompact()
+        trailing = if (hasRequestedMastery) requestedMastery.formatCompact() else null
     ) {
-        SummaryMetric(label = tr(Tr.BUILD_MASTERY), value = requestedMastery)
-        Text(
-            text = tr(Tr.BUILD_MASTERY_HINT),
-            style = WTypography.labelSmall.copy(color = WColor.faint),
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
+        if (hasRequestedMastery) {
+            SummaryMetric(label = tr(Tr.BUILD_MASTERY), value = requestedMastery)
+            Text(
+                text = tr(Tr.BUILD_MASTERY_HINT),
+                style = WTypography.labelSmall.copy(color = WColor.faint),
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+        }
         if (requestedElementals.isNotEmpty()) {
             Hairline()
             MasteryGroup(title = tr(Tr.MASTERY_ELEMENTALS), values = requestedElementals)
