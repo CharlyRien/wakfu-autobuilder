@@ -1176,6 +1176,9 @@ private fun Assignable<*>.asASCIITable() =
 private fun NullableOption<Pair<String, String>, Pair<String, String>>.toTargetStat(characteristic: Characteristic): NullableOption<TargetStat, TargetStat> =
     convert { (value, weight) ->
         val valueInt = value.toIntOrNull() ?: fail("'$value' should be a number")
+        // Targets are non-negative in the GUI too. Reject them here, before run() (and any solver/native work), using
+        // Clikt's localized range error so the message names the offending option and its valid lower bound.
+        if (valueInt < 0) fail(context.localization.rangeExceededMin(value, "0"))
 
         TargetStat(
             characteristic = characteristic,
