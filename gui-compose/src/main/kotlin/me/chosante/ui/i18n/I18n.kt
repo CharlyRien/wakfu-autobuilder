@@ -470,7 +470,13 @@ enum class Tr(
     ),
     IMPORT_PLACEHOLDER("Paste the exported build here…", "Colle ici le build exporté…"),
     IMPORT_PASTE("Paste", "Coller"),
-    IMPORT_INVALID("That doesn't look like an exported build.", "Cela ne ressemble pas à un build exporté."),
+    IMPORT_INVALID(
+        "That doesn't look like an exported build. Check the clipboard content and copy the exported build again.",
+        "Cela ne ressemble pas à un build exporté. Vérifie le contenu du presse-papiers et copie à nouveau le build exporté."
+    ),
+    SAVE_BUILD_FAILED("Could not save this build. Please try saving it again.", "Impossible d'enregistrer ce build. Réessaie de l'enregistrer."),
+    IMPORT_BUILD_FAILED("Could not import this build. Please try importing it again.", "Impossible d'importer ce build. Réessaie de l'importer."),
+    DUPLICATE_BUILD_FAILED("Could not duplicate this build. Please try duplicating it again.", "Impossible de dupliquer ce build. Réessaie de le dupliquer."),
     IMPORT_CONFIRM("Import", "Importer"),
     IMPORTED_BUILD_NAME("Imported build", "Build importé"),
 

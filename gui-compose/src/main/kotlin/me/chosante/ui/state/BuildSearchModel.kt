@@ -2179,13 +2179,15 @@ class BuildSearchModel(
         // library (a deliberate act); right after saving you should stay free to keep iterating.
         ui = ui.copy(modal = null, activeBuildId = id, activeBuildName = trimmedName)
         scope.launch(ioDispatcher) {
-            runCatching { historyRepository.save(entry) }
-                .onSuccess {
-                    val all = historyRepository.loadAll()
-                    withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all, knownTags = computeKnownTags(all), toast = Tr.TOAST_BUILD_SAVED.value(ui.lang)) }
-                }.onFailure { throwable ->
-                    withContext(mainDispatcher) { ui = ui.copy(error = UiError(throwable.message ?: "Could not save build")) }
-                }
+            runCatching {
+                historyRepository.save(entry)
+                historyRepository.loadAll()
+            }.onSuccess { all ->
+                withContext(mainDispatcher) { ui = ui.copy(savedBuilds = all, knownTags = computeKnownTags(all), toast = Tr.TOAST_BUILD_SAVED.value(ui.lang)) }
+            }.onFailure { throwable ->
+                throwable.printStackTrace()
+                withContext(mainDispatcher) { ui = ui.copy(error = UiError(Tr.SAVE_BUILD_FAILED.value(ui.lang))) }
+            }
         }
     }
 
@@ -2437,17 +2439,19 @@ class BuildSearchModel(
         val entry = parsed.copy(id = idGenerator(), name = uniqueLibraryName(parsed.name), createdAt = clock())
         ui = ui.copy(modal = null)
         scope.launch(ioDispatcher) {
-            runCatching { historyRepository.save(entry) }
-                .onSuccess {
-                    val all = historyRepository.loadAll()
-                    withContext(mainDispatcher) {
-                        ui = ui.copy(savedBuilds = all, knownTags = computeKnownTags(all))
-                        loadBuild(entry.id)
-                        ui = ui.copy(toast = Tr.TOAST_BUILD_IMPORTED.value(ui.lang))
-                    }
-                }.onFailure { throwable ->
-                    withContext(mainDispatcher) { ui = ui.copy(error = UiError(throwable.message ?: "Could not import build")) }
+            runCatching {
+                historyRepository.save(entry)
+                historyRepository.loadAll()
+            }.onSuccess { all ->
+                withContext(mainDispatcher) {
+                    ui = ui.copy(savedBuilds = all, knownTags = computeKnownTags(all))
+                    loadBuild(entry.id)
+                    ui = ui.copy(toast = Tr.TOAST_BUILD_IMPORTED.value(ui.lang))
                 }
+            }.onFailure { throwable ->
+                throwable.printStackTrace()
+                withContext(mainDispatcher) { ui = ui.copy(error = UiError(Tr.IMPORT_BUILD_FAILED.value(ui.lang))) }
+            }
         }
     }
 
@@ -2540,21 +2544,23 @@ class BuildSearchModel(
         val source = ui.savedBuilds.firstOrNull { it.id == id } ?: return
         val copy = source.copy(id = idGenerator(), name = uniqueCopyName(source.name), createdAt = clock())
         scope.launch(ioDispatcher) {
-            runCatching { historyRepository.save(copy) }
-                .onSuccess {
-                    val all = historyRepository.loadAll()
-                    withContext(mainDispatcher) {
-                        ui =
-                            ui.copy(
-                                savedBuilds = all,
-                                lastDuplicatedBuildId = copy.id,
-                                toast = Tr.TOAST_BUILD_DUPLICATED.value(ui.lang)
-                            )
-                        clearDuplicatedMarkerLater(copy.id)
-                    }
-                }.onFailure { throwable ->
-                    withContext(mainDispatcher) { ui = ui.copy(error = UiError(throwable.message ?: "Could not duplicate build")) }
+            runCatching {
+                historyRepository.save(copy)
+                historyRepository.loadAll()
+            }.onSuccess { all ->
+                withContext(mainDispatcher) {
+                    ui =
+                        ui.copy(
+                            savedBuilds = all,
+                            lastDuplicatedBuildId = copy.id,
+                            toast = Tr.TOAST_BUILD_DUPLICATED.value(ui.lang)
+                        )
+                    clearDuplicatedMarkerLater(copy.id)
                 }
+            }.onFailure { throwable ->
+                throwable.printStackTrace()
+                withContext(mainDispatcher) { ui = ui.copy(error = UiError(Tr.DUPLICATE_BUILD_FAILED.value(ui.lang))) }
+            }
         }
     }
 
