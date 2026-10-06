@@ -421,6 +421,13 @@ object WakfuBuildSolver {
      */
     const val CERTIFIER_VERSION: Int = 57
 
+    /**
+     * A/B kill switch of the mixed-rune count carriers on the production path (`WAKFU_MD_MIXED_RUNES=0` ⇒ the v56
+     * all-or-nothing fold, which can miss a part-filled optimum — measurement only). The test seams pass
+     * `runeMixedCarriers = false` instead.
+     */
+    internal val mixedRuneCarriersEnabled: Boolean = System.getenv("WAKFU_MD_MIXED_RUNES") != "0"
+
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing
     // cycles from search/proof. Intermediate snapshots are pure progress — re-rendering the in-flight build
@@ -1799,7 +1806,7 @@ object WakfuBuildSolver {
                 choicePruning = runeChoicePruning,
                 choiceGating = runeChoiceGating,
                 mixedStats =
-                    if (runeMixedCarriers) {
+                    if (runeMixedCarriers && mixedRuneCarriersEnabled) {
                         runeReads.mixedStats(negativeStatSources(allEquips, sublimations, params.character.level))
                     } else {
                         emptySet()

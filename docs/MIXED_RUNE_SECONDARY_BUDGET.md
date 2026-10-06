@@ -1,6 +1,8 @@
 # Mixed runes under a secondary budget
 
-2026-10-06 · Wakfu data 1.93.1.62 · `CERTIFIER_VERSION` 56 → 57.
+2026-10-06 · Wakfu data 1.93.1.62 · `CERTIFIER_VERSION` 57 / `ENGINE_RESULTS_VERSION` 2 — both unreleased when this landed
+(1.14.2 shipped 56 and no engine-results version), so this change extends their history entries instead of bumping
+them (AGENTS.md §4: at most one bump per release). "v56 fold" below = the all-or-nothing fold this replaces.
 
 ## The gap
 
@@ -25,11 +27,11 @@ free and with random AP / MP / RANGE / CC rows (soft and hard leg). Reference: t
 | | comparisons | count > fold | gap |
 |---|---|---|---|
 | v56 fold, seeds 4–80 | 456 | 64 (13 of 77 pools, in every mode each ran) | +0.049 % … +2.857 % |
-| v57, seeds 1–80 | 474 | 0 (fixed fold = count optimum, all proven) | — |
+| this change, seeds 1–80 | 474 | 0 (fixed fold = count optimum, all proven) | — |
 
 Both Neutralité modes diverge, free and rowed alike: the per-stat budget does not care. Every certificate ledger of
 both runs (every cell confirmed exactly; the target-aware ledger on the hard leg) was ≥ the count optimum — 0 of 314
-under on v57 — so the wrong badge came from the CP-SAT proof over the folded model, not from the certificate (below).
+under with this change — so the wrong badge came from the CP-SAT proof over the folded model, not from the certificate (below).
 
 The minimal repro (delta-debugged from seed 9, `MixedRuneSecondaryBudgetTest`): CRA 245 fire / melee / back, Neutralité
 III choosable, four items — helmet (414 elemental, −102 melee, 4 sockets), belt (365 fire, −214 rear, 4), chest (369
@@ -76,6 +78,41 @@ rear, …), and domination keeps them (it pins the secondaries a cap reads), so 
 scenario secondary beside another type becomes a count carrier as soon as a Neutralité-family cap is choosable — that
 is option (b) in practice, reached by an exact local rule. The cost is below.
 
+### Every non-linear reader of a rune stat (adversarial review, 2026-10-06)
+
+The first version keyed the rule on the stats as the model names them, and the review found three threshold reads it
+missed — each with the all-or-nothing fold proving (`OPTIMAL`) less than the count model, no sublimation needed:
+- **(a)** an "all resistances" row stays `RESISTANCE_ELEMENTARY` in a max-damage request (the GUI splits it only in
+  most-masteries), but the runes are per element: CRA 200, a 0-row (a floor) with −105 fire resistance on the best
+  helmet — fold 849,355 vs count 853,830; with −160 on every element — 741,060 vs 800,130 (+8.0 %); a positive row
+  (prefiltered, so never badged) up to +10.4 %. Rows are now keyed like `relevantRuneStats` (`runeKeysOf`);
+- **(b)** a negative AGGREGATE resistance line (16 catalog items) or a negative random-element one lowers the four
+  per-element resistances, but was recorded under its own key: a fire 0-row with −105 on every element — 849,355 vs
+  853,830. `negativeStatSources` now expands such lines onto the four elements (masteries alike);
+- **(c)** the survivability floor reads HP × the resistances through `min(EHP, floor)` and a bucket table: CRA 20, three
+  4-socket items of 60 fire, an EHP floor of 440 — 12,800 vs 12,900. HP and the four resistances are now thresholds
+  whenever the floor is on. (This path could show a badge: `proveOptimality` returns ProvenOptimal on CP-SAT `OPTIMAL`
+  before its survivability gate.)
+
+The full list of what the max-damage model reads from a rune stat (runes exist for the elemental / melee / distance /
+berserk / rear / critical / healing masteries, the four resistances, HP, lock, dodge and initiative):
+
+| Reader | Linear in a carrier's counts? | In `mixedStats` |
+|---|---|---|
+| damage objective `Graw = (400+c)·M + 5c·K` (M ≥ 0, K ≥ 0 clamps), DI / %-skill multipliers | yes (convex) | no |
+| a choosable `≤ t` sub condition (Neutralité family, Critical Secret, Furie's `dodge < level`) | no, while taken | when a budget buys something |
+| a forced condition, an `≥` / `=` condition | no | always |
+| a required row: hard `actual ≥ target`, soft power-6 penalty; a 0-row is a floor (`≥ 0` / the halving) | no | target > 0, or a negative source |
+| per-element resistance rows / floors with random-element rolls (`familyFoldElements`) | no | through the per-element row keys |
+| the survivability floor (`min(EHP, floor)`, bucket table) | no | HP + four resistances |
+| a per-stat-step ramp's source (only MP in the catalog: no rune) | no | always |
+| a best-element concentration (per-element masteries; the generic rune shifts every element alike) | yes for the rune | (per-element keys) |
+| a conversion: crit → elemental at ≤ 100 % (Dénouement) | per-source ceiling, bounded | crit, when budgeted |
+| any other conversion (none in the catalog) | rounding step | always |
+
+A carrier is a count carrier as soon as ONE of its types is mixed; in the general fold every carrier offers every type,
+so one mixed type makes them all count carriers (that is why an HP row hides the three gaps above).
+
 ## Certificates
 
 The AP-cell certifier reads a count carrier like an explicit-pick carrier: one option per kept type at its full-fill
@@ -96,7 +133,8 @@ and it still does.
 - **`MaxDamageRuneReads` Pareto pruning**: unchanged; a count carrier keeps exactly the pruned set, which the per-socket
   dominance argument covers.
 - **Soft certificate** (`MaxDamageSoftCertificate`): already enumerated mixed rune counts per item; untouched.
-- **`CERTIFIER_VERSION` 57**: the mirror's input changed (count vars), so every cached cell is invalidated.
+- **`CERTIFIER_VERSION` 57** (reused, unreleased): the mirror's input changed (count vars); main's equip conditions
+  already invalidate every cell cached by 1.14.2.
 
 ## Cost
 
@@ -117,6 +155,34 @@ row: better at free 110, worse at free 245 and on the GUI default, where every s
 through the certificate warm-up (unchanged bounds) on all cores. `MaxDamageFirstSolutionLatencyTest` reads det 8.95
 (budget 20).
 
+### Production path (review follow-up): 3 runs per arm, multi-worker, wall clock
+
+`PerfBaselineE0Test` (`WakfuBestBuildFinderAlgorithm.run` + the GUI's proof chain), 60 s search, 4 cores, runes + every
+choosable sub, CRA fire, proof capped at 120 s and the E8 construct at 60 s; arms alternate run by run. v56 fold =
+`WAKFU_MD_MIXED_RUNES=0` (an A/B kill switch on the production path). "First" = the first CP-SAT solution (not the greedy
+warm start), ms from the search start; "final" = the search's raw damage proxy; "badge" = the certificate verdict after
+the search (+ the E8 construct's crowned build where it succeeds).
+
+| Request | arm | first (ms) | final | badge |
+|---|---|---|---|---|
+| GUI default 110 (MD110) | v56 fold | 12,326 / 11,789 / 11,826 | 1,407,940 / 1,393,800 / 1,408,950 | within 9.1 / 10.2 / 9.0 % |
+| | this change | 13,417 / 13,946 / 13,803 | 1,180,690 / 1,189,780 / 1,215,715 | within 30.1 / 29.1 / 26.4 % |
+| GUI default 200 (MD200) | v56 fold | 29,497 / 30,427 / 24,876 | 3,078,780 / 2,296,725 / 3,145,030 | unavailable (cap) ×3 |
+| | this change | 37,004 / 35,287 / 35,386 | 3,264,960 / 3,147,615 / 2,461,250 | unavailable (cap) ×3 |
+| free 245 (MD245F) | v56 fold | 18,900 / 15,403 / 14,542 | 19,023,750 / 19,534,375 / 19,270,750 | within 6.9 / 4.1 / 5.5 %, E8 → 20,328,360 proven ×3 |
+| | this change | 23,225 / 21,980 / 24,178 | 19,009,500 / 18,719,750 / 19,014,250 | within 6.9 / 8.6 / 6.9 %, E8 → 20,328,360 proven ×3 |
+
+- **GUI default 110 regresses** in every run: −15 % at the deadline (mean 1,195,395 vs 1,403,563), and the badge goes from
+  "within ~10 %" to "within ~29 %". Its rows make EVERY rune type a threshold read (HP 2000; the 0-rows on wind
+  resistance and dodge with negative lines in the catalog; distance / rear under the Neutralité budget; crit with
+  Dénouement), so every carrier carries seven integer counts instead of seven pick bools.
+- GUI default 200: mixed (means 2,957,935 vs 2,840,178, +4.1 %, one low run per arm), no badge either way within the cap.
+- Free 245: the same proven optimum in every run through the E8 construct (+3.6 s to the proof on average); the first
+  solution comes ~6 s later.
+
+A cheaper exact encoding for the general fold is needed before this regression ships — proposal in the PR (a per-carrier
+"mixed" bool gating the counts, branched zero side first, so the search starts in the v56 fold's subtree).
+
 ## Tests
 
 `MixedRuneSecondaryBudgetTest`:
@@ -126,6 +192,9 @@ through the certificate warm-up (unchanged bounds) on all cores. `MaxDamageFirst
 - the seeded lock (9 seeds × free / forced / rowed hard leg): the fold proves the count optimum, the forced-exact ledger
   bounds it, and v56 diverges on ≥ 10 cases (its sensitivity);
 - the vertex lock: with count carriers the certificate equals v56's cell for cell, every tier and the capped aux worlds;
+- the review's three repros (a)–(c) and a seeded general-fold lock (rows, floors, aggregate rows at 0 and positive, the
+  survivability floor; no sublimation, both legs): fixed fold = count model everywhere. Removing (a) fails both; removing
+  (b) or (c) fails the repro test (the seeded lock alone catches only (a));
 - the HP-row case: v56 117,000 vs 117,500 on the hard leg (and the soft one), the target-aware ledger ≥ it;
 - the `mixedStats` rule.
 

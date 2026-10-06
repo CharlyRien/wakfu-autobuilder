@@ -1437,7 +1437,9 @@ DD family is bound-limited; decomposition with CP-SAT as the inner oracle is dea
   folded model. The same flaw exists with no sublimation at all: a required HP row the build falls just short of is topped
   up by one HP rune (CRA 50 sweep: 28 of 102 points, +0.21–0.44 %, hard and soft leg) — a GUI-default request has an HP
   row — and the same rule (a required row is a threshold) covers it. Cost and A/B: `docs/MIXED_RUNE_SECONDARY_BUDGET.md`.
-  Locks: `MixedRuneSecondaryBudgetTest`.
+  The adversarial review then found three general-fold threshold reads the first rule missed (an unsplit "all
+  resistances" row, a negative aggregate resistance line, the survivability floor — up to +8 % at a 0-row): now keyed per
+  rune type. Locks: `MixedRuneSecondaryBudgetTest`.
 - **NEUTRALITÉ FAMILY READ AS A SUM — ✅ FIXED (2026-10-04, CERTIFIER_VERSION 56).** The engine credited Neutralité,
   Ambition, Inflexibilité and Prétention whenever the SUM of the six secondary masteries was ≤ 0; the game requires EACH
   of them to be ≤ 0, so a positive secondary could be offset by a negative one of another stat — bonuses the game never

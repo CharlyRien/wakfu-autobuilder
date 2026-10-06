@@ -143,6 +143,8 @@ class PerfBaselineE0Test {
             // The same rows in max-damage mode (AP/MP/range/crit/HP become hard targets).
             Fixture("MD110", params(110, md, guiTargets(), cfg)),
             Fixture("MD245", params(245, md, guiTargets(), cfg)),
+            // The GUI's default max-damage rows at level 200 (the mixed-rune A/B).
+            Fixture("MD200", params(200, md, guiTargets(), cfg)),
             // The free max-damage flagship (certificate proof authority, no required targets).
             Fixture("MD110F", params(110, md, listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1)), cfg)),
             Fixture("MD245F", params(245, md, listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1)), cfg)),
@@ -240,7 +242,8 @@ class PerfBaselineE0Test {
             log(
                 "E0 ENV cores=${rt.availableProcessors()} maxHeapMb=${rt.maxMemory() / 1_048_576} budgetsS=$budgets " +
                     "runesAndSubs=${baseCfg.runesAndSubs} refine=${baseCfg.refine} refineCapS=${baseCfg.refineCapMs / 1000} " +
-                    "certifierVersion=${WakfuBuildSolver.CERTIFIER_VERSION} dataVersion=${WakfuData.VERSION}"
+                    "certifierVersion=${WakfuBuildSolver.CERTIFIER_VERSION} dataVersion=${WakfuData.VERSION} " +
+                    "mixedRunes=${WakfuBuildSolver.mixedRuneCarriersEnabled}"
             )
             // First engine touch of the JVM, exactly the GUI's loading-screen call (natives already cached on disk).
             val w0 = System.nanoTime()
