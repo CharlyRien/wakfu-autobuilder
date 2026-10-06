@@ -32,6 +32,9 @@ import kotlin.time.Duration.Companion.seconds
  *    most-masteries bound upper-bounds the constrained soft objective;
  *  - TIGHTENING: the fused bound never exceeds the bound of the same pool without the conditions, and drops below it
  *    whenever that relaxed optimum wore the sword with another epic item.
+ * And on ring conflicts that are NOT cliques (a path, a 4-cycle, a triple with a same-name sibling, a ring forbidding an
+ * amulet), whose best legal ring pair one key per component would refuse: every certificate stays sound — the lock on
+ * [me.chosante.autobuilder.domain.ringPairingKeys]' clique guard.
  */
 class EquipConditionsCertificateTest {
     private fun item(
@@ -157,9 +160,9 @@ class EquipConditionsCertificateTest {
 
     /**
      * The AP-cell certifier splits its worlds on the REQUIRES condition ([CertWorld.bundle]): the bundle world offers the
-     * sword + ring as ONE ring-stage entry, so it counts the ring slot the ring takes — on pools without a FORBIDS pair the
-     * ledger lands exactly on the constrained optimum. FORBIDS stay a relaxation (the certifier may pair two rings that
-     * exclude each other — sound, looser), so pools carrying one are only checked for soundness and tightening.
+     * sword + ring as ONE ring-stage entry, so it counts the ring slot the ring takes, and the excluding pair shares one
+     * pairing key ([me.chosante.autobuilder.domain.ringPairingKeys]): the ledger lands exactly on the constrained optimum,
+     * with or without the FORBIDS pair.
      */
     @Test
     fun `max-damage certificate - sound against the constrained optimum, tighter than without the conditions`() {
@@ -389,6 +392,212 @@ class EquipConditionsCertificateTest {
         assertThat(tight).describedAs("the ledger is the constrained optimum on every certified pool (%d)", certified).isEqualTo(certified)
         assertThat(certified).isGreaterThanOrEqualTo(8)
     }
+
+    /** Ring conflict components that are NOT cliques: [ringPairingKeys] must keep their name keys (review of #253). */
+    private enum class RingTopology { PATH, CYCLE4, TRIPLE_WITH_SIBLING, FOREIGN_PARTNER }
+
+    /** A [ringTopologyPool] and its best legal ring pair that one key for the whole conflict component would refuse. */
+    private data class TopologyPool(
+        val pool: Map<ItemType, List<Equipment>>,
+        val refusedByComponentKey: Set<Int>,
+    )
+
+    /**
+     * Seeded pool #[seed] around ONE ring conflict component that is not a clique, its two strongest rings a LEGAL pair that a
+     * key for the whole component would refuse: the ends a + c of the path a–b–c, the diagonal a + c of the 4-cycle
+     * a–b–c–d–a, and the ring y of an excluding triple x–y–z with x', a same-name sibling of x (it conflicts with x alone).
+     * FOREIGN_PARTNER is a strong ring that forbids the strong amulet: the certificates ignore a partner outside the rings
+     * (a relaxation), so it only checks soundness. Every item carries fire AND distance mastery (the max-damage scenario
+     * reads both, the most-masteries request the distance one); a weapon, two or three other slots with an epic item and AP
+     * lines, and two weak plain rings complete it.
+     */
+    private fun ringTopologyPool(
+        seed: Int,
+        topology: RingTopology,
+    ): TopologyPool {
+        val rng = Random(0x253_000 + 31 * seed + topology.ordinal)
+        var id = 600_000
+        val items = mutableListOf<Equipment>()
+
+        fun r(
+            lo: Int,
+            hi: Int,
+        ) = lo + rng.nextInt(hi - lo + 1)
+
+        fun stats(
+            strength: Int,
+            ap: Int = 0,
+        ): Map<Characteristic, Int> =
+            buildMap {
+                put(Characteristic.MASTERY_ELEMENTARY_FIRE, strength)
+                put(Characteristic.MASTERY_DISTANCE, strength / 2)
+                if (ap != 0) put(Characteristic.ACTION_POINT, ap)
+            }
+
+        fun ring(
+            ringId: Int,
+            name: String,
+            strength: Int,
+            forbids: List<Int> = emptyList(),
+            rarity: Rarity = Rarity.LEGENDARY,
+        ) = item(ringId, ItemType.RING, name, rarity, stats(strength), ItemEquipCriterion(ringId, "x", forbidsItems = forbids).takeIf { forbids.isNotEmpty() })
+
+        fun strong() = r(1600, 2000)
+
+        fun medium() = r(1100, 1400)
+        val refused: Set<Int> =
+            when (topology) {
+                RingTopology.PATH -> {
+                    val (a, b, c) = listOf(id++, id++, id++)
+                    items += ring(a, "pathA", strong(), forbids = listOf(b))
+                    items += ring(b, "pathB", medium())
+                    items += ring(c, "pathC", strong(), forbids = listOf(b))
+                    setOf(a, c)
+                }
+                RingTopology.CYCLE4 -> {
+                    val (a, b, c, d) = listOf(id++, id++, id++, id++)
+                    items += ring(a, "cycleA", strong(), forbids = listOf(b, d))
+                    items += ring(b, "cycleB", medium())
+                    items += ring(c, "cycleC", strong(), forbids = listOf(b, d))
+                    items += ring(d, "cycleD", medium())
+                    setOf(a, c)
+                }
+                RingTopology.TRIPLE_WITH_SIBLING -> {
+                    val (x, y, z, sibling) = listOf(id++, id++, id++, id++)
+                    items += ring(x, "triX", medium(), forbids = listOf(y, z))
+                    items += ring(y, "triY", strong(), forbids = listOf(z))
+                    items += ring(z, "triZ", medium())
+                    // Same name as x: the game refuses x + x', nothing else — x' + y is legal.
+                    items += ring(sibling, "triX", strong(), rarity = Rarity.MYTHIC)
+                    setOf(sibling, y)
+                }
+                RingTopology.FOREIGN_PARTNER -> {
+                    val (f, amulet) = listOf(id++, id++)
+                    items += ring(f, "foreign", strong(), forbids = listOf(amulet))
+                    items += ring(id++, "other", strong())
+                    items += item(amulet, ItemType.AMULET, "forbiddenAmulet", Rarity.LEGENDARY, stats(r(1500, 2200)))
+                    items += item(id++, ItemType.AMULET, "amulet", Rarity.LEGENDARY, stats(r(600, 1200), ap = r(0, 1)))
+                    emptySet()
+                }
+            }
+        repeat(2) { k -> items += ring(id++, "plain$k", r(200, 500)) }
+        items += item(id++, ItemType.ONE_HANDED_WEAPONS, "weapon", Rarity.LEGENDARY, stats(r(600, 1500), ap = r(0, 2)))
+        val slots = listOf(ItemType.BELT, ItemType.CAPE, ItemType.BOOTS, ItemType.HELMET).shuffled(rng).take(2 + rng.nextInt(2))
+        for ((i, slot) in slots.withIndex()) {
+            repeat(2) { k ->
+                val rarity = if (i == 0 && k == 0) Rarity.EPIC else listOf(Rarity.LEGENDARY, Rarity.LEGENDARY, Rarity.RELIC)[rng.nextInt(3)]
+                items += item(id++, slot, "$slot$k", rarity, stats(r(300, 1500), ap = if (rng.nextInt(3) == 0) r(-1, 2) else 0))
+            }
+        }
+        return TopologyPool(items.groupBy { it.itemType }, refused)
+    }
+
+    /**
+     * Seeded soundness lock on ring conflicts that are NOT cliques (review of #253): every AP-cell pass (exact, fast, tier-1.5)
+     * and the ledger stay ≥ the CONSTRAINED pinned CP-SAT cell, with and without the domination pre-filter. On the path, the
+     * 4-cycle and the triple with a sibling the optimum wears the pair a component-wide key would refuse, so a regression of
+     * [ringPairingKeys]' clique guard under-counts here.
+     */
+    @Test
+    fun `max-damage certificate - sound on ring conflicts that are not cliques`() {
+        var compared = 0
+        var refusedPairOptima = 0
+        for (topology in RingTopology.entries) {
+            for (seed in 0 until 3) {
+                val (pool, refused) = ringTopologyPool(seed, topology)
+                val domination = seed % 2 == 1
+                val (exact, fast, tier15) = WakfuBuildSolver.certifierExactFastTier15CellObjectivesForTest(maxDamageParams, pool, applyDomination = domination)
+                var best: Pair<Long, Set<Int>>? = null
+                for (ap in (exact.keys + fast.keys).sorted()) {
+                    val profile =
+                        WakfuBuildSolver.timedMaxDamageProfileForTest(
+                            maxDamageParams.copy(maxDamageApTarget = ap),
+                            pool,
+                            emptyList(),
+                            emptyList(),
+                            workers = 1,
+                            seconds = 10.0,
+                            applyDomination = domination,
+                            deterministicLimit = 6.0
+                        )
+                    if (!profile.hasSolution) continue
+                    val worn = pool.values.flatten().filter { it.equipmentId in profile.selectedEquipmentIds }
+                    assertThat(equipConditionViolation(worn)).describedAs("%s seed %d AP=%d: the CP-SAT build is legal", topology, seed, ap).isNull()
+                    for ((pass, value) in listOf("exact" to exact[ap], "fast" to fast[ap], "tier-1.5" to tier15[ap])) {
+                        if (value == null || value < 0) continue
+                        assertThat(value)
+                            .describedAs("%s seed %d AP=%d: %s (%d) must upper-bound the constrained CP-SAT cell (%d)", topology, seed, ap, pass, value, profile.objective)
+                            .isGreaterThanOrEqualTo(profile.objective)
+                        compared++
+                    }
+                    if (best == null || profile.objective > best.first) best = profile.objective to profile.selectedEquipmentIds
+                }
+                val (optimum, ids) = requireNotNull(best) { "$topology seed $seed: no build" }
+                if (refused.isNotEmpty() && ids.containsAll(refused)) refusedPairOptima++
+                val ledger = WakfuBuildSolver.certifyLedgerForTest(maxDamageParams, pool, applyDomination = domination, forceTier2All = true).maxCellObjective
+                if (ledger != null) {
+                    assertThat(
+                        ledger
+                    ).describedAs("%s seed %d: the ledger (%d) must upper-bound the constrained optimum (%d)", topology, seed, ledger, optimum).isGreaterThanOrEqualTo(optimum)
+                }
+                println(
+                    "EQ_TOPO topology=$topology seed=$seed domination=$domination optimum=$optimum ledger=$ledger refusedPairWorn=${refused.isNotEmpty() &&
+                        ids.containsAll(
+                            refused
+                        )}"
+                )
+            }
+        }
+        assertThat(compared).isGreaterThan(40)
+        assertThat(refusedPairOptima).describedAs("optima wearing the pair a component-wide key would refuse").isGreaterThanOrEqualTo(6)
+    }
+
+    /** The most-masteries and soft max-damage bounds on the same non-clique ring conflicts, against the proven soft optima. */
+    @Test
+    fun `most-masteries and soft max-damage certificates - sound on ring conflicts that are not cliques`(): Unit =
+        runBlocking {
+            val tuning = WakfuBuildSolver.SolverTuning(numSearchWorkers = 1, randomSeed = 1, interleaveSearch = true, maxDeterministicTime = 60.0)
+            val mostMasteries =
+                maxDamageParams.copy(
+                    targetStats = TargetStats(listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 9999), TargetStat(Characteristic.ACTION_POINT, 7))),
+                    scoreComputationMode = ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT
+                )
+            val soft = maxDamageParams.copy(targetStats = TargetStats(listOf(TargetStat(Characteristic.ACTION_POINT, 10))))
+            var checked = 0
+            for (topology in RingTopology.entries) {
+                for (seed in 0 until 2) {
+                    val pool = ringTopologyPool(seed, topology).pool
+
+                    suspend fun solve(p: WakfuBestBuildParams): me.chosante.autobuilder.genetic.SolverResult<me.chosante.autobuilder.domain.BuildCombination> {
+                        var last: me.chosante.autobuilder.genetic.SolverResult<me.chosante.autobuilder.domain.BuildCombination>? = null
+                        WakfuBuildSolver.optimize(p, pool, emptyList(), emptyList(), tuning).collect { last = it }
+                        return requireNotNull(last)
+                    }
+                    val mm = solve(mostMasteries)
+                    assertThat(mm.isOptimal).describedAs("%s seed %d: the most-masteries oracle proves OPTIMAL on the tiny pool", topology, seed).isTrue()
+                    assertThat(mm.individual.isValid(CharacterClass.CRA)).isTrue()
+                    val mmBound = MostMasteriesCertificate.bound(mostMasteries, pool, emptyList(), emptyList())?.foldedBound
+                    if (mmBound != null) {
+                        assertThat(mmBound)
+                            .describedAs("%s seed %d: the most-masteries bound (%d) must upper-bound the soft optimum (%d)", topology, seed, mmBound, mm.mostMasteriesObjective)
+                            .isGreaterThanOrEqualTo(requireNotNull(mm.mostMasteriesObjective))
+                        checked++
+                    }
+                    val md = solve(soft)
+                    assertThat(md.isOptimal).describedAs("%s seed %d: the soft max-damage oracle proves OPTIMAL on the tiny pool", topology, seed).isTrue()
+                    assertThat(md.individual.isValid(CharacterClass.CRA)).isTrue()
+                    val softBound = MaxDamageSoftCertificate.bound(soft, pool, emptyList(), emptyList())?.foldedBound
+                    if (softBound != null) {
+                        assertThat(softBound)
+                            .describedAs("%s seed %d: the soft bound (%d) must upper-bound the soft optimum (%d)", topology, seed, softBound, md.maxDamageObjective)
+                            .isGreaterThanOrEqualTo(requireNotNull(md.maxDamageObjective))
+                        checked++
+                    }
+                    println("EQ_TOPO_SOFT topology=$topology seed=$seed mm=${mm.mostMasteriesObjective} mmBound=$mmBound md=${md.maxDamageObjective} softBound=$softBound")
+                }
+            }
+            assertThat(checked).describedAs("bounds compared (a bail is sound but checks nothing)").isGreaterThanOrEqualTo(12)
+        }
 
     /**
      * The E8 construct (review of #246) on a pool whose optimum wears the sword: the certifier's argmax is the bundle world's
