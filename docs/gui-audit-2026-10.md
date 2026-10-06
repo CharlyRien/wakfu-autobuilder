@@ -3,7 +3,7 @@
 A read-only audit of the Compose Desktop GUI, followed by the quick wins for **1.12.1** and a first batch of the backlog for
 **1.13.0**. It looked at `main` as it stood just before the 1.12.0 release commit (`a7d6a4a5`, where the window still read
 "Version 1.11.0 · Game data 1.93.1.62"). This file keeps the findings so the rest stay a backlog: items **F1–F6** are fixed in
-1.12.1 and **B1, B2, B4, B5** in 1.13.0 (each with its commit; B7 was fixed on the way), **B3, B6, B8, B9** are still open, and
+1.12.1 and **B1, B2, B4, B5** in 1.13.0 (each with its commit; B7 was fixed on the way), **B9** still needs a layout re-check (B3 is fixed below; B6/B8 were fixed by later work), and
 **N1–N10** were found while fixing.
 
 ## Method
@@ -189,7 +189,7 @@ are the branch's own: a rebase-merge rewrites them, the subjects stay.
 |---|---|---|---|
 | B1 (fixed) | Save dialog | **Fixed in 1.13.0** (`58356c01`). Was: the focus landed on the note, Esc did not close the dialog, Enter did not submit, and a suggested name could already be taken. | `SAVE-DIALOG textfield #10 focused=false text='Cra 110 · Distance'` / `#11 focused=true text=''`; `AFTER ESC on the root: modal=SaveBuild` (before). |
 | B2 (fixed) | Boss picker | **Fixed in 1.13.0** (`08307847`). Was: French names in the EN UI, a junk entry `` !@#dh`~ `` (id 5295, level 238, rank 1), "Cire Momore" 3× (three distinct monsters, kept). | `monsters.json`: 226 boss-tier rows (225 now). |
-| B3 | i18n leftovers | Class names are the capitalised enum names in both languages (`TopBar.displayName()`, `HistoryEntry.classDisplayName()`); hard-coded English fragments "AP", "WP", "Lv", "res"; raw enum names `EPIC` / `NORMAL` (sublimation rarity) and `BLOCK_PERCENTAGE` (passive flat stats). | `StatsPanel` rotation card (`"… AP, −… res"`, `"→ …% res after debuffs"`, `"… AP)"`), `CompareScreen` / `ClassSpellsPanel` (`"$it AP"`, `"$it WP"`), `PaperdollPanel` / `Modals` / `StatsPanel` (`sub.rarity.name`), `StatsPanel.PassivesResult` (`it.key.name`), `PaperdollPanel` / `Modals` (`"Lv …"`). |
+| B3 (fixed) | i18n leftovers | **Fixed:** `fix(gui): the last English-only labels are translated`. History/library/filter/validation class names reuse `CharacterClass.label(lang)` from #250; spell costs and debuff lines use Tr, short levels read Niv. in FR; sublimations use localized rarity labels, passive stats use characteristic labels. `GuiLabelsTest` and `ResultLabelsUiTest` lock EN/FR. Was: Class names are the capitalised enum names in both languages (`TopBar.displayName()`, `HistoryEntry.classDisplayName()`); hard-coded English fragments "AP", "WP", "Lv", "res"; raw enum names `EPIC` / `NORMAL` (sublimation rarity) and `BLOCK_PERCENTAGE` (passive flat stats). | `StatsPanel` rotation card (`"… AP, −… res"`, `"→ …% res after debuffs"`, `"… AP)"`), `CompareScreen` / `ClassSpellsPanel` (`"$it AP"`, `"$it WP"`), `PaperdollPanel` / `Modals` / `StatsPanel` (`sub.rarity.name`), `StatsPanel.PassivesResult` (`it.key.name`), `PaperdollPanel` / `Modals` (`"Lv …"`). |
 | B4 (fixed) | Headline noise | **Fixed in 1.13.0** (`1c36f631`). Was: "0 Requested mastery" / "0 Expected damage" / "0 %" before any search, and an empty "Desired vs Achieved" card in Max Damage. | `MatchHero` rendered its headline number even with no build; `DesiredVsAchieved` had no empty state. |
 | B5 (fixed) | Stale data | **Fixed in 1.13.0** (`f1dd4f4b`). Was: nothing told the player that a saved build was computed with older game data. | `HistoryEntry.dataVersion` was stored but never compared with `WakfuData.VERSION`. |
 | B6 | Item picker | It shows the first 60 of 2 783 equippable items (level 110, no minimum level; 1 257 with min 80) with no count and no slot filter. | `Modals.kt` item picker; 7 899 distinct items in `equipments.json`. |
@@ -211,3 +211,11 @@ are the branch's own: a rebase-merge rewrites them, the subjects stay.
 | N8 (fixed) | "Save as new" on a loaded build leaves the build's own name in the box, and only the OTHER builds' names are refused, so two builds can end up with the same name (the library and Compare then show two identical titles). | **Fixed:** `fix(gui): "Save as new" suggests a free name and never duplicates an existing build's name`. The copy action opens name entry with the first free suffix; all names are refused for a copy, including the active one, in the dialog and model. Update still accepts its own name. Tests: `ModalKeyboardUiTest`, `BuildSearchModelSuggestedNameTest`. |
 | N9 | 17 of the 18 tests of `BuildSearchModelLibraryTest` never run: they are written `= runBlocking { … }`, so they return their last assertion, and JUnit ignores a `@Test` method that returns a value. With `: Unit` all 18 run and pass. | `gui-compose/src/test/.../state/BuildSearchModelLibraryTest.kt`; `BuildSearchModelSavedBossTest` already uses `): Unit = runBlocking {`. Not changed (follow-up task flagged). |
 | N10 | The "Stop at 100% match" / "Arrêter à 100%" switch is ignored: the GUI passes `stopWhenBuildMatch`, but no engine code reads it, so a precision search never stops at its first 100 % build. | **Decision (maintainer): make it work later.** When on, stop the precision search at the first build whose capped score reaches 100 %, without the overflow tie-break. Documentation only; behaviour unchanged. |
+
+## B3 follow-up scan
+
+The remaining English fallbacks are the save/import/duplicate error handlers in `BuildSearchModel` (N4: raw exception messages or
+"Could not save build", "Could not import build", "Could not duplicate build"), historical release-note text when no FR
+translation exists, and unknown skill names in `skillLabel`. Game-data names/descriptions also intentionally fall back to the
+other language when one translation is missing. App branding and unit symbols (`s`, `%`, `×`) are language-independent.
+The scan also found raw class/rarity/monster accessibility names and the hard-coded "Sublimations" tooltip heading; fixed in B3.

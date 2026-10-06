@@ -799,7 +799,7 @@ private fun ItemTooltip(
         if (subs.isNotEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WColor.hairline))
             Text(
-                text = "Sublimations",
+                text = tr(Tr.CHOSEN_SUBLIMATIONS),
                 style = WTypography.labelSmall.copy(color = WColor.faint, fontWeight = FontWeight.SemiBold)
             )
             subs.forEach { sub ->
@@ -813,7 +813,7 @@ private fun ItemTooltip(
                             style = WTypography.labelSmall.copy(color = WColor.accent, fontWeight = FontWeight.Medium)
                         )
                         Text(
-                            text = sub.rarity.name,
+                            text = sub.rarity.label(lang),
                             style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
                         )
                         me.chosante.ui.components
@@ -1155,7 +1155,7 @@ private fun SlotMeta(
             val showLevel = cardHeight >= LEVEL_LINE_MIN_CARD
             if (showLevel) {
                 Text(
-                    text = "Lv ${equipment.level} · ${equipment.rarity.label(LocalLang.current)}",
+                    text = "${tr(Tr.LEVEL_PREFIX_SHORT)} ${equipment.level} · ${equipment.rarity.label(LocalLang.current)}",
                     style =
                         WTypography.labelSmall.copy(
                             fontFamily = WType.mono,

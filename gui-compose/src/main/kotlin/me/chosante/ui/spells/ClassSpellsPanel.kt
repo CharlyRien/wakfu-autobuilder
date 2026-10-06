@@ -268,11 +268,12 @@ private fun SpellCard(
 
 @Composable
 private fun SpellMetaRow(spell: Spell) {
+    val lang = LocalLang.current
     val perTurn = tr(Tr.SPELL_PER_TURN_SUFFIX)
     val parts =
         buildList {
-            spell.apCost?.let { add("$it AP") }
-            spell.wpCost?.takeIf { it > 0 }?.let { add("$it WP") }
+            spell.apCost?.let { add(Tr.STAT_AP_AMOUNT.value(lang).format(it)) }
+            spell.wpCost?.takeIf { it > 0 }?.let { add(Tr.STAT_WP_AMOUNT.value(lang).format(it)) }
             val lo = spell.rangeMin
             val hi = spell.rangeMax
             if (lo != null || hi != null) {

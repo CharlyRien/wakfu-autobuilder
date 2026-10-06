@@ -20,6 +20,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import me.chosante.common.Equipment
 import me.chosante.common.Rarity
+import me.chosante.ui.i18n.LocalLang
+import me.chosante.ui.i18n.label
 import me.chosante.ui.theme.WColor
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
@@ -119,7 +121,7 @@ internal fun RarityIcon(
     if (bitmap != null) {
         Image(
             bitmap = bitmap,
-            contentDescription = rarity.name,
+            contentDescription = rarity.label(LocalLang.current),
             modifier = modifier.size(size)
         )
     } else {

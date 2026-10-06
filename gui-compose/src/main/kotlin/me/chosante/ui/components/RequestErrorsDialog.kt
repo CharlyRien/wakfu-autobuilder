@@ -95,7 +95,7 @@ internal fun RequestValidationProblem.localizedMessage(lang: Lang): String =
         }
         is RequestValidationProblem.ForcedItemWrongClass -> {
             val name = if (lang == Lang.FR) item.name.fr else item.name.en
-            "$name ${Tr.FORCED_ITEM_WRONG_CLASS.value(lang)} ${classes.joinToString { it.libraryLabel() }}"
+            "$name ${Tr.FORCED_ITEM_WRONG_CLASS.value(lang)} ${classes.joinToString { it.libraryLabel(lang) }}"
         }
         is RequestValidationProblem.ForcedItemNeverEquippable -> {
             val name = if (lang == Lang.FR) item.name.fr else item.name.en
