@@ -1085,7 +1085,7 @@ object WakfuBuildSolver {
     /** The share of a relax-then-check leg's budget its relaxed stage may spend at most ([relaxThenCheck]). */
     internal const val RELAXED_STAGE_SHARE = 0.5
 
-    /** The share of a relax-then-check leg's budget its check of a proven relaxed optimum may spend at most ([relaxThenCheck]). */
+    /** The share of a relax-then-check leg's budget its check of the relaxed value may spend at most ([relaxThenCheck]). */
     internal const val CHECK_STAGE_SHARE = 0.1
 
     /**
@@ -1158,7 +1158,7 @@ object WakfuBuildSolver {
 
     /**
      * Whether [build] is a build of [params]' FLOORED leg as the scorers read it: every floor held and, on the hard leg, every
-     * target met ([hardLegHolds]). What the relaxed stage of [relaxThenCheck] may show.
+     * target met ([hardLegHolds]). What the relaxed stage of [relaxThenCheck] may show on the hard leg, and what its check must find.
      */
     private fun keepsFloors(
         params: WakfuBestBuildParams,
@@ -1176,9 +1176,10 @@ object WakfuBuildSolver {
      *
      *  1. the RELAXED stage solves the same leg WITHOUT the floors ([StatBuilder.relaxFloors]: no floor read — no `≥ 0`, no
      *     halving — each resistance family folded over its wanted elements alone), on at most [RELAXED_STAGE_SHARE] of the budget.
-     *     It shows a build only when that build keeps every floor (and, on the hard leg, meets every target) in the scorers' exact
-     *     read ([keepsFloors]) and scores no less than one already shown, and stamps none with a certificate-comparable objective
-     *     (its objective is the relaxed one). Its final build is no result of the leg;
+     *     It shows a build only when it scores no less than one already shown and, on the hard leg, keeps every floor and meets every
+     *     target in the scorers' exact read ([keepsFloors]); on the soft leg every build is one of the leg's, its score halved when a
+     *     floor breaks, as the soft leg scores it. It stamps none with a certificate-comparable objective (its objective is the
+     *     relaxed one), and its final build follows the same rule: never the leg's result by itself;
      *  2. the CHECK: the floored model with `objective = w`, w the relaxed stage's objective value (read EXACTLY: the objective
      *     variable's value, taken only when the response's own objective reads the same), hinted with the relaxed solution, on at most
      *     [CHECK_STAGE_SHARE] of the budget and as long as the relaxed solve ran ([MIN_CHECK_TIME]). Its build, once the scorers' read
@@ -1212,7 +1213,11 @@ object WakfuBuildSolver {
      * ([relaxedStageBudget], [checkStageBudget], [flooredStageBudget]) — never more than the request's budget in all (stages each
      * given the whole budget would burn several times it). A tuned solve splits its deterministic time the same way. A floored
      * stage with no budget left, or that ends unproven below the best build the relaxed stage showed (or with none), delivers that
-     * build instead, unproven.
+     * build instead, unproven. A relaxed stage that found no solution at all leaves the floored stage the greedy warm start, as the
+     * direct solve hints it. The price of splitting one budget: a leg that needs more than half of it to find ANY solution, with no
+     * warm start to begin from, can end with no build where the direct solve, given all of it, finds one (the slow fuzz's two-element
+     * soft legs, on 1 worker with no warm start, need up to ~17 deterministic units to their first solution and its proof; production
+     * always hints the warm start).
      */
     private suspend fun relaxThenCheck(
         scope: ProducerScope<SolverResult<BuildCombination>>,
@@ -1246,7 +1251,8 @@ object WakfuBuildSolver {
 
         fun elapsedMs() = (System.currentTimeMillis() - legStartMs).toDouble()
 
-        // The best build shown so far, its floors held: the display never regresses, and a floored stage that misses delivers it.
+        // The best build shown so far — on the hard leg one that keeps its floors and meets its targets, on the soft leg any (its score
+        // halved when a floor breaks, as the soft leg scores it): the display never regresses, and a floored stage that misses delivers it.
         val shown =
             java.util.concurrent.atomic
                 .AtomicReference<Pair<BuildCombination, BigDecimal>?>(null)
@@ -1255,7 +1261,7 @@ object WakfuBuildSolver {
             build: BuildCombination,
             score: BigDecimal,
         ): Boolean {
-            if (!keepsFloors(params, build, hardConstraints)) return false
+            if (hardConstraints && !keepsFloors(params, build, hardLeg = true)) return false
             val best = shown.get()
             if (best != null && score < best.second) return false
             shown.set(build to score)
@@ -1318,13 +1324,25 @@ object WakfuBuildSolver {
             }
         // Same params ⇒ the same decision variables, by name, in every model (the floors only change how the stats are read).
         var hint = if (relaxedSolved && solver != null) runCatching { diagnosticVars(relaxed).associate { it.name to solver.value(it) } }.getOrNull() else null
-        // The relaxed final build is no result of the leg, but one that keeps the floors may still be delivered at the end.
+        // The relaxed final build is no result of the leg by itself, but [offer]'s rule may still deliver it at the end.
         val relaxedFinal = relaxedOutcome?.finalBuild
         val relaxedFinalScore = relaxedOutcome?.finalScore
         if (relaxedFinal != null && relaxedFinalScore != null) offer(relaxedFinal, relaxedFinalScore)
         var spentDeterministic = relaxedOutcome?.deterministicTime ?: 0.0
 
-        fun hinted(built: BuiltModel) = built.also { hint?.let { values -> for (v in diagnosticVars(built)) values[v.name]?.let { built.model.addHint(v, it) } } }
+        // The later stages start from the relaxed (or checked) solution; with none, from the greedy warm start, as the direct solve does.
+        fun hinted(built: BuiltModel) =
+            built.also {
+                val values = hint
+                if (values != null) {
+                    for (v in diagnosticVars(built)) values[v.name]?.let { built.model.addHint(v, it) }
+                } else {
+                    warmStart?.let { combination ->
+                        val picked = combination.equipments.toHashSet()
+                        for ((equip, v) in built.equipVars) built.model.addHint(v, if (equip in picked) 1L else 0L)
+                    }
+                }
+            }
 
         // ---- 2. The CHECK: a floored build at the relaxed stage's value w. When w is the PROVEN relaxed optimum v, that build is the
         // floored optimum; when the relaxed stage ran out unproven, it is no proof but the best start the floored stage can get.
