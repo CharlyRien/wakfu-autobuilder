@@ -204,7 +204,7 @@ class BuildSearchModelWorkspaceTest {
         val model = newModel(scope, dir, debounce = 10.minutes)
         awaitUntil { model.isReady }
         model.setLevel("199")
-        assertThat(WorkspaceStore(baseDir = dir).read()?.request?.level).describedAs("still debounced").isNotEqualTo(199)
+        assertThat(WorkspaceStore(baseDir = dir).read()).describedAs("still debounced: nothing written yet").isNull()
 
         model.flushWorkspace()
 
