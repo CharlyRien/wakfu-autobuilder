@@ -1,5 +1,6 @@
 package me.chosante.autobuilder.domain
 
+import me.chosante.common.CharacterClass
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Passive
@@ -22,7 +23,14 @@ data class BuildCombination(
     // export; their fully-declarative flat stats are also folded into the solve (see PassiveCatalog).
     val passives: List<Passive> = emptyList(),
 ) {
-    fun isValid(): Boolean {
+    /**
+     * Whether the game lets a character wear this build: one item per slot (two rings of different names), one-handed +
+     * off-hand or a two-handed weapon, at most one EPIC and one RELIC item, legal sublimations, and every item EQUIP
+     * condition the engine enforces ([equipConditionViolation]: required items worn, no two items that exclude each
+     * other, no never-equippable item, and — when [characterClass] is given — no other class's item).
+     */
+    fun isValid(characterClass: CharacterClass? = null): Boolean {
+        if (equipConditionViolation(equipments, characterClass) != null) return false
         val numberOfEquipmentByType = equipments.groupingBy { it.itemType }.eachCount()
         if (numberOfEquipmentByType.any { (key, count) ->
                 count > 1 && key != ItemType.RING || count > 2

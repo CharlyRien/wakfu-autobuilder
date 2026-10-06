@@ -107,6 +107,7 @@ The apps do **not** fetch game data at runtime — it is baked into `autobuilder
 | `monster-overlay.json` | *(committed overlay — boss-tier `rank` by monster id; the one editorial fact not in any client table. Everything else, incl. `gfx`, is decoded from bdata.)* | — |
 | `sublimations.json` | `bdata-extractor` | effects/condition/max-level decoded from the local State (67) → StaticEffect (68) tables; identity/name/rarity/colours from the CDN `items.json` (itemTypeId 812) |
 | `runes.json` | `bdata-extractor` | CDN `items.json` (itemTypeId 811 shards): colour + double-bonus slots from `shardsParameters`, boosted stat from the equip-effect action |
+| `item-criteria.json` | `bdata-extractor` | the local Item table (35): each `equipments.json` item's EQUIP criterion (raw + typed: required / forbidden items, classes, never, stat gates, player-state conditions) — read after `equipments.json` |
 
 The **data version** lives in exactly one place: [`common-lib/.../WakfuData.kt`](common-lib/src/main/kotlin/me/chosante/common/WakfuData.kt)
 (`WakfuData.VERSION`). The apps stamp it as their `dataVersion`; the extractors fetch CDN assets for it.

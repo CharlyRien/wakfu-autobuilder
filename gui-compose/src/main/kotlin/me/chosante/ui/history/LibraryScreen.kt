@@ -47,13 +47,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.common.CharacterClass
 import me.chosante.common.history.HistoryEntry
 import me.chosante.ui.components.BreedBackground
 import me.chosante.ui.components.BreedIllustration
 import me.chosante.ui.components.ItemThumbnail
-import me.chosante.ui.components.StaleDataCue
+import me.chosante.ui.components.ObsoleteBadge
+import me.chosante.ui.components.OlderEngineProof
+import me.chosante.ui.components.RerunSearchLink
 import me.chosante.ui.components.localized
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
@@ -72,6 +73,7 @@ import me.chosante.ui.state.folderCounts
 import me.chosante.ui.state.formatCompact
 import me.chosante.ui.state.libraryLabel
 import me.chosante.ui.state.organizeLibrary
+import me.chosante.ui.state.shownEntry
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WDimens
 import me.chosante.ui.theme.WType
@@ -110,6 +112,7 @@ fun LibraryScreen(
     onToggleGroup: () -> Unit,
     onClearFilters: () -> Unit,
     modifier: Modifier = Modifier,
+    onRerun: (String) -> Unit = {},
 ) {
     if (ui.savedBuilds.isEmpty()) {
         Column(
@@ -135,7 +138,8 @@ fun LibraryScreen(
             ui.libraryClassFilter,
             ui.libraryGroupByClass,
             ui.librarySelectedTags,
-            ui.libraryFolder
+            ui.libraryFolder,
+            ui.lang
         ) {
             organizeLibrary(
                 builds = ui.savedBuilds,
@@ -144,7 +148,8 @@ fun LibraryScreen(
                 classFilter = ui.libraryClassFilter,
                 groupByClass = ui.libraryGroupByClass,
                 selectedTags = ui.librarySelectedTags,
-                folder = ui.libraryFolder
+                folder = ui.libraryFolder,
+                lang = ui.lang
             )
         }
 
@@ -196,6 +201,7 @@ fun LibraryScreen(
                                 ui = ui,
                                 columns = columns,
                                 onLoad = onLoad,
+                                onRerun = onRerun,
                                 onCompare = onCompare,
                                 onDuplicate = onDuplicate,
                                 onEdit = onEdit,
@@ -215,6 +221,7 @@ private fun LibraryGroupSection(
     ui: UiState,
     columns: Int,
     onLoad: (String) -> Unit,
+    onRerun: (String) -> Unit,
     onCompare: (String) -> Unit,
     onDuplicate: (String) -> Unit,
     onEdit: (String) -> Unit,
@@ -224,7 +231,7 @@ private fun LibraryGroupSection(
     if (group.clazz != null) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                text = group.clazz.libraryLabel(),
+                text = group.clazz.libraryLabel(LocalLang.current),
                 style = WTypography.labelMedium.copy(color = WColor.muted, fontWeight = FontWeight.SemiBold)
             )
             Text(
@@ -238,10 +245,13 @@ private fun LibraryGroupSection(
             row.forEach { entry ->
                 Box(modifier = Modifier.weight(1f)) {
                     BuildCard(
-                        entry = entry,
+                        // The numbers of the current rules once the background re-score is ready, the stored ones until then.
+                        entry = ui.shownEntry(entry),
+                        stored = entry,
                         isActive = entry.id == ui.activeBuildId,
                         isJustDuplicated = entry.id == ui.lastDuplicatedBuildId,
                         onLoad = { onLoad(entry.id) },
+                        onRerun = { onRerun(entry.id) },
                         onCompare = { onCompare(entry.id) },
                         onDuplicate = { onDuplicate(entry.id) },
                         onEdit = { onEdit(entry.id) },
@@ -362,7 +372,7 @@ private fun LibrarySidebar(
             counts.forEach { (clazz, count) ->
                 val selected = ui.libraryClassFilter == clazz
                 SidebarRow(
-                    label = clazz.libraryLabel(),
+                    label = clazz.libraryLabel(LocalLang.current),
                     count = count,
                     selected = selected,
                     onClick = { onClassFilterChange(if (selected) null else clazz) }
@@ -673,9 +683,11 @@ private fun Header(
 @Composable
 private fun BuildCard(
     entry: HistoryEntry,
+    stored: HistoryEntry,
     isActive: Boolean,
     isJustDuplicated: Boolean,
     onLoad: () -> Unit,
+    onRerun: () -> Unit,
     onCompare: () -> Unit,
     onDuplicate: () -> Unit,
     onEdit: () -> Unit,
@@ -753,6 +765,16 @@ private fun BuildCard(
             }
             Spacer(modifier = Modifier.height(9.dp))
             PillsRow(entry = entry)
+            entry.obsolescence()?.let { obsolescence ->
+                Spacer(modifier = Modifier.height(7.dp))
+                // A search may now find better (game data updated and/or engine improved since the save): the pill says why on
+                // hover — with the score the build was saved with when the current rules moved it — and the link re-runs it.
+                val storedScore = headlineText(stored).takeIf { it != headlineText(entry) }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    ObsoleteBadge(obsolescence = obsolescence, storedScore = storedScore)
+                    RerunSearchLink(onRerun = onRerun)
+                }
+            }
             Spacer(modifier = Modifier.height(11.dp))
             SlotMiniGrid(entry = entry)
             if (entry.note != null) {
@@ -887,32 +909,45 @@ private fun ActionIconButton(
     }
 }
 
+/**
+ * The headline is the number the build's mode maximized: the mastery score, the expected damage per turn (NOT a % — a max-damage
+ * build stores its damage as its match), or the % match to the exact targets. Returns the value and its label.
+ */
+@Composable
+private fun headline(entry: HistoryEntry): Pair<String, String> =
+    when {
+        entry.isMasteryMode() -> entry.requestedMasteryTotal().formatCompact() to tr(Tr.MASTERY_SHORT)
+        entry.isDamageMode() -> entry.expectedDamage().formatCompact() to tr(Tr.EXPECTED_DAMAGE)
+        else -> "${entry.matchPercent()}%" to tr(Tr.MATCH)
+    }
+
+/** The headline as one line, e.g. "1.2k Mastery". */
+@Composable
+private fun headlineText(entry: HistoryEntry): String = headline(entry).let { (value, label) -> "$value $label" }
+
 @Composable
 private fun HeadlineBadge(entry: HistoryEntry) {
-    // The headline is the number the build's mode maximized: the mastery score, the expected damage per turn (NOT a % — a
-    // max-damage build stores its damage as its match), or the % match to the exact targets.
-    val (value, label) =
-        when {
-            entry.isMasteryMode() -> entry.requestedMasteryTotal().formatCompact() to tr(Tr.MASTERY_SHORT)
-            entry.isDamageMode() -> entry.expectedDamage().formatCompact() to tr(Tr.EXPECTED_DAMAGE)
-            else -> "${entry.matchPercent()}%" to tr(Tr.MATCH)
-        }
+    val (value, label) = headline(entry)
     // A precision build that meets every target says so, and a proven optimum says so: both can hold at once, then both show.
     val targetsMet = !entry.isMasteryMode() && !entry.isDamageMode() && entry.meetsAllTargets()
-    val statuses =
-        buildList {
-            if (targetsMet) add(tr(Tr.TARGETS_MET))
-            if (entry.result.optimal) add(tr(Tr.OPTIMAL_PROVEN))
-        }
-    val good = statuses.isNotEmpty()
+    // A proof made by an older engine (reason B of the obsolete badge) still shows, dimmed, with a tooltip saying so: the engine
+    // improved since, so it proves the build optimal for the rules of that version only.
+    val olderEngineProof = entry.result.optimal && entry.provenByOlderEngine()
+    val good = targetsMet || (entry.result.optimal && !olderEngineProof)
     Column(horizontalAlignment = Alignment.End) {
         Text(
             text = value,
             style = WTypography.titleMedium.copy(fontFamily = WType.mono, color = if (good) WColor.success else WColor.text)
         )
-        if (good) {
-            statuses.forEach { Text(text = it, style = WTypography.labelSmall.copy(color = WColor.success)) }
-        } else {
+        if (targetsMet) Text(text = tr(Tr.TARGETS_MET), style = WTypography.labelSmall.copy(color = WColor.success))
+        if (entry.result.optimal) {
+            if (olderEngineProof) {
+                OlderEngineProof(text = tr(Tr.OPTIMAL_PROVEN), style = WTypography.labelSmall)
+            } else {
+                Text(text = tr(Tr.OPTIMAL_PROVEN), style = WTypography.labelSmall.copy(color = WColor.success))
+            }
+        }
+        if (!targetsMet && !entry.result.optimal) {
             Text(text = label, style = WTypography.labelSmall.copy(color = WColor.muted))
         }
     }
@@ -924,7 +959,7 @@ private fun PillsRow(entry: HistoryEntry) {
     // wrap 3-per-row so a long set never overflows the card.
     val metaPills =
         listOf(
-            entry.classDisplayName(),
+            entry.classDisplayName(LocalLang.current),
             "${tr(Tr.LEVEL_SHORT)} ${entry.request.level}",
             tr(entry.modeLabel())
         )
@@ -949,11 +984,6 @@ private fun PillsRow(entry: HistoryEntry) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-        }
-        // Saved with other game data than the app ships now (a game update since): its numbers may be out of date. Said quietly —
-        // the build stays fully usable; the stored entry is untouched.
-        if (entry.dataVersion != WakfuBestBuildFinderAlgorithm.dataVersion) {
-            StaleDataCue(version = entry.dataVersion)
         }
     }
 }

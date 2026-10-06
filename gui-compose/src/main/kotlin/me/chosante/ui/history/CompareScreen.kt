@@ -34,8 +34,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import me.chosante.autobuilder.domain.BuildSpellDamage
 import me.chosante.autobuilder.domain.RangeBand
@@ -50,6 +53,9 @@ import me.chosante.ui.components.CharacteristicIcon
 import me.chosante.ui.components.Hairline
 import me.chosante.ui.components.InfoTip
 import me.chosante.ui.components.ItemThumbnail
+import me.chosante.ui.components.ObsoleteBadge
+import me.chosante.ui.components.OlderEngineProof
+import me.chosante.ui.components.RerunSearchLink
 import me.chosante.ui.components.SpellIcon
 import me.chosante.ui.components.elementLabel
 import me.chosante.ui.components.localized
@@ -63,6 +69,7 @@ import me.chosante.ui.state.MIN_COMPARE_SLOTS
 import me.chosante.ui.state.UiState
 import me.chosante.ui.state.formatCompact
 import me.chosante.ui.state.isEngineInternalStat
+import me.chosante.ui.state.shownEntry
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WDimens
 import me.chosante.ui.theme.WType
@@ -89,12 +96,14 @@ fun CompareScreen(
     onAdd: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onRerun: (String) -> Unit = {},
 ) {
     val scroll = rememberScrollState()
-    // The filled columns, paired with their A/B/C/D label, in slot order — what the tables compare.
+    // The filled columns, paired with their A/B/C/D label, in slot order — what the tables compare. Each build reads with the
+    // numbers of the current rules once its background re-score is ready ([shownEntry]), like the library cards.
     val columns =
         ui.compareSlots.mapIndexedNotNull { index, id ->
-            ui.savedBuilds.firstOrNull { it.id == id }?.let { columnLetter(index) to it }
+            ui.savedBuilds.firstOrNull { it.id == id }?.let { columnLetter(index) to ui.shownEntry(it) }
         }
     Column(
         modifier =
@@ -118,11 +127,13 @@ fun CompareScreen(
             ui.compareSlots.forEachIndexed { index, id ->
                 SideColumn(
                     index = index,
-                    entry = ui.savedBuilds.firstOrNull { it.id == id },
+                    entry = ui.savedBuilds.firstOrNull { it.id == id }?.let(ui::shownEntry),
+                    stored = ui.savedBuilds.firstOrNull { it.id == id },
                     builds = ui.savedBuilds,
                     canRemove = ui.compareSlots.size > MIN_COMPARE_SLOTS,
                     onPick = onPick,
                     onClear = onClear,
+                    onRerun = onRerun,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -148,10 +159,12 @@ fun CompareScreen(
 private fun SideColumn(
     index: Int,
     entry: HistoryEntry?,
+    stored: HistoryEntry?,
     builds: List<HistoryEntry>,
     canRemove: Boolean,
     onPick: (Int, String) -> Unit,
     onClear: (Int) -> Unit,
+    onRerun: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -179,22 +192,30 @@ private fun SideColumn(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 BreedIcon(clazz = entry.restoredClass(), size = 20.dp)
                 Text(
-                    text = "${entry.classDisplayName()} · ${tr(Tr.LEVEL_SHORT)} ${entry.request.level} · ${tr(entry.modeLabel())}",
+                    text = "${entry.classDisplayName(LocalLang.current)} · ${tr(Tr.LEVEL_SHORT)} ${entry.request.level} · ${tr(entry.modeLabel())}",
                     style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
                 )
             }
-            // What this build's mode maximized: the mastery score, the expected damage per turn (a max-damage build stores
-            // it as its match — it is not a percentage), or the % match to the exact targets.
-            val headline =
-                when {
-                    entry.isMasteryMode() -> "${entry.requestedMasteryTotal().formatCompact()} ${tr(Tr.MASTERY_SHORT)}"
-                    entry.isDamageMode() -> "${entry.expectedDamage().formatCompact()} ${tr(Tr.EXPECTED_DAMAGE)}"
-                    else -> "${entry.matchPercent()}% ${tr(if (entry.meetsAllTargets()) Tr.TARGETS_MET else Tr.MATCH)}"
-                }
-            Text(
-                text = headline + if (entry.result.optimal) " · ${tr(Tr.OPTIMAL_PROVEN)}" else "",
-                style = WTypography.labelMedium.copy(color = if (entry.result.optimal) WColor.success else WColor.text)
-            )
+            val headline = compareHeadline(entry)
+            // One line, the headline then the proof. A proof made by an older engine (reason B of the obsolete badge) is dimmed,
+            // with a tooltip saying so; a current one keeps the success colour on the whole line.
+            val olderEngineProof = entry.result.optimal && entry.provenByOlderEngine()
+            val proven = if (entry.result.optimal) " · ${tr(Tr.OPTIMAL_PROVEN)}" else ""
+            if (olderEngineProof) {
+                OlderEngineProof(
+                    text =
+                        buildAnnotatedString {
+                            withStyle(SpanStyle(color = WColor.text)) { append(headline) }
+                            append(proven)
+                        },
+                    style = WTypography.labelMedium
+                )
+            } else {
+                Text(
+                    text = headline + proven,
+                    style = WTypography.labelMedium.copy(color = if (entry.result.optimal) WColor.success else WColor.text)
+                )
+            }
             entry.restoredBoss()?.let { boss ->
                 Text(
                     text = tr(Tr.VS_BOSS).format(boss.name.localized(LocalLang.current)),
@@ -202,6 +223,15 @@ private fun SideColumn(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+            }
+            // A search may now find better: the pill says why on hover (with the score it was saved with when the current rules
+            // moved it), and the link re-runs that search.
+            entry.obsolescence()?.let { obsolescence ->
+                val storedScore = stored?.let { compareHeadline(it) }?.takeIf { it != headline }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    ObsoleteBadge(obsolescence = obsolescence, storedScore = storedScore)
+                    RerunSearchLink(onRerun = { onRerun(entry.id) })
+                }
             }
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
@@ -215,6 +245,18 @@ private fun SideColumn(
         }
     }
 }
+
+/**
+ * What this build's mode maximized: the mastery score, the expected damage per turn (a max-damage build stores it as its match —
+ * it is not a percentage), or the % match to the exact targets.
+ */
+@Composable
+private fun compareHeadline(entry: HistoryEntry): String =
+    when {
+        entry.isMasteryMode() -> "${entry.requestedMasteryTotal().formatCompact()} ${tr(Tr.MASTERY_SHORT)}"
+        entry.isDamageMode() -> "${entry.expectedDamage().formatCompact()} ${tr(Tr.EXPECTED_DAMAGE)}"
+        else -> "${entry.matchPercent()}% ${tr(if (entry.meetsAllTargets()) Tr.TARGETS_MET else Tr.MATCH)}"
+    }
 
 /** The A/B/C/D chip identifying a compare column (matches the table column headers). */
 @Composable
@@ -609,7 +651,7 @@ private fun SpellDamageRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            val meta = listOfNotNull(elementLabel, spell.apCost?.let { "$it AP" }).joinToString(" · ")
+            val meta = listOfNotNull(elementLabel, spell.apCost?.let { Tr.STAT_AP_AMOUNT.value(lang).format(it) }).joinToString(" · ")
             if (meta.isNotEmpty()) {
                 Text(text = meta, style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono))
             }

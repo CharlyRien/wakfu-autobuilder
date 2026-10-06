@@ -1,5 +1,7 @@
 package me.chosante.autobuilder.genetic.wakfu
 
+import me.chosante.autobuilder.domain.forbiddenItemIds
+import me.chosante.autobuilder.domain.requiredItemIds
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_RESISTANCES
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.MASTERY_RANDOM_BY_COUNT
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.RANDOM_RESISTANCES
@@ -23,10 +25,11 @@ import me.chosante.common.SublimationRarity
 // The contract (CERTIFIER_VERSION 53 audit, docs/perf-review-backlog.md §E): A may replace B in EVERY build of the
 // model with no loss. Besides the stats, that means A must offer at least what B offers on every OTHER dimension the
 // CP-SAT model or a certificate reads from an item — the slot (per-slot filter), the ≤1-epic / ≤1-relic budget, the
-// epic / relic sublimation carrier, the rune sockets AND their value (the item's level caps the rune level), and, for
-// rings, the "never two rings of the same name" rule. Each is a clause of [dominates] / [dominatedWithin] below; the
-// search and every certificate read the SAME reduced pool, so a clause that is missing makes CP-SAT's OPTIMAL and the
-// certificate's bound both wrong at once (a wrong "proven optimal" badge).
+// epic / relic sublimation carrier, the rune sockets AND their value (the item's level caps the rune level), for
+// rings, the "never two rings of the same name" rule, and the item EQUIP conditions (CERTIFIER_VERSION 57: a required
+// item is never evicted, and A's requirements / conflict partners must be a subset of B's). Each is a clause of
+// [dominates] / [dominatedWithin] below; the search and every certificate read the SAME reduced pool, so a clause that
+// is missing makes CP-SAT's OPTIMAL and the certificate's bound both wrong at once (a wrong "proven optimal" badge).
 
 /**
  * The domination relation's parameters for a request — or `null` (from [dominationShape]) to not apply the
@@ -304,11 +307,48 @@ private fun runeDomination(
     )
 }
 
-/** Apply [dominatedWithin] per slot (each slot's items only ever replace each other). */
+/**
+ * Apply [dominatedWithin] per slot (each slot's items only ever replace each other). The item EQUIP conditions are
+ * read over the WHOLE pool first, since a requirement crosses slots (a sword needs a ring): every item another pool item
+ * requires is KEPT — whatever dominates it can't stand in for it in its requirer's build (the four nation rings are
+ * stat-identical, zero-stat EPIC rings: they used to evict each other and fall to any 4-socket ring) — and
+ * [EquipConstraints] carries each item's conflict partners (the symmetric closure of `not HasEquipmentId`) to [dominates].
+ */
 internal fun filterDominatedPool(
     pool: Map<ItemType, List<Equipment>>,
     shape: DominationShape,
-): Map<ItemType, List<Equipment>> = pool.mapValues { (slot, items) -> dominatedWithin(items, slot, shape) }
+): Map<ItemType, List<Equipment>> {
+    val constraints = EquipConstraints.of(pool)
+    return pool.mapValues { (slot, items) -> dominatedWithin(items, slot, shape, constraints) }
+}
+
+/**
+ * The pool-wide side of the item EQUIP conditions domination must respect: [requiredKeys] (ids some pool item requires
+ * — never evicted) and each item's [conflictPartners] (pool ids it can't be worn with, either way round).
+ */
+internal class EquipConstraints private constructor(
+    val requiredKeys: Set<Int>,
+    private val partners: Map<Int, Set<Int>>,
+) {
+    fun conflictPartners(item: Equipment): Set<Int> = partners[item.equipmentId].orEmpty()
+
+    companion object {
+        val NONE = EquipConstraints(emptySet(), emptyMap())
+
+        fun of(pool: Map<ItemType, List<Equipment>>): EquipConstraints {
+            val items = pool.values.flatten()
+            val keys = items.flatMapTo(HashSet()) { it.requiredItemIds }
+            val partners = HashMap<Int, MutableSet<Int>>()
+            for (item in items) {
+                for (other in item.forbiddenItemIds) {
+                    partners.getOrPut(item.equipmentId) { HashSet() } += other
+                    partners.getOrPut(other) { HashSet() } += item.equipmentId
+                }
+            }
+            return if (keys.isEmpty() && partners.isEmpty()) NONE else EquipConstraints(keys, partners)
+        }
+    }
+}
 
 /**
  * Keep only the items of [slot] NOT dominated. `A ≻ B` (A strictly dominates B) iff `A ≽ B` ([dominates]) and, when
@@ -321,14 +361,20 @@ internal fun filterDominatedPool(
  *    differs from X) — and if X is removed as well, its own kept dominators offer another name. Counting dominators
  *    by ITEM (the old `≥ 2`) let two rarity variants of ONE ring (both named N) evict B although a build wearing
  *    a ring named N can only pair it with B.
+ *  - An item another pool item REQUIRES ([EquipConstraints.requiredKeys]) is always kept.
+ * The EQUIP-condition clauses of [dominates] (A's requirements ⊆ B's, A's conflict partners ⊆ B's) keep the ring
+ * argument whole: B's partner X conflicts with neither B nor (hence) its dominator A.
  */
 private fun dominatedWithin(
     items: List<Equipment>,
     slot: ItemType,
     shape: DominationShape,
+    constraints: EquipConstraints,
 ): List<Equipment> =
     items.filter { b ->
-        fun strictlyDominates(a: Equipment) = a !== b && a.dominates(b, shape) && (!b.dominates(a, shape) || a.equipmentId < b.equipmentId)
+        if (b.equipmentId in constraints.requiredKeys) return@filter true
+
+        fun strictlyDominates(a: Equipment) = a !== b && a.dominates(b, shape, constraints) && (!b.dominates(a, shape, constraints) || a.equipmentId < b.equipmentId)
         if (slot == ItemType.RING) {
             var firstName: String? = null
             items.none { a ->
@@ -355,12 +401,18 @@ private fun dominatedWithin(
  *  - the rune clause ([RuneDomination]) when runes can be modelled;
  *  - `A.characteristics ≥ B` on EVERY compared characteristic, AND **`A == B` on every [DominationShape.pinned]
  *    stat**, `≤` on every minimized one — so every monotone objective term / ≥-type condition is still ≥, and every
- *    pinned ≤/exact/parity condition keeps its exact truth value (its build sum is unchanged by the swap).
+ *    pinned ≤/exact/parity condition keeps its exact truth value (its build sum is unchanged by the swap);
+ *  - the item EQUIP conditions: **A's required items ⊆ B's** (the build already wears B's, so A's are worn too — a
+ *    sword that needs its ring never evicts a free weapon) and **A's conflict partners ⊆ B's** (no item the build wears
+ *    beside B refuses A). Class-only and never-equippable items are out of the pool before domination runs.
  */
 private fun Equipment.dominates(
     other: Equipment,
     shape: DominationShape,
+    constraints: EquipConstraints,
 ): Boolean {
+    if (!other.requiredItemIds.containsAll(requiredItemIds)) return false
+    if (!constraints.conflictPartners(other).containsAll(constraints.conflictPartners(this))) return false
     if (maxShardSlots < other.maxShardSlots) return false
     if (rarity == Rarity.EPIC && other.rarity != Rarity.EPIC) return false
     if (rarity == Rarity.RELIC && other.rarity != Rarity.RELIC) return false

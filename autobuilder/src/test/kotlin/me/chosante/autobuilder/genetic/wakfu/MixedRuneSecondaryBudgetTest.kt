@@ -26,7 +26,7 @@ import kotlin.time.Duration.Companion.seconds
  * CERTIFIER_VERSION 57: the max-damage single-type rune fold under a positive secondary budget. A `≤ 0` cap (the
  * Neutralité family holds EACH secondary mastery ≤ 0) does not rule out a part-filled item: an item's NEGATIVE line of a
  * capped secondary leaves that stat a budget a MIXED item fills — some sockets of the secondary rune, the rest elemental
- * — where no single type fits. v56's fold filled every item with one type, so it missed that optimum and CP-SAT's
+ * — where no single type fits. The all-or-nothing fold (≤ v56) filled every item with one type, so it missed that optimum and CP-SAT's
  * `OPTIMAL` over it was a wrong badge. The fold now keeps per-type COUNTS on the carriers that can need a mix
  * ([MaxDamageRuneReads.mixedStats], [RuneModel.countCarriers]); the per-stat COUNT model (`forceRuneCountModel`) is the
  * exact reference. The AP-cell certificate reads a count carrier's types at their full-fill vertices, which bound every
@@ -110,7 +110,7 @@ class MixedRuneSecondaryBudgetTest {
      * rear budget of 214. Melee and rear runes are worth 3/2 of an elemental one (33 vs 22 at rune level 11) but come in
      * whole items of 4 × 33 = 132 under the fold: one item of each leaves 28 melee and 82 rear unspent (the skill points
      * absorb part of it, at the cost of what they buy elsewhere). The optimum fills the budgets with part-filled items.
-     * v56's fold: 1,320,570. Count model and the fixed fold: 1,328,235 (+0.58 %).
+     * The all-or-nothing fold (≤ v56): 1,320,570. Count model and the fixed fold: 1,328,235 (+0.58 %).
      */
     private val reproLevel = 245
     private val reproScenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.MELEE, orientation = Orientation.BACK)
@@ -126,15 +126,15 @@ class MixedRuneSecondaryBudgetTest {
     fun `a part-filled item under a negative secondary budget is the optimum the fold now reaches`() {
         val p = params(reproLevel, reproScenario)
         val subs = listOf(neutralite)
-        val v56 = solve(p, reproPool, subs, mixed = false)
+        val oldFold = solve(p, reproPool, subs, mixed = false)
         val count = solve(p, reproPool, subs, count = true)
         val fixed = solve(p, reproPool, subs)
-        println("MIXED_REPRO v56=${v56.objective}/${v56.isOptimal} count=${count.objective}/${count.isOptimal} fixed=${fixed.objective}/${fixed.isOptimal}")
-        for ((label, outcome) in listOf("v56 fold" to v56, "count model" to count, "fixed fold" to fixed)) {
+        println("MIXED_REPRO oldFold=${oldFold.objective}/${oldFold.isOptimal} count=${count.objective}/${count.isOptimal} fixed=${fixed.objective}/${fixed.isOptimal}")
+        for ((label, outcome) in listOf("all-or-nothing fold" to oldFold, "count model" to count, "fixed fold" to fixed)) {
             assertThat(outcome.isOptimal).describedAs("the %s proves its optimum", label).isTrue()
         }
-        // The mechanism: v56's all-or-nothing fill proves a value below the real optimum (a wrong "Optimal proven").
-        assertThat(v56.objective).describedAs("v56's fold misses the part-filled optimum").isEqualTo(1_320_570L)
+        // The mechanism: the all-or-nothing fill proves a value below the real optimum (a wrong "Optimal proven").
+        assertThat(oldFold.objective).describedAs("the all-or-nothing fold (≤ v56) misses the part-filled optimum").isEqualTo(1_320_570L)
         assertThat(count.objective).describedAs("the exact count-model optimum").isEqualTo(1_328_235L)
         assertThat(fixed.objective).describedAs("the fold with count carriers reaches the count optimum").isEqualTo(count.objective)
 
@@ -170,7 +170,7 @@ class MixedRuneSecondaryBudgetTest {
     /**
      * The same flaw without any sublimation: a required HP row is a threshold too. CRA 50, three 4-socket items of 300
      * fire mastery, an HP row of 850 the skills and items fall just short of: one HP rune tops it up, the fold sold HP
-     * runes only by the whole item. v56: 117,000 (hard leg); count model and the fixed fold: 117,500 — on the soft leg too
+     * runes only by the whole item. oldFold: 117,000 (hard leg); count model and the fixed fold: 117,500 — on the soft leg too
      * (117,000,000,000 vs 117,500,000,000, the soft objective's scale). A GUI-default request (HP 2000) has this shape.
      */
     @Test
@@ -185,12 +185,12 @@ class MixedRuneSecondaryBudgetTest {
             params(level, scenario, targets = listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1), TargetStat(Characteristic.HP, 850)))
                 .copy(useSublimations = false)
         for ((hard, expectedV56, expected) in listOf(Triple(true, 117_000L, 117_500L), Triple(false, 117_000_000_000L, 117_500_000_000L))) {
-            val v56 = solve(p, pool, emptyList(), mixed = false, hard = hard)
+            val oldFold = solve(p, pool, emptyList(), mixed = false, hard = hard)
             val count = solve(p, pool, emptyList(), count = true, hard = hard)
             val fixed = solve(p, pool, emptyList(), hard = hard)
-            println("MIXED_HP hard=$hard v56=${v56.objective}/${v56.isOptimal} count=${count.objective}/${count.isOptimal} fixed=${fixed.objective}/${fixed.isOptimal}")
-            for (outcome in listOf(v56, count, fixed)) assertThat(outcome.isOptimal).isTrue()
-            assertThat(v56.objective).describedAs("hard=%s: v56's fold misses the topped-up build", hard).isEqualTo(expectedV56)
+            println("MIXED_HP hard=$hard oldFold=${oldFold.objective}/${oldFold.isOptimal} count=${count.objective}/${count.isOptimal} fixed=${fixed.objective}/${fixed.isOptimal}")
+            for (outcome in listOf(oldFold, count, fixed)) assertThat(outcome.isOptimal).isTrue()
+            assertThat(oldFold.objective).describedAs("hard=%s: the all-or-nothing fold (≤ v56) misses the topped-up build", hard).isEqualTo(expectedV56)
             assertThat(count.objective).describedAs("hard=%s: the count optimum", hard).isEqualTo(expected)
             assertThat(fixed.objective).describedAs("hard=%s: the fold with count carriers reaches it", hard).isEqualTo(expected)
         }
@@ -233,9 +233,9 @@ class MixedRuneSecondaryBudgetTest {
     }
 
     /**
-     * The AP-cell mirror reads a count carrier's types at their full-fill VERTICES — exactly the options v56's picks gave
+     * The AP-cell mirror reads a count carrier's types at their full-fill VERTICES — exactly the options oldFold's picks gave
      * the same carriers. So on every pool the certificate with count carriers equals, cell for cell and tier for tier
-     * (the capped aux worlds included), the one over v56's picks: a vertex read short (one rune instead of a full fill)
+     * (the capped aux worlds included), the one over oldFold's picks: a vertex read short (one rune instead of a full fill)
      * would under-value a count carrier wherever a capped world binds.
      */
     @Test
@@ -247,7 +247,7 @@ class MixedRuneSecondaryBudgetTest {
         for (c in cases) {
             for (targetAware in listOf(false, true)) {
                 val now = WakfuBuildSolver.certifierExactFastTier15CellObjectivesForTest(c.params, c.pool, runes, c.subs, targetAware = targetAware)
-                val v56 =
+                val oldFold =
                     WakfuBuildSolver.certifierExactFastTier15CellObjectivesForTest(
                         c.params,
                         c.pool,
@@ -256,11 +256,11 @@ class MixedRuneSecondaryBudgetTest {
                         targetAware = targetAware,
                         runeMixedCarriers = false
                     )
-                assertThat(now.first).describedAs("%s target-aware=%s: exact", c.label, targetAware).isEqualTo(v56.first)
-                assertThat(now.second).describedAs("%s target-aware=%s: fast", c.label, targetAware).isEqualTo(v56.second)
-                assertThat(now.third).describedAs("%s target-aware=%s: tier-1.5", c.label, targetAware).isEqualTo(v56.third)
+                assertThat(now.first).describedAs("%s target-aware=%s: exact", c.label, targetAware).isEqualTo(oldFold.first)
+                assertThat(now.second).describedAs("%s target-aware=%s: fast", c.label, targetAware).isEqualTo(oldFold.second)
+                assertThat(now.third).describedAs("%s target-aware=%s: tier-1.5", c.label, targetAware).isEqualTo(oldFold.third)
                 val (_, aux) = WakfuBuildSolver.certifierFastAndAuxCellObjectivesForTest(c.params, c.pool, runes, c.subs, targetAware = targetAware)
-                val (_, auxV56) =
+                val (_, auxOld) =
                     WakfuBuildSolver.certifierFastAndAuxCellObjectivesForTest(
                         c.params,
                         c.pool,
@@ -269,7 +269,7 @@ class MixedRuneSecondaryBudgetTest {
                         targetAware = targetAware,
                         runeMixedCarriers = false
                     )
-                assertThat(aux).describedAs("%s target-aware=%s: the capped / aux worlds", c.label, targetAware).isEqualTo(auxV56)
+                assertThat(aux).describedAs("%s target-aware=%s: the capped / aux worlds", c.label, targetAware).isEqualTo(auxOld)
                 auxCells += aux.values.count { it in 0 until Long.MAX_VALUE }
             }
         }
@@ -357,7 +357,7 @@ class MixedRuneSecondaryBudgetTest {
     }
 
     /**
-     * Seeds 9, 18, 23, 30 and 38 diverged on v56 (count beat the fold by 0.07–2.86 % in every mode); 1–4 did not. Every
+     * Seeds 9, 18, 23, 30 and 38 diverged on oldFold (count beat the fold by 0.07–2.86 % in every mode); 1–4 did not. Every
      * case: the fixed fold proves the count-model optimum, and the certificate ledger (every cell confirmed exactly; the
      * target-aware one on the hard leg of a rowed request) is ≥ it. The divergence count keeps the lock sensitive: with
      * the count carriers disabled the first assertion fails on the diverging seeds.
@@ -372,15 +372,15 @@ class MixedRuneSecondaryBudgetTest {
                 val count = solve(c.params, c.pool, c.subs, count = true, hard = hard)
                 if (!count.hasSolution) continue
                 val fixed = solve(c.params, c.pool, c.subs, hard = hard)
-                val v56 = solve(c.params, c.pool, c.subs, mixed = false, hard = hard)
+                val oldFold = solve(c.params, c.pool, c.subs, mixed = false, hard = hard)
                 println(
-                    "MIXED_LOCK ${c.label} hard=$hard v56=${v56.objective}/${v56.isOptimal} " +
+                    "MIXED_LOCK ${c.label} hard=$hard oldFold=${oldFold.objective}/${oldFold.isOptimal} " +
                         "count=${count.objective}/${count.isOptimal} fixed=${fixed.objective}/${fixed.isOptimal}"
                 )
                 assertThat(count.isOptimal).describedAs("%s: the count model proves its optimum", c.label).isTrue()
                 assertThat(fixed.isOptimal).describedAs("%s: the fold proves its optimum", c.label).isTrue()
                 assertThat(fixed.objective).describedAs("%s: the fold's optimum is the count model's", c.label).isEqualTo(count.objective)
-                if (v56.isOptimal && v56.objective < count.objective) diverged++
+                if (oldFold.isOptimal && oldFold.objective < count.objective) diverged++
 
                 val ledger =
                     WakfuBuildSolver.certifyLedgerForTest(c.params, c.pool, runes, c.subs, forceTier2All = true, targetAware = hard)
@@ -392,6 +392,6 @@ class MixedRuneSecondaryBudgetTest {
                 }
             }
         }
-        assertThat(diverged).describedAs("cases where v56's fold misses the mixed optimum (the lock's sensitivity)").isGreaterThanOrEqualTo(10)
+        assertThat(diverged).describedAs("cases where the all-or-nothing fold (≤ v56) misses the mixed optimum (the lock's sensitivity)").isGreaterThanOrEqualTo(10)
     }
 }

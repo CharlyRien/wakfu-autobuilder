@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import me.chosante.common.ItemEquipCriterion
 import me.chosante.common.Monster
 import me.chosante.common.RuneType
 import me.chosante.common.Spell
@@ -32,6 +33,8 @@ private const val DEFAULT_INSTALL = "/Applications/Ankama/Wakfu"
  *  - `spell-damage.json`        (Spell 66 → StaticEffect 68 per-level `[base, inc]` formula, anchored on the
  *                                encyclopedia `spells.json` so spell damage scales to the caster's level)
  *  - `monsters.json`            (Monster table 42 + i18n names — boss-mode data)
+ *  - `item-criteria.json`       (Item table 35: the typed EQUIP criteria of the equipments.json items — reads the
+ *                                committed equipments.json for the pool ids, so it runs after :equipments-extractor)
  *
  * The source binaries live ONLY in the local install (`contents/bdata/`), never on the CDN, so this
  * tool is maintainer-local (it cannot run in CI) — the JSON it produces stays committed. `actions.json`
@@ -151,6 +154,20 @@ fun main(args: Array<String>) {
     val monsters = buildMonsters(monsterRecords, i18n, ranks)
     val monstersJson = json.encodeToString(ListSerializer(Monster.serializer()), monsters)
     verifyAndWriteMonsters(File(resources, "monsters.json"), monsters, monstersJson, force)
+
+    // Item EQUIP criteria (Item table, 35 in 1.93): what the game checks before an item may be worn — a nation sword
+    // needs its ring, class emblems / amulets are for their class only, some rings exclude each other. The table id,
+    // its record prefix (up to the criteria list), the criterion kinds and the breeds are all found structurally in the
+    // client bytecode ([ItemCriteria]); only the EQUIP criteria of the equipments.json items are kept, typed.
+    println("Reading the Item table layout from the client bytecode…")
+    val itemLayout = ItemCriteria.layout(install)
+    println("Decoding Item table (${itemLayout.tableId}) criteria…")
+    val equipExpressions = ItemCriteria.decodeEquipExpressions(install, itemLayout)
+    val itemCriteria =
+        ItemCriteria.build(equipExpressions, ItemCriteria.poolIds(File(resources, "equipments.json")), itemLayout.breedIds)
+    println("  ${equipExpressions.size} EQUIP criteria in the table, ${itemCriteria.size} on equipments.json items (guards passed)")
+    val itemCriteriaJson = json.encodeToString(ListSerializer(ItemEquipCriterion.serializer()), itemCriteria)
+    verifyAndWrite(File(resources, "item-criteria.json"), itemCriteriaJson, "item-criteria", itemCriteria.size, force)
 
     println("\nDone.")
 }

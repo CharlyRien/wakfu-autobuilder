@@ -13,6 +13,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -54,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import me.chosante.autobuilder.domain.BossDisplay
 import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
+import me.chosante.autobuilder.genetic.wakfu.isMaximizableMastery
 import me.chosante.common.Characteristic
 import me.chosante.common.SpellElement
 import me.chosante.common.skills.Assignable
@@ -62,8 +64,9 @@ import me.chosante.common.skills.SkillCharacteristic
 import me.chosante.ui.components.CharacteristicIcon
 import me.chosante.ui.components.Hairline
 import me.chosante.ui.components.InfoTip
+import me.chosante.ui.components.ObsoleteCue
+import me.chosante.ui.components.OlderEngineProof
 import me.chosante.ui.components.PassiveIcon
-import me.chosante.ui.components.StaleDataCue
 import me.chosante.ui.components.StatGlyphIcon
 import me.chosante.ui.components.VerticalScrollHints
 import me.chosante.ui.components.displayName
@@ -71,6 +74,7 @@ import me.chosante.ui.components.iconResourcePath
 import me.chosante.ui.components.localized
 import me.chosante.ui.components.rememberClasspathBitmap
 import me.chosante.ui.components.sublimationEffectText
+import me.chosante.ui.history.obsolescence
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
@@ -107,6 +111,7 @@ fun StatsPanel(
     onViewAsDamage: () -> Unit,
     onStopProof: () -> Unit = {},
     onRetryError: () -> Unit = {},
+    onRerunSearch: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
@@ -122,8 +127,9 @@ fun StatsPanel(
             verticalArrangement = Arrangement.spacedBy(WDimens.gap)
         ) {
             MatchHero(ui, onStopProof)
-            // A build loaded from other game data than the app ships now: a quiet note under the headline, nothing blocked.
-            ui.staleDataVersion?.takeIf { ui.build != null }?.let { StaleDataCue(version = it, boxed = true) }
+            // A loaded saved build a new search may improve (game data updated and/or engine improved since it was saved): a
+            // quiet note under the headline that says why and offers the re-run; nothing is blocked.
+            ui.obsolescence()?.let { ObsoleteCue(obsolescence = it, onRerun = onRerunSearch) }
             if (ui.phase == Phase.Idle && ui.build == null) {
                 // No build yet: the ActionsCard (which normally carries the error banner) isn't shown,
                 // so surface a pre-search error — e.g. an invalid min/max level range — here instead.
@@ -263,16 +269,20 @@ internal fun MatchHero(
                 // "optimum not proven" headline (one line, worded as a bound) instead of stacking a second, apparently
                 // contradictory, line under it.
                 val within = (ui.proofState as? ProofState.ProvenWithin)?.takeIf { !ui.optimal }
-                Text(
-                    text =
+                Box(modifier = Modifier.padding(top = 3.dp)) {
+                    val text =
                         when {
                             showOptimal -> tr(Tr.OPTIMAL_PROVEN)
                             within != null -> tr(Tr.BEST_FOUND_WITHIN).format(formatBoundPercent(within.fraction, LocalLang.current))
                             else -> tr(Tr.BEST_FOUND)
-                        },
-                    style = WTypography.labelSmall.copy(color = if (showOptimal) WColor.success else WColor.warning),
-                    modifier = Modifier.padding(top = 3.dp)
-                )
+                        }
+                    val style = WTypography.labelSmall.copy(color = if (showOptimal) WColor.success else WColor.warning)
+                    if (showOptimal && ui.staleEngine != null) {
+                        OlderEngineProof(text = text, style = style)
+                    } else {
+                        Text(text = text, style = style)
+                    }
+                }
                 when {
                     // The certificate is still running — show the phase and a live elapsed timer with a
                     // spinner, so a minutes-long proof never looks like a hang.
@@ -519,7 +529,7 @@ private fun ProofSpinner(
 }
 
 @Composable
-private fun SpellRotationCard(ui: UiState) {
+internal fun SpellRotationCard(ui: UiState) {
     val rotation = ui.spellRotation ?: return
     val lang = LocalLang.current
     ResultCard(
@@ -549,8 +559,7 @@ private fun SpellRotationCard(ui: UiState) {
         rotation.debuffCasts.forEach { cast ->
             Text(
                 text =
-                    "↳ ${cast.spell.name.let { if (lang == Lang.FR) it.fr else it.en }} " +
-                        "(${cast.apCost} AP, −${cast.spell.targetResistanceReductionFlat} res)",
+                    tr(Tr.SPELL_DEBUFF_CAST).format(cast.spell.name.localized(lang), cast.apCost, cast.spell.targetResistanceReductionFlat),
                 style = WTypography.labelSmall.copy(color = WColor.accent2),
                 modifier = Modifier.padding(bottom = 4.dp)
             )
@@ -559,7 +568,7 @@ private fun SpellRotationCard(ui: UiState) {
         // final value, not what each individual debuff reaches).
         if (rotation.debuffCasts.isNotEmpty() && rotation.effectiveResistancePercent != null) {
             Text(
-                text = "→ ${rotation.effectiveResistancePercent}% res after debuffs",
+                text = tr(Tr.SPELL_DEBUFF_RESISTANCE).format(rotation.effectiveResistancePercent),
                 style = WTypography.labelSmall.copy(color = WColor.accent2),
                 modifier = Modifier.padding(bottom = 4.dp)
             )
@@ -595,7 +604,7 @@ private fun SpellRotationCard(ui: UiState) {
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = "${rotation.totalExpectedDamage.toLong().formatCompact()}  (${rotation.apUsed}/${rotation.apBudget} AP)",
+                text = tr(Tr.SPELL_ROTATION_TOTAL).format(rotation.totalExpectedDamage.toLong().formatCompact(), rotation.apUsed, rotation.apBudget),
                 style = WTypography.bodyMedium.copy(fontFamily = WType.mono)
             )
         }
@@ -706,7 +715,7 @@ private fun SpellCastRow(
             modifier = Modifier.weight(1f)
         )
         Text(
-            text = "${cast.apCost} AP",
+            text = tr(Tr.STAT_AP_AMOUNT).format(cast.apCost),
             style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono)
         )
         Spacer(modifier = Modifier.width(10.dp))
@@ -749,8 +758,7 @@ private fun DesiredVsAchieved(ui: UiState) {
                 style = WTypography.labelMedium.copy(color = WColor.muted),
                 modifier = Modifier.padding(top = if (groupIndex == 0) 0.dp else 10.dp, bottom = 2.dp)
             )
-            group.targets.forEachIndexed { index, target ->
-                if (index > 0) Hairline()
+            StatGrid(group.targets) { target, _ ->
                 StatRow(
                     target = target,
                     achieved = ui.achieved[target.characteristic] ?: 0,
@@ -762,7 +770,7 @@ private fun DesiredVsAchieved(ui: UiState) {
 }
 
 @Composable
-private fun MasterySummary(ui: UiState) {
+internal fun MasterySummary(ui: UiState) {
     val elementalMasteries =
         listOf(
             Characteristic.MASTERY_ELEMENTARY_WATER,
@@ -798,17 +806,20 @@ private fun MasterySummary(ui: UiState) {
 
     // The engine-faithful number: requested specialized summed + the weakest *requested* element.
     val requestedMastery = ui.requestedMasteryTotal()
+    val hasRequestedMastery = requested.any { it.isMaximizableMastery() }
 
     ResultCard(
         title = tr(Tr.MASTERY_SUMMARY),
-        trailing = requestedMastery.formatCompact()
+        trailing = if (hasRequestedMastery) requestedMastery.formatCompact() else null
     ) {
-        SummaryMetric(label = tr(Tr.BUILD_MASTERY), value = requestedMastery)
-        Text(
-            text = tr(Tr.BUILD_MASTERY_HINT),
-            style = WTypography.labelSmall.copy(color = WColor.faint),
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
+        if (hasRequestedMastery) {
+            SummaryMetric(label = tr(Tr.BUILD_MASTERY), value = requestedMastery)
+            Text(
+                text = tr(Tr.BUILD_MASTERY_HINT),
+                style = WTypography.labelSmall.copy(color = WColor.faint),
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+        }
         if (requestedElementals.isNotEmpty()) {
             Hairline()
             MasteryGroup(title = tr(Tr.MASTERY_ELEMENTALS), values = requestedElementals)
@@ -878,32 +889,69 @@ private fun BuildSheet(ui: UiState) {
                 modifier = Modifier.padding(vertical = 6.dp)
             )
         } else {
-            rows.forEachIndexed { index, (characteristic, value) ->
+            StatGrid(rows) { (characteristic, value), compact ->
+                SheetStat(
+                    characteristic = characteristic,
+                    value = if (value > 0) "+${value.formatCompact()}" else value.formatCompact(),
+                    compact = compact,
+                    color = if (value < 0) WColor.danger else WColor.text
+                )
+            }
+        }
+    }
+}
+
+/** Two stat columns once each cell has at least 174 dp. One width threshold, no animated measuring/reflow. */
+@Composable
+private fun <T> StatGrid(
+    values: List<T>,
+    content: @Composable (T, Boolean) -> Unit,
+) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val columns = if (maxWidth >= 360.dp) 2 else 1
+        Column {
+            values.chunked(columns).forEachIndexed { index, row ->
                 if (index > 0) Hairline()
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    CharacteristicIcon(characteristic = characteristic, size = 16.dp)
-                    Spacer(modifier = Modifier.width(9.dp))
-                    Text(
-                        text = characteristic.label(LocalLang.current),
-                        style = WTypography.bodyMedium.copy(color = if (value < 0) WColor.danger else WColor.text),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Text(
-                        text = if (value > 0) "+${value.formatCompact()}" else value.formatCompact(),
-                        style =
-                            WTypography.bodyMedium.copy(
-                                fontFamily = WType.mono,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (value < 0) WColor.danger else WColor.muted
-                            )
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    row.forEach { value ->
+                        Box(Modifier.weight(1f)) { content(value, columns == 2) }
+                    }
+                    if (row.size < columns) Spacer(Modifier.weight(1f))
                 }
             }
+        }
+    }
+}
+
+/** Keep the complete value on its own line in a half-width cell; labels can wrap in either layout. */
+@Composable
+private fun SheetStat(
+    characteristic: Characteristic,
+    value: String,
+    compact: Boolean,
+    color: Color,
+) {
+    val valueColor = if (color == WColor.danger) WColor.danger else WColor.muted
+    Column(Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CharacteristicIcon(characteristic = characteristic, size = 15.dp)
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = characteristic.label(LocalLang.current),
+                style = WTypography.bodySmall.copy(color = color),
+                modifier = Modifier.weight(1f)
+            )
+            if (!compact) {
+                Spacer(Modifier.width(8.dp))
+                Text(value, style = WTypography.bodySmall.copy(fontFamily = WType.mono, color = valueColor))
+            }
+        }
+        if (compact) {
+            Text(
+                value,
+                style = WTypography.bodySmall.copy(fontFamily = WType.mono, color = valueColor),
+                modifier = Modifier.align(Alignment.End).padding(top = 3.dp)
+            )
         }
     }
 }
@@ -916,22 +964,8 @@ private fun MasteryGroup(
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(text = title, style = WTypography.labelSmall.copy(color = WColor.muted))
-        values.forEach { (characteristic, value) ->
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                CharacteristicIcon(characteristic = characteristic, size = 15.dp)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = characteristic.label(LocalLang.current),
-                    style = WTypography.bodySmall.copy(color = if (muted) WColor.faint else WColor.text),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = value.formatCompact(),
-                    style = WTypography.bodySmall.copy(fontFamily = WType.mono, color = WColor.muted)
-                )
-            }
+        StatGrid(values) { (characteristic, value), compact ->
+            SheetStat(characteristic, value.formatCompact(), compact, if (muted) WColor.faint else WColor.text)
         }
     }
 }
@@ -1030,32 +1064,12 @@ private fun StatRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = target.characteristic.label(LocalLang.current),
-                    style = WTypography.bodyMedium.copy(fontWeight = FontWeight.Medium),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    style = WTypography.bodyMedium.copy(fontWeight = FontWeight.Medium)
                 )
                 Text(
                     text = tr(if (exact) Tr.TAG_EXACT else Tr.TAG_MAXIMIZE),
                     style = WTypography.labelSmall
                 )
-            }
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(
-                    text = achieved.formatCompact(),
-                    style =
-                        WTypography.bodyMedium.copy(
-                            fontFamily = WType.mono,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (status == StatStatus.Miss) WColor.warning else WColor.text
-                        )
-                )
-                if (targetValue > 0) {
-                    Text(text = " / ", style = WTypography.bodySmall.copy(color = WColor.faint))
-                    Text(
-                        text = targetValue.formatCompact(),
-                        style = WTypography.bodySmall.copy(fontFamily = WType.mono, color = WColor.muted)
-                    )
-                }
             }
             Text(
                 text = status?.icon.orEmpty(),
@@ -1067,6 +1081,24 @@ private fun StatRow(
                     ),
                 modifier = Modifier.width(18.dp)
             )
+        }
+        Row(modifier = Modifier.fillMaxWidth().padding(start = 34.dp, top = 4.dp), verticalAlignment = Alignment.Bottom) {
+            Text(
+                text = achieved.formatCompact(),
+                style =
+                    WTypography.bodyMedium.copy(
+                        fontFamily = WType.mono,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (status == StatStatus.Miss) WColor.warning else WColor.text
+                    )
+            )
+            if (targetValue > 0) {
+                Text(text = " / ", style = WTypography.bodySmall.copy(color = WColor.faint))
+                Text(
+                    text = targetValue.formatCompact(),
+                    style = WTypography.bodySmall.copy(fontFamily = WType.mono, color = WColor.muted)
+                )
+            }
         }
         if (status != null && targetValue > 0) {
             Meter(
@@ -1427,7 +1459,7 @@ private fun SublimationsResult(ui: UiState) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(text = sub.name.let { if (ui.lang == me.chosante.ui.i18n.Lang.FR) it.fr else it.en }, style = WTypography.labelMedium.copy(color = WColor.text))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = sub.rarity.name, style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono))
+                        Text(text = sub.rarity.label(LocalLang.current), style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono))
                         Spacer(modifier = Modifier.width(8.dp))
                         me.chosante.ui.components
                             .SublimationStackBadge(sub)
@@ -1444,7 +1476,7 @@ private fun SublimationsResult(ui: UiState) {
 /** The selected passive loadout, each as an icon + name (+ flat stats), with the in-game text on hover. */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun PassivesResult(ui: UiState) {
+internal fun PassivesResult(ui: UiState) {
     val passives = ui.build?.passives.orEmpty()
     if (passives.isEmpty()) return
     val lang = LocalLang.current
@@ -1475,20 +1507,22 @@ private fun PassivesResult(ui: UiState) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         PassiveIcon(gfxId = passive.gfxId, size = 24.dp)
-                        Text(
-                            text = passive.name?.localized(lang) ?: passive.spellId.toString(),
-                            style = WTypography.labelMedium.copy(color = WColor.text),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                        val flat = passive.flatStats.entries.joinToString("  ") { "+${it.value} ${it.key.name}" }
-                        if (flat.isNotBlank()) {
+                        // The flat stats sit UNDER the name, not beside it: side by side, the monospace stats (the system's
+                        // mono font, wider on Linux than on macOS) squeezed the name to an ellipsis in a narrow column.
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
-                                text = flat,
-                                style = WTypography.labelSmall.copy(color = WColor.accent2, fontFamily = WType.mono),
-                                maxLines = 1
+                                text = passive.name?.localized(lang) ?: passive.spellId.toString(),
+                                style = WTypography.labelMedium.copy(color = WColor.text),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
+                            val flat = passive.flatStats.entries.joinToString("  ") { "+${it.value} ${it.key.label(lang)}" }
+                            if (flat.isNotBlank()) {
+                                Text(
+                                    text = flat,
+                                    style = WTypography.labelSmall.copy(color = WColor.accent2, fontFamily = WType.mono)
+                                )
+                            }
                         }
                     }
                 }

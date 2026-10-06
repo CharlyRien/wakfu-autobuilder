@@ -44,9 +44,11 @@ class SecondaryMasteriesEachTest {
     private fun playerBuild(): BuildCombination {
         val level = 200
         val equipmentById = WakfuBestBuildFinderAlgorithm.equipments.associateBy { it.equipmentId }
+        // The build predates the item equip conditions: it wears Épée de Brâkmar (26497) without the ring the game requires
+        // with it (see the test below) — read without them, it is about the secondary-cap reading.
         val items =
             listOf(27557, 27923, 26924, 26897, 27416, 26996, 26497, 27298, 27294, 26287, 26323, 33418, 14422, 27304)
-                .map { equipmentById.getValue(it).atLevel(level) }
+                .map { equipmentById.getValue(it).atLevel(level).copy(equipCriterion = null) }
         val byId = items.associateBy { it.equipmentId }
         val runeById = WakfuBestBuildFinderAlgorithm.runes.associateBy { it.id }
         val elem = 27094
@@ -127,6 +129,10 @@ class SecondaryMasteriesEachTest {
     fun `the player's Xelor build is credited none of the three secondary-cap bonuses`() {
         val build = playerBuild()
         assertThat(build.isValid()).isTrue()
+        // ... which the game would not let the player wear: its Brâkmar sword needs Anneau de Brâkmar (an EPIC ring, so
+        // no EPIC off-hand beside it) — the reported bug the item equip conditions fix.
+        val catalog = WakfuBestBuildFinderAlgorithm.equipments.associateBy { it.equipmentId }
+        assertThat(build.copy(equipments = build.equipments.map { catalog.getValue(it.equipmentId) }).isValid()).isFalse()
         val caps = setOf(neutraliteIII, ambitionIII, inflexibiliteII)
         val capFree = achieved(build.without(caps))
         // The build's own secondary masteries (the caps add none): their SUM is 0 — the old reading held — but distance
