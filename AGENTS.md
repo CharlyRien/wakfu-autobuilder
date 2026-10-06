@@ -189,11 +189,12 @@ anyway. So a most-masteries leg — hard or soft — of a request with floors ru
 1. the RELAXED model (`StatBuilder.relaxFloors`: no floor read — no `≥ 0`, no halving — each resistance family folded over its
    wanted elements alone) on at most half the budget (`RELAXED_STAGE_SHARE`). It shows a build only when the scorers' read keeps
    every floor (and meets every target, hard leg), never stamps a certificate-comparable objective, and sends no final;
-2. when it PROVED its optimum v (read EXACTLY off the objective variable), the CHECK: the floored model with `objective = v`,
-   hinted with the relaxed solution, for at most as long as the relaxed solve ran (and a tenth of the budget). A build it finds is
-   the floored optimum — the leg's result, proven;
-3. otherwise the FLOORED model on what is left, hinted with the relaxed solution and NOT cut: a redundant `objective ≤ v` made the
-   floored proof 5-10× slower when a floor binds (measured), so the relaxed optimum only serves the check.
+2. the CHECK: the floored model with `objective = w`, w the relaxed objective read EXACTLY (the objective variable's value, taken
+   only when the response's own objective agrees), hinted, silent, for at most as long as the relaxed solve ran (and a tenth of the
+   budget). Its build, once the scorers' read confirms its floors, is a floored build worth w: the floored optimum — the leg's result,
+   proven — when the relaxed stage PROVED w optimal; otherwise (relaxed stage out of time) the floored stage's hint;
+3. otherwise the FLOORED model on what is left, hinted and NOT cut: a redundant `objective ≤ v` made the floored proof 5-10× slower
+   when a floor binds (measured), so the relaxed optimum only serves the check.
 
 Why it is sound: for every build, floored objective ≤ relaxed objective (the hard leg's objective reads no floor; the soft leg's
 halving only lowers a core ≥ 0; the relaxed folds place the rolls as the game does over the wanted elements, and both objectives
