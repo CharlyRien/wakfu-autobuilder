@@ -1,6 +1,7 @@
 package me.chosante.ui.paperdoll
 
 import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.I18nText
@@ -12,6 +13,8 @@ import me.chosante.common.SublimationConditionType
 import me.chosante.common.SublimationKind
 import me.chosante.common.SublimationRarity
 import me.chosante.common.skills.CharacterSkills
+import me.chosante.ui.state.Phase
+import me.chosante.ui.state.UiState
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
@@ -108,6 +111,32 @@ class DollSlotsTest {
 
         assertThat(hints).doesNotContainKey("boots")
         assertThat(hints["helmet"]).isEqualTo(EmptySlotHint.NoUsefulItem)
+    }
+
+    @Test
+    fun `only a finished most-masteries search shows the no-gain explanation`() {
+        val build = BuildCombination(equipments = emptyList(), characterSkills = CharacterSkills(110))
+        val done = UiState(build = build, phase = Phase.Done)
+        assertThat(visibleEmptySlotHints(emptyMap(), done)["mount"]).isEqualTo(EmptySlotHint.NoUsefulItem)
+        assertThat(visibleEmptySlotHints(emptyMap(), done.copy(searchStopped = true))).isEmpty()
+        assertThat(visibleEmptySlotHints(emptyMap(), done.copy(phase = Phase.Searching))).isEmpty()
+        assertThat(visibleEmptySlotHints(emptyMap(), done.copy(phase = Phase.Idle))).isEmpty()
+        for (mode in listOf(ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT, ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE)) {
+            assertThat(visibleEmptySlotHints(emptyMap(), done.copy(mode = mode))).isEmpty()
+        }
+    }
+
+    @Test
+    fun `a sublimation's factual empty-offhand hint survives a stop in every mode`() {
+        val sword = item(4, ItemType.ONE_HANDED_WEAPONS, "Épée")
+        val sub = noOffhandSub("Expert des armes légères II")
+        val build = BuildCombination(listOf(sword), CharacterSkills(110), sublimations = mapOf(sword to listOf(sub)))
+        for (mode in ScoreComputationMode.entries) {
+            val ui = UiState(build = build, phase = Phase.Done, searchStopped = true, mode = mode)
+            assertThat(visibleEmptySlotHints(slotAssignments(build.equipments), ui))
+                .containsOnlyKeys("weapon2")
+                .containsEntry("weapon2", EmptySlotHint.SubRequiresEmpty(sub))
+        }
     }
 
     private fun noOffhandSub(name: String): Sublimation =

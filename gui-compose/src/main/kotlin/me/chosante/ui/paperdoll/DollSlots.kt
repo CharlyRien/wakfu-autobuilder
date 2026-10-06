@@ -1,11 +1,14 @@
 package me.chosante.ui.paperdoll
 
 import me.chosante.autobuilder.domain.BuildCombination
+import me.chosante.autobuilder.genetic.wakfu.ScoreComputationMode
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationConditionType
 import me.chosante.ui.i18n.Tr
+import me.chosante.ui.state.Phase
+import me.chosante.ui.state.UiState
 
 // The 14 paperdoll slots and the (tricky) item → slot mapping. Shared by the paperdoll panel and
 // the library's build-card mini-grid so the slot layout is derived in exactly one place. The
@@ -124,3 +127,13 @@ internal fun emptySlotHints(
         }
     }
 }
+
+/** Only a completed most-masteries search explains an empty slot by its requested-stat objective. */
+internal fun visibleEmptySlotHints(
+    assignments: Map<String, Equipment>,
+    ui: UiState,
+): Map<String, EmptySlotHint> =
+    emptySlotHints(assignments, ui.build).filterValues {
+        it !is EmptySlotHint.NoUsefulItem ||
+            (ui.phase == Phase.Done && !ui.searchStopped && ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT)
+    }
