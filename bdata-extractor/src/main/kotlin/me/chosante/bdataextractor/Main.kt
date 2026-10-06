@@ -1,12 +1,15 @@
 package me.chosante.bdataextractor
 
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import me.chosante.common.I18nText
 import me.chosante.common.ItemEquipCriterion
 import me.chosante.common.Monster
 import me.chosante.common.RuneType
@@ -36,6 +39,8 @@ private const val DEFAULT_INSTALL = "/Applications/Ankama/Wakfu"
  *  - `item-criteria.json`       (Item table 35: the typed EQUIP criteria of the equipments.json items — reads the
  *                                committed equipments.json for the pool ids, so it runs after :equipments-extractor)
  *
+ *  - `achievement-names.json`   (Achievement table + i18n: only achievements referenced by item-criteria.json)
+ *
  * The source binaries live ONLY in the local install (`contents/bdata/`), never on the CDN, so this
  * tool is maintainer-local (it cannot run in CI) — the JSON it produces stays committed. `actions.json`
  * (action_id semantics) and `items.json` (sublimation metadata) are fetched from the CDN, the same source
@@ -44,14 +49,22 @@ private const val DEFAULT_INSTALL = "/Applications/Ankama/Wakfu"
  * Run with: `./gradlew :bdata-extractor:run --args="[installRoot] [version]"`.
  */
 fun main(args: Array<String>) {
-    val install = File(args.getOrNull(0) ?: DEFAULT_INSTALL)
-    val version = args.getOrNull(1) ?: DEFAULT_VERSION
+    val achievementsOnly = args.firstOrNull() == "--achievement-names-only"
+    val positional = if (achievementsOnly) args.drop(1) else args.toList()
+    val install = File(positional.getOrNull(0) ?: DEFAULT_INSTALL)
+    val version = positional.getOrNull(1) ?: DEFAULT_VERSION
     // The oracle guard in verifyAndWrite blocks ANY semantic diff vs the committed artifact (drift safety).
     // For an INTENTIONAL change — e.g. adding a new field like `gfxId` — set BDATA_FORCE_WRITE=1 to accept
     // and rewrite; the diff is still printed first so you can eyeball that nothing unexpected changed.
     val force = System.getenv("BDATA_FORCE_WRITE") == "1"
     val repoRoot = findRepositoryRoot()
     val resources = File(repoRoot, "autobuilder/src/main/resources")
+
+    if (achievementsOnly) {
+        val criteria = LENIENT_JSON.decodeFromString(ListSerializer(ItemEquipCriterion.serializer()), File(resources, "item-criteria.json").readText())
+        writeAchievementNames(install, criteria, resources, force)
+        return
+    }
 
     println("Wakfu install : $install")
     println("Data version  : $version")
@@ -168,6 +181,8 @@ fun main(args: Array<String>) {
     println("  ${equipExpressions.size} EQUIP criteria in the table, ${itemCriteria.size} on equipments.json items (guards passed)")
     val itemCriteriaJson = json.encodeToString(ListSerializer(ItemEquipCriterion.serializer()), itemCriteria)
     verifyAndWrite(File(resources, "item-criteria.json"), itemCriteriaJson, "item-criteria", itemCriteria.size, force)
+
+    writeAchievementNames(install, itemCriteria, resources, force)
 
     println("\nDone.")
 }
@@ -313,4 +328,21 @@ private fun semanticDiff(
         }
         else -> if (a != b) out.add("$path: type/$a vs $b")
     }
+}
+
+/** Also available without CDN regeneration: `:bdata-extractor:run --args="--achievement-names-only [install]"`. */
+private fun writeAchievementNames(
+    install: File,
+    criteria: List<ItemEquipCriterion>,
+    resources: File,
+    force: Boolean,
+) {
+    val names = AchievementNames.build(install, criteria)
+    val json =
+        Json {
+            prettyPrint = true
+            prettyPrintIndent = "  "
+        }
+    val encoded = json.encodeToString(MapSerializer(Int.serializer(), I18nText.serializer()), names)
+    verifyAndWrite(File(resources, "achievement-names.json"), encoded, "achievement-names", names.size, force)
 }
