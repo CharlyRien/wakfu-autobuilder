@@ -260,7 +260,8 @@ certificate reads from an item (CERTIFIER_VERSION 53 audit, `docs/perf-review-ba
 - rings: `B` goes only when its dominators span two different NAMES (two rings of one name are never worn together).
 
 - equip conditions (see below): an item another pool item REQUIRES is never evicted, and `A`'s required items and
-  conflict partners must be subsets of `B`'s.
+  conflict partners must be subsets of `B`'s; `A`'s stat gates ⊆ `B`'s, and a swap never moves a gated out-of-combat total the
+  wrong way (`≤` on upper-gated stats, `≥` on lower-gated ones).
 
 Adding anything the model reads from an `Equipment` (a new field, a level- or name-dependent term) means adding its
 clause there — and bumping `CERTIFIER_VERSION`, since the certificates' pool changes.
@@ -284,11 +285,27 @@ re-checks the whole equipped set, so every rule is a rule on the FINAL build. Th
   (`False`): static pool filters (`isWearableBy`), and forced off in the CP-SAT model too (`x = 0` in
   `addEquipConditionConstraints`), so a raw pool — the lvl-245 oracle's, a research harness's — never returns another
   class's item. A character of class `UNKNOWN` (CLI without `--class`) wears no class item.
-- `BuildCombination.isValid(characterClass)` checks all four; the greedy warm start never picks a requiring item alone
+- **STAT GATES** (`GetCharac("RANGE") <= 3`, `GetCharacMax("AP") <= 11`, `GetCharac("FEROCITY") > -10` on 89 items, lock /
+  dodge / block / WP / willpower / distance-mastery bands — 149 items): read on the build's **OUT-OF-COMBAT** sheet, as the game
+  does (it re-checks them on the equipped set and shows a failing item red, inactive): base + every item — the gated item's own
+  line included — + the skills' fixed lines + runes + PERMANENT sublimation effects (`appliesBeforeCombat`, never scenario-gated:
+  Visibilité's +1 range counts, Abandon's in-combat range does not) + the selected passives' flat stats. AP / MP / WP fold their
+  MAX_* lines in, so `GetCharacMax` (`ItemStatGate.max`) reads the same total: out of combat a pool is full. CP-SAT:
+  `x_item ⇒ outOfCombatStat(stat) <op> value`, reified (`StatBuilder.applyItemStatGates`, called from `applyOutOfCombatCaps`, so
+  every model variant has it); a gate the stat's reach — narrowed by the out-of-combat caps — always meets adds nothing: the 89
+  crit gates are implied by the `≥ −9` crit cap (no out-of-combat extra carries negative crit) and cost no constraint. Scorer
+  side: `outOfCombatSheet` / `statGateViolations` (`domain/EquipConditions.kt`, term for term the model's
+  `StatBuilder.outOfCombatStat`). The greedy warm start swaps a broken gated pick for the best ungated item of its slot.
+  `validateRequest` reports a forced item whose upper gate is below a target row by more than every in-combat-only sub bonus
+  (`ForcedItemStatGateContradictsTarget`: forced Cartes And with range 4). The certificates ignore the gates (they only remove
+  builds: a sound relaxation). Domination: A's gates ⊆ B's, `A ≤ B` on every stat an upper gate of an item worn beside B (or
+  A's own) bounds — in effect a pin on compared stats, runes exact — and `A ≥ B` on every lower-gated one (`EquipConstraints.gatedStats`).
+- `BuildCombination.isValid(characterClass)` checks all five; the greedy warm start never picks a requiring item alone
   (each sword + ring BUNDLE is a candidate, ranked by `rescore`) and never pairs excluding rings; `validateRequest`
   rejects a wrong-class / never / requirement-unavailable forced item and two excluding forced items (`RequestValidationProblem`).
-- NOT enforced, kept for display: stat gates (`GetCharac` / `GetCharacMax` bounds — pending an in-game check of whether
-  an item's own bonus counts) and player-state conditions (company rank, achievement, gauges, crime score: assumed
+  A loaded / saved build that breaks a stat gate loses its "proven optimal" flag (`WakfuBestBuildFinderAlgorithm.equipConditionViolation`)
+  and shows which item would be inactive (`StatGateCue` in the stats column, `StatGateBadge` on its My Builds card).
+- NOT enforced, kept for display: player-state conditions (company rank, achievement, gauges, crime score: assumed
   satisfied). `not HasAnotherSameEquipment()` is the existing same-name ring rule.
 
 The certificates read REQUIRES and FORBIDS (both CERTIFIER_VERSION 57): every ring pairing that tightens a bound reads

@@ -2,11 +2,15 @@ package me.chosante.autobuilder.genetic.wakfu
 
 import me.chosante.autobuilder.domain.forbiddenItemIds
 import me.chosante.autobuilder.domain.requiredItemIds
+import me.chosante.autobuilder.domain.sheetCharacteristic
+import me.chosante.autobuilder.domain.statGates
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_RESISTANCES
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.MASTERY_RANDOM_BY_COUNT
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.RANDOM_RESISTANCES
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.scenarioGateMatches
+import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.valueFor
 import me.chosante.common.Characteristic
+import me.chosante.common.CriterionComparison
 import me.chosante.common.Equipment
 import me.chosante.common.ExclusiveGroup
 import me.chosante.common.ItemType
@@ -28,7 +32,8 @@ import me.chosante.common.SublimationRarity
 // CP-SAT model or a certificate reads from an item — the slot (per-slot filter), the ≤1-epic / ≤1-relic budget, the
 // epic / relic sublimation carrier, the rune sockets AND their value (the item's level caps the rune level), for
 // rings, the "never two rings of the same name" rule, and the item EQUIP conditions (CERTIFIER_VERSION 57: a required
-// item is never evicted, and A's requirements / conflict partners must be a subset of B's). Each is a clause of
+// item is never evicted, A's requirements / conflict partners / stat gates must be a subset of B's, and a gated stat
+// never moves the wrong way). Each is a clause of
 // [dominates] / [dominatedWithin] below; the search and every certificate read the SAME reduced pool, so a clause that
 // is missing makes CP-SAT's OPTIMAL and the certificate's bound both wrong at once (a wrong "proven optimal" badge).
 
@@ -325,16 +330,38 @@ internal fun filterDominatedPool(
 
 /**
  * The pool-wide side of the item EQUIP conditions domination must respect: [requiredKeys] (ids some pool item requires
- * — never evicted) and each item's [conflictPartners] (pool ids it can't be worn with, either way round).
+ * — never evicted), each item's [conflictPartners] (pool ids it can't be worn with, either way round) and the STAT GATES
+ * ([gatedStats]): the stats some pool item's gate bounds from above (`range ≤ 3`) or from below (`lock ≥ 500`), with the
+ * slots of the gated items.
  */
 internal class EquipConstraints private constructor(
     val requiredKeys: Set<Int>,
     private val partners: Map<Int, Set<Int>>,
+    // Per slot, the stats an upper (lower) gate of an item that can be worn BESIDE an item of that slot bounds: an item of
+    // another slot, or a second ring. Precomputed: [gatedStats] runs once per compared pair.
+    private val upperBySlot: Map<ItemType, Set<Characteristic>>,
+    private val lowerBySlot: Map<ItemType, Set<Characteristic>>,
 ) {
     fun conflictPartners(item: Equipment): Set<Int> = partners[item.equipmentId].orEmpty()
 
+    /**
+     * The sheet stats on which a swap of B by A in [slot] must not move the build's out-of-combat total: UP for [upper] (an
+     * upper gate — of an item another slot holds, a second ring, or A's own, which B carries too — could break), DOWN for the
+     * lower ones. An item of the same single-occupancy slot is never worn beside B, so its gate does not count.
+     */
+    fun gatedStats(
+        slot: ItemType,
+        a: Equipment,
+        upper: Boolean,
+    ): Set<Characteristic> {
+        val beside = (if (upper) upperBySlot else lowerBySlot)[slot].orEmpty()
+        val gates = a.statGates
+        if (gates.isEmpty()) return beside
+        return beside + gates.filter { if (upper) it.comparison.boundsAbove() else it.comparison.boundsBelow() }.map { it.sheetCharacteristic }
+    }
+
     companion object {
-        val NONE = EquipConstraints(emptySet(), emptyMap())
+        val NONE = EquipConstraints(emptySet(), emptyMap(), emptyMap(), emptyMap())
 
         fun of(pool: Map<ItemType, List<Equipment>>): EquipConstraints {
             val items = pool.values.flatten()
@@ -346,10 +373,28 @@ internal class EquipConstraints private constructor(
                     partners.getOrPut(other) { HashSet() } += item.equipmentId
                 }
             }
-            return if (keys.isEmpty() && partners.isEmpty()) NONE else EquipConstraints(keys, partners)
+            val upper = HashMap<Characteristic, MutableSet<ItemType>>()
+            val lower = HashMap<Characteristic, MutableSet<ItemType>>()
+            for (item in items) {
+                for (gate in item.statGates) {
+                    if (gate.comparison.boundsAbove()) upper.getOrPut(gate.sheetCharacteristic) { HashSet() } += item.itemType
+                    if (gate.comparison.boundsBelow()) lower.getOrPut(gate.sheetCharacteristic) { HashSet() } += item.itemType
+                }
+            }
+            if (keys.isEmpty() && partners.isEmpty() && upper.isEmpty() && lower.isEmpty()) return NONE
+
+            fun besideBySlot(gatedSlots: Map<Characteristic, Set<ItemType>>): Map<ItemType, Set<Characteristic>> =
+                pool.keys.associateWith { slot -> gatedSlots.filterValues { slots -> slots.any { it != slot || slot == ItemType.RING } }.keys }
+            return EquipConstraints(keys, partners, besideBySlot(upper), besideBySlot(lower))
         }
     }
 }
+
+/** Whether a gate with this operator can fail on a HIGHER value (`≤`, `<`, `=`, `≠`). */
+private fun CriterionComparison.boundsAbove(): Boolean = this != CriterionComparison.GE && this != CriterionComparison.GT
+
+/** Whether a gate with this operator can fail on a LOWER value (`≥`, `>`, `=`, `≠`). */
+private fun CriterionComparison.boundsBelow(): Boolean = this != CriterionComparison.LE && this != CriterionComparison.LT
 
 /**
  * Keep only the items of [slot] NOT dominated. `A ≻ B` (A strictly dominates B) iff `A ≽ B` ([dominates]) and, when
@@ -407,7 +452,12 @@ private fun dominatedWithin(
  *    pinned ≤/exact/parity condition keeps its exact truth value (its build sum is unchanged by the swap);
  *  - the item EQUIP conditions: **A's required items ⊆ B's** (the build already wears B's, so A's are worn too — a
  *    sword that needs its ring never evicts a free weapon) and **A's conflict partners ⊆ B's** (no item the build wears
- *    beside B refuses A). Class-only and never-equippable items are out of the pool before domination runs.
+ *    beside B refuses A). Class-only and never-equippable items are out of the pool before domination runs;
+ *  - the item STAT GATES (read on the out-of-combat sheet, `StatBuilder.applyItemStatGates`): **A's gates ⊆ B's** (a gated item
+ *    never evicts an ungated one: its gate could fail where B was free), **`A ≤ B` on every stat an upper gate bounds** and
+ *    **`A ≥ B` on every stat a lower gate bounds** ([EquipConstraints.gatedStats]: the gates of items worn beside B, and A's own)
+ *    — so the swap never moves a gated total the wrong way; with the `≥` on compared stats an upper-gated one is in effect
+ *    pinned, and its runes too.
  */
 private fun Equipment.dominates(
     other: Equipment,
@@ -416,11 +466,19 @@ private fun Equipment.dominates(
 ): Boolean {
     if (!other.requiredItemIds.containsAll(requiredItemIds)) return false
     if (!constraints.conflictPartners(other).containsAll(constraints.conflictPartners(this))) return false
+    if (!other.statGates.containsAll(statGates)) return false
+    val upperGated = constraints.gatedStats(itemType, this, upper = true)
+    if (upperGated.any { valueFor(it) > other.valueFor(it) }) return false
+    if (constraints.gatedStats(itemType, this, upper = false).any { valueFor(it) < other.valueFor(it) }) return false
     if (maxShardSlots < other.maxShardSlots) return false
     if (exclusiveGroup != ExclusiveGroup.NONE && other.exclusiveGroup != exclusiveGroup) return false
     if (shape.epicCarriers && other.rarity == Rarity.EPIC && rarity != Rarity.EPIC) return false
     if (shape.relicCarriers && other.rarity == Rarity.RELIC && rarity != Rarity.RELIC) return false
-    shape.runes?.let { if (!carriesRunesOf(other, it)) return false }
+    // A rune of an upper-gated stat must be replicated EXACTLY too: a higher-level one on A could break the gate.
+    shape.runes?.let { rule ->
+        val exact = rule.exact || upperGated.any { it in RuneType.VALUED_CHARACTERISTICS }
+        if (!carriesRunesOf(other, if (exact) rule.copy(exact = true) else rule)) return false
+    }
     val chars = shape.compared ?: (characteristics.keys + other.characteristics.keys)
     return chars.all { c ->
         val mine = characteristics.getOrDefault(c, 0)

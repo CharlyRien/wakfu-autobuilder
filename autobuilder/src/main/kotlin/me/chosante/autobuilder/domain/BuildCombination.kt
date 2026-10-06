@@ -28,10 +28,13 @@ data class BuildCombination(
      * off-hand or a two-handed weapon, at most one item of each exclusivity group ([exclusiveGroupViolation]: one EPIC-group
      * item — every EPIC item and two COMMON ones — and one RELIC item), legal sublimations, and every item EQUIP
      * condition the engine enforces ([equipConditionViolation]: required items worn, no two items that exclude each
-     * other, no never-equippable item, and — when [characterClass] is given — no other class's item).
+     * other, no never-equippable item, and — when [characterClass] is given — no other class's item) — its stat gates included
+     * ([statGateViolations]: every item active on the build's out-of-combat sheet, read with [characterClass]'s base stats — a
+     * 6-WP class when null).
      */
     fun isValid(characterClass: CharacterClass? = null): Boolean {
         if (equipConditionViolation(equipments, characterClass) != null) return false
+        if (statGateViolations(this, characterClass).isNotEmpty()) return false
         val numberOfEquipmentByType = equipments.groupingBy { it.itemType }.eachCount()
         if (numberOfEquipmentByType.any { (key, count) ->
                 count > 1 && key != ItemType.RING || count > 2

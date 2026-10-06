@@ -88,7 +88,7 @@ class ItemPickerUiTest {
                     onNode(hasSetTextAction()).performTextInput("Brakmar Sword")
                     onNodeWithText(if (lang == Lang.EN) "Needs Brakmar Ring" else "Nécessite Anneau de Brâkmar").assertExists()
                     onNode(hasSetTextAction()).performTextReplacement("Hairpin")
-                    onAllNodesWithText(if (lang == Lang.EN) "Range ≤ 3 (not checked by the search yet)" else "Portée ≤ 3 (pas encore vérifié par la recherche)")[0].assertExists()
+                    onAllNodesWithText(if (lang == Lang.EN) "Range ≤ 3" else "Portée ≤ 3")[0].assertExists()
                 }
             }
         }

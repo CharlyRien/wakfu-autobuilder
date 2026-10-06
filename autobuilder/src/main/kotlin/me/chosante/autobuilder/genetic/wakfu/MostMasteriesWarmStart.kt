@@ -4,6 +4,8 @@ import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.domain.equipConflict
 import me.chosante.autobuilder.domain.requiredItemIds
+import me.chosante.autobuilder.domain.statGateViolations
+import me.chosante.autobuilder.domain.statGates
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_MASTERIES
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_RESISTANCES
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.MASTERY_RANDOM_BY_COUNT
@@ -158,7 +160,8 @@ internal object MostMasteriesWarmStart {
      * repair. Item EQUIP conditions: an item that needs others (a nation sword needs its zero-stat EPIC ring) is never
      * picked on its own value; each such BUNDLE (the item and what it needs) is tried as a pre-pick instead, and the
      * candidate the production scorer ([WakfuBestBuildFinderAlgorithm.rescore]) ranks first wins — the sword's +3 AP is
-     * often worth the epic slot its ring takes, which no per-item value sees. Rings that exclude each other are never paired.
+     * often worth the epic slot its ring takes, which no per-item value sees. Rings that exclude each other are never paired,
+     * and a gated item whose stat gate the filled build breaks is swapped for an ungated one (the stat-gate repair).
      */
     fun greedyBuild(
         params: WakfuBestBuildParams,
@@ -307,12 +310,29 @@ internal object MostMasteriesWarmStart {
         skills.luck.assignRandomPoints(skills.luck.maxPointsToAssign, targetCharacteristics, random)
         skills.major.assignRandomPoints(skills.major.maxPointsToAssign, targetCharacteristics, random)
 
-        val combination =
-            BuildCombination(
-                equipments = picks.toList(),
-                characterSkills = skills,
-                passives = WakfuBuildSolver.resolvedPassives(params)
-            )
+        val passives = WakfuBuildSolver.resolvedPassives(params)
+
+        fun combination() = BuildCombination(equipments = picks.toList(), characterSkills = skills, passives = passives)
+
+        // Stat-gate repair ([statGateViolations]: an item inactive on the build's out-of-combat sheet — "range ≤ 3" at 4 range,
+        // "AP ≤ 11" once the skills pushed AP to 12): replace a broken gated pick by the best UNGATED item of its slot that keeps
+        // the exclusivity and ring rules (dropping the slot if none). Each round removes a gated pick for an ungated one, so it
+        // ends; a broken pre-pick (a bundle) is left to the final validity check, which then cancels the candidate.
+        while (true) {
+            val broken = statGateViolations(combination(), params.character.clazz).map { it.item }.firstOrNull { it !in prePicks } ?: break
+            picks.remove(broken)
+            byType[broken.itemType]
+                .orEmpty()
+                .filter { alt ->
+                    alt.statGates.isEmpty() &&
+                        alt !in picks &&
+                        (alt.exclusiveGroup == ExclusiveGroup.NONE || picks.none { it.exclusiveGroup == alt.exclusiveGroup }) &&
+                        (alt.itemType != ItemType.RING || picks.none { it.itemType == ItemType.RING && (it.name == alt.name || equipConflict(it, alt)) })
+                }.maxByOrNull { itemValue(it) }
+                ?.let { picks += it }
+        }
+
+        val combination = combination()
         // The greedy is best-effort: any rule it got wrong just cancels the warm start (never a wrong result).
         return combination.takeIf { it.isValid(params.character.clazz) }
     }

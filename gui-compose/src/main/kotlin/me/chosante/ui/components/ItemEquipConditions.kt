@@ -25,6 +25,7 @@ import me.chosante.common.Characteristic
 import me.chosante.common.CriterionComparison
 import me.chosante.common.Equipment
 import me.chosante.common.ItemEquipCriterion
+import me.chosante.common.ItemStatGate
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
@@ -37,7 +38,7 @@ internal data class ItemConditionLine(
     val unenforced: Boolean = false,
 )
 
-/** Pure presentation of the typed criterion. No stat evaluation: gates read out-of-combat totals in game. */
+/** Pure presentation of the typed criterion. No stat evaluation here: the gates are checked on a whole build ([statGateWarnings]). */
 internal fun formatItemEquipConditions(
     criterion: ItemEquipCriterion,
     catalog: Map<Int, Equipment>,
@@ -71,20 +72,8 @@ internal fun formatItemEquipConditions(
             add(ItemConditionLine(Tr.EQUIP_CLASS_ONLY.value(lang).format(criterion.classes.distinct().joinToString(", ") { it.label(lang) })))
         }
         if (criterion.never) add(ItemConditionLine(Tr.EQUIP_NEVER.value(lang)))
-        criterion.statGates.forEach { gate ->
-            val characteristic =
-                if (gate.max) {
-                    when (gate.characteristic) {
-                        Characteristic.ACTION_POINT -> Characteristic.MAX_ACTION_POINT
-                        Characteristic.MOVEMENT_POINT -> Characteristic.MAX_MOVEMENT_POINT
-                        Characteristic.WAKFU_POINT -> Characteristic.MAX_WAKFU_POINTS
-                        else -> gate.characteristic
-                    }
-                } else {
-                    gate.characteristic
-                }
-            add(unchecked("${characteristic.label(lang)} ${gate.comparison.displaySymbol()} ${gate.value}", Tr.EQUIP_NOT_CHECKED))
-        }
+        // Stat gates are enforced by the search (the out-of-combat sheet must meet them), so they read like the other rules.
+        criterion.statGates.forEach { gate -> add(ItemConditionLine(statGateText(gate, lang))) }
         criterion.playerState.forEach { atom ->
             val text =
                 when (atom.function) {
@@ -108,6 +97,25 @@ internal fun formatItemEquipConditions(
         }
         // uniqueEquipped is the generic ring rule, not useful item-specific secondary text.
     }
+
+/** "Range ≤ 3", "Max AP ≤ 11": a stat gate as the item conditions and the inactive-item warning write it. */
+internal fun statGateText(
+    gate: ItemStatGate,
+    lang: Lang,
+): String {
+    val characteristic =
+        if (gate.max) {
+            when (gate.characteristic) {
+                Characteristic.ACTION_POINT -> Characteristic.MAX_ACTION_POINT
+                Characteristic.MOVEMENT_POINT -> Characteristic.MAX_MOVEMENT_POINT
+                Characteristic.WAKFU_POINT -> Characteristic.MAX_WAKFU_POINTS
+                else -> gate.characteristic
+            }
+        } else {
+            gate.characteristic
+        }
+    return "${characteristic.label(lang)} ${gate.comparison.displaySymbol()} ${gate.value}"
+}
 
 private fun CriterionComparison.displaySymbol(): String =
     when (this) {
