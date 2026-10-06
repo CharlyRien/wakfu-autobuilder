@@ -349,6 +349,38 @@ class ZeroTargetRowsTest {
     }
 
     @Test
+    fun `a negative roll goes to an element no row reads, with or without a floor - the review's repro`() {
+        // "Fire resistance 20" and "−30 on 1 random element": in game the player puts the −30 on water, earth or air, so "fire 10"
+        // is met. It used to be charged to fire (−10, the row missed) as long as no floor joined the family, while "fire 10 + air 0"
+        // accepted the same item. One rule now, the game's, for every resistance family ([resistanceFreeSinks]).
+        val malus = item(1, ItemType.AMULET, mapOf(distance to 100, fire to 20, oneRandomRes to -30))
+        val clean = item(2, ItemType.AMULET, mapOf(distance to 60, fire to 20))
+        val pool = pool(malus, clean)
+        for (resistanceRows in listOf(rows(fire to 10), rows(fire to 10, wind to 0))) {
+            val mmRequest = params(mm, rows(distance to 1) + resistanceRows)
+            assertThat(picked(solve(mmRequest, pool, hard = true))).describedAs("$resistanceRows").containsExactly(1)
+            for (p in listOf(mmRequest, params(maxDamage, resistanceRows), params(precision, rows(distance to 50) + resistanceRows))) {
+                val described = "${p.scoreComputationMode} $resistanceRows"
+                val stats = scorerStats(p, build(malus))
+                assertThat(stats[fire]).describedAs(described).isEqualTo(20)
+                if (wind in p.targetStats.resistanceFloorElements) assertThat(stats[wind]).describedAs(described).isEqualTo(0)
+                if (p.scoreComputationMode == precision) {
+                    assertThat(precisionModelObjective(p.targetStats, stats)).describedAs(described).isEqualTo(solve(p, pool, hard = false, pinned = setOf(1)).objective)
+                } else {
+                    val hard = solve(p, pool, hard = true, pinned = setOf(1))
+                    assertThat(hard.hasSolution).describedAs(described).isTrue()
+                    assertThat(hard.modelElementValues[fire]).describedAs(described).isEqualTo(20L)
+                }
+            }
+        }
+        // All four elements read (the aggregate row): the −30 has nowhere else to go.
+        val p = params(mm, rows(distance to 1, allRes to 5))
+        val everywhere = item(3, ItemType.AMULET, mapOf(distance to 100, allRes to 20, oneRandomRes to -30))
+        assertThat(scorerStats(p, build(everywhere))[allRes]).isEqualTo(-10)
+        assertThat(solve(p, pool(everywhere), hard = true, pinned = setOf(3)).status).isEqualTo(CpSolverStatus.INFEASIBLE)
+    }
+
+    @Test
     fun `most-masteries hard leg - a one-element roll meets the target or lifts the floor, never both`() {
         val p = params(mm, rows(distance to 1, fire to 300, wind to 0))
         val roll = item(2, ItemType.BOOTS, mapOf(oneRandomRes to 30))
@@ -727,6 +759,65 @@ class ZeroTargetRowsTest {
         return violations
     }
 
+    /**
+     * THE GAME, at level 1 (no skills, sublimations nor runes): whether SOME in-game placement of the build's random resistance
+     * rolls — each line on as many DISTINCT elements of the four as it names, the player's free choice — meets every required
+     * row with a target and keeps every floor. The other stats come from the scorer (no placement moves them). A hard leg must
+     * agree with it on every build whose resistance fold is placed exactly ([exactResistanceFold]): that is what the folds'
+     * [rollCover] models, with or without a floor.
+     */
+    private fun gameFeasible(
+        p: WakfuBestBuildParams,
+        items: List<Equipment>,
+    ): Boolean {
+        val ts = p.targetStats
+        val stats = scorerStats(p, BuildCombination(items, CharacterSkills(1)))
+        val otherRows = ts.filter { it.characteristic.isRequiredMostMasteriesTarget() && it.target > 0 && it.characteristic !in res4 && it.characteristic != allRes }
+        if (otherRows.any { (stats[it.characteristic] ?: 0) < it.target }) return false
+        if (ts.floorCharacteristics.any { (stats[it] ?: 0) < 0 }) return false
+        val values = IntArray(res4.size) { e -> items.sumOf { (it.characteristics[res4[e]] ?: 0) + (it.characteristics[allRes] ?: 0) } }
+        val randomLines = ElementFamily.RESISTANCE.randomByCount.toMap()
+        val rolls =
+            items
+                .flatMap { item -> item.characteristics.filterKeys { it in randomLines }.map { (line, value) -> value to randomLines.getValue(line) } }
+                .filter { (value, _) -> value != 0 }
+        val elementRows = ts.filter { it.characteristic in res4 && it.target > 0 }
+        val aggregateRows = ts.filter { it.characteristic == allRes && it.target > 0 }
+        val floors = ts.resistanceFloorElements.map { res4.indexOf(it) }
+
+        fun holds() =
+            elementRows.all { values[res4.indexOf(it.characteristic)] >= it.target } &&
+                aggregateRows.all { values.min() >= it.target } &&
+                floors.all { values[it] >= 0 }
+
+        fun place(i: Int): Boolean {
+            if (i == rolls.size) return holds()
+            val (value, count) = rolls[i]
+            for (mask in 0 until (1 shl res4.size)) {
+                if (Integer.bitCount(mask) != count) continue
+                for (e in res4.indices) if (mask and (1 shl e) != 0) values[e] += value
+                val found = place(i + 1)
+                for (e in res4.indices) if (mask and (1 shl e) != 0) values[e] -= value
+                if (found) return true
+            }
+            return false
+        }
+        return place(0)
+    }
+
+    /**
+     * Whether [p]'s hard leg places the resistance rolls EXACTLY (free, at the optimum) — every fold but max-damage's aggregate row
+     * read alone, which keeps the historical deficit greedy (mirrored by its scorer) and is no exact search for a placement.
+     */
+    private fun exactResistanceFold(p: WakfuBestBuildParams): Boolean {
+        val ts = p.targetStats
+        val greedyAggregate =
+            p.scoreComputationMode == maxDamage &&
+                ts.any { it.characteristic == allRes && it.target > 0 } &&
+                !ts.readsJointPerElementRows(ElementFamily.RESISTANCE, maxDamage)
+        return !greedyAggregate
+    }
+
     // ---- Seeded fuzz: per build, the model and the scorers agree on every floor -----------------------------------------
 
     private class FuzzCase(
@@ -743,10 +834,11 @@ class ZeroTargetRowsTest {
         // 0..2 resistance rows with a target (wanted), then floors on (some of) the others — or the aggregate floor.
         val wanted = random.nextInt(3)
         elements.take(wanted).forEach { rows += TargetStat(it, 10 + random.nextInt(40), 1 + random.nextInt(5)) }
-        if (random.nextInt(4) == 0) {
-            rows += TargetStat(allRes, 0)
-        } else {
-            elements.drop(wanted).filter { random.nextInt(2) == 0 }.forEach { rows += TargetStat(it, 0) }
+        when (random.nextInt(5)) {
+            0 -> rows += TargetStat(allRes, 0)
+            // No floor: the family's fold is its wanted elements alone, the others take what a roll cannot put there.
+            1 -> Unit
+            else -> elements.drop(wanted).filter { random.nextInt(2) == 0 }.forEach { rows += TargetStat(it, 0) }
         }
         if (random.nextInt(2) == 0) rows += TargetStat(Characteristic.DODGE, 0)
         if (random.nextInt(3) == 0) rows += TargetStat(Characteristic.LOCK, 0)
@@ -767,7 +859,7 @@ class ZeroTargetRowsTest {
                     if (random.nextInt(4) == 0) stats[Characteristic.LOCK] = random.nextInt(-10, 10)
                     if (random.nextInt(2) == 0) {
                         val (line, _) = ElementFamily.RESISTANCE.randomByCount[random.nextInt(3)]
-                        stats[line] = if (random.nextInt(5) == 0) -random.nextInt(1, 25) else random.nextInt(5, 40)
+                        stats[line] = if (random.nextInt(3) == 0) -random.nextInt(1, 25) else random.nextInt(5, 40)
                     }
                     if (random.nextInt(4) == 0) stats[Characteristic.MASTERY_ELEMENTARY_WATER] = random.nextInt(-12, 12)
                     if (random.nextInt(4) == 0) stats[Characteristic.MASTERY_ELEMENTARY] = random.nextInt(-5, 15)
@@ -806,6 +898,7 @@ class ZeroTargetRowsTest {
                         val hard = solve(p, case.pool, hard = true, pinned = ids)
                         val met = scorerMeetsTargets(p, stats) && !p.targetStats.floorBroken(stats)
                         assertThat(hard.hasSolution).describedAs("hard leg feasible ⇔ scorer met; $buildDescription model=${hard.modelElementValues}").isEqualTo(met)
+                        assertThat(hard.hasSolution).describedAs("hard leg feasible ⇔ the game can place the rolls; $buildDescription").isEqualTo(gameFeasible(p, items))
                         assertThat(contractViolations(p, hard, hard = true)).describedAs(buildDescription).isEmpty()
                         if (met) metBuilds += items to score(p, *items.toTypedArray())
                     }
@@ -875,7 +968,7 @@ class ZeroTargetRowsTest {
     ): List<TargetStat> {
         val rows = mutableListOf<TargetStat>()
         val els = res4.shuffled(random)
-        when (random.nextInt(8)) {
+        when (random.nextInt(9)) {
             0 -> els.filter { random.nextBoolean() }.forEach { rows += TargetStat(it, 0) }
             1 -> {
                 rows += TargetStat(els[0], 10 + random.nextInt(40), 1 + random.nextInt(3))
@@ -901,6 +994,11 @@ class ZeroTargetRowsTest {
             6 -> {
                 rows += TargetStat(els[0], 0)
                 rows += TargetStat(els[0], 15)
+            }
+            7 -> {
+                // A family without a floor: its fold is its wanted elements alone, the others take what a roll cannot put there.
+                rows += TargetStat(els[0], 10 + random.nextInt(40))
+                if (random.nextBoolean()) rows += TargetStat(els[1], 10 + random.nextInt(30))
             }
             else -> rows += TargetStat(els[0], 0)
         }
@@ -987,6 +1085,7 @@ class ZeroTargetRowsTest {
     ): Int {
         val violations = mutableListOf<String>()
         var withFloors = 0
+        var gameChecks = 0
         var nextId = 100_000
         for (seed in seeds) {
             val random = Random(seed)
@@ -1031,6 +1130,13 @@ class ZeroTargetRowsTest {
                                     pinnedEquipmentIds = pin,
                                     pinSkillsToZero = level == 1
                                 )
+                            // THE GAME on a pinned level-1 build (no skills, sublimations nor runes there): the hard leg finds it feasible
+                            // iff some in-game placement of its rolls meets every row and keeps every floor.
+                            if (hard && pin != null && level == 1 && exactResistanceFold(p)) {
+                                gameChecks++
+                                val game = gameFeasible(p, allItems.filter { it.equipmentId in pin })
+                                if (game != solve.hasSolution) violations += "hard leg feasible=${solve.hasSolution}, game=$game; $described pin=$pin"
+                            }
                             if (!solve.hasSolution) {
                                 // A soft leg always has a solution — save for a negative required target (a CLI-only shape, filed apart).
                                 val negativeRequired = p.targetStats.any { it.characteristic.isRequiredMostMasteriesTarget() && it.target < 0 }
@@ -1045,6 +1151,7 @@ class ZeroTargetRowsTest {
             }
         }
         assertThat(violations).isEmpty()
+        assertThat(gameChecks).describedAs("pinned level-1 hard legs checked against the game").isGreaterThan(0)
         return withFloors
     }
 

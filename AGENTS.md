@@ -163,9 +163,11 @@ fold (`foldElements`; `readsJointPerElementRows` is true in every mode), each ro
 (`freeSinks` = 4 − n take the rest, so "−30 on 1 random element" only hits a floor when every element is read). The model
 (`StatBuilder.familyFoldElements` / `applyGreedyRandom`, free placement) and the scorers (`ElementRowObjective` with its floors kept
 by `placeKeepingFloors`, the keep-or-break choice made on the whole build by `keepsFloorsFirst`: precision by its own objective,
-most-masteries / max-damage by what the score divides by, `requiredPenaltyFactor`) follow that rule exactly. (A family without a
-floor keeps the historical rule: every roll on `min(k, wanted)` wanted elements, a negative one included — conservative.) "All
-resistances 0" is a floor on each element no other row wants. A 0-valued row on a stat another row targets with a non-zero value
+most-masteries / max-damage by what the score divides by, `requiredPenaltyFactor`) follow that rule exactly. EVERY resistance
+fold follows it, with or without a floor (`resistanceFreeSinks`: "fire resistance 10" alone leaves a "−30 on 1 random element" to
+the three other elements — in the model's folds and in every scorer assigner, `placedResistanceRolls`); only mastery folds keep the
+historical rule (every roll on `min(k, wanted)` wanted elements, a negative one included — no random mastery line of the data is
+negative). "All resistances 0" is a floor on each element no other row wants. A 0-valued row on a stat another row targets with a non-zero value
 is left to that row (no floor). A floor no build of the pool can break (tracked reach ≥ 0) adds nothing to the model. Maximized
 masteries keep their meaning: no floor, an element of target 0 stays wanted (most-masteries maximizes it). The certificates ignore
 floors and never read resistance rolls (a relaxation — sound, `CERTIFIER_VERSION` untouched); the E8 construct's fast re-solve
@@ -174,9 +176,11 @@ fast miss behind a floor means a binding floor the ledger ignores — the fallba
 reader resolves its stats through ONE function, `FindMaxDamageScoring.penaltyStats` (the mode and scenario included, so a
 scenario-gated sublimation — "Esquive Berserk III" — counts as the solver counts it). The GUI sends a row only for a field the
 player filled in (a typed 0 is a floor, a blank field nothing), and a reloaded save whose request the OLD reading pre-filtered
-(`TargetStats.legacyNeedsItemPrefilter`: a resistance 0-row counted as wanted) never gets its stored proof flag back. Locks:
-`ZeroTargetRowsTest` (unit cases per mode / leg, the review's repros, the E8 construct, a seeded model ⇔ scorer fuzz, the wider
-fuzz with real sublimations / runes / scenarios), `ElementRowAssignmentTest` (exhaustive placements with floors and free sinks).
+(`TargetStats.legacyNeedsItemPrefilter`, evaluated on the rows read the old way — `BuildSearchModel.legacyTargetStats`: a blank field
+as a row of 0, most-masteries' "all resistances" split — where a resistance 0-row counted as wanted) never gets its stored proof flag
+back. Locks: `ZeroTargetRowsTest` (unit cases per mode / leg, the review's repros, the E8 construct, a seeded model ⇔ scorer fuzz
+and the wider fuzz with real sublimations / runes / scenarios — both also checked against a game oracle that tries every in-game
+placement of the rolls), `ElementRowAssignmentTest` (exhaustive placements with floors and free sinks).
 
 ### Inputs: `WakfuBestBuildParams`
 `character`, `targetStats: TargetStats`, `searchDuration`, `stopWhenBuildMatch`, `maxRarity`,

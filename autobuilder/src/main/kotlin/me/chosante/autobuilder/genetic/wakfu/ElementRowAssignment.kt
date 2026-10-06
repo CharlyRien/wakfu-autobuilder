@@ -90,7 +90,8 @@ enum class ElementFamily(
  *
  * Without a floor, only once a per-element row has a target — or, in precision, once a mastery row of target 0 halves the score
  * on its fold ([TargetStats.zeroMasteries]); without such a row the family keeps its earlier placements — the aggregate row's
- * own exact one, or single-element folds (one wanted element: every roll credited in full, exact there). A resistance row of
+ * own exact one, or single-element folds (one wanted element: a positive roll credited in full, a negative resistance roll
+ * nowhere — the three other elements take it — exact there, see [rollCover]). A resistance row of
  * target 0 wants nothing: it is a floor, which joins the fold in every mode — a roll can lift it, the game letting the player put
  * a roll on any element. A 0-valued row on an element another row already targets is left to that row (no floor, no row of the
  * objective). Within a jointly read family, a mastery row of target 0 matters in precision, whose halving reads the joint fold
@@ -128,11 +129,12 @@ internal fun TargetStats.foldElements(family: ElementFamily): List<Characteristi
 
 /**
  * How many distinct elements a roll of [value] on [count] random elements lands on among the [readElements] a fold reads —
- * the elements outside it, which no row nor floor names, taking the rest. [freeSinks] = how many such elements a roll may use:
- * `4 − readElements` in a family with a floor, where the fold follows the game exactly — a positive roll lands on as many read
- * elements as it can (never worse: every read only gains from it), a negative one on as few as it must. Null elsewhere: the
- * historical rule, `min(count, readElements)` whatever the sign (a negative roll is charged to the wanted elements — the
- * conservative reading, shared by the solver and the scorers).
+ * the elements outside it, which no row nor floor names, taking the rest. [freeSinks] = how many such elements a roll may use
+ * (`4 − readElements` for a resistance fold — [resistanceFreeSinks]), where the fold follows the game exactly: a positive roll
+ * lands on as many read elements as it can (never worse: every read only gains from it), a negative one on as few as it must —
+ * "−30 on 1 random element" beside "fire resistance 10" goes to water, never to fire. Null for a mastery fold: the historical
+ * rule, `min(count, readElements)` whatever the sign (a negative roll charged to the wanted elements — the conservative reading,
+ * shared by the solver and the scorers; no elemental mastery line of the game data is negative).
  */
 internal fun rollCover(
     value: Int,
@@ -145,8 +147,15 @@ internal fun rollCover(
         else -> (count - freeSinks).coerceIn(0, readElements)
     }
 
-/** The [rollCover] free sinks of [family] in this request: `4 − fold elements` when it has a floor, else null (the historical rule). */
-internal fun TargetStats.freeSinks(family: ElementFamily): Int? = if (floorElements(family).isEmpty()) null else family.elements.size - foldElements(family).size
+/** The [rollCover] free sinks of a resistance fold over [readElements] of the four elements: the elements it does not read. */
+internal fun resistanceFreeSinks(readElements: Int): Int = ElementFamily.RESISTANCE.elements.size - readElements
+
+/**
+ * The [rollCover] free sinks of [family]'s joint fold in this request ([foldElements]): every resistance fold places its rolls
+ * as the game does ([resistanceFreeSinks]), with or without a floor — so adding an unrelated floor never moves a verdict. Null
+ * for masteries (the historical rule).
+ */
+internal fun TargetStats.freeSinks(family: ElementFamily): Int? = if (family == ElementFamily.RESISTANCE) resistanceFreeSinks(foldElements(family).size) else null
 
 /**
  * The per-element-row objectives of a request (see [readsJointPerElementRows]): what [computeCharacteristicsValues]
@@ -216,8 +225,8 @@ internal fun precisionModelObjective(
 
 /**
  * The EXACT random-element roll assignment for a family read through one joint fold ([readsJointPerElementRows]): the
- * optimum, over every way to put each roll on its [rollCover] distinct fold elements (`min(k, n)` of them, a negative roll in a
- * family with a floor on as few as the elements outside the fold leave it), of the solver's own objective for those rows, in the
+ * optimum, over every way to put each roll on its [rollCover] distinct fold elements (`min(k, n)` of them, a negative resistance
+ * roll on as few as the elements outside the fold leave it), of the solver's own objective for those rows, in the
  * solver's integer units (weights = [fixedPointWeight], the solver's `scaledWeight`), compared lexicographically:
  *
  *  1. [primary] — the family's share of what the objective maximizes first:
@@ -255,11 +264,11 @@ internal fun precisionModelObjective(
  * then). The bounds need non-negative weights and targets; a CLI-only negative weight or target turns pruning off (still
  * exact within the budget, just slower).
  *
- * Known semantics shared with the solver (not differences between the two): in a family without a floor a roll always lands
- * on `min(k, n)` WANTED elements, also a negative one (the game would let a player put it on an unwanted element — the
- * conservative reading); in a family with a floor the fold follows the game ([rollCover]). The primary keeps the solver's
- * lower clamp at `−t`, which only differs from the scorers' unclamped penalty total when an element's resistance sits below
- * minus its target.
+ * Known semantics shared with the solver (not differences between the two): a resistance fold follows the game ([rollCover]:
+ * a negative roll only lands on a read element when the others cannot take it), a mastery fold puts every roll on `min(k, n)`
+ * WANTED elements, also a negative one (the conservative reading; the game data has no negative mastery roll). The primary keeps
+ * the solver's lower clamp at `−t`, which only differs from the scorers' unclamped penalty total when an element's resistance
+ * sits below minus its target.
  */
 internal class ElementRowObjective private constructor(
     private val mode: ScoreComputationMode,
@@ -276,7 +285,7 @@ internal class ElementRowObjective private constructor(
     private val aggregateWeight: Long,
     /** The indices of the family's floors in [elements] ([floorElements]), sorted. */
     private val floorIndices: IntArray,
-    /** [rollCover]'s free sinks: the elements outside [elements] a roll may land on (a family with a floor), else null. */
+    /** [rollCover]'s free sinks: the elements outside [elements] a roll may land on (a resistance family), null for masteries. */
     private val freeSinks: Int?,
 ) {
     private val precision = mode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT

@@ -1456,9 +1456,10 @@ internal class StatBuilder(
      * Resistance is averaged (not summed) so a single high element can't masquerade as overall
      * tankiness; the cap mirrors Wakfu's soft resistance ceiling and keeps the proxy honest against
      * a few extreme resist rolls. Each element is read through its own single-element fold, so the generic
-     * "+all elements" resistance and the random-resistance gear count for it — every random roll in full on every
-     * element, an over-estimate this model-only proxy (no scorer mirrors it, no certificate reads it) has always made,
-     * kept as is when the per-element target rows moved to one joint fold ([foldedElementalStat]).
+     * "+all elements" resistance and the random-resistance gear count for it — every positive random roll in full on every
+     * element (a negative one nowhere: a single-element fold leaves it to the three other elements, [rollCover]), an
+     * over-estimate this model-only proxy (no scorer mirrors it, no certificate reads it) has always made, kept as is when the
+     * per-element target rows moved to one joint fold ([foldedElementalStat]).
      */
     fun effectiveHpVar(): IntVar {
         val hp = model.clampVar(actualStat(Characteristic.HP), 0L, EHP_HP_MAX, "ehpHp")
@@ -1944,8 +1945,9 @@ internal class StatBuilder(
      * them as the game lets it ([rollCover]); otherwise every wanted element of its [family], in canonical order, when the
      * family is read jointly — per-element rows with a target over several elements ([readsJointPerElementRows]), or beside the
      * aggregate row, which wants all four and reads this very fold. Otherwise just [characteristic], whose single-element fold
-     * credits every roll in full: exact for one wanted element. (The penalty and overshoot sums leave a row of target 0 out, and
-     * precision reads a mastery's on its element's fold — jointly once its family is read jointly.)
+     * credits every positive roll in full and, for a resistance, a negative roll nowhere (the three other elements take it,
+     * [rollCover]): exact for one wanted element, as the game places the rolls. (The penalty and overshoot sums leave a row of
+     * target 0 out, and precision reads a mastery's on its element's fold — jointly once its family is read jointly.)
      */
     private fun familyFoldElements(
         family: ElementFamily,
@@ -2149,10 +2151,15 @@ internal class StatBuilder(
         // reads of the same elements can never place the same roll twice (the order only matters to the greedy fold's
         // tie-breaking, built once from the aggregate's canonical list).
         val key = genericCharacteristic to wantedElements.toSet()
-        // A family with a floor: its ONE fold over the wanted and floored elements follows the game ([rollCover]) — the elements
-        // outside it absorb what a roll cannot put there. Every other fold keeps the historical rule.
-        val family = if (genericCharacteristic == Characteristic.RESISTANCE_ELEMENTARY) ElementFamily.RESISTANCE else ElementFamily.MASTERY
-        val freeSinks = params.targetStats.freeSinks(family)?.takeIf { key.second == params.targetStats.foldElements(family).toSet() }
+        // A resistance fold places its rolls as the game does ([rollCover]): the elements outside it absorb what a roll cannot put
+        // there — a negative roll only lands on a read element when it must. A mastery fold keeps the historical rule.
+        val resistance = genericCharacteristic == Characteristic.RESISTANCE_ELEMENTARY
+        val freeSinks = if (resistance) resistanceFreeSinks(key.second.size) else null
+        // The ONE fold of a family with a floor ([foldElements]), placed freely: the floors are kept or not on the whole build.
+        val flooredFold =
+            resistance &&
+                params.targetStats.floorElements(ElementFamily.RESISTANCE).isNotEmpty() &&
+                key.second == params.targetStats.foldElements(ElementFamily.RESISTANCE).toSet()
         return elementCache.getOrPut(key) {
             val genericBase = prePercentStat(genericCharacteristic)
             val baseElements =
@@ -2180,9 +2187,9 @@ internal class StatBuilder(
             //  - max-damage: per-element resistance rows with a target ⇒ [ElementRowObjective]. The aggregate-only
             //    resistance fold stays greedy (mirrored by the scorer's deficit-greedy), and the scenario mastery is
             //    a single-element fold (its assignment is degenerate).
-            //  - a family with a floor, every mode ⇒ [ElementRowObjective] (the floors kept or not, decided on the build).
+            //  - the fold of a family with a floor, every mode ⇒ [ElementRowObjective] (floors kept or not, decided on the build).
             val freeAssignment =
-                freeSinks != null ||
+                flooredFold ||
                     when (params.scoreComputationMode) {
                         ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT ->
                             genericCharacteristic == Characteristic.MASTERY_ELEMENTARY ||
@@ -2200,7 +2207,7 @@ internal class StatBuilder(
                                 params.targetStats.readsJointPerElementRows(ElementFamily.RESISTANCE, params.scoreComputationMode)
                     }
             val prePercentElements =
-                applyGreedyRandom(wantedElements, baseElements, targets, buildRandomEntries(randomByCount), freeAssignment, freeSinks)
+                applyGreedyRandom(wantedElements, baseElements, targets, buildRandomEntries(randomByCount), freeAssignment, freeSinks, flooredFold)
 
             prePercentElements.mapValues { (element, preElement) ->
                 val percentTerms = skillTerms.percent[element].orEmpty()
@@ -2224,13 +2231,14 @@ internal class StatBuilder(
         // CP-SAT to the optimal assignment. This drops the O(elements²) reified ordering that forces the
         // suboptimal deficit-greedy and explodes the multi-element pool. When false: the original greedy.
         freeAssignment: Boolean,
-        // [rollCover]'s free sinks: in a family with a floor, the elements outside [wantedElements] a roll may land on instead
-        // (so a negative roll only lands here when it must). Null: the historical rule (every roll on `min(count, wanted)`).
+        // [rollCover]'s free sinks: for a resistance fold, the elements outside [wantedElements] a roll may land on instead (so a
+        // negative roll only lands here when it must). Null: the historical rule (every roll on `min(count, wanted)`), masteries.
         freeSinks: Int? = null,
+        // The fold of a family with a floor: it places its rolls even with no wanted element (only floors) — a floor reads them.
+        flooredFold: Boolean = false,
     ): Map<Characteristic, IntVar> {
         if (wantedElements.isEmpty()) return baseElements
-        // No wanted element (only floors) still places the rolls: a floor reads them.
-        if (targets.isEmpty() && freeSinks == null) return baseElements
+        if (targets.isEmpty() && !flooredFold) return baseElements
         if (randomEntries.isEmpty()) return baseElements
 
         if (wantedElements.size == 1) {
