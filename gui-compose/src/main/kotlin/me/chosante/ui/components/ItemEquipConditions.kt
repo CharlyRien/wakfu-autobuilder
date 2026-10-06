@@ -20,10 +20,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import me.chosante.autobuilder.domain.AchievementCatalog
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.common.Characteristic
 import me.chosante.common.CriterionComparison
 import me.chosante.common.Equipment
+import me.chosante.common.I18nText
 import me.chosante.common.ItemEquipCriterion
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
@@ -42,6 +44,7 @@ internal fun formatItemEquipConditions(
     criterion: ItemEquipCriterion,
     catalog: Map<Int, Equipment>,
     lang: Lang,
+    achievements: Map<Int, I18nText> = AchievementCatalog.names,
 ): List<ItemConditionLine> =
     buildList {
         fun itemName(id: Int): String = catalog[id]?.name?.localized(lang) ?: Tr.EQUIP_ITEM_FALLBACK.value(lang).format(id)
@@ -88,8 +91,22 @@ internal fun formatItemEquipConditions(
         criterion.playerState.forEach { atom ->
             val text =
                 when (atom.function) {
-                    "IsAchievementComplete" ->
-                        (if (atom.negated) Tr.EQUIP_ACHIEVEMENT_NOT_COMPLETED else Tr.EQUIP_ACHIEVEMENT).value(lang).format(atom.args.firstOrNull() ?: "?")
+                    "IsAchievementComplete" -> {
+                        val id = atom.args.firstOrNull()
+                        val name =
+                            id
+                                ?.toIntOrNull()
+                                ?.let { achievements[it] }
+                                ?.localized(lang)
+                                ?.takeIf { it.isNotBlank() }
+                        val key =
+                            if (name != null) {
+                                if (atom.negated) Tr.EQUIP_NAMED_ACHIEVEMENT_NOT_COMPLETED else Tr.EQUIP_NAMED_ACHIEVEMENT
+                            } else {
+                                if (atom.negated) Tr.EQUIP_ACHIEVEMENT_NOT_COMPLETED else Tr.EQUIP_ACHIEVEMENT
+                            }
+                        key.value(lang).format(name ?: id ?: "?")
+                    }
                     else -> {
                         val label =
                             when (atom.function) {

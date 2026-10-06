@@ -163,7 +163,7 @@ internal object ItemCriteria {
 }
 
 /** The classes of the client jar, parsed on demand, with the few structural queries [ItemCriteria] needs. */
-private class ClientJar(
+internal class ClientJar(
     private val bytes: Map<String, ByteArray>,
 ) {
     private val models = HashMap<String, ClassModel?>()
@@ -171,6 +171,43 @@ private class ClientJar(
     fun model(name: String): ClassModel? = models.getOrPut(name) { bytes[name]?.let { runCatching { ClassFile.of().parse(it) }.getOrNull() } }
 
     private val all: List<Pair<String, ClassModel>> by lazy { bytes.keys.sorted().mapNotNull { n -> model(n)?.let { n to it } } }
+
+    /** The name lookup belongs to the achievement UI model, identified by its public field keys, not its class name. */
+    fun achievementNameNamespace(): Int {
+        val anchors = setOf("achievementId", "isCompleted", "isFollowed")
+        val methods =
+            all.mapNotNull { (_, m) ->
+                val strings =
+                    m
+                        .methods()
+                        .flatMap { method ->
+                            method
+                                .code()
+                                .map { code ->
+                                    code.elementList().filterIsInstance<ConstantInstruction>().mapNotNull {
+                                        val value: Any = it.constantValue()
+                                        value as? String
+                                    }
+                                }.orElse(emptyList())
+                        }.toSet()
+                if (!strings.containsAll(anchors)) return@mapNotNull null
+                m.methods().singleOrNull { it.methodName().stringValue() == "getName" && it.methodTypeSymbol().descriptorString() == "()Ljava/lang/String;" }
+            }
+        val method = methods.singleOrNull() ?: error("achievement name lookup drift: expected one model with $anchors and getName(), found ${methods.size}")
+        val code = method.code().orElseThrow().elementList()
+        check(code.filterIsInstance<InvokeInstruction>().any { it.typeSymbol().descriptorString() == "(IJ[Ljava/lang/Object;)Ljava/lang/String;" }) {
+            "achievement name lookup drift: no namespace + id + arguments string lookup"
+        }
+        val namespaces =
+            code
+                .filterIsInstance<ConstantInstruction>()
+                .mapNotNull {
+                    val value: Any = it.constantValue()
+                    value as? Int
+                }.filter { it > 0 }
+                .distinct()
+        return namespaces.singleOrNull() ?: error("achievement name lookup drift: ambiguous namespace constants $namespaces")
+    }
 
     /** An enum constant: its static [field] name and the int arguments of its constructor call (ordinal first). */
     class EnumConstant(

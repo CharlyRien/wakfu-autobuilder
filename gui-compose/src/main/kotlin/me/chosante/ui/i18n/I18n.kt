@@ -82,6 +82,8 @@ enum class Tr(
     EQUIP_NOT_CHECKED("not checked by the search yet", "pas encore vérifié par la recherche"),
     EQUIP_ASSUMED_MET("assumed met", "supposé rempli"),
     EQUIP_MILITIA_RANK("Militia rank", "Rang de milice"),
+    EQUIP_NAMED_ACHIEVEMENT("Achievement “%s” completed", "Succès « %s » accompli"),
+    EQUIP_NAMED_ACHIEVEMENT_NOT_COMPLETED("Achievement “%s” not completed", "Succès « %s » non accompli"),
     EQUIP_ACHIEVEMENT("Achievement #%s completed", "Succès n°%s accompli"),
     EQUIP_ACHIEVEMENT_NOT_COMPLETED("Achievement #%s not completed", "Succès n°%s non accompli"),
     EQUIP_STASIS_GAUGE("Stasis gauge", "Jauge de Stasis"),
