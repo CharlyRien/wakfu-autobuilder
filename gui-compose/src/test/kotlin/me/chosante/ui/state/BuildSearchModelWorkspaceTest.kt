@@ -173,7 +173,7 @@ class BuildSearchModelWorkspaceTest {
     }
 
     @Test
-    fun `a blank field and a typed 0 come back as they were: no row for the blank, a floor for the 0`(
+    fun `a blank field and a typed 0 come back as they were, no row for the blank and a floor for the 0`(
         @TempDir dir: Path,
     ) = withScope { scope ->
         val first = newModel(scope, dir)
