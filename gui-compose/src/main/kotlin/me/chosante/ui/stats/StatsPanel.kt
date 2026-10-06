@@ -1507,20 +1507,22 @@ internal fun PassivesResult(ui: UiState) {
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         PassiveIcon(gfxId = passive.gfxId, size = 24.dp)
-                        Text(
-                            text = passive.name?.localized(lang) ?: passive.spellId.toString(),
-                            style = WTypography.labelMedium.copy(color = WColor.text),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                        val flat = passive.flatStats.entries.joinToString("  ") { "+${it.value} ${it.key.label(lang)}" }
-                        if (flat.isNotBlank()) {
+                        // The flat stats sit UNDER the name, not beside it: side by side, the monospace stats (the system's
+                        // mono font, wider on Linux than on macOS) squeezed the name to an ellipsis in a narrow column.
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text(
-                                text = flat,
-                                style = WTypography.labelSmall.copy(color = WColor.accent2, fontFamily = WType.mono),
-                                maxLines = 1
+                                text = passive.name?.localized(lang) ?: passive.spellId.toString(),
+                                style = WTypography.labelMedium.copy(color = WColor.text),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
+                            val flat = passive.flatStats.entries.joinToString("  ") { "+${it.value} ${it.key.label(lang)}" }
+                            if (flat.isNotBlank()) {
+                                Text(
+                                    text = flat,
+                                    style = WTypography.labelSmall.copy(color = WColor.accent2, fontFamily = WType.mono)
+                                )
+                            }
                         }
                     }
                 }
