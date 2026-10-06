@@ -3,7 +3,7 @@
 A read-only audit of the Compose Desktop GUI, followed by the quick wins for **1.12.1** and a first batch of the backlog for
 **1.13.0**. It looked at `main` as it stood just before the 1.12.0 release commit (`a7d6a4a5`, where the window still read
 "Version 1.11.0 · Game data 1.93.1.62"). This file keeps the findings so the rest stay a backlog: items **F1–F6** are fixed in
-1.12.1 and **B1, B2, B4, B5** in 1.13.0 (each with its commit; B7 was fixed on the way), **B9** still needs a layout re-check (B3 is fixed below; B6/B8 were fixed by later work), and
+1.12.1 and **B1, B2, B4, B5** in 1.13.0 (each with its commit; B7 was fixed on the way), **B3 and B9** are fixed below (B6/B8 were fixed by later work), and
 **N1–N10** were found while fixing.
 
 ## Method
@@ -195,7 +195,7 @@ are the branch's own: a rebase-merge rewrites them, the subjects stay.
 | B6 | Item picker | It shows the first 60 of 2 783 equippable items (level 110, no minimum level; 1 257 with min 80) with no count and no slot filter. | `Modals.kt` item picker; 7 899 distinct items in `equipments.json`. |
 | B7 (fixed) | Saved boss builds forget the boss | **Fixed as a side effect of F3** (the boss is now saved and restored). Builds saved before 1.12.1 carry no boss and still load as a manual scenario. | `BOSS after reload of a boss build: selectedBoss=null bossElement=null` (before). |
 | B8 | Persistence | Nothing is remembered between launches except the language, the library sort / grouping, the tag registry and the "check optimality" switch. | `LibraryPreferences`: class, level, targets, rarities, duration… are lost on restart. |
-| B9 | Issue #128 residue | The stats column can reflow into two columns when it is widened (it is resizable up to 460 dp). | `AppShell` `statsWidth` coerce range; not re-checked after the F6 changes (they touch the request column only). |
+| B9 (fixed) | Issue #128 residue | **Fixed:** `fix(gui): widened stats reflow into two columns without truncating labels or values`. Before: no two-column layout existed; at 300 dp the HP and distance-mastery labels were ellipsized in both modes and languages. Mastery, target and other-stat lists now use two columns from 432 dp of panel width (360 dp inside cards); values have their own line in narrow cells, labels wrap. Checked at 300/360/460 dp plus both sides of the switch and repeated resizing, EN/FR, full result cards. `StatsPanelLayoutUiTest`. Was: The stats column can reflow into two columns when it is widened (it is resizable up to 460 dp). | `AppShell` `statsWidth` coerce range; not re-checked after the F6 changes (they touch the request column only). |
 
 ## Found while fixing
 
