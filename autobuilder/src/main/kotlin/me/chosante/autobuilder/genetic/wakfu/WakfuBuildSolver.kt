@@ -5062,6 +5062,8 @@ object WakfuBuildSolver {
         val startTime = System.currentTimeMillis()
         val progressOrigin = progressStartMs ?: startTime
 
+        val stopAtMatch = params.stopWhenBuildMatch && params.scoreComputationMode == ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT
+        var firstMatchingBuild: Pair<BuildCombination, BigDecimal>? = null
         val cb =
             object : CpSolverSolutionCallback() {
                 private var lastEmitMs = 0L
@@ -5082,6 +5084,26 @@ object WakfuBuildSolver {
                     if (tuning?.stopAtFirstSolution == true) {
                         stopSearch()
                         return
+                    }
+
+                    // Check EVERY solution before the emission throttle. Retain the first match: another native
+                    // worker may improve the incumbent while stopSearch winds down. A deliberate stop earns no proof.
+                    if (stopAtMatch) {
+                        if (firstMatchingBuild == null) {
+                            val combination = solutionToBuild(params, allEquips, equipVars, skillVars, runeModel, subModel) { value(it) }
+                            val capped =
+                                FindClosestBuildFromInputScoring.computeScore(
+                                    params.targetStats,
+                                    combination,
+                                    params.character.baseCharacteristicValues,
+                                    includeOverflow = false
+                                )
+                            if (capped >= BigDecimal(100)) firstMatchingBuild = combination to scoreFor(params, combination)
+                        }
+                        if (firstMatchingBuild != null) {
+                            stopSearch()
+                            return
+                        }
                     }
 
                     // Throttle the heavy rescore: building + scoring every improving solution on the solve
@@ -5118,8 +5140,8 @@ object WakfuBuildSolver {
             logger.debug { "Solver response stats:\n${solver.responseStats()}" }
 
             if (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL || status == com.google.ortools.sat.CpSolverStatus.FEASIBLE) {
-                val finalComb = solutionToBuild(params, allEquips, equipVars, skillVars, runeModel, subModel) { solver.value(it) }
-                val finalScore = scoreFor(params, finalComb)
+                val finalComb = firstMatchingBuild?.first ?: solutionToBuild(params, allEquips, equipVars, skillVars, runeModel, subModel) { solver.value(it) }
+                val finalScore = firstMatchingBuild?.second ?: scoreFor(params, finalComb)
                 // Guaranteed delivery (suspending send, not trySend): intermediate best-so-far
                 // emissions are best-effort progress and may be dropped under back-pressure, but the
                 // final/optimal build must never be lost to a saturated callbackFlow buffer.
@@ -5132,7 +5154,8 @@ object WakfuBuildSolver {
                             // OPTIMAL (including stage 1's override) proves only the searched pool. The
                             // heuristic top-8 prefilter can discard the global optimum in EVERY mode.
                             isOptimal =
-                                !needsItemPrefilter(params.targetStats) &&
+                                firstMatchingBuild == null &&
+                                    !needsItemPrefilter(params.targetStats) &&
                                     (finalIsOptimalOverride ?: (status == com.google.ortools.sat.CpSolverStatus.OPTIMAL)),
                             maxDamageObjective = if (maxDamage) solver.objectiveValue().toLong() else null,
                             maxDamageRawProxy = if (maxDamage) maxDamageRawScoreVar?.let { solver.value(it) } else null,

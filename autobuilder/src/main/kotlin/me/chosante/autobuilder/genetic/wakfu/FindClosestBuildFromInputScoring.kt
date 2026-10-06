@@ -25,6 +25,7 @@ object FindClosestBuildFromInputScoring {
         targetStats: TargetStats,
         buildCombination: BuildCombination,
         characterBaseCharacteristics: Map<Characteristic, Int>,
+        includeOverflow: Boolean = true,
     ): BigDecimal {
         val actualCharacteristicsValues =
             computeCharacteristicsValues(
@@ -49,7 +50,7 @@ object FindClosestBuildFromInputScoring {
         val successPercentage = (totalActualScore / targetStats.totalExpectedScore) * 100.0
 
         // try to find better build when we have found build maximizing every characteristic asked
-        if (successPercentage.toBigDecimal() == BigDecimal("100.0")) {
+        if (includeOverflow && successPercentage.toBigDecimal() == BigDecimal("100.0")) {
             val calculateTotalActualScoreExceedingPerfectScore =
                 calculateTotalActualScore(targetStats, actualCharacteristicsValues, targetStats.expectedScoreByCharacteristic, canExceedPerfectScore = true)
             return ((calculateTotalActualScoreExceedingPerfectScore / targetStats.totalExpectedScore) * 100).toBigDecimal(MathContext(4, RoundingMode.FLOOR))
