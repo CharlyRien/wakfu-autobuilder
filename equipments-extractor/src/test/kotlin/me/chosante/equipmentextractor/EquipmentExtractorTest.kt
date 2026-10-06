@@ -164,10 +164,6 @@ class EquipmentExtractorTest {
         assertEquals(Rarity.COMMON, commonInEpicGroup.rarity)
         assertEquals(ExclusiveGroup.EPIC, commonInEpicGroup.exclusiveGroup)
         assertEquals(ExclusiveGroup.EPIC, commonInEpicGroup.exclusiveGroupOverride)
-        // An EPIC item WITHOUT property 12 would be in no group: written, so it does not follow its rarity.
-        val epicOutOfGroup = extract(pourpre(apEffect, rarity = 7, properties = "[]"))
-        assertEquals(ExclusiveGroup.NONE, epicOutOfGroup.exclusiveGroup)
-        assertEquals(ExclusiveGroup.NONE, epicOutOfGroup.exclusiveGroupOverride)
         // Serialized, only the exception carries the field: every other item keeps its JSON as it was.
         val json = Json.encodeToString(ListSerializer(Equipment.serializer()), listOf(relic, commonInEpicGroup))
         assertEquals(1, Regex("exclusiveGroup").findAll(json).count(), json)
@@ -177,6 +173,10 @@ class EquipmentExtractorTest {
     @Test
     fun `an item in both exclusivity groups, or a CDN that no longer names them, fails the extraction`() {
         assertThrows<IllegalStateException> { extract(pourpre(apEffect, properties = "[8, 12]")) }
+        // An EPIC / RELIC item outside its rarity's group (property 12 dropped from an epic, a relic moved to the EPIC group)
+        // would leave its budget: only an addition to a group is written, so the run fails instead.
+        assertThrows<IllegalStateException> { extract(pourpre(apEffect, rarity = 7, properties = "[19]")) }
+        assertThrows<IllegalStateException> { extract(pourpre(apEffect, properties = "[12]")) }
         val renamed = itemProperties.replace("EXCLUSIVE_EQUIPMENT_ITEM_2", "SOMETHING_ELSE")
         val error =
             assertThrows<IllegalStateException> {

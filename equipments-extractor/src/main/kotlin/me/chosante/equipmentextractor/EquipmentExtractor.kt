@@ -121,17 +121,26 @@ internal fun exclusiveGroupPropertyIds(itemProperties: List<ItemProperty>): Map<
 }
 
 /**
- * The "only one equipped at a time" group of the item [itemId] from its CDN [properties] ([groupByPropertyId]: see
- * [exclusiveGroupPropertyIds]); fails on an item in both groups, which the build budgets can't express.
+ * The "only one equipped at a time" group of the item [itemId] of [rarity] from its CDN [properties] ([groupByPropertyId]:
+ * see [exclusiveGroupPropertyIds]). Fails on an item in both groups, which the build budgets can't express, and on an EPIC /
+ * RELIC item outside its rarity's group: only an ADDITION to a group (a COMMON item in the EPIC one) is written into
+ * `equipments.json`, so an epic that loses its property never silently leaves the epic budget — review that data change.
  */
 internal fun exclusiveGroupOf(
     itemId: Int,
+    rarity: Rarity,
     properties: List<Int>,
     groupByPropertyId: Map<Int, ExclusiveGroup>,
 ): ExclusiveGroup {
     val groups = properties.mapNotNull { groupByPropertyId[it] }.distinct()
     check(groups.size <= 1) { "Item $itemId is in several exclusivity groups $groups (properties $properties)" }
-    return groups.singleOrNull() ?: ExclusiveGroup.NONE
+    val group = groups.singleOrNull() ?: ExclusiveGroup.NONE
+    val rarityGroup = ExclusiveGroup.ofRarity(rarity)
+    check(rarityGroup == ExclusiveGroup.NONE || group == rarityGroup) {
+        "Item $itemId ($rarity) is in exclusivity group $group, not its rarity's $rarityGroup (properties $properties): only an " +
+            "addition to a group is written, an epic / relic item leaving its budget is a data change to review"
+    }
+    return group
 }
 
 fun extractData(wakfuData: WakfuData): List<Equipment> {
@@ -162,7 +171,7 @@ fun extractData(wakfuData: WakfuData): List<Equipment> {
         val rarity = rarityIdToRarity.getValue(equipment.definition.item.baseParameters.rarity)
         // The item's "only one equipped at a time" group, written only where it is not its rarity's (Equipment.exclusiveGroup):
         // on the 1.93 data, the two COMMON items in the EPIC group (18691, 18693).
-        val exclusiveGroup = exclusiveGroupOf(equipment.definition.item.id, equipment.definition.item.properties, exclusiveGroupByPropertyId)
+        val exclusiveGroup = exclusiveGroupOf(equipment.definition.item.id, rarity, equipment.definition.item.properties, exclusiveGroupByPropertyId)
 
         // Number of enchantment sockets ("châsses") the item can hold — drives rune socketing in the
         // solver (Equipment.maxShardSlots). Must be carried through here or every regenerated build
