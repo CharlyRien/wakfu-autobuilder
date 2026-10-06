@@ -15,6 +15,7 @@ import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import me.chosante.common.skills.CharacterSkills
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import kotlin.time.Duration.Companion.seconds
 
@@ -121,7 +122,8 @@ class EquipConditionsTest {
     @Test
     fun `forcing the sword forces its ring, excluding the ring removes the sword`() {
         val p = params(forced = listOf("sword"))
-        assertThat(bestBuild(p, pool(sword, key, weapon, ring1, ring2, epicAmulet, amulet)).ids()).contains(9001, 9002)
+        // The sword, its ring — and the best other ring in the second ring slot (the key ring takes only one).
+        assertThat(bestBuild(p, pool(sword, key, weapon, ring1, ring2, epicAmulet, amulet)).ids()).contains(9001, 9002, 9004)
         assertThat(WakfuBestBuildFinderAlgorithm.validateRequest(p, allEquipments = listOf(sword, key, weapon))).isEmpty()
 
         val excluded = params(forced = listOf("sword"), excluded = listOf("key"))
@@ -212,11 +214,73 @@ class EquipConditionsTest {
         assertThat(iop).contains(26494, 26495, 26496, 26497, 26575, 26576, 26577, 26578)
         assertThat(poolIds(params(CharacterClass.IOP, 200, excluded = listOf("Anneau de Brâkmar")))).doesNotContain(26497, 26578).contains(26496)
         assertThat(poolIds(params(CharacterClass.IOP, 200, maxRarity = Rarity.RELIC))).doesNotContainAnyElementsOf(listOf(26494, 26495, 26496, 26497))
-        // Forcing a sword and a ring keeps the sword's ring in the narrowed ring slot.
+        // Forcing a sword and a ring keeps the sword's ring in the ring slot — beside every other ring (see below).
         val forced = WakfuBestBuildFinderAlgorithm.poolFor(params(CharacterClass.IOP, 200, forced = listOf("Epée de Brâkmar", "La Promesse")))
-        assertThat(forced.getValue(ItemType.RING).map { it.name.fr }).containsExactlyInAnyOrder("Anneau de Brâkmar", "La Promesse")
+        assertThat(forced.getValue(ItemType.RING).map { it.name.fr }).contains("Anneau de Brâkmar", "La Promesse")
         assertThat(forced.getValue(ItemType.ONE_HANDED_WEAPONS).map { it.equipmentId }).containsExactly(26497)
     }
+
+    /**
+     * A build wears TWO rings: forcing one ring — or a nation sword, whose key ring takes one — never narrows the ring slot
+     * (review of #246: the slot narrowed to the forced names, so a forced Brâkmar sword lost its second ring and CP-SAT
+     * proved OPTIMAL a build 7.4 % below the true forced-sword optimum). Only the USER's forced names narrow a slot; the
+     * model's `Σ same-name ≥ 1` equips each forced ring and `sword ≤ ring` the sword's ring.
+     */
+    @Test
+    fun `real catalog - forcing a sword or a single ring leaves the second ring slot free`() {
+        val unforced = WakfuBestBuildFinderAlgorithm.poolFor(params(CharacterClass.IOP, 200)).getValue(ItemType.RING).map { it.equipmentId }
+        for (forced in listOf(listOf("Epée de Brâkmar"), listOf("La Promesse"), listOf("Epée de Brâkmar", "La Promesse"))) {
+            val pool = WakfuBestBuildFinderAlgorithm.poolFor(params(CharacterClass.IOP, 200, forced = forced))
+            assertThat(pool.getValue(ItemType.RING).map { it.equipmentId })
+                .describedAs("forcing %s keeps every ring of the unforced pool", forced)
+                .containsExactlyInAnyOrderElementsOf(unforced)
+        }
+        // The weapon slots still narrow to the forced sword (and its two-handed alternative goes).
+        val sword = WakfuBestBuildFinderAlgorithm.poolFor(params(CharacterClass.IOP, 200, forced = listOf("Epée de Brâkmar")))
+        assertThat(sword.getValue(ItemType.ONE_HANDED_WEAPONS).map { it.equipmentId }).containsExactly(26497)
+        assertThat(sword).doesNotContainKey(ItemType.TWO_HANDED_WEAPONS)
+    }
+
+    @Test
+    fun `a single forced ring is worn beside the best free ring`() {
+        // ring2 is forced although ring1 is better: the build wears both, not ring2 alone.
+        for (t in listOf(tuning, tunedWithDomination)) {
+            val build = bestBuild(params(forced = listOf("ring2")), pool(weapon, ring1, ring2, amulet), t)
+            assertThat(build.ids()).contains(9004, 9005)
+        }
+    }
+
+    /**
+     * The production repro of the review of #246: a level-200 Crâ most-masteries request (distance mastery, AP 12, MP 5) with the
+     * Brâkmar sword forced returned 2 985 marked proven optimal, wearing only the sword's ring; the forced-sword optimum, proven on
+     * an un-narrowed pool, is 3 205 with a second ring. Slow: a real search on the full level-200 catalog.
+     */
+    @Test
+    @Tag("slow")
+    fun `production - a forced nation sword still wears a second ring and reaches the true forced optimum`(): Unit =
+        runBlocking {
+            val p =
+                params(CharacterClass.CRA, 200, forced = listOf("Epée de Brâkmar")).copy(
+                    targetStats =
+                        TargetStats(
+                            listOf(
+                                TargetStat(Characteristic.MASTERY_DISTANCE, 9999),
+                                TargetStat(Characteristic.ACTION_POINT, 12),
+                                TargetStat(Characteristic.MOVEMENT_POINT, 5)
+                            )
+                        ),
+                    searchDuration = 120.seconds
+                )
+            val last = WakfuBestBuildFinderAlgorithm.run(p).toList().last()
+            val rings =
+                last.individual.equipments
+                    .filter { it.itemType == ItemType.RING }
+                    .map { it.name.fr }
+            println("FORCED_SWORD score=${last.matchPercentage} optimal=${last.isOptimal} rings=$rings")
+            assertThat(rings).contains("Anneau de Brâkmar").hasSize(2)
+            assertThat(last.individual.isValid(CharacterClass.CRA)).isTrue()
+            assertThat(last.matchPercentage.toDouble()).isGreaterThanOrEqualTo(3205.0)
+        }
 
     @Test
     fun `real catalog - domination keeps the nation rings and no sword evicts a free weapon`() {

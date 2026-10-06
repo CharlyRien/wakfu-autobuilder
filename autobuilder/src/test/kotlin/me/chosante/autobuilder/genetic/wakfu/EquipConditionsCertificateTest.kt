@@ -7,6 +7,7 @@ import me.chosante.autobuilder.domain.RangeBand
 import me.chosante.autobuilder.domain.SpellElement
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.autobuilder.domain.equipConditionViolation
 import me.chosante.common.Character
 import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
@@ -227,5 +228,197 @@ class EquipConditionsCertificateTest {
                 if (bound < relaxed) tightened++
             }
             assertThat(tightened).isGreaterThanOrEqualTo(2)
+        }
+
+    /**
+     * Adversarial pool #[seed] (ported from the review of #246): ONE or TWO RELIC swords, each needing its own EPIC key ring
+     * whose stats vary — none / mastery / AP +1 / MP +1 (the exact pass's MP-ring path) / crit + crit mastery / AP −1 +
+     * mastery — with 0 or 4 sockets; free one-handers (some EPIC / RELIC), an optional two-hander, off-hands, other slots
+     * with EPIC / RELIC items, a Lieute-style excluding triple (its third ring sometimes lists nothing) and plain rings
+     * with AP / MP / crit.
+     */
+    private fun adversarialPool(seed: Int): Map<ItemType, List<Equipment>> {
+        val rng = Random(0x246_000 + seed)
+        var id = 700_000
+        val items = mutableListOf<Equipment>()
+        val m = Characteristic.MASTERY_ELEMENTARY_FIRE
+
+        fun r(
+            lo: Int,
+            hi: Int,
+        ) = lo + rng.nextInt(hi - lo + 1)
+
+        fun extras(
+            stats: MutableMap<Characteristic, Int>,
+            di: Boolean = true,
+        ) {
+            if (rng.nextInt(3) == 0) stats[Characteristic.CRITICAL_HIT] = r(-3, 10)
+            if (rng.nextInt(4) == 0) stats[Characteristic.ACTION_POINT] = r(-1, 2)
+            if (rng.nextInt(6) == 0) stats[Characteristic.MOVEMENT_POINT] = 1
+            if (rng.nextInt(3) == 0) stats[Characteristic.MASTERY_DISTANCE] = r(50, 400)
+            if (rng.nextInt(4) == 0) stats[Characteristic.MASTERY_CRITICAL] = r(50, 300)
+            // The certifier bails on a ring carrying Damage Inflicted (sound, but it would hide the pool): rings get none.
+            if (rng.nextInt(5) == 0 && di) stats[Characteristic.DAMAGE_INFLICTED] = r(5, 15)
+        }
+        repeat(1 + rng.nextInt(2)) { s ->
+            val key = id++
+            val sword = id++
+            val swordStats = mutableMapOf(m to r(600, 2500), Characteristic.ACTION_POINT to r(1, 3))
+            if (rng.nextBoolean()) swordStats[Characteristic.CRITICAL_HIT] = r(0, 10)
+            items +=
+                item(
+                    sword,
+                    ItemType.ONE_HANDED_WEAPONS,
+                    "sword$s",
+                    Rarity.RELIC,
+                    swordStats,
+                    ItemEquipCriterion(sword, "HasEquipmentId($key)", requiresItems = listOf(key)),
+                    sockets = listOf(0, 4)[rng.nextInt(2)]
+                )
+            val keyStats: Map<Characteristic, Int> =
+                when (rng.nextInt(6)) {
+                    0 -> emptyMap()
+                    1 -> mapOf(m to r(100, 600))
+                    2 -> mapOf(Characteristic.ACTION_POINT to 1)
+                    3 -> mapOf(Characteristic.MOVEMENT_POINT to 1, m to r(0, 200))
+                    4 -> mapOf(Characteristic.CRITICAL_HIT to r(1, 8), Characteristic.MASTERY_CRITICAL to r(0, 200))
+                    else -> mapOf(Characteristic.ACTION_POINT to -1, m to r(300, 900))
+                }
+            items += item(key, ItemType.RING, "key$s", Rarity.EPIC, keyStats, sockets = listOf(0, 4)[rng.nextInt(2)])
+        }
+        repeat(1 + rng.nextInt(2)) { k ->
+            val stats = mutableMapOf(m to r(100, 1800))
+            extras(stats)
+            items += item(id++, ItemType.ONE_HANDED_WEAPONS, "w1h$k", listOf(Rarity.LEGENDARY, Rarity.EPIC, Rarity.RELIC)[rng.nextInt(3)], stats, sockets = 4)
+        }
+        if (rng.nextBoolean()) {
+            val stats = mutableMapOf(m to r(800, 3500), Characteristic.ACTION_POINT to r(0, 2))
+            extras(stats)
+            items += item(id++, ItemType.TWO_HANDED_WEAPONS, "w2h", listOf(Rarity.LEGENDARY, Rarity.EPIC, Rarity.RELIC)[rng.nextInt(3)], stats, sockets = 4)
+        }
+        repeat(rng.nextInt(3)) { k ->
+            val stats = mutableMapOf(m to r(50, 900))
+            extras(stats)
+            items += item(id++, ItemType.OFF_HAND_WEAPONS, "off$k", listOf(Rarity.LEGENDARY, Rarity.EPIC, Rarity.MYTHIC)[rng.nextInt(3)], stats, sockets = 2)
+        }
+        val slots = listOf(ItemType.AMULET, ItemType.BELT, ItemType.CAPE, ItemType.BOOTS, ItemType.HELMET).shuffled(rng).take(2 + rng.nextInt(3))
+        for ((i, slot) in slots.withIndex()) {
+            repeat(2) { k ->
+                val stats = mutableMapOf(m to r(100, 1500))
+                extras(stats)
+                val rarity =
+                    when {
+                        i == 0 && k == 0 -> Rarity.EPIC.also { stats[m] = r(1500, 3000) }
+                        rng.nextInt(5) == 0 -> Rarity.EPIC
+                        rng.nextInt(5) == 0 -> Rarity.RELIC
+                        else -> Rarity.LEGENDARY
+                    }
+                items += item(id++, slot, "$slot$k", rarity, stats, sockets = listOf(0, 3, 4)[rng.nextInt(3)])
+            }
+        }
+        if (rng.nextInt(3) != 0) {
+            val triple = listOf(id++, id++, id++)
+            for ((n, ringId) in triple.withIndex()) {
+                val stats = mutableMapOf(m to r(300, 1100))
+                extras(stats, di = false)
+                val criterion = if (n == 2 && rng.nextBoolean()) null else ItemEquipCriterion(ringId, "x", forbidsItems = triple - ringId)
+                items += item(ringId, ItemType.RING, "tri$n", Rarity.LEGENDARY, stats, criterion, sockets = 4)
+            }
+        }
+        repeat(2 + rng.nextInt(3)) { k ->
+            val stats = mutableMapOf(m to r(50, 700))
+            extras(stats, di = false)
+            items += item(id++, ItemType.RING, "ring$k", listOf(Rarity.LEGENDARY, Rarity.MYTHIC, Rarity.EPIC)[rng.nextInt(3)], stats, sockets = 4)
+        }
+        return items.groupBy { it.itemType }
+    }
+
+    /**
+     * Seeded soundness lock (review of #246): on adversarial pools — two swords, key rings carrying AP / MP / crit, an excluding
+     * triple, two-handers, off-hands — every AP-cell pass (exact, fast, tier-1.5) and the ledger stay ≥ the CONSTRAINED pinned
+     * CP-SAT cell, with and without the domination pre-filter, and every CP-SAT build is legal. Sized for CI (~25 s on 4 cores).
+     */
+    @Test
+    fun `max-damage certificate - adversarial seeded pools stay sound against the constrained optimum`() {
+        var compared = 0
+        var swordOptima = 0
+        var twoSwordPools = 0
+        for (seed in 0 until 10) {
+            val pool = adversarialPool(seed)
+            val domination = seed % 2 == 1
+            if (pool.values.flatten().count { it.equipCriterion?.requiresItems?.isNotEmpty() == true } == 2) twoSwordPools++
+            val (exact, fast, tier15) = WakfuBuildSolver.certifierExactFastTier15CellObjectivesForTest(maxDamageParams, pool, applyDomination = domination)
+            var best: Pair<Long, Set<Int>>? = null
+            for (ap in (exact.keys + fast.keys).sorted()) {
+                val profile =
+                    WakfuBuildSolver.timedMaxDamageProfileForTest(
+                        maxDamageParams.copy(maxDamageApTarget = ap),
+                        pool,
+                        emptyList(),
+                        emptyList(),
+                        workers = 1,
+                        seconds = 10.0,
+                        applyDomination = domination,
+                        deterministicLimit = 6.0
+                    )
+                if (!profile.hasSolution) continue
+                val worn = pool.values.flatten().filter { it.equipmentId in profile.selectedEquipmentIds }
+                assertThat(equipConditionViolation(worn)).describedAs("seed %d AP=%d: the CP-SAT build is legal", seed, ap).isNull()
+                for ((pass, value) in listOf("exact" to exact[ap], "fast" to fast[ap], "tier-1.5" to tier15[ap])) {
+                    if (value == null || value < 0) continue
+                    assertThat(value).describedAs("seed %d AP=%d: %s must upper-bound the constrained CP-SAT cell", seed, ap, pass).isGreaterThanOrEqualTo(profile.objective)
+                    compared++
+                }
+                if (best == null || profile.objective > best.first) best = profile.objective to profile.selectedEquipmentIds
+            }
+            val (optimum, ids) = best ?: continue
+            if (pool.values.flatten().any { it.equipmentId in ids && it.equipCriterion?.requiresItems?.isNotEmpty() == true }) swordOptima++
+            val ledger = WakfuBuildSolver.certifyLedgerForTest(maxDamageParams, pool, applyDomination = domination, forceTier2All = true).maxCellObjective ?: continue
+            assertThat(ledger).describedAs("seed %d: the ledger (%d) must upper-bound the constrained optimum (%d)", seed, ledger, optimum).isGreaterThanOrEqualTo(optimum)
+        }
+        assertThat(compared).isGreaterThan(50)
+        assertThat(twoSwordPools).describedAs("pools with two swords").isGreaterThanOrEqualTo(2)
+        assertThat(swordOptima).describedAs("pools whose optimum wears a sword with its ring").isGreaterThanOrEqualTo(2)
+    }
+
+    /**
+     * The E8 construct (review of #246) on a pool whose optimum wears the sword: the certifier's argmax is the bundle world's
+     * sword + ring, the restricted re-solve gets the ring through [me.chosante.autobuilder.domain.requirementClosure], and the
+     * constructed build — the sword, its ring AND the best other ring — is the pinned CP-SAT optimum, proven and legal.
+     */
+    @Test
+    fun `the E8 construct crowns a legal sword build when the optimum wears the sword`(): Unit =
+        runBlocking {
+            val sword =
+                item(
+                    9301,
+                    ItemType.ONE_HANDED_WEAPONS,
+                    "sword",
+                    Rarity.RELIC,
+                    mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 2500, Characteristic.ACTION_POINT to 2),
+                    ItemEquipCriterion(9301, "HasEquipmentId(9302)", requiresItems = listOf(9302))
+                )
+            val pool =
+                listOf(
+                    sword,
+                    item(9302, ItemType.RING, "key", Rarity.EPIC, emptyMap(), sockets = 4),
+                    item(9303, ItemType.ONE_HANDED_WEAPONS, "weapon", Rarity.LEGENDARY, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 600)),
+                    item(9304, ItemType.RING, "ring1", Rarity.LEGENDARY, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 700)),
+                    item(9305, ItemType.RING, "ring2", Rarity.LEGENDARY, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 500)),
+                    item(9306, ItemType.AMULET, "epicAmulet", Rarity.EPIC, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 900)),
+                    item(9307, ItemType.AMULET, "amulet", Rarity.LEGENDARY, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 800)),
+                    item(9308, ItemType.HELMET, "helmet", Rarity.LEGENDARY, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 1000, Characteristic.ACTION_POINT to 1))
+                ).groupBy { it.itemType }
+            val constructed = WakfuBuildSolver.dpConstructProvenOptimum(maxDamageParams, pool)
+            assertThat(constructed).describedAs("the construct reaches the bound on the tiny pool").isNotNull
+            constructed!!
+            assertThat(constructed.isOptimal).isTrue()
+            assertThat(constructed.individual.isValid(CharacterClass.CRA)).isTrue()
+            val ids = constructed.individual.equipments.map { it.equipmentId }
+            assertThat(ids).describedAs("the sword, its ring and the best free ring").contains(9301, 9302, 9304).doesNotContain(9306)
+            // The construct's proxy is the pinned CP-SAT optimum over the AP cells.
+            val (exact, _, _) = WakfuBuildSolver.certifierExactFastTier15CellObjectivesForTest(maxDamageParams, pool)
+            val optimum = exact.keys.mapNotNull { cpsatCell(pool, it) }.max()
+            assertThat(constructed.maxDamageRawProxy ?: constructed.maxDamageObjective).isEqualTo(optimum)
         }
 }
