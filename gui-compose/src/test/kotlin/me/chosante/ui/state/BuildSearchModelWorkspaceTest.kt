@@ -264,6 +264,22 @@ class BuildSearchModelWorkspaceTest {
         assertThat(model.ui.level).describedAs("the user's edit wins over the late read").isEqualTo(150)
     }
 
+    @Test
+    fun `a quit while a slow read runs writes the edit made meanwhile, and nothing when there was none`(
+        @TempDir dir: Path,
+    ) = withScope { scope ->
+        rememberLevel(dir, 177)
+        val model = newModel(scope, dir, store = SlowStore(dir), readWait = 50.milliseconds, debounce = 10.minutes)
+        awaitUntil { model.isReady }
+
+        model.flushWorkspace()
+        assertThat(WorkspaceStore(baseDir = dir).read()?.request?.level).describedAs("no edit: the remembered request stays").isEqualTo(177)
+
+        model.setLevel("150")
+        model.flushWorkspace()
+        assertThat(WorkspaceStore(baseDir = dir).read()?.request?.level).describedAs("the edit is not lost to the quit").isEqualTo(150)
+    }
+
     private fun item(frenchName: String) =
         me.chosante.common.Equipment(
             equipmentId = frenchName.hashCode(),
