@@ -35,7 +35,8 @@ import kotlin.time.Duration.Companion.seconds
  *    are legal), the most-masteries bound ≥ the constrained soft objective, the soft max-damage bound ≥ the constrained soft
  *    optimum;
  *  - the group binds: on enough pools the optimum WITHOUT the group pairs a group COMMON item with an epic, and without
- *    sublimations the ledger never exceeds the group-free one.
+ *    sublimations the ledger never exceeds the group-free one — and falls strictly below it on every such pool, which locks
+ *    the AP-cell certifier's epic bit on the group (read from the rarity, it leaves the two ledgers equal).
  */
 class ExclusiveGroupCertificateTest {
     private val santeDeFer: Sublimation = WakfuBestBuildFinderAlgorithm.sublimations.single { it.name.fr == "Santé de fer" }
@@ -163,6 +164,8 @@ class ExclusiveGroupCertificateTest {
         var compared = 0
         var binding = 0
         var withSub = 0
+        var subFreeBinding = 0
+        var strictlyTighter = 0
         for (seed in 0 until 10) {
             val pool = pool(seed)
             val domination = seed % 2 == 1
@@ -202,20 +205,29 @@ class ExclusiveGroupCertificateTest {
                 if (free.hasSolution && (groupFreeBest == null || free.objective > groupFreeBest.first)) groupFreeBest = free.objective to free.selectedEquipmentIds
             }
             val optimum = best ?: continue
-            if (groupFreeBest != null && pool.pairsGroupCommonWithEpic(groupFreeBest.second)) binding++
+            val binds = groupFreeBest != null && pool.pairsGroupCommonWithEpic(groupFreeBest.second)
+            if (binds) binding++
             val ledger =
                 WakfuBuildSolver.certifyLedgerForTest(params, pool, sublimations = subs, applyDomination = domination, forceTier2All = true).maxCellObjective ?: continue
             assertThat(ledger).describedAs("seed %d: the ledger (%d) must upper-bound the constrained optimum (%d)", seed, ledger, optimum).isGreaterThanOrEqualTo(optimum)
+            var relaxed: Long? = null
             if (subs.isEmpty()) {
-                val relaxed =
-                    WakfuBuildSolver.certifyLedgerForTest(params, groupFree(pool), applyDomination = domination, forceTier2All = true).maxCellObjective ?: continue
+                relaxed = WakfuBuildSolver.certifyLedgerForTest(params, groupFree(pool), applyDomination = domination, forceTier2All = true).maxCellObjective ?: continue
                 assertThat(ledger).describedAs("seed %d: the group never loosens a sub-free ledger (%d vs %d)", seed, ledger, relaxed).isLessThanOrEqualTo(relaxed)
+                if (binds) subFreeBinding++
+                if (binds && ledger < relaxed) strictlyTighter++
             }
-            println("EXCL_CERT seed=$seed subs=${subs.size} domination=$domination optimum=$optimum ledger=$ledger groupFree=${groupFreeBest?.first}")
+            println(
+                "EXCL_CERT seed=$seed subs=${subs.size} domination=$domination binds=$binds optimum=$optimum ledger=$ledger groupFreeLedger=$relaxed groupFree=${groupFreeBest?.first}"
+            )
         }
         assertThat(compared).isGreaterThan(50)
         assertThat(withSub).isGreaterThanOrEqualTo(4)
         assertThat(binding).describedAs("pools whose group-free optimum pairs a group common item with an epic").isGreaterThanOrEqualTo(3)
+        // The AP-cell certifier reads the GROUP (review of #253, finding 2): where the group binds, a sub-free ledger falls
+        // strictly below the group-free one — an epic bit read from the rarity would leave the two equal.
+        assertThat(subFreeBinding).describedAs("sub-free pools where the group binds").isGreaterThanOrEqualTo(2)
+        assertThat(strictlyTighter).describedAs("sub-free binding pools whose ledger the group lowers strictly").isEqualTo(subFreeBinding)
     }
 
     @Test
