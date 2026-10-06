@@ -41,6 +41,11 @@ data class HistoryEntry(
     val schemaVersion: Int = CURRENT_SCHEMA_VERSION,
     /** Embedded Wakfu game-data version this build was computed against (e.g. `1.91.1.54`). */
     val dataVersion: String,
+    /**
+     * The engine's results version (`ENGINE_RESULTS_VERSION`, autobuilder) this build was computed with. Null for a save written
+     * before the field existed: such a build is treated as computed by an older engine.
+     */
+    val engineResultsVersion: Int? = null,
     val request: RequestSnapshot,
     val result: ResultSnapshot,
     /** Cached Zenith share URL, if one was ever generated for this build. */

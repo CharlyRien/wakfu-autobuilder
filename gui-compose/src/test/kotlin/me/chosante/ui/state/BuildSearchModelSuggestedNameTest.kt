@@ -179,4 +179,43 @@ class BuildSearchModelSuggestedNameTest {
                 scope.cancel()
             }
         }
+
+    @Test
+    fun `a copy includes the active name in validation and suggests the first free suffix, while update keeps its name`(
+        @TempDir tempDir: Path,
+    ): Unit =
+        runBlocking {
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            val model = newModel(scope, tempDir)
+            try {
+                model.searchOnce()
+                model.saveBuild("Daily", null, asNew = true)
+                awaitUntil { model.ui.savedBuilds.size == 1 }
+                val original = model.ui.activeBuildId!!
+                assertThat(model.takenBuildNames()).doesNotContain("daily")
+                assertThat(model.takenBuildNames(asNew = true)).contains("daily")
+                assertThat(model.suggestedSaveName(asNew = true)).isEqualTo("Daily (2)")
+                model.saveBuild(" DAILY ", null, asNew = true)
+                assertThat(model.ui.savedBuilds).hasSize(1)
+                assertThat(model.ui.activeBuildId).isEqualTo(original)
+                model.saveBuild("Daily", "updated", asNew = false)
+                awaitUntil {
+                    model.ui.savedBuilds
+                        .single()
+                        .note == "updated"
+                }
+                assertThat(
+                    model.ui.savedBuilds
+                        .single()
+                        .id
+                ).isEqualTo(original)
+                model.saveBuild("daily (2)", null, asNew = true)
+                awaitUntil { model.ui.savedBuilds.size == 2 }
+                model.loadBuild(original)
+                assertThat(model.suggestedSaveName()).isEqualTo("Daily")
+                assertThat(model.suggestedSaveName(asNew = true)).isEqualTo("Daily (3)")
+            } finally {
+                scope.cancel()
+            }
+        }
 }

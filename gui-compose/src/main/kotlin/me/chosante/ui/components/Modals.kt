@@ -1,8 +1,10 @@
 package me.chosante.ui.components
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,6 +61,7 @@ import me.chosante.autobuilder.domain.PassiveCatalog
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.ItemEquipCriterion
 import me.chosante.common.ItemType
 import me.chosante.common.Monster
 import me.chosante.common.Rarity
@@ -78,6 +81,7 @@ import me.chosante.ui.i18n.tr
 import me.chosante.ui.state.Modal
 import me.chosante.ui.state.PickerMode
 import me.chosante.ui.state.color
+import me.chosante.ui.state.freeBuildName
 import me.chosante.ui.state.statCatalog
 import me.chosante.ui.state.tagInputSuggestions
 import me.chosante.ui.theme.WColor
@@ -114,6 +118,7 @@ fun ModalHost(
     suggestedSaveName: String = "",
     isEditingExisting: Boolean = false,
     takenNames: Set<String> = emptySet(),
+    takenNamesForNew: Set<String> = takenNames + if (isEditingExisting) setOf(suggestedSaveName.trim().lowercase()) else emptySet(),
     editingEntry: HistoryEntry? = null,
     existingFolders: List<String> = emptyList(),
     existingTags: List<String> = emptyList(),
@@ -189,6 +194,7 @@ fun ModalHost(
                     initialName = suggestedSaveName,
                     isEditingExisting = isEditingExisting,
                     takenNames = takenNames,
+                    takenNamesForNew = takenNamesForNew,
                     onSave = onSaveBuild,
                     onCancel = onDismiss
                 )
@@ -509,13 +515,15 @@ private fun ItemPickerModal(
     val lang = LocalLang.current
     var query by remember { mutableStateOf("") }
     var equippableOnly by remember { mutableStateOf(true) }
+    var slotFilter by remember { mutableStateOf<ItemType?>(null) }
     val results =
-        remember(query, equipmentCatalog, selectedNames, level, minLevel, maxRarity, excludedRarities, equippableOnly, lang) {
+        remember(query, equipmentCatalog, selectedNames, level, minLevel, maxRarity, excludedRarities, equippableOnly, slotFilter, lang) {
             val catalog = equipmentCatalog ?: return@remember emptyList()
             val q = query.trim()
             catalog
                 .asSequence()
                 .filterNot { it.name.fr in selectedNames }
+                .filter { slotFilter == null || it.itemType == slotFilter }
                 .filter { !equippableOnly || it.isEquippableForPicker(level, minLevel, maxRarity, excludedRarities) }
                 .filter { equipment ->
                     q.isBlank() ||
@@ -523,8 +531,8 @@ private fun ItemPickerModal(
                         equipment.name.en.contains(q, ignoreCase = true)
                 }.toList()
                 .sortedByLocalized(lang) { it.localizedName(lang) }
-                .take(if (q.isBlank()) 60 else 120)
         }
+    val catalogById = remember(equipmentCatalog) { equipmentCatalog.orEmpty().associateBy { it.equipmentId } }
     val title = if (mode == PickerMode.Forced) tr(Tr.REQUIRE_ITEM_TITLE) else tr(Tr.BAN_ITEM_TITLE)
     val accent = if (mode == PickerMode.Forced) WColor.success else WColor.danger
     ModalCard(title = title) {
@@ -538,14 +546,17 @@ private fun ItemPickerModal(
             onToggle = { equippableOnly = !equippableOnly }
         )
         Spacer(modifier = Modifier.height(WDimens.gap))
+        ItemSlotFilter(selected = slotFilter, onSelect = { slotFilter = it })
+        Spacer(modifier = Modifier.height(WDimens.gap))
         SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_ITEMS), autoFocus = true)
         Spacer(modifier = Modifier.height(WDimens.gap))
+        PickerMatchCount(results.size)
         LazyColumn(
             modifier = Modifier.heightIn(max = 440.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(results, key = { it.equipmentId }) { equipment ->
-                ItemResultRow(equipment = equipment, mode = mode, accent = accent, onClick = { onPick(equipment) })
+                ItemResultRow(equipment = equipment, catalog = catalogById, mode = mode, accent = accent, onClick = { onPick(equipment) })
             }
         }
         if (results.isEmpty()) {
@@ -556,6 +567,38 @@ private fun ItemPickerModal(
             )
         }
         PickerDoneButton(onDone = onDone)
+    }
+}
+
+@Composable
+private fun PickerMatchCount(count: Int) {
+    Text(
+        text = tr(Tr.PICKER_MATCH_COUNT).format(count),
+        style = WTypography.labelSmall.copy(color = WColor.muted),
+        modifier = Modifier.padding(bottom = WDimens.gap)
+    )
+}
+
+@Composable
+private fun ItemSlotFilter(
+    selected: ItemType?,
+    onSelect: (ItemType?) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        PickerFilterChip(label = tr(Tr.ALL_SLOTS), selected = selected == null, color = WColor.accent, onClick = { onSelect(null) })
+        ItemType.entries.forEach { slot ->
+            PickerFilterChip(
+                label = slot.label(LocalLang.current),
+                selected = selected == slot,
+                color = WColor.accent,
+                onClick = { onSelect(slot) },
+                iconPath = "assets/itemTypes/${slot.id}.png"
+            )
+        }
     }
 }
 
@@ -588,52 +631,61 @@ private fun LoadingState(message: String) {
     }
 }
 
+/** A compact lazy item row with the game's equip conditions below its name. */
 @Composable
 private fun ItemResultRow(
     equipment: Equipment,
+    catalog: Map<Int, Equipment>,
     mode: PickerMode,
     accent: Color,
     onClick: () -> Unit,
 ) {
     val lang = LocalLang.current
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(9.dp))
-                .background(WColor.raised)
-                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-                .clickable(onClick = onClick)
-                .padding(horizontal = 11.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        ItemThumbnail(equipment = equipment, size = 38.dp)
-        Column(modifier = Modifier.weight(1f)) {
-            val name = if (lang == Lang.FR) equipment.name.fr.ifBlank { equipment.name.en } else equipment.name.en.ifBlank { equipment.name.fr }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                RarityIcon(rarity = equipment.rarity, size = 14.dp)
+    val conditions =
+        remember(equipment, catalog, lang) {
+            formatItemEquipConditions(equipment.equipCriterion ?: ItemEquipCriterion(equipment.equipmentId, raw = ""), catalog, lang)
+        }
+    ItemConditionsHover(conditions) {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(WColor.raised)
+                    .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                    .clickable(onClick = onClick)
+                    .padding(horizontal = 11.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            ItemThumbnail(equipment = equipment, size = 38.dp)
+            Column(modifier = Modifier.weight(1f)) {
+                val name = if (lang == Lang.FR) equipment.name.fr.ifBlank { equipment.name.en } else equipment.name.en.ifBlank { equipment.name.fr }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    RarityIcon(rarity = equipment.rarity, size = 14.dp)
+                    Text(
+                        text = name,
+                        style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                ItemConditionLines(conditions, compact = true)
                 Text(
-                    text = name,
-                    style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
+                    text = "${tr(Tr.LEVEL_PREFIX_SHORT)} ${equipment.level} · ${equipment.itemType.label(lang)} · ${equipment.rarity.label(lang)}",
+                    style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
             Text(
-                text = "Lv ${equipment.level} · ${equipment.itemType.label(lang)} · ${equipment.rarity.label(lang)}",
-                style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                text = tr(if (mode == PickerMode.Forced) Tr.REQUIRE else Tr.BAN),
+                style = WTypography.labelMedium.copy(color = accent)
             )
         }
-        Text(
-            text = tr(if (mode == PickerMode.Forced) Tr.REQUIRE else Tr.BAN),
-            style = WTypography.labelMedium.copy(color = accent)
-        )
     }
 }
 
@@ -669,13 +721,14 @@ private fun SublimationPickerModal(
                         .thenComparator { left, right ->
                             localizedCollator(lang).compare(left.name.localized(lang), right.name.localized(lang))
                         }
-                ).take(120)
+                )
         }
     ModalCard(title = tr(if (exclude) Tr.EXCLUDE_SUBLIMATION_TITLE else Tr.REQUIRE_SUBLIMATION_TITLE)) {
         SublimationRarityFilter(selected = rarityFilter, onSelect = { rarityFilter = it })
         Spacer(modifier = Modifier.height(WDimens.gap))
         SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_SUBLIMATIONS), autoFocus = true)
         Spacer(modifier = Modifier.height(WDimens.gap))
+        PickerMatchCount(filtered.size)
         LazyColumn(
             modifier = Modifier.heightIn(max = 440.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -724,7 +777,7 @@ private fun SublimationResultRow(
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = sub.rarity.name,
+                text = sub.rarity.label(lang),
                 style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = sub.rarity.displayColor())
             )
             Text(
@@ -752,9 +805,9 @@ private fun SublimationRarityFilter(
     onSelect: (SublimationRarity?) -> Unit,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        SublimationRarityChip(label = tr(Tr.RARITY_ALL), selected = selected == null, color = WColor.accent, onClick = { onSelect(null) })
+        PickerFilterChip(label = tr(Tr.RARITY_ALL), selected = selected == null, color = WColor.accent, onClick = { onSelect(null) })
         listOf(SublimationRarity.NORMAL, SublimationRarity.EPIC, SublimationRarity.RELIC).forEach { rarity ->
-            SublimationRarityChip(
+            PickerFilterChip(
                 label = rarity.label(LocalLang.current),
                 selected = selected == rarity,
                 color = rarity.displayColor(),
@@ -765,11 +818,12 @@ private fun SublimationRarityFilter(
 }
 
 @Composable
-private fun SublimationRarityChip(
+private fun PickerFilterChip(
     label: String,
     selected: Boolean,
     color: Color,
     onClick: () -> Unit,
+    iconPath: String? = null,
 ) {
     Box(
         modifier =
@@ -782,10 +836,17 @@ private fun SublimationRarityChip(
                 .padding(horizontal = 9.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = label,
-            style = WTypography.labelSmall.copy(color = if (selected) color else WColor.muted, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            iconPath?.let { path ->
+                rememberClasspathBitmap(path)?.let { bitmap ->
+                    Image(bitmap = bitmap, contentDescription = null, modifier = Modifier.size(18.dp))
+                }
+            }
+            Text(
+                text = label,
+                style = WTypography.labelSmall.copy(color = if (selected) color else WColor.muted, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+            )
+        }
     }
 }
 
@@ -832,11 +893,11 @@ private fun PassivePickerModal(
                         passive.description?.localized(lang)?.contains(q, ignoreCase = true) == true
                 }.toList()
                 .sortedByLocalized(lang) { it.name?.localized(lang).orEmpty() }
-                .take(120)
         }
     ModalCard(title = tr(Tr.REQUIRE_PASSIVE_TITLE)) {
         SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_PASSIVES), autoFocus = true)
         Spacer(modifier = Modifier.height(WDimens.gap))
+        PickerMatchCount(filtered.size)
         LazyColumn(
             modifier = Modifier.heightIn(max = 440.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -961,7 +1022,7 @@ private fun BossResultRow(
                     modifier = Modifier.weight(1f)
                 )
                 Text(
-                    text = "Lv ${monster.level}",
+                    text = "${tr(Tr.BOSS_LEVEL_SHORT)} ${monster.level}",
                     style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
                 )
             }
@@ -1297,18 +1358,20 @@ private fun SaveBuildModal(
     initialName: String,
     isEditingExisting: Boolean,
     takenNames: Set<String>,
+    takenNamesForNew: Set<String>,
     onSave: (name: String, note: String?, asNew: Boolean) -> Unit,
     onCancel: () -> Unit,
 ) {
     var name by remember { mutableStateOf(initialName) }
     var note by remember { mutableStateOf("") }
-    val nameTaken = name.trim().lowercase() in takenNames
+    var asNew by remember { mutableStateOf(false) }
+    val nameTaken = name.trim().lowercase() in if (asNew) takenNamesForNew else takenNames
     // Block any save whose name collides with a *different* saved build, so two builds never
     // share a name (which would make the library and compare view ambiguous).
     val canSave = name.isNotBlank() && !nameTaken
     // Enter in the name field and Ctrl/Cmd+Enter anywhere in the dialog do what the highlighted button does ("Update" for a
     // loaded build, "Save" otherwise), and nothing while that button is disabled.
-    val submit = { if (canSave) onSave(name, note.ifBlank { null }, false) }
+    val submit = { if (canSave) onSave(name, note.ifBlank { null }, asNew) }
     ModalCard(title = tr(Tr.SAVE_DIALOG_TITLE), modifier = Modifier.onSubmitShortcut(submit)) {
         LabeledField(
             label = tr(Tr.SAVE_NAME_LABEL),
@@ -1332,7 +1395,7 @@ private fun SaveBuildModal(
             onValueChange = { note = it },
             placeholder = ""
         )
-        if (isEditingExisting) {
+        if (isEditingExisting && !asNew) {
             Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = tr(Tr.SAVE_UPDATE_HINT),
@@ -1342,13 +1405,16 @@ private fun SaveBuildModal(
         Spacer(modifier = Modifier.height(WDimens.gap))
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             DialogButton(text = tr(Tr.CANCEL), filled = false, color = WColor.border, onClick = onCancel, modifier = Modifier.weight(1f))
-            if (isEditingExisting) {
+            if (isEditingExisting && !asNew) {
                 DialogButton(
                     text = tr(Tr.SAVE_AS_NEW),
                     filled = false,
                     color = WColor.accent2,
                     enabled = canSave,
-                    onClick = { onSave(name, note.ifBlank { null }, true) },
+                    onClick = {
+                        name = freeBuildName(name, takenNamesForNew)
+                        asNew = true
+                    },
                     modifier = Modifier.weight(1f)
                 )
                 DialogButton(
@@ -1356,7 +1422,7 @@ private fun SaveBuildModal(
                     filled = true,
                     color = WColor.accent,
                     enabled = canSave,
-                    onClick = { onSave(name, note.ifBlank { null }, false) },
+                    onClick = submit,
                     modifier = Modifier.weight(1f)
                 )
             } else {
@@ -1365,7 +1431,7 @@ private fun SaveBuildModal(
                     filled = true,
                     color = WColor.accent,
                     enabled = canSave,
-                    onClick = { onSave(name, note.ifBlank { null }, false) },
+                    onClick = submit,
                     modifier = Modifier.weight(1f)
                 )
             }

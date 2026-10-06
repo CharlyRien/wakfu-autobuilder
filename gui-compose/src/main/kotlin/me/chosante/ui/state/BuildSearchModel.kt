@@ -6,16 +6,20 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.swing.Swing
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import me.chosante.ZenithInputParameters
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.ENGINE_RESULTS_VERSION
 import me.chosante.autobuilder.domain.PassiveCatalog
 import me.chosante.autobuilder.domain.ScenarioDamage
 import me.chosante.autobuilder.domain.SpellElement
@@ -41,6 +45,7 @@ import me.chosante.common.ItemType
 import me.chosante.common.Monster
 import me.chosante.common.Rarity
 import me.chosante.common.history.HistoryEntry
+import me.chosante.common.workspace.WorkspaceSnapshot
 import me.chosante.createZenithBuild
 import me.chosante.ui.components.BreedAssets
 import me.chosante.ui.components.IconPreloader
@@ -59,6 +64,7 @@ import me.chosante.ui.history.toBuildCombination
 import me.chosante.ui.history.toExcludedChips
 import me.chosante.ui.history.toForcedChips
 import me.chosante.ui.history.toHistoryEntry
+import me.chosante.ui.history.toRequestSnapshot
 import me.chosante.ui.history.toTargetRows
 import me.chosante.ui.i18n.Tr
 import java.awt.Desktop
@@ -126,6 +132,10 @@ private fun isStoredScore(
     stored: java.math.BigDecimal,
 ): Boolean = rescored.toDouble() == stored.toDouble()
 
+/** The library re-score publishes every [RESCORE_BATCH_SIZE] builds or [RESCORE_BATCH_NANOS], whichever comes first. */
+private const val RESCORE_BATCH_SIZE = 20
+private const val RESCORE_BATCH_NANOS = 100_000_000L
+
 class BuildSearchModel(
     private val scope: CoroutineScope,
     private val buildFinder: BuildFinder = { WakfuBestBuildFinderAlgorithm.run(it) },
@@ -180,9 +190,99 @@ class BuildSearchModel(
     // search's own result. Injectable so tests can hand back a score of any shape, or time the load without it.
     private val buildRescorer: (WakfuBestBuildParams, BuildCombination) -> java.math.BigDecimal =
         { params, build -> WakfuBestBuildFinderAlgorithm.rescore(params, build) },
+    /**
+     * Where the request being edited is remembered between launches ([WorkspaceStore]), or null to remember nothing. Null by
+     * default so a model built by a test never reads or writes the user's real workspace: the app passes its store (Main.kt).
+     */
+    private val workspaceStore: WorkspaceStore? = null,
+    /** How long the request must stay unchanged before it is written ([WorkspaceStore]); typing a value writes once. */
+    private val workspaceSaveDebounce: kotlin.time.Duration = 800.milliseconds,
+    /** The game data a remembered request is checked against when it comes back. Injectable for tests. */
+    private val workspaceCatalog: () -> WorkspaceCatalog = { WorkspaceCatalog.fromGameData() },
+    /** The engine results version stamped onto saved builds ([ENGINE_RESULTS_VERSION]); injectable for tests. */
+    private val engineResultsVersion: Int = ENGINE_RESULTS_VERSION,
+    /**
+     * How long the reveal of the main UI waits for the remembered request still being read. Past it, the UI shows the defaults
+     * and the request is applied when the read lands (if the user has not edited meanwhile). Injectable for tests.
+     */
+    private val workspaceReadWait: kotlin.time.Duration = 2.seconds,
 ) {
-    var ui by androidx.compose.runtime.mutableStateOf(UiState())
-        private set
+    private val uiState = androidx.compose.runtime.mutableStateOf(UiState())
+
+    var ui: UiState
+        get() = uiState.value
+        private set(value) {
+            val previous = uiState.value
+            uiState.value = value
+            rememberWorkspaceLater(value)
+            // The library and the compare view show each saved build with the numbers of the current rules: re-score the builds
+            // when one of them opens, whenever the library changes, or when a search ends while it is on screen.
+            val showsLibrary = value.screen == Screen.Library || value.screen == Screen.Compare
+            val searchEnded = previous.phase == Phase.Searching && value.phase != Phase.Searching
+            if (showsLibrary &&
+                value.phase != Phase.Searching &&
+                (previous.screen != value.screen || previous.savedBuilds !== value.savedBuilds || searchEnded)
+            ) {
+                rescoreLibrary(value.savedBuilds)
+            } else if (!showsLibrary && previous.screen != value.screen) {
+                // Nobody looks at the cards any more: stop (the cache keeps every build already re-scored).
+                rescoreJob?.cancel()
+            }
+        }
+
+    // --- Remembered workspace (see [WorkspaceStore]) ---
+
+    /**
+     * False until the remembered request has been put back ([restoreWorkspace]): writing before that would replace the file
+     * with the defaults the app starts from.
+     */
+    private var workspaceRestored = false
+
+    /** The request last handed to the store (or restored from it): an unchanged request is never written again. */
+    private var rememberedRequest: me.chosante.common.history.RequestSnapshot? = null
+
+    /**
+     * The request exactly as [restoreWorkspace] put it back, until the game-data check of [restoreWorkspace] has run: that check
+     * only cleans the request while it is still this one (a build loaded meanwhile is not "your last session").
+     */
+    private var restoredRequest: me.chosante.common.history.RequestSnapshot? = null
+
+    /**
+     * The latest request not yet known to be on disk — what [flushWorkspace] writes. Volatile and a plain value so the JVM
+     * shutdown hook (Main.kt: Cmd+Q, Dock → Quit and logout skip the window's close request) can write it from its own thread
+     * without reading Compose state.
+     */
+    @Volatile
+    private var pendingWorkspace: WorkspaceSnapshot? = null
+
+    /**
+     * The request shown when the main UI was revealed while the remembered one was still being read ([restoreWorkspaceWhenRead]);
+     * null otherwise. Until the read lands nothing is written by the debounce, but an edit away from this request is kept in
+     * [pendingWorkspace], so a quit in the meantime still writes it (the user's edit wins over the late read anyway).
+     */
+    private var requestAtReveal: me.chosante.common.history.RequestSnapshot? = null
+
+    private var workspaceSaveJob: Job? = null
+
+    // --- Library re-scoring (see [rescoreLibrary]) ---
+
+    /** What [rescoreLibrary] recomputes a saved build's numbers from; any change of it (or of the app's rules) is a miss. */
+    private data class RescoreKey(
+        val id: String,
+        val request: me.chosante.common.history.RequestSnapshot,
+        val result: me.chosante.common.history.ResultSnapshot,
+        val dataVersion: String,
+        val engineResultsVersion: Int,
+    )
+
+    /**
+     * Saved builds already re-scored under the current rules, so reopening the library recomputes nothing. One slot per entry id,
+     * holding the full key it was computed for: a changed entry replaces its slot, and a deleted one costs one stale slot at most.
+     */
+    private val rescoreCache =
+        java.util.concurrent.ConcurrentHashMap<String, Pair<RescoreKey, me.chosante.common.history.ResultSnapshot>>()
+
+    private var rescoreJob: Job? = null
 
     /**
      * `true` once the app is ready to show its main UI: OR-Tools' one-time cold start has been paid
@@ -269,6 +369,14 @@ class BuildSearchModel(
                 verifyOptimality = libraryPreferences.loadVerifyOptimality()
             )
 
+        // Read the remembered request while the engine warms up (a small local file, long read by the time warm-up ends); it
+        // is put back when the loading screen gives way to the main UI, never earlier — and never in screenshot mode, whose
+        // captures must show the default request.
+        val rememberedWorkspace =
+            workspaceStore
+                ?.takeUnless { isScreenshotMode }
+                ?.let { store -> scope.async(ioDispatcher) { store.load() } }
+
         // Load the saved-build library off the UI thread. A read failure must never block startup —
         // it just yields an empty library that fills in as the user saves builds.
         scope.launch(ioDispatcher) {
@@ -336,10 +444,22 @@ class BuildSearchModel(
                     // Always reveal the UI: a warm-up failure must never leave the app stuck on the
                     // loading screen.
                     ticker.cancel()
+                    // Bounded: the main UI must never wait on a slow disk. A read still running by then is applied when it lands.
+                    val landed = rememberedWorkspace?.let { read -> runCatching { withTimeoutOrNull(workspaceReadWait) { read.await() } } }
                     withContext(mainDispatcher) {
                         warmupProgress = 1f
                         warmupEtaSeconds = null
-                        isReady = true
+                        try {
+                            // In the same frame as the reveal, so the main UI never shows the defaults first.
+                            if (rememberedWorkspace != null) {
+                                // The wait may have given up just before the read landed: take what landed rather than drop it.
+                                val read = landed?.getOrNull() ?: rememberedWorkspace.completedOrNull()
+                                if (rememberedWorkspace.isCompleted) restoreWorkspaceSafely(read) else restoreWorkspaceWhenRead(rememberedWorkspace)
+                            }
+                        } finally {
+                            // Nothing about the remembered workspace may keep the app on the loading screen.
+                            isReady = true
+                        }
                     }
                 }
                 // Only start decoding item icons once the engine is warm. During warm-up every core
@@ -350,6 +470,119 @@ class BuildSearchModel(
                 startIconPreload()
             }
         }
+    }
+
+    /**
+     * Puts the remembered request ([snapshot], null when there is none to use) back into the workspace, then starts remembering
+     * every later change. The game data may have changed since it was written: once the catalogs are loaded (off the UI thread),
+     * the items, sublimations, passives and runes it no longer knows are dropped, with a toast saying how many.
+     */
+    private fun restoreWorkspace(snapshot: WorkspaceSnapshot?) {
+        if (snapshot != null) ui = ui.withRememberedRequest(snapshot.request)
+        rememberedRequest = ui.toRequestSnapshot(keepBossInAnyMode = true)
+        workspaceRestored = true
+        if (snapshot == null) return
+        restoredRequest = rememberedRequest
+        scope.launch(backgroundDispatcher) {
+            val catalog = runCatching { workspaceCatalog() }.getOrNull() ?: return@launch
+            withContext(mainDispatcher) {
+                // Only while the request is still the restored one: once the user edited it or loaded a build, what is on screen
+                // is no longer "your last session" (and nothing the user picked since can be unknown anyway).
+                val untouched = restoredRequest != null && ui.toRequestSnapshot(keepBossInAnyMode = true) == restoredRequest
+                restoredRequest = null
+                if (!untouched) return@withContext
+                val (cleaned, dropped) = ui.withoutUnknownEntries(catalog)
+                if (cleaned == ui) return@withContext
+                ui = if (dropped > 0) cleaned.copy(toast = Tr.TOAST_WORKSPACE_ENTRIES_REMOVED.value(ui.lang).format(dropped)) else cleaned
+            }
+        }
+    }
+
+    /** The value of this read if it has landed (null if it has not, or failed). Never suspends. */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private fun kotlinx.coroutines.Deferred<WorkspaceSnapshot?>.completedOrNull(): WorkspaceSnapshot? = if (isCompleted) runCatching { getCompleted() }.getOrNull() else null
+
+    /** [restoreWorkspace], falling back to the defaults (and remembering from them on) if putting [snapshot] back throws. */
+    private fun restoreWorkspaceSafely(snapshot: WorkspaceSnapshot?) {
+        runCatching { restoreWorkspace(snapshot) }.onFailure { if (!workspaceRestored) runCatching { restoreWorkspace(null) } }
+    }
+
+    /**
+     * The remembered request was still being read when the main UI was revealed (a slow disk): the defaults show meanwhile, and
+     * NOTHING is written until the read lands — otherwise the user's first edit would overwrite the request still being read. When
+     * it lands, it is put back if the request is still the untouched defaults; if the user already edited, their edit wins and
+     * is remembered from then on.
+     */
+    private fun restoreWorkspaceWhenRead(read: kotlinx.coroutines.Deferred<WorkspaceSnapshot?>) {
+        val atReveal = ui.toRequestSnapshot(keepBossInAnyMode = true)
+        requestAtReveal = atReveal
+        scope.launch(mainDispatcher) {
+            val snapshot = runCatching { read.await() }.getOrNull()
+            requestAtReveal = null
+            val untouched = ui.toRequestSnapshot(keepBossInAnyMode = true) == atReveal
+            restoreWorkspaceSafely(snapshot?.takeIf { untouched })
+            // The user's edits made while the read ran were not written (saving was not armed yet): write them now.
+            if (!untouched) rememberWorkspaceLater(ui, force = true)
+        }
+    }
+
+    /**
+     * Writes [state]'s request to the [workspaceStore] once it has stayed unchanged for [workspaceSaveDebounce]. Called on every
+     * state change: anything that is not the request (a search's progress, a result, a modal) changes nothing here.
+     */
+    private fun rememberWorkspaceLater(
+        state: UiState,
+        force: Boolean = false,
+    ) {
+        val store = workspaceStore ?: return
+        if (!workspaceRestored) {
+            // A slow read still running: no write yet, but keep an edit for a flush (a quit before the read lands).
+            val atReveal = requestAtReveal ?: return
+            val request = state.toRequestSnapshot(keepBossInAnyMode = true)
+            pendingWorkspace = if (request == atReveal) null else WorkspaceSnapshot(dataVersion = dataVersion, request = request)
+            return
+        }
+        val request = state.toRequestSnapshot(keepBossInAnyMode = true)
+        if (request == rememberedRequest && !force) return
+        rememberedRequest = request
+        workspaceSaveJob?.cancel()
+        val snapshot = WorkspaceSnapshot(dataVersion = dataVersion, request = request)
+        pendingWorkspace = snapshot
+        workspaceSaveJob =
+            scope.launch(ioDispatcher) {
+                delay(workspaceSaveDebounce)
+                writeIfPending(store, snapshot)
+            }
+    }
+
+    private val workspaceWriteLock = Any()
+
+    /**
+     * Writes [snapshot] if it is still the latest unsaved request. Under one lock with every other write, so a debounced write
+     * that lost a race with a flush can never land after it and put an older request back on disk.
+     */
+    private fun writeIfPending(
+        store: WorkspaceStore,
+        snapshot: WorkspaceSnapshot,
+    ) {
+        synchronized(workspaceWriteLock) {
+            if (pendingWorkspace !== snapshot) return
+            store.saveBlocking(snapshot)
+            // Only if nothing newer arrived during the write: an edit made meanwhile (set without this lock, from the UI thread)
+            // must stay pending for its own debounced write or a flush.
+            if (pendingWorkspace === snapshot) pendingWorkspace = null
+        }
+    }
+
+    /**
+     * Writes the latest unsaved request right away, skipping the debounce — for the window's close request and the JVM shutdown
+     * hook (Main.kt), after which a pending write would never run. Reads only [pendingWorkspace], never Compose state, so it is
+     * safe from any thread. A small atomic file write on the calling thread; nothing to do when everything is already written.
+     */
+    fun flushWorkspace() {
+        val store = workspaceStore ?: return
+        val snapshot = pendingWorkspace ?: return
+        writeIfPending(store, snapshot)
     }
 
     /**
@@ -858,6 +1091,8 @@ class BuildSearchModel(
     }
 
     fun search() {
+        // A search wants every core: the library re-score waits until it ends, if either library view is still open.
+        rescoreJob?.cancel()
         val snapshot = ui
         val params = snapshot.toSearchParams()
         val character = params.character
@@ -886,8 +1121,9 @@ class BuildSearchModel(
                 prefilteredRequest = params.targetStats.needsItemPrefilter,
                 proofState = ProofState.Idle,
                 searchStopped = false,
-                // The new build is found with this app's own game data, whatever the one it replaces was computed with.
+                // The new build is found with this app's own game data and engine, whatever the one it replaces was computed with.
                 staleDataVersion = null,
+                staleEngine = null,
                 build = null,
                 achieved = emptyMap(),
                 spellRotation = null,
@@ -1588,6 +1824,7 @@ class BuildSearchModel(
                 note = active?.note,
                 createdAt = active?.createdAt ?: clock(),
                 dataVersion = ui.resultDataVersion(),
+                engineResultsVersion = ui.resultEngineVersion(),
                 tags = active?.tags ?: emptyList(),
                 folder = active?.folder
             ) ?: return
@@ -1652,7 +1889,7 @@ class BuildSearchModel(
         }
     }
 
-    private fun UiState.toTargetStats(): TargetStats {
+    internal fun UiState.toTargetStats(): TargetStats {
         // A typed 0 is a row ("never below 0"); a blank — or cleared — field asks for nothing, so it sends no row at all. Except a
         // mastery most-masteries maximizes: its row is a checkbox there (no field, its value never read), so it always counts.
         val raw =
@@ -1804,6 +2041,16 @@ class BuildSearchModel(
         search()
     }
 
+    /**
+     * "Re-run the search" on an obsolete saved build (My Builds, compare view): restores its request — exactly as [loadBuild]
+     * does — and starts the search at once. The build stays the active one, so saving the new result updates it.
+     */
+    fun rerunSearch(id: String) {
+        if (ui.savedBuilds.none { it.id == id }) return
+        loadBuild(id)
+        confirmReSearch()
+    }
+
     fun goToScreen(screen: Screen) {
         ui = ui.copy(screen = screen)
     }
@@ -1866,7 +2113,10 @@ class BuildSearchModel(
      * "Cra 110 · Distance" — made unique against the library ("… (2)") so that suggestion never collides with a build you
      * already saved, which would open the dialog with Save disabled and the "name already used" warning showing.
      */
-    fun suggestedSaveName(): String = ui.activeBuildName ?: uniqueLibraryName(ui.suggestedBuildName())
+    fun suggestedSaveName(asNew: Boolean = false): String {
+        val base = ui.activeBuildName ?: ui.suggestedBuildName()
+        return if (asNew || ui.activeBuildId == null) uniqueLibraryName(base) else base
+    }
 
     /**
      * The game-data version a snapshot of the build on screen is stamped with: the one it was COMPUTED with. That is this app's
@@ -1877,13 +2127,20 @@ class BuildSearchModel(
     private fun UiState.resultDataVersion(): String = staleDataVersion ?: dataVersion
 
     /**
-     * Names already used by *other* saved builds (the active build's own name is excluded so updating
+     * The engine results version a snapshot of the build on screen is stamped with — the one it was computed with, like
+     * [resultDataVersion]: this app's for a build found here, the stored one (null when the save never recorded it) for a loaded
+     * build of an older engine ([UiState.staleEngine]), so saving it as it is keeps it flagged as improvable.
+     */
+    private fun UiState.resultEngineVersion(): Int? = staleEngine.let { if (it == null) engineResultsVersion else it.savedVersion }
+
+    /**
+     * Names already used by saved builds (all of them for a copy; the active build is excluded so updating
      * it isn't blocked). The save dialog rejects these so two builds never share a name — which would
      * make the library and the compare view ambiguous.
      */
-    fun takenBuildNames(): Set<String> =
+    fun takenBuildNames(asNew: Boolean = false): Set<String> =
         ui.savedBuilds
-            .filter { it.id != ui.activeBuildId }
+            .filter { asNew || it.id != ui.activeBuildId }
             .map { it.name.trim().lowercase() }
             .toSet()
 
@@ -1898,6 +2155,10 @@ class BuildSearchModel(
         asNew: Boolean,
     ) {
         val trimmedName = name.trim().ifBlank { ui.suggestedBuildName() }
+        if (trimmedName.lowercase() in takenBuildNames(asNew)) {
+            ui = ui.copy(error = UiError(Tr.SAVE_NAME_TAKEN.value(ui.lang)))
+            return
+        }
         val overwrite = !asNew && ui.activeBuildId != null
         val id = if (overwrite) ui.activeBuildId!! else idGenerator()
         // Overwriting rebuilds the entry from the workspace, which doesn't carry user metadata (tags,
@@ -1910,6 +2171,7 @@ class BuildSearchModel(
                 note = note,
                 createdAt = clock(),
                 dataVersion = ui.resultDataVersion(),
+                engineResultsVersion = ui.resultEngineVersion(),
                 tags = existing?.tags ?: emptyList(),
                 folder = existing?.folder
             ) ?: return
@@ -1958,41 +2220,9 @@ class BuildSearchModel(
                 null
             }
         val restored =
-            ui.copy(
+            ui.withSavedRequest(entry).copy(
                 screen = Screen.Builder,
                 modal = null,
-                clazz = entry.restoredClass(),
-                level = entry.request.level,
-                minLevel = entry.request.minLevel,
-                mode = entry.restoredMode(),
-                // The loaded request replaces the whole workspace: no other mode's parked work survives it.
-                modeWorkspaces = emptyMap(),
-                scenario = entry.restoredScenario(),
-                // The boss the build was searched against comes back with it (none for a build saved without one).
-                selectedBoss = loadedBoss,
-                bossElement = loadedBossElement,
-                bossDifficulty = entry.restoredBossDifficulty(),
-                maxRarity = entry.request.maxRarity,
-                duration = entry.request.duration,
-                stopAtMatch = entry.request.stopAtMatch,
-                targets = entry.toTargetRows(),
-                forcedItems = entry.toForcedChips(),
-                excludedItems = entry.toExcludedChips(),
-                useSublimations = entry.request.useSublimations,
-                maxSublimationTier = entry.request.maxSublimationTier,
-                // Builds saved before the July 2026 sublimation rename ("Carnage II" → "Carnage III")
-                // keep their forced/excluded chips working under the current names.
-                forcedSublimations =
-                    entry.request.forcedSublimations
-                        .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)
-                        .distinct(),
-                excludedSublimations =
-                    entry.request.excludedSublimations
-                        .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)
-                        .distinct(),
-                excludedRarities = entry.request.excludedRarities,
-                forcedPassives = entry.request.forcedPassives,
-                forcedRunesByItem = entry.request.forcedRunesByItem,
                 phase = Phase.Done,
                 progress = 100,
                 // The STORED score, proof flag and stats: [rescored] swaps them for the current rules' just below.
@@ -2008,6 +2238,8 @@ class BuildSearchModel(
                 // Computed with other game data than this app's (a build saved before a game update, or imported from another
                 // version): the stats column says so until a new search replaces it. The stored build itself is left untouched.
                 staleDataVersion = entry.dataVersion.takeIf { it != dataVersion },
+                // Computed by an older engine than this app's (or before saves recorded it): a re-run may improve it.
+                staleEngine = entry.engineResultsVersion.let { saved -> if (saved == null || saved < engineResultsVersion) StaleEngine(saved) else null },
                 build = loadedBuild,
                 spellRotation = rotation,
                 scenarioDamages = emptyList(),
@@ -2049,6 +2281,47 @@ class BuildSearchModel(
     }
 
     /**
+     * This state with [entry]'s request in place of its own — exactly what [loadBuild] restores, and what [rescoreSaved] scores a
+     * library card with, so a card and a reload of the same build can never read its request differently. Unlike the remembered
+     * workspace ([withRememberedRequest]) it clamps nothing: a save is replayed as it was searched.
+     */
+    private fun UiState.withSavedRequest(entry: HistoryEntry): UiState =
+        copy(
+            clazz = entry.restoredClass(),
+            level = entry.request.level,
+            minLevel = entry.request.minLevel,
+            mode = entry.restoredMode(),
+            // The loaded request replaces the whole workspace: no other mode's parked work survives it.
+            modeWorkspaces = emptyMap(),
+            scenario = entry.restoredScenario(),
+            // The boss the build was searched against comes back with it (none for a build saved without one).
+            selectedBoss = entry.restoredBoss(),
+            bossElement = entry.restoredBossElement(),
+            bossDifficulty = entry.restoredBossDifficulty(),
+            maxRarity = entry.request.maxRarity,
+            duration = entry.request.duration,
+            stopAtMatch = entry.request.stopAtMatch,
+            targets = entry.toTargetRows(),
+            forcedItems = entry.toForcedChips(),
+            excludedItems = entry.toExcludedChips(),
+            useSublimations = entry.request.useSublimations,
+            maxSublimationTier = entry.request.maxSublimationTier,
+            // Builds saved before the July 2026 sublimation rename ("Carnage II" → "Carnage III")
+            // keep their forced/excluded chips working under the current names.
+            forcedSublimations =
+                entry.request.forcedSublimations
+                    .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)
+                    .distinct(),
+            excludedSublimations =
+                entry.request.excludedSublimations
+                    .map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName)
+                    .distinct(),
+            excludedRarities = entry.request.excludedRarities,
+            forcedPassives = entry.request.forcedPassives,
+            forcedRunesByItem = entry.request.forcedRunesByItem
+        )
+
+    /**
      * This freshly loaded saved build with the score and stats of the CURRENT rules in place of the stored ones. A save keeps
      * the numbers of the rules it was found under, and the rules move: a build saved while the Neutralité family read the SUM of the
      * secondary masteries came back showing a bonus the game never grants. The re-score is the search's own — the same request
@@ -2061,8 +2334,9 @@ class BuildSearchModel(
      * pre-filtered pool because it counted a resistance row of target 0 — or a blank field, which it read as 0 — as a wanted element
      * ([TargetStats.legacyNeedsItemPrefilter] on the rows read that way, [legacyTargetStats]: "fire resistance 100" beside the default
      * "air resistance 0", or beside a blank air field; "fire mastery 50" beside a blank water mastery) — its stored proof covers that
-     * reduced pool only, though the request now searches the whole catalog. Only a build the scorer cannot read at all keeps its
-     * stored numbers.
+     * reduced pool only, though the request now searches the whole catalog. So does a build the game refuses
+     * ([WakfuBestBuildFinderAlgorithm.equipConditionViolation]: a save made before the item EQUIP conditions were enforced may wear a
+     * nation sword without its ring). Only a build the scorer cannot read at all keeps its stored numbers.
      */
     private fun UiState.rescored(): UiState {
         val shown = build ?: return this
@@ -2070,8 +2344,69 @@ class BuildSearchModel(
             val params = toSearchParams()
             val score = buildRescorer(params, shown)
             val provable = !prefilteredRequest && !legacyTargetStats().legacyNeedsItemPrefilter
-            copy(match = score, achieved = achievedStats(shown, params), optimal = optimal && provable && isStoredScore(score, match))
+            // A build the game refuses (an item EQUIP condition: a save made before they were enforced may wear a nation sword
+            // without its ring) is no proven optimum, whatever was stored with it.
+            val wearable = WakfuBestBuildFinderAlgorithm.equipConditionViolation(shown, params.character.clazz) == null
+            copy(match = score, achieved = achievedStats(shown, params), optimal = optimal && provable && wearable && isStoredScore(score, match))
         }.getOrDefault(this)
+    }
+
+    /**
+     * Re-scores the saved [builds] under the CURRENT rules, off the UI thread, and publishes each result as it lands
+     * ([UiState.libraryRescores]) — the library cards and the compare view then show the numbers a loaded build would show
+     * ([rescored]) instead of the stored ones. Usually milliseconds per build, but a rare multi-element build can take more than
+     * half a second: the work runs one build at a time on [backgroundDispatcher], a newer call cancels it between two builds, and
+     * a build whose request, result and rules did not change since its last re-score comes straight from [rescoreCache].
+     */
+    private fun rescoreLibrary(builds: List<HistoryEntry>) {
+        rescoreJob?.cancel()
+        if (ui.phase == Phase.Searching || builds.isEmpty()) return
+        rescoreJob =
+            scope.launch(backgroundDispatcher) {
+                val batch = LinkedHashMap<String, RescoredResult>()
+                var lastPublish = System.nanoTime()
+
+                suspend fun publish() {
+                    if (batch.isEmpty()) return
+                    val landed = batch.toMap()
+                    batch.clear()
+                    lastPublish = System.nanoTime()
+                    withContext(mainDispatcher) {
+                        val changed = landed.filter { (id, rescore) -> ui.libraryRescores[id] != rescore }
+                        if (changed.isNotEmpty()) ui = ui.copy(libraryRescores = ui.libraryRescores + changed)
+                    }
+                }
+                for (entry in builds) {
+                    ensureActive()
+                    val key = RescoreKey(entry.id, entry.request, entry.result, dataVersion, engineResultsVersion)
+                    val current =
+                        rescoreCache[entry.id]?.takeIf { it.first == key }?.second
+                            // One unreadable save must not stop the others (nor reach the app's scope): it keeps its stored numbers.
+                            ?: runCatching { rescoreSaved(entry) }.getOrElse { entry.result }.also { rescoreCache[entry.id] = key to it }
+                    batch[entry.id] = RescoredResult(stored = entry.result, current = current)
+                    // In batches, so a large library costs a few state writes, not one recomposition per build.
+                    if (batch.size >= RESCORE_BATCH_SIZE || System.nanoTime() - lastPublish >= RESCORE_BATCH_NANOS) publish()
+                }
+                publish()
+            }
+    }
+
+    /**
+     * [entry]'s result with the score, stats and proof flag a [loadBuild] of it would show: its request restored the same way,
+     * then [rescored]. The stored numbers come back unchanged when the scorer cannot read the build.
+     */
+    private fun rescoreSaved(entry: HistoryEntry): me.chosante.common.history.ResultSnapshot {
+        val restored =
+            UiState()
+                .withSavedRequest(entry)
+                .copy(
+                    build = entry.toBuildCombination(),
+                    match = entry.result.match.toBigDecimal(),
+                    optimal = entry.result.optimal,
+                    achieved = entry.result.achieved
+                )
+        val scored = restored.copy(prefilteredRequest = runCatching { restored.toTargetStats().needsItemPrefilter }.getOrDefault(false)).rescored()
+        return entry.result.copy(match = scored.match.toDouble(), achieved = scored.achieved, optimal = scored.optimal)
     }
 
     /** Opens the import dialog, where a build exported via [exportBuild] is pasted. See [importBuild]. */
@@ -2118,10 +2453,7 @@ class BuildSearchModel(
     private fun uniqueLibraryName(base: String): String {
         val trimmed = base.trim().ifBlank { Tr.IMPORTED_BUILD_NAME.value(ui.lang) }
         val taken = ui.savedBuilds.map { it.name.trim().lowercase() }.toSet()
-        if (trimmed.lowercase() !in taken) return trimmed
-        var n = 2
-        while ("$trimmed ($n)".lowercase() in taken) n++
-        return "$trimmed ($n)"
+        return freeBuildName(trimmed, taken)
     }
 
     /** Clears the active-build identity (the workspace becomes an "unsaved build" again, unlocked). */

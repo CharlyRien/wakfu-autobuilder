@@ -5,9 +5,11 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import me.chosante.autobuilder.domain.Orientation
 import me.chosante.autobuilder.domain.RangeBand
+import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
+import me.chosante.common.SublimationRarity
 
 enum class Lang(
     val label: String,
@@ -29,7 +31,7 @@ enum class Tr(
 ) {
     // Brand / top bar
     CLASS("Class", "Classe"),
-    LEVEL_SHORT("Lvl", "Niv"),
+    LEVEL_SHORT("Lv", "Niv."),
     MIN_SHORT("Min", "Min"),
     LEVEL_RANGE_INVALID(
         "Min level can't be higher than the character level. Lower the min, or raise the level.",
@@ -70,6 +72,60 @@ enum class Tr(
     FORCED_SUBLIMATIONS_EXCEED_CAPACITY(
         "A build can socket at most 10 sublimations — remove some forced sublimations.",
         "Un build ne peut recevoir que 10 sublimations au maximum — retire des sublimations imposées."
+    ),
+
+    // Item equip conditions (the game's own rules on who may wear an item, and with what)
+    EQUIP_NEEDS("Needs %s", "Nécessite %s"),
+    EQUIP_INCOMPATIBLE("Can't be worn with %s", "Incompatible avec %s"),
+    EQUIP_CLASS_ONLY("%s only", "Réservé à la classe %s"),
+    EQUIP_NEVER("Cannot be equipped", "Non équipable"),
+    EQUIP_NOT_CHECKED("not checked by the search yet", "pas encore vérifié par la recherche"),
+    EQUIP_ASSUMED_MET("assumed met", "supposé rempli"),
+    EQUIP_MILITIA_RANK("Militia rank", "Rang de milice"),
+    EQUIP_ACHIEVEMENT("Achievement #%s completed", "Succès n°%s accompli"),
+    EQUIP_ACHIEVEMENT_NOT_COMPLETED("Achievement #%s not completed", "Succès n°%s non accompli"),
+    EQUIP_STASIS_GAUGE("Stasis gauge", "Jauge de Stasis"),
+    EQUIP_WAKFU_GAUGE("Wakfu gauge", "Jauge de Wakfu"),
+    EQUIP_CRIME_SCORE("Crime score", "Score de crime"),
+    EQUIP_ITEM_FALLBACK("Item #%d", "Objet n°%d"),
+    EQUIP_MORE("+%d more", "+%d autres"),
+
+    // Shared by the class picker and item conditions.
+    CLASS_FECA("Feca", "Féca"),
+    CLASS_OSAMODAS("Osamodas", "Osamodas"),
+    CLASS_ENUTROF("Enutrof", "Enutrof"),
+    CLASS_SRAM("Sram", "Sram"),
+    CLASS_XELOR("Xelor", "Xélor"),
+    CLASS_ECAFLIP("Ecaflip", "Écaflip"),
+    CLASS_ENIRIPSA("Eniripsa", "Eniripsa"),
+    CLASS_IOP("Iop", "Iop"),
+    CLASS_CRA("Cra", "Crâ"),
+    CLASS_SADIDA("Sadida", "Sadida"),
+    CLASS_SACRIEUR("Sacrier", "Sacrieur"),
+    CLASS_PANDAWA("Pandawa", "Pandawa"),
+    CLASS_ROUBLARD("Rogue", "Roublard"),
+    CLASS_ZOBAL("Masqueraider", "Zobal"),
+    CLASS_OUGINAK("Ouginak", "Ouginak"),
+    CLASS_STEAMER("Foggernaut", "Steamer"),
+    CLASS_ELIOTROPE("Eliotrope", "Eliotrope"),
+    CLASS_HUPPERMAGE("Huppermage", "Huppermage"),
+    CLASS_UNKNOWN("Unknown", "Inconnue"),
+
+    FORCED_ITEM_WRONG_CLASS(
+        "is reserved to another class — it can't be equipped by this character. Reserved to:",
+        "est réservé à une autre classe — ce personnage ne peut pas l'équiper. Réservé à :"
+    ),
+    FORCED_ITEM_NEVER_EQUIPPABLE(
+        "can't be equipped in the game — remove it from the forced items.",
+        "n'est pas équipable dans le jeu — retire-le des objets imposés."
+    ),
+    FORCED_ITEM_REQUIRES_ITEM(
+        "can only be worn together with an item this search can't equip (its level or rarity is outside the search, or it is excluded):",
+        "ne peut être porté qu'avec un objet que cette recherche ne peut pas équiper (niveau ou rareté hors de la recherche, ou objet exclu) :"
+    ),
+    FORCED_ITEMS_MUTUALLY_EXCLUSIVE(
+        "These forced items can't be worn together in the game — remove one of:",
+        "Ces objets imposés ne peuvent pas être portés ensemble dans le jeu — retire l'un de :"
     ),
     REQUEST_ERRORS_TITLE(
         "Can't search yet",
@@ -141,6 +197,12 @@ enum class Tr(
     TURNS_TO_KILL("Turns to kill", "Tours pour tuer"),
     EXPECTED_DAMAGE("Expected damage", "Dégâts attendus"),
     SPELL_ROTATION("Spell Rotation", "Rotation de sorts"),
+    STAT_AP_AMOUNT("%d AP", "%d PA"),
+    STAT_WP_AMOUNT("%d WP", "%d PW"),
+    SPELL_DEBUFF_CAST("↳ %s (%d AP, −%d res)", "↳ %s (%d PA, −%d rés.)"),
+    SPELL_DEBUFF_RESISTANCE("→ %d%% res after debuffs", "→ %d %% rés. après les malus"),
+    SPELL_ROTATION_TOTAL("%s  (%d/%d AP)", "%s  (%d/%d PA)"),
+    SUBLIMATION_NORMAL("Normal", "Normale"),
     SPELL_ROTATION_SUB("best spells for this build's AP", "meilleurs sorts pour les PA du build"),
     SPELL_ROTATION_PER_TURN("expected damage / turn", "dégâts attendus / tour"),
     SPELL_ROTATION_EMPTY(
@@ -247,7 +309,7 @@ enum class Tr(
         "Aucun objet ici n'améliore les stats demandées"
     ),
     LEVEL_PREFIX_LONG("Level", "Niveau"),
-    LEVEL_PREFIX_SHORT("Lv", "Niv"),
+    LEVEL_PREFIX_SHORT("Lv", "Niv."),
     DISCLAIMER(
         "Unofficial fan tool - not affiliated with Ankama - item art © Ankama (community-sourced)",
         "Outil de fan non officiel - non affilié à Ankama - visuels © Ankama (communautaires)"
@@ -389,6 +451,8 @@ enum class Tr(
     REQUIRE_ITEM_TITLE("Require item", "Imposer un objet"),
     BAN_ITEM_TITLE("Ban item", "Exclure un objet"),
     SEARCH_ITEMS("Search items (FR / EN)…", "Rechercher des objets (FR / EN)…"),
+    ALL_SLOTS("All slots", "Tous les emplacements"),
+    PICKER_MATCH_COUNT("Matches: %d", "Résultats : %d"),
     NO_MATCHING_ITEM("No matching item", "Aucun objet correspondant"),
     EQUIPPABLE_ONLY("Equippable only", "Équipables uniquement"),
     RARITY_ALL("All", "Toutes"),
@@ -421,6 +485,10 @@ enum class Tr(
     TOAST_FORCED_ITEMS_REMOVED(
         "%d forced item(s) removed because they no longer fit the level/rarity range",
         "%d objet(s) imposé(s) retiré(s) car ils ne correspondent plus au niveau ou à la rareté"
+    ),
+    TOAST_WORKSPACE_ENTRIES_REMOVED(
+        "%d item(s), sublimation(s), passive(s) or rune(s) from your last session no longer exist in the game data and were removed",
+        "%d objet(s), sublimation(s), passif(s) ou rune(s) de ta dernière session n'existent plus dans les données du jeu et ont été retirés"
     ),
 
     // Error banner: plain sentences, the technical detail goes to the log. %s in ZENITH_BROWSER_FAILED = the "Copy build link" label.
@@ -472,10 +540,22 @@ enum class Tr(
 
     // A build computed with other game data than the app's (a saved build loaded after a game update): a small note on its My
     // Builds card and in the stats column. %s = the game-data version it was saved with.
-    SAVED_WITH_OTHER_DATA(
-        "Saved with game data %s — re-run the search to update",
-        "Enregistré avec les données de jeu %s — relance la recherche pour mettre à jour"
+    OBSOLETE_BADGE("Obsolete", "Obsolète"),
+    OBSOLETE_DATA_REASON(
+        "Game data updated since this build was saved (%s): new items, sublimations or runes may give a better build. Re-run the search.",
+        "Données du jeu mises à jour depuis (%s) : de nouveaux objets, sublimations ou runes peuvent donner un meilleur build. Relance la recherche."
     ),
+    OBSOLETE_ENGINE_REASON(
+        "The engine was improved since this build was saved: re-running the search may find a better build or score.",
+        "Le moteur a été amélioré depuis l'enregistrement de ce build : relancer la recherche peut trouver un meilleur build ou un meilleur score."
+    ),
+    OBSOLETE_STORED_SCORE("When saved: %s", "À l'enregistrement : %s"),
+    OBSOLETE_DATA_OTHER("Saved with other game data (%s).", "Enregistré avec d'autres données du jeu (%s)."),
+    PROVEN_BY_OLDER_ENGINE(
+        "Proven by an older engine version: re-run the search to prove it with the current one.",
+        "Prouvé par une ancienne version du moteur : relance la recherche pour le prouver avec la version actuelle."
+    ),
+    ACTION_RERUN_SEARCH("Re-run the search", "Relancer la recherche"),
     LIBRARY_ALL_BUILDS("All builds", "Tous les builds"),
     LIBRARY_CLASSES("Classes", "Classes"),
     LIBRARY_TAGS("Tags", "Tags"),
@@ -778,4 +858,36 @@ fun ItemType.label(lang: Lang): String =
         ItemType.TWO_HANDED_WEAPONS -> if (lang == Lang.FR) "Arme à deux mains" else "Two-handed Weapon"
         ItemType.MOUNTS -> if (lang == Lang.FR) "Monture" else "Mount"
         ItemType.BELT -> if (lang == Lang.FR) "Ceinture" else "Belt"
+    }
+
+/** Shared localized class names. */
+fun CharacterClass.label(lang: Lang): String =
+    when (this) {
+        CharacterClass.FECA -> Tr.CLASS_FECA
+        CharacterClass.OSAMODAS -> Tr.CLASS_OSAMODAS
+        CharacterClass.ENUTROF -> Tr.CLASS_ENUTROF
+        CharacterClass.SRAM -> Tr.CLASS_SRAM
+        CharacterClass.XELOR -> Tr.CLASS_XELOR
+        CharacterClass.ECAFLIP -> Tr.CLASS_ECAFLIP
+        CharacterClass.ENIRIPSA -> Tr.CLASS_ENIRIPSA
+        CharacterClass.IOP -> Tr.CLASS_IOP
+        CharacterClass.CRA -> Tr.CLASS_CRA
+        CharacterClass.SADIDA -> Tr.CLASS_SADIDA
+        CharacterClass.SACRIEUR -> Tr.CLASS_SACRIEUR
+        CharacterClass.PANDAWA -> Tr.CLASS_PANDAWA
+        CharacterClass.ROUBLARD -> Tr.CLASS_ROUBLARD
+        CharacterClass.ZOBAL -> Tr.CLASS_ZOBAL
+        CharacterClass.OUGINAK -> Tr.CLASS_OUGINAK
+        CharacterClass.STEAMER -> Tr.CLASS_STEAMER
+        CharacterClass.ELIOTROPE -> Tr.CLASS_ELIOTROPE
+        CharacterClass.HUPPERMAGE -> Tr.CLASS_HUPPERMAGE
+        CharacterClass.UNKNOWN -> Tr.CLASS_UNKNOWN
+    }.value(lang)
+
+/** Epic and relic share the equipment rarity labels; normal is specific to sublimations. */
+fun SublimationRarity.label(lang: Lang): String =
+    when (this) {
+        SublimationRarity.EPIC -> Rarity.EPIC.label(lang)
+        SublimationRarity.RELIC -> Rarity.RELIC.label(lang)
+        SublimationRarity.NORMAL -> Tr.SUBLIMATION_NORMAL.value(lang)
     }

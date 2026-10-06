@@ -1,6 +1,7 @@
 package me.chosante.common
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
 @Serializable
 enum class Rarity {
@@ -58,6 +59,13 @@ data class Equipment(
     // stat reader (solver, scorers, certificates, domination, GUI) sees the item. Empty for every other item, and the
     // default, so resources and saved builds written before it existed still deserialize.
     val percentOfLevel: Map<Characteristic, Int> = emptyMap(),
+    // The item's EQUIP criterion (a nation sword needs its ring, a class emblem is for its class, some rings exclude each
+    // other — see [ItemEquipCriterion]), decoded from the client by `bdata-extractor` into `item-criteria.json` and joined
+    // by id when the engine loads its catalog. Null for an item without one — and for every item built outside the
+    // catalog (tests), so a synthetic pool never inherits a real item's conditions by id. @Transient: it is never read
+    // from equipments.json (a CDN artifact) nor written into a saved build.
+    @Transient
+    val equipCriterion: ItemEquipCriterion? = null,
 ) {
     /**
      * This item as worn by a level-[characterLevel] character: every [percentOfLevel] line resolved into

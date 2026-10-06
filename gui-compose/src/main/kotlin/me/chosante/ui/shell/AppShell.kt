@@ -122,6 +122,7 @@ fun AppShell(
                                 ui = ui,
                                 onImport = model::requestImport,
                                 onLoad = model::loadBuild,
+                                onRerun = model::rerunSearch,
                                 onCompare = model::startCompare,
                                 onDuplicate = model::duplicateBuild,
                                 onEdit = model::requestEdit,
@@ -147,6 +148,7 @@ fun AppShell(
                                 onPick = model::setCompareSlot,
                                 onClear = model::clearCompareSlot,
                                 onAdd = model::addCompareSlot,
+                                onRerun = model::rerunSearch,
                                 onBack = { model.goToScreen(Screen.Library) }
                             )
                     }
@@ -185,6 +187,7 @@ fun AppShell(
                 onDismiss = model::closeModal,
                 suggestedSaveName = model.suggestedSaveName(),
                 isEditingExisting = ui.activeBuildId != null,
+                takenNamesForNew = model.takenBuildNames(asNew = true),
                 // Save dialog excludes the *active* build's name; the Edit dialog must exclude the
                 // *edited* build's name (it may differ from the active build) so its inline
                 // duplicate-name warning matches what editBuild() will actually accept.
@@ -303,7 +306,8 @@ private fun BuilderBody(
                                 onExport = model::exportBuild,
                                 onViewAsDamage = model::viewCurrentBuildAsMaxDamage,
                                 onStopProof = model::stopProof,
-                                onRetryError = model::retryAfterError
+                                onRetryError = model::retryAfterError,
+                                onRerunSearch = model::confirmReSearch
                             )
                         }
                     }

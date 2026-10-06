@@ -20,6 +20,7 @@ import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.tr
+import me.chosante.ui.state.libraryLabel
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WDimens
 import me.chosante.ui.theme.WTypography
@@ -91,6 +92,22 @@ internal fun RequestValidationProblem.localizedMessage(lang: Lang): String =
         is RequestValidationProblem.ForcedItemAlsoExcluded -> {
             val name = if (lang == Lang.FR) item.name.fr else item.name.en
             "$name ${Tr.FORCED_ITEM_ALSO_EXCLUDED.value(lang)}"
+        }
+        is RequestValidationProblem.ForcedItemWrongClass -> {
+            val name = if (lang == Lang.FR) item.name.fr else item.name.en
+            "$name ${Tr.FORCED_ITEM_WRONG_CLASS.value(lang)} ${classes.joinToString { it.libraryLabel(lang) }}"
+        }
+        is RequestValidationProblem.ForcedItemNeverEquippable -> {
+            val name = if (lang == Lang.FR) item.name.fr else item.name.en
+            "$name ${Tr.FORCED_ITEM_NEVER_EQUIPPABLE.value(lang)}"
+        }
+        is RequestValidationProblem.ForcedItemRequirementUnavailable -> {
+            val name = if (lang == Lang.FR) item.name.fr else item.name.en
+            "$name ${Tr.FORCED_ITEM_REQUIRES_ITEM.value(lang)} ${if (lang == Lang.FR) required.fr else required.en}"
+        }
+        is RequestValidationProblem.ForcedItemsMutuallyExclusive -> {
+            val names = items.joinToString { if (lang == Lang.FR) it.fr else it.en }
+            "${Tr.FORCED_ITEMS_MUTUALLY_EXCLUSIVE.value(lang)} $names"
         }
         is RequestValidationProblem.ForcedItemsSlotConflict -> {
             val names = items.joinToString { if (lang == Lang.FR) it.fr else it.en }

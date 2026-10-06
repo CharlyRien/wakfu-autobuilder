@@ -76,7 +76,8 @@ These types are the vocabulary of the whole codebase — learn them first.
   today). Those depend on the wearer's level, so the per-request pool resolves them into `characteristics`
   (`Equipment.atLevel`, in `WakfuBestBuildFinderAlgorithm.poolFor`): every stat reader downstream sees plain
   stats. The raw `WakfuBestBuildFinderAlgorithm.equipments` catalog is unresolved — never build a pool from it
-  without `atLevel`.
+  without `atLevel`. The catalog also joins each item's EQUIP criterion (`equipCriterion`, `@Transient`: never read from
+  `equipments.json` nor saved) from `item-criteria.json` — see §4 "Item equip conditions".
 - **`ItemType`**: the 14 equippable slots (amulet, ring, boots, helmet, cape, belt, chestplate,
   shoulder pads, emblem, pet, mount, 1H/2H/off-hand weapons). Each carries Ankama's numeric `id`.
 - **`Rarity`**: ordered enum `COMMON < UNCOMMON < RARE < MYTHIC < LEGENDARY < RELIC < SOUVENIR < EPIC`.
@@ -108,6 +109,15 @@ named `genetic` for historical reasons.
 `WakfuBestBuildFinderAlgorithm.run(params)` is the entry point: it filters & groups the embedded
 equipments by `ItemType` (applying level/rarity/forced/excluded filters), then hands them to the
 solver.
+
+> **`ENGINE_RESULTS_VERSION` (`autobuilder/.../domain/EngineResultsVersion.kt`) — bump it on ANY change that can alter which
+> build a search returns or a build's score**: the solver, the scorers, the item pre-filter, the rune or sublimation modelling,
+> the certificates. **A `CERTIFIER_VERSION` bump implies an `ENGINE_RESULTS_VERSION` bump**; a pure speed-up that returns the
+> same builds needs none. Every saved build records it (`HistoryEntry.engineResultsVersion`), and "My Builds" badges a save
+> with a lower one (or none: saved before the field existed) as **obsolete** — a re-run may find a better build or score —
+> beside the game-data reason (`HistoryEntry.dataVersion` ≠ `WakfuData.VERSION`). It is a plain constant, NOT in
+> `WakfuBuildSolver` (whose init loads OR-Tools), so the GUI reads it for free. `EngineResultsVersionTest` locks the pair
+> (`CERTIFIER_VERSION`, `ENGINE_RESULTS_VERSION`): update it with the bump. Bump at most once per release: if the constant's current value is higher than the one in the latest release tag (`git show <tag>:<file>`), it has not shipped yet, so reuse it and extend its history entry. Otherwise take the next number.
 
 > A genetic-algorithm engine used to be selectable via a `WakfuSolver` enum. **It has been removed —
 > OR-Tools is the only solver.** Any reference to a GA, a `WakfuSolver` enum / solver toggle, or
@@ -239,8 +249,47 @@ certificate reads from an item (CERTIFIER_VERSION 53 audit, `docs/perf-review-ba
   max-damage, when a modelled rune type is a pinned stat);
 - rings: `B` goes only when its dominators span two different NAMES (two rings of one name are never worn together).
 
+- equip conditions (see below): an item another pool item REQUIRES is never evicted, and `A`'s required items and
+  conflict partners must be subsets of `B`'s.
+
 Adding anything the model reads from an `Equipment` (a new field, a level- or name-dependent term) means adding its
 clause there — and bumping `CERTIFIER_VERSION`, since the certificates' pool changes.
+
+### Item equip conditions (what the game lets a character wear)
+The client's Item table carries an EQUIP criterion per item (`ItemEquipCriterion`, decoded into `item-criteria.json` by
+`bdata-extractor`, §5; joined onto each catalog item as `Equipment.equipCriterion`). The game checks it at equip time AND
+re-checks the whole equipped set, so every rule is a rule on the FINAL build. The engine enforces (one set of helpers,
+`domain/EquipConditions.kt`, read by every consumer):
+- **REQUIRES** (`HasEquipmentId(x)`): the four nation swords (RELIC, +3 AP) each need their zero-stat EPIC ring — CP-SAT
+  `x_sword ≤ x_ring` (`addEquipConditionConstraints`); the pool drops an item whose required item can't be worn in the
+  request (`withRequirementsMet` in `groupAndFilterEquipments`: rarity cap, level band, exclusion); forcing the sword
+  forces its ring (`forcedNamesWithRequirements`: kept beside the forced items, counted by `validateRequest`); the
+  multi-element prefilter and the E8 provenance keep the ring. Only the USER's forced names narrow a slot, and the RING
+  slot is never narrowed: a build wears two rings, so forcing one ring (or a sword, whose ring takes one) leaves the second
+  free — the model's `Σ same-name ≥ 1` equips each forced item. (Narrowing it to the forced names made CP-SAT prove OPTIMAL
+  a forced-sword build 7.4 % below the true forced optimum; every certificate bails on a forced item.)
+- **FORBIDS** (`not HasEquipmentId(x)`), read as the SYMMETRIC closure (the Lieute rings list their bans only in their
+  CRAFT criterion): `x_a + x_b ≤ 1` per pair — five ring triples of different names (Issé Sceau's triple shares a name).
+- **CLASS-ONLY** (`IsBreed`, mapped to `CharacterClass` by breed id: the client's SACRIER is our SACRIEUR) and **NEVER**
+  (`False`): static pool filters (`isWearableBy`), and forced off in the CP-SAT model too (`x = 0` in
+  `addEquipConditionConstraints`), so a raw pool — the lvl-245 oracle's, a research harness's — never returns another
+  class's item. A character of class `UNKNOWN` (CLI without `--class`) wears no class item.
+- `BuildCombination.isValid(characterClass)` checks all four; the greedy warm start never picks a requiring item alone
+  (each sword + ring BUNDLE is a candidate, ranked by `rescore`) and never pairs excluding rings; `validateRequest`
+  rejects a wrong-class / never / requirement-unavailable forced item and two excluding forced items (`RequestValidationProblem`).
+- NOT enforced, kept for display: stat gates (`GetCharac` / `GetCharacMax` bounds — pending an in-game check of whether
+  an item's own bonus counts) and player-state conditions (company rank, achievement, gauges, crime score: assumed
+  satisfied). `not HasAnotherSameEquipment()` is the existing same-name ring rule.
+
+The certificates read REQUIRES (CERTIFIER_VERSION 57) and ignore FORBIDS (a relaxation: two rings that exclude each
+other may pair in a bound — sound, looser). The AP-cell certifier — the max-damage proof authority — splits every world in
+two ([CertWorld.bundle], `requirementBundleSplit`): the builds wearing no nation sword (swords removed) and the builds
+wearing one (sword + ring as ONE ring-stage entry, weapon slot left to off-hands), so the epic budget AND the ring slot the
+ring takes are exact (the lvl-245 ledger fell 1.0–2.3 % on cells 12–17: the v56 proven optimum wore Épée de Brâkmar
+without its ring). The most-masteries and soft certificates offer the sword FUSED with its ring in its own slot (`wornOpts`:
+stats, runes, rarity summed), which counts the epic budget but leaves the ring's slot free — an over-count of at most one
+ring. Locks: `EquipConditionsTest`, `EquipConditionsCertificateTest` (soundness on every pass, and the AP-cell ledger EXACT
+on conflict-free seeded pools), `EmbeddedItemCriteriaDataTest`.
 
 ### The multi-element item pre-filter (a HEURISTIC: what a multi-element search sees, and why it never earns a badge)
 A request wanting more than one element of mastery or resistance (`WakfuBuildSolver.needsItemPrefilter`: two specific
@@ -290,7 +339,7 @@ found) is `≥` the ledger's `maxCellObjective`. Badge states: **proven optimal*
 - **`CERTIFIER_VERSION` (`WakfuBuildSolver.kt`) must be bumped on ANY certifier change** (fast pass,
   exact pass, orchestrator, scaling formula, world/sub enumeration). It keys the in-memory per-cell
   cache alongside `WakfuData.VERSION`, so a bump invalidates every cached bound instead of serving a
-  stale (possibly now-unsound) one.
+  stale (possibly now-unsound) one. Bump at most once per release: if the constant's current value is higher than the one in the latest release tag (`git show <tag>:<file>`), it has not shipped yet, so reuse it and extend its history entry. Otherwise take the next number.
 - **Hard-leg results get a TARGET-AWARE ledger (CERTIFIER_VERSION 52).** A result of the hard-constraints leg
   (`SolverResult.maxDamageHardConstraintsMet`) of a request with a positive AP / MP / CC / RANGE row is compared with a
   ledger that enforces those rows in every pass (`StatBuilder.certifierTargetAware`; each filter reads a sound
@@ -397,6 +446,18 @@ as **fixed-name** JSON files (no version in the filename):
    (regular, hidden from the GUI boss picker). It needs a local Wakfu install (the binaries are **not** on
    the CDN), so unlike the other extractors it **cannot run in CI** — the JSON it produces stays committed.
    See `docs/SPELL_CAST_LIMITS_EXTRACTION.md` / `docs/SPELL_PASSIVES_EXTRACTION.md` for the format.
+   It also writes **`item-criteria.json`** (`ItemCriteria.kt` + `ItemCriterionParser.kt`): the EQUIP criteria of the
+   `equipments.json` items (so it runs after `equipments-extractor`), raw expression + typed form (`ItemEquipCriterion`:
+   required / forbidden item ids, classes, never, unique-equipped, stat gates, player-state atoms), sorted by item id.
+   Everything is found STRUCTURALLY in the client bytecode, never by an obfuscated name: the table id from the table-type
+   enum's `ITEM` constant, the record PREFIX from the ITEM binary-data classes' `read(reader)` calls up to the first
+   `String[]` (the alternating (kind, expression) criteria — only that prefix is decoded, each record by its own
+   offset + seed, so a field Ankama appends later never breaks it), the kinds from the enum holding `EQUIP` /
+   `USE_IN_FIGHT` / `PICK_UP`, the breed ids from the class-name enum. Guards that fail the run: a record whose first field
+   is not its index id, an odd criteria list, an unknown kind, two EQUIP entries, and — in the typed parse of a pool
+   item's expression (`Critere.g`: `and`/`et`/`&&`, `or`/`ou`/`||`, `not`/`non`/`!`, comparisons, arithmetic, `#…#`) — an
+   unknown function, an `or`, a negated conjunction or an unmapped characteristic / breed. CI lock on the committed file:
+   `EmbeddedItemCriteriaDataTest`; install-gated reproduction: `ItemCriteriaDecodeTest`.
 
 **The data version is a single source of truth:** `WakfuData.VERSION` in `common-lib`
 (`common-lib/.../WakfuData.kt`). The apps stamp it as `dataVersion`; the extractors fetch CDN assets for
@@ -435,8 +496,15 @@ is no FXML/XML.** Package root `me.chosante.ui`, organized by feature: `shell`, 
   `achieved` of the rules it was found under, so the shown ones are recomputed with the search's own request
   mapping, stats grid and scorer (`WakfuBestBuildFinderAlgorithm.rescore`, no solver); the stored ones are
   only a fallback, and a score that moved drops the stored "proven optimal" flag (compared as the stored
-  `Double`, not as `BigDecimal`). The E8 constructed-optimum swap stores that same `rescore`, so a swapped
-  build reloads unchanged. The library cards and the compare view still read the stored entry.
+  `Double`, not as `BigDecimal`), and so does a build that breaks an item EQUIP condition
+  (`WakfuBestBuildFinderAlgorithm.equipConditionViolation`, which reads the catalog's criteria by item id: a save carries none —
+  one made before the conditions were enforced may wear a nation sword without its ring). The E8 constructed-optimum swap stores
+  that same `rescore`, so a swapped build reloads unchanged. The library cards and the compare view show the same re-score:
+  `BuildSearchModel.rescoreLibrary` re-scores the saved builds off the UI thread when either view opens (cancellable, cached per
+  entry + data + engine version, published as `UiState.libraryRescores`, read through `UiState.shownEntry`); the stored numbers
+  show until it lands. A save made with other game data or an older `ENGINE_RESULTS_VERSION` gets the **obsolete** badge
+  (`history/Obsolescence.kt`, `components/ObsoleteBuildCue.kt`) with its reasons and a "Re-run the search" action
+  (`BuildSearchModel.rerunSearch`).
 - **`AppShell`** (`shell/`) — `TopBar` (brand logo, language toggle, class, level/min-level, the
   progress + match/mastery meters, Search button) above a 3-column body:
   - **`RequestPanel`** (`request/`) — search mode, target-stats editor, constraints (per-rarity

@@ -334,6 +334,12 @@ data class UiState(
      * data. Null for a build found by this app's own data. Travels with the result ([ShownResult]).
      */
     val staleDataVersion: String? = null,
+    /**
+     * Set when the shown build was computed by an older engine than this app's ([me.chosante.autobuilder.domain.ENGINE_RESULTS_VERSION]):
+     * a saved (or imported) build loaded after an engine fix that can improve results. Like [staleDataVersion], it travels with
+     * the result, a new search clears it, and saving the build as it is keeps the original stamp. Null for a build found here.
+     */
+    val staleEngine: StaleEngine? = null,
     val build: BuildCombination? = null,
     val achieved: Map<Characteristic, Int> = emptyMap(),
     /** Best spells to cast for the build's AP, in max-damage mode only (else null). Computed off-thread. */
@@ -393,7 +399,34 @@ data class UiState(
     val libraryFolder: LibraryFolderFilter = LibraryFolderFilter.All,
     /** Whether the library groups its cards by class; persisted across launches. */
     val libraryGroupByClass: Boolean = false,
+    /**
+     * Saved builds re-scored under the CURRENT rules, by entry id, filled off the UI thread when the library or the compare view
+     * opens ([BuildSearchModel] keeps the cache). The cards and the compare view show these numbers instead of the stored ones;
+     * read through [shownEntry], which ignores a re-score made for another version of the entry. In-memory only.
+     */
+    val libraryRescores: Map<String, RescoredResult> = emptyMap(),
 )
+
+/** The build engine version a loaded build was computed with, when older than this app's; [savedVersion] null = not recorded. */
+data class StaleEngine(
+    val savedVersion: Int?,
+)
+
+/** A saved build's [stored] result and the same build re-scored under the current rules ([current]). */
+data class RescoredResult(
+    val stored: me.chosante.common.history.ResultSnapshot,
+    val current: me.chosante.common.history.ResultSnapshot,
+)
+
+/**
+ * [entry] as the library shows it: with the numbers of the current rules when its re-score is ready ([UiState.libraryRescores]),
+ * else as stored. A re-score made for another version of the entry (overwritten since) is ignored.
+ */
+fun UiState.shownEntry(entry: HistoryEntry): HistoryEntry =
+    libraryRescores[entry.id]
+        ?.takeIf { it.stored == entry.result }
+        ?.let { entry.copy(result = it.current) }
+        ?: entry
 
 /**
  * What one search mode keeps while another mode is on screen: its target [targets] and the [result] found under it. A result
@@ -420,6 +453,7 @@ data class ShownResult(
     val proofState: ProofState = ProofState.Idle,
     val searchStopped: Boolean = false,
     val staleDataVersion: String? = null,
+    val staleEngine: StaleEngine? = null,
     val build: BuildCombination? = null,
     val achieved: Map<Characteristic, Int> = emptyMap(),
     val spellRotation: SpellRotation? = null,
@@ -454,6 +488,7 @@ fun UiState.shownResult(): ShownResult =
         proofState = proofState,
         searchStopped = searchStopped,
         staleDataVersion = staleDataVersion,
+        staleEngine = staleEngine,
         build = build,
         achieved = achieved,
         spellRotation = spellRotation,
@@ -474,6 +509,7 @@ fun UiState.withResult(result: ShownResult): UiState =
         proofState = result.proofState,
         searchStopped = result.searchStopped,
         staleDataVersion = result.staleDataVersion,
+        staleEngine = result.staleEngine,
         build = result.build,
         achieved = result.achieved,
         spellRotation = result.spellRotation,
