@@ -22,6 +22,9 @@ import androidx.compose.ui.unit.sp
 import me.chosante.common.Characteristic
 import me.chosante.common.skills.IntelligenceCharacteristic
 import me.chosante.common.skills.SkillCharacteristic
+import me.chosante.ui.i18n.Lang
+import me.chosante.ui.i18n.LocalLang
+import me.chosante.ui.i18n.Tr
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WType
 import me.chosante.ui.theme.WTypography
@@ -190,7 +193,7 @@ internal fun StatGlyphIcon(
         )
     } else {
         Text(
-            text = glyph,
+            text = characteristic.localizedStatGlyph(glyph, LocalLang.current),
             style =
                 WTypography.labelSmall.copy(
                     color = color,
@@ -203,3 +206,37 @@ internal fun StatGlyphIcon(
         )
     }
 }
+
+/** Symbols stay universal; abbreviated stat names follow the current UI language even if an asset is missing. */
+internal fun Characteristic.localizedStatGlyph(
+    fallback: String,
+    lang: Lang,
+): String =
+    when (this) {
+        Characteristic.ACTION_POINT, Characteristic.MAX_ACTION_POINT -> Tr.GLYPH_ACTION_POINT
+        Characteristic.MOVEMENT_POINT, Characteristic.MAX_MOVEMENT_POINT -> Tr.GLYPH_MOVEMENT_POINT
+        Characteristic.WAKFU_POINT, Characteristic.MAX_WAKFU_POINTS -> Tr.GLYPH_WAKFU_POINT
+        Characteristic.MASTERY_ELEMENTARY -> Tr.GLYPH_MASTERY_ELEMENTARY
+        Characteristic.MASTERY_ELEMENTARY_WATER -> Tr.GLYPH_MASTERY_ELEMENTARY_WATER
+        Characteristic.MASTERY_ELEMENTARY_FIRE -> Tr.GLYPH_MASTERY_ELEMENTARY_FIRE
+        Characteristic.MASTERY_ELEMENTARY_EARTH -> Tr.GLYPH_MASTERY_ELEMENTARY_EARTH
+        Characteristic.MASTERY_ELEMENTARY_WIND -> Tr.GLYPH_MASTERY_ELEMENTARY_WIND
+        Characteristic.MASTERY_MELEE -> Tr.GLYPH_MASTERY_MELEE
+        Characteristic.MASTERY_BACK -> Tr.GLYPH_MASTERY_BACK
+        Characteristic.MASTERY_BERSERK -> Tr.GLYPH_MASTERY_BERSERK
+        Characteristic.MASTERY_HEALING -> Tr.GLYPH_MASTERY_HEALING
+        Characteristic.RESISTANCE_ELEMENTARY -> Tr.GLYPH_RESISTANCE_ELEMENTARY
+        Characteristic.RESISTANCE_ELEMENTARY_WATER -> Tr.GLYPH_RESISTANCE_ELEMENTARY_WATER
+        Characteristic.RESISTANCE_ELEMENTARY_FIRE -> Tr.GLYPH_RESISTANCE_ELEMENTARY_FIRE
+        Characteristic.RESISTANCE_ELEMENTARY_EARTH -> Tr.GLYPH_RESISTANCE_ELEMENTARY_EARTH
+        Characteristic.RESISTANCE_CRITICAL -> Tr.GLYPH_RESISTANCE_CRITICAL
+        Characteristic.RESISTANCE_BACK -> Tr.GLYPH_RESISTANCE_BACK
+        Characteristic.CONTROL -> Tr.GLYPH_CONTROL
+        Characteristic.WISDOM -> Tr.GLYPH_WISDOM
+        Characteristic.PROSPECTION -> Tr.GLYPH_PROSPECTION
+        Characteristic.INITIATIVE -> Tr.GLYPH_INITIATIVE
+        Characteristic.LOCK -> Tr.GLYPH_LOCK
+        Characteristic.WILLPOWER -> Tr.GLYPH_WILLPOWER
+        Characteristic.BLOCK_PERCENTAGE -> Tr.GLYPH_BLOCK_PERCENTAGE
+        else -> null
+    }?.value(lang) ?: fallback
