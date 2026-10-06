@@ -20,7 +20,28 @@ object FindMostMasteriesFromInputScoring {
         targetStats: TargetStats,
         buildCombination: BuildCombination,
         characterBaseCharacteristics: Map<Characteristic, Int>,
-    ): BigDecimal {
+    ): BigDecimal = scored(targetStats, buildCombination, characterBaseCharacteristics).score
+
+    /**
+     * Every stat of [buildCombination] as [computeScore] reads it for [targetStats] — its random-element rolls placed where the
+     * score places them (a floor kept when the score prefers it). The same computation as the score, not a second one.
+     */
+    internal fun resolvedStats(
+        targetStats: TargetStats,
+        buildCombination: BuildCombination,
+        characterBaseCharacteristics: Map<Characteristic, Int>,
+    ): Map<Characteristic, Int> = scored(targetStats, buildCombination, characterBaseCharacteristics).stats
+
+    private class Scored(
+        val score: BigDecimal,
+        val stats: Map<Characteristic, Int>,
+    )
+
+    private fun scored(
+        targetStats: TargetStats,
+        buildCombination: BuildCombination,
+        characterBaseCharacteristics: Map<Characteristic, Int>,
+    ): Scored {
         // Aggregate RESISTANCE_ELEMENTARY alone makes the resistance score a min over the four elements (water-fill
         // optimally). Per-element resistance rows over several elements read the solver's joint fold instead: their rolls
         // are placed at the exact optimum of the rows' penalty total ([elementRows], which takes precedence).
@@ -114,6 +135,6 @@ object FindMostMasteriesFromInputScoring {
                 }
             }
 
-        return (diAdjustedScore.toBigDecimal() / penaltyFactor)
+        return Scored(diAdjustedScore.toBigDecimal() / penaltyFactor, actualCharacteristicsValues)
     }
 }

@@ -165,6 +165,10 @@ internal class StatBuilder(
     // leg, the free request, every test seam) ⇒ the target-blind certifier. Read together with the
     // [CertifierTuning.targetAwareEnabled] kill switch; set by `WakfuBuildSolver.maxDamageCertificate(targetAware = …)`.
     internal val certifierTargetAware: Boolean = false,
+    // Relax-then-check (most-masteries — `WakfuBuildSolver.relaxThenCheck`): the model WITHOUT the request's floors. No floor is
+    // read ([floorReads] is empty: no `≥ 0` on the hard leg, no halving on the soft one) and no fold is built for one — each
+    // resistance family is folded over its wanted elements alone, as if no row of target 0 named it. Never set otherwise.
+    internal val relaxFloors: Boolean = false,
 ) {
     /**
      * Seeds the cumulable-sub COPY vars as the plain booleans they are. They are minted inside
@@ -1954,7 +1958,7 @@ internal class StatBuilder(
         characteristic: Characteristic,
     ): List<Characteristic> {
         val targetStats = params.targetStats
-        if (targetStats.floorElements(family).isNotEmpty()) {
+        if (!relaxFloors && targetStats.floorElements(family).isNotEmpty()) {
             val fold = targetStats.foldElements(family)
             if (characteristic in fold) return fold
         }
@@ -1964,7 +1968,7 @@ internal class StatBuilder(
                 characteristic in wanted &&
                 (
                     targetStats.any { it.characteristic == family.aggregate } ||
-                        targetStats.readsJointPerElementRows(family, params.scoreComputationMode)
+                        targetStats.readsJointPerElementRows(family, params.scoreComputationMode, withFloors = !relaxFloors)
                 )
         return if (joint) family.elements.filter { it in wanted } else listOf(characteristic)
     }
@@ -2002,8 +2006,12 @@ internal class StatBuilder(
      */
     internal val floorReads: List<Pair<Characteristic, IntVar>> by lazy {
         (
-            params.targetStats.floorCharacteristics.map { it to actualStat(it) } +
-                params.targetStats.resistanceFloorElements.map { element -> element to foldedElementalStat(element) }
+            if (relaxFloors) {
+                emptyList()
+            } else {
+                params.targetStats.floorCharacteristics.map { it to actualStat(it) } +
+                    params.targetStats.resistanceFloorElements.map { element -> element to foldedElementalStat(element) }
+            }
         ).filter { (_, read) -> tracker.of(read).first < 0L }
             .also { floorReadsBuilt = true }
     }
@@ -2157,7 +2165,8 @@ internal class StatBuilder(
         val freeSinks = if (resistance) resistanceFreeSinks(key.second.size) else null
         // The ONE fold of a family with a floor ([foldElements]), placed freely: the floors are kept or not on the whole build.
         val flooredFold =
-            resistance &&
+            !relaxFloors &&
+                resistance &&
                 params.targetStats.floorElements(ElementFamily.RESISTANCE).isNotEmpty() &&
                 key.second == params.targetStats.foldElements(ElementFamily.RESISTANCE).toSet()
         return elementCache.getOrPut(key) {
@@ -2197,14 +2206,18 @@ internal class StatBuilder(
                                     genericCharacteristic == Characteristic.RESISTANCE_ELEMENTARY &&
                                         (
                                             params.targetStats.any { it.characteristic == Characteristic.RESISTANCE_ELEMENTARY } ||
-                                                params.targetStats.readsJointPerElementRows(ElementFamily.RESISTANCE, params.scoreComputationMode)
+                                                params.targetStats.readsJointPerElementRows(
+                                                    ElementFamily.RESISTANCE,
+                                                    params.scoreComputationMode,
+                                                    withFloors = !relaxFloors
+                                                )
                                         )
                                 )
 
                         ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT -> true
                         ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE ->
                             genericCharacteristic == Characteristic.RESISTANCE_ELEMENTARY &&
-                                params.targetStats.readsJointPerElementRows(ElementFamily.RESISTANCE, params.scoreComputationMode)
+                                params.targetStats.readsJointPerElementRows(ElementFamily.RESISTANCE, params.scoreComputationMode, withFloors = !relaxFloors)
                     }
             val prePercentElements =
                 applyGreedyRandom(wantedElements, baseElements, targets, buildRandomEntries(randomByCount), freeAssignment, freeSinks, flooredFold)
