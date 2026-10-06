@@ -167,6 +167,38 @@ class MixedRuneSecondaryBudgetTest {
         assertThat(cells).isGreaterThan(0)
     }
 
+    /**
+     * The same flaw without any sublimation: a required HP row is a threshold too. CRA 50, three 4-socket items of 300
+     * fire mastery, an HP row of 850 the skills and items fall just short of: one HP rune tops it up, the fold sold HP
+     * runes only by the whole item. v56: 117,000 (hard leg); count model and the fixed fold: 117,500 — on the soft leg too
+     * (117,000,000,000 vs 117,500,000,000, the soft objective's scale). A GUI-default request (HP 2000) has this shape.
+     */
+    @Test
+    fun `a required HP row is a threshold a part-filled item tops up`() {
+        val level = 50
+        val scenario = DamageScenario(element = SpellElement.FIRE, rangeBand = RangeBand.DISTANCE, orientation = Orientation.FACE)
+        val pool =
+            listOf(ItemType.HELMET, ItemType.CHEST_PLATE, ItemType.BOOTS)
+                .mapIndexed { i, type -> item(820_001 + i, type, level, mapOf(Characteristic.MASTERY_ELEMENTARY_FIRE to 300)) }
+                .groupBy { it.itemType }
+        val p =
+            params(level, scenario, targets = listOf(TargetStat(Characteristic.MASTERY_DISTANCE, 1), TargetStat(Characteristic.HP, 850)))
+                .copy(useSublimations = false)
+        for ((hard, expectedV56, expected) in listOf(Triple(true, 117_000L, 117_500L), Triple(false, 117_000_000_000L, 117_500_000_000L))) {
+            val v56 = solve(p, pool, emptyList(), mixed = false, hard = hard)
+            val count = solve(p, pool, emptyList(), count = true, hard = hard)
+            val fixed = solve(p, pool, emptyList(), hard = hard)
+            println("MIXED_HP hard=$hard v56=${v56.objective}/${v56.isOptimal} count=${count.objective}/${count.isOptimal} fixed=${fixed.objective}/${fixed.isOptimal}")
+            for (outcome in listOf(v56, count, fixed)) assertThat(outcome.isOptimal).isTrue()
+            assertThat(v56.objective).describedAs("hard=%s: v56's fold misses the topped-up build", hard).isEqualTo(expectedV56)
+            assertThat(count.objective).describedAs("hard=%s: the count optimum", hard).isEqualTo(expected)
+            assertThat(fixed.objective).describedAs("hard=%s: the fold with count carriers reaches it", hard).isEqualTo(expected)
+        }
+        // The target-aware certificate (the hard leg's) never reads HP: it bounds the topped-up build.
+        val ledger = WakfuBuildSolver.certifyLedgerForTest(p, pool, runes, emptyList(), forceTier2All = true, targetAware = true)
+        assertThat(ledger.maxCellObjective!!).isGreaterThanOrEqualTo(117_500L)
+    }
+
     @Test
     fun `only a threshold read with a budget makes a rune type mixed`() {
         val distance = Characteristic.MASTERY_DISTANCE
