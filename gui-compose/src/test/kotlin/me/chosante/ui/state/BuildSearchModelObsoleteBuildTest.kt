@@ -1,12 +1,17 @@
 package me.chosante.ui.state
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.genetic.SolverResult
@@ -33,6 +38,7 @@ import kotlin.time.Duration.Companion.seconds
  * saved as it is), a new search clears it, "Re-run the search" restores the request and starts it — and the library is re-scored
  * under the current rules off the UI thread, once per build and rules (cached).
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class BuildSearchModelObsoleteBuildTest {
     private val data = "1.93.1.62"
     private val engine = 5
@@ -80,6 +86,7 @@ class BuildSearchModelObsoleteBuildTest {
         vararg library: HistoryEntry,
         rescoreDelayMs: Long = 0,
         realRescorer: Boolean = false,
+        searchFinish: CompletableDeferred<Unit>? = null,
     ): BuildSearchModel {
         val repository = HistoryRepository(baseDir = dir, ioDispatcher = Dispatchers.Unconfined)
         library.forEach { repository.save(it) }
@@ -87,7 +94,10 @@ class BuildSearchModelObsoleteBuildTest {
             scope = scope,
             buildFinder = {
                 searches.incrementAndGet()
-                flowOf(SolverResult(individual = foundBuild, matchPercentage = BigDecimal("100"), progressPercentage = 100, isOptimal = true))
+                flow {
+                    searchFinish?.await()
+                    emit(SolverResult(individual = foundBuild, matchPercentage = BigDecimal("100"), progressPercentage = 100, isOptimal = true))
+                }
             },
             zenithBuilder = { "" },
             copyToClipboard = {},
@@ -228,6 +238,60 @@ class BuildSearchModelObsoleteBuildTest {
     }
 
     @Test
+    fun `opening either library view during a search waits to re-score until the search ends`(
+        @TempDir dir: Path,
+    ): Unit =
+        runTest {
+            for (screen in listOf(Screen.Library, Screen.Compare)) {
+                val dispatcher = StandardTestDispatcher(testScheduler)
+                val repository = HistoryRepository(baseDir = dir.resolve(screen.name), ioDispatcher = dispatcher)
+                repository.save(saved("a", engineVersion = engine))
+                val finish = CompletableDeferred<Unit>()
+                val model =
+                    BuildSearchModel(
+                        scope = backgroundScope,
+                        buildFinder = {
+                            flow {
+                                finish.await()
+                                emit(SolverResult(individual = foundBuild, matchPercentage = BigDecimal("100"), progressPercentage = 100, isOptimal = true))
+                            }
+                        },
+                        mainDispatcher = dispatcher,
+                        ioDispatcher = dispatcher,
+                        backgroundDispatcher = dispatcher,
+                        historyRepository = repository,
+                        libraryPreferences = LibraryPreferences(null),
+                        buildRescorer = { _, _ ->
+                            rescores.incrementAndGet()
+                            BigDecimal("1234")
+                        }
+                    )
+                runCurrent()
+                val before = rescores.get()
+                model.search()
+                runCurrent()
+                model.goToScreen(screen)
+                runCurrent()
+
+                assertThat(model.ui.phase).isEqualTo(Phase.Searching)
+                assertThat(rescores.get()).describedAs("no library CPU work during the search").isEqualTo(before)
+                assertThat(model.ui.libraryRescores).isEmpty()
+
+                finish.complete(Unit)
+                runCurrent()
+
+                assertThat(model.ui.phase).isEqualTo(Phase.Done)
+                assertThat(rescores.get()).isEqualTo(before + 1)
+                assertThat(
+                    model.ui.libraryRescores["a"]
+                        ?.current
+                        ?.match
+                ).isEqualTo(1234.0)
+                model.goToScreen(Screen.Builder)
+            }
+        }
+
+    @Test
     fun `a build changed since its re-score is re-scored again, and shown as stored until then`(
         @TempDir dir: Path,
     ) = withScope { scope ->
@@ -269,7 +333,7 @@ class BuildSearchModelObsoleteBuildTest {
         @TempDir dir: Path,
     ) = withScope { scope ->
         val library = (1..30).map { saved("b$it", engineVersion = engine) }.toTypedArray()
-        val model = newModel(scope, dir, *library, rescoreDelayMs = 40)
+        val model = newModel(scope, dir, *library, rescoreDelayMs = 40, searchFinish = CompletableDeferred())
 
         model.goToScreen(Screen.Library)
         awaitUntil { rescores.get() >= 2 }

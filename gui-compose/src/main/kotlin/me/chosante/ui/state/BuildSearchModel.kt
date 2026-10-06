@@ -216,9 +216,13 @@ class BuildSearchModel(
             uiState.value = value
             rememberWorkspaceLater(value)
             // The library and the compare view show each saved build with the numbers of the current rules: re-score the builds
-            // when one of them opens, and again whenever the library changes while it is on screen.
+            // when one of them opens, whenever the library changes, or when a search ends while it is on screen.
             val showsLibrary = value.screen == Screen.Library || value.screen == Screen.Compare
-            if (showsLibrary && (previous.screen != value.screen || previous.savedBuilds !== value.savedBuilds)) {
+            val searchEnded = previous.phase == Phase.Searching && value.phase != Phase.Searching
+            if (showsLibrary &&
+                value.phase != Phase.Searching &&
+                (previous.screen != value.screen || previous.savedBuilds !== value.savedBuilds || searchEnded)
+            ) {
                 rescoreLibrary(value.savedBuilds)
             } else if (!showsLibrary && previous.screen != value.screen) {
                 // Nobody looks at the cards any more: stop (the cache keeps every build already re-scored).
@@ -1087,7 +1091,7 @@ class BuildSearchModel(
     }
 
     fun search() {
-        // A search wants every core: the library re-score (if any) waits for the library to open again.
+        // A search wants every core: the library re-score waits until it ends, if either library view is still open.
         rescoreJob?.cancel()
         val snapshot = ui
         val params = snapshot.toSearchParams()
@@ -2349,7 +2353,7 @@ class BuildSearchModel(
      */
     private fun rescoreLibrary(builds: List<HistoryEntry>) {
         rescoreJob?.cancel()
-        if (builds.isEmpty()) return
+        if (ui.phase == Phase.Searching || builds.isEmpty()) return
         rescoreJob =
             scope.launch(backgroundDispatcher) {
                 val batch = LinkedHashMap<String, RescoredResult>()

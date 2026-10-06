@@ -260,6 +260,30 @@ class ObsoleteBuildCueUiTest {
     }
 
     @Test
+    fun `a loaded older-engine proof is dimmed in both languages`() {
+        for (lang in listOf(Lang.EN, Lang.FR)) {
+            runComposeUiTest {
+                statsColumn(doneUi(lang, stale = null, staleEngine = StaleEngine(0)).copy(optimal = true))
+
+                onNodeWithText(Tr.OPTIMAL_PROVEN.value(lang)).assertExists()
+                onNodeWithContentDescription(Tr.PROVEN_BY_OLDER_ENGINE.value(lang)).assertExists()
+            }
+        }
+    }
+
+    @Test
+    fun `a loaded current-engine proof keeps its normal presentation even with older game data`() {
+        for (stale in listOf(null, older)) {
+            runComposeUiTest {
+                statsColumn(doneUi(Lang.EN, stale = stale).copy(optimal = true))
+
+                onNodeWithText(Tr.OPTIMAL_PROVEN.en).assertExists()
+                onAllNodesWithContentDescription(Tr.PROVEN_BY_OLDER_ENGINE.en).assertCountEquals(0)
+            }
+        }
+    }
+
+    @Test
     fun `the stats column's re-run link starts the search`() =
         runComposeUiTest {
             var reruns = 0
