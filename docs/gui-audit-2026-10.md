@@ -170,7 +170,7 @@ are the branch's own: a rebase-merge rewrites them, the subjects stay.
 - **Cause:** `MatchHero` printed its number whatever the state; `DesiredVsAchieved` had no empty case.
 - **Fix:** until a build exists the headline is a dash (`—`, regular weight, faint colour) under its usual label, with no `%` and no meter; it
   also covers the first seconds of a search. A build that really scores 0 still reads 0. The card is shown only when there are target rows.
-- **Left as is:** the Mastery Summary card of a Max Damage result still opens on "Requested mastery 0" (N7).
+- **Follow-up N7 fixed:** the Mastery Summary hides the requested metric and its header number when no mastery was requested.
 - **Tests:** `HeadlineNoiseUiTest` (10).
 
 ### B5 — Stale-data cue — FIXED (`f1dd4f4b`)
@@ -207,7 +207,7 @@ are the branch's own: a rebase-merge rewrites them, the subjects stay.
 | N4 | "Could not save / import / duplicate build" banners still print the raw exception message (file paths). | `BuildSearchModel` `saveBuild` / `importBuild` / `duplicateBuild` failure handlers. |
 | N5 | The CLI still prints the raw precision score (`248.5% match found so far`); the 100 % cap of F4 is GUI-only. | `autobuilder/Main.kt`. |
 | N6 | The boss picker listed only the first 120 of the 225 bosses (nothing said so): every boss after "M" needed a typed search. **Fixed with B2.** | `take(120)` in `BossPickerModal`. |
-| N7 | A Max Damage result's Mastery Summary opens on "Requested mastery 0" (and a trailing `0` in its header) when no mastery was requested. Not changed: B4 covers the headline only. | `StatsPanel.MasterySummary` always shows the metric. |
+| N7 (fixed) | A Max Damage result's Mastery Summary opens on "Requested mastery 0" (and a trailing `0` in its header) when no mastery was requested. **Fixed:** `fix(gui): a max-damage result without a mastery request no longer shows "Requested mastery 0"`. Metric, hint and header number hidden without a mastery row; requested rows (including 0) unchanged. Test: `MasterySummaryUiTest` (EN/FR). | `StatsPanel.MasterySummary` always shows the metric. |
 | N8 | "Save as new" on a loaded build leaves the build's own name in the box, and only the OTHER builds' names are refused, so two builds can end up with the same name (the library and Compare then show two identical titles). | `SaveBuildModal` / `BuildSearchModel.takenBuildNames` (excludes the active build). Not changed. |
 | N9 | 17 of the 18 tests of `BuildSearchModelLibraryTest` never run: they are written `= runBlocking { … }`, so they return their last assertion, and JUnit ignores a `@Test` method that returns a value. With `: Unit` all 18 run and pass. | `gui-compose/src/test/.../state/BuildSearchModelLibraryTest.kt`; `BuildSearchModelSavedBossTest` already uses `): Unit = runBlocking {`. Not changed (follow-up task flagged). |
 | N10 | The "Stop at 100% match" / "Arrêter à 100%" switch is ignored: the GUI passes `stopWhenBuildMatch`, but no engine code reads it, so a precision search never stops at its first 100 % build. | **Decision (maintainer): make it work later.** When on, stop the precision search at the first build whose capped score reaches 100 %, without the overflow tie-break. Documentation only; behaviour unchanged. |
