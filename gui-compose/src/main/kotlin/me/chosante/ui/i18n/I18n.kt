@@ -422,6 +422,10 @@ enum class Tr(
         "%d forced item(s) removed because they no longer fit the level/rarity range",
         "%d objet(s) imposé(s) retiré(s) car ils ne correspondent plus au niveau ou à la rareté"
     ),
+    TOAST_WORKSPACE_ENTRIES_REMOVED(
+        "%d item(s), sublimation(s), passive(s) or rune(s) from your last session no longer exist in the game data and were removed",
+        "%d objet(s), sublimation(s), passif(s) ou rune(s) de ta dernière session n'existent plus dans les données du jeu et ont été retirés"
+    ),
 
     // Error banner: plain sentences, the technical detail goes to the log. %s in ZENITH_BROWSER_FAILED = the "Copy build link" label.
     ZENITH_UNREACHABLE(
