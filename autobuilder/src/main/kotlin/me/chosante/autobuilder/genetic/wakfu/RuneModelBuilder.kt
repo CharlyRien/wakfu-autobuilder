@@ -149,46 +149,6 @@ internal fun CpModel.createRuneModel(
     val choiceGates = LinkedHashMap<IntVar, Set<Sublimation>>()
     // The count carriers' vars → their socket count (a count var's gate is `count ≤ slots·Σ subVar`).
     val countVarSlots = HashMap<IntVar, Long>()
-    // Each count carrier's `mixed` bool, in carrier order (hinted 0: the search starts in the all-or-nothing fold).
-    val mixedFlags = mutableListOf<IntVar>()
-
-    // A count carrier, GATED (CERTIFIER_VERSION 57): the per-type counts x_t (0..slots — what every reader, the certifier
-    // included, sees as the carrier's rune vars) are `x_t = slots·p_t + n_t` with the all-or-nothing PICKS p_t of the
-    // fold and a `mixed` bool: `Σ p_t + mixed = selected`, `Σ n_t = slots·mixed`. With `mixed = 0` the carrier is exactly
-    // the fold's single-type pick; with `mixed = 1` any fill of the sockets. Exact (every x with `Σ x = slots·selected` is
-    // reached: a single type by its pick, anything else with `mixed = 1, n = x`), and hinting `mixed = 0` starts CP-SAT in
-    // the fold's subtree — the plain counts alone cost the GUI-default request ~15 % at a 60 s deadline.
-    fun gatedCounts(
-        equip: Equipment,
-        stats: Collection<Characteristic>,
-        prefix: String,
-    ): Map<Characteristic, IntVar> {
-        val slots = equip.maxShardSlots.toLong()
-        val id = equip.equipmentId
-        val mixedFlag = newBoolVar("runeMixed_$id")
-        val counts = LinkedHashMap<Characteristic, IntVar>()
-        val pickExpr = LinearExpr.newBuilder()
-        val partExpr = LinearExpr.newBuilder()
-        for (stat in stats) {
-            val x = newIntVar(0, slots, "${prefix}_${id}_${stat.name}")
-            val pick = newBoolVar("runeMixPick_${id}_${stat.name}")
-            val part = newIntVar(0, slots, "runeMixPart_${id}_${stat.name}")
-            // x = slots·pick + part
-            addEquality(LinearExpr.newBuilder().add(x).addTerm(pick, -slots).addTerm(part, -1L).build(), 0L)
-            pickExpr.addTerm(pick, 1L)
-            partExpr.addTerm(part, 1L)
-            counts[stat] = x
-            countVarSlots[x] = slots
-        }
-        pickExpr.addTerm(mixedFlag, 1L)
-        pickExpr.addTerm(equipVars.getValue(equip), -1L)
-        addEquality(pickExpr.build(), 0L)
-        partExpr.addTerm(mixedFlag, -slots)
-        addEquality(partExpr.build(), 0L)
-        mixedFlags += mixedFlag
-        countCarriers += equip
-        return counts
-    }
     val runeVars = mutableMapOf<Equipment, Map<Characteristic, IntVar>>()
     for (equip in allEquips) {
         val slots = equip.maxShardSlots
@@ -217,7 +177,14 @@ internal fun CpModel.createRuneModel(
             val mixed = choices.size >= 2 && choices.keys.any { it in mixedStats }
             val perStat =
                 if (mixed) {
-                    gatedCounts(equip, choices.keys, "runeCount")
+                    countCarriers += equip
+                    val vars = choices.keys.associateWith { stat -> newIntVar(0, slots.toLong(), "runeCount_${equip.equipmentId}_${stat.name}") }
+                    val capExpr = LinearExpr.newBuilder()
+                    vars.values.forEach { capExpr.addTerm(it, 1L) }
+                    capExpr.addTerm(equipVars.getValue(equip), -slots.toLong())
+                    addEquality(capExpr.build(), 0L)
+                    vars.values.forEach { countVarSlots[it] = slots.toLong() }
+                    vars
                 } else if (choices.size == 1) {
                     // The single surviving choice is forced whenever the item is equipped: substitute the
                     // equipment variable directly and skip a redundant rune bool + equality.
@@ -268,11 +235,10 @@ internal fun CpModel.createRuneModel(
             pickExpr.addTerm(equipVars.getValue(equip), -1L)
             addEquality(pickExpr.build(), 0L)
             runeVars[equip] = perStat
-        } else if (singleTypePerItem) {
-            // Under the general fold, a carrier offering a [mixedStats] type: gated counts over every type.
-            runeVars[equip] = gatedCounts(equip, runeStats, "rune")
         } else {
-            // The count model.
+            // The count model — or, under the general fold, a carrier offering a [mixedStats] type (exact: every type
+            // counted, `= slots·selected` like the fold's picks).
+            if (singleTypePerItem) countCarriers += equip
             val perStat = runeStats.associateWith { stat -> newIntVar(0, slots.toLong(), "rune_${equip.equipmentId}_${stat.name}") }
             // Sockets only count when the item is equipped: Σ runeCount {= max-damage | ≤ other modes} slots·selected.
             val capExpr = LinearExpr.newBuilder()
@@ -324,8 +290,7 @@ internal fun CpModel.createRuneModel(
         maxDamageChoiceCollapse = maxDamageRuneChoiceCollapse,
         choiceGates = choiceGates,
         countCarriers = countCarriers,
-        countVarSlots = countVarSlots,
-        mixedFlags = mixedFlags
+        countVarSlots = countVarSlots
     )
 }
 
