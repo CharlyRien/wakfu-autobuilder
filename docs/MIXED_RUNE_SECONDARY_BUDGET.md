@@ -180,8 +180,25 @@ the search (+ the E8 construct's crowned build where it succeeds).
 - Free 245: the same proven optimum in every run through the E8 construct (+3.6 s to the proof on average); the first
   solution comes ~6 s later.
 
-A cheaper exact encoding for the general fold is needed before this regression ships — proposal in the PR (a per-carrier
-"mixed" bool gating the counts, branched zero side first, so the search starts in the v56 fold's subtree).
+### The gated encoding (tried, reverted)
+
+`0c0070d2`: per count carrier, `x_t = slots·p_t + n_t` with the fold's single-type picks `p_t`, `Σ p_t + mixed =
+selected`, `Σ n_t = slots·mixed`, and every `mixed` bool HINTED 0 (no decision strategy, no solver parameter) so the
+search starts in the fold's subtree. Exact, and invisible to the certifier (it still reads `x_t`): every soundness lock
+passed, the vertex lock included. Same E0 protocol, 3 runs per arm, both arms re-run (GUI default 245 added; it runs
+before free 245 in each JVM, which is why free 245's badges hit the 120 s cap here):
+
+| Request | v56 fold final (median) | gated final (median) | first solution, v56 → gated (median) | badge, v56 / gated |
+|---|---|---|---|---|
+| GUI default 110 | 1,407,940 / 1,410,970 / 1,416,020 (1,410,970) | 1,130,720 / 1,091,810 / 1,135,240 (1,130,720, −19.9 %) | 12.4 s → 19.9 s (+60 %) | within 8.5–9.1 % / within 35–41 % |
+| GUI default 200 | 3,712,460 / 2,822,175 / 3,957,800 (3,712,460) | no CP-SAT solution in any run | 23.9 s → none | unavailable / unavailable |
+| GUI default 245 | 14,324,790 / 14,491,230 / 13,096,200 (14,324,790) | 14,390,490 / 14,188,850 / 14,147,400 (14,188,850, −0.9 %) | 18.8 s → 37.3 s (+98 %) | unavailable ×3 / ×3 |
+| free 245 | 18,323,125 / 18,180,625 / 18,204,375 (18,204,375) | 18,890,750 / 18,698,375 / 18,605,750 (18,698,375, +2.7 %) | 31.2 s → 32.0 s | unavailable ×3 / within 8.7 % once (E8 → 20,328,360), else unavailable |
+
+The deterministic latency lock read det 20.0 (hinted) / 20.3 (unhinted) — over its budget of 20 — against 10.27 for the
+plain counts. It misses every acceptance criterion (median ≤ 2 % worse, first solution ≤ 10 % later, badge in v56's
+range), and is worse than the plain counts, so it was reverted (`f86a9b97`): the branch keeps the plain counts, which
+still regress GUI default 110 by ~15 %.
 
 ## Tests
 
