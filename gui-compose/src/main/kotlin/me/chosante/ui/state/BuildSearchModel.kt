@@ -1673,6 +1673,18 @@ class BuildSearchModel(
     }
 
     /**
+     * This request's rows as a version before blank fields and rows of target 0 changed meaning read them (1.13): a blank or cleared
+     * field was a row of target 0 — a WANTED element then, for a resistance as for a mastery — and most-masteries split "all
+     * resistances" into the four elements ([expandGlobalResistance]). Only [rescored] reads it, to tell whether such a version
+     * searched this request on the pre-filtered pool ([TargetStats.legacyNeedsItemPrefilter]). Its rows include [toTargetStats]'s
+     * (a blank field adds a row, never removes one), so it also covers what the current reading would flag.
+     */
+    private fun UiState.legacyTargetStats(): TargetStats {
+        val raw = targets.map { TargetStat(it.characteristic, it.value.toIntOrNull() ?: 0, it.weight) }
+        return TargetStats(if (mode == ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT) expandGlobalResistance(raw) else raw)
+    }
+
+    /**
      * This request as the engine receives it: what a search runs on, and what a loaded saved build is re-scored against
      * ([rescored]) — one mapping, so the two can never read the same request differently.
      */
@@ -2046,16 +2058,18 @@ class BuildSearchModel(
      * "proven optimal" flag, and so does any build of a request no search can prove ([UiState.prefilteredRequest], read from
      * [TargetStats.needsItemPrefilter]: several elements of one family): an older version may have stored a proof made by a model
      * that counted every random-element roll on every element. So does a build of a request an older version searched on the
-     * pre-filtered pool because it counted a resistance row of target 0 as a wanted element ([TargetStats.legacyNeedsItemPrefilter]:
-     * "fire resistance 100" beside the default "air resistance 0") — its stored proof covers that reduced pool only, though the
-     * request now searches the whole catalog. Only a build the scorer cannot read at all keeps its stored numbers.
+     * pre-filtered pool because it counted a resistance row of target 0 — or a blank field, which it read as 0 — as a wanted element
+     * ([TargetStats.legacyNeedsItemPrefilter] on the rows read that way, [legacyTargetStats]: "fire resistance 100" beside the default
+     * "air resistance 0", or beside a blank air field; "fire mastery 50" beside a blank water mastery) — its stored proof covers that
+     * reduced pool only, though the request now searches the whole catalog. Only a build the scorer cannot read at all keeps its
+     * stored numbers.
      */
     private fun UiState.rescored(): UiState {
         val shown = build ?: return this
         return runCatching {
             val params = toSearchParams()
             val score = buildRescorer(params, shown)
-            val provable = !prefilteredRequest && !params.targetStats.legacyNeedsItemPrefilter
+            val provable = !prefilteredRequest && !legacyTargetStats().legacyNeedsItemPrefilter
             copy(match = score, achieved = achievedStats(shown, params), optimal = optimal && provable && isStoredScore(score, match))
         }.getOrDefault(this)
     }
