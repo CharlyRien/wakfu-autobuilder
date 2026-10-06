@@ -1082,14 +1082,23 @@ object WakfuBuildSolver {
             built.subModel.copyVars.values
                 .flatten()
 
-    /** The share of a relax-then-check leg's budget its relaxed stage may spend ([relaxThenCheck]); the floored stage gets the rest. */
+    /** The share of a relax-then-check leg's budget its relaxed stage may spend at most ([relaxThenCheck]). */
     internal const val RELAXED_STAGE_SHARE = 0.5
+
+    /** The share of a relax-then-check leg's budget its check of a proven relaxed optimum may spend at most ([relaxThenCheck]). */
+    internal const val CHECK_STAGE_SHARE = 0.1
+
+    /**
+     * The check of [relaxThenCheck] may run as long as the relaxed stage's solve did (at least this, in seconds — or the same in
+     * deterministic units on a tuned solve). Finding a floored build at the relaxed optimum takes a presolve and the hint: 0.4-0.7 of
+     * the relaxed solve's time on the GUI's default request (9 workers), whether the relaxed solution keeps its floors or another
+     * build at the same objective does. Proving that none exists — a floor that binds — took 2.5-3.8 times it: past the cap the check
+     * gives up, and the floored stage, which needs no such proof, takes over.
+     */
+    private const val MIN_CHECK_TIME = 1.0
 
     // The smallest stage budget worth a solve (wall seconds or deterministic units): OR-Tools reads a limit of 0 as no limit.
     private const val MIN_STAGE_BUDGET = 0.05
-
-    // Below this magnitude (2^52) a double carries every integer exactly — a CP-SAT bound read back as one is exact there.
-    private const val EXACT_DOUBLE_INTEGER_LIMIT = 4_503_599_627_370_496.0
 
     /**
      * Whether [optimize] solves this leg by [relaxThenCheck]: a most-masteries request with floors — in production, or on a tuned
@@ -1125,25 +1134,24 @@ object WakfuBuildSolver {
             )
 
     /**
-     * Relax-then-check's RELAXED stage budget out of a leg's [total] (wall milliseconds, or a tuned solve's deterministic time)
-     * once [spent] of it is gone: at most [RELAXED_STAGE_SHARE] of it, never past its end. Never negative.
+     * Relax-then-check's stage budgets out of a leg's [total] (wall milliseconds, or a tuned solve's deterministic time) once [spent]
+     * of it is gone: the RELAXED stage at most [RELAXED_STAGE_SHARE] of it and the CHECK at most [CHECK_STAGE_SHARE], neither past
+     * its end; the FLOORED stage whatever is left. Never negative — so the stages never add up to more than [total].
      */
     internal fun relaxedStageBudget(
         total: Double,
         spent: Double,
     ): Double = minOf(total * RELAXED_STAGE_SHARE, total - spent).coerceAtLeast(0.0)
 
-    /**
-     * Relax-then-check's FLOORED stage budget: what is left of the leg's [total] once [spent] of it is gone (the relaxed stage and
-     * both model builds included). Never negative — so the two stages never add up to more than [total].
-     */
+    internal fun checkStageBudget(
+        total: Double,
+        spent: Double,
+    ): Double = minOf(total * CHECK_STAGE_SHARE, total - spent).coerceAtLeast(0.0)
+
     internal fun flooredStageBudget(
         total: Double,
         spent: Double,
     ): Double = (total - spent).coerceAtLeast(0.0)
-
-    /** CP-SAT's bound on a maximized integer objective rounded down to a Long, or null where a double no longer carries every integer. */
-    private fun exactUpperBound(bound: Double): Long? = if (bound.isFinite() && kotlin.math.abs(bound) < EXACT_DOUBLE_INTEGER_LIMIT) kotlin.math.floor(bound).toLong() else null
 
     /**
      * Whether [build] is a build of [params]' FLOORED leg as the scorers read it: every floor held and, on the hard leg, every
@@ -1168,10 +1176,16 @@ object WakfuBuildSolver {
      *     It shows a build only when that build keeps every floor (and, on the hard leg, meets every target) in the scorers' exact
      *     read ([keepsFloors]) and scores no less than one already shown, and stamps none with a certificate-comparable objective
      *     (its objective is the relaxed one). Its final build is no result of the leg;
-     *  2. the FLOORED stage solves the real leg on what is left of the budget, hinted with the relaxed stage's final solution and
-     *     cut by `objective ≤ U`, U the relaxed stage's upper bound: its optimum, read EXACTLY off the objective variable, when it
-     *     proved one; else its proven bound when a double carries it exactly; else no cut. Its final is the leg's result, and its
-     *     OPTIMAL the only optimality stamp the leg gives.
+     *  2. when it PROVED its optimum v (read EXACTLY off the objective variable), the CHECK: the floored model with `objective = v`,
+     *     hinted with the relaxed solution, on at most [CHECK_STAGE_SHARE] of the budget and as long as the relaxed solve ran
+     *     ([MIN_CHECK_TIME]). A build it finds keeps every floor at objective v: the floored optimum (the argument below). That build
+     *     is the leg's result, proven;
+     *  3. otherwise — a floor binds (the check proves no floored build reaches v), the check ran out, or the relaxed stage proved
+     *     nothing — the FLOORED stage solves the real leg on what is left of the budget, hinted with the relaxed solution and NOT cut:
+     *     a redundant `objective ≤ v` made CP-SAT's floored proof 5-10× slower on a floor that binds (measured), so the relaxed
+     *     optimum only serves the check. Its final is the leg's result, its OPTIMAL CP-SAT's own proof.
+     * The leg's optimality stamp comes from the check (by the argument) or from the floored stage's OPTIMAL — never from the relaxed
+     * stage.
      *
      * THE ARGUMENT — for every build x, `floored objective(x) ≤ relaxed objective(x)`:
      *  - hard leg: both objectives are the mastery × DI core then the targets' overshoot, and neither reads a floor; the floored leg
@@ -1182,17 +1196,18 @@ object WakfuBuildSolver {
      *    ([rollCover]: a positive roll on as many of them as it reaches, a negative one on as few as it must), so for any in-game
      *    placement — the floored model's included — it has one that reads every wanted element at least as high, and both
      *    objectives only grow with the wanted elements (every target and priority being ≥ 0, [relaxesFloorsFirst]).
-     * So `floored objective(x) ≤ relaxed objective(x) ≤ U` for every build: the cut removes no floored build, the floored stage
-     * solves exactly the floored leg, and its OPTIMAL is CP-SAT's own proof of it. When the relaxed optimum v keeps every floor at
-     * the same objective — the common case — the hint hands the floored stage a solution at v = U, which closes its gap at once:
-     * the relaxed optimum IS the floored one. When a floor binds, the floored stage searches on from the hint, under the cut. A
-     * relaxed stage proven INFEASIBLE proves the floored leg infeasible (it allows every floored build).
+     * So `floored objective(x) ≤ relaxed objective(x) ≤ v` for every build x once the relaxed stage proved its optimum v: no
+     * floored build is worth more than v, and a floored build worth v — what the check looks for, its model accepting nothing else
+     * — is the floored optimum. When the relaxed optimum keeps every floor at the same objective (the common case), the hint hands
+     * the check that build at once. A relaxed stage proven INFEASIBLE proves the floored leg infeasible (it allows every floored
+     * build).
      *
-     * BUDGET — ONE deadline for the leg, from its start ([legStartMs], before both model builds): the relaxed stage gets at most
-     * [RELAXED_STAGE_SHARE] of the budget ([relaxedStageBudget]), the floored stage what is left when it starts
-     * ([flooredStageBudget]) — never more than the request's budget in all (two legs each given the whole budget would burn twice
-     * it). A tuned solve splits its deterministic time the same way. A floored stage with no budget left, or that ends unproven
-     * below the best build the relaxed stage showed (or with none), delivers that build instead, unproven.
+     * BUDGET — ONE deadline for the leg, from its start ([legStartMs], before any model build): the relaxed stage gets at most
+     * [RELAXED_STAGE_SHARE] of the budget, the check at most [CHECK_STAGE_SHARE], the floored stage what is left when it starts
+     * ([relaxedStageBudget], [checkStageBudget], [flooredStageBudget]) — never more than the request's budget in all (stages each
+     * given the whole budget would burn several times it). A tuned solve splits its deterministic time the same way. A floored
+     * stage with no budget left, or that ends unproven below the best build the relaxed stage showed (or with none), delivers that
+     * build instead, unproven.
      */
     private suspend fun relaxThenCheck(
         scope: ProducerScope<SolverResult<BuildCombination>>,
@@ -1251,6 +1266,7 @@ object WakfuBuildSolver {
             for ((equip, v) in relaxed.equipVars) relaxed.model.addHint(v, if (equip in picked) 1L else 0L)
         }
         var relaxedSolver: CpSolver? = null
+        val relaxedSolveStartMs = System.currentTimeMillis()
         val relaxedOutcome =
             executeSolverAndEmitResults(
                 relaxed.model,
@@ -1274,6 +1290,7 @@ object WakfuBuildSolver {
                 sendFinal = false,
                 progressStartMs = legStartMs
             )
+        val relaxedSolveSeconds = (System.currentTimeMillis() - relaxedSolveStartMs) / 1000.0
         if (!scope.isActive) return relaxedOutcome
         val relaxedStatus = relaxedOutcome?.status
         if (relaxedStatus == com.google.ortools.sat.CpSolverStatus.INFEASIBLE) return relaxedOutcome
@@ -1281,29 +1298,68 @@ object WakfuBuildSolver {
         val relaxedSolved =
             relaxedStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL ||
                 relaxedStatus == com.google.ortools.sat.CpSolverStatus.FEASIBLE
-        // U: the relaxed optimum, exact, when proven — else the proven bound when a double carries it exactly — else no cut.
-        val upperBound =
-            when {
-                solver == null -> null
-                relaxedStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL -> runCatching { solver.value(relaxed.objective) }.getOrNull()
-                else -> exactUpperBound(solver.bestObjectiveBound())
-            }
-        // Same params ⇒ the same decision variables, by name, in both models (the floors only change how the stats are read).
+        // v: the relaxed optimum, EXACT (an integer variable's value, never a double), when the relaxed stage proved it.
+        val relaxedOptimum =
+            if (relaxedStatus == com.google.ortools.sat.CpSolverStatus.OPTIMAL && solver != null) runCatching { solver.value(relaxed.objective) }.getOrNull() else null
+        // Same params ⇒ the same decision variables, by name, in every model (the floors only change how the stats are read).
         val hint = if (relaxedSolved && solver != null) runCatching { diagnosticVars(relaxed).associate { it.name to solver.value(it) } }.getOrNull() else null
         // The relaxed final build is no result of the leg, but one that keeps the floors may still be delivered at the end.
         val relaxedFinal = relaxedOutcome?.finalBuild
         val relaxedFinalScore = relaxedOutcome?.finalScore
         if (relaxedFinal != null && relaxedFinalScore != null) offer(relaxedFinal, relaxedFinalScore)
+        var spentDeterministic = relaxedOutcome?.deterministicTime ?: 0.0
 
-        // ---- 2. The FLOORED stage.
+        fun hinted(built: BuiltModel) = built.also { hint?.let { values -> for (v in diagnosticVars(built)) values[v.name]?.let { built.model.addHint(v, it) } } }
+
+        // ---- 2. The CHECK: a floored build at the proven relaxed optimum v is the floored optimum.
+        if (relaxedOptimum != null) {
+            val check = model(relaxFloors = false)
+            // No build can keep a floor (or meet a target): nothing to deliver — the relaxed stage showed none either.
+            if (check.maxDamageStaticallyInfeasible) return null
+            if (!scope.isActive) return relaxedOutcome
+            check.model.addEquality(check.objective, relaxedOptimum)
+            hinted(check)
+            // As long as the relaxed solve ran at most, so a floor that binds costs the check little.
+            val checkWallSeconds = minOf(checkStageBudget(totalWallMs, elapsedMs()) / 1000.0, maxOf(relaxedSolveSeconds, MIN_CHECK_TIME))
+            val checkDeterministic =
+                tuning?.let { minOf(checkStageBudget(it.maxDeterministicTime, spentDeterministic), maxOf(relaxedOutcome?.deterministicTime ?: 0.0, MIN_CHECK_TIME)) }
+            if ((checkDeterministic ?: checkWallSeconds) >= MIN_STAGE_BUDGET) {
+                val checked =
+                    executeSolverAndEmitResults(
+                        check.model,
+                        params,
+                        check.allEquips,
+                        check.equipVars,
+                        check.skillVars,
+                        check.runeModel,
+                        check.subModel,
+                        check.maxDamageRawScore,
+                        scope,
+                        tuning,
+                        onSolverReady = { solverHandle.set(it) },
+                        suppressBelowScore = listOfNotNull(warmScore, shown.get()?.second).maxOrNull(),
+                        maxWallSecondsOverride = checkWallSeconds,
+                        maxDeterministicTimeOverride = checkDeterministic,
+                        progressStartMs = legStartMs,
+                        mmObjectiveComparable = mmObjectiveComparable,
+                        mmHardLegMultiplier = mmHardLegMultiplier
+                    )
+                // Found: a floored build worth v — the floored optimum, sent as the leg's final (its objective fixed, CP-SAT's
+                // OPTIMAL comes with the first solution).
+                if (checked?.finalBuild != null) return checked
+                spentDeterministic += checked?.deterministicTime ?: 0.0
+            }
+            if (!scope.isActive) return relaxedOutcome
+        }
+
+        // ---- 3. The FLOORED stage: the real leg, hinted, with no cut.
         val floored = model(relaxFloors = false)
         // No build can keep a floor (or meet a target): nothing to deliver — the relaxed stage showed none either.
         if (floored.maxDamageStaticallyInfeasible) return null
         if (!scope.isActive) return relaxedOutcome
-        upperBound?.let { floored.model.addLessOrEqual(floored.objective, it) }
-        hint?.let { values -> for (v in diagnosticVars(floored)) values[v.name]?.let { floored.model.addHint(v, it) } }
+        hinted(floored)
         val wallLeftSeconds = flooredStageBudget(totalWallMs, elapsedMs()) / 1000.0
-        val deterministicLeft = tuning?.let { flooredStageBudget(it.maxDeterministicTime, relaxedOutcome?.deterministicTime ?: 0.0) }
+        val deterministicLeft = tuning?.let { flooredStageBudget(it.maxDeterministicTime, spentDeterministic) }
         val flooredOutcome =
             if ((deterministicLeft ?: wallLeftSeconds) < MIN_STAGE_BUDGET) {
                 null
@@ -4784,7 +4840,7 @@ object WakfuBuildSolver {
         // primary — stamp the PINNED stage-1 primary instead so the final displayed emission keeps
         // a certificate-comparable objective (else the backup badge gate reads null and never runs).
         mmObjectiveOverride: Long? = null,
-        // Relax-then-check ([relaxThenCheck]) — the knobs of its two stages:
+        // Relax-then-check ([relaxThenCheck]) — the knobs of its stages:
         //  - the TUNED path's deterministic budget of this stage (null = the tuning's whole budget);
         maxDeterministicTimeOverride: Double? = null,
         //  - an intermediate build is shown only when this accepts it (the relaxed stage: its floors held in the scorers' read);

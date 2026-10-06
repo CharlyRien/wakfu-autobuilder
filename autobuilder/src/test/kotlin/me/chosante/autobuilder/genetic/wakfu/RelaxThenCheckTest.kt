@@ -23,13 +23,14 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * Locks RELAX THEN CHECK ([WakfuBuildSolver.relaxThenCheck]): a most-masteries leg of a request with floors is solved without
- * them first, then with them under the cut `objective ≤ the relaxed bound`, hinted with the relaxed solution.
+ * them first; a floored build at the proven relaxed optimum is then the floored optimum (the check), else the floored leg is
+ * solved, hinted with the relaxed solution.
  *  - The argument, build by build: the relaxed objective of every build is at least its floored one, on both legs, and every
- *    build the floored hard leg allows the relaxed one allows — the cut never removes a floored build.
+ *    build the floored hard leg allows the relaxed one allows — so no floored build is worth more than the relaxed optimum.
  *  - End to end: the leg's result is the direct floored solve's (same score, same objective, both proven) when the relaxed
  *    optimum keeps its floors and when a floor binds, on both legs and over seeded random pools.
- *  - Nothing the relaxed stage shows breaks a floor or, on the hard leg, misses a target.
- *  - The budget: the two stages never add up to more than the leg's.
+ *  - Nothing the hard leg shows breaks a floor or misses a target.
+ *  - The budget: the stages never add up to more than the leg's.
  */
 class RelaxThenCheckTest {
     private val direct = WakfuBuildSolver.SolverTuning(numSearchWorkers = 1, randomSeed = 1, interleaveSearch = true, maxDeterministicTime = 30.0)
@@ -204,11 +205,13 @@ class RelaxThenCheckTest {
     // ---- The budget --------------------------------------------------------------------------------------------------
 
     @Test
-    fun `the two stages never add up to more than the leg's budget`() {
-        // Relaxed: at most half of the budget, never past its end; floored: what is left.
+    fun `the stages never add up to more than the leg's budget`() {
+        // Relaxed: at most half of the budget, never past its end; check: at most a tenth; floored: what is left.
         assertThat(WakfuBuildSolver.relaxedStageBudget(120_000.0, 300.0)).isEqualTo(60_000.0)
         assertThat(WakfuBuildSolver.relaxedStageBudget(120_000.0, 100_000.0)).isEqualTo(20_000.0)
         assertThat(WakfuBuildSolver.relaxedStageBudget(1_000.0, 1_500.0)).isEqualTo(0.0)
+        assertThat(WakfuBuildSolver.checkStageBudget(120_000.0, 20_000.0)).isEqualTo(12_000.0)
+        assertThat(WakfuBuildSolver.checkStageBudget(120_000.0, 115_000.0)).isEqualTo(5_000.0)
         assertThat(WakfuBuildSolver.flooredStageBudget(120_000.0, 70_000.0)).isEqualTo(50_000.0)
         assertThat(WakfuBuildSolver.flooredStageBudget(1_000.0, 1_500.0)).isEqualTo(0.0)
         val random = Random(20261006)
@@ -216,11 +219,14 @@ class RelaxThenCheckTest {
             val total = random.nextDouble(1.0, 600_000.0)
             val beforeRelaxed = random.nextDouble(0.0, total)
             val relaxed = WakfuBuildSolver.relaxedStageBudget(total, beforeRelaxed)
-            // The relaxed stage runs its budget out at worst, then the floored model is built.
-            val beforeFloored = beforeRelaxed + relaxed + random.nextDouble(0.0, total / 10)
+            // Each stage runs its budget out at worst, and a model is built between two stages.
+            val beforeCheck = beforeRelaxed + relaxed + random.nextDouble(0.0, total / 20)
+            val check = WakfuBuildSolver.checkStageBudget(total, beforeCheck)
+            val beforeFloored = beforeCheck + check + random.nextDouble(0.0, total / 20)
             val floored = WakfuBuildSolver.flooredStageBudget(total, beforeFloored)
             assertThat(relaxed).isBetween(0.0, total * WakfuBuildSolver.RELAXED_STAGE_SHARE)
-            assertThat(beforeRelaxed + relaxed + floored).isLessThanOrEqualTo(maxOf(total, beforeFloored) + 1e-6)
+            assertThat(check).isBetween(0.0, total * WakfuBuildSolver.CHECK_STAGE_SHARE)
+            assertThat(beforeFloored + floored).isLessThanOrEqualTo(maxOf(total, beforeFloored) + 1e-6)
         }
     }
 
