@@ -1,6 +1,7 @@
 package me.chosante.autobuilder.genetic.wakfu
 
 import me.chosante.autobuilder.domain.requiredItemIds
+import me.chosante.autobuilder.domain.ringPairingKeys
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.scaledWeight
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
@@ -1146,8 +1147,10 @@ internal object MostMasteriesCertificate {
                     mp = statOf(e, Characteristic.MOVEMENT_POINT),
                     cc = statOf(e, Characteristic.CRITICAL_HIT),
                     hp = statOf(e, Characteristic.HP),
-                    epic = e.rarity == me.chosante.common.Rarity.EPIC,
-                    relic = e.rarity == me.chosante.common.Rarity.RELIC,
+                    // The "only one equipped at a time" groups ([Equipment.exclusiveGroup]): the budget is exact; an EPIC-group
+                    // COMMON item (18691, 18693) also passes for an epic-sub carrier here, a sound over-count (it hosts none).
+                    epic = e.exclusiveGroup == me.chosante.common.ExclusiveGroup.EPIC,
+                    relic = e.exclusiveGroup == me.chosante.common.ExclusiveGroup.RELIC,
                     block = if (blockAtLeastMax > 0) statOf(e, Characteristic.BLOCK_PERCENTAGE) else 0,
                     // LOW dims: per-item options are exact, so the SIGNED value (negative lines
                     // included) is the tightest valid under-approximation. The AP read is the
@@ -1336,13 +1339,16 @@ internal object MostMasteriesCertificate {
         // the two-stage relaxation measured ~+7% looseness on S3 together with the weapon double-dip).
         run {
             val perRing = pool[ItemType.RING].orEmpty().map { it to prune(wornOpts(it)) }
+            // Never two rings of one name NOR two rings that exclude each other ([ringPairingKeys]) — exactly the game's
+            // rule on every clique of conflicting rings (all of today's data); a non-clique component keeps the name rule.
+            val ringKeys = ringPairingKeys(perRing.map { it.first })
             val options = mutableListOf(Opt(0L, 0))
             perRing.forEach { (_, opts) -> options += opts }
             for (i in perRing.indices) {
                 for (j in i + 1 until perRing.size) {
                     val (ri, oi) = perRing[i]
                     val (rj, oj) = perRing[j]
-                    if (ri.name.fr == rj.name.fr) continue
+                    if (ringKeys[ri.equipmentId] == ringKeys[rj.equipmentId]) continue
                     val merged = mutableListOf<Opt>()
                     for (a in oi) {
                         for (b in oj) {

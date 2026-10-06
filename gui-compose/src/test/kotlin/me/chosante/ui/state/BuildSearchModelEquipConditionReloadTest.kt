@@ -19,6 +19,8 @@ import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.ExclusiveGroup
+import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import me.chosante.common.history.HistoryEntry
 import me.chosante.common.history.RequestSnapshot
@@ -28,6 +30,7 @@ import me.chosante.common.skills.CharacterSkills
 import me.chosante.ui.history.HistoryRepository
 import me.chosante.ui.history.toFlatMap
 import me.chosante.ui.history.toSnapshot
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -142,6 +145,28 @@ class BuildSearchModelEquipConditionReloadTest {
                 val legal = BuildCombination(equipments = listOf(brakmarSword, brakmarRing, otherRing), characterSkills = skills)
                 val model = loaded(scope, save(legal))
                 assertTrue(model.ui.optimal, "a legal save whose score still holds keeps its proof flag")
+            } finally {
+                scope.cancel()
+            }
+        }
+
+    /**
+     * 18691 Piquants du Guerrier Trool anciens is COMMON, yet in the game's EPIC exclusivity group: a save made before the groups
+     * were read can wear it beside an epic item. Its saved item has no group (the field did not exist), so it follows its rarity —
+     * the check reads the group from the catalog by id, like the conditions.
+     */
+    @Test
+    fun `a saved build wearing 18691 beside an epic item loses its proven-optimal flag on load`(): Unit =
+        runBlocking {
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            try {
+                val trool = catalog.getValue(18691).copy(exclusiveGroupOverride = null)
+                assertEquals(ExclusiveGroup.NONE, trool.exclusiveGroup)
+                val epicAmulet = WakfuBestBuildFinderAlgorithm.equipments.first { it.rarity == Rarity.EPIC && it.itemType == ItemType.AMULET }
+                val model = loaded(scope, save(BuildCombination(equipments = listOf(trool, epicAmulet, otherRing), characterSkills = skills)))
+                assertFalse(model.ui.optimal, "the game refuses 18691 beside an epic item: no proof stands for that build")
+                val alone = loaded(scope, save(BuildCombination(equipments = listOf(trool, otherRing), characterSkills = skills)))
+                assertTrue(alone.ui.optimal, "18691 without an epic item is legal: the stored proof flag stays")
             } finally {
                 scope.cancel()
             }

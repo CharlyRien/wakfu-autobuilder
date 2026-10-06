@@ -28,6 +28,7 @@ import me.chosante.autobuilder.genetic.SolverResult
 import me.chosante.common.CharacterClass
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.ExclusiveGroup
 import me.chosante.common.ItemType
 import me.chosante.common.Passive
 import me.chosante.common.Rarity
@@ -406,6 +407,18 @@ object WakfuBuildSolver {
      * own slot (the epic budget counted, the ring slot over-counted by at most one ring). FORBIDS stay a relaxation (two
      * rings that exclude each other may pair in a bound). Every bound stays an upper bound of the constrained optimum; the
      * lvl-245 ledger's cells 12–17 fell 1.0–2.3 % (the v56 proven optimum wore Épée de Brâkmar without its ring).
+     * Still 57 — no release shipped it (1.14.2 has 56), so its follow-ups reuse it; a bound cached by an earlier v57 build
+     * stays an upper bound, as each follow-up only drops builds the game refuses. The epic / relic budgets follow the game's
+     * "only one equipped at a time" GROUPS ([me.chosante.common.ExclusiveGroup], the CDN item properties 12 / 8), not the
+     * rarity: the EPIC group also holds two COMMON items (18691 Piquants du Guerrier Trool anciens, AP +1; 18693 Sain Turastil
+     * ancienne, MP +1), which the game refuses beside an epic item. Every certificate's epic bit is now the group's — the
+     * budget exact, an EPIC-group COMMON item also passing for an epic-SUB carrier (a sound over-count: the carrier is the
+     * rarity) — and the domination pre-filter's budget clause reads the group too (the lvl-245 ledger closes AP cell 17). And
+     * FORBIDS, the first v57 build's relaxation, are priced exactly: every ring pairing that tightens a bound reads
+     * [me.chosante.autobuilder.domain.ringPairingKeys] — the name, or one key for a whole clique of rings that exclude each
+     * other (the five excluding triples of the data) — so no bound pairs two rings the game refuses together (the review of
+     * #246 measured up to +16 % on seeded pools); the soft certificate's max-debit cap, which more pairs only raise, keeps
+     * the name rule.
      */
     const val CERTIFIER_VERSION: Int = 57
 
@@ -4272,15 +4285,14 @@ object WakfuBuildSolver {
             1L
         )
 
-        // Rarity rules
-        val relics = allEquips.filter { it.rarity == Rarity.RELIC }.map { equipVars.getValue(it) }.toTypedArray()
-        if (relics.isNotEmpty()) {
-            addLessOrEqual(LinearExpr.sum(relics), 1L)
-        }
-
-        val epics = allEquips.filter { it.rarity == Rarity.EPIC }.map { equipVars.getValue(it) }.toTypedArray()
-        if (epics.isNotEmpty()) {
-            addLessOrEqual(LinearExpr.sum(epics), 1L)
+        // "Only one equipped at a time" groups ([Equipment.exclusiveGroup], the CDN item properties 8 / 12): at most one RELIC
+        // item, and at most one item of the EPIC group — every EPIC item AND the two COMMON items the game counts with them.
+        // (The epic / relic SUBLIMATION carrier stays the item's rarity — see [SublimationModelBuilder].)
+        for (group in listOf(ExclusiveGroup.RELIC, ExclusiveGroup.EPIC)) {
+            val members = allEquips.filter { it.exclusiveGroup == group }.map { equipVars.getValue(it) }.toTypedArray()
+            if (members.isNotEmpty()) {
+                addLessOrEqual(LinearExpr.sum(members), 1L)
+            }
         }
 
         // Same ring name is not allowed

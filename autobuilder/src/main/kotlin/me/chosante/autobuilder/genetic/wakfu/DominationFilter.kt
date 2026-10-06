@@ -8,6 +8,7 @@ import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.RANDOM_RESISTANCES
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.scenarioGateMatches
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
+import me.chosante.common.ExclusiveGroup
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
@@ -393,11 +394,13 @@ private fun dominatedWithin(
  * sublimation carrier, no weaker rune, and no conditional-sublimation flip:
  *  - `A.maxShardSlots ≥ B` — ≥ rune capacity AND normal-sub carrier eligibility (a ≥3-socket item; sockets are a
  *    colour-agnostic count in this model);
- *  - **(A epic ⇒ B epic) ∧ (A relic ⇒ B relic)** — the swap never RAISES the build's ≤1-epic / ≤1-relic
- *    count, so an EPIC never dominates a non-epic (keeping the non-epic may be what frees the epic budget
+ *  - **A in an exclusivity group ⇒ B in the same one** ([Equipment.exclusiveGroup]: the EPIC group — every EPIC item
+ *    and two COMMON ones — or the RELIC group) — the swap never RAISES the build's ≤1-per-group count, so an item that
+ *    takes the epic budget never dominates one that does not (keeping the free one may be what frees the epic budget
  *    for a stronger epic elsewhere — the one case a naive stats-only filter gets wrong);
  *  - **(B epic ⇒ A epic) when an epic sub is modelled, (B relic ⇒ A relic) when a relic sub is** — nor LOWERS the
- *    count of epic / relic carriers: B may be the build's only carrier of its epic / relic sub ([DominationShape.epicCarriers]);
+ *    count of epic / relic carriers: B may be the build's only carrier of its epic / relic sub ([DominationShape.epicCarriers]).
+ *    The carrier is the RARITY (an EPIC-group COMMON item hosts no epic sub);
  *  - the rune clause ([RuneDomination]) when runes can be modelled;
  *  - `A.characteristics ≥ B` on EVERY compared characteristic, AND **`A == B` on every [DominationShape.pinned]
  *    stat**, `≤` on every minimized one — so every monotone objective term / ≥-type condition is still ≥, and every
@@ -414,8 +417,7 @@ private fun Equipment.dominates(
     if (!other.requiredItemIds.containsAll(requiredItemIds)) return false
     if (!constraints.conflictPartners(other).containsAll(constraints.conflictPartners(this))) return false
     if (maxShardSlots < other.maxShardSlots) return false
-    if (rarity == Rarity.EPIC && other.rarity != Rarity.EPIC) return false
-    if (rarity == Rarity.RELIC && other.rarity != Rarity.RELIC) return false
+    if (exclusiveGroup != ExclusiveGroup.NONE && other.exclusiveGroup != exclusiveGroup) return false
     if (shape.epicCarriers && other.rarity == Rarity.EPIC && rarity != Rarity.EPIC) return false
     if (shape.relicCarriers && other.rarity == Rarity.RELIC && rarity != Rarity.RELIC) return false
     shape.runes?.let { if (!carriesRunesOf(other, it)) return false }
