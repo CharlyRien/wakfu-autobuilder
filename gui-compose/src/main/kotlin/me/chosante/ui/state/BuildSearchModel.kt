@@ -410,8 +410,9 @@ class BuildSearchModel(
                         try {
                             // In the same frame as the reveal, so the main UI never shows the defaults first.
                             if (rememberedWorkspace != null) {
-                                val read = landed?.getOrNull()
-                                if (read != null || rememberedWorkspace.isCompleted) restoreWorkspaceSafely(read) else restoreWorkspaceWhenRead(rememberedWorkspace)
+                                // The wait may have given up just before the read landed: take what landed rather than drop it.
+                                val read = landed?.getOrNull() ?: rememberedWorkspace.completedOrNull()
+                                if (rememberedWorkspace.isCompleted) restoreWorkspaceSafely(read) else restoreWorkspaceWhenRead(rememberedWorkspace)
                             }
                         } finally {
                             // Nothing about the remembered workspace may keep the app on the loading screen.
@@ -454,6 +455,10 @@ class BuildSearchModel(
             }
         }
     }
+
+    /** The value of this read if it has landed (null if it has not, or failed). Never suspends. */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private fun kotlinx.coroutines.Deferred<WorkspaceSnapshot?>.completedOrNull(): WorkspaceSnapshot? = if (isCompleted) runCatching { getCompleted() }.getOrNull() else null
 
     /** [restoreWorkspace], falling back to the defaults (and remembering from them on) if putting [snapshot] back throws. */
     private fun restoreWorkspaceSafely(snapshot: WorkspaceSnapshot?) {
@@ -521,7 +526,9 @@ class BuildSearchModel(
         synchronized(workspaceWriteLock) {
             if (pendingWorkspace !== snapshot) return
             store.saveBlocking(snapshot)
-            pendingWorkspace = null
+            // Only if nothing newer arrived during the write: an edit made meanwhile (set without this lock, from the UI thread)
+            // must stay pending for its own debounced write or a flush.
+            if (pendingWorkspace === snapshot) pendingWorkspace = null
         }
     }
 
