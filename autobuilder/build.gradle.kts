@@ -47,12 +47,40 @@ val orToolsTestJvmArgs =
         "--sun-misc-unsafe-memory-access=allow"
     )
 
+// Named per-push CI shards. Unset keeps the ordinary full test suite; "remaining" is the
+// complement, so newly added classes automatically run without updating the workflow.
+val ciTestShards =
+    mapOf(
+        "most-masteries" to listOf("MostMasteriesCertificateTest"),
+        "solver" to listOf("WakfuBuildSolverTest"),
+        "floors-soft" to listOf("ZeroTargetRowsTest", "MaxDamageSoftCertificateTest"),
+        "medium" to
+            listOf(
+                "MaxDamageTargetAwareCertificateTest",
+                "DofusPourpreLevelScalingTest",
+                "PerElementRowFoldTest",
+                "SoundnessReviewAdversarialTest",
+                "RuneChoicePruningTest"
+            )
+    )
+val ciTestShard = providers.gradleProperty("ciTestShard").orNull
+require(ciTestShard == null || ciTestShard == "remaining" || ciTestShard in ciTestShards) {
+    "Unknown ciTestShard: $ciTestShard"
+}
+
 tasks.test {
     // The heavy full-pool OR-Tools OPTIMAL *proof* tests are tagged @Tag("slow") and EXCLUDED here: each
     // requests 8 solver workers and burns a large deterministic-time budget, so on a 2-core CI runner they
     // oversubscribe and take ~15 min. The default `test` (every push/PR) stays fast; they run via `slowTest`
     // (nightly + on-demand — see .github/workflows/build.yml).
     useJUnitPlatform { excludeTags("slow") }
+    filter {
+        if (ciTestShard == "remaining") {
+            ciTestShards.values.flatten().forEach { excludeTestsMatching("me.chosante.autobuilder.*.$it") }
+        } else if (ciTestShard != null) {
+            ciTestShards.getValue(ciTestShard).forEach { includeTestsMatching("me.chosante.autobuilder.*.$it") }
+        }
+    }
     jvmArgs(orToolsTestJvmArgs)
     // Manual measurement harnesses only (e.g. the M3-v2 DP at fine grids): lets a local run raise
     // the test-worker heap without touching CI (unset ⇒ Gradle's default).
