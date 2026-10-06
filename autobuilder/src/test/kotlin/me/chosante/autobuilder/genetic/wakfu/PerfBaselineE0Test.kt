@@ -253,8 +253,8 @@ class PerfBaselineE0Test {
                 for (seconds in budgets) {
                     val cfg = Config(seconds, baseCfg.runesAndSubs, baseCfg.refine, baseCfg.refineCapMs, baseCfg.proveCapMs, baseCfg.constructCapMs)
                     log("E0 ENV2 rep=$rep budgetS=$seconds mmBoundWarmupStartMs=${MostMasteriesBoundCache.warmupStartDelay(seconds.seconds)?.inWholeMilliseconds}")
-                    // WAKFU_E0_EXCLUDE_SUBS=<French names, comma-separated>: the request's excluded sublimations (a world
-                    // control, e.g. the Neutralité family out of the catalog).
+                    // WAKFU_E0_EXCLUDE_SUBS=<French names, comma-separated>: sublimations every request excludes (a world
+                    // control, e.g. the Neutralité family out of the catalog), on top of a fixture's own (MM110LB's).
                     val excludedSubs =
                         System
                             .getenv("WAKFU_E0_EXCLUDE_SUBS")
@@ -267,7 +267,7 @@ class PerfBaselineE0Test {
                             fixtures(cfg)
                         } else {
                             (fixtures(cfg) + extraFixtures(cfg)).filter { it.id in selected }
-                        }.map { it.copy(params = it.params.copy(excludedSublimations = excludedSubs)) }
+                        }.map { it.copy(params = it.params.copy(excludedSublimations = it.params.excludedSublimations + excludedSubs)) }
                     for (fx in chosen) {
                         val suffix = (if (budgets.size > 1) "@${seconds}s" else "") + (if (reps > 1) "#$rep" else "")
                         runFixture(fx.copy(id = fx.id + suffix), cfg)

@@ -324,4 +324,64 @@ class RelaxThenCheckTest {
     fun `seeded fuzz, full run - the relaxed objective bounds the floored one, build by build, and the leg ends on the floored optimum`() {
         assertThat(runFuzz(seed = 20261007, cases = 60, maxWanted = 2)).isGreaterThan(1_000)
     }
+
+    // ---- Real data ---------------------------------------------------------------------------------------------------
+
+    /**
+     * The GUI's default request at level 110 (runes and sublimations on, the production pool), deterministic (1 worker, seed 1,
+     * interleave): its hard leg ends on the direct floored solve's optimum, proven, with relax-then-check — and with "lock 0"
+     * added, a floor its relaxed optimum breaks (Visibilité II's −150 lock) though another build reaches the same optimum, and
+     * with the subs that lift lock or dodge excluded too, a floor that binds (the floored optimum is below the relaxed one).
+     */
+    @Test
+    @Tag("slow")
+    fun `real data - the GUI default, a floor the relaxed optimum breaks and one that binds end on the direct floored optimum`() {
+        val gui =
+            rows(
+                Characteristic.ACTION_POINT to 11,
+                Characteristic.MOVEMENT_POINT to 4,
+                Characteristic.RANGE to 4,
+                Characteristic.CRITICAL_HIT to 25,
+                distance to 1,
+                Characteristic.HP to 2000,
+                wind to 0,
+                Characteristic.DODGE to 0
+            )
+        val liftingSubs =
+            listOf("Evasion III", "Interception III", "Combat rapproché II", "Force Herculéenne", "Furie", "Esquive Berserk III", "Tacle Berserk III")
+        val requests =
+            listOf(
+                "default" to params(gui),
+                "default + lock 0" to params(gui + TargetStat(Characteristic.LOCK, 0)),
+                "default + lock 0, lifting subs excluded" to params(gui + TargetStat(Characteristic.LOCK, 0)).copy(excludedSublimations = liftingSubs)
+            ).map { (name, p) -> name to p.copy(character = Character(CharacterClass.CRA, 110, 0, CharacterSkills(110))) }
+        val tuning = direct.copy(maxDeterministicTime = 400.0, applyDominationOverride = true)
+        for ((name, p) in requests) {
+            val pool = WakfuBestBuildFinderAlgorithm.poolFor(p)
+            val subs = WakfuBestBuildFinderAlgorithm.activeSublimations(p)
+
+            fun leg(t: WakfuBuildSolver.SolverTuning): Leg {
+                var outcome: WakfuBuildSolver.SolveOutcome? = null
+                val results =
+                    runBlocking {
+                        WakfuBuildSolver.optimize(p, pool, WakfuBestBuildFinderAlgorithm.runes, subs, t, hardConstraints = true, onTermination = { outcome = it }).toList()
+                    }
+                return Leg(results, outcome)
+            }
+            val directLeg = leg(tuning)
+            val relaxedLeg = leg(tuning.copy(relaxFloorsFirst = true))
+            println(
+                "RELAX real $name: direct ${directLeg.outcome?.status} det=${directLeg.outcome?.deterministicTime} obj=${directLeg.outcome?.objectiveValue} | " +
+                    "relaxed-then-floored ${relaxedLeg.outcome?.status} floored det=${relaxedLeg.outcome?.deterministicTime} obj=${relaxedLeg.outcome?.objectiveValue}"
+            )
+            assertThat(directLeg.outcome?.status).describedAs(name).isEqualTo(CpSolverStatus.OPTIMAL)
+            assertThat(relaxedLeg.outcome?.status).describedAs(name).isEqualTo(CpSolverStatus.OPTIMAL)
+            assertThat(relaxedLeg.outcome?.objectiveValue).describedAs(name).isEqualTo(directLeg.outcome?.objectiveValue)
+            assertThat(relaxedLeg.final!!.isOptimal).describedAs(name).isTrue()
+            assertThat(relaxedLeg.final!!.matchPercentage).describedAs(name).isEqualByComparingTo(directLeg.final!!.matchPercentage)
+            for (shown in relaxedLeg.results.filterNot { it.greedyWarmStartEmission }) {
+                assertThat(p.targetStats.hardLegHolds(scorerStats(p, shown.individual))).describedAs("$name: every build shown keeps its floors").isTrue()
+            }
+        }
+    }
 }
