@@ -3,6 +3,7 @@ package me.chosante.autobuilder.genetic.wakfu
 import com.google.ortools.sat.IntVar
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.TargetStat
+import me.chosante.autobuilder.domain.requiredItemIds
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
 import me.chosante.common.ItemType
@@ -467,6 +468,7 @@ internal fun StatBuilder.certifyMaxPerHitAtAp(
                 critSecret = w.cs,
                 critSecretExcluded = w.csExcluded,
                 weaponsRestricted = w.wr,
+                requirementBundle = w.bundle,
                 winningCOut = cOut,
                 cPruneUbIn = ubByWorld?.getOrNull(wi)
             )
@@ -502,7 +504,31 @@ internal class CertWorld(
     val assumed: Sublimation? = null,
     val weaponsRelaxed: Boolean = false,
     val freeCredit: List<Sublimation> = emptyList(),
-)
+    // v57 REQUIRES split ([requirementBundleSplit]): null = no split (a requiring item rides its own slot fused with what
+    // it needs — an over-count of the slot the required item takes); false = the builds wearing NO requiring item (those
+    // items removed); true = the builds wearing one: the one-handed requiring item and its ring are ONE ring-stage entry
+    // (so the ring slot it takes is counted exactly), the weapon slot keeps off-hands only (no other one- or two-hander).
+    val bundle: Boolean? = null,
+) {
+    fun withBundle(bundle: Boolean) = CertWorld(conv, cs, csExcluded, wr, secondaryCapped, assumed, weaponsRelaxed, freeCredit, bundle)
+}
+
+/**
+ * v57: whether the certifier worlds split on the item REQUIRES conditions ([CertWorld.bundle]) — every requiring item of
+ * the pool is a one-handed weapon needing exactly one ring of the pool (the four nation swords and their EPIC rings, the
+ * only REQUIRES in the data). Any other shape keeps the unsplit fused options (sound, one slot looser).
+ */
+internal fun StatBuilder.requirementBundleSplit(): Boolean {
+    val requiring = allEquips.filter { it.requiredItemIds.isNotEmpty() }
+    if (requiring.isEmpty()) return false
+    val byId = allEquips.associateBy { it.equipmentId }
+    return requiring.all { item ->
+        item.itemType == ItemType.ONE_HANDED_WEAPONS && item.requiredItemIds.size == 1 && byId[item.requiredItemIds.single()]?.itemType == ItemType.RING
+    }
+}
+
+/** [this] worlds, each split into its no-requiring-item and its bundle half when [split] (see [CertWorld.bundle]). */
+private fun List<CertWorld>.splitOnRequirements(split: Boolean): List<CertWorld> = if (!split) this else flatMap { listOf(it.withBundle(false), it.withBundle(true)) }
 
 /**
  * A choosable sub the normal certifier worlds DROP because its condition — `each secondary mastery ≤ 0` (the
@@ -563,7 +589,7 @@ internal fun StatBuilder.certifierWorlds(scenario: DamageScenario): List<CertWor
         if (f.convSub != null && f.forcedCs == null && f.specialAllowed(f.convSub)) worlds += CertWorld(f.convSub, null, f.csExcluded, wr)
         if (f.critSecretSub != null && f.forcedConv == null && f.specialAllowed(f.critSecretSub)) worlds += CertWorld(null, f.critSecretSub, null, wr)
     }
-    return worlds
+    return worlds.splitOnRequirements(requirementBundleSplit())
 }
 
 /**
@@ -610,7 +636,8 @@ internal fun StatBuilder.certifierAuxWorlds(scenario: DamageScenario): List<Cert
             }
         }
     }
-    return worlds
+    // The relaxed capped world of [certifierAuxPlan] stays unsplit: it only decides whether this split runs.
+    return worlds.splitOnRequirements(requirementBundleSplit())
 }
 
 /**
@@ -783,6 +810,7 @@ internal fun StatBuilder.certifierAuxFloor(
                                 critSecret = w.cs,
                                 critSecretExcluded = w.csExcluded,
                                 weaponsRestricted = w.wr,
+                                requirementBundle = w.bundle,
                                 secondaryCapped = w.secondaryCapped,
                                 assumedSub = w.assumed,
                                 weaponsRelaxed = w.weaponsRelaxed,
@@ -947,6 +975,7 @@ internal fun StatBuilder.certifyAllCellsFast(
                 critSecret = w.cs,
                 critSecretExcluded = w.csExcluded,
                 weaponsRestricted = w.wr,
+                requirementBundle = w.bundle,
                 fastAllCellsOut = out,
                 fastCellCount = cellCount,
                 fastCSegmentStep = CertifierTuning.fastCSegmentStepOverride ?: FAST_C_SEGMENT_STEP,
@@ -1078,6 +1107,7 @@ internal fun StatBuilder.exactForCells(
                                     critSecret = t.world.cs,
                                     critSecretExcluded = t.world.csExcluded,
                                     weaponsRestricted = t.world.wr,
+                                    requirementBundle = t.world.bundle,
                                     winningCOut = cOut,
                                     cPruneUbIn = ubByWorldCell?.get(t.cell)?.getOrNull(t.worldIndex)
                                 )
@@ -1161,6 +1191,7 @@ internal fun StatBuilder.certifyCellsTier15(
                 critSecret = w.cs,
                 critSecretExcluded = w.csExcluded,
                 weaponsRestricted = w.wr,
+                requirementBundle = w.bundle,
                 fastAllCellsOut = out,
                 fastCellCount = cell + 1,
                 fastCSegmentStep = 1,
@@ -1640,7 +1671,7 @@ internal fun StatBuilder.certifyExplainAtAp(
     var bestWorldC = -1
     for (w in worlds) {
         val cOut = IntArray(1) { -1 }
-        val v = certifyMaxPerHitAtApPass(scenario, apTarget, w.conv, w.cs, w.csExcluded, w.wr, winningCOut = cOut)
+        val v = certifyMaxPerHitAtApPass(scenario, apTarget, w.conv, w.cs, w.csExcluded, w.wr, requirementBundle = w.bundle, winningCOut = cOut)
         if (v == Long.MAX_VALUE) {
             return CertExplain(
                 listOf("cell $apTarget: certifier bails (world conv=${w.conv?.name?.en} cs=${w.cs?.name?.en} wr=${w.wr})"),
@@ -1656,7 +1687,7 @@ internal fun StatBuilder.certifyExplainAtAp(
     val w = bestWorld ?: return CertExplain(listOf("cell $apTarget: no world produced a state"), emptyList())
     val out = mutableListOf<String>()
     val ids = mutableListOf<Int>()
-    certifyMaxPerHitAtApPass(scenario, apTarget, w.conv, w.cs, w.csExcluded, w.wr, explainC = bestWorldC, explainOut = out, explainItemIds = ids)
+    certifyMaxPerHitAtApPass(scenario, apTarget, w.conv, w.cs, w.csExcluded, w.wr, requirementBundle = w.bundle, explainC = bestWorldC, explainOut = out, explainItemIds = ids)
     return CertExplain(out, ids)
 }
 
@@ -1681,7 +1712,7 @@ internal fun StatBuilder.certifyExplainAtApFromProvenance(
             ?: return CertExplain(listOf("cell $apTarget: provenance world ${provenance.worldIndex} out of range (${worlds.size})"), emptyList())
     val out = mutableListOf<String>()
     val ids = mutableListOf<Int>()
-    certifyMaxPerHitAtApPass(scenario, apTarget, w.conv, w.cs, w.csExcluded, w.wr, explainC = provenance.c, explainOut = out, explainItemIds = ids)
+    certifyMaxPerHitAtApPass(scenario, apTarget, w.conv, w.cs, w.csExcluded, w.wr, requirementBundle = w.bundle, explainC = provenance.c, explainOut = out, explainItemIds = ids)
     return CertExplain(out, ids)
 }
 
@@ -1722,6 +1753,8 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // any shape where the credit could LOWER a value (a negative line, permanent crit or AP, a ramp, a conversion).
     weaponsRelaxed: Boolean = false,
     freeCreditSubs: List<Sublimation> = emptyList(),
+    // v57 REQUIRES world split ([CertWorld.bundle]): null = unsplit, false = no requiring item, true = the bundle world.
+    requirementBundle: Boolean? = null,
     // PROVENANCE (diagnostics): when [explainC] is set, only that crit-step runs, the frontier is
     // snapshotted after every DP stage, and the winning point is backtracked to the concrete
     // item/sub/skill choices that compose it — appended to [explainOut]. [winningCOut] (size ≥ 1)
@@ -2645,7 +2678,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
     // Applied AFTER the rune-option split so each option converts exactly what it actually carries.
     fun convertRaw(r: Raw): Raw = if (convTaken == null && critSecret == null) r else r.copy(m = r.m + convGain(r.critM), critM = cmWorld(r.critM))
 
-    fun rawOptions(e: Equipment): List<Raw> {
+    fun itemRawOptions(e: Equipment): List<Raw> {
         val base = raw(e)
         if (e in explicitRunePickItems) {
             val picks = runeModel.runeVars[e]?.values ?: return listOf(convertRaw(base))
@@ -2680,6 +2713,38 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         // base counts BOTH runes; strip the one not chosen for each option.
         return listOf(convertRaw(base.copy(critM = base.critM - runeCritM)), convertRaw(base.copy(m = base.m - runeMastery)))
     }
+
+    // v57 item EQUIP conditions: an item that can only be worn with another (a nation sword needs its EPIC ring) is offered
+    // FUSED with it — each of its options summed with each of the required item's (stats, runes, rarity), so it consumes the
+    // epic budget the ring takes and never pairs with another epic item, as in the game. The required item keeps its own
+    // options in its slot (worn alone it is legal); fused + standalone both carry its epic bit, so the DP never counts it
+    // twice. In the REQUIRES world split ([CertWorld.bundle]) the fused options are the bundle world's ring-stage entry, so
+    // the ring slot is counted exactly; unsplit, they ride the item's own slot and leave the ring's slot free — an over-count
+    // of at most one ring (sound). A requirement outside the pool leaves the item no option (the pool filter dropped it).
+    val poolById = allEquips.associateBy { it.equipmentId }
+
+    fun rawOptions(e: Equipment): List<Raw> {
+        var options = itemRawOptions(e)
+        for (requiredId in e.requiredItemIds) {
+            val required = poolById[requiredId] ?: return emptyList()
+            val requiredOptions = itemRawOptions(required)
+            options =
+                options
+                    .flatMap { a ->
+                        requiredOptions.mapNotNull { b ->
+                            if (a.epic + b.epic > 1 || a.relic + b.relic > 1) {
+                                null
+                            } else {
+                                Raw(a.di + b.di, a.m + b.m, a.critM + b.critM, a.ap + b.ap, a.crit + b.crit, a.epic + b.epic, a.relic + b.relic, a.mp + b.mp, a.range + b.range)
+                            }
+                        }
+                    }.distinct()
+        }
+        return options
+    }
+
+    // The items an option of [e] puts in the build: [e] and what it can't be worn without (the explain's provenance ids).
+    fun wornIds(e: Equipment): List<Int> = listOf(e.equipmentId) + e.requiredItemIds
 
     // mpI too: an MP-only item (pure-MP boots) has no damage stat yet is exactly what feeds an
     // MP-sourced ramp — omitting it would silently value the ramp at the item-free MP floor. Under the general rune
@@ -2721,6 +2786,17 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
 
     fun keepIfForced(e: Equipment): Boolean = e.itemType !in forcedSlots || e.name.fr.lowercase() in forcedNames
 
+    // v57 REQUIRES world split ([CertWorld.bundle]): in both halves a requiring item leaves its own slot; the bundle half
+    // also empties the one- and two-handed slots (its sword holds the main hand) and offers each requiring item — fused
+    // with its ring — as a RING-stage entry ([bundleRings]), so the ring slot its ring takes is counted exactly.
+    fun inWorldSlot(e: Equipment): Boolean =
+        when (requirementBundle) {
+            null -> true
+            false -> e.requiredItemIds.isEmpty()
+            true -> e.requiredItemIds.isEmpty() && e.itemType != ItemType.ONE_HANDED_WEAPONS && e.itemType != ItemType.TWO_HANDED_WEAPONS
+        }
+    val bundleRings = if (requirementBundle == true) itemEquips.filter { it.requiredItemIds.isNotEmpty() } else emptyList()
+
     // Equipment vars are boolean, so the build equips TWO DISTINCT rings (Σ ringVar ≤ 2). Applying the
     // ring cells twice would let the certifier double the single best ring — keep rings per-equip and
     // pick the top-2 DISTINCT rings per cost cell below. Other slots flatten to their rune options.
@@ -2728,6 +2804,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         itemEquips
             .filter { it.itemType != ItemType.RING }
             .filter { keepIfForced(it) }
+            .filter { inWorldSlot(it) }
             .groupBy { it.itemType }
             .mapValues { (_, equips) -> equips.flatMap { rawOptions(it) } }
 
@@ -2740,10 +2817,12 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
         val options: List<Raw>,
     )
     val ringOptionsByEquip =
-        itemEquips
-            .filter { it.itemType == ItemType.RING }
-            .filter { keepIfForced(it) }
-            .map { RingEntry(it.name.fr.lowercase(), rawOptions(it)) }
+        (
+            itemEquips
+                .filter { it.itemType == ItemType.RING }
+                .filter { keepIfForced(it) }
+                .filter { inWorldSlot(it) } + bundleRings
+        ).map { RingEntry(it.name.fr.lowercase(), rawOptions(it)) }
     // The ring stage keeps only each ring's best GRAW per cost cell — any ring DI would be silently
     // DROPPED (an under-count). No ring in the current dataset carries Damage Inflicted, but bail if
     // one ever does rather than certify a value below the true cell max.
@@ -4841,12 +4920,12 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                             val oneOpts =
                                 listOf(none) +
                                     itemEquips
-                                        .filter { it.itemType == ItemType.ONE_HANDED_WEAPONS }
-                                        .flatMap { e -> rawOptions(e).map { Triple(e.name.en, it, listOf(e.equipmentId)) } }
+                                        .filter { it.itemType == ItemType.ONE_HANDED_WEAPONS && inWorldSlot(it) }
+                                        .flatMap { e -> rawOptions(e).map { Triple(e.name.en, it, wornIds(e)) } }
                             val offOpts =
                                 listOf(none) +
-                                    (if (weaponsRestricted) emptyList() else itemEquips.filter { it.itemType == ItemType.OFF_HAND_WEAPONS }).flatMap { e ->
-                                        rawOptions(e).map { Triple(e.name.en, it, listOf(e.equipmentId)) }
+                                    (if (weaponsRestricted) emptyList() else itemEquips.filter { it.itemType == ItemType.OFF_HAND_WEAPONS && inWorldSlot(it) }).flatMap { e ->
+                                        rawOptions(e).map { Triple(e.name.en, it, wornIds(e)) }
                                     }
                             for ((la, a, aIds) in oneOpts) {
                                 for ((lb, b, bIds) in offOpts) {
@@ -4869,10 +4948,10 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                                 }
                             }
                             if (!weaponsRestricted) {
-                                for (e in itemEquips.filter { it.itemType == ItemType.TWO_HANDED_WEAPONS }) {
+                                for (e in itemEquips.filter { it.itemType == ItemType.TWO_HANDED_WEAPONS && inWorldSlot(it) }) {
                                     for (r in rawOptions(e)) {
                                         res +=
-                                            rawOpt(e.name.en, r, listOf(e.equipmentId))
+                                            rawOpt(e.name.en, r, wornIds(e))
                                     }
                                 }
                             }
@@ -4880,7 +4959,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                         }
                         name == "slot:rings" -> {
                             val res = mutableListOf<Opt>()
-                            val rings = itemEquips.filter { it.itemType == ItemType.RING }
+                            val rings = itemEquips.filter { it.itemType == ItemType.RING && inWorldSlot(it) } + bundleRings
                             val mpRings = rings.filter { e -> rawOptions(e).any { it.mp > 0L } }
                             val plain = rings - mpRings.toSet()
 
@@ -4987,7 +5066,7 @@ internal fun StatBuilder.certifyMaxPerHitAtApPass(
                         }
                         name.startsWith("slot:") -> {
                             val slot = name.removePrefix("slot:")
-                            itemEquips.filter { it.itemType.name == slot }.flatMap { e -> rawOptions(e).map { r -> rawOpt(e.name.en, r, listOf(e.equipmentId)) } }
+                            itemEquips.filter { it.itemType.name == slot && inWorldSlot(it) }.flatMap { e -> rawOptions(e).map { r -> rawOpt(e.name.en, r, wornIds(e)) } }
                         }
                         name.startsWith("skills:") -> {
                             val bi = name.removePrefix("skills:").toInt()

@@ -5,6 +5,7 @@ import me.chosante.autobuilder.domain.SpellCatalog
 import me.chosante.autobuilder.domain.SpellRotationOptimizer
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.autobuilder.domain.requiredItemIds
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.scaledWeight
 import me.chosante.common.Characteristic
 import me.chosante.common.Equipment
@@ -1573,9 +1574,25 @@ internal object MaxDamageSoftCertificate {
                     }
             )
 
+        // v57 item EQUIP conditions: an item that can only be worn with another (a nation sword needs its EPIC ring) is offered
+        // FUSED with it — each option combined with each of the required item's, its rarity included — so it takes the epic
+        // budget the ring takes and never pairs with another epic item (rings run first: an epic ring there rejects it). The
+        // required item keeps its own options in its slot (worn alone it is legal); the fused option leaves that ring slot
+        // free, an over-count of at most one ring (sound). A requirement outside the pool leaves the item no option.
+        val poolById = pool.values.flatten().associateBy { it.equipmentId }
+
+        fun wornOpts(e: Equipment): List<Opt> {
+            var opts = itemOpts(e)
+            for (requiredId in e.requiredItemIds) {
+                val requiredOpts = itemOpts(poolById[requiredId] ?: return emptyList())
+                opts = opts.flatMap { a -> requiredOpts.filterNot { b -> (a.epic && b.epic) || (a.relic && b.relic) }.map { b -> combineOpts(a, b) } }
+            }
+            return opts.distinct()
+        }
+
         // Rings: exact distinct-name pairs.
         run {
-            val perRing = pool[ItemType.RING].orEmpty().map { it to prune(itemOpts(it)) }
+            val perRing = pool[ItemType.RING].orEmpty().map { it to prune(wornOpts(it)) }
             val options = mutableListOf(Opt(0L, 0))
             perRing.forEach { (_, opts) -> options += opts }
             for (i in perRing.indices) {
@@ -1600,14 +1617,14 @@ internal object MaxDamageSoftCertificate {
         run {
             val options = mutableListOf(Opt(0L, 0))
             if (lightWeaponArm != "expertEligible") {
-                options += pool[ItemType.TWO_HANDED_WEAPONS].orEmpty().flatMap { prune(itemOpts(it)) }
+                options += pool[ItemType.TWO_HANDED_WEAPONS].orEmpty().flatMap { prune(wornOpts(it)) }
             }
-            val oneH = pool[ItemType.ONE_HANDED_WEAPONS].orEmpty().map { prune(itemOpts(it)) }
+            val oneH = pool[ItemType.ONE_HANDED_WEAPONS].orEmpty().map { prune(wornOpts(it)) }
             val off =
                 if (lightWeaponArm == "expertEligible") {
                     emptyList()
                 } else {
-                    pool[ItemType.OFF_HAND_WEAPONS].orEmpty().map { prune(itemOpts(it)) }
+                    pool[ItemType.OFF_HAND_WEAPONS].orEmpty().map { prune(wornOpts(it)) }
                 }
             oneH.forEach { options += it }
             off.forEach { options += it }
@@ -1672,7 +1689,7 @@ internal object MaxDamageSoftCertificate {
                 }
             }
         for (slot in singleSlots) {
-            step(slot.name, listOf(Opt(0L, 0)) + pool[slot].orEmpty().flatMap { prune(itemOpts(it)) })
+            step(slot.name, listOf(Opt(0L, 0)) + pool[slot].orEmpty().flatMap { prune(wornOpts(it)) })
         }
         collapseMpHeadroom(
             "mp-fold-after-items",
