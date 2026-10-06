@@ -246,8 +246,8 @@ internal class StatBuilder(
         equipVars.forEach { (equip, v) -> tracker.seed(v, 0L..1L, "equip_${equip.equipmentId}") }
         skillVars.forEach { (skill, v) -> tracker.seed(v, 0L..skillCaps.getValue(skill), "skill_${skill.name}") }
         runeModel.runeVars.forEach { (equip, perStat) ->
-            // Fold ⇒ each var is a boolean PICK (0..1, contributes slots·coeff); count model ⇒ 0..slots.
-            val runeHi = if (runeModel.singleTypePerItem) 1L else equip.maxShardSlots.toLong()
+            // Fold ⇒ each var is a boolean PICK (0..1, contributes slots·coeff); count model / count carrier ⇒ 0..slots.
+            val runeHi = runeModel.runeVarHi(equip)
             perStat.forEach { (stat, v) -> tracker.seed(v, 0L..runeHi, "rune_${equip.equipmentId}_${stat.name}") }
         }
         subModel.subVars.forEach { (sub, v) -> tracker.seed(v, 0L..1L, "sub_${sub.stateId}") }
@@ -2423,8 +2423,8 @@ internal class StatBuilder(
             // Rune level is capped by the carrier ITEM's level, not the character's (fix 36918746).
             val coefficient = runeModel.coefficientFor(equip, char)
             // Fold model: runeVar is a boolean PICK — one pick fills all `slots` sockets, so it
-            // contributes slots·coeff. Count model: runeVar is the count and contributes coeff each.
-            val multiplier = if (runeModel.singleTypePerItem) equip.maxShardSlots.toLong() else 1L
+            // contributes slots·coeff. Count model (or a fold's count carrier): runeVar is the count, coeff each.
+            val multiplier = runeModel.runeVarMultiplier(equip)
             if (coefficient != 0L) {
                 terms.add(Term(runeVar, coefficient * multiplier))
             }
