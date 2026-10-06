@@ -251,6 +251,13 @@ class BuildSearchModel(
     @Volatile
     private var pendingWorkspace: WorkspaceSnapshot? = null
 
+    /**
+     * The request shown when the main UI was revealed while the remembered one was still being read ([restoreWorkspaceWhenRead]);
+     * null otherwise. Until the read lands nothing is written by the debounce, but an edit away from this request is kept in
+     * [pendingWorkspace], so a quit in the meantime still writes it (the user's edit wins over the late read anyway).
+     */
+    private var requestAtReveal: me.chosante.common.history.RequestSnapshot? = null
+
     private var workspaceSaveJob: Job? = null
 
     // --- Library re-scoring (see [rescoreLibrary]) ---
@@ -499,8 +506,10 @@ class BuildSearchModel(
      */
     private fun restoreWorkspaceWhenRead(read: kotlinx.coroutines.Deferred<WorkspaceSnapshot?>) {
         val atReveal = ui.toRequestSnapshot(keepBossInAnyMode = true)
+        requestAtReveal = atReveal
         scope.launch(mainDispatcher) {
             val snapshot = runCatching { read.await() }.getOrNull()
+            requestAtReveal = null
             val untouched = ui.toRequestSnapshot(keepBossInAnyMode = true) == atReveal
             restoreWorkspaceSafely(snapshot?.takeIf { untouched })
             // The user's edits made while the read ran were not written (saving was not armed yet): write them now.
@@ -517,7 +526,13 @@ class BuildSearchModel(
         force: Boolean = false,
     ) {
         val store = workspaceStore ?: return
-        if (!workspaceRestored) return
+        if (!workspaceRestored) {
+            // A slow read still running: no write yet, but keep an edit for a flush (a quit before the read lands).
+            val atReveal = requestAtReveal ?: return
+            val request = state.toRequestSnapshot(keepBossInAnyMode = true)
+            pendingWorkspace = if (request == atReveal) null else WorkspaceSnapshot(dataVersion = dataVersion, request = request)
+            return
+        }
         val request = state.toRequestSnapshot(keepBossInAnyMode = true)
         if (request == rememberedRequest && !force) return
         rememberedRequest = request
