@@ -30,6 +30,7 @@ import me.chosante.common.ItemStatGate
 import me.chosante.common.ItemType
 import me.chosante.common.Monster
 import me.chosante.common.Rarity
+import me.chosante.common.RuneCatalogData
 import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationEffect
@@ -129,11 +130,10 @@ object WakfuBestBuildFinderAlgorithm {
     }
 
     /**
-     * The embedded runes ([RuneType]) for the current data version, or empty if the resource is
-     * absent. The OR-Tools solver socket-fills equipped items with these when [WakfuBestBuildParams.useRunes].
+     * The embedded runes ([RuneType]) and shared thresholds for the current data version. The OR-Tools solver socket-fills equipped items with these when [WakfuBestBuildParams.useRunes].
      */
     val runes: List<RuneType> by lazy {
-        EmbeddedResources.decodeList<RuneType>("runes.json") ?: emptyList()
+        RuneCatalogData.embedded.runes
     }
 
     /**

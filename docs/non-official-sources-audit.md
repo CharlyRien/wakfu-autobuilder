@@ -26,7 +26,7 @@ Status: 🟢 Actionable (a concrete official source exists) · 🟡 Keep / docum
 |---|---|---|---|---|
 | `icons-legacy-dead` | 4 unreferenced legacy HUD icon files | ✅ Done — `chore(assets): drop four unreferenced legacy stat icons` | minor | easy |
 | `monster-portraits` | Monster boss portraits — third-party wakassets mirror | 🟢 Actionable | notable | easy |
-| `rune-level-requirements` | Rune level-requirement table — hardcoded | 🟢 Actionable | notable | easy |
+| `rune-level-requirements` | Rune level-requirement table — hardcoded | ✅ Done — `refactor(data): rune level thresholds come from the game data` | notable | easy |
 | `spell-cast-limit-names` | spell-cast-limits.json names — from the encyclopedia spells.json | 🟢 Actionable | minor | easy |
 | `spell-passive-names` | spell-passives.json names/descriptions — from the encyclopedia spells.json | 🟢 Actionable | minor | easy |
 | `stale-comments` | Stale provenance comments (wakassets/WakForge/MethodWakfu/Fandom) | ✅ Done — `docs: monster provenance comments name the official sources` | minor | easy |
@@ -97,7 +97,8 @@ Status: 🟢 Actionable (a concrete official source exists) · 🟡 Keep / docum
 
 ### `rune-level-requirements` — Rune level-requirement table — hardcoded
 
-- **Status:** 🟢 Actionable
+- **Status:** ✅ Done — `refactor(data): rune level thresholds come from the game data`
+- **Completion:** All 17 CDN shards share the historical thresholds (leading 0 preserved); `runes.json` now wraps the unchanged 15 modeled rows and one shared list. Oracle review: only this wrapper/list addition, every prior artifact otherwise semantically identical.
 - **Category:** hardcoded-table · **Classification:** SEMI-OFFICIAL / NON-OFFICIAL (hardcoded-transcribed): hand-typed constant whose lineage is the WakForge/manual ENCHANTMENTS_PLAN constants block; comment falsely implies it is first-party-derived. The official equivalent (CDN items.json shardLevelRequirement) exists and is already partially wired, so this is curable to OFFICIAL-CDN. · **Severity:** notable · **Feasibility:** easy · **Effort:** S (a few hours): one DTO field, a small plumbing change for one globally-shared list, a regenerate, and one guard test. No algorithmic change — maxLevel() logic stays identical; only the data source moves from hardcoded to decoded.
 - **What it is:** The minimum item level required for each enchantment level 1..11 (1, 36, 51, 66, 81, 96, 126, 141, 171, 186, 216), used by RuneType.maxLevel() to cap a rune's level by the carrier item's level.
 - **Why not fully official:** Even though the comment labels it 'Ankama\'s official table', the values are hand-entered constants, not fetched/decoded from any official source in this repo. Provenance is the same WakForge/manual lineage as the value tables it sits next to; no extractor regenerates it, so it can silently drift on a game patch.
