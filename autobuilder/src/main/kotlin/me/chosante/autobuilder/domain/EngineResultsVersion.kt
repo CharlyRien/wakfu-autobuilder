@@ -15,5 +15,7 @@ package me.chosante.autobuilder.domain
  * 3: CERTIFIER_VERSION 58 — the domination pre-filter ignores the stat gates that can never fail and the gates of the items it
  * evicts. Same optima, a smaller pool: a time-limited search of 1.15 / 1.16 (slowed by the gates) may now find a better build,
  * and among equally good builds the one returned can differ.
+ * 4: CERTIFIER_VERSION 59 — spell AP costs/ranges now come from the client; 0-AP damage spells remain excluded
+ * from the AP-only rotations and certificate throughput tables. Saved searches need a re-run.
  */
-const val ENGINE_RESULTS_VERSION: Int = 3
+const val ENGINE_RESULTS_VERSION: Int = 4

@@ -65,11 +65,11 @@ enum class SpellArea {
 
 /**
  * A Wakfu class spell, extracted from the Ankama encyclopedia by the `spells-extractor` module and
- * baked into the `autobuilder` resources as `spells-v<VERSION>.json` (same pattern as
- * `equipments`/`monsters`/`runes`).
+ * baked into `autobuilder` resources as `spells.json`. The client metadata merge supplies costs,
+ * ranges and reviewed localized names; the encyclopedia retains the damage anchors and element.
  *
  * **No value is ever invented.** Every numeric field is nullable: when the extractor cannot read a
- * field off the encyclopedia page it stores `null` and records the field name in [missingFields], so
+ * field from its source it stores `null` and records the field name in [missingFields], so
  * coverage is auditable and downstream code can tell "0" from "unknown".
  *
  * [baseDamage] / [critDamage] are the spell's base hit at **max level** (the encyclopedia's reference
@@ -93,12 +93,15 @@ data class Spell(
     val apCost: Int? = null,
     /**
      * WP (Wakfu Point) base cost (Ankama's `pw_base`), or null when unknown. `0` = free. Sourced from the
-     * baked cast-limit data (`spell-cast-limits-v<VERSION>.json`, joined by [id] in `SpellCatalog`), **not**
-     * the encyclopedia. Carried for display and future rotation modelling — WP is a per-fight pool, not a
+     * client metadata in `spells.json` (with cast-limit data as a legacy fallback), **not** the encyclopedia. Carried for display and future rotation modelling — WP is a per-fight pool, not a
      * per-turn cap, so it is deliberately **not** folded into [maxCastsThisTurn] yet (see
      * `docs/FULL_DAMAGE_MODE_STATUS.md` "Lot 1").
      */
     val wpCost: Int? = null,
+    /** Movement-point cost from Spell (66); display only until MP budgets are modelled. */
+    val mpCost: Int? = null,
+    /** Additional class-resource spends from base_cast_parameters, with enum-derived script names. */
+    val resourceCosts: List<SpellResourceCost> = emptyList(),
     val rangeMin: Int? = null,
     val rangeMax: Int? = null,
     val baseDamage: Int? = null,
@@ -108,14 +111,14 @@ data class Spell(
     val levelRequired: Int? = null,
     /**
      * Minimum number of turns between two casts of this spell (Ankama's `cast_min_interval`), or null
-     * when unknown. Sourced from the baked cast-limit data (`spell-cast-limits-v<VERSION>.json`, joined
+     * when unknown. Sourced from the baked cast-limit data (`spell-cast-limits.json`, joined
      * by [id] in `SpellCatalog`), **not** the encyclopedia. `0`/null means "no cooldown"; any value
      * `> 0` means the spell can be cast at most once this turn (see [maxCastsThisTurn]).
      */
     val cooldown: Int? = null,
     /**
      * Maximum number of times this spell may be cast in a single turn (Ankama's `cast_max_per_turn`),
-     * or null when unknown. Sourced from the baked cast-limit data (`spell-cast-limits-v<VERSION>.json`,
+     * or null when unknown. Sourced from the baked cast-limit data (`spell-cast-limits.json`,
      * joined by [id] in `SpellCatalog`), **not** the encyclopedia. Per that data's convention `0` means
      * "no per-turn limit" (unlimited), which [maxCastsThisTurn] treats the same as null. See
      * `docs/SPELL_CAST_LIMITS_EXTRACTION.md`.
@@ -124,7 +127,7 @@ data class Spell(
     /**
      * Maximum number of times this spell may be cast **on a single target** in one turn (Ankama's
      * `cast_max_per_target`), or null when unknown. Sourced from the baked cast-limit data
-     * (`spell-cast-limits-v<VERSION>.json`, joined by [id] in `SpellCatalog`), **not** the encyclopedia.
+     * (`spell-cast-limits.json`, joined by [id] in `SpellCatalog`), **not** the encyclopedia.
      * Per that data's convention `0` means "no per-target limit". The rotation is single-target, so for a
      * lone boss this often binds **below** [maxCastPerTurn] (e.g. Sablier: 4 per turn but 1 per target ⇒
      * 1 legal cast) — [maxCastsThisTurn] folds it in.

@@ -10,7 +10,7 @@ import me.chosante.common.SpellLocalization
 
 /**
  * The embedded class-spell dataset (`spells.json`, produced by the `spells-extractor` module from the
- * Ankama encyclopedia), loaded the same lazy way as equipments / runes so merely referencing the object
+ * Ankama encyclopedia, then enriched by the reviewed client metadata merge), loaded the same lazy way as equipments / runes so merely referencing the object
  * never triggers the multi-hundred-KB parse on the UI thread. Two bdata-sourced side tables are joined by
  * spell id at load: the cast limits (`spell-cast-limits.json`) and the **per-level damage formula**
  * (`spell-damage.json`) — the latter lets `SpellDamage` scale a hit to the caster's level instead of using
@@ -42,8 +42,8 @@ object SpellCatalog {
                 .decodeList<SpellDamageScaling>("spell-damage.json")
                 .orEmpty()
                 .associateBy { it.spellId }
-        // Join the per-spell localized name + description (bdata i18n, all four languages) so the GUI shows
-        // translated spell text; the encyclopedia scrape only carried English descriptions. A spell with no
+        // Join the existing per-spell localized descriptions (bdata i18n, all four languages) so the GUI shows
+        // translated spell text; names already carry the reviewed source split in spells.json. A spell with no
         // record keeps its encyclopedia text — safe by construction.
         val localizationBySpellId =
             EmbeddedResources
@@ -56,12 +56,12 @@ object SpellCatalog {
             val localization = localizationBySpellId[spell.id]
             if (limit == null && scaling == null && localization == null) return@map spell
             spell.copy(
-                name = localization?.name ?: spell.name,
+                name = spell.name,
                 description = localization?.description ?: spell.description,
                 maxCastPerTurn = limit?.maxCastPerTurn,
                 maxCastPerTarget = limit?.maxCastPerTarget,
                 cooldown = limit?.cooldown,
-                wpCost = limit?.wpCost,
+                wpCost = spell.wpCost ?: limit?.wpCost,
                 damageScaling = scaling
             )
         }

@@ -428,9 +428,10 @@ object WakfuBuildSolver {
      * a gated item it evicts no longer pins its stats in every other slot; argument in `filterDominatedPool`). The reduced pool's
      * optimum is unchanged; it is only smaller (the free lvl-245 max-damage pool: 5 401 → 3 718 items, 680 with the gates
      * stripped; CP-SAT det to OPTIMAL 1 558 → 445).
+     * 59: official client spell AP costs replace encyclopedia guesses; AP-cell throughput and cached bounds change.
      * Bounds can only fall with the pool: a bound cached before stays an upper bound — bumped as the pool every certificate reads changed.
      */
-    const val CERTIFIER_VERSION: Int = 58
+    const val CERTIFIER_VERSION: Int = 59
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing

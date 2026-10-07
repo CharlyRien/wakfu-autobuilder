@@ -89,7 +89,8 @@ fun ClassSpellsPanel(
         remember(ui.clazz, ui.level, ui.minLevel, build, ui.achieved, rangeBand) {
             val band = rangeBand.toSpellDamageRangeBand()
             SpellCatalog
-                .damageSpells(ui.clazz)
+                .forClass(ui.clazz)
+                .filter { it.category == me.chosante.common.SpellCategory.ACTIVE }
                 .map { spell ->
                     // Resolve the build's stats ONCE per spell; the face/back/berserk variants share them and
                     // differ only by the flags passed to SpellDamage, so this avoids 3× the stat resolution.
@@ -274,6 +275,16 @@ private fun SpellMetaRow(spell: Spell) {
         buildList {
             spell.apCost?.let { add(Tr.STAT_AP_AMOUNT.value(lang).format(it)) }
             spell.wpCost?.takeIf { it > 0 }?.let { add(Tr.STAT_WP_AMOUNT.value(lang).format(it)) }
+            spell.mpCost?.takeIf { it > 0 }?.let { add(Tr.STAT_MP_AMOUNT.value(lang).format(it)) }
+            spell.resourceCosts.forEach { cost ->
+                add(
+                    when (cost.scriptName) {
+                        "HUPPERMAGE_RESOURCE" -> Tr.SPELL_HUPPERMAGE_RESOURCE_AMOUNT.value(lang).format(cost.amount)
+                        "SP" -> Tr.SPELL_STASIS_RESOURCE_AMOUNT.value(lang).format(cost.amount)
+                        else -> Tr.SPELL_OTHER_RESOURCE_AMOUNT.value(lang).format(cost.amount, cost.scriptName)
+                    }
+                )
+            }
             val lo = spell.rangeMin
             val hi = spell.rangeMax
             if (lo != null || hi != null) {
