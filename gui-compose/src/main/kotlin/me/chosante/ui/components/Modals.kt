@@ -528,7 +528,9 @@ private fun ItemPickerModal(
                 .filter { equipment ->
                     q.isBlank() ||
                         equipment.name.fr.contains(q, ignoreCase = true) ||
-                        equipment.name.en.contains(q, ignoreCase = true)
+                        equipment.name.en.contains(q, ignoreCase = true) ||
+                        equipment.name.es.contains(q, ignoreCase = true) ||
+                        equipment.name.pt.contains(q, ignoreCase = true)
                 }.toList()
                 .sortedByLocalized(lang) { it.localizedName(lang) }
         }
@@ -660,7 +662,7 @@ private fun ItemResultRow(
         ) {
             ItemThumbnail(equipment = equipment, size = 38.dp)
             Column(modifier = Modifier.weight(1f)) {
-                val name = if (lang == Lang.FR) equipment.name.fr.ifBlank { equipment.name.en } else equipment.name.en.ifBlank { equipment.name.fr }
+                val name = equipment.name.localized(lang)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -714,6 +716,8 @@ private fun SublimationPickerModal(
                     q.isBlank() ||
                         sub.name.fr.contains(q, ignoreCase = true) ||
                         sub.name.en.contains(q, ignoreCase = true) ||
+                        sub.name.es.contains(q, ignoreCase = true) ||
+                        sub.name.pt.contains(q, ignoreCase = true) ||
                         sublimationEffectText(sub, lang).contains(q, ignoreCase = true)
                 }.toList()
                 .sortedWith(
@@ -770,7 +774,7 @@ private fun SublimationResultRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = if (lang == Lang.FR) sub.name.fr.ifBlank { sub.name.en } else sub.name.en.ifBlank { sub.name.fr },
+                text = sub.name.localized(lang),
                 style = WTypography.bodyMedium.copy(color = WColor.text, fontWeight = FontWeight.Medium),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -862,13 +866,6 @@ private fun SublimationRarity.displayColor(): Color =
         SublimationRarity.EPIC -> WRarityColor.epic
         SublimationRarity.RELIC -> WRarityColor.relic
         SublimationRarity.NORMAL -> WColor.success
-    }
-
-private fun SublimationRarity.label(lang: Lang): String =
-    when (this) {
-        SublimationRarity.EPIC -> if (lang == Lang.FR) "Épique" else "Epic"
-        SublimationRarity.RELIC -> if (lang == Lang.FR) "Relique" else "Relic"
-        SublimationRarity.NORMAL -> if (lang == Lang.FR) "Normal" else "Normal"
     }
 
 @Composable
@@ -1057,10 +1054,12 @@ private fun ItemRunePickerModal(
                 .filter { rune ->
                     q.isBlank() ||
                         rune.name.fr.contains(q, ignoreCase = true) ||
-                        rune.name.en.contains(q, ignoreCase = true)
+                        rune.name.en.contains(q, ignoreCase = true) ||
+                        rune.name.es.contains(q, ignoreCase = true) ||
+                        rune.name.pt.contains(q, ignoreCase = true)
                 }.sortedByLocalized(lang) { it.name.localized(lang) }
         }
-    val carrierName = if (lang == Lang.FR) carrier.name.fr.ifBlank { carrier.name.en } else carrier.name.en.ifBlank { carrier.name.fr }
+    val carrierName = carrier.name.localized(lang)
     ModalCard(title = "${tr(Tr.EDIT_RUNES_TITLE)} — $carrierName") {
         Text(
             text = "${tr(Tr.RUNE_SOCKETS_LABEL)}: $total / $sockets",

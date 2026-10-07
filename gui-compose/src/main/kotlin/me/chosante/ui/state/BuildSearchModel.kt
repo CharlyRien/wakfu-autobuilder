@@ -44,6 +44,7 @@ import me.chosante.common.Equipment
 import me.chosante.common.ItemType
 import me.chosante.common.Monster
 import me.chosante.common.Rarity
+import me.chosante.common.SublimationRarity
 import me.chosante.common.history.HistoryEntry
 import me.chosante.common.workspace.WorkspaceSnapshot
 import me.chosante.createZenithBuild
@@ -951,6 +952,27 @@ class BuildSearchModel(
 
     fun removeExcludedSublimation(name: String) {
         ui = ui.copy(excludedSublimations = ui.excludedSublimations - name)
+    }
+
+    /**
+     * Bulk-exclude every sublimation of [rarity] (e.g. every epic, or every relic) in one click — or, if
+     * every one of them is already excluded, undo it and re-allow them all. Matched by French name, same
+     * key as [addExcludedSublimation].
+     */
+    fun toggleExcludeAllSublimationsOfRarity(rarity: SublimationRarity) {
+        val namesOfRarity =
+            WakfuBestBuildFinderAlgorithm.sublimations
+                .filter { it.rarity == rarity }
+                .map { it.name.fr }
+                .distinct()
+        if (namesOfRarity.isEmpty()) return
+        val allExcluded = namesOfRarity.all { it in ui.excludedSublimations }
+        ui =
+            if (allExcluded) {
+                ui.copy(excludedSublimations = ui.excludedSublimations - namesOfRarity)
+            } else {
+                ui.copy(excludedSublimations = (ui.excludedSublimations + namesOfRarity).distinct())
+            }
     }
 
     /**

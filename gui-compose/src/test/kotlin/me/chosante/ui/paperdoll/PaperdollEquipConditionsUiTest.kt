@@ -12,8 +12,10 @@ import androidx.compose.ui.unit.dp
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.common.skills.CharacterSkills
+import me.chosante.ui.components.localized
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
+import me.chosante.ui.i18n.Tr
 import me.chosante.ui.state.Phase
 import me.chosante.ui.state.UiState
 import org.junit.jupiter.api.Test
@@ -38,9 +40,21 @@ class PaperdollEquipConditionsUiTest {
                     }
                 }
                 mainClock.advanceTimeByFrame()
-                onNodeWithText(if (lang == Lang.EN) sword.name.en else sword.name.fr).performMouseInput { moveTo(center) }
+                onNodeWithText(sword.name.localized(lang)).performMouseInput { moveTo(center) }
                 repeat(40) { mainClock.advanceTimeByFrame() }
-                onNodeWithText(if (lang == Lang.EN) "Needs Brakmar Ring" else "Nécessite Anneau de Brâkmar").assertExists()
+                onNodeWithText(
+                    Tr.EQUIP_NEEDS.value(lang).format(
+                        WakfuBestBuildFinderAlgorithm.equipments
+                            .single {
+                                it.equipmentId in
+                                    WakfuBestBuildFinderAlgorithm.equipments
+                                        .single { it.equipmentId == sword.equipmentId }
+                                        .equipCriterion!!
+                                        .requiresItems
+                            }.name
+                            .localized(lang)
+                    )
+                ).assertExists()
             }
         }
     }
