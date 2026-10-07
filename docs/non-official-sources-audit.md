@@ -41,6 +41,15 @@ Status: 🟢 Actionable (a concrete official source exists) · 🟡 Keep / docum
 | `branding` | App branding/logo artwork — original (not game data) | ℹ️ Not a game-data source | minor | blocked |
 | `zenith-output` | zenith-builder equipment GET — third-party OUTPUT | ℹ️ Not a game-data source | minor | blocked |
 
+## Additional research confirmation
+
+| ID | Title | Status |
+|---|---|---|
+| `ring-uniqueness-in-game-result` | Same-ring research — in-game confirmation (not a data-source finding) | ✅ Done — `docs: the same-ring research records the in-game result` |
+
+The 2026-10-07 tester report confirms the engine's one-ring-per-name rule. See
+[`RING_UNIQUENESS_CLIENT_RESEARCH.md`](RING_UNIQUENESS_CLIENT_RESEARCH.md); existing bytecode evidence is retained.
+
 ## Findings
 
 ### `icons-legacy-dead` — 4 unreferenced legacy HUD icon files
