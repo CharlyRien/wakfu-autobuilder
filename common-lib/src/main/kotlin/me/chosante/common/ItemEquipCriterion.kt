@@ -17,9 +17,11 @@ import kotlinx.serialization.Serializable
  *    `BuildCombination.isValid`);
  *  - [uniqueEquipped] is already enforced by the "never two rings of the same name" rule (rings are the only items
  *    carrying it, and two copies of one item share their name);
- *  - [statGates] and [playerState] are NOT enforced: stat gates wait for an in-game check of whether an item's own
- *    bonus counts toward its gate, and the player's state (company rank, achievements, gauges, crime score) is
- *    outside the build, so it is assumed satisfied. Both are kept for display.
+ *  - [statGates] are ENFORCED on the build's OUT-OF-COMBAT sheet (`outOfCombatSheet` in the engine): base + every item, the
+ *    gated item's own bonus included, + skills + runes + permanent sublimation effects + passives — never an in-combat bonus.
+ *    In game an item whose gate fails is inactive (shown red), so such a build is not a valid build;
+ *  - [playerState] is NOT enforced: the player's state (company rank, achievements, gauges, crime score) is outside the
+ *    build, so it is assumed satisfied and kept for display.
  */
 @Serializable
 data class ItemEquipCriterion(
@@ -41,7 +43,7 @@ data class ItemEquipCriterion(
     val never: Boolean = false,
     /** `not HasAnotherSameEquipment()`: never two copies of the item at once (rings). */
     val uniqueEquipped: Boolean = false,
-    /** `GetCharac` / `GetCharacMax` comparisons on the wearer's characteristics (not enforced, see above). */
+    /** `GetCharac` / `GetCharacMax` comparisons on the wearer's out-of-combat characteristics (enforced, see above). */
     val statGates: List<ItemStatGate> = emptyList(),
     /** Comparisons on the player's state outside the build (not enforced: assumed satisfied, see above). */
     val playerState: List<ItemPlayerStateAtom> = emptyList(),
@@ -97,7 +99,9 @@ enum class CriterionComparison(
 
 /**
  * `GetCharac("<stat>") <op> <value>` — or `GetCharacMax`, which reads the characteristic's MAXIMUM (the AP / MP / WP
- * pool) rather than its current value ([max]). Negations are folded into [comparison].
+ * pool) rather than its current value ([max]). Out of combat a pool is full (current = max), so the engine reads both on
+ * the same out-of-combat total (MAX_* lines included); [max] only changes the label ("Max AP ≤ 11"). On the 1.93 data every
+ * `GetCharacMax` gate is on AP / MP / WP. Negations are folded into [comparison].
  */
 @Serializable
 data class ItemStatGate(

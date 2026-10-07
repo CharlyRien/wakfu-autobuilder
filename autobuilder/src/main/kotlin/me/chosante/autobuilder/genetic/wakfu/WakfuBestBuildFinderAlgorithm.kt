@@ -9,23 +9,31 @@ import me.chosante.autobuilder.EmbeddedResources
 import me.chosante.autobuilder.VERSION
 import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.DamageScenario
+import me.chosante.autobuilder.domain.StatGateViolation
 import me.chosante.autobuilder.domain.TargetStats
 import me.chosante.autobuilder.domain.equipConflict
 import me.chosante.autobuilder.domain.isWearableBy
 import me.chosante.autobuilder.domain.requiredItemIds
+import me.chosante.autobuilder.domain.sheetCharacteristic
+import me.chosante.autobuilder.domain.statGates
 import me.chosante.autobuilder.domain.withRequirementsMet
 import me.chosante.autobuilder.genetic.SolverResult
 import me.chosante.common.Character
 import me.chosante.common.CharacterClass
+import me.chosante.common.Characteristic
+import me.chosante.common.CriterionComparison
 import me.chosante.common.Equipment
 import me.chosante.common.ExclusiveGroup
 import me.chosante.common.I18nText
 import me.chosante.common.ItemEquipCriterion
+import me.chosante.common.ItemStatGate
 import me.chosante.common.ItemType
 import me.chosante.common.Monster
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
 import me.chosante.common.Sublimation
+import me.chosante.common.SublimationEffect
+import me.chosante.common.SublimationKind
 import me.chosante.common.SublimationRarity
 import java.math.BigDecimal
 import kotlin.time.Duration
@@ -69,25 +77,46 @@ object WakfuBestBuildFinderAlgorithm {
      * that carries none of its own included: a build read back from a save or an import has no criterion
      * ([Equipment.equipCriterion] is never saved), and one saved before the conditions were enforced may wear a nation
      * sword without its ring; one saved before the exclusivity groups were read follows its rarity, so it may wear 18691
-     * (COMMON, EPIC group) beside an epic item. See [me.chosante.autobuilder.domain.equipConditionViolation] and
-     * [me.chosante.autobuilder.domain.exclusiveGroupViolation].
+     * (COMMON, EPIC group) beside an epic item, and one saved before the stat gates were enforced may wear Cartes And at 4 range.
+     * See [me.chosante.autobuilder.domain.equipConditionViolation], [me.chosante.autobuilder.domain.exclusiveGroupViolation]
+     * and [statGateViolations].
      */
     fun equipConditionViolation(
         build: BuildCombination,
         characterClass: CharacterClass,
     ): String? {
-        val items =
-            build.equipments.map { item ->
-                val withCriterion = item.equipCriterion?.let { item } ?: criteriaById[item.equipmentId]?.let { item.copy(equipCriterion = it) } ?: item
-                withCriterion.exclusiveGroupOverride?.let { withCriterion }
-                    ?: exclusiveGroupOverrideById[item.equipmentId]?.let { withCriterion.copy(exclusiveGroupOverride = it) }
-                    ?: withCriterion
-            }
+        val items = withCatalogConditions(build.equipments)
         return me.chosante.autobuilder.domain
             .equipConditionViolation(items, characterClass)
             ?: me.chosante.autobuilder.domain
                 .exclusiveGroupViolation(items)
+            ?: me.chosante.autobuilder.domain
+                .statGateViolations(build.copy(equipments = items), characterClass)
+                .firstOrNull()
+                ?.describe()
     }
+
+    /**
+     * Every stat gate [build] breaks for a [characterClass] ([me.chosante.autobuilder.domain.statGateViolations]: an item
+     * the game would show red — inactive — on the build's out-of-combat sheet), each item's criterion read from the catalog by
+     * id, as [equipConditionViolation] does: a saved build carries none, and one saved before the gates were enforced may wear
+     * Cartes And at 4 range. Empty when every item is active. The GUI's warning on a loaded or saved build.
+     */
+    fun statGateViolations(
+        build: BuildCombination,
+        characterClass: CharacterClass,
+    ): List<StatGateViolation> =
+        me.chosante.autobuilder.domain
+            .statGateViolations(build.copy(equipments = withCatalogConditions(build.equipments)), characterClass)
+
+    /** [items] with the catalog's EQUIP criterion and exclusivity-group override joined on, where they carry none of their own. */
+    private fun withCatalogConditions(items: List<Equipment>): List<Equipment> =
+        items.map { item ->
+            val withCriterion = item.equipCriterion?.let { item } ?: criteriaById[item.equipmentId]?.let { item.copy(equipCriterion = it) } ?: item
+            withCriterion.exclusiveGroupOverride?.let { withCriterion }
+                ?: exclusiveGroupOverrideById[item.equipmentId]?.let { withCriterion.copy(exclusiveGroupOverride = it) }
+                ?: withCriterion
+        }
 
     /**
      * The EQUIP criteria of the catalog's items (`item-criteria.json`, decoded from the local client's Item table by
@@ -685,7 +714,8 @@ object WakfuBestBuildFinderAlgorithm {
      * excludes (it could never be socketed); and more forced sublimations than a build can host (10). The item EQUIP
      * conditions add: a forced item the game never lets anyone wear, another class's item, an item whose required item
      * the search can't equip (a nation sword whose ring is excluded or above the rarity cap), and two forced items that
-     * exclude each other — and a forced item's required items count as forced in the slot and rarity budgets (the
+     * exclude each other, a forced item whose stat gate caps a stat below a target row ([RequestValidationProblem.ForcedItemStatGateContradictsTarget])
+     * — and a forced item's required items count as forced in the slot and rarity budgets (the
      * sword's EPIC ring takes a ring slot and the epic budget). A forced item/sub name that matches nothing is ignored
      * (a typo can't be equipped). [allEquipments] / [allSublimations] are injectable for tests.
      */
@@ -739,6 +769,41 @@ object WakfuBestBuildFinderAlgorithm {
                 val requiredName = catalogById[requiredId]?.name ?: I18nText("#$requiredId", "#$requiredId", "#$requiredId", "#$requiredId")
                 problems += RequestValidationProblem.ForcedItemRequirementUnavailable(wearable.first(), requiredName)
             }
+        }
+
+        // A forced item whose stat gate caps a stat BELOW what a required target row asks for (forced Cartes And — range ≤ 3 out
+        // of combat — with a range target of 4): the game would show the item inactive on any build meeting the target. Only an
+        // upper gate is read, and only when the target exceeds it by more than every in-combat-only bonus the search could add
+        // (start-of-combat / conditional sublimation effects on that stat, summed over every sub in play — a sound over-estimate;
+        // a conversion INTO the stat makes it give up). Reported when EVERY match of the name carries such a gate.
+        val subNamesForced = params.forcedSublimations.map { it.lowercase() }.toSet()
+        val subsInPlay =
+            allSublimations.filter { sub ->
+                (sub.solverChoosable && params.useSublimations) || sub.name.fr.lowercase() in subNamesForced || sub.name.en.lowercase() in subNamesForced
+            }
+
+        fun inCombatHeadroom(characteristic: Characteristic): Int? {
+            if (subsInPlay.any { it.conversion?.to?.foldedToUsableStat() == characteristic }) return null
+            return subsInPlay
+                .filter { it.kind != SublimationKind.COMBAT_CONDITIONAL }
+                .flatMap { it.effects.filterIsInstance<SublimationEffect.StatEffect>() }
+                .filter { !it.appliesBeforeCombat && it.characteristic.foldedToUsableStat() == characteristic }
+                .sumOf { it.magnitudeAtLevel(character.level).coerceAtLeast(0) }
+        }
+        for ((_, matches) in forcedItemMatches) {
+            val contradictions =
+                matches.map { item ->
+                    item.statGates.firstNotNullOfOrNull { gate ->
+                        if (gate.comparison != CriterionComparison.LE && gate.comparison != CriterionComparison.LT) return@firstNotNullOfOrNull null
+                        val cap = if (gate.comparison == CriterionComparison.LT) gate.value - 1 else gate.value
+                        val row =
+                            params.targetStats.firstOrNull { it.characteristic.foldedToUsableStat() == gate.sheetCharacteristic && it.target > 0 }
+                                ?: return@firstNotNullOfOrNull null
+                        val headroom = inCombatHeadroom(gate.sheetCharacteristic) ?: return@firstNotNullOfOrNull null
+                        if (row.target > cap + headroom) RequestValidationProblem.ForcedItemStatGateContradictsTarget(item, gate, row.target) else null
+                    }
+                }
+            if (contradictions.all { it != null }) problems += contradictions.first()!!
         }
 
         // Forcing an item forces what it needs (a nation sword brings its ring — the pool does the same), so the slot
@@ -886,6 +951,16 @@ sealed interface RequestValidationProblem {
         val required: I18nText,
     ) : RequestValidationProblem
 
+    /**
+     * A forced [item]'s stat [gate] caps a stat below the [target] a request row asks for (forced Cartes And — range ≤ 3 out of
+     * combat — with a range target of 4), beyond what any in-combat-only bonus could add: the item would be inactive in game.
+     */
+    data class ForcedItemStatGateContradictsTarget(
+        val item: Equipment,
+        val gate: ItemStatGate,
+        val target: Int,
+    ) : RequestValidationProblem
+
     /** Two forced [items] the game refuses together (an equip condition of one forbids the other). */
     data class ForcedItemsMutuallyExclusive(
         val items: List<I18nText>,
@@ -954,6 +1029,9 @@ fun RequestValidationProblem.describe(): String =
             "forced item '${item.name.en}' can never be equipped in the game"
         is RequestValidationProblem.ForcedItemRequirementUnavailable ->
             "forced item '${item.name.en}' can only be worn with '${required.en}', which this search can't equip"
+        is RequestValidationProblem.ForcedItemStatGateContradictsTarget ->
+            "forced item '${item.name.en}' is only active with ${gate.characteristic} ${gate.comparison.symbol} ${gate.value} out of combat, " +
+                "but the request asks for $target"
         is RequestValidationProblem.ForcedItemsMutuallyExclusive ->
             "these forced items can't be worn together: ${items.joinToString { it.en }}"
         is RequestValidationProblem.ForcedItemsSlotConflict ->

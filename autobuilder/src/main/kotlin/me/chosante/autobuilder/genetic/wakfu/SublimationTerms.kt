@@ -158,6 +158,27 @@ internal fun StatBuilder.buildPermanentSubTerms(): Map<Characteristic, List<Term
 }
 
 /**
+ * The sublimation part of the OUT-OF-COMBAT sheet the item stat gates read ([StatBuilder.outOfCombatStat]): the PERMANENT
+ * effects ([SublimationEffect.appliesBeforeCombat] — Visibilité's +1 range) of the modelled subs, never a scenario-gated one (a
+ * scenario is a combat situation; no permanent effect of the data carries one). Gated by the raw `subVar` and each socketed copy,
+ * like [buildPermanentSubTerms]. Mirrors the scorer-side `outOfCombatSheet` (domain/EquipConditions.kt).
+ */
+internal fun StatBuilder.buildOutOfCombatSubTerms(): Map<Characteristic, List<Term>> {
+    val map = mutableMapOf<Characteristic, MutableList<Term>>()
+    for ((sub, subVar) in subModel.subVars) {
+        if (sub.kind == SublimationKind.COMBAT_CONDITIONAL || sub.kind == SublimationKind.CONVERSION) continue
+        for (effect in sub.effects.filterIsInstance<SublimationEffect.StatEffect>()) {
+            if (!effect.appliesBeforeCombat || effect.scenarioGate != null) continue
+            val magnitude = effect.magnitudeAtLevel(subModel.characterLevel).toLong()
+            val bucket = map.getOrPut(effect.characteristic.foldedToUsableStat()) { mutableListOf() }
+            bucket.add(Term(subVar, magnitude))
+            for (copyVar in subModel.copyVars[sub].orEmpty()) bucket.add(Term(copyVar, magnitude))
+        }
+    }
+    return map
+}
+
+/**
  * The START-OF-COMBAT contributions of unconditional FLAT subs (effects NOT flagged
  * [SublimationEffect.appliesBeforeCombat]), grouped like [buildPermanentSubTerms]. Together with
  * [StatBuilder.preCombatStat] they form the FIRST-TURN sheet that `firstTurn` conditions read
