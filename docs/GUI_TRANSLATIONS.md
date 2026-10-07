@@ -68,3 +68,12 @@ language selection and fallback, compare stat labels with official rune names,
 and exercise item/boss searches in Spanish and Portuguese. The bulk exclusion
 buttons remain translated and tested. No push or PR creation is part of this
 work.
+
+## Spell metadata and Light display (2026-10-07)
+
+MP costs, quadramental-breeze and Stasis Point amounts, display-only Light/Stasis element names and the no-search note
+are in **all four** bundles with identical format tokens. Resource-name script ids come from the client;
+Huppermage breeze uses localized player terminology rather than a raw script identifier. Spell ES/PT
+names are now baked into spells.json from namespace 3, with the reviewed FR/EN split preserved at
+runtime. Existing localized descriptions continue through spell-i18n.json. The release-note fragment
+schema supports EN/FR/ES only, independently of the four-language GUI-bundle schema.

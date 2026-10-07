@@ -35,7 +35,7 @@ common-lib            Pure domain model. No project deps. Everyone depends on it
   ├── equipments-extractor   Standalone tool: pulls Wakfu game data from Ankama's CDN
   │                          and regenerates the embedded equipments JSON.
   ├── spells-extractor       Standalone tool: scrapes the Ankama encyclopedia and regenerates the
-  │                          embedded class-spells JSON (element / AP / damage per class).
+  │                          embedded class-spells JSON (element / damage anchors per class; client metadata merged next).
   ├── bdata-extractor        Standalone tool: decodes the local game client's scrambled static-data
   │                          binaries (contents/bdata/*.jar) and regenerates the embedded
   │                          spell-cast-limits + spell-passives JSON. Pure JVM, no native deps.
@@ -462,15 +462,25 @@ as **fixed-name** JSON files (no version in the filename):
    `items.json` — colour/double-bonus + the boosted stat from the equip-effect action; replaces the old
    hand-maintained file), and **`monsters.json`** (boss-mode data: level/HP/flat elemental resistances +
    localized name/family + icon `gfx`, replacing the old third-party MethodWakfu/Fandom scrape).
-   **Spell metadata migration check (2026-10-07, 1.93.1.62):** 707/710 committed ids exist in Spell (66);
-   names/AP/range/element/icons do not all reproduce the committed oracle. No spells.json field switched.
-   See `docs/official-sources-2/spell-metadata-comparison.md` and its full difference CSV. `spell-i18n.json`
-   already supplies official four-language names/descriptions at runtime; cast limits/WP and level-scaled
-   damage formulas are official side tables. The encyclopedia still selects the roster/metadata and anchors
-   rendered damage. Changing engine-facing AP/range/element needs a separate reviewed data change with versions.
-   **Spells stay on the encyclopedia** (`spells-extractor` → `spells.json`: name/element/AP/range/icon + the
-   *max-level* base hit) because the spell-damage *renderer* is client-only — no decoder reproduces it, and
-   every community tool (WakForge, Zenith) also uses Ankama's rendered output. But `bdata-extractor` adds the
+   **Spell metadata source split (2026-10-07, reviewed in-game):** after the encyclopedia scrape,
+   `buildSpellMetadata` merges Spell (66) AP/MP/WP costs, range min/max, class-resource expenditures
+   (`base_cast_parameters`; characteristic names derived from the client enum) and i18n namespace 3 ES/PT
+   names into `spells.json`. FR changes only for the 13 id-reviewed listing errors; EN must reproduce exactly
+   or extraction fails pending review. 707/710 ids are present; absent ids 5150/5089/5123 keep their original
+   values (never unknown → free). `spell-metadata-only` can regenerate just this merge; the full extractor
+   and `update-game-data.sh` do it after the scrape. `SpellMetadataReproductionTest` locks the full catalog.
+   The encyclopedia retains the roster/category, damage element, max-level base/crit anchors, area, LOS,
+   icons and descriptions. The existing `spell-i18n.json` runtime localization of descriptions is unchanged.
+   **Field 30 is `spell_branch`, not the damage element**: it groups the spellbook (5594 Light Arrow is
+   WATER-branch but LIGHT-damage action 1083). Damage element belongs to StaticEffect's action (917 STASIS,
+   1083 LIGHT, 2–5 standard elements), but direct/descendant effects reproduce only 250/286 damage records;
+   indirect/conditional variants prevent whole-roster replacement. See the comparison and CSV in
+   `docs/official-sources-2/`. Light/Stasis remain outside the engine's four-element domain; the GUI can
+   display their encyclopedia-anchored level-scaled base hit/icon with an explicit no-search note.
+   **0-AP damage spells are excluded**, even when capped or paid in WP/MP/resources: both rotation DP and
+   certificate throughput require AP >= 1. Poursuite 7077 (2 MP, 0 AP) is newly excluded; Activation 6937
+   (unknown → 0 AP) stays excluded. The costs migration bumps CERTIFIER_VERSION 58 → 59 and
+   ENGINE_RESULTS_VERSION 3 → 4. General resource-budget modelling remains separate. `bdata-extractor` adds the
    piece the encyclopedia lacks: **`spell-damage.json`**, the per-level damage formula `floor(base + inc·level)`
    from Spell (66) → StaticEffect (68), *anchored* on the encyclopedia value (the bdata effect whose value at
    max level equals it). `SpellCatalog` joins it so `SpellDamage` scales each hit to the **caster's level**
