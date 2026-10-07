@@ -14,7 +14,7 @@
 #      metadata from the CDN items.json), sublimation-stacking, monsters (local Monster table — no more
 #      MethodWakfu/Fandom scrape, no more WakForge sublimation pipeline) and item-criteria (local Item table:
 #      the items' equip conditions) and achievement-names (only the achievements those criteria reference).
-#   5. Item / spell / monster icons.
+#   5. Item / spell icons (local client) + boss portraits (official Ankama static host).
 #
 # Resource files have FIXED names (equipments.json, spells.json, …) — a version bump no longer renames
 # files or leaves stale ones behind. This is MAINTAINER-LOCAL: the bdata step decodes the local game
@@ -55,8 +55,10 @@ echo "==> [4/5] bdata artifacts + sublimations + monsters (local game binaries a
 # sublimation pipeline. BDATA_FORCE_WRITE=1 accepts the (expected) data changes; the diff is printed first.
 BDATA_FORCE_WRITE=1 ./gradlew --console=plain :bdata-extractor:run --args="$WAKFU_INSTALL $new_version"
 
-echo "==> [5/5] Icons (item / spell / monster)…"
+echo "==> [5/5] Icons (local client) + boss portraits (Ankama portal)…"
 ./gradlew --console=plain :gui-compose:generateAssets
+# Network-only, keyed by the freshly regenerated boss gfx ids. HTTP 403/404 means no portrait.
+./gradlew --console=plain :bdata-extractor:run --args="--monster-portraits-only"
 
 cat <<EOF
 

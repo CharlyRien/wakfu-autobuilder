@@ -46,9 +46,18 @@ private const val DEFAULT_INSTALL = "/Applications/Ankama/Wakfu"
  * (action_id semantics) and `items.json` (sublimation metadata) are fetched from the CDN, the same source
  * `equipments-extractor` uses.
  *
+ * Network-only portraits: `./gradlew :bdata-extractor:run --args="--monster-portraits-only"`.
  * Run with: `./gradlew :bdata-extractor:run --args="[installRoot] [version]"`.
  */
 fun main(args: Array<String>) {
+    // Network-only: usable without local game binaries; run after monsters.json has been regenerated.
+    if (args.firstOrNull() == "--monster-portraits-only") {
+        val root = findRepositoryRoot()
+        val monsters = LENIENT_JSON.decodeFromString(ListSerializer(Monster.serializer()), File(root, "autobuilder/src/main/resources/monsters.json").readText())
+        val report = downloadMonsterPortraits(monsters, File(root, "gui-compose/src/main/resources/assets/monsters"))
+        println("Portrait refresh: $report")
+        return
+    }
     val achievementsOnly = args.firstOrNull() == "--achievement-names-only"
     val positional = if (achievementsOnly) args.drop(1) else args.toList()
     val install = File(positional.getOrNull(0) ?: DEFAULT_INSTALL)

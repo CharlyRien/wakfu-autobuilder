@@ -91,9 +91,9 @@ internal fun BossResistanceChips(
 
 /**
  * Resolves a monster's icon under `assets/monsters/` — the committed 200×200 boss portraits keyed by
- * [Monster.gfx]. (Unlike item/spell icons, monster portraits are NOT extracted from the client's gui.jar —
- * it only keys monsters by gfx as 132×41 banners — so the boss-picker portraits stay committed-static; all
- * bosses already have one.) Returns `null` when the sprite id is absent or the
+ * [Monster.gfx], refreshed from Ankama's `static.ankama.com/wakfu/portal/game/monster/200/<gfx>.png`
+ * by `bdata-extractor --monster-portraits-only`. The client gui.jar has only narrow banners.
+ * Returns `null` when the official host has no portrait, the sprite id is absent or the
  * asset is missing (e.g. a non-boss monster), so callers degrade to an empty tile rather
  * than crash. Mirrors [BreedAssets].
  */
