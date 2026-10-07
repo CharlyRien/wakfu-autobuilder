@@ -2,6 +2,7 @@ package me.chosante.ui.spells
 
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -174,6 +175,28 @@ class ClassSpellsPanelUiTest {
             }
             onNodeWithText("Pursuit").assertExists()
             assertThat(onAllNodesWithText("0 AP  ·  2 MP", substring = true).fetchSemanticsNodes()).isNotEmpty()
+        }
+
+    @Test
+    fun `light arrow shows level-scaled base damage and sun icon even with a build`() =
+        runComposeUiTest {
+            val level = 100
+            val arrow = SpellCatalog.spells.single { it.id == 5594 }
+            val character = Character(CharacterClass.HUPPERMAGE, level, 0)
+            val build = BuildCombination(emptyList(), character.characterSkills)
+            setContent {
+                CompositionLocalProvider(LocalLang provides Lang.EN) {
+                    ClassSpellsPanel(UiState(clazz = CharacterClass.HUPPERMAGE, level = level, build = build))
+                }
+            }
+            onNodeWithText("Light Arrow").assertExists()
+            assertThat(onAllNodesWithText(arrow.baseDamageAt(level)!!.toLong().toString()).fetchSemanticsNodes()).isNotEmpty()
+            assertThat(onAllNodesWithText("The damage search does not count Light spells yet.").fetchSemanticsNodes()).isNotEmpty()
+            assertThat(onAllNodesWithContentDescription("Light").fetchSemanticsNodes()).isNotEmpty()
+            assertThat(arrow.baseDamageAt(level)).isLessThan(arrow.baseDamage!!)
+            assertThat(arrow.hasDamage).isFalse()
+            assertThat(SpellCatalog.damageSpells(CharacterClass.HUPPERMAGE)).noneMatch { it.id == arrow.id }
+            assertThat(BuildSpellDamage.expectedDamage(arrow, build, character)).isNull()
         }
 
     @Test
