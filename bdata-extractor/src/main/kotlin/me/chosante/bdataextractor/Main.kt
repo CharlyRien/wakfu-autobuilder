@@ -9,6 +9,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import me.chosante.common.EquipmentPositions
 import me.chosante.common.I18nText
 import me.chosante.common.ItemEquipCriterion
 import me.chosante.common.Monster
@@ -58,8 +59,9 @@ fun main(args: Array<String>) {
         println("Portrait refresh: $report")
         return
     }
+    val positionsOnly = args.firstOrNull() == "--equipment-positions-only"
     val achievementsOnly = args.firstOrNull() == "--achievement-names-only"
-    val positional = if (achievementsOnly) args.drop(1) else args.toList()
+    val positional = if (achievementsOnly || positionsOnly) args.drop(1) else args.toList()
     val install = File(positional.getOrNull(0) ?: DEFAULT_INSTALL)
     val version = positional.getOrNull(1) ?: DEFAULT_VERSION
     // The oracle guard in verifyAndWrite blocks ANY semantic diff vs the committed artifact (drift safety).
@@ -74,6 +76,16 @@ fun main(args: Array<String>) {
         writeAchievementNames(install, criteria, resources, force)
         return
     }
+
+    val equipmentPositions = buildEquipmentPositions(install, fetchEquipmentTypes(version))
+    verifyAndWrite(
+        File(repoRoot, "common-lib/src/main/resources/equipment-positions.json"),
+        Json { prettyPrint = true }.encodeToString(EquipmentPositions.serializer(), equipmentPositions),
+        "equipment-positions",
+        equipmentPositions.itemPositions.size,
+        force
+    )
+    if (positionsOnly) return
 
     println("Wakfu install : $install")
     println("Data version  : $version")

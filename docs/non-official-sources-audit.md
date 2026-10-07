@@ -291,7 +291,16 @@ Dungeon position 13's monster-id vector has **512 distinct ids**, including **13
 
 ### `rune-slot-raw-ids` — Rune slot raw-id map — hardcoded (WakForge ITEM_SLOT_DATA)
 
-- **Status:** 🟢 Actionable
+- **Status:** ✅ Done — official client + CDN, exact reproduction
+- **2026-10-07 comparison (client/CDN 1.93.1.62):** 25 client raw-position constants decoded structurally from
+  `lib/wakfu-client.jar`, not gui.jar (gui.jar contains assets). The constructor stores its explicit int raw id in
+  a byte field; it is distinct from the enum ordinal even though this version happens to make them equal.
+  Joined all 14 domain item types to CDN `equipmentPositions`; 14/14 historical rune placement domains match,
+  zero differences. Rings remain [7,8]; 2H occupies [15], never its disabled [16]. The four socketless domain
+  types have real occupied ids off-hand=16, emblem=17, pet=22, mount=24, but still return [] for rune placement.
+  The old audit conflated occupied positions with rune eligibility; keeping that existing socketless rule is
+  necessary for exact reproduction. The generated artifact ships in common-lib, so Zenith can load it independently.
+  Full official join + all 14 historical domains are locked by reproduction tests; no engine/certifier bump.
 - **Category:** hardcoded-table · **Classification:** non-official-wakforge · **Severity:** minor · **Feasibility:** medium · **Effort:** 0.5-1.5 days (the CDN string half is already wired; the work is locating + decoding the position enum from gui.jar and composing the two maps, plus an equivalence test). Risk it balloons only if the position enum isn't cleanly in gui.jar and must be found in a bdata table.
 - **What it is:** Map from each equippable ItemType to its raw slot id(s) (helmet=0, chestplate=5, shoulders=3, boots=12, amulet=4, cape=13, belt=10, weapon=15, ring=7/8, ...), used to decide whether a rune doubles on its favoured slot.
 - **Why not fully official:** The KDoc explicitly sources these raw slot ids from WakForge (ITEM_SLOT_DATA). The rune's doubleBonusPosition itself is decoded first-party from CDN shardsParameters, but the ItemType->raw-id correspondence used to compare against it is the third-party WakForge mapping, hand-copied here.
