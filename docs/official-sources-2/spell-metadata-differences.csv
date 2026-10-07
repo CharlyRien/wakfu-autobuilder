@@ -1,0 +1,2574 @@
+spell_id,class,field,committed_json,client_json,status
+4769,CRA,name.es,"""Blazing Arrow""","""Flecha Ardiente""",different
+4769,CRA,name.pt,"""Blazing Arrow""","""Flecha Ardente""",different
+4774,CRA,apCost,2,0,different
+4774,CRA,name.es,"""Roly-Poly""","""Voltereta""",different
+4774,CRA,name.pt,"""Roly-Poly""","""Rolamento""",different
+4805,CRA,name.es,"""Beacon Sneakin'""","""Retirada Balizada""",different
+4805,CRA,name.pt,"""Beacon Sneakin'""","""Retirada Balizada""",different
+4806,CRA,rangeMin,null,0,different
+4806,CRA,rangeMax,null,0,different
+4806,CRA,name.es,"""Scout""","""Explorador""",different
+4806,CRA,name.pt,"""Scout""","""Explorador""",different
+4808,CRA,name.es,"""Biting Blow""","""Golpe Incisivo""",different
+4808,CRA,name.pt,"""Biting Blow""","""Golpe Incisivo""",different
+4809,CRA,name.es,"""Storm Arrow""","""Flecha de Tempestad""",different
+4809,CRA,name.pt,"""Storm Arrow""","""Flecha Tempestuosa""",different
+4810,CRA,rangeMax,1,4,different
+4810,CRA,name.es,"""Retreat Arrow""","""Flecha de Retroceso""",different
+4810,CRA,name.pt,"""Retreat Arrow""","""Flecha de Recuo""",different
+4811,CRA,name.es,"""Plaguing Arrow""","""Flecha Acosante""",different
+4811,CRA,name.pt,"""Plaguing Arrow""","""Flecha Inconveniente""",different
+4812,CRA,rangeMin,1,5,different
+4812,CRA,rangeMax,1,8,different
+4812,CRA,name.es,"""Static Arrow""","""Flecha Estática""",different
+4812,CRA,name.pt,"""Static Arrow""","""Flecha Estática""",different
+4813,CRA,name.es,"""Homing Arrow""","""Flecha Buscadora""",different
+4813,CRA,name.pt,"""Homing Arrow""","""Flecha Guiada""",different
+4814,CRA,rangeMin,1,3,different
+4814,CRA,rangeMax,1,5,different
+4814,CRA,name.es,"""Destructive Arrow""","""Flecha Destructiva""",different
+4814,CRA,name.pt,"""Destructive Arrow""","""Flecha Destrutiva""",different
+4815,CRA,name.es,"""Piercing Arrow""","""Flecha Atravesadora""",different
+4815,CRA,name.pt,"""Piercing Arrow""","""Flecha Perfurante""",different
+4816,CRA,name.es,"""Lashing Arrow""","""Flecha Azotadora""",different
+4816,CRA,name.pt,"""Lashing Arrow""","""Flecha Fustigante""",different
+4817,CRA,name.es,"""Raining Arrows""","""Lluvia de Flechas""",different
+4817,CRA,name.pt,"""Raining Arrows""","""Chuva de Flechas""",different
+4818,CRA,rangeMin,1,2,different
+4818,CRA,rangeMax,1,5,different
+4818,CRA,name.es,"""Riddling Arrow""","""Flecha Perforante""",different
+4818,CRA,name.pt,"""Riddling Arrow""","""Flecha Crivante""",different
+4819,CRA,rangeMin,1,3,different
+4819,CRA,rangeMax,1,5,different
+4819,CRA,name.es,"""Explosive Arrow""","""Flecha Explosiva""",different
+4819,CRA,name.pt,"""Explosive Arrow""","""Flecha Explosiva""",different
+4820,CRA,name.es,"""Fulminating Arrow""","""Flecha Fulminante""",different
+4820,CRA,name.pt,"""Fulminating Arrow""","""Flecha Fulminante""",different
+4821,CRA,name.es,"""Flaming Arrow""","""Flecha Flamígera""",different
+4821,CRA,name.pt,"""Flaming Arrow""","""Flecha Flamejante""",different
+4822,CRA,name.es,"""Burning Arrow""","""Flecha de Inmolación""",different
+4822,CRA,name.pt,"""Burning Arrow""","""Flecha de Imolação""",different
+6842,CRA,rangeMin,1,0,different
+6842,CRA,rangeMax,1,0,different
+6842,CRA,name.es,"""Flurry""","""Ráfaga""",different
+6842,CRA,name.pt,"""Flurry""","""Rajada""",different
+6945,CRA,apCost,null,0,different
+6945,CRA,rangeMin,null,0,different
+6945,CRA,rangeMax,null,0,different
+6945,CRA,name.es,"""Devious Archer""","""Arquero Astuto""",different
+6945,CRA,name.pt,"""Devious Archer""","""Arqueiro Astuto""",different
+6946,CRA,apCost,null,0,different
+6946,CRA,rangeMin,null,0,different
+6946,CRA,rangeMax,null,0,different
+6946,CRA,name.es,"""Scout Specialty""","""Explorador Especializado""",different
+6946,CRA,name.pt,"""Scout Specialty""","""Explorador Especializado""",different
+6947,CRA,apCost,null,0,different
+6947,CRA,rangeMin,null,0,different
+6947,CRA,rangeMax,null,0,different
+6947,CRA,name.es,"""Discreet Beacons""","""Balizas Discretas""",different
+6947,CRA,name.pt,"""Discreet Beacons""","""Balizas Discretas""",different
+6948,CRA,apCost,null,0,different
+6948,CRA,rangeMin,null,0,different
+6948,CRA,rangeMax,null,0,different
+6948,CRA,name.es,"""Firm Stance""","""Tomar Partido""",different
+6948,CRA,name.pt,"""Firm Stance""","""Parcialidade""",different
+6949,CRA,apCost,null,0,different
+6949,CRA,rangeMin,null,0,different
+6949,CRA,rangeMax,null,0,different
+6949,CRA,name.es,"""Focal Distance""","""Distancia Focal""",different
+6949,CRA,name.pt,"""Focal Distance""","""Distância Focal""",different
+6950,CRA,apCost,null,0,different
+6950,CRA,rangeMin,null,0,different
+6950,CRA,rangeMax,null,0,different
+6950,CRA,name.es,"""Voracious Precision""","""Precisión Voraz""",different
+6950,CRA,name.pt,"""Voracious Precision""","""Precisão Voraz""",different
+6951,CRA,apCost,null,0,different
+6951,CRA,rangeMin,null,0,different
+6951,CRA,rangeMax,null,0,different
+6951,CRA,name.es,"""The Way of the Bow""","""La Senda del Arquero""",different
+6951,CRA,name.pt,"""The Way of the Bow""","""O Caminho do Arco""",different
+6952,CRA,apCost,null,0,different
+6952,CRA,rangeMin,null,0,different
+6952,CRA,rangeMax,null,0,different
+6952,CRA,name.es,"""Massive Beagon""","""Desbalizaje Masivo""",different
+6952,CRA,name.pt,"""Massive Beagon""","""Desbalizagem Massiva""",different
+6953,CRA,apCost,null,0,different
+6953,CRA,rangeMin,null,0,different
+6953,CRA,rangeMax,null,0,different
+6953,CRA,name.es,"""Ballistic Analysis""","""Estudio Balístico""",different
+6953,CRA,name.pt,"""Ballistic Analysis""","""Estudo Balístico""",different
+6955,CRA,apCost,null,0,different
+6955,CRA,rangeMin,null,0,different
+6955,CRA,rangeMax,null,0,different
+6955,CRA,name.es,"""Cra's Paradox""","""Paradoja del Ocra""",different
+6955,CRA,name.pt,"""Cra's Paradox""","""Paradoxo do Cra""",different
+6956,CRA,apCost,null,0,different
+6956,CRA,rangeMin,null,0,different
+6956,CRA,rangeMax,null,0,different
+6956,CRA,name.es,"""Untouchable Scout""","""Explorador Intocable""",different
+6956,CRA,name.pt,"""Untouchable Scout""","""Explorador Intocável""",different
+6957,CRA,apCost,null,0,different
+6957,CRA,rangeMin,null,0,different
+6957,CRA,rangeMax,null,0,different
+6957,CRA,element,"""FIRE""",null,different
+6957,CRA,name.es,"""Hunter's Instinct""","""Instinto de Cazador""",different
+6957,CRA,name.pt,"""Hunter's Instinct""","""Instinto do Caçador""",different
+6958,CRA,apCost,null,0,different
+6958,CRA,rangeMin,null,0,different
+6958,CRA,rangeMax,null,0,different
+6958,CRA,name.es,"""Short-Range Beaconing""","""Balizaje Cercano""",different
+6958,CRA,name.pt,"""Short-Range Beaconing""","""Balizagem Aproximada""",different
+6959,CRA,apCost,null,0,different
+6959,CRA,rangeMin,null,0,different
+6959,CRA,rangeMax,null,0,different
+6959,CRA,name.es,"""Lone Shooter""","""Tirador Solitario""",different
+6959,CRA,name.pt,"""Lone Shooter""","""Atirador Solitário""",different
+6960,CRA,apCost,null,0,different
+6960,CRA,rangeMin,null,0,different
+6960,CRA,rangeMax,null,0,different
+6960,CRA,name.es,"""Sharp Mind""","""Mente Aguzada""",different
+6960,CRA,name.pt,"""Sharp Mind""","""Mente Afiada""",different
+6961,CRA,apCost,null,0,different
+6961,CRA,rangeMin,null,0,different
+6961,CRA,rangeMax,null,0,different
+6961,CRA,name.es,"""The Art of Beacons""","""El Arte de las Balizas""",different
+6961,CRA,name.pt,"""The Art of Beacons""","""Arte das Balizas""",different
+6962,CRA,apCost,null,0,different
+6962,CRA,rangeMin,null,0,different
+6962,CRA,rangeMax,null,0,different
+6962,CRA,name.es,"""Diverging Fire""","""Tiro Divergente""",different
+6962,CRA,name.pt,"""Diverging Fire""","""Tiro Divergente""",different
+6963,CRA,apCost,null,0,different
+6963,CRA,rangeMin,null,0,different
+6963,CRA,rangeMax,null,0,different
+6963,CRA,name.es,"""Cra Perforation""","""Perforación Ocra""",different
+6963,CRA,name.pt,"""Cra Perforation""","""Perfuração Cra""",different
+7753,CRA,apCost,2,0,different
+7753,CRA,rangeMin,1,3,different
+7753,CRA,rangeMax,1,6,different
+7753,CRA,name.es,"""Bat's Eye""","""Ojo de Topo""",different
+7753,CRA,name.pt,"""Bat's Eye""","""Olho de Toupeira""",different
+7795,CRA,apCost,null,0,different
+7795,CRA,rangeMin,null,0,different
+7795,CRA,rangeMax,null,0,different
+7795,CRA,name.es,"""Protective Point""","""Flecha Protectora""",different
+7795,CRA,name.pt,"""Protective Point""","""Ponta Protetora""",different
+2041,ECAFLIP,name.es,"""Heads or Tails""","""Cara o Cruz""",different
+2041,ECAFLIP,name.pt,"""Heads or Tails""","""Cara ou Coroa""",different
+2042,ECAFLIP,rangeMax,1,3,different
+2042,ECAFLIP,name.es,"""D-Six""","""Dado Seis""",different
+2042,ECAFLIP,name.pt,"""D-Six""","""Dado Seis""",different
+2043,ECAFLIP,name.es,"""All or Nothing""","""Todo o Nada""",different
+2043,ECAFLIP,name.pt,"""All or Nothing""","""Tudo ou Nada""",different
+2044,ECAFLIP,rangeMax,1,3,different
+2044,ECAFLIP,name.es,"""Three Cards""","""Tres Cartas""",different
+2044,ECAFLIP,name.pt,"""Three Cards""","""Três Cartas""",different
+2046,ECAFLIP,rangeMax,1,3,different
+2046,ECAFLIP,name.es,"""Yowling""","""Bufido""",different
+2046,ECAFLIP,name.pt,"""Yowling""","""Rugido Felino""",different
+2048,ECAFLIP,rangeMin,null,0,different
+2048,ECAFLIP,rangeMax,null,0,different
+2048,ECAFLIP,name.es,"""Dice Roulette""","""Ruleta de Dados""",different
+2048,ECAFLIP,name.pt,"""Dice Roulette""","""Roleta de Dados""",different
+2049,ECAFLIP,rangeMax,1,3,different
+2049,ECAFLIP,name.es,"""Battle""","""Batalla""",different
+2049,ECAFLIP,name.pt,"""Battle""","""Batalha Numérica""",different
+2050,ECAFLIP,name.es,"""Loaded Dice""","""Dado Gatuno""",different
+2050,ECAFLIP,name.pt,"""Loaded Dice""","""Dados Adulterados""",different
+2059,ECAFLIP,apCost,null,0,different
+2059,ECAFLIP,rangeMin,null,0,different
+2059,ECAFLIP,rangeMax,null,0,different
+2059,ECAFLIP,name.es,"""Lucky Tarot""","""Tarot Suertudo""",different
+2059,ECAFLIP,name.pt,"""Lucky Tarot""","""Tarô Sortudo""",different
+2060,ECAFLIP,rangeMin,null,0,different
+2060,ECAFLIP,rangeMax,null,0,different
+2060,ECAFLIP,name.es,"""Double or Quits""","""Doble o Nada""",different
+2060,ECAFLIP,name.pt,"""Double or Quits""","""Dobro ou Nada""",different
+2061,ECAFLIP,name.es,"""Felintuition""","""Felintuición""",different
+2061,ECAFLIP,name.pt,"""Felintuition""","""Felintuição""",different
+2062,ECAFLIP,apCost,null,0,different
+2062,ECAFLIP,rangeMin,null,0,different
+2062,ECAFLIP,rangeMax,null,0,different
+2062,ECAFLIP,name.es,"""Fleassive""","""Pulgación""",different
+2062,ECAFLIP,name.pt,"""Fleassive""","""Pulsivo""",different
+2065,ECAFLIP,name.es,"""Rough Tongue""","""Lengua Raspadora""",different
+2065,ECAFLIP,name.pt,"""Rough Tongue""","""Língua Áspera""",different
+2066,ECAFLIP,name.es,"""Up to Scratch""","""Laceraciones""",different
+2066,ECAFLIP,name.pt,"""Up to Scratch""","""Lacerações""",different
+2067,ECAFLIP,name.es,"""Fleahopper""","""Pulga Arcito""",different
+2067,ECAFLIP,name.pt,"""Fleahopper""","""Pulgarzinho""",different
+2068,ECAFLIP,apCost,null,0,different
+2068,ECAFLIP,rangeMin,null,0,different
+2068,ECAFLIP,rangeMax,null,0,different
+2068,ECAFLIP,name.es,"""Misadventure""","""Desventura""",different
+2068,ECAFLIP,name.pt,"""Misadventure""","""Desventura""",different
+2072,ECAFLIP,name.es,"""Paws Off""","""¡Zarpas Quietas!""",different
+2072,ECAFLIP,name.pt,"""Paws Off""","""Tira a Pata""",different
+2073,ECAFLIP,name.es,"""Fleeflee""","""Pulguita""",different
+2073,ECAFLIP,name.pt,"""Fleeflee""","""Pupulga""",different
+2076,ECAFLIP,apCost,null,0,different
+2076,ECAFLIP,rangeMin,null,0,different
+2076,ECAFLIP,rangeMax,null,0,different
+2076,ECAFLIP,name.es,"""Winning Streak""","""En Racha""",different
+2076,ECAFLIP,name.pt,"""Winning Streak""","""Com Ventura""",different
+2078,ECAFLIP,rangeMax,1,4,different
+2078,ECAFLIP,name.es,"""Life Token""","""Ficha de Vida""",different
+2078,ECAFLIP,name.pt,"""Life Token""","""Ficha de Vida""",different
+2079,ECAFLIP,rangeMax,1,6,different
+2079,ECAFLIP,name.es,"""Spell Strike""","""Mala Suerte""",different
+2079,ECAFLIP,name.pt,"""Spell Strike""","""Feitiço do Destino""",different
+2080,ECAFLIP,apCost,null,0,different
+2080,ECAFLIP,rangeMin,null,0,different
+2080,ECAFLIP,rangeMax,null,0,different
+2080,ECAFLIP,name.es,"""Misfortune""","""Desdicha""",different
+2080,ECAFLIP,name.pt,"""Misfortune""","""Infortúnio""",different
+5246,ECAFLIP,apCost,null,0,different
+5246,ECAFLIP,rangeMin,null,0,different
+5246,ECAFLIP,rangeMax,null,0,different
+5246,ECAFLIP,name.es,"""Prophetic Tarot""","""Tarot Profético""",different
+5246,ECAFLIP,name.pt,"""Prophetic Tarot""","""Tarô Divinatório""",different
+5249,ECAFLIP,apCost,null,0,different
+5249,ECAFLIP,rangeMin,null,0,different
+5249,ECAFLIP,rangeMax,null,0,different
+5249,ECAFLIP,name.es,"""Feline Impact""","""Impacto Felino""",different
+5249,ECAFLIP,name.pt,"""Feline Impact""","""Impacto Felino""",different
+5250,ECAFLIP,apCost,null,0,different
+5250,ECAFLIP,rangeMin,null,0,different
+5250,ECAFLIP,rangeMax,null,0,different
+5250,ECAFLIP,name.es,"""Ecaflip's Fate""","""Destino de Zurcarák""",different
+5250,ECAFLIP,name.pt,"""Ecaflip's Fate""","""Destino de Ecaflip""",different
+5251,ECAFLIP,apCost,null,0,different
+5251,ECAFLIP,rangeMin,null,0,different
+5251,ECAFLIP,rangeMax,null,0,different
+5251,ECAFLIP,name.es,"""Cheat""","""Trampas""",different
+5251,ECAFLIP,name.pt,"""Cheat""","""Trapaça""",different
+7225,ECAFLIP,name.es,"""Clubs""","""Trébol""",different
+7225,ECAFLIP,name.pt,"""Clubs""","""Paus""",different
+7954,ECAFLIP,apCost,null,0,different
+7954,ECAFLIP,rangeMin,null,0,different
+7954,ECAFLIP,rangeMax,null,0,different
+7954,ECAFLIP,name.es,"""Healing Luck""","""Racha Sanadora""",different
+7954,ECAFLIP,name.pt,"""Healing Luck""","""Ventura Curadora""",different
+7955,ECAFLIP,apCost,null,0,different
+7955,ECAFLIP,rangeMin,null,0,different
+7955,ECAFLIP,rangeMax,null,0,different
+7955,ECAFLIP,name.es,"""Feline Tarot""","""Tarot Felino""",different
+7955,ECAFLIP,name.pt,"""Feline Tarot""","""Tarô Felino""",different
+7956,ECAFLIP,apCost,null,0,different
+7956,ECAFLIP,rangeMin,null,0,different
+7956,ECAFLIP,rangeMax,null,0,different
+7956,ECAFLIP,name.es,"""Fortune Favors the Bold""","""La Fortuna Sonríe a los Audaces""",different
+7956,ECAFLIP,name.pt,"""Fortune Favors the Bold""","""A sorte sorri para os audaciosos""",different
+7957,ECAFLIP,apCost,null,0,different
+7957,ECAFLIP,rangeMin,null,0,different
+7957,ECAFLIP,rangeMax,null,0,different
+7957,ECAFLIP,name.es,"""Heads, I win""","""Cruz, Gano""",different
+7957,ECAFLIP,name.pt,"""Heads, I win""","""Coroa, Eu Ganho""",different
+7958,ECAFLIP,apCost,null,0,different
+7958,ECAFLIP,rangeMin,null,0,different
+7958,ECAFLIP,rangeMax,null,0,different
+7958,ECAFLIP,name.es,"""Generous Dice""","""Dados Generosos""",different
+7958,ECAFLIP,name.pt,"""Generous Dice""","""Dados Generosos""",different
+7959,ECAFLIP,apCost,null,0,different
+7959,ECAFLIP,rangeMin,null,0,different
+7959,ECAFLIP,rangeMax,null,0,different
+7959,ECAFLIP,name.es,"""Graceful Feline""","""Felino Supremo""",different
+7959,ECAFLIP,name.pt,"""Graceful Feline""","""Felino Supremo""",different
+7960,ECAFLIP,apCost,null,0,different
+7960,ECAFLIP,rangeMin,null,0,different
+7960,ECAFLIP,rangeMax,null,0,different
+7960,ECAFLIP,name.es,"""Blackjack""","""Black Jack""",different
+7960,ECAFLIP,name.pt,"""Blackjack""","""Pôquer""",different
+7961,ECAFLIP,apCost,null,0,different
+7961,ECAFLIP,rangeMin,null,0,different
+7961,ECAFLIP,rangeMax,null,0,different
+7961,ECAFLIP,name.es,"""Trump Cards""","""Triunfos Periódicos""",different
+7961,ECAFLIP,name.pt,"""Trump Cards""","""Trunfos Periódicos""",different
+7999,ECAFLIP,apCost,null,0,different
+7999,ECAFLIP,rangeMin,null,0,different
+7999,ECAFLIP,rangeMax,null,0,different
+7999,ECAFLIP,name.es,"""Lucky Seven""","""Siete Fetiche""",different
+7999,ECAFLIP,name.pt,"""Lucky Seven""","""Sete Sagrado""",different
+8000,ECAFLIP,apCost,null,0,different
+8000,ECAFLIP,rangeMin,null,0,different
+8000,ECAFLIP,rangeMax,null,0,different
+8000,ECAFLIP,name.es,"""Universe""","""El Universo""",different
+8000,ECAFLIP,name.pt,"""Universe""","""O Universo""",different
+8001,ECAFLIP,apCost,null,0,different
+8001,ECAFLIP,rangeMin,null,0,different
+8001,ECAFLIP,rangeMax,null,0,different
+8001,ECAFLIP,name.es,"""Lucky Cards""","""Racha de Cartas""",different
+8001,ECAFLIP,name.pt,"""Lucky Cards""","""Ventura das Cartas""",different
+4668,ELIOTROPE,rangeMin,1,2,different
+4668,ELIOTROPE,rangeMax,1,5,different
+4668,ELIOTROPE,name.es,"""Ardent Aegis""","""Égida Ardiente""",different
+4668,ELIOTROPE,name.pt,"""Ardent Aegis""","""Égide Ardente""",different
+4669,ELIOTROPE,name.es,"""Deafening Targe""","""Escudo Quebrantador""",different
+4669,ELIOTROPE,name.pt,"""Deafening Targe""","""Escudo Devastador""",different
+4670,ELIOTROPE,name.es,"""Earthquake""","""Seísmo""",different
+4670,ELIOTROPE,name.pt,"""Earthquake""","""Terremoto""",different
+4671,ELIOTROPE,name.es,"""Hiding""","""Tunda""",different
+4671,ELIOTROPE,name.pt,"""Hiding""","""Surra""",different
+4680,ELIOTROPE,name.es,"""Whirlwind""","""Torbellino""",different
+4680,ELIOTROPE,name.pt,"""Whirlwind""","""Turbilhão""",different
+4683,ELIOTROPE,rangeMax,1,4,different
+4683,ELIOTROPE,name.es,"""Time Breach""","""Brecha Temporal""",different
+4683,ELIOTROPE,name.pt,"""Time Breach""","""Brecha Temporária""",different
+4684,ELIOTROPE,rangeMax,1,4,different
+4684,ELIOTROPE,name.es,"""Exodus""","""Éxodo""",different
+4684,ELIOTROPE,name.pt,"""Exodus""","""Êxodo""",different
+4685,ELIOTROPE,name.es,"""Incandescence""","""Incandescencia""",different
+4685,ELIOTROPE,name.pt,"""Incandescence""","""Incandescência""",different
+4686,ELIOTROPE,apCost,null,0,different
+4686,ELIOTROPE,rangeMin,null,0,different
+4686,ELIOTROPE,rangeMax,null,0,different
+4686,ELIOTROPE,name.es,"""Fury""","""Rabia""",different
+4686,ELIOTROPE,name.pt,"""Fury""","""Raiva""",different
+4687,ELIOTROPE,apCost,null,0,different
+4687,ELIOTROPE,rangeMin,null,0,different
+4687,ELIOTROPE,rangeMax,null,0,different
+4687,ELIOTROPE,name.es,"""Trapster""","""Celada""",different
+4687,ELIOTROPE,name.pt,"""Trapster""","""Cilada""",different
+4688,ELIOTROPE,apCost,null,0,different
+4688,ELIOTROPE,rangeMin,null,0,different
+4688,ELIOTROPE,rangeMax,null,0,different
+4688,ELIOTROPE,name.es,"""Effervescence""","""Efervescencia""",different
+4688,ELIOTROPE,name.pt,"""Effervescence""","""Efervescência""",different
+4689,ELIOTROPE,apCost,null,0,different
+4689,ELIOTROPE,rangeMin,null,0,different
+4689,ELIOTROPE,rangeMax,null,0,different
+4689,ELIOTROPE,name.es,"""Medium""","""Medio""",different
+4689,ELIOTROPE,name.pt,"""Medium""","""Intermediário""",different
+4690,ELIOTROPE,apCost,null,0,different
+4690,ELIOTROPE,rangeMin,null,0,different
+4690,ELIOTROPE,rangeMax,null,0,different
+4690,ELIOTROPE,name.es,"""Resilience""","""Resiliencia""",different
+4690,ELIOTROPE,name.pt,"""Resilience""","""Resiliência""",different
+4692,ELIOTROPE,name.es,"""Pulsation""","""Pulsación""",different
+4692,ELIOTROPE,name.pt,"""Pulsation""","""Pulsação""",different
+4693,ELIOTROPE,name.es,"""Flood""","""Diluvio""",different
+4693,ELIOTROPE,name.pt,"""Flood""","""Dilúvio""",different
+4694,ELIOTROPE,name.es,"""Cataclysm""","""Cataclismo""",different
+4694,ELIOTROPE,name.pt,"""Cataclysm""","""Cataclismo""",different
+4695,ELIOTROPE,name.es,"""Clash""","""Colisión""",different
+4695,ELIOTROPE,name.pt,"""Clash""","""Conflito""",different
+4697,ELIOTROPE,name.es,"""Torrential Flux""","""Flujo Torrencial""",different
+4697,ELIOTROPE,name.pt,"""Torrential Flux""","""Fluxo Torrencial""",different
+4698,ELIOTROPE,name.es,"""Siphon""","""Sifón""",different
+4698,ELIOTROPE,name.pt,"""Siphon""","""Sifão""",different
+4699,ELIOTROPE,name.es,"""Ethereal Burst""","""Salva Etérea""",different
+4699,ELIOTROPE,name.pt,"""Ethereal Burst""","""Salva Etérea""",different
+4700,ELIOTROPE,name.es,"""Tempest""","""Tormenta""",different
+4700,ELIOTROPE,name.pt,"""Tempest""","""Tempestade""",different
+4701,ELIOTROPE,name.es,"""Unleashed Blade""","""Hoja Desencadenada""",different
+4701,ELIOTROPE,name.pt,"""Unleashed Blade""","""Lâmina Desenfreada""",different
+5056,ELIOTROPE,apCost,null,0,different
+5056,ELIOTROPE,rangeMin,null,0,different
+5056,ELIOTROPE,rangeMax,null,0,different
+5056,ELIOTROPE,name.es,"""Portal Disciple""","""Discípulo del Portal""",different
+5056,ELIOTROPE,name.pt,"""Portal Disciple""","""Discípulo do Portal""",different
+5131,ELIOTROPE,apCost,null,0,different
+5131,ELIOTROPE,rangeMin,null,0,different
+5131,ELIOTROPE,rangeMax,null,0,different
+5131,ELIOTROPE,name.es,"""Transitory""","""Transitorio""",different
+5131,ELIOTROPE,name.pt,"""Transitory""","""Transitório""",different
+5132,ELIOTROPE,apCost,null,0,different
+5132,ELIOTROPE,rangeMin,null,0,different
+5132,ELIOTROPE,rangeMax,null,0,different
+5132,ELIOTROPE,name.es,"""Reminiscence""","""Reminiscencia""",different
+5132,ELIOTROPE,name.pt,"""Reminiscence""","""Reminiscência""",different
+5143,ELIOTROPE,apCost,null,0,different
+5143,ELIOTROPE,rangeMin,null,0,different
+5143,ELIOTROPE,rangeMax,null,0,different
+5143,ELIOTROPE,name.es,"""Celestial Portal""","""Portal Celestial""",different
+5143,ELIOTROPE,name.pt,"""Celestial Portal""","""Portal Celeste""",different
+7198,ELIOTROPE,apCost,2,0,different
+7198,ELIOTROPE,name.es,"""Wakfu Imprint""","""Huella de Wakfu""",different
+7198,ELIOTROPE,name.pt,"""Wakfu Imprint""","""Marca de Wakfu""",different
+7199,ELIOTROPE,name.es,"""Coalition""","""Coalición""",different
+7199,ELIOTROPE,name.pt,"""Coalition""","""Coalizão""",different
+7200,ELIOTROPE,rangeMax,1,3,different
+7200,ELIOTROPE,name.es,"""Barrier""","""Parapeto""",different
+7200,ELIOTROPE,name.pt,"""Barrier""","""Barreira""",different
+7202,ELIOTROPE,apCost,null,0,different
+7202,ELIOTROPE,rangeMin,null,0,different
+7202,ELIOTROPE,rangeMax,null,0,different
+7202,ELIOTROPE,name.es,"""Interstellar""","""Interestelar""",different
+7202,ELIOTROPE,name.pt,"""Interstellar""","""Interestelar""",different
+7203,ELIOTROPE,apCost,null,0,different
+7203,ELIOTROPE,rangeMin,null,0,different
+7203,ELIOTROPE,rangeMax,null,0,different
+7203,ELIOTROPE,name.es,"""White Dimension""","""Dimensión Blanca""",different
+7203,ELIOTROPE,name.pt,"""White Dimension""","""Dimensão Branca""",different
+7204,ELIOTROPE,apCost,null,0,different
+7204,ELIOTROPE,rangeMin,null,0,different
+7204,ELIOTROPE,rangeMax,null,0,different
+7204,ELIOTROPE,name.es,"""Quietude""","""Quietud""",different
+7204,ELIOTROPE,name.pt,"""Quietude""","""Calmaria""",different
+7205,ELIOTROPE,apCost,null,0,different
+7205,ELIOTROPE,rangeMin,null,0,different
+7205,ELIOTROPE,rangeMax,null,0,different
+7205,ELIOTROPE,name.es,"""Spacetime""","""Espaciotiempo""",different
+7205,ELIOTROPE,name.pt,"""Spacetime""","""Espaço-Tempo""",different
+7206,ELIOTROPE,apCost,null,0,different
+7206,ELIOTROPE,rangeMin,null,0,different
+7206,ELIOTROPE,rangeMax,null,0,different
+7206,ELIOTROPE,name.es,"""Porta(i)l""","""Portalivio""",different
+7206,ELIOTROPE,name.pt,"""Porta(i)l""","""Portalidade""",different
+7207,ELIOTROPE,apCost,null,0,different
+7207,ELIOTROPE,rangeMin,null,0,different
+7207,ELIOTROPE,rangeMax,null,0,different
+7207,ELIOTROPE,name.es,"""Final Shield""","""Escudo del Fin""",different
+7207,ELIOTROPE,name.pt,"""Final Shield""","""Escudo do Fim""",different
+7208,ELIOTROPE,apCost,null,0,different
+7208,ELIOTROPE,rangeMin,null,0,different
+7208,ELIOTROPE,rangeMax,null,0,different
+7208,ELIOTROPE,name.es,"""Novice Sword""","""Espada del Inicio""",different
+7208,ELIOTROPE,name.pt,"""Novice Sword""","""Espada do Início""",different
+7209,ELIOTROPE,apCost,null,0,different
+7209,ELIOTROPE,rangeMin,null,0,different
+7209,ELIOTROPE,rangeMax,null,0,different
+7209,ELIOTROPE,name.es,"""Healing""","""Cicatrización""",different
+7209,ELIOTROPE,name.pt,"""Healing""","""Cicatrização""",different
+7210,ELIOTROPE,apCost,null,0,different
+7210,ELIOTROPE,rangeMin,null,0,different
+7210,ELIOTROPE,rangeMax,null,0,different
+7210,ELIOTROPE,name.es,"""Concentration""","""Concentración""",different
+7210,ELIOTROPE,name.pt,"""Concentration""","""Concentração""",different
+7720,ELIOTROPE,apCost,null,0,different
+7720,ELIOTROPE,rangeMin,null,0,different
+7720,ELIOTROPE,rangeMax,null,0,different
+7720,ELIOTROPE,name.es,"""Meditation""","""Meditación""",different
+7720,ELIOTROPE,name.pt,"""Meditation""","""Meditação""",different
+7814,ELIOTROPE,apCost,null,0,different
+7814,ELIOTROPE,rangeMin,null,0,different
+7814,ELIOTROPE,rangeMax,null,0,different
+7814,ELIOTROPE,name.es,"""Breath of the Goddess""","""Aliento de la Diosa""",different
+7814,ELIOTROPE,name.pt,"""Breath of the Goddess""","""Sopro da Deusa""",different
+623,ENIRIPSA,name.es,"""Cross-Airs""","""Colimador""",different
+623,ENIRIPSA,name.pt,"""Cross-Airs""","""Coli-mador""",different
+625,ENIRIPSA,rangeMax,1,3,different
+625,ENIRIPSA,name.es,"""Regeneration""","""Reconstitución""",different
+625,ENIRIPSA,name.pt,"""Regeneration""","""Reconstituição""",different
+627,ENIRIPSA,rangeMin,2,1,different
+627,ENIRIPSA,rangeMax,2,7,different
+627,ENIRIPSA,name.es,"""Transcendence""","""Desfase""",different
+627,ENIRIPSA,name.pt,"""Transcendence""","""Defasagem""",different
+628,ENIRIPSA,apCost,null,0,different
+628,ENIRIPSA,rangeMin,null,0,different
+628,ENIRIPSA,rangeMax,null,0,different
+628,ENIRIPSA,name.es,"""Doctor Without Barriers""","""Médico sin Barreras""",different
+628,ENIRIPSA,name.pt,"""Doctor Without Barriers""","""Médicos sem Barreira""",different
+630,ENIRIPSA,name.es,"""Anatomy""","""Anatomía""",different
+630,ENIRIPSA,name.pt,"""Anatomy""","""Anatomia""",different
+636,ENIRIPSA,rangeMin,1,2,different
+636,ENIRIPSA,rangeMax,1,3,different
+636,ENIRIPSA,name.es,"""Corrosive Heal""","""Corrosana""",different
+636,ENIRIPSA,name.pt,"""Corrosive Heal""","""Corro-são""",different
+638,ENIRIPSA,name.es,"""Guardian Fire""","""Fuego Guardián""",different
+638,ENIRIPSA,name.pt,"""Guardian Fire""","""Fogo Guardião""",different
+644,ENIRIPSA,apCost,null,0,different
+644,ENIRIPSA,rangeMin,null,0,different
+644,ENIRIPSA,rangeMax,null,0,different
+644,ENIRIPSA,name.es,"""Precision Marking""","""Marcaje Preciso""",different
+644,ENIRIPSA,name.pt,"""Precision Marking""","""Marcação Precisa""",different
+645,ENIRIPSA,name.es,"""Heal-splosion""","""Explosana""",different
+645,ENIRIPSA,name.pt,"""Heal-splosion""","""Explo-são""",different
+779,ENIRIPSA,name.es,"""Healing Word""","""Palabra Sanadora""",different
+779,ENIRIPSA,name.pt,"""Healing Word""","""Palavra Curativa""",different
+780,ENIRIPSA,name.es,"""Revitalization""","""Revitalización""",different
+780,ENIRIPSA,name.pt,"""Revitalization""","""Revitalização""",different
+781,ENIRIPSA,rangeMax,1,4,different
+781,ENIRIPSA,name.es,"""Bond of Friendship""","""Vínculo de Amistad""",different
+781,ENIRIPSA,name.pt,"""Bond of Friendship""","""Laço de Amizade""",different
+782,ENIRIPSA,rangeMin,null,0,different
+782,ENIRIPSA,rangeMax,null,0,different
+782,ENIRIPSA,name.es,"""Fountain of Youth""","""Juventud""",different
+782,ENIRIPSA,name.pt,"""Fountain of Youth""","""Juventude""",different
+1415,ENIRIPSA,apCost,null,0,different
+1415,ENIRIPSA,rangeMin,null,0,different
+1415,ENIRIPSA,rangeMax,null,0,different
+1415,ENIRIPSA,name.es,"""Single Heal""","""Cura Única""",different
+1415,ENIRIPSA,name.pt,"""Single Heal""","""Cura Única""",different
+1532,ENIRIPSA,name.es,"""Infusion""","""Infusión""",different
+1532,ENIRIPSA,name.pt,"""Infusion""","""Infusão""",different
+1533,ENIRIPSA,name.es,"""Invigoration""","""Vivificación""",different
+1533,ENIRIPSA,name.pt,"""Invigoration""","""Vivificação""",different
+1534,ENIRIPSA,name.es,"""Purifying Flame""","""Llama Purificadora""",different
+1534,ENIRIPSA,name.pt,"""Purifying Flame""","""Chama Purificadora""",different
+1535,ENIRIPSA,rangeMax,1,4,different
+1535,ENIRIPSA,name.es,"""Eniraser""","""Anisurrección""",different
+1535,ENIRIPSA,name.pt,"""Eniraser""","""Renissurreição""",different
+1536,ENIRIPSA,apCost,null,0,different
+1536,ENIRIPSA,rangeMin,null,0,different
+1536,ENIRIPSA,rangeMax,null,0,different
+1536,ENIRIPSA,name.es,"""Vital Climax""","""Paroxismo Vital""",different
+1536,ENIRIPSA,name.pt,"""Vital Climax""","""Paroxismo Vital""",different
+1537,ENIRIPSA,apCost,null,0,different
+1537,ENIRIPSA,rangeMin,null,0,different
+1537,ENIRIPSA,rangeMax,null,0,different
+1537,ENIRIPSA,name.es,"""Serial Marker""","""Marcador de Serie""",different
+1537,ENIRIPSA,name.pt,"""Serial Marker""","""Marcador em Série""",different
+1538,ENIRIPSA,name.es,"""Ban""","""Prohibición""",different
+1538,ENIRIPSA,name.pt,"""Ban""","""Proibição""",different
+1539,ENIRIPSA,name.es,"""Alternative Cure""","""Cura Alternativa""",different
+1539,ENIRIPSA,name.pt,"""Alternative Cure""","""Cura Alternativa""",different
+1540,ENIRIPSA,rangeMin,1,3,different
+1540,ENIRIPSA,rangeMax,1,4,different
+1540,ENIRIPSA,name.es,"""Psychosis""","""Psicosis""",different
+1540,ENIRIPSA,name.pt,"""Psychosis""","""Psicose""",different
+1541,ENIRIPSA,name.es,"""Lethargy""","""Aletargamiento""",different
+1541,ENIRIPSA,name.pt,"""Lethargy""","""Torpor""",different
+1542,ENIRIPSA,rangeMin,2,1,different
+1542,ENIRIPSA,rangeMax,2,3,different
+1542,ENIRIPSA,name.es,"""Infected Flask""","""Matraz Infectado""",different
+1542,ENIRIPSA,name.pt,"""Infected Flask""","""Frasco Infectado""",different
+5451,ENIRIPSA,apCost,null,0,different
+5451,ENIRIPSA,rangeMin,null,0,different
+5451,ENIRIPSA,rangeMax,null,0,different
+5451,ENIRIPSA,name.es,"""Delay""","""Retraso""",different
+5451,ENIRIPSA,name.pt,"""Delay""","""Intervalo""",different
+5453,ENIRIPSA,apCost,null,0,different
+5453,ENIRIPSA,rangeMin,null,0,different
+5453,ENIRIPSA,rangeMax,null,0,different
+5453,ENIRIPSA,name.es,"""All for Me""","""Todos para Mí""",different
+5453,ENIRIPSA,name.pt,"""All for Me""","""Todos por Mim""",different
+5454,ENIRIPSA,apCost,null,0,different
+5454,ENIRIPSA,rangeMin,null,0,different
+5454,ENIRIPSA,rangeMax,null,0,different
+5454,ENIRIPSA,name.es,"""Puncture""","""Punción""",different
+5454,ENIRIPSA,name.pt,"""Puncture""","""Punção""",different
+5455,ENIRIPSA,apCost,null,0,different
+5455,ENIRIPSA,rangeMin,null,0,different
+5455,ENIRIPSA,rangeMax,null,0,different
+5455,ENIRIPSA,name.es,"""Still Life""","""Naturaleza Muerta""",different
+5455,ENIRIPSA,name.pt,"""Still Life""","""Natureza Morta""",different
+5463,ENIRIPSA,apCost,null,0,different
+5463,ENIRIPSA,rangeMin,null,0,different
+5463,ENIRIPSA,rangeMax,null,0,different
+7985,ENIRIPSA,apCost,2,0,different
+7985,ENIRIPSA,name.es,"""Life-Saving Fountain""","""Fuente salvadora""",different
+7985,ENIRIPSA,name.pt,"""Life-Saving Fountain""","""Fonte Salvadora""",different
+7987,ENIRIPSA,apCost,null,0,different
+7987,ENIRIPSA,rangeMin,null,0,different
+7987,ENIRIPSA,rangeMax,null,0,different
+7987,ENIRIPSA,name.es,"""Radiance""","""Resplandor""",different
+7987,ENIRIPSA,name.pt,"""Radiance""","""Esplendor""",different
+7990,ENIRIPSA,apCost,null,0,different
+7990,ENIRIPSA,rangeMin,null,0,different
+7990,ENIRIPSA,rangeMax,null,0,different
+7990,ENIRIPSA,name.es,"""Presence""","""Presencia""",different
+7990,ENIRIPSA,name.pt,"""Presence""","""Presença""",different
+7991,ENIRIPSA,apCost,null,0,different
+7991,ENIRIPSA,rangeMin,null,0,different
+7991,ENIRIPSA,rangeMax,null,0,different
+7991,ENIRIPSA,name.es,"""Super Coney II""","""Súper Cunejo II""",different
+7991,ENIRIPSA,name.pt,"""Super Coney II""","""Supertoelho II""",different
+7992,ENIRIPSA,apCost,null,0,different
+7992,ENIRIPSA,rangeMin,null,0,different
+7992,ENIRIPSA,rangeMax,null,0,different
+7992,ENIRIPSA,name.es,"""Transgression""","""Transgresión""",different
+7992,ENIRIPSA,name.pt,"""Transgression""","""Transgressão""",different
+7993,ENIRIPSA,apCost,null,0,different
+7993,ENIRIPSA,rangeMin,null,0,different
+7993,ENIRIPSA,rangeMax,null,0,different
+7993,ENIRIPSA,name.es,"""Wind Elixir""","""Elixir de Viento""",different
+7993,ENIRIPSA,name.pt,"""Wind Elixir""","""Elixir de vento""",different
+7994,ENIRIPSA,apCost,null,0,different
+7994,ENIRIPSA,rangeMin,null,0,different
+7994,ENIRIPSA,rangeMax,null,0,different
+7994,ENIRIPSA,name.es,"""Apprentice Alchemist""","""Aprendiz Alquimista""",different
+7994,ENIRIPSA,name.pt,"""Apprentice Alchemist""","""Aprendiz Alquimista""",different
+7995,ENIRIPSA,apCost,null,0,different
+7995,ENIRIPSA,rangeMin,null,0,different
+7995,ENIRIPSA,rangeMax,null,0,different
+7995,ENIRIPSA,name.es,"""Production Secret""","""Secreto de Producción""",different
+7995,ENIRIPSA,name.pt,"""Production Secret""","""Segredo de Fabricação""",different
+7996,ENIRIPSA,apCost,null,0,different
+7996,ENIRIPSA,rangeMin,null,0,different
+7996,ENIRIPSA,rangeMax,null,0,different
+7996,ENIRIPSA,name.es,"""Anbarul Mark""","""Marca Anbareul""",different
+7996,ENIRIPSA,name.pt,"""Anbarul Mark""","""Marca Anbareul""",different
+7997,ENIRIPSA,apCost,null,0,different
+7997,ENIRIPSA,rangeMin,null,0,different
+7997,ENIRIPSA,rangeMax,null,0,different
+7997,ENIRIPSA,name.es,"""Unnatural Paradox""","""Paradoja Contra Natura""",different
+7997,ENIRIPSA,name.pt,"""Unnatural Paradox""","""Paradoxo Antinatural""",different
+7998,ENIRIPSA,apCost,null,0,different
+7998,ENIRIPSA,rangeMin,null,0,different
+7998,ENIRIPSA,rangeMax,null,0,different
+7998,ENIRIPSA,name.es,"""Ambivalence""","""Ambivalencia""",different
+7998,ENIRIPSA,name.pt,"""Ambivalence""","""Ambivalência""",different
+2008,ENUTROF,name.es,"""Shovel of Judgment""","""Pala del Juicio""",different
+2008,ENUTROF,name.pt,"""Shovel of Judgment""","""Pá do Julgamento""",different
+2009,ENUTROF,apCost,null,0,different
+2009,ENUTROF,rangeMin,null,0,different
+2009,ENUTROF,rangeMax,null,0,different
+2009,ENUTROF,name.es,"""Advanced Geology""","""Geología Avanzada""",different
+2009,ENUTROF,name.pt,"""Advanced Geology""","""Geologia Avançada""",different
+2010,ENUTROF,name.es,"""Killer Spade""","""Pala Asesina""",different
+2010,ENUTROF,name.pt,"""Killer Spade""","""Pá Assassina""",different
+2011,ENUTROF,rangeMax,1,4,different
+2011,ENUTROF,name.es,"""Shovel Kiss""","""Jarabe de Pala""",different
+2011,ENUTROF,name.pt,"""Shovel Kiss""","""Pá Virada""",different
+2012,ENUTROF,name.es,"""Shady Shovel""","""Pala Drona""",different
+2012,ENUTROF,name.pt,"""Shady Shovel""","""Pá Sombria""",different
+2013,ENUTROF,name.es,"""Shovel Shaker""","""Pala Sísmica""",different
+2013,ENUTROF,name.pt,"""Shovel Shaker""","""Pá Sísmica""",different
+2014,ENUTROF,rangeMin,1,2,different
+2014,ENUTROF,rangeMax,1,4,different
+2014,ENUTROF,name.es,"""Cutting""","""Cortes""",different
+2014,ENUTROF,name.pt,"""Cutting""","""Cortes""",different
+2015,ENUTROF,name.es,"""Rascalry""","""Timo""",different
+2015,ENUTROF,name.pt,"""Rascalry""","""Patifaria""",different
+2016,ENUTROF,name.es,"""Tax""","""Impuesto""",different
+2016,ENUTROF,name.pt,"""Tax""","""Taxa""",different
+2017,ENUTROF,rangeMax,2,6,different
+2017,ENUTROF,name.es,"""Refinement""","""Depuración""",different
+2017,ENUTROF,name.pt,"""Refinement""","""Refinamento""",different
+2018,ENUTROF,rangeMax,1,4,different
+2018,ENUTROF,name.es,"""Fusion""","""Fusión""",different
+2018,ENUTROF,name.pt,"""Fusion""","""Fusão""",different
+2019,ENUTROF,rangeMin,1,2,different
+2019,ENUTROF,rangeMax,1,4,different
+2019,ENUTROF,name.es,"""Meteor""","""Meteoro""",different
+2019,ENUTROF,name.pt,"""Meteor""","""Meteoro""",different
+2021,ENUTROF,name.es,"""Ember""","""Brasas""",different
+2021,ENUTROF,name.pt,"""Ember""","""Brasas""",different
+2022,ENUTROF,rangeMax,1,4,different
+2022,ENUTROF,name.es,"""Hot Magma""","""Río de Lava""",different
+2022,ENUTROF,name.pt,"""Hot Magma""","""Torrente de Lava""",different
+2026,ENUTROF,rangeMin,null,0,different
+2026,ENUTROF,rangeMax,null,0,different
+2026,ENUTROF,name.es,"""Seismic Wealth""","""Riqueza Sísmica""",different
+2026,ENUTROF,name.pt,"""Seismic Wealth""","""Riqueza Sísmica""",different
+2028,ENUTROF,apCost,null,0,different
+2028,ENUTROF,rangeMin,null,0,different
+2028,ENUTROF,rangeMax,null,0,different
+2028,ENUTROF,name.es,"""Treasure Tracker""","""Arte de los Caminantes""",different
+2028,ENUTROF,name.pt,"""Treasure Tracker""","""Arte Improfética""",different
+2032,ENUTROF,name.es,"""Purge""","""Purga""",different
+2032,ENUTROF,name.pt,"""Purge""","""Purgação""",different
+2037,ENUTROF,name.es,"""Firedamp Explosion""","""Explosión de Grisú""",different
+2037,ENUTROF,name.pt,"""Firedamp Explosion""","""Explosão de Grisu""",different
+2039,ENUTROF,apCost,null,0,different
+2039,ENUTROF,rangeMin,null,0,different
+2039,ENUTROF,rangeMax,null,0,different
+2039,ENUTROF,name.es,"""Enutrof's Blessing""","""Bendición Anutrof""",different
+2039,ENUTROF,name.pt,"""Enutrof's Blessing""","""Bênção de Enutrof""",different
+2064,ENUTROF,rangeMin,1,0,different
+2064,ENUTROF,name.es,"""Prime of Life""","""Fuerza de la Edad""",different
+2064,ENUTROF,name.pt,"""Prime of Life""","""Flor da Idade""",different
+5059,ENUTROF,apCost,null,0,different
+5059,ENUTROF,rangeMin,null,0,different
+5059,ENUTROF,rangeMax,null,0,different
+5059,ENUTROF,name.es,"""Market Investments""","""Colocaciones Bursátiles""",different
+5059,ENUTROF,name.pt,"""Market Investments""","""Posicionamentos Bolseiros""",different
+5071,ENUTROF,apCost,null,0,different
+5071,ENUTROF,rangeMin,null,0,different
+5071,ENUTROF,rangeMax,null,0,different
+5071,ENUTROF,name.es,"""Greed""","""Codicia""",different
+5071,ENUTROF,name.pt,"""Greed""","""Cupidez""",different
+5075,ENUTROF,apCost,null,0,different
+5075,ENUTROF,rangeMin,null,0,different
+5075,ENUTROF,rangeMax,null,0,different
+5075,ENUTROF,name.es,"""Drhellzertank""","""Perfórtanker""",different
+5075,ENUTROF,name.pt,"""Drhellzertank""","""Perforzertanque""",different
+5076,ENUTROF,apCost,null,0,different
+5076,ENUTROF,rangeMin,null,0,different
+5076,ENUTROF,rangeMax,null,0,different
+5076,ENUTROF,name.es,"""Trade Secrets""","""Cotización en Bolsa""",different
+5076,ENUTROF,name.pt,"""Trade Secrets""","""Cotação na Bolsa""",different
+6324,ENUTROF,rangeMax,1,3,different
+6324,ENUTROF,name.es,"""Acceleration""","""Aceleración""",different
+6324,ENUTROF,name.pt,"""Acceleration""","""Aceleração""",different
+6326,ENUTROF,apCost,null,0,different
+6326,ENUTROF,rangeMin,null,0,different
+6326,ENUTROF,rangeMax,null,0,different
+6326,ENUTROF,name.es,"""Credit Interest""","""Intereses Acreedores""",different
+6326,ENUTROF,name.pt,"""Credit Interest""","""Juros dos Credores""",different
+6337,ENUTROF,name.es,"""Clumsiness""","""Torpeza""",different
+6337,ENUTROF,name.pt,"""Clumsiness""","""Desastre""",different
+8240,ENUTROF,name.es,"""Miserliness""","""Avaricia""",different
+8240,ENUTROF,name.pt,"""Miserliness""","""Avareza""",different
+8242,ENUTROF,rangeMax,1,4,different
+8242,ENUTROF,name.es,"""Corruption""","""Corrupción""",different
+8242,ENUTROF,name.pt,"""Corruption""","""Corrupção""",different
+8272,ENUTROF,apCost,null,0,different
+8272,ENUTROF,rangeMin,null,0,different
+8272,ENUTROF,rangeMax,null,0,different
+8272,ENUTROF,name.es,"""Asynchronous Swap""","""Intercambio Asíncrono""",different
+8272,ENUTROF,name.pt,"""Asynchronous Swap""","""Troca Assíncrona""",different
+8273,ENUTROF,apCost,null,0,different
+8273,ENUTROF,rangeMin,null,0,different
+8273,ENUTROF,rangeMax,null,0,different
+8273,ENUTROF,name.es,"""Springboard""","""Estribo""",different
+8273,ENUTROF,name.pt,"""Springboard""","""Estepe""",different
+8274,ENUTROF,apCost,null,0,different
+8274,ENUTROF,rangeMin,null,0,different
+8274,ENUTROF,rangeMax,null,0,different
+8274,ENUTROF,name.es,"""Age Merchant""","""Provectrato""",different
+8274,ENUTROF,name.pt,"""Age Merchant""","""Mercantilização""",different
+8275,ENUTROF,apCost,null,0,different
+8275,ENUTROF,rangeMin,null,0,different
+8275,ENUTROF,rangeMax,null,0,different
+8275,ENUTROF,name.es,"""Pince-Nez""","""La Binocular""",different
+8275,ENUTROF,name.pt,"""Pince-Nez""","""Binóculo""",different
+8276,ENUTROF,apCost,null,0,different
+8276,ENUTROF,rangeMin,null,0,different
+8276,ENUTROF,rangeMax,null,0,different
+8276,ENUTROF,name.es,"""Comprehensive Insurance""","""Seguro a Todo Riesgo""",different
+8276,ENUTROF,name.pt,"""Comprehensive Insurance""","""Seguro Compreensivo""",different
+8277,ENUTROF,apCost,null,0,different
+8277,ENUTROF,rangeMin,null,0,different
+8277,ENUTROF,rangeMax,null,0,different
+8277,ENUTROF,name.es,"""Mineral Protection""","""Protección Mineral""",different
+8277,ENUTROF,name.pt,"""Mineral Protection""","""Proteção Mineral""",different
+8278,ENUTROF,apCost,null,0,different
+8278,ENUTROF,rangeMin,null,0,different
+8278,ENUTROF,rangeMax,null,0,different
+8278,ENUTROF,name.es,"""Optimal Focus""","""Optimización Focal""",different
+8278,ENUTROF,name.pt,"""Optimal Focus""","""Otimização Focal""",different
+8279,ENUTROF,apCost,null,0,different
+8279,ENUTROF,rangeMin,null,0,different
+8279,ENUTROF,rangeMax,null,0,different
+8279,ENUTROF,name.es,"""Tunneler""","""Tuneladora""",different
+8279,ENUTROF,name.pt,"""Tunneler""","""Escavador""",different
+8280,ENUTROF,apCost,null,0,different
+8280,ENUTROF,rangeMin,null,0,different
+8280,ENUTROF,rangeMax,null,0,different
+8280,ENUTROF,name.es,"""Inheritance""","""Herencia""",different
+8280,ENUTROF,name.pt,"""Inheritance""","""Herança""",different
+6967,FECA,name.es,"""Fecastopheles""","""Fecalistófedes""",different
+6967,FECA,name.pt,"""Fecastopheles""","""Fecalistófedes""",different
+6968,FECA,name.es,"""Meteorite""","""Meteorito""",different
+6968,FECA,name.pt,"""Meteorite""","""Meteorito""",different
+6969,FECA,name.es,"""Natural Attack""","""Ataque Natural""",different
+6969,FECA,name.pt,"""Natural Attack""","""Ataque Natural""",different
+6971,FECA,name.es,"""Volcano""","""Volcán""",different
+6971,FECA,name.pt,"""Volcano""","""Vulcão""",different
+6972,FECA,name.es,"""Drip""","""Gota""",different
+6972,FECA,name.pt,"""Drip""","""Gota""",different
+6973,FECA,element,null,"""WATER""",different
+6973,FECA,name.es,"""Wave""","""Onda""",different
+6973,FECA,name.pt,"""Wave""","""Onda""",different
+6974,FECA,name.es,"""Avalanche""","""Avalancha""",different
+6975,FECA,name.es,"""Storm""","""Tormenta""",different
+6975,FECA,name.pt,"""Storm""","""Tormenta""",different
+6976,FECA,name.es,"""Crashing Wave""","""Filo Abisal""",different
+6976,FECA,name.pt,"""Crashing Wave""","""Lâmina Profunda""",different
+6977,FECA,name.es,"""Telluric Whack""","""Golpe Telúrico""",different
+6977,FECA,name.pt,"""Telluric Whack""","""Golpe Telúrico""",different
+6978,FECA,name.es,"""Defensive Orb""","""Orbe Defensivo""",different
+6978,FECA,name.pt,"""Defensive Orb""","""Orbe Defensivo""",different
+6979,FECA,name.es,"""Bastion""","""Bastión""",different
+6979,FECA,name.pt,"""Bastion""","""Bastião""",different
+6980,FECA,name.es,"""Rampart""","""Muralla""",different
+6980,FECA,name.pt,"""Rampart""","""Muralha""",different
+6981,FECA,name.es,"""Staff""","""Bastón""",different
+6981,FECA,name.pt,"""Staff""","""Bastão""",different
+6982,FECA,name.es,"""Immunity""","""Inmune""",different
+6982,FECA,name.pt,"""Immunity""","""Imunidade""",different
+6983,FECA,apCost,1,0,different
+6983,FECA,rangeMin,null,0,different
+6983,FECA,rangeMax,null,0,different
+6983,FECA,name.es,"""Truce""","""Tregua""",different
+6983,FECA,name.pt,"""Truce""","""Trégua""",different
+6984,FECA,apCost,1,0,different
+6984,FECA,name.es,"""Pacification""","""Pacificación""",different
+6984,FECA,name.pt,"""Pacification""","""Pacificação""",different
+6985,FECA,name.es,"""Provocation""","""Provocación""",different
+6985,FECA,name.pt,"""Provocation""","""Provocação""",different
+6986,FECA,rangeMax,1,3,different
+6986,FECA,name.es,"""Aegis""","""Égida""",different
+6986,FECA,name.pt,"""Aegis""","""Égide""",different
+6987,FECA,name.es,"""Magnetism""","""Magnetismo""",different
+6987,FECA,name.pt,"""Magnetism""","""Magnetismo""",different
+6988,FECA,apCost,null,0,different
+6988,FECA,rangeMin,null,0,different
+6988,FECA,rangeMax,null,0,different
+6988,FECA,name.es,"""Increased Glyph""","""Glifo Aumentado""",different
+6988,FECA,name.pt,"""Increased Glyph""","""Glifo Aumentado""",different
+6989,FECA,apCost,null,0,different
+6989,FECA,rangeMin,null,0,different
+6989,FECA,rangeMax,null,0,different
+6989,FECA,name.es,"""Line""","""Línea""",different
+6989,FECA,name.pt,"""Line""","""Linha""",different
+6990,FECA,apCost,null,0,different
+6990,FECA,rangeMin,null,0,different
+6990,FECA,rangeMax,null,0,different
+6990,FECA,name.es,"""One for All""","""Uno para Todos""",different
+6990,FECA,name.pt,"""One for All""","""Um Por Todos""",different
+6991,FECA,apCost,null,0,different
+6991,FECA,rangeMin,null,0,different
+6991,FECA,rangeMax,null,0,different
+6991,FECA,name.es,"""Master of Shields""","""Maestro de los Escudos""",different
+6991,FECA,name.pt,"""Master of Shields""","""Mestre dos Escudos""",different
+6992,FECA,apCost,null,0,different
+6992,FECA,rangeMin,null,0,different
+6992,FECA,rangeMax,null,0,different
+6992,FECA,name.es,"""If You Want Peace, Prepare for War""","""Quien Quiere la Paz Prepara la Guerra""",different
+6992,FECA,name.pt,"""If You Want Peace, Prepare for War""","""Se Quer Paz, Prepare-se Para a Guerra""",different
+6993,FECA,apCost,null,0,different
+6993,FECA,rangeMin,null,0,different
+6993,FECA,rangeMax,null,0,different
+6993,FECA,name.es,"""Pacifist Pact""","""Trato Pacifista""",different
+6993,FECA,name.pt,"""Pacifist Pact""","""Mercado Pacifista""",different
+6994,FECA,apCost,null,0,different
+6994,FECA,rangeMin,null,0,different
+6994,FECA,rangeMax,null,0,different
+6994,FECA,name.es,"""Map Mastery""","""Conocimiento del Mapa""",different
+6994,FECA,name.pt,"""Map Mastery""","""Conhecimento do Mapa""",different
+6995,FECA,apCost,null,0,different
+6995,FECA,rangeMin,null,0,different
+6995,FECA,rangeMax,null,0,different
+6995,FECA,name.es,"""The Best Defense Is an Attack""","""La Mejor Defensa es el Ataque""",different
+6995,FECA,name.pt,"""The Best Defense Is an Attack""","""A Melhor Defesa é o Ataque""",different
+6996,FECA,apCost,null,0,different
+6996,FECA,rangeMin,null,0,different
+6996,FECA,rangeMax,null,0,different
+6996,FECA,name.es,"""Combat Armor""","""Armadura de Combate""",different
+6996,FECA,name.pt,"""Combat Armor""","""Armadura de Combate""",different
+6997,FECA,apCost,null,0,different
+6997,FECA,rangeMin,null,0,different
+6997,FECA,rangeMax,null,0,different
+6997,FECA,name.es,"""Rocky Skin""","""Piel Rocosa""",different
+6997,FECA,name.pt,"""Rocky Skin""","""Pele Rochosa""",different
+6998,FECA,apCost,null,0,different
+6998,FECA,rangeMin,null,0,different
+6998,FECA,rangeMax,null,0,different
+6998,FECA,name.es,"""Eye for Eye""","""Ojo por Ojo""",different
+6998,FECA,name.pt,"""Eye for Eye""","""Olho por Olho""",different
+6999,FECA,apCost,null,0,different
+6999,FECA,rangeMin,null,0,different
+6999,FECA,rangeMax,null,0,different
+6999,FECA,name.es,"""Persistent Glyphs""","""Glifos Persistentes""",different
+6999,FECA,name.pt,"""Persistent Glyphs""","""Glifos Persistentes""",different
+7000,FECA,apCost,null,0,different
+7000,FECA,rangeMin,null,0,different
+7000,FECA,rangeMax,null,0,different
+7000,FECA,name.es,"""Shepherd""","""Pastor""",different
+7000,FECA,name.pt,"""Shepherd""","""Pastor""",different
+7001,FECA,apCost,null,0,different
+7001,FECA,rangeMin,null,0,different
+7001,FECA,rangeMax,null,0,different
+7001,FECA,name.es,"""Field Experience""","""Experiencia del Terreno""",different
+7001,FECA,name.pt,"""Field Experience""","""Experiência do Terreno""",different
+7002,FECA,apCost,null,0,different
+7002,FECA,rangeMin,null,0,different
+7002,FECA,rangeMax,null,0,different
+7002,FECA,name.es,"""Elemental Shields""","""Escudos Elementales""",different
+7002,FECA,name.pt,"""Elemental Shields""","""Escudos Elementares""",different
+7003,FECA,apCost,null,0,different
+7003,FECA,rangeMin,null,0,different
+7003,FECA,rangeMax,null,0,different
+7003,FECA,name.es,"""Spiny Carapace""","""Caparazón de Espinas""",different
+7003,FECA,name.pt,"""Spiny Carapace""","""Carapaça de Espinhos""",different
+7004,FECA,apCost,null,0,different
+7004,FECA,rangeMin,null,0,different
+7004,FECA,rangeMax,null,0,different
+7004,FECA,name.es,"""Wakfu Comprehension""","""Comprensión del Wakfu""",different
+7004,FECA,name.pt,"""Wakfu Comprehension""","""Compreensão do Wakfu""",different
+7005,FECA,apCost,null,0,different
+7005,FECA,rangeMin,null,0,different
+7005,FECA,rangeMax,null,0,different
+7005,FECA,name.es,"""Herd Protector""","""Protector del Rebaño""",different
+7005,FECA,name.pt,"""Herd Protector""","""Protetor do Rebanho""",different
+5561,HUPPERMAGE,element,null,"""FIRE""",different
+5561,HUPPERMAGE,name.es,"""Resonance""","""Resonancia""",different
+5561,HUPPERMAGE,name.pt,"""Resonance""","""Ressonância""",different
+5562,HUPPERMAGE,name.es,"""Energy Flux""","""Flujo de Energía""",different
+5562,HUPPERMAGE,name.pt,"""Energy Flux""","""Fluxo de Energia""",different
+5563,HUPPERMAGE,name.es,"""Light of Dawn""","""Luz del Alba""",different
+5563,HUPPERMAGE,name.pt,"""Light of Dawn""","""Luz da Alvorada""",different
+5564,HUPPERMAGE,name.es,"""Downpour""","""Aguacero""",different
+5564,HUPPERMAGE,name.pt,"""Downpour""","""Aguaceiro""",different
+5565,HUPPERMAGE,name.es,"""Walloping""","""Deshielo""",different
+5565,HUPPERMAGE,name.pt,"""Walloping""","""Vertedouro""",different
+5566,HUPPERMAGE,name.es,"""Vestige""","""Vestigio""",different
+5566,HUPPERMAGE,name.pt,"""Vestige""","""Vestígio""",different
+5567,HUPPERMAGE,name.es,"""Rock Slide""","""Desprendimiento""",different
+5567,HUPPERMAGE,name.pt,"""Rock Slide""","""Desmoronamento""",different
+5568,HUPPERMAGE,name.es,"""Backband""","""Ranura""",different
+5568,HUPPERMAGE,name.pt,"""Backband""","""Entalhe""",different
+5569,HUPPERMAGE,name.es,"""Rift""","""Falla""",different
+5569,HUPPERMAGE,name.pt,"""Rift""","""Falha""",different
+5570,HUPPERMAGE,name.es,"""Diurnal Butterflies""","""Mariposas Diurnas""",different
+5570,HUPPERMAGE,name.pt,"""Diurnal Butterflies""","""Borboletas Diurnas""",different
+5571,HUPPERMAGE,name.es,"""Luminescent Disc""","""Disco Luminiscente""",different
+5571,HUPPERMAGE,name.pt,"""Luminescent Disc""","""Disco Luminescente""",different
+5572,HUPPERMAGE,name.es,"""Dancing Shadows""","""Sombras Danzantes""",different
+5572,HUPPERMAGE,name.pt,"""Dancing Shadows""","""Sombras Dançantes""",different
+5575,HUPPERMAGE,name.es,"""Solar Stronghold""","""Fortaleza Solar""",different
+5575,HUPPERMAGE,name.pt,"""Solar Stronghold""","""Fortaleza Solar""",different
+5576,HUPPERMAGE,apCost,1,0,different
+5576,HUPPERMAGE,rangeMin,null,1,different
+5576,HUPPERMAGE,rangeMax,null,3,different
+5576,HUPPERMAGE,name.es,"""Wall of Energy""","""Pared de Energía""",different
+5576,HUPPERMAGE,name.pt,"""Wall of Energy""","""Muro de Energia""",different
+5579,HUPPERMAGE,apCost,null,0,different
+5579,HUPPERMAGE,rangeMin,null,0,different
+5579,HUPPERMAGE,rangeMax,null,0,different
+5579,HUPPERMAGE,name.es,"""Dynamo""","""Dinamo""",different
+5579,HUPPERMAGE,name.pt,"""Dynamo""","""Dínamo""",different
+5580,HUPPERMAGE,apCost,null,0,different
+5580,HUPPERMAGE,rangeMin,null,0,different
+5580,HUPPERMAGE,rangeMax,null,0,different
+5580,HUPPERMAGE,name.es,"""Soul Initiative""","""Iniciativa del Alma""",different
+5580,HUPPERMAGE,name.pt,"""Soul Initiative""","""Iniciativa da Alma""",different
+5581,HUPPERMAGE,apCost,null,0,different
+5581,HUPPERMAGE,rangeMin,null,0,different
+5581,HUPPERMAGE,rangeMax,null,0,different
+5581,HUPPERMAGE,element,"""FIRE""",null,different
+5581,HUPPERMAGE,name.es,"""Elemental Distension""","""Distensión Elemental""",different
+5581,HUPPERMAGE,name.pt,"""Elemental Distension""","""Alongamento Elementar""",different
+5582,HUPPERMAGE,apCost,null,0,different
+5582,HUPPERMAGE,rangeMin,null,0,different
+5582,HUPPERMAGE,rangeMax,null,0,different
+5582,HUPPERMAGE,name.es,"""Light Link""","""Conexión Luminosa""",different
+5582,HUPPERMAGE,name.pt,"""Light Link""","""Ligação Luminosa""",different
+5583,HUPPERMAGE,apCost,null,0,different
+5583,HUPPERMAGE,rangeMin,null,0,different
+5583,HUPPERMAGE,rangeMax,null,0,different
+5583,HUPPERMAGE,name.es,"""Universality""","""Universalidad""",different
+5583,HUPPERMAGE,name.pt,"""Universality""","""Universalidade""",different
+5584,HUPPERMAGE,apCost,null,0,different
+5584,HUPPERMAGE,rangeMin,null,0,different
+5584,HUPPERMAGE,rangeMax,null,0,different
+5584,HUPPERMAGE,name.es,"""Runic Save""","""Sobrecarga Rúnica""",different
+5584,HUPPERMAGE,name.pt,"""Runic Save""","""Salvaguarda Rúnica""",different
+5585,HUPPERMAGE,apCost,null,0,different
+5585,HUPPERMAGE,rangeMin,null,0,different
+5585,HUPPERMAGE,rangeMax,null,0,different
+5585,HUPPERMAGE,name.es,"""Fullness""","""Plenitud""",different
+5585,HUPPERMAGE,name.pt,"""Fullness""","""Plenitude""",different
+5586,HUPPERMAGE,apCost,null,0,different
+5586,HUPPERMAGE,rangeMin,null,0,different
+5586,HUPPERMAGE,rangeMax,null,0,different
+5586,HUPPERMAGE,name.es,"""Runic Profusion""","""Profusión Rúnica""",different
+5586,HUPPERMAGE,name.pt,"""Runic Profusion""","""Profusão Rúnica""",different
+5587,HUPPERMAGE,apCost,null,0,different
+5587,HUPPERMAGE,rangeMin,null,0,different
+5587,HUPPERMAGE,rangeMax,null,0,different
+5587,HUPPERMAGE,name.es,"""Quadramental Absorption""","""Absorción Cuadramental""",different
+5587,HUPPERMAGE,name.pt,"""Quadramental Absorption""","""Absorção Quadramental""",different
+5588,HUPPERMAGE,apCost,null,0,different
+5588,HUPPERMAGE,rangeMin,null,0,different
+5588,HUPPERMAGE,rangeMax,null,0,different
+5588,HUPPERMAGE,element,"""FIRE""",null,different
+5588,HUPPERMAGE,name.es,"""Elemental Refraction""","""Refracción Elemental""",different
+5588,HUPPERMAGE,name.pt,"""Elemental Refraction""","""Refração Elementar""",different
+5590,HUPPERMAGE,element,null,"""AIR""",different
+5590,HUPPERMAGE,name.es,"""Shiny Orbs""","""Orbes Relucientes""",different
+5590,HUPPERMAGE,name.pt,"""Shiny Orbs""","""Orbes Brilhantes""",different
+5591,HUPPERMAGE,element,null,"""FIRE""",different
+5591,HUPPERMAGE,name.es,"""Twilight Beam""","""Rayo Crepuscular""",different
+5591,HUPPERMAGE,name.pt,"""Twilight Beam""","""Raio Crepuscular""",different
+5592,HUPPERMAGE,element,null,"""AIR""",different
+5592,HUPPERMAGE,name.es,"""Glistening Halo""","""Halo Tornasolado""",different
+5592,HUPPERMAGE,name.pt,"""Glistening Halo""","""Halo Cintilante""",different
+5593,HUPPERMAGE,element,null,"""WATER""",different
+5593,HUPPERMAGE,name.es,"""Glistening Tears""","""Lágrimas Centelleantes""",different
+5593,HUPPERMAGE,name.pt,"""Glistening Tears""","""Lágrimas Cintilantes""",different
+5594,HUPPERMAGE,element,null,"""WATER""",different
+5594,HUPPERMAGE,name.es,"""Light Arrow""","""Flecha de Luz""",different
+5594,HUPPERMAGE,name.pt,"""Light Arrow""","""Flecha de Luz""",different
+5595,HUPPERMAGE,element,null,"""EARTH""",different
+5595,HUPPERMAGE,name.es,"""Light Sword""","""Espada de Luz""",different
+5595,HUPPERMAGE,name.pt,"""Light Sword""","""Espada de Luz""",different
+5596,HUPPERMAGE,name.es,"""Mirage""","""Espejismo""",different
+5596,HUPPERMAGE,name.pt,"""Mirage""","""Miragem""",different
+5597,HUPPERMAGE,element,null,"""EARTH""",different
+5597,HUPPERMAGE,name.es,"""Moonbeam""","""Resplandor de Luna""",different
+5597,HUPPERMAGE,name.pt,"""Moonbeam""","""Feixe de Lua""",different
+7755,HUPPERMAGE,name.es,"""Runic Overcharge""","""Sobrecarga Rúnica""",different
+7755,HUPPERMAGE,name.pt,"""Runic Overcharge""","""Sobrecarga Rúnica""",different
+7797,HUPPERMAGE,apCost,null,0,different
+7797,HUPPERMAGE,rangeMin,null,0,different
+7797,HUPPERMAGE,rangeMax,null,0,different
+7797,HUPPERMAGE,name.es,"""Sensextension""","""Extensión de los Sentidos""",different
+7797,HUPPERMAGE,name.pt,"""Sensextension""","""Extensão dos Sentidos""",different
+7798,HUPPERMAGE,apCost,null,0,different
+7798,HUPPERMAGE,rangeMin,null,0,different
+7798,HUPPERMAGE,rangeMax,null,0,different
+7798,HUPPERMAGE,name.es,"""Runic Transcendence""","""Trascendencia Rúnica""",different
+7798,HUPPERMAGE,name.pt,"""Runic Transcendence""","""Transcendência Rúnica""",different
+7800,HUPPERMAGE,apCost,null,0,different
+7800,HUPPERMAGE,rangeMin,null,0,different
+7800,HUPPERMAGE,rangeMax,null,0,different
+7800,HUPPERMAGE,name.es,"""Elemental Combination""","""Combinación Elemental""",different
+7800,HUPPERMAGE,name.pt,"""Elemental Combination""","""Combinação Elementar""",different
+7801,HUPPERMAGE,apCost,null,0,different
+7801,HUPPERMAGE,rangeMin,null,0,different
+7801,HUPPERMAGE,rangeMax,null,0,different
+7801,HUPPERMAGE,name.es,"""Pulsation""","""Pulsación""",different
+7801,HUPPERMAGE,name.pt,"""Pulsation""","""Pulsação""",different
+7802,HUPPERMAGE,apCost,null,0,different
+7802,HUPPERMAGE,rangeMin,null,0,different
+7802,HUPPERMAGE,rangeMax,null,0,different
+7802,HUPPERMAGE,name.es,"""Antithesis""","""Antítesis""",different
+7802,HUPPERMAGE,name.pt,"""Antithesis""","""Antítese""",different
+7803,HUPPERMAGE,apCost,null,0,different
+7803,HUPPERMAGE,rangeMin,null,0,different
+7803,HUPPERMAGE,rangeMax,null,0,different
+7803,HUPPERMAGE,name.es,"""Soul Development""","""Vuelo del Alma""",different
+7803,HUPPERMAGE,name.pt,"""Soul Development""","""Expansão da Alma""",different
+7804,HUPPERMAGE,apCost,null,0,different
+7804,HUPPERMAGE,rangeMin,null,0,different
+7804,HUPPERMAGE,rangeMax,null,0,different
+7804,HUPPERMAGE,name.es,"""Soul Altruism""","""Altruismo del Alma""",different
+7804,HUPPERMAGE,name.pt,"""Soul Altruism""","""Altruísmo da Alma""",different
+7805,HUPPERMAGE,apCost,null,0,different
+7805,HUPPERMAGE,rangeMin,null,0,different
+7805,HUPPERMAGE,rangeMax,null,0,different
+7805,HUPPERMAGE,name.es,"""New Breath""","""Aire Nuevo""",different
+7805,HUPPERMAGE,name.pt,"""New Breath""","""Novo Sopro""",different
+7809,HUPPERMAGE,apCost,1,0,different
+7809,HUPPERMAGE,rangeMin,null,1,different
+7809,HUPPERMAGE,rangeMax,null,3,different
+7809,HUPPERMAGE,name.es,"""Runification""","""Runificación""",different
+7809,HUPPERMAGE,name.pt,"""Runification""","""Runificação""",different
+4775,IOP,name.es,"""Thunderbolt""","""Fulgor""",different
+4775,IOP,name.pt,"""Thunderbolt""","""Fulgor""",different
+4776,IOP,name.es,"""Judgment""","""Juicio""",different
+4776,IOP,name.pt,"""Judgment""","""Sentença""",different
+4777,IOP,name.es,"""Super Iop Punch""","""Súper Puño Yopuka""",different
+4777,IOP,name.pt,"""Super Iop Punch""","""Supersoco de Iop""",different
+4778,IOP,name.es,"""Celestial Sword""","""Espada Celeste""",different
+4778,IOP,name.pt,"""Celestial Sword""","""Espada Celestial""",different
+4779,IOP,rangeMin,1,0,different
+4779,IOP,rangeMax,1,0,different
+4779,IOP,name.es,"""Iop's Wrath""","""Ira de Yopuka""",different
+4779,IOP,name.pt,"""Iop's Wrath""","""Ira de Iop""",different
+4780,IOP,name.es,"""Shaker""","""Sacudida""",different
+4780,IOP,name.pt,"""Shaker""","""Sacudida""",different
+4781,IOP,name.es,"""Rocknoceros""","""Lanza Rocas""",different
+4781,IOP,name.pt,"""Rocknoceros""","""Roknocerrok""",different
+4782,IOP,name.es,"""Cleaver""","""Cuchillo de Carnicero""",different
+4782,IOP,name.pt,"""Cleaver""","""Rachador""",different
+4783,IOP,name.es,"""Charge""","""Carga""",different
+4783,IOP,name.pt,"""Charge""","""Carga""",different
+4784,IOP,name.es,"""Devastate""","""Estragos""",different
+4784,IOP,name.pt,"""Devastate""","""Devastação""",different
+4786,IOP,name.es,"""Flurry""","""Ráfaga""",different
+4786,IOP,name.pt,"""Flurry""","""Rajada""",different
+4787,IOP,name.es,"""Wallop""","""Bofetada""",different
+4787,IOP,name.pt,"""Wallop""","""Pancada""",different
+4788,IOP,name.es,"""Pounding""","""Casca""",different
+4788,IOP,name.pt,"""Pounding""","""Zurzidela""",different
+4789,IOP,name.es,"""Sword of Iop""","""Espada de Yopuka""",different
+4789,IOP,name.pt,"""Sword of Iop""","""Espada de Iop""",different
+4790,IOP,name.es,"""Focus""","""Focalización""",different
+4790,IOP,name.pt,"""Focus""","""Foco""",different
+4791,IOP,rangeMin,1,0,different
+4791,IOP,rangeMax,1,0,different
+4791,IOP,name.es,"""Virtue""","""Virtud""",different
+4791,IOP,name.pt,"""Virtue""","""Virtude""",different
+4792,IOP,rangeMin,1,0,different
+4792,IOP,rangeMax,1,0,different
+4792,IOP,element,"""FIRE""",null,different
+4792,IOP,name.es,"""Stance""","""Postura""",different
+4792,IOP,name.pt,"""Stance""","""Postura""",different
+4793,IOP,apCost,2,0,different
+4793,IOP,rangeMin,2,0,different
+4793,IOP,rangeMax,2,0,different
+4793,IOP,name.es,"""Increase""","""Amplificación""",different
+4793,IOP,name.pt,"""Increase""","""Amplificação""",different
+4794,IOP,name.es,"""Duel""","""Duelo""",different
+4794,IOP,name.pt,"""Duel""","""Duelo""",different
+4795,IOP,apCost,null,0,different
+4795,IOP,rangeMin,null,0,different
+4795,IOP,rangeMax,null,0,different
+4795,IOP,name.es,"""Virility""","""Virilidad""",different
+4795,IOP,name.pt,"""Virility""","""Virilidade""",different
+4796,IOP,apCost,null,0,different
+4796,IOP,rangeMin,null,0,different
+4796,IOP,rangeMax,null,0,different
+4796,IOP,name.es,"""Compulsion""","""Compulsión""",different
+4796,IOP,name.pt,"""Compulsion""","""Compulsão""",different
+4797,IOP,apCost,null,0,different
+4797,IOP,rangeMin,null,0,different
+4797,IOP,rangeMax,null,0,different
+4797,IOP,name.es,"""Authority""","""Autoridad""",different
+4797,IOP,name.pt,"""Authority""","""Autoridade""",different
+4798,IOP,apCost,null,0,different
+4798,IOP,rangeMin,null,0,different
+4798,IOP,rangeMax,null,0,different
+4798,IOP,name.es,"""Duelist""","""Duelista""",different
+4798,IOP,name.pt,"""Duelist""","""Duelista""",different
+4799,IOP,apCost,null,0,different
+4799,IOP,rangeMin,null,0,different
+4799,IOP,rangeMax,null,0,different
+4799,IOP,name.es,"""King of the Hill""","""Rey de la Colina""",different
+4799,IOP,name.pt,"""King of the Hill""","""Rei da Colina""",different
+5100,IOP,apCost,null,0,different
+5100,IOP,rangeMin,null,0,different
+5100,IOP,rangeMax,null,0,different
+5100,IOP,name.es,"""Bravery""","""Valentía""",different
+5100,IOP,name.pt,"""Bravery""","""Bravura""",different
+5101,IOP,apCost,null,0,different
+5101,IOP,rangeMin,null,0,different
+5101,IOP,rangeMax,null,0,different
+5101,IOP,name.es,"""Precipitation""","""Precipitación""",different
+5101,IOP,name.pt,"""Precipitation""","""Precipitação""",different
+5102,IOP,apCost,null,0,different
+5102,IOP,rangeMin,null,0,different
+5102,IOP,rangeMax,null,0,different
+5102,IOP,name.es,"""Rallying""","""Agrupación""",different
+5102,IOP,name.pt,"""Rallying""","""Aglomeração""",different
+5103,IOP,apCost,null,0,different
+5103,IOP,rangeMin,null,0,different
+5103,IOP,rangeMax,null,0,different
+5103,IOP,name.es,"""Mini-Jump""","""Minisalto""",different
+5103,IOP,name.pt,"""Mini-Jump""","""Minissalto""",different
+5104,IOP,apCost,null,0,different
+5104,IOP,rangeMin,null,0,different
+5104,IOP,rangeMax,null,0,different
+5104,IOP,name.es,"""Seismic Rift""","""Falla Sísmica""",different
+5104,IOP,name.pt,"""Seismic Rift""","""Falha Sísmica""",different
+5130,IOP,rangeMin,null,0,different
+5130,IOP,rangeMax,null,0,different
+5130,IOP,name.es,"""Hour of Glory""","""Hora de Gloria""",different
+5130,IOP,name.pt,"""Hour of Glory""","""Hora da Glória""",different
+8413,IOP,apCost,null,0,different
+8413,IOP,rangeMin,null,0,different
+8413,IOP,rangeMax,null,0,different
+8413,IOP,name.es,"""Destiny""","""Destino""",different
+8413,IOP,name.pt,"""Destiny""","""Destino""",different
+8414,IOP,apCost,null,0,different
+8414,IOP,rangeMin,null,0,different
+8414,IOP,rangeMax,null,0,different
+8414,IOP,name.es,"""Impetuous""","""Impetuoso""",different
+8414,IOP,name.pt,"""Impetuous""","""Impetuoso""",different
+8415,IOP,apCost,null,0,different
+8415,IOP,rangeMin,null,0,different
+8415,IOP,rangeMax,null,0,different
+8415,IOP,name.es,"""Show Off""","""Demostración""",different
+8415,IOP,name.pt,"""Show Off""","""Demonstração""",different
+8416,IOP,apCost,null,0,different
+8416,IOP,rangeMin,null,0,different
+8416,IOP,rangeMax,null,0,different
+8416,IOP,name.es,"""Hit and Run""","""Golpea y Corre""",different
+8416,IOP,name.pt,"""Hit and Run""","""Bate e Corre""",different
+8417,IOP,apCost,null,0,different
+8417,IOP,rangeMin,null,0,different
+8417,IOP,rangeMax,null,0,different
+8417,IOP,name.es,"""Dissipation""","""Disipación""",different
+8417,IOP,name.pt,"""Dissipation""","""Dissipação""",different
+8418,IOP,apCost,null,0,different
+8418,IOP,rangeMin,null,0,different
+8418,IOP,rangeMax,null,0,different
+8418,IOP,name.es,"""Outpost""","""Puesto Avanzado""",different
+8418,IOP,name.pt,"""Outpost""","""Posto Avançado""",different
+8419,IOP,apCost,null,0,different
+8419,IOP,rangeMin,null,0,different
+8419,IOP,rangeMax,null,0,different
+8419,IOP,name.es,"""Fortification""","""Fortificación""",different
+8419,IOP,name.pt,"""Fortification""","""Fortificação""",different
+8420,IOP,apCost,null,0,different
+8420,IOP,rangeMin,null,0,different
+8420,IOP,rangeMax,null,0,different
+8420,IOP,name.es,"""The Iop of Wazemmes""","""El Yopuka de Wazemmes""",different
+8420,IOP,name.pt,"""The Iop of Wazemmes""","""O Iop de Wazemmes""",different
+8421,IOP,apCost,null,0,different
+8421,IOP,rangeMin,null,0,different
+8421,IOP,rangeMax,null,0,different
+8421,IOP,name.es,"""Conquest""","""Conquista""",different
+8421,IOP,name.pt,"""Conquest""","""Conquista""",different
+8422,IOP,apCost,null,0,different
+8422,IOP,rangeMin,null,0,different
+8422,IOP,rangeMax,null,0,different
+8422,IOP,name.es,"""Standard Bearer""","""Portaestandarte""",different
+8422,IOP,name.pt,"""Standard Bearer""","""Porta-estandarte""",different
+7307,OSAMODAS,name.es,"""Incendiary Crow""","""Cuervo Incendiario""",different
+7307,OSAMODAS,name.pt,"""Incendiary Crow""","""Corvo Incendiário""",different
+7308,OSAMODAS,name.es,"""Flaming Whip""","""Látigo Flamígero""",different
+7308,OSAMODAS,name.pt,"""Flaming Whip""","""Chicote Flamejante""",different
+7309,OSAMODAS,rangeMin,1,2,different
+7309,OSAMODAS,rangeMax,1,4,different
+7309,OSAMODAS,name.es,"""Flame Tornado""","""Tornado de Llamas""",different
+7309,OSAMODAS,name.pt,"""Flame Tornado""","""Tornado de Chamas""",different
+7310,OSAMODAS,rangeMin,1,2,different
+7310,OSAMODAS,rangeMax,1,4,different
+7310,OSAMODAS,name.es,"""Fanning""","""Atizamiento""",different
+7310,OSAMODAS,name.pt,"""Fanning""","""Atiçamento""",different
+7311,OSAMODAS,name.es,"""Dragon's Breath""","""Soplido del Dragón""",different
+7311,OSAMODAS,name.pt,"""Dragon's Breath""","""Sopro do Dragão""",different
+7312,OSAMODAS,rangeMax,1,4,different
+7312,OSAMODAS,name.es,"""Sandstorm""","""Tormenta de Arena""",different
+7312,OSAMODAS,name.pt,"""Sandstorm""","""Tempestade de Areia""",different
+7313,OSAMODAS,name.es,"""Gravity""","""Pesante""",different
+7313,OSAMODAS,name.pt,"""Gravity""","""Gravidade""",different
+7314,OSAMODAS,name.es,"""Impalement""","""Empalamiento""",different
+7314,OSAMODAS,name.pt,"""Impalement""","""Empalamento""",different
+7315,OSAMODAS,name.es,"""Gambol""","""Brinco""",different
+7315,OSAMODAS,name.pt,"""Gambol""","""Rondada""",different
+7316,OSAMODAS,name.es,"""Crackler Punch""","""Golpe del Crujidor""",different
+7316,OSAMODAS,name.pt,"""Crackler Punch""","""Golpe do Smagador""",different
+7317,OSAMODAS,name.es,"""Whip""","""Látigo""",different
+7317,OSAMODAS,name.pt,"""Whip""","""Chicote""",different
+7318,OSAMODAS,name.es,"""Plucking""","""Desplume""",different
+7318,OSAMODAS,name.pt,"""Plucking""","""Depenagem""",different
+7319,OSAMODAS,rangeMax,1,3,different
+7319,OSAMODAS,name.es,"""Transfer""","""Transferencia""",different
+7319,OSAMODAS,name.pt,"""Transfer""","""Transferência""",different
+7320,OSAMODAS,name.es,"""Repulsive Breath""","""Soplido Repulsivo""",different
+7320,OSAMODAS,name.pt,"""Repulsive Breath""","""Sopro Repulsivo""",different
+7321,OSAMODAS,name.es,"""Feather Tornado""","""Tornado de Plumas""",different
+7321,OSAMODAS,name.pt,"""Feather Tornado""","""Tornado de Penas""",different
+7322,OSAMODAS,name.es,"""Last Breath""","""Último Aliento""",different
+7322,OSAMODAS,name.pt,"""Last Breath""","""Último Suspiro""",different
+7323,OSAMODAS,apCost,3,0,different
+7323,OSAMODAS,name.es,"""Motivating Shot""","""Chute Motivador""",different
+7323,OSAMODAS,name.pt,"""Motivating Shot""","""Picada Motivante""",different
+7324,OSAMODAS,name.es,"""Velocity""","""Celeridad""",different
+7324,OSAMODAS,name.pt,"""Velocity""","""Velocidade""",different
+7325,OSAMODAS,name.es,"""Weakening Cry""","""Grito Debilitador""",different
+7325,OSAMODAS,name.pt,"""Weakening Cry""","""Grito Enfraquecedor""",different
+7326,OSAMODAS,name.es,"""Relay""","""Relevo""",different
+7326,OSAMODAS,name.pt,"""Relay""","""Transmissor""",different
+7327,OSAMODAS,name.es,"""Animal Link""","""Vínculo Animal""",different
+7327,OSAMODAS,name.pt,"""Animal Link""","""Elo Animal""",different
+7328,OSAMODAS,apCost,null,0,different
+7328,OSAMODAS,rangeMin,null,0,different
+7328,OSAMODAS,rangeMax,null,0,different
+7328,OSAMODAS,name.es,"""Boowolf Fury""","""Rabia de Milubo""",different
+7328,OSAMODAS,name.pt,"""Boowolf Fury""","""Fúria do Milobo""",different
+7329,OSAMODAS,apCost,null,0,different
+7329,OSAMODAS,rangeMin,null,0,different
+7329,OSAMODAS,rangeMax,null,0,different
+7329,OSAMODAS,name.es,"""Animal Gift""","""Don Animal""",different
+7329,OSAMODAS,name.pt,"""Animal Gift""","""Dádiva Animal""",different
+7330,OSAMODAS,apCost,null,0,different
+7330,OSAMODAS,rangeMin,null,0,different
+7330,OSAMODAS,rangeMax,null,0,different
+7330,OSAMODAS,name.es,"""Crobak Vision""","""Vista de Cuerbok""",different
+7330,OSAMODAS,name.pt,"""Crobak Vision""","""Visão do Corvoc""",different
+7331,OSAMODAS,apCost,null,0,different
+7331,OSAMODAS,rangeMin,null,0,different
+7331,OSAMODAS,rangeMax,null,0,different
+7331,OSAMODAS,name.es,"""Summoning Warrior""","""Guerrero Invocador""",different
+7331,OSAMODAS,name.pt,"""Summoning Warrior""","""Guerreiro Invocador""",different
+7332,OSAMODAS,apCost,null,0,different
+7332,OSAMODAS,rangeMin,null,0,different
+7332,OSAMODAS,rangeMax,null,0,different
+7332,OSAMODAS,name.es,"""Solitary Summoner""","""Invocador Solitario""",different
+7332,OSAMODAS,name.pt,"""Solitary Summoner""","""Invocador Solitário""",different
+7333,OSAMODAS,apCost,null,0,different
+7333,OSAMODAS,rangeMin,null,0,different
+7333,OSAMODAS,rangeMax,null,0,different
+7333,OSAMODAS,name.es,"""Dragonic Transcendence""","""Trascendencia Dracónica""",different
+7333,OSAMODAS,name.pt,"""Dragonic Transcendence""","""Transcendência Dragontina""",different
+7334,OSAMODAS,apCost,null,0,different
+7334,OSAMODAS,rangeMin,null,0,different
+7334,OSAMODAS,rangeMax,null,0,different
+7334,OSAMODAS,name.es,"""Phoenix Spirit""","""Espíritu de Fénix""",different
+7334,OSAMODAS,name.pt,"""Phoenix Spirit""","""Espírito da Fênix""",different
+7335,OSAMODAS,apCost,null,0,different
+7335,OSAMODAS,rangeMin,null,0,different
+7335,OSAMODAS,rangeMax,null,0,different
+7335,OSAMODAS,name.es,"""Taur Strength""","""Fuerza de Toro""",different
+7335,OSAMODAS,name.pt,"""Taur Strength""","""Força de Tauro""",different
+7336,OSAMODAS,apCost,null,0,different
+7336,OSAMODAS,rangeMin,null,0,different
+7336,OSAMODAS,rangeMax,null,0,different
+7336,OSAMODAS,name.es,"""Animal Synergy""","""Sinergia Animal""",different
+7336,OSAMODAS,name.pt,"""Animal Synergy""","""Sinergia Animal""",different
+7337,OSAMODAS,apCost,null,0,different
+7337,OSAMODAS,rangeMin,null,0,different
+7337,OSAMODAS,rangeMax,null,0,different
+7337,OSAMODAS,name.es,"""Symbiosa""","""Simbiosis""",different
+7337,OSAMODAS,name.pt,"""Symbiosa""","""Simbiose""",different
+7338,OSAMODAS,apCost,null,0,different
+7338,OSAMODAS,rangeMin,null,0,different
+7338,OSAMODAS,rangeMax,null,0,different
+7338,OSAMODAS,name.es,"""Dragonic Power""","""Potencia Dracónica""",different
+7338,OSAMODAS,name.pt,"""Dragonic Power""","""Potência Dragontina""",different
+7339,OSAMODAS,apCost,null,0,different
+7339,OSAMODAS,rangeMin,null,0,different
+7339,OSAMODAS,rangeMax,null,0,different
+7339,OSAMODAS,name.es,"""South Star""","""Estrella de Sur""",different
+7339,OSAMODAS,name.pt,"""South Star""","""Estrela do Sul""",different
+7340,OSAMODAS,apCost,null,0,different
+7340,OSAMODAS,rangeMin,null,0,different
+7340,OSAMODAS,rangeMax,null,0,different
+7340,OSAMODAS,name.es,"""Animal Sacrifice""","""Sacrificio Animal""",different
+7340,OSAMODAS,name.pt,"""Animal Sacrifice""","""Sacrifício Animal""",different
+7341,OSAMODAS,apCost,null,0,different
+7341,OSAMODAS,rangeMin,null,0,different
+7341,OSAMODAS,rangeMax,null,0,different
+7341,OSAMODAS,name.es,"""Eastern Star""","""Estrella del Este""",different
+7341,OSAMODAS,name.pt,"""Eastern Star""","""Estrela do Leste""",different
+7342,OSAMODAS,apCost,null,0,different
+7342,OSAMODAS,rangeMin,null,0,different
+7342,OSAMODAS,rangeMax,null,0,different
+7342,OSAMODAS,element,"""FIRE""",null,different
+7342,OSAMODAS,name.es,"""Animal Devotion""","""Devoción Animal""",different
+7342,OSAMODAS,name.pt,"""Animal Devotion""","""Devoção Animal""",different
+7343,OSAMODAS,apCost,null,0,different
+7343,OSAMODAS,rangeMin,null,0,different
+7343,OSAMODAS,rangeMax,null,0,different
+7343,OSAMODAS,name.es,"""The Art of Taming""","""Arte del Adiestramiento""",different
+7343,OSAMODAS,name.pt,"""The Art of Taming""","""Arte do Adestramento""",different
+7344,OSAMODAS,apCost,null,0,different
+7344,OSAMODAS,rangeMin,null,0,different
+7344,OSAMODAS,rangeMax,null,0,different
+7344,OSAMODAS,name.es,"""Animal Sharing""","""Reparto Animal""",different
+7344,OSAMODAS,name.pt,"""Animal Sharing""","""Partilha Animal""",different
+6256,OUGINAK,name.es,"""Weigh Down""","""Emplomado""",different
+6256,OUGINAK,name.pt,"""Weigh Down""","""Rebaixamento""",different
+6257,OUGINAK,rangeMax,1,3,different
+6257,OUGINAK,name.es,"""Flail""","""Plaga""",different
+6257,OUGINAK,name.pt,"""Flail""","""Flagelo""",different
+6258,OUGINAK,name.es,"""Rupture""","""Ruptura""",different
+6258,OUGINAK,name.pt,"""Rupture""","""Ruptura""",different
+6259,OUGINAK,name.es,"""Gash""","""Cuchillada""",different
+6259,OUGINAK,name.pt,"""Gash""","""Cutilada""",different
+6260,OUGINAK,name.es,"""Ruckus""","""Disturbio""",different
+6260,OUGINAK,name.pt,"""Ruckus""","""Motim""",different
+6261,OUGINAK,name.es,"""Fang in the Works""","""Zascadilla""",different
+6261,OUGINAK,name.pt,"""Fang in the Works""","""Presa Rasteira""",different
+6262,OUGINAK,name.es,"""Crosshatch""","""Rayadura""",different
+6262,OUGINAK,name.pt,"""Crosshatch""","""Hachura""",different
+6263,OUGINAK,name.es,"""Brawl""","""Apaleamiento""",different
+6263,OUGINAK,name.pt,"""Brawl""","""Quebra-Quebra""",different
+6264,OUGINAK,name.es,"""Fits and Starts""","""Tirón""",different
+6264,OUGINAK,name.pt,"""Fits and Starts""","""Tranco""",different
+6265,OUGINAK,name.es,"""Watchdog""","""Moloso""",different
+6265,OUGINAK,name.pt,"""Watchdog""","""Molosso""",different
+6266,OUGINAK,name.es,"""Sweeping""","""Barrido""",different
+6266,OUGINAK,name.pt,"""Sweeping""","""Varredura""",different
+6267,OUGINAK,name.es,"""Contusion""","""Contusión""",different
+6267,OUGINAK,name.pt,"""Contusion""","""Contusão""",different
+6268,OUGINAK,rangeMin,1,3,different
+6268,OUGINAK,rangeMax,1,5,different
+6268,OUGINAK,name.es,"""Big Dog""","""Gran Can""",different
+6268,OUGINAK,name.pt,"""Big Dog""","""Maioral""",different
+6269,OUGINAK,name.es,"""Bone-Breaker""","""Fracturahuesos""",different
+6269,OUGINAK,name.pt,"""Bone-Breaker""","""Quebra-Osso""",different
+6270,OUGINAK,rangeMax,1,3,different
+6270,OUGINAK,name.es,"""Pugnacity""","""Bulla""",different
+6270,OUGINAK,name.pt,"""Pugnacity""","""Briga Feia""",different
+6271,OUGINAK,apCost,1,0,different
+6271,OUGINAK,rangeMin,null,1,different
+6271,OUGINAK,rangeMax,null,1,different
+6271,OUGINAK,name.es,"""Burrow""","""Cubil""",different
+6271,OUGINAK,name.pt,"""Burrow""","""Toca""",different
+6272,OUGINAK,apCost,1,0,different
+6272,OUGINAK,rangeMin,null,1,different
+6272,OUGINAK,rangeMax,null,1,different
+6272,OUGINAK,name.es,"""Canine Art""","""Arte Canino""",different
+6272,OUGINAK,name.pt,"""Canine Art""","""Arte Canina""",different
+6273,OUGINAK,apCost,1,0,different
+6273,OUGINAK,rangeMin,null,1,different
+6273,OUGINAK,rangeMax,null,1,different
+6273,OUGINAK,name.es,"""Dog Handler""","""Maestro Perrero""",different
+6273,OUGINAK,name.pt,"""Dog Handler""","""Mestre Cão""",different
+6274,OUGINAK,apCost,1,0,different
+6274,OUGINAK,rangeMin,null,1,different
+6274,OUGINAK,rangeMax,null,1,different
+6274,OUGINAK,name.es,"""Sidekick""","""Compañero""",different
+6274,OUGINAK,name.pt,"""Sidekick""","""Companheiro""",different
+6275,OUGINAK,apCost,1,0,different
+6275,OUGINAK,rangeMin,null,1,different
+6275,OUGINAK,rangeMax,null,1,different
+6275,OUGINAK,name.pt,"""Ardor""","""Ímpeto""",different
+6276,OUGINAK,apCost,1,0,different
+6276,OUGINAK,rangeMin,null,1,different
+6276,OUGINAK,rangeMax,null,1,different
+6276,OUGINAK,name.es,"""Exhaustion""","""Agotamiento""",different
+6276,OUGINAK,name.pt,"""Exhaustion""","""Exaustão""",different
+6277,OUGINAK,apCost,1,0,different
+6277,OUGINAK,rangeMin,null,1,different
+6277,OUGINAK,rangeMax,null,1,different
+6277,OUGINAK,name.es,"""Raiding""","""Pillaje""",different
+6277,OUGINAK,name.pt,"""Raiding""","""Saque""",different
+6278,OUGINAK,apCost,1,0,different
+6278,OUGINAK,rangeMin,null,1,different
+6278,OUGINAK,rangeMax,null,1,different
+6278,OUGINAK,name.es,"""Cunning Fang""","""Colmillos Agudos""",different
+6278,OUGINAK,name.pt,"""Cunning Fang""","""Presa Esperta""",different
+6279,OUGINAK,apCost,1,0,different
+6279,OUGINAK,rangeMin,null,1,different
+6279,OUGINAK,rangeMax,null,1,different
+6279,OUGINAK,name.es,"""Sniff""","""Olfacción""",different
+6279,OUGINAK,name.pt,"""Sniff""","""Faro""",different
+6280,OUGINAK,apCost,1,0,different
+6280,OUGINAK,rangeMin,null,1,different
+6280,OUGINAK,rangeMax,null,1,different
+6280,OUGINAK,name.es,"""Haggling""","""Regateo""",different
+6280,OUGINAK,name.pt,"""Haggling""","""Negociação""",different
+6281,OUGINAK,apCost,1,0,different
+6281,OUGINAK,rangeMin,null,1,different
+6281,OUGINAK,rangeMax,null,1,different
+6281,OUGINAK,name.es,"""Tailing""","""Busca""",different
+6281,OUGINAK,name.pt,"""Tailing""","""Busca""",different
+6282,OUGINAK,apCost,1,0,different
+6282,OUGINAK,rangeMin,null,1,different
+6282,OUGINAK,rangeMax,null,1,different
+6282,OUGINAK,name.es,"""Wise Strength""","""Fuerza Sabia""",different
+6282,OUGINAK,name.pt,"""Wise Strength""","""Força Sábia""",different
+6284,OUGINAK,name.es,"""Hunter""","""Cazador""",different
+6284,OUGINAK,name.pt,"""Hunter""","""Caçador""",different
+6285,OUGINAK,rangeMin,1,0,different
+6285,OUGINAK,rangeMax,1,6,different
+6285,OUGINAK,name.es,"""Pursuit""","""Persecución""",different
+6285,OUGINAK,name.pt,"""Pursuit""","""Perseguição""",different
+6287,OUGINAK,name.es,"""Canine""","""Colmillo""",different
+6287,OUGINAK,name.pt,"""Canine""","""Canino""",different
+6288,OUGINAK,rangeMax,1,3,different
+6288,OUGINAK,name.es,"""Appeasement""","""Amaine""",different
+6288,OUGINAK,name.pt,"""Appeasement""","""Apaziguamento""",different
+7551,OUGINAK,apCost,1,0,different
+7551,OUGINAK,name.es,"""Pack""","""Manada""",different
+7551,OUGINAK,name.pt,"""Pack""","""Matilha""",different
+7552,OUGINAK,name.es,"""Surge""","""Bote""",different
+7552,OUGINAK,name.pt,"""Surge""","""Impulsão""",different
+7553,OUGINAK,apCost,1,0,different
+7553,OUGINAK,rangeMin,null,1,different
+7553,OUGINAK,rangeMax,null,1,different
+7553,OUGINAK,name.es,"""Relentless""","""Acérrimo""",different
+7553,OUGINAK,name.pt,"""Relentless""","""Obstinado""",different
+7554,OUGINAK,apCost,1,0,different
+7554,OUGINAK,rangeMin,null,1,different
+7554,OUGINAK,rangeMax,null,1,different
+7554,OUGINAK,name.es,"""Open Season""","""Veda Abierta""",different
+7554,OUGINAK,name.pt,"""Open Season""","""Caçada Aberta""",different
+7555,OUGINAK,apCost,1,0,different
+7555,OUGINAK,rangeMin,null,1,different
+7555,OUGINAK,rangeMax,null,1,different
+7555,OUGINAK,name.es,"""Digestion""","""Digestión""",different
+7555,OUGINAK,name.pt,"""Digestion""","""Digestão""",different
+7556,OUGINAK,apCost,1,0,different
+7556,OUGINAK,rangeMin,null,1,different
+7556,OUGINAK,rangeMax,null,1,different
+7556,OUGINAK,name.es,"""Canine Energy""","""Energía Canina""",different
+7556,OUGINAK,name.pt,"""Canine Energy""","""Energia Canina""",different
+7557,OUGINAK,apCost,1,0,different
+7557,OUGINAK,rangeMin,null,1,different
+7557,OUGINAK,rangeMax,null,1,different
+7557,OUGINAK,name.es,"""Fury""","""Furor""",different
+7557,OUGINAK,name.pt,"""Fury""","""Furor""",different
+7558,OUGINAK,apCost,1,0,different
+7558,OUGINAK,rangeMin,null,1,different
+7558,OUGINAK,rangeMax,null,1,different
+7558,OUGINAK,name.es,"""Canine Tracker""","""Rastreador Canino""",different
+7558,OUGINAK,name.pt,"""Canine Tracker""","""Rastreador Canino""",different
+7596,OUGINAK,apCost,1,0,different
+7596,OUGINAK,rangeMin,null,1,different
+7596,OUGINAK,rangeMax,null,1,different
+7596,OUGINAK,name.es,"""Growlight""","""Sa Hueso""",different
+7596,OUGINAK,name.pt,"""Growlight""","""Caninosso""",different
+4702,PANDAWA,name.es,"""Flaming Burp""","""Escupe Fuegos""",different
+4702,PANDAWA,name.pt,"""Flaming Burp""","""Sopro Flamejante""",different
+4703,PANDAWA,rangeMax,1,4,different
+4703,PANDAWA,name.es,"""Light My Fire""","""Ronda General""",different
+4703,PANDAWA,name.pt,"""Light My Fire""","""Rodada Geral""",different
+4704,PANDAWA,name.es,"""Dairy Springer""","""Golpe Lechoso""",different
+4704,PANDAWA,name.pt,"""Dairy Springer""","""Golpe Leitoso""",different
+4705,PANDAWA,name.es,"""Explosive Flask""","""Frasco Explosivo""",different
+4705,PANDAWA,name.pt,"""Explosive Flask""","""Frasco Explosivo""",different
+4706,PANDAWA,name.es,"""Milking It""","""Lactortazos""",different
+4706,PANDAWA,name.pt,"""Milking It""","""Puro Deleite""",different
+4707,PANDAWA,name.es,"""Milky Breath""","""Escupe Leches""",different
+4707,PANDAWA,name.pt,"""Milky Breath""","""Sopro Leitoso""",different
+4708,PANDAWA,name.es,"""Splash of Milk""","""Nube de Leche""",different
+4708,PANDAWA,name.pt,"""Splash of Milk""","""Nuvem Leitosa""",different
+4709,PANDAWA,name.es,"""Bubble Trouble""","""Tequileche""",different
+4709,PANDAWA,name.pt,"""Bubble Trouble""","""Tekileite""",different
+4710,PANDAWA,rangeMin,1,2,different
+4710,PANDAWA,rangeMax,1,6,different
+4710,PANDAWA,name.es,"""Milk Wave""","""Tsunami""",different
+4710,PANDAWA,name.pt,"""Milk Wave""","""Onda de Leite""",different
+4711,PANDAWA,rangeMax,1,5,different
+4711,PANDAWA,name.es,"""Milk Fountain""","""Fuente de Leches""",different
+4711,PANDAWA,name.pt,"""Milk Fountain""","""Fonte de Leite""",different
+4712,PANDAWA,name.es,"""Triple Whammy""","""Triple Karma Gnosborne""",different
+4712,PANDAWA,name.pt,"""Triple Whammy""","""Triplo Karmalte""",different
+4713,PANDAWA,name.pt,"""Six Roses""","""Bêbambu""",different
+4714,PANDAWA,name.es,"""Barrel Blow""","""Golpe de Tonel""",different
+4714,PANDAWA,name.pt,"""Barrel Blow""","""Golpe de Barril""",different
+4715,PANDAWA,name.es,"""Lactic Acid""","""Lucha Cubalibre""",different
+4715,PANDAWA,name.pt,"""Lactic Acid""","""Ácido Lático""",different
+4716,PANDAWA,rangeMax,1,4,different
+4716,PANDAWA,name.es,"""Blisskrieg""","""Barriltzkrieg""",different
+4716,PANDAWA,name.pt,"""Blisskrieg""","""Barriltzkrieg""",different
+4717,PANDAWA,rangeMax,1,5,different
+4717,PANDAWA,name.es,"""Bamboo Blow""","""Golpe de Bambú""",different
+4717,PANDAWA,name.pt,"""Bamboo Blow""","""Golpe de Bambu""",different
+4719,PANDAWA,rangeMax,1,4,different
+4719,PANDAWA,name.es,"""Ether""","""Éter""",different
+4719,PANDAWA,name.pt,"""Ether""","""Éter""",different
+4720,PANDAWA,iconId,2209,4720,different
+4720,PANDAWA,rangeMax,1,3,different
+4720,PANDAWA,name.fr,"""Téléportono""","""Gueule de bois""",different
+4720,PANDAWA,name.es,"""Worn-Out""","""Resaca""",different
+4720,PANDAWA,name.pt,"""Worn-Out""","""Ressaca""",different
+4721,PANDAWA,rangeMax,1,4,different
+4721,PANDAWA,name.es,"""Bamboozle""","""Happy Hour""",different
+4721,PANDAWA,name.pt,"""Bamboozle""","""Happy Hour""",different
+4722,PANDAWA,apCost,null,0,different
+4722,PANDAWA,rangeMin,null,0,different
+4722,PANDAWA,rangeMax,null,0,different
+4722,PANDAWA,name.es,"""Cocktail""","""Cóctel""",different
+4722,PANDAWA,name.pt,"""Cocktail""","""Coquetel""",different
+4723,PANDAWA,apCost,null,0,different
+4723,PANDAWA,rangeMin,null,0,different
+4723,PANDAWA,rangeMax,null,0,different
+4723,PANDAWA,name.es,"""Master of Merriment""","""Maestro de la Embriaguez""",different
+4723,PANDAWA,name.pt,"""Master of Merriment""","""Mestre da Embriaguez""",different
+4724,PANDAWA,apCost,null,0,different
+4724,PANDAWA,rangeMin,null,0,different
+4724,PANDAWA,rangeMax,null,0,different
+4724,PANDAWA,name.es,"""Bottomless Barrel""","""Tonel sin Fondo""",different
+4724,PANDAWA,name.pt,"""Bottomless Barrel""","""Barril sem Fundo""",different
+4725,PANDAWA,apCost,null,0,different
+4725,PANDAWA,rangeMin,null,0,different
+4725,PANDAWA,rangeMax,null,0,different
+4725,PANDAWA,name.es,"""Aggressive Barrel""","""Tonel Agresivo""",different
+4725,PANDAWA,name.pt,"""Aggressive Barrel""","""Barril Agressivo""",different
+4726,PANDAWA,apCost,null,0,different
+4726,PANDAWA,rangeMin,null,0,different
+4726,PANDAWA,rangeMax,null,0,different
+4726,PANDAWA,name.es,"""Milky Instinct""","""Instinto Lechoso""",different
+4726,PANDAWA,name.pt,"""Milky Instinct""","""Instinto Leitoso""",different
+5148,PANDAWA,apCost,null,0,different
+5148,PANDAWA,rangeMin,null,0,different
+5148,PANDAWA,rangeMax,null,0,different
+5148,PANDAWA,name.es,"""Bambottle""","""Bambutella""",different
+5148,PANDAWA,name.pt,"""Bambottle""","""Bamburrafa""",different
+5149,PANDAWA,apCost,null,0,different
+5149,PANDAWA,rangeMin,null,0,different
+5149,PANDAWA,rangeMax,null,0,different
+5149,PANDAWA,name.es,"""Poisoned Chalice""","""Cianosis""",different
+5149,PANDAWA,name.pt,"""Poisoned Chalice""","""Cianose""",different
+5150,PANDAWA,record,"""Refreshment""",null,absent-client-record
+5151,PANDAWA,apCost,null,0,different
+5151,PANDAWA,rangeMin,null,0,different
+5151,PANDAWA,rangeMax,null,0,different
+5151,PANDAWA,name.es,"""Pandemic""","""Pandemia""",different
+5151,PANDAWA,name.pt,"""Pandemic""","""Pandemia""",different
+6844,PANDAWA,name.es,"""Thirst""","""Sed""",different
+6844,PANDAWA,name.pt,"""Thirst""","""Sede""",different
+6845,PANDAWA,iconId,949,840,different
+6845,PANDAWA,name.fr,"""Ebriété""","""Pandanlku""",different
+6845,PANDAWA,name.es,"""Pandiniuras""","""Pandenkulo""",different
+6845,PANDAWA,name.pt,"""Pandiniuras""","""Pandanku""",different
+6846,PANDAWA,apCost,null,0,different
+6846,PANDAWA,rangeMin,null,0,different
+6846,PANDAWA,rangeMax,null,0,different
+6846,PANDAWA,name.es,"""Buzzed""","""Piripi""",different
+6846,PANDAWA,name.pt,"""Buzzed""","""Ébrio""",different
+6463,ROUBLARD,name.es,"""Barbed Fire""","""Llamambrada""",different
+6463,ROUBLARD,name.pt,"""Barbed Fire""","""Fogo Farpado""",different
+6464,ROUBLARD,rangeMax,1,4,different
+6464,ROUBLARD,name.es,"""Sticky Bomb""","""Bomba Pegajosa""",different
+6464,ROUBLARD,name.pt,"""Sticky Bomb""","""Bomba Ofuscante""",different
+6465,ROUBLARD,name.es,"""Execution""","""Ejecución""",different
+6465,ROUBLARD,name.pt,"""Execution""","""Execução""",different
+6466,ROUBLARD,name.es,"""Crosswise""","""Cruce""",different
+6466,ROUBLARD,name.pt,"""Crosswise""","""Tiro Cruzado""",different
+6467,ROUBLARD,rangeMax,1,5,different
+6467,ROUBLARD,name.es,"""Perforation""","""Perforación""",different
+6467,ROUBLARD,name.pt,"""Perforation""","""Tiro Penetrante""",different
+6468,ROUBLARD,name.es,"""Machine Gun""","""Metralla""",different
+6468,ROUBLARD,name.pt,"""Machine Gun""","""Metralha""",different
+6469,ROUBLARD,name.es,"""Blunderbuss""","""Tromba""",different
+6469,ROUBLARD,name.pt,"""Blunderbuss""","""Mosquete""",different
+6470,ROUBLARD,name.es,"""Encumbering Shot""","""Bala Emplomada""",different
+6470,ROUBLARD,name.pt,"""Encumbering Shot""","""Bomba Paralisante""",different
+6471,ROUBLARD,name.es,"""Boomerang Dagger""","""Daga Bumerán""",different
+6471,ROUBLARD,name.pt,"""Boomerang Dagger""","""Adaga Bumerangue""",different
+6472,ROUBLARD,rangeMax,1,4,different
+6472,ROUBLARD,name.es,"""Pulsar""","""Púlsar""",different
+6473,ROUBLARD,name.es,"""Slap Shot""","""Golpe Rápido""",different
+6473,ROUBLARD,name.pt,"""Slap Shot""","""Golpe Rápido""",different
+6474,ROUBLARD,name.es,"""Cheating""","""Trampa""",different
+6474,ROUBLARD,name.pt,"""Cheating""","""Costelas Grelhadas""",different
+6475,ROUBLARD,name.es,"""Carbine""","""Arcabuz""",different
+6475,ROUBLARD,name.pt,"""Carbine""","""Gancho""",different
+6476,ROUBLARD,rangeMax,1,3,different
+6476,ROUBLARD,name.es,"""Obliteration""","""Obliteración""",different
+6476,ROUBLARD,name.pt,"""Obliteration""","""Bomba Asfixiante""",different
+6478,ROUBLARD,name.es,"""Longsword""","""Larga Hoja""",different
+6478,ROUBLARD,name.pt,"""Longsword""","""Lâmina Longa""",different
+6479,ROUBLARD,apCost,null,0,different
+6479,ROUBLARD,rangeMin,null,0,different
+6479,ROUBLARD,rangeMax,null,0,different
+6479,ROUBLARD,name.es,"""Boomarogue""","""Tymobum""",different
+6479,ROUBLARD,name.pt,"""Boomarogue""","""Ladinoboom""",different
+6480,ROUBLARD,apCost,null,0,different
+6480,ROUBLARD,rangeMin,null,0,different
+6480,ROUBLARD,rangeMax,null,0,different
+6480,ROUBLARD,name.es,"""Great Escape""","""Gran Evasión""",different
+6480,ROUBLARD,name.pt,"""Great Escape""","""Bugigangas Evoluídas""",different
+6481,ROUBLARD,apCost,null,0,different
+6481,ROUBLARD,rangeMin,null,0,different
+6481,ROUBLARD,rangeMax,null,0,different
+6482,ROUBLARD,apCost,null,0,different
+6482,ROUBLARD,rangeMin,null,0,different
+6482,ROUBLARD,rangeMax,null,0,different
+6482,ROUBLARD,name.es,"""Pyrotechnist""","""Artificiero""",different
+6482,ROUBLARD,name.pt,"""Pyrotechnist""","""Especialista em Explosivos""",different
+6483,ROUBLARD,apCost,null,0,different
+6483,ROUBLARD,rangeMin,null,0,different
+6483,ROUBLARD,rangeMax,null,0,different
+6483,ROUBLARD,name.es,"""Reinforced Tunic""","""Túnica Reforzada""",different
+6483,ROUBLARD,name.pt,"""Reinforced Tunic""","""Túnica Reforçada""",different
+6484,ROUBLARD,apCost,null,0,different
+6484,ROUBLARD,rangeMin,null,0,different
+6484,ROUBLARD,rangeMax,null,0,different
+6484,ROUBLARD,name.es,"""Minesweeper""","""Desminador""",different
+6484,ROUBLARD,name.pt,"""Minesweeper""","""Caça-minas""",different
+6485,ROUBLARD,apCost,null,0,different
+6485,ROUBLARD,rangeMin,null,0,different
+6485,ROUBLARD,rangeMax,null,0,different
+6485,ROUBLARD,name.es,"""Rusty Blade""","""Hoja Oxidada""",different
+6485,ROUBLARD,name.pt,"""Rusty Blade""","""Mira Telescópica""",different
+6486,ROUBLARD,apCost,null,0,different
+6486,ROUBLARD,rangeMin,null,0,different
+6486,ROUBLARD,rangeMax,null,0,different
+6486,ROUBLARD,name.es,"""Blade Master""","""Maestro de las Hojas""",different
+6486,ROUBLARD,name.pt,"""Blade Master""","""Mestre Ladino""",different
+6487,ROUBLARD,apCost,null,0,different
+6487,ROUBLARD,rangeMin,null,0,different
+6487,ROUBLARD,rangeMax,null,0,different
+6487,ROUBLARD,name.es,"""Powder Wall""","""Pared de Pólvora""",different
+6487,ROUBLARD,name.pt,"""Powder Wall""","""K-Boom""",different
+6488,ROUBLARD,apCost,null,0,different
+6488,ROUBLARD,rangeMin,null,0,different
+6488,ROUBLARD,rangeMax,null,0,different
+6488,ROUBLARD,name.es,"""Fugitive""","""Fugitivo""",different
+6488,ROUBLARD,name.pt,"""Fugitive""","""Fugitivo""",different
+6489,ROUBLARD,rangeMin,null,0,different
+6489,ROUBLARD,rangeMax,null,0,different
+6489,ROUBLARD,name.es,"""Fusillade""","""Descargador""",different
+6489,ROUBLARD,name.pt,"""Fusillade""","""Fuzilaria""",different
+6490,ROUBLARD,rangeMax,1,6,different
+6490,ROUBLARD,name.es,"""Boot""","""Patada""",different
+6490,ROUBLARD,name.pt,"""Boot""","""Repelente""",different
+6491,ROUBLARD,rangeMax,1,4,different
+6491,ROUBLARD,name.es,"""Evanescence""","""Evanescencia""",different
+6491,ROUBLARD,name.pt,"""Evanescence""","""Muro de Pólvora""",different
+6492,ROUBLARD,apCost,1,0,different
+6492,ROUBLARD,rangeMin,1,2,different
+6492,ROUBLARD,rangeMax,1,5,different
+6492,ROUBLARD,name.es,"""Claw""","""Gancho""",different
+6492,ROUBLARD,name.pt,"""Claw""","""Ladinobot""",different
+6493,ROUBLARD,apCost,2,0,different
+6493,ROUBLARD,name.es,"""Magnet""","""Imán""",different
+6493,ROUBLARD,name.pt,"""Magnet""","""Dinamite""",different
+6494,ROUBLARD,apCost,1,0,different
+6494,ROUBLARD,name.es,"""Smoke Bombs""","""Fumígenos""",different
+6494,ROUBLARD,name.pt,"""Smoke Bombs""","""Enfumaçado""",different
+7062,ROUBLARD,apCost,null,0,different
+7062,ROUBLARD,rangeMin,null,0,different
+7062,ROUBLARD,rangeMax,null,0,different
+7062,ROUBLARD,name.es,"""Surprise Shot""","""Tiro Sorpresa""",different
+7062,ROUBLARD,name.pt,"""Surprise Shot""","""Tiro Surpresa""",different
+7063,ROUBLARD,apCost,null,0,different
+7063,ROUBLARD,rangeMin,null,0,different
+7063,ROUBLARD,rangeMax,null,0,different
+7063,ROUBLARD,name.es,"""Powder Keg""","""Barril""",different
+7063,ROUBLARD,name.pt,"""Powder Keg""","""Barril""",different
+7064,ROUBLARD,apCost,null,0,different
+7064,ROUBLARD,rangeMin,null,0,different
+7064,ROUBLARD,rangeMax,null,0,different
+7064,ROUBLARD,name.fr,"""Dynamite""","""Kaboom""",different
+7064,ROUBLARD,name.es,"""Kaboom""","""Kabúm""",different
+7065,ROUBLARD,apCost,null,0,different
+7065,ROUBLARD,rangeMin,null,0,different
+7065,ROUBLARD,rangeMax,null,0,different
+7065,ROUBLARD,name.es,"""Explobomb""","""Explobomba""",different
+7065,ROUBLARD,name.pt,"""Explobomb""","""Explobomba""",different
+7090,ROUBLARD,apCost,null,0,different
+7090,ROUBLARD,rangeMin,null,0,different
+7090,ROUBLARD,rangeMax,null,0,different
+7090,ROUBLARD,element,"""FIRE""",null,different
+7090,ROUBLARD,name.es,"""Elemental Bombs""","""Bombas Elementales""",different
+7090,ROUBLARD,name.pt,"""Elemental Bombs""","""Bombas Elementares""",different
+7091,ROUBLARD,apCost,null,0,different
+7091,ROUBLARD,rangeMin,null,0,different
+7091,ROUBLARD,rangeMax,null,0,different
+7091,ROUBLARD,name.es,"""Rogue Master""","""Maestro Tymador""",different
+7091,ROUBLARD,name.pt,"""Rogue Master""","""Mestre Ladino""",different
+7092,ROUBLARD,apCost,null,0,different
+7092,ROUBLARD,rangeMin,null,0,different
+7092,ROUBLARD,rangeMax,null,0,different
+7092,ROUBLARD,name.pt,"""Jackpot""","""Sorte Grande""",different
+7982,ROUBLARD,apCost,null,0,different
+7982,ROUBLARD,rangeMin,null,0,different
+7982,ROUBLARD,rangeMax,null,0,different
+7982,ROUBLARD,name.es,"""Tactician""","""Táctico""",different
+7982,ROUBLARD,name.pt,"""Tactician""","""Tático""",different
+7983,ROUBLARD,apCost,null,0,different
+7983,ROUBLARD,rangeMin,null,0,different
+7983,ROUBLARD,rangeMax,null,0,different
+7983,ROUBLARD,name.es,"""Powder Trail""","""Rastro de Pólvora""",different
+7983,ROUBLARD,name.pt,"""Powder Trail""","""Rastilho de Pólvora""",different
+7984,ROUBLARD,apCost,null,0,different
+7984,ROUBLARD,rangeMin,null,0,different
+7984,ROUBLARD,rangeMax,null,0,different
+7984,ROUBLARD,name.es,"""Time Bombs""","""Bombas de Efecto Retardado""",different
+7984,ROUBLARD,name.pt,"""Time Bombs""","""Bombas-Relógio""",different
+5028,SACRIEUR,name.es,"""Blood Rush""","""Sangre a Sangre""",different
+5028,SACRIEUR,name.pt,"""Blood Rush""","""Sangue por Sangue""",different
+5029,SACRIEUR,name.es,"""Cage of Blood""","""Jaula de Sangre""",different
+5029,SACRIEUR,name.pt,"""Cage of Blood""","""Gaiola de Sangue""",different
+5030,SACRIEUR,rangeMin,1,2,different
+5030,SACRIEUR,rangeMax,1,7,different
+5030,SACRIEUR,name.fr,"""Furie sanguinaire""","""Attirance""",different
+5030,SACRIEUR,name.es,"""Attraction""","""Atracción""",different
+5030,SACRIEUR,name.pt,"""Attraction""","""Atração""",different
+5031,SACRIEUR,rangeMin,null,0,different
+5031,SACRIEUR,rangeMax,null,0,different
+5031,SACRIEUR,name.es,"""Burning Blood""","""Sangre Ardiente""",different
+5031,SACRIEUR,name.pt,"""Burning Blood""","""Sangue Fervente""",different
+5032,SACRIEUR,name.es,"""Punition""","""Punición""",different
+5032,SACRIEUR,name.pt,"""Punition""","""Punição""",different
+5033,SACRIEUR,name.es,"""Rocky Foot""","""Pie de Roca""",different
+5033,SACRIEUR,name.pt,"""Rocky Foot""","""Pé Rochoso""",different
+5034,SACRIEUR,name.es,"""Spiritual Tempest""","""Tormenta Espiritual""",different
+5034,SACRIEUR,name.pt,"""Spiritual Tempest""","""Tempestade Espiritual""",different
+5035,SACRIEUR,rangeMax,1,4,different
+5035,SACRIEUR,name.es,"""Insanity""","""Demencia""",different
+5035,SACRIEUR,name.pt,"""Insanity""","""Demência""",different
+5036,SACRIEUR,name.es,"""Smashes""","""Fatal Furiarga""",different
+5036,SACRIEUR,name.pt,"""Smashes""","""Estilhaçar""",different
+5037,SACRIEUR,name.es,"""Colonnades""","""Columnata""",different
+5037,SACRIEUR,name.pt,"""Colonnades""","""Colunatas""",different
+5038,SACRIEUR,name.es,"""Aversion""","""Aversión""",different
+5038,SACRIEUR,name.pt,"""Aversion""","""Aversão""",different
+5039,SACRIEUR,name.es,"""Sacrier's Fist""","""Puño Tatuabalanzante""",different
+5039,SACRIEUR,name.pt,"""Sacrier's Fist""","""Punho Tatuado""",different
+5040,SACRIEUR,name.es,"""Assault""","""Asalto""",different
+5040,SACRIEUR,name.pt,"""Assault""","""Agressão""",different
+5041,SACRIEUR,iconId,883,2100,different
+5041,SACRIEUR,name.fr,"""Projection""","""Cinétose""",different
+5041,SACRIEUR,name.es,"""Motion Sickness""","""Cinetosis""",different
+5041,SACRIEUR,name.pt,"""Motion Sickness""","""Cinetose""",different
+5042,SACRIEUR,name.es,"""Light Speed""","""Fulgor""",different
+5042,SACRIEUR,name.pt,"""Light Speed""","""Fulgurância""",different
+5043,SACRIEUR,iconId,844,888,different
+5043,SACRIEUR,rangeMin,1,2,different
+5043,SACRIEUR,rangeMax,1,6,different
+5043,SACRIEUR,name.fr,"""Attirance""","""Transposition""",different
+5043,SACRIEUR,name.es,"""Transposition""","""Transposición""",different
+5043,SACRIEUR,name.pt,"""Transposition""","""Transposição""",different
+5044,SACRIEUR,iconId,888,878,different
+5044,SACRIEUR,name.fr,"""Transposition""","""Sacrifice""",different
+5044,SACRIEUR,name.es,"""Sacrifice""","""Sacrificio""",different
+5044,SACRIEUR,name.pt,"""Sacrifice""","""Sacrifício""",different
+5045,SACRIEUR,iconId,878,2117,different
+5045,SACRIEUR,name.fr,"""Sacrifice""","""Armure sanguine""",different
+5045,SACRIEUR,name.es,"""Sanguine Armor""","""Armadura Sanguínea""",different
+5045,SACRIEUR,name.pt,"""Sanguine Armor""","""Armadura Sanguínea""",different
+5047,SACRIEUR,iconId,2117,5047,different
+5047,SACRIEUR,name.fr,"""Armure sanguine""","""Bain de sang""",different
+5047,SACRIEUR,name.es,"""Blood Bath""","""Baño de Sangre""",different
+5047,SACRIEUR,name.pt,"""Blood Bath""","""Banho de Sangue""",different
+5049,SACRIEUR,apCost,null,0,different
+5049,SACRIEUR,rangeMin,null,0,different
+5049,SACRIEUR,rangeMax,null,0,different
+5049,SACRIEUR,name.es,"""Blood Trail""","""Rastro de Sangre""",different
+5049,SACRIEUR,name.pt,"""Blood Trail""","""Trono de Sangue""",different
+5050,SACRIEUR,apCost,null,0,different
+5050,SACRIEUR,rangeMin,null,0,different
+5050,SACRIEUR,rangeMax,null,0,different
+5050,SACRIEUR,name.es,"""Placidity""","""Placidez""",different
+5050,SACRIEUR,name.pt,"""Placidity""","""Placidez""",different
+5051,SACRIEUR,apCost,null,0,different
+5051,SACRIEUR,rangeMin,null,0,different
+5051,SACRIEUR,rangeMax,null,0,different
+5051,SACRIEUR,name.es,"""Tattooed Blood""","""Sangre Tatuada""",different
+5051,SACRIEUR,name.pt,"""Tattooed Blood""","""Sangue Tatuado""",different
+5052,SACRIEUR,apCost,null,0,different
+5052,SACRIEUR,rangeMin,null,0,different
+5052,SACRIEUR,rangeMax,null,0,different
+5052,SACRIEUR,name.es,"""Clinging to Life""","""Rechazo a la Muerte""",different
+5052,SACRIEUR,name.pt,"""Clinging to Life""","""Agarrado à Vida""",different
+5053,SACRIEUR,apCost,null,0,different
+5053,SACRIEUR,rangeMin,null,0,different
+5053,SACRIEUR,rangeMax,null,0,different
+5053,SACRIEUR,name.es,"""Blood Pact""","""Pacto de Sangre""",different
+5053,SACRIEUR,name.pt,"""Blood Pact""","""Pacto de Sangue""",different
+5054,SACRIEUR,apCost,null,0,different
+5054,SACRIEUR,rangeMin,null,0,different
+5054,SACRIEUR,rangeMax,null,0,different
+5054,SACRIEUR,name.es,"""Transcendence""","""Trascendencia""",different
+5054,SACRIEUR,name.pt,"""Transcendence""","""Transcendência""",different
+5192,SACRIEUR,apCost,null,0,different
+5192,SACRIEUR,rangeMin,null,0,different
+5192,SACRIEUR,rangeMax,null,0,different
+5192,SACRIEUR,name.es,"""Mobility""","""Movilidad""",different
+5192,SACRIEUR,name.pt,"""Mobility""","""Mobilidade""",different
+5193,SACRIEUR,apCost,null,0,different
+5193,SACRIEUR,rangeMin,null,0,different
+5193,SACRIEUR,rangeMax,null,0,different
+5193,SACRIEUR,name.es,"""Libation""","""Libación""",different
+5193,SACRIEUR,name.pt,"""Libation""","""Libação""",different
+5194,SACRIEUR,apCost,null,0,different
+5194,SACRIEUR,rangeMin,null,0,different
+5194,SACRIEUR,rangeMax,null,0,different
+5194,SACRIEUR,name.es,"""Wakfu Veins""","""Venas de Wakfu""",different
+5194,SACRIEUR,name.pt,"""Wakfu Veins""","""Venturas de Wakfu""",different
+5195,SACRIEUR,apCost,null,0,different
+5195,SACRIEUR,rangeMin,null,0,different
+5195,SACRIEUR,rangeMax,null,0,different
+5195,SACRIEUR,name.es,"""Smasher""","""Quebrantador""",different
+5195,SACRIEUR,name.pt,"""Smasher""","""Estilhaçador""",different
+7211,SACRIEUR,iconId,7211,846,different
+7211,SACRIEUR,rangeMin,null,0,different
+7211,SACRIEUR,rangeMax,null,0,different
+7211,SACRIEUR,name.fr,"""Entaille""","""Coagulation""",different
+7211,SACRIEUR,name.es,"""Coagulation""","""Coagulación""",different
+7211,SACRIEUR,name.pt,"""Coagulation""","""Coagulação""",different
+7212,SACRIEUR,apCost,2,0,different
+7212,SACRIEUR,name.es,"""Blood Transfer""","""Transferencia Sanguínea""",different
+7212,SACRIEUR,name.pt,"""Blood Transfer""","""Transfusão Sanguínea""",different
+7213,SACRIEUR,apCost,null,0,different
+7213,SACRIEUR,rangeMin,null,0,different
+7213,SACRIEUR,rangeMax,null,0,different
+7213,SACRIEUR,name.es,"""Blood Flow""","""Circulación Sanguínea""",different
+7213,SACRIEUR,name.pt,"""Blood Flow""","""Circulação Sanguínea""",different
+7214,SACRIEUR,apCost,null,0,different
+7214,SACRIEUR,rangeMin,null,0,different
+7214,SACRIEUR,rangeMax,null,0,different
+7214,SACRIEUR,name.es,"""Dangerous Game""","""Juego Peligroso""",different
+7214,SACRIEUR,name.pt,"""Dangerous Game""","""Jogo Perigoso""",different
+7215,SACRIEUR,apCost,null,0,different
+7215,SACRIEUR,rangeMin,null,0,different
+7215,SACRIEUR,rangeMax,null,0,different
+7215,SACRIEUR,name.es,"""Vision""","""Visión""",different
+7215,SACRIEUR,name.pt,"""Vision""","""Visão""",different
+7216,SACRIEUR,apCost,null,0,different
+7216,SACRIEUR,rangeMin,null,0,different
+7216,SACRIEUR,rangeMax,null,0,different
+7216,SACRIEUR,name.es,"""Burning Armor""","""Armadura Ardiente""",different
+7216,SACRIEUR,name.pt,"""Burning Armor""","""Armadura Ardente""",different
+7217,SACRIEUR,apCost,null,0,different
+7217,SACRIEUR,rangeMin,null,0,different
+7217,SACRIEUR,rangeMax,null,0,different
+7217,SACRIEUR,name.es,"""Wakfu Pact""","""Pacto de Wakfu""",different
+7217,SACRIEUR,name.pt,"""Wakfu Pact""","""Pacto de Wakfu""",different
+7218,SACRIEUR,apCost,null,0,different
+7218,SACRIEUR,rangeMin,null,0,different
+7218,SACRIEUR,rangeMax,null,0,different
+7218,SACRIEUR,name.es,"""Sacrier's Heart""","""Corazón de Sacrógrito""",different
+7218,SACRIEUR,name.pt,"""Sacrier's Heart""","""Coração de Sacrier""",different
+7219,SACRIEUR,apCost,null,0,different
+7219,SACRIEUR,rangeMin,null,0,different
+7219,SACRIEUR,rangeMax,null,0,different
+7219,SACRIEUR,name.es,"""Motion Sick""","""Agita Viajes""",different
+7219,SACRIEUR,name.pt,"""Motion Sick""","""Enjoo de Movimento""",different
+7220,SACRIEUR,apCost,null,0,different
+7220,SACRIEUR,rangeMin,null,0,different
+7220,SACRIEUR,rangeMax,null,0,different
+7220,SACRIEUR,name.es,"""Pillar""","""Pilar""",different
+7220,SACRIEUR,name.pt,"""Pillar""","""Pilar""",different
+7224,SACRIEUR,apCost,null,0,different
+7224,SACRIEUR,rangeMin,null,0,different
+7224,SACRIEUR,rangeMax,null,0,different
+7224,SACRIEUR,name.es,"""Burning""","""Inmolación""",different
+7224,SACRIEUR,name.pt,"""Burning""","""Imolação""",different
+7830,SACRIEUR,apCost,null,0,different
+7830,SACRIEUR,rangeMin,null,0,different
+7830,SACRIEUR,rangeMax,null,0,different
+7830,SACRIEUR,name.es,"""Executor""","""Ejecutor""",different
+7830,SACRIEUR,name.pt,"""Executor""","""Carrasco""",different
+912,SADIDA,apCost,null,0,different
+912,SADIDA,rangeMin,null,0,different
+912,SADIDA,rangeMax,null,0,different
+912,SADIDA,name.es,"""Lone Sadida""","""Sadida Solitario""",different
+912,SADIDA,name.pt,"""Lone Sadida""","""Sadida Solitário""",different
+913,SADIDA,apCost,null,0,different
+913,SADIDA,rangeMin,null,0,different
+913,SADIDA,rangeMax,null,0,different
+913,SADIDA,name.es,"""Green Guard""","""Guarda Plantas""",different
+913,SADIDA,name.pt,"""Green Guard""","""Guarda Verde""",different
+914,SADIDA,rangeMax,1,3,different
+914,SADIDA,name.es,"""Toxines""","""Toxinas""",different
+914,SADIDA,name.pt,"""Toxines""","""Toxinas""",different
+915,SADIDA,apCost,1,0,different
+915,SADIDA,rangeMin,null,0,different
+915,SADIDA,rangeMax,null,0,different
+915,SADIDA,name.es,"""Tree""","""Árbol""",different
+915,SADIDA,name.pt,"""Tree""","""Árvore""",different
+916,SADIDA,apCost,null,0,different
+916,SADIDA,rangeMin,null,0,different
+916,SADIDA,rangeMax,null,0,different
+916,SADIDA,name.es,"""Doll Link""","""Enlace Muñequero""",different
+916,SADIDA,name.pt,"""Doll Link""","""Vínculo Bonecal""",different
+917,SADIDA,apCost,null,0,different
+917,SADIDA,rangeMin,null,0,different
+917,SADIDA,rangeMax,null,0,different
+917,SADIDA,name.es,"""Sylvan Gift""","""Don Silvestre""",different
+917,SADIDA,name.pt,"""Sylvan Gift""","""Dom Silvestre""",different
+918,SADIDA,name.es,"""Sadida's Tear""","""Lágrima de Sadida""",different
+918,SADIDA,name.pt,"""Sadida's Tear""","""Lágrima do Sadida""",different
+919,SADIDA,rangeMin,2,3,different
+919,SADIDA,rangeMax,2,4,different
+919,SADIDA,name.es,"""Poisoned Wind""","""Viento Envenenado""",different
+919,SADIDA,name.pt,"""Poisoned Wind""","""Vento Envenenado""",different
+920,SADIDA,rangeMin,null,0,different
+920,SADIDA,rangeMax,null,0,different
+920,SADIDA,name.es,"""Dolly Sacrifice""","""Sacrificio Muñequero""",different
+920,SADIDA,name.pt,"""Dolly Sacrifice""","""Sacrifício Bonecal""",different
+921,SADIDA,name.es,"""Vaporize""","""Vaporizar""",different
+921,SADIDA,name.pt,"""Vaporize""","""Vaporizar""",different
+922,SADIDA,rangeMax,1,4,different
+922,SADIDA,name.es,"""Drain""","""Drenaje""",different
+922,SADIDA,name.pt,"""Drain""","""Drenagem""",different
+925,SADIDA,name.es,"""Bramble""","""Zarza""",different
+925,SADIDA,name.pt,"""Bramble""","""Sarça""",different
+927,SADIDA,name.es,"""Wild Grass""","""Hierbas Locas""",different
+927,SADIDA,name.pt,"""Wild Grass""","""Ervas Daninhas""",different
+928,SADIDA,name.es,"""Sudden Chill""","""Resfriado""",different
+928,SADIDA,name.pt,"""Sudden Chill""","""Arrepio Súbito""",different
+929,SADIDA,name.es,"""Compost""","""Abono""",different
+929,SADIDA,name.pt,"""Compost""","""Adubo""",different
+930,SADIDA,name.es,"""Mudoll""","""Arcilla""",different
+930,SADIDA,name.pt,"""Mudoll""","""Lamoneca""",different
+931,SADIDA,name.es,"""Rust""","""Herrumbre""",different
+931,SADIDA,name.pt,"""Rust""","""Ferrugem""",different
+932,SADIDA,name.es,"""Woodland Stench""","""Hedor Boscoso""",different
+932,SADIDA,name.pt,"""Woodland Stench""","""Fedor do Bosque""",different
+933,SADIDA,apCost,null,0,different
+933,SADIDA,rangeMin,null,0,different
+933,SADIDA,rangeMax,null,0,different
+933,SADIDA,name.es,"""Explodoll""","""Explomuñeca""",different
+933,SADIDA,name.pt,"""Explodoll""","""Exploneca""",different
+934,SADIDA,name.es,"""K'mir""","""Komhir""",different
+934,SADIDA,name.pt,"""K'mir""","""Komhir""",different
+935,SADIDA,name.es,"""Earthquake""","""Terremoto""",different
+935,SADIDA,name.pt,"""Earthquake""","""Tremor de Terra""",different
+937,SADIDA,rangeMin,1,2,different
+937,SADIDA,rangeMax,1,5,different
+937,SADIDA,name.es,"""Manifold Bramble""","""Zarzas Múltiples""",different
+937,SADIDA,name.pt,"""Manifold Bramble""","""Sarças Múltiplas""",different
+938,SADIDA,name.es,"""Gust""","""Borrasca""",different
+938,SADIDA,name.pt,"""Gust""","""Borrasca""",different
+4959,SADIDA,apCost,null,0,different
+4959,SADIDA,rangeMin,null,0,different
+4959,SADIDA,rangeMax,null,0,different
+4959,SADIDA,name.es,"""Sadida Prayer""","""Rezo Sadida""",different
+4959,SADIDA,name.pt,"""Sadida Prayer""","""Oração Sadida""",different
+5055,SADIDA,apCost,null,0,different
+5055,SADIDA,rangeMin,null,0,different
+5055,SADIDA,rangeMax,null,0,different
+5055,SADIDA,name.es,"""Infected Soil""","""Terreno Infectado""",different
+5055,SADIDA,name.pt,"""Infected Soil""","""Terreno Infectado""",different
+5057,SADIDA,rangeMax,1,3,different
+5057,SADIDA,name.es,"""Sylvan Awakening""","""Despertar Silvestre""",different
+5057,SADIDA,name.pt,"""Sylvan Awakening""","""Despertar Silvestre""",different
+5058,SADIDA,apCost,null,0,different
+5058,SADIDA,rangeMin,null,0,different
+5058,SADIDA,rangeMax,null,0,different
+5058,SADIDA,name.es,"""Wild Whispers""","""Murmullos Salvajes""",different
+5058,SADIDA,name.pt,"""Wild Whispers""","""Murmúrios Selvagens""",different
+5234,SADIDA,apCost,null,0,different
+5234,SADIDA,rangeMin,null,0,different
+5234,SADIDA,rangeMax,null,0,different
+5234,SADIDA,name.es,"""Venomous""","""Venenoso""",different
+5234,SADIDA,name.pt,"""Venomous""","""Venenoso""",different
+7053,SADIDA,apCost,null,0,different
+7053,SADIDA,rangeMin,null,0,different
+7053,SADIDA,rangeMax,null,0,different
+7053,SADIDA,name.es,"""Common Ground""","""Terreno de Entendimiento""",different
+7053,SADIDA,name.pt,"""Common Ground""","""Terreno de Entendimento""",different
+7054,SADIDA,rangeMax,1,4,different
+7054,SADIDA,name.es,"""Fertilizer""","""Fertilizante""",different
+7054,SADIDA,name.pt,"""Fertilizer""","""Fertilizante""",different
+8139,SADIDA,rangeMin,1,0,different
+8139,SADIDA,rangeMax,1,0,different
+8139,SADIDA,name.es,"""Force of Nature""","""Fuerza de la Naturaleza""",different
+8139,SADIDA,name.pt,"""Force of Nature""","""Força da Natureza""",different
+8149,SADIDA,apCost,null,0,different
+8149,SADIDA,rangeMin,null,0,different
+8149,SADIDA,rangeMax,null,0,different
+8149,SADIDA,name.es,"""Voodoll Blessing""","""Bendición Vudul""",different
+8149,SADIDA,name.pt,"""Voodoll Blessing""","""Bênção Voodoll""",different
+8150,SADIDA,apCost,null,0,different
+8150,SADIDA,rangeMin,null,0,different
+8150,SADIDA,rangeMax,null,0,different
+8150,SADIDA,name.es,"""Sylvan Shoot""","""Empuje Silvestre""",different
+8150,SADIDA,name.pt,"""Sylvan Shoot""","""Empurrão Silvestre""",different
+8151,SADIDA,apCost,null,0,different
+8151,SADIDA,rangeMin,null,0,different
+8151,SADIDA,rangeMax,null,0,different
+8151,SADIDA,name.es,"""Fertile Soil""","""Terreno Fértil""",different
+8151,SADIDA,name.pt,"""Fertile Soil""","""Terreno Fértil""",different
+8152,SADIDA,apCost,null,0,different
+8152,SADIDA,rangeMin,null,0,different
+8152,SADIDA,rangeMax,null,0,different
+8152,SADIDA,name.es,"""Accelerated Growth""","""Crecimiento Acelerado""",different
+8152,SADIDA,name.pt,"""Accelerated Growth""","""Crescimento Acelerado""",different
+8153,SADIDA,apCost,null,0,different
+8153,SADIDA,rangeMin,null,0,different
+8153,SADIDA,rangeMax,null,0,different
+8153,SADIDA,name.es,"""Dollish Devotion""","""Devoción Muñequil""",different
+8153,SADIDA,name.pt,"""Dollish Devotion""","""Devoção Bonecal""",different
+8154,SADIDA,apCost,null,0,different
+8154,SADIDA,rangeMin,null,0,different
+8154,SADIDA,rangeMax,null,0,different
+8154,SADIDA,name.es,"""Bad Seed""","""Mala Semilla""",different
+8154,SADIDA,name.pt,"""Bad Seed""","""Semente do Mal""",different
+8155,SADIDA,apCost,null,0,different
+8155,SADIDA,rangeMin,null,0,different
+8155,SADIDA,rangeMax,null,0,different
+8155,SADIDA,name.es,"""Sylvan Cycle""","""Ciclo Silvestre""",different
+8155,SADIDA,name.pt,"""Sylvan Cycle""","""Ciclo Silvestre""",different
+8156,SADIDA,apCost,null,0,different
+8156,SADIDA,rangeMin,null,0,different
+8156,SADIDA,rangeMax,null,0,different
+8156,SADIDA,name.es,"""Plant Communication""","""Comunicación Vegetal""",different
+8156,SADIDA,name.pt,"""Plant Communication""","""Comunicação Vegetal""",different
+8157,SADIDA,apCost,null,0,different
+8157,SADIDA,rangeMin,null,0,different
+8157,SADIDA,rangeMax,null,0,different
+8157,SADIDA,name.es,"""Knowledge of Dolls""","""Conocimiento Sadida""",different
+8157,SADIDA,name.pt,"""Knowledge of Dolls""","""Conhecimento Sadida""",different
+8158,SADIDA,apCost,null,0,different
+8158,SADIDA,rangeMin,null,0,different
+8158,SADIDA,rangeMax,null,0,different
+8158,SADIDA,name.es,"""Great Chain of Being""","""Cadena de la Naturaleza""",different
+8158,SADIDA,name.pt,"""Great Chain of Being""","""Corrente da Natureza""",different
+4579,SRAM,name.es,"""Scam""","""Estafa""",different
+4579,SRAM,name.pt,"""Scam""","""Burla""",different
+4581,SRAM,name.es,"""Deadly Attack""","""Ataque Mortal""",different
+4581,SRAM,name.pt,"""Deadly Attack""","""Ataque Mortal""",different
+4583,SRAM,iconId,2417,2421,different
+4583,SRAM,name.es,"""Lethal Attack""","""Ataque Letal""",different
+4583,SRAM,name.pt,"""Lethal Attack""","""Ataque Letal""",different
+4584,SRAM,name.es,"""Kleptosram""","""Cleptosram""",different
+4584,SRAM,name.pt,"""Kleptosram""","""Cleptosram""",different
+4585,SRAM,iconId,2421,2417,different
+4585,SRAM,name.es,"""Perfidious Attack""","""Ataque Pérfido""",different
+4585,SRAM,name.pt,"""Perfidious Attack""","""Ataque Pérfido""",different
+4586,SRAM,name.es,"""Execution""","""Ejecución""",different
+4586,SRAM,name.pt,"""Execution""","""Execução""",different
+4587,SRAM,name.es,"""Bled Dry""","""Sangría Mortal""",different
+4587,SRAM,name.pt,"""Bled Dry""","""Sangria Mortal""",different
+4588,SRAM,name.es,"""First Blood""","""Primer Sangrado""",different
+4588,SRAM,name.pt,"""First Blood""","""Eliminação Sangrenta""",different
+4589,SRAM,rangeMin,null,0,different
+4589,SRAM,rangeMax,null,0,different
+4589,SRAM,name.es,"""Punishment""","""Castigo""",different
+4589,SRAM,name.pt,"""Punishment""","""Castigo""",different
+4590,SRAM,name.es,"""Cold Blood""","""Abrir las Venas""",different
+4590,SRAM,name.pt,"""Cold Blood""","""Abrir as Veias""",different
+4592,SRAM,name.es,"""Trauma""","""Traumatismo""",different
+4593,SRAM,name.es,"""Tricky Blow""","""Golpe Solapado""",different
+4593,SRAM,name.pt,"""Tricky Blow""","""Golpe Dissimulado""",different
+4594,SRAM,name.es,"""Forceful Blow""","""Golpe Penetrante""",different
+4594,SRAM,name.pt,"""Forceful Blow""","""Golpe Enérgico""",different
+4595,SRAM,name.es,"""Wily""","""Estratagema""",different
+4595,SRAM,name.pt,"""Wily""","""Perfídia""",different
+4596,SRAM,name.es,"""Fright""","""Pavor""",different
+4596,SRAM,name.pt,"""Fright""","""Terror""",different
+4597,SRAM,name.es,"""Deviousness""","""Engaño""",different
+4597,SRAM,name.pt,"""Deviousness""","""Engano""",different
+4601,SRAM,apCost,1,0,different
+4601,SRAM,name.es,"""Scram""","""Galopada""",different
+4601,SRAM,name.pt,"""Scram""","""Galopada""",different
+4602,SRAM,rangeMin,null,0,different
+4602,SRAM,rangeMax,null,0,different
+4602,SRAM,name.es,"""Stabber""","""Destripador""",different
+4602,SRAM,name.pt,"""Stabber""","""Apunhalador""",different
+4603,SRAM,name.es,"""Double""","""Doble""",different
+4603,SRAM,name.pt,"""Double""","""Dublê""",different
+4604,SRAM,apCost,2,0,different
+4604,SRAM,name.fr,"""Invisibility""","""Invisibilité""",different
+4604,SRAM,name.es,"""Invisibility""","""Invisibilidad""",different
+4604,SRAM,name.pt,"""Invisibility""","""Invisibilidade""",different
+4606,SRAM,apCost,null,0,different
+4606,SRAM,rangeMin,null,0,different
+4606,SRAM,rangeMax,null,0,different
+4606,SRAM,name.es,"""Brutal Assault""","""Asalto Brutal""",different
+4606,SRAM,name.pt,"""Brutal Assault""","""Agressão Brutal""",different
+4607,SRAM,iconId,2441,5103,different
+4607,SRAM,apCost,null,0,different
+4607,SRAM,rangeMin,null,0,different
+4607,SRAM,rangeMax,null,0,different
+4607,SRAM,name.es,"""Hocus Pocus""","""Juego de Manos""",different
+4607,SRAM,name.pt,"""Hocus Pocus""","""Passe de Mágica""",different
+4608,SRAM,apCost,null,0,different
+4608,SRAM,rangeMin,null,0,different
+4608,SRAM,rangeMax,null,0,different
+4608,SRAM,name.es,"""Murderer""","""Asesino""",different
+4608,SRAM,name.pt,"""Murderer""","""Assassino""",different
+4609,SRAM,iconId,4609,7191,different
+4609,SRAM,apCost,null,0,different
+4609,SRAM,rangeMin,null,0,different
+4609,SRAM,rangeMax,null,0,different
+4609,SRAM,name.es,"""Repulsion Trap II""","""Trampa de repulsión II""",different
+4609,SRAM,name.pt,"""Repulsion Trap II""","""Armadilha de Repulsão II""",different
+4610,SRAM,iconId,2437,5123,different
+4610,SRAM,apCost,null,0,different
+4610,SRAM,rangeMin,null,0,different
+4610,SRAM,rangeMax,null,0,different
+4610,SRAM,name.es,"""Hemophilia""","""Hemofilia""",different
+4610,SRAM,name.pt,"""Hemophilia""","""Hemofilia""",different
+5089,SRAM,record,"""Crazy Scheme""",null,absent-client-record
+5122,SRAM,iconId,5122,588,different
+5122,SRAM,apCost,null,0,different
+5122,SRAM,rangeMin,null,0,different
+5122,SRAM,rangeMax,null,0,different
+5122,SRAM,name.es,"""Ambush""","""Emboscada""",different
+5122,SRAM,name.pt,"""Ambush""","""Emboscada""",different
+5123,SRAM,record,"""Bloody Blade""",null,absent-client-record
+5124,SRAM,apCost,null,0,different
+5124,SRAM,rangeMin,null,0,different
+5124,SRAM,rangeMax,null,0,different
+5124,SRAM,name.es,"""Restraint""","""Contención""",different
+5124,SRAM,name.pt,"""Restraint""","""Retenção""",different
+5126,SRAM,apCost,null,0,different
+5126,SRAM,rangeMin,null,0,different
+5126,SRAM,rangeMax,null,0,different
+5126,SRAM,name.es,"""Dupery""","""Treta""",different
+5126,SRAM,name.pt,"""Dupery""","""Treta""",different
+6850,SRAM,rangeMin,2,1,different
+6850,SRAM,rangeMax,2,3,different
+6850,SRAM,name.es,"""Assassination""","""Asesinato""",different
+6850,SRAM,name.pt,"""Assassination""","""Assassinato""",different
+6902,STEAMER,name.es,"""Blazing Fire""","""Fuego Ardiente""",different
+6902,STEAMER,name.pt,"""Blazing Fire""","""Fogo Ardente""",different
+6903,STEAMER,name.es,"""Fire Thrower""","""Escupellamas""",different
+6903,STEAMER,name.pt,"""Fire Thrower""","""Cospe-Fogo""",different
+6904,STEAMER,name.es,"""Charring""","""Calcinación""",different
+6904,STEAMER,name.pt,"""Charring""","""Calcinação""",different
+6905,STEAMER,name.es,"""Flambé""","""Flambeado""",different
+6905,STEAMER,name.pt,"""Flambé""","""Flambado""",different
+6906,STEAMER,name.es,"""Scuttle""","""Desfonde""",different
+6906,STEAMER,name.pt,"""Scuttle""","""Sabotagem""",different
+6907,STEAMER,name.es,"""Current""","""Corriente""",different
+6907,STEAMER,name.pt,"""Current""","""Corrente""",different
+6908,STEAMER,name.es,"""Evaporation""","""Evaporación""",different
+6908,STEAMER,name.pt,"""Evaporation""","""Evaporação""",different
+6909,STEAMER,name.es,"""Froth""","""Espuma de Mar""",different
+6909,STEAMER,name.pt,"""Froth""","""Espuma""",different
+6910,STEAMER,name.es,"""Pilfer""","""Piratería""",different
+6910,STEAMER,name.pt,"""Pilfer""","""Pirataria""",different
+6911,STEAMER,name.es,"""Dissolution""","""Disolución""",different
+6911,STEAMER,name.pt,"""Dissolution""","""Dissolução""",different
+6912,STEAMER,name.es,"""Pummel""","""Steamaza""",different
+6912,STEAMER,name.pt,"""Pummel""","""Steamarreta""",different
+6913,STEAMER,name.es,"""Trampling""","""Pisoteo""",different
+6913,STEAMER,name.pt,"""Trampling""","""Espezinhamento""",different
+6914,STEAMER,name.es,"""Bombardment""","""Machacado""",different
+6914,STEAMER,name.pt,"""Bombardment""","""Bombardeio""",different
+6915,STEAMER,name.es,"""Hammer Claw""","""Martillo Imán""",different
+6915,STEAMER,name.pt,"""Hammer Claw""","""Martelo Ímã""",different
+6916,STEAMER,name.es,"""Shebang""","""Shock""",different
+6916,STEAMER,name.pt,"""Shebang""","""Choque""",different
+6917,STEAMER,apCost,2,0,different
+6917,STEAMER,name.es,"""Armor Plating""","""Blindaje""",different
+6917,STEAMER,name.pt,"""Armor Plating""","""Blindagem""",different
+6918,STEAMER,name.es,"""Hypertension""","""Sobretensión""",different
+6918,STEAMER,name.pt,"""Hypertension""","""Sobretensão""",different
+6919,STEAMER,apCost,2,0,different
+6919,STEAMER,name.es,"""Machinery""","""Maquinaria""",different
+6919,STEAMER,name.pt,"""Machinery""","""Maquinário""",different
+6920,STEAMER,name.es,"""Ambush""","""Emboscada""",different
+6920,STEAMER,name.pt,"""Ambush""","""Emboscada""",different
+6921,STEAMER,rangeMax,1,3,different
+6921,STEAMER,name.es,"""Transition""","""Transición""",different
+6921,STEAMER,name.pt,"""Transition""","""Transição""",different
+6922,STEAMER,name.es,"""Stasis Flux""","""Flujo de Stasis""",different
+6922,STEAMER,name.pt,"""Stasis Flux""","""Fluxo de Stasis""",different
+6925,STEAMER,apCost,null,0,different
+6925,STEAMER,rangeMin,null,0,different
+6925,STEAMER,rangeMax,null,0,different
+6925,STEAMER,name.es,"""Energy Moderator""","""Moderador de Energía""",different
+6925,STEAMER,name.pt,"""Energy Moderator""","""Moderador de Energia""",different
+6926,STEAMER,apCost,null,0,different
+6926,STEAMER,rangeMin,null,0,different
+6926,STEAMER,rangeMax,null,0,different
+6926,STEAMER,name.es,"""Winding Roads""","""Caminos Tortuosos""",different
+6926,STEAMER,name.pt,"""Winding Roads""","""Estradas Sinuosas""",different
+6927,STEAMER,apCost,null,0,different
+6927,STEAMER,rangeMin,null,0,different
+6927,STEAMER,rangeMax,null,0,different
+6927,STEAMER,name.es,"""Versatility""","""Versatilidad""",different
+6927,STEAMER,name.pt,"""Versatility""","""Versatilidade""",different
+6928,STEAMER,apCost,null,0,different
+6928,STEAMER,rangeMin,null,0,different
+6928,STEAMER,rangeMax,null,0,different
+6928,STEAMER,name.es,"""Reinforced Armor Plating""","""Blindaje Reforzado""",different
+6928,STEAMER,name.pt,"""Reinforced Armor Plating""","""Blindagem Reforçada""",different
+6929,STEAMER,apCost,null,0,different
+6929,STEAMER,rangeMin,null,0,different
+6929,STEAMER,rangeMax,null,0,different
+6929,STEAMER,name.es,"""Robotic Strategy""","""Estrategia Robótica""",different
+6929,STEAMER,name.pt,"""Robotic Strategy""","""Estratégia Robótica""",different
+6930,STEAMER,apCost,null,0,different
+6930,STEAMER,rangeMin,null,0,different
+6930,STEAMER,rangeMax,null,0,different
+6930,STEAMER,name.es,"""Transportation Technology""","""Tecnología de Transportes""",different
+6930,STEAMER,name.pt,"""Transportation Technology""","""Tecnologia de Transportes""",different
+6931,STEAMER,apCost,null,0,different
+6931,STEAMER,rangeMin,null,0,different
+6931,STEAMER,rangeMax,null,0,different
+6931,STEAMER,name.es,"""Earthy Assistance""","""Asistencia Telúrica""",different
+6931,STEAMER,name.pt,"""Earthy Assistance""","""Assistência Telúrica""",different
+6932,STEAMER,apCost,null,0,different
+6932,STEAMER,rangeMin,null,0,different
+6932,STEAMER,rangeMax,null,0,different
+6932,STEAMER,element,"""WATER""",null,different
+6932,STEAMER,name.es,"""Mechanical Substitution""","""Sustitución Mecánica""",different
+6932,STEAMER,name.pt,"""Mechanical Substitution""","""Substituição Mecânica""",different
+6933,STEAMER,apCost,null,0,different
+6933,STEAMER,rangeMin,null,0,different
+6933,STEAMER,rangeMax,null,0,different
+6933,STEAMER,name.es,"""Patience""","""Paciencia""",different
+6933,STEAMER,name.pt,"""Patience""","""Paciência""",different
+6934,STEAMER,apCost,null,0,different
+6934,STEAMER,rangeMin,null,0,different
+6934,STEAMER,rangeMax,null,0,different
+6934,STEAMER,name.es,"""Light Alloy""","""Aleación Ligera""",different
+6934,STEAMER,name.pt,"""Light Alloy""","""Liga Leve""",different
+6935,STEAMER,apCost,null,0,different
+6935,STEAMER,rangeMin,null,0,different
+6935,STEAMER,rangeMax,null,0,different
+6935,STEAMER,name.es,"""Energy Inversion""","""Inversión de Energía""",different
+6935,STEAMER,name.pt,"""Energy Inversion""","""Inversão de Energia""",different
+6936,STEAMER,apCost,null,0,different
+6936,STEAMER,rangeMin,null,0,different
+6936,STEAMER,rangeMax,null,0,different
+6936,STEAMER,name.es,"""Heavy Duty Covering""","""Revestimiento Absoluto""",different
+6936,STEAMER,name.pt,"""Heavy Duty Covering""","""Revestimento a Toda Prova""",different
+6937,STEAMER,apCost,null,0,different
+6937,STEAMER,rangeMin,null,0,different
+6937,STEAMER,rangeMax,null,0,different
+6937,STEAMER,element,"""FIRE""",null,different
+6937,STEAMER,name.es,"""Activation""","""Activación""",different
+6937,STEAMER,name.pt,"""Activation""","""Ativação""",different
+6938,STEAMER,apCost,null,0,different
+6938,STEAMER,rangeMin,null,0,different
+6938,STEAMER,rangeMax,null,0,different
+6938,STEAMER,name.es,"""Immediate Execution""","""Ejecución Inmediata""",different
+6938,STEAMER,name.pt,"""Immediate Execution""","""Execução Imediata""",different
+6939,STEAMER,apCost,null,0,different
+6939,STEAMER,rangeMin,null,0,different
+6939,STEAMER,rangeMax,null,0,different
+6939,STEAMER,name.es,"""Stasified Protection""","""Protección Stasiada""",different
+6939,STEAMER,name.pt,"""Stasified Protection""","""Proteção Estasificada""",different
+6940,STEAMER,apCost,null,0,different
+6940,STEAMER,rangeMin,null,0,different
+6940,STEAMER,rangeMax,null,0,different
+6940,STEAMER,name.es,"""Hot Wheels""","""Ruedas Calientes""",different
+6940,STEAMER,name.pt,"""Hot Wheels""","""Rodas Quentes""",different
+6941,STEAMER,apCost,null,0,different
+6941,STEAMER,rangeMin,null,0,different
+6941,STEAMER,rangeMax,null,0,different
+6941,STEAMER,name.es,"""Serene Conquest""","""Conquista Serena""",different
+6941,STEAMER,name.pt,"""Serene Conquest""","""Conquista Serena""",different
+6942,STEAMER,apCost,null,0,different
+6942,STEAMER,rangeMin,null,0,different
+6942,STEAMER,rangeMax,null,0,different
+6942,STEAMER,element,"""FIRE""",null,different
+6942,STEAMER,name.fr,"""Tacticien""","""Bidouillage""",different
+6942,STEAMER,name.es,"""Tinkering""","""Chapuza""",different
+6942,STEAMER,name.pt,"""Tinkering""","""Gambiarra""",different
+6943,STEAMER,apCost,null,0,different
+6943,STEAMER,rangeMin,null,0,different
+6943,STEAMER,rangeMax,null,0,different
+6943,STEAMER,name.es,"""Advanced Mechanics""","""Mecánica Avanzada""",different
+6943,STEAMER,name.pt,"""Advanced Mechanics""","""Mecânica Avançada""",different
+7810,STEAMER,apCost,null,0,different
+7810,STEAMER,rangeMin,null,0,different
+7810,STEAMER,rangeMax,null,0,different
+7810,STEAMER,name.es,"""Tactical Deployment""","""Despliegue Táctico""",different
+7810,STEAMER,name.pt,"""Tactical Deployment""","""Acionamento Tático""",different
+749,XELOR,name.es,"""Hammhour""","""Martillhora""",different
+749,XELOR,name.pt,"""Hammhour""","""Martel'hora""",different
+750,XELOR,name.es,"""Disruption""","""Perturbación""",different
+750,XELOR,name.pt,"""Disruption""","""Perturbação""",different
+751,XELOR,name.es,"""Suspension""","""Suspensión""",different
+751,XELOR,name.pt,"""Suspension""","""Suspensão""",different
+752,XELOR,name.es,"""Dark Bolt""","""Rayoscuro""",different
+752,XELOR,name.pt,"""Dark Bolt""","""Relâmpago Obscuro""",different
+753,XELOR,name.es,"""Dust""","""Polvo""",different
+753,XELOR,name.pt,"""Dust""","""Poeira""",different
+754,XELOR,name.es,"""Hand""","""Aguja""",different
+754,XELOR,name.pt,"""Hand""","""Ponteiro""",different
+756,XELOR,apCost,null,0,different
+756,XELOR,rangeMin,null,0,different
+756,XELOR,rangeMax,null,0,different
+756,XELOR,name.es,"""Memory""","""Memoria""",different
+756,XELOR,name.pt,"""Memory""","""Memória""",different
+757,XELOR,name.es,"""Premonition""","""Premonición""",different
+757,XELOR,name.pt,"""Premonition""","""Premonição""",different
+758,XELOR,apCost,null,0,different
+758,XELOR,rangeMin,null,0,different
+758,XELOR,rangeMax,null,0,different
+758,XELOR,name.es,"""Dial Master""","""Maestro de la Esfera""",different
+758,XELOR,name.pt,"""Dial Master""","""Mestre do Quadrante""",different
+761,XELOR,apCost,null,0,different
+761,XELOR,rangeMin,null,0,different
+761,XELOR,rangeMax,null,0,different
+761,XELOR,name.es,"""Clockmaking""","""Relojería""",different
+761,XELOR,name.pt,"""Clockmaking""","""Relojoaria""",different
+763,XELOR,name.es,"""Clock""","""Reloj""",different
+763,XELOR,name.pt,"""Clock""","""Relógio""",different
+764,XELOR,apCost,null,0,different
+764,XELOR,rangeMin,null,0,different
+764,XELOR,rangeMax,null,0,different
+764,XELOR,name.es,"""Tock, Tick""","""Tac Tic""",different
+764,XELOR,name.pt,"""Tock, Tick""","""Taque, Tique""",different
+766,XELOR,name.es,"""Cog""","""Rueda Dentada""",different
+766,XELOR,name.pt,"""Cog""","""Roda Dentada""",different
+767,XELOR,name.es,"""Underhand""","""Hora Punta""",different
+767,XELOR,name.pt,"""Underhand""","""Hora de Ponta""",different
+771,XELOR,name.es,"""Spontaneous Return""","""Regreso Espontáneo""",different
+771,XELOR,name.pt,"""Spontaneous Return""","""Retorno Espontâneo""",different
+772,XELOR,name.es,"""Symmetry""","""Simetría""",different
+772,XELOR,name.pt,"""Symmetry""","""Simetria""",different
+775,XELOR,rangeMax,1,3,different
+775,XELOR,name.es,"""Slow Down""","""Ralentización""",different
+775,XELOR,name.pt,"""Slow Down""","""Desaceleração""",different
+776,XELOR,name.es,"""Against the Clock""","""Contrarreloj""",different
+776,XELOR,name.pt,"""Against the Clock""","""Contra o relógio""",different
+783,XELOR,name.es,"""Sandglass""","""Reloj de Arena""",different
+783,XELOR,name.pt,"""Sandglass""","""Ampulheta""",different
+785,XELOR,apCost,null,0,different
+785,XELOR,rangeMin,null,0,different
+785,XELOR,rangeMax,null,0,different
+785,XELOR,name.es,"""Course of Time""","""Curso del Tiempo""",different
+785,XELOR,name.pt,"""Course of Time""","""Passar do Tempo""",different
+1417,XELOR,name.es,"""Desynchronization""","""Desincronización""",different
+1417,XELOR,name.pt,"""Desynchronization""","""Dessincronização""",different
+1418,XELOR,name.es,"""Paradox""","""Paradoja""",different
+1418,XELOR,name.pt,"""Paradox""","""Paradoxo""",different
+2839,XELOR,apCost,4,0,different
+2839,XELOR,name.es,"""Devotion""","""Devoción""",different
+2839,XELOR,name.pt,"""Devotion""","""Devoção""",different
+5344,XELOR,apCost,3,0,different
+5344,XELOR,name.es,"""Regulator""","""Regulador""",different
+5344,XELOR,name.pt,"""Regulator""","""Regulador""",different
+5351,XELOR,apCost,null,0,different
+5351,XELOR,rangeMin,null,0,different
+5351,XELOR,rangeMax,null,0,different
+5351,XELOR,name.es,"""Portent""","""Presagio""",different
+5351,XELOR,name.pt,"""Portent""","""Presságio""",different
+5352,XELOR,apCost,null,0,different
+5352,XELOR,rangeMin,null,0,different
+5352,XELOR,rangeMax,null,0,different
+5352,XELOR,name.es,"""Timeliness""","""Prontitud""",different
+5352,XELOR,name.pt,"""Timeliness""","""Prontidão""",different
+5353,XELOR,apCost,null,0,different
+5353,XELOR,rangeMin,null,0,different
+5353,XELOR,rangeMax,null,0,different
+5353,XELOR,name.es,"""Tick, Tock""","""Tic Tac""",different
+5353,XELOR,name.pt,"""Tick, Tock""","""Tique, Taque""",different
+7184,XELOR,apCost,null,0,different
+7184,XELOR,rangeMin,null,0,different
+7184,XELOR,rangeMax,null,0,different
+7184,XELOR,name.es,"""Counterclockwise""","""Contrahorario""",different
+7184,XELOR,name.pt,"""Counterclockwise""","""Anti-horário""",different
+7185,XELOR,apCost,null,0,different
+7185,XELOR,rangeMin,null,0,different
+7185,XELOR,rangeMax,null,0,different
+7185,XELOR,name.es,"""Déjà Vu""","""Deja Vu""",different
+7186,XELOR,apCost,null,0,different
+7186,XELOR,rangeMin,null,0,different
+7186,XELOR,rangeMax,null,0,different
+7186,XELOR,name.es,"""Knowledge of the Past""","""Conocimiento del Pasado""",different
+7186,XELOR,name.pt,"""Knowledge of the Past""","""Conhecimento do Passado""",different
+7187,XELOR,apCost,null,0,different
+7187,XELOR,rangeMin,null,0,different
+7187,XELOR,rangeMax,null,0,different
+7187,XELOR,name.es,"""Violent Omens""","""Presagios Violentos""",different
+7187,XELOR,name.pt,"""Violent Omens""","""Presságios Violentos""",different
+7188,XELOR,apCost,null,0,different
+7188,XELOR,rangeMin,null,0,different
+7188,XELOR,rangeMax,null,0,different
+7188,XELOR,name.es,"""Dark Dimension""","""Dimensión Oscura""",different
+7188,XELOR,name.pt,"""Dark Dimension""","""Dimensão Sombria""",different
+7189,XELOR,apCost,null,0,different
+7189,XELOR,rangeMin,null,0,different
+7189,XELOR,rangeMax,null,0,different
+7189,XELOR,name.es,"""Slowdown of Time""","""Ralentización del Tiempo""",different
+7189,XELOR,name.pt,"""Slowdown of Time""","""Desaceleração do Tempo""",different
+7190,XELOR,apCost,null,0,different
+7190,XELOR,rangeMin,null,0,different
+7190,XELOR,rangeMax,null,0,different
+7190,XELOR,name.es,"""Remanence""","""Remanencia""",different
+7190,XELOR,name.pt,"""Remanence""","""Remanência""",different
+7191,XELOR,apCost,null,0,different
+7191,XELOR,rangeMin,null,0,different
+7191,XELOR,rangeMax,null,0,different
+7191,XELOR,name.es,"""Specialized Mechanisms""","""Mecanismos Especializados""",different
+7191,XELOR,name.pt,"""Specialized Mechanisms""","""Mecanismos Especializados""",different
+7192,XELOR,apCost,null,0,different
+7192,XELOR,rangeMin,null,0,different
+7192,XELOR,rangeMax,null,0,different
+7192,XELOR,name.es,"""Momentary Permutation""","""Permutación Momentánea""",different
+7192,XELOR,name.pt,"""Momentary Permutation""","""Permutação Momentânea""",different
+7193,XELOR,apCost,null,0,different
+7193,XELOR,rangeMin,null,0,different
+7193,XELOR,rangeMax,null,0,different
+7193,XELOR,name.es,"""Combat Mage""","""Mago de Combate""",different
+7193,XELOR,name.pt,"""Combat Mage""","""Mago de Combate""",different
+7195,XELOR,apCost,null,0,different
+7195,XELOR,rangeMin,null,0,different
+7195,XELOR,rangeMax,null,0,different
+7195,XELOR,name.es,"""Shriveling""","""Marchitación""",different
+7195,XELOR,name.pt,"""Shriveling""","""Murchidão""",different
+7196,XELOR,apCost,null,0,different
+7196,XELOR,rangeMin,null,0,different
+7196,XELOR,rangeMax,null,0,different
+7196,XELOR,name.es,"""Assimilation""","""Asimilación""",different
+7196,XELOR,name.pt,"""Assimilation""","""Assimilação""",different
+7066,ZOBAL,name.es,"""Whipkick""","""Patada Azotada""",different
+7066,ZOBAL,name.pt,"""Whipkick""","""Chuticote""",different
+7067,ZOBAL,name.es,"""Fracture""","""Hendidura""",different
+7067,ZOBAL,name.pt,"""Fracture""","""Fratura""",different
+7068,ZOBAL,rangeMin,null,0,different
+7068,ZOBAL,rangeMax,null,0,different
+7068,ZOBAL,name.es,"""Unhinging""","""Perturbación""",different
+7068,ZOBAL,name.pt,"""Unhinging""","""Despistagem""",different
+7069,ZOBAL,rangeMax,1,4,different
+7069,ZOBAL,name.pt,"""Neurosis""","""Neurose""",different
+7070,ZOBAL,name.es,"""Capering""","""Cabriola""",different
+7070,ZOBAL,name.pt,"""Capering""","""Cabriola""",different
+7071,ZOBAL,name.es,"""Sign""","""Señales""",different
+7071,ZOBAL,name.pt,"""Sign""","""Sinal""",different
+7072,ZOBAL,element,null,"""WATER""",different
+7072,ZOBAL,name.es,"""Armature""","""Armazón""",different
+7072,ZOBAL,name.pt,"""Armature""","""Armadurecer""",different
+7073,ZOBAL,name.es,"""Deliverance""","""Salvamento""",different
+7073,ZOBAL,name.pt,"""Deliverance""","""Socorro""",different
+7074,ZOBAL,name.es,"""Manhunt""","""Ensañamiento""",different
+7074,ZOBAL,name.pt,"""Manhunt""","""Obstinação""",different
+7075,ZOBAL,rangeMax,1,3,different
+7075,ZOBAL,name.es,"""Sarabande""","""Zarabanda""",different
+7075,ZOBAL,name.pt,"""Sarabande""","""Sarabanda""",different
+7076,ZOBAL,name.es,"""Fugue""","""Fuga""",different
+7076,ZOBAL,name.pt,"""Fugue""","""Fuga""",different
+7077,ZOBAL,apCost,2,0,different
+7077,ZOBAL,name.es,"""Pursuit""","""Persecución""",different
+7077,ZOBAL,name.pt,"""Pursuit""","""Perseguição""",different
+7078,ZOBAL,name.es,"""Somersault""","""Brinco""",different
+7078,ZOBAL,name.pt,"""Somersault""","""Virada""",different
+7079,ZOBAL,name.es,"""Cavalcade""","""Cabalgata""",different
+7079,ZOBAL,name.pt,"""Cavalcade""","""Cavalgada""",different
+7080,ZOBAL,rangeMax,1,5,different
+7080,ZOBAL,name.es,"""Dislocation""","""Disyunción""",different
+7080,ZOBAL,name.pt,"""Dislocation""","""Luxação""",different
+7084,ZOBAL,apCost,1,0,different
+7084,ZOBAL,name.fr,"""Esprit masqué""","""Entrechoquement""",different
+7084,ZOBAL,name.es,"""Clashing""","""Entrechoque""",different
+7084,ZOBAL,name.pt,"""Clashing""","""Entrechocamento""",different
+7085,ZOBAL,name.es,"""Inspiring Dance""","""Danza Motivadora""",different
+7085,ZOBAL,name.pt,"""Inspiring Dance""","""Dança Motivadora""",different
+7086,ZOBAL,rangeMax,1,5,different
+7086,ZOBAL,name.es,"""Dance of Death""","""Danza Macabra""",different
+7086,ZOBAL,name.pt,"""Dance of Death""","""Dança Macabra""",different
+7087,ZOBAL,name.es,"""Acrobatics""","""Acrobatismo""",different
+7087,ZOBAL,name.pt,"""Acrobatics""","""Acrobacia""",different
+7088,ZOBAL,rangeMin,null,0,different
+7088,ZOBAL,rangeMax,null,0,different
+7088,ZOBAL,name.es,"""Brutality Aura""","""Aura de Brutalidad""",different
+7088,ZOBAL,name.pt,"""Brutality Aura""","""Aura de Brutalidade""",different
+7089,ZOBAL,rangeMin,1,0,different
+7089,ZOBAL,rangeMax,1,5,different
+7089,ZOBAL,name.es,"""Solidity""","""Solidez""",different
+7089,ZOBAL,name.pt,"""Solidity""","""Solidez""",different
+7093,ZOBAL,apCost,null,0,different
+7093,ZOBAL,rangeMin,null,0,different
+7093,ZOBAL,rangeMax,null,0,different
+7093,ZOBAL,name.es,"""Fancy Footwork""","""Juego de Piernas""",different
+7093,ZOBAL,name.pt,"""Fancy Footwork""","""Jogo de Cintura""",different
+7094,ZOBAL,apCost,null,0,different
+7094,ZOBAL,rangeMin,null,0,different
+7094,ZOBAL,rangeMax,null,0,different
+7094,ZOBAL,name.es,"""Masks Off""","""Fuera Máscaras""",different
+7094,ZOBAL,name.pt,"""Masks Off""","""Abaixo as máscaras""",different
+7095,ZOBAL,apCost,null,0,different
+7095,ZOBAL,rangeMin,null,0,different
+7095,ZOBAL,rangeMax,null,0,different
+7095,ZOBAL,name.es,"""Violent Pushes""","""Empujes Violentos""",different
+7095,ZOBAL,name.pt,"""Violent Pushes""","""Empurrões Violentos""",different
+7096,ZOBAL,apCost,null,0,different
+7096,ZOBAL,rangeMin,null,0,different
+7096,ZOBAL,rangeMax,null,0,different
+7096,ZOBAL,name.es,"""Artful Locker""","""Arte de la Venganza""",different
+7096,ZOBAL,name.pt,"""Artful Locker""","""Arte da Vingança""",different
+7097,ZOBAL,apCost,null,0,different
+7097,ZOBAL,rangeMin,null,0,different
+7097,ZOBAL,rangeMax,null,0,different
+7097,ZOBAL,name.es,"""Health Mask""","""Máscara de Vida""",different
+7097,ZOBAL,name.pt,"""Health Mask""","""Máscara de Vida""",different
+7098,ZOBAL,apCost,null,0,different
+7098,ZOBAL,rangeMin,null,0,different
+7098,ZOBAL,rangeMax,null,0,different
+7098,ZOBAL,name.es,"""Carnival""","""Carnaval""",different
+7098,ZOBAL,name.pt,"""Carnival""","""Carnaval""",different
+7099,ZOBAL,apCost,null,0,different
+7099,ZOBAL,rangeMin,null,0,different
+7099,ZOBAL,rangeMax,null,0,different
+7099,ZOBAL,name.es,"""Unique Armor""","""Armadura Única""",different
+7099,ZOBAL,name.pt,"""Unique Armor""","""Armadura Única""",different
+7100,ZOBAL,apCost,null,0,different
+7100,ZOBAL,rangeMin,null,0,different
+7100,ZOBAL,rangeMax,null,0,different
+7100,ZOBAL,name.es,"""Anchor""","""Ancla""",different
+7100,ZOBAL,name.pt,"""Anchor""","""Âncora""",different
+7101,ZOBAL,apCost,null,0,different
+7101,ZOBAL,rangeMin,null,0,different
+7101,ZOBAL,rangeMax,null,0,different
+7101,ZOBAL,name.es,"""Brute""","""Bruto""",different
+7101,ZOBAL,name.pt,"""Brute""","""Bruto""",different
+7102,ZOBAL,apCost,null,0,different
+7102,ZOBAL,rangeMin,null,0,different
+7102,ZOBAL,rangeMax,null,0,different
+7102,ZOBAL,name.es,"""Cautious Protector""","""Protector Apartado""",different
+7102,ZOBAL,name.pt,"""Cautious Protector""","""Protetor Recuado""",different
+7103,ZOBAL,apCost,null,0,different
+7103,ZOBAL,rangeMin,null,0,different
+7103,ZOBAL,rangeMax,null,0,different
+7103,ZOBAL,name.es,"""Support Collisions""","""Colisiones de Apoyo""",different
+7103,ZOBAL,name.pt,"""Support Collisions""","""Colisões de Suporte""",different
+7104,ZOBAL,apCost,null,0,different
+7104,ZOBAL,rangeMin,null,0,different
+7104,ZOBAL,rangeMax,null,0,different
+7104,ZOBAL,name.es,"""Erosion""","""Erosión""",different
+7104,ZOBAL,name.pt,"""Erosion""","""Erosão""",different
+7105,ZOBAL,apCost,null,0,different
+7105,ZOBAL,rangeMin,null,0,different
+7105,ZOBAL,rangeMax,null,0,different
+7105,ZOBAL,name.es,"""Pirouette""","""Giro""",different
+7105,ZOBAL,name.pt,"""Pirouette""","""Cambalhota""",different
+7106,ZOBAL,apCost,null,0,different
+7106,ZOBAL,rangeMin,null,0,different
+7106,ZOBAL,rangeMax,null,0,different
+7106,ZOBAL,element,"""FIRE""",null,different
+7106,ZOBAL,name.es,"""Regenerating Collisions""","""Colisiones Regenerativas""",different
+7106,ZOBAL,name.pt,"""Regenerating Collisions""","""Colisões Regenerativas""",different
+7107,ZOBAL,apCost,null,0,different
+7107,ZOBAL,rangeMin,null,0,different
+7107,ZOBAL,rangeMax,null,0,different
+7107,ZOBAL,name.es,"""Mirrors""","""Espejos""",different
+7107,ZOBAL,name.pt,"""Mirrors""","""Espelhos""",different
+7108,ZOBAL,apCost,null,0,different
+7108,ZOBAL,rangeMin,null,0,different
+7108,ZOBAL,rangeMax,null,0,different
+7108,ZOBAL,name.es,"""Keep in Contact""","""En Contacto""",different
+7108,ZOBAL,name.pt,"""Keep in Contact""","""Em Contato""",different
+7111,ZOBAL,apCost,null,0,different
+7111,ZOBAL,rangeMin,null,0,different
+7111,ZOBAL,rangeMax,null,0,different
+7111,ZOBAL,name.es,"""Artful Dodger""","""Arte de la Huida""",different
+7111,ZOBAL,name.pt,"""Artful Dodger""","""Arte da Fuga""",different
+7112,ZOBAL,apCost,null,0,different
+7112,ZOBAL,rangeMin,null,0,different
+7112,ZOBAL,rangeMax,null,0,different
+7112,ZOBAL,name.es,"""Masked Gaze""","""Mirada Enmascarada""",different
+7112,ZOBAL,name.pt,"""Masked Gaze""","""Olhar Mascarado""",different
+7113,ZOBAL,apCost,null,0,different
+7113,ZOBAL,rangeMin,null,0,different
+7113,ZOBAL,rangeMax,null,0,different
+7113,ZOBAL,name.es,"""Debuff Pushes""","""Empujes de Traba""",different
+7113,ZOBAL,name.pt,"""Debuff Pushes""","""Empurrões de Entrave""",different
