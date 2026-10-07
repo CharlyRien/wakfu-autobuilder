@@ -14,6 +14,7 @@ import me.chosante.common.I18nText
 import me.chosante.common.ItemEquipCriterion
 import me.chosante.common.Monster
 import me.chosante.common.RuneCatalogData
+import me.chosante.common.RuneValues
 import me.chosante.common.Spell
 import me.chosante.common.SpellDamageScaling
 import me.chosante.common.SpellLocalization
@@ -59,9 +60,10 @@ fun main(args: Array<String>) {
         println("Portrait refresh: $report")
         return
     }
+    val runeValuesOnly = args.firstOrNull() == "--rune-values-only"
     val positionsOnly = args.firstOrNull() == "--equipment-positions-only"
     val achievementsOnly = args.firstOrNull() == "--achievement-names-only"
-    val positional = if (achievementsOnly || positionsOnly) args.drop(1) else args.toList()
+    val positional = if (achievementsOnly || positionsOnly || runeValuesOnly) args.drop(1) else args.toList()
     val install = File(positional.getOrNull(0) ?: DEFAULT_INSTALL)
     val version = positional.getOrNull(1) ?: DEFAULT_VERSION
     // The oracle guard in verifyAndWrite blocks ANY semantic diff vs the committed artifact (drift safety).
@@ -77,6 +79,11 @@ fun main(args: Array<String>) {
         return
     }
 
+    if (runeValuesOnly) {
+        writeRuneValues(install, version, repoRoot, force)
+        return
+    }
+
     val equipmentPositions = buildEquipmentPositions(install, fetchEquipmentTypes(version))
     verifyAndWrite(
         File(repoRoot, "common-lib/src/main/resources/equipment-positions.json"),
@@ -86,6 +93,7 @@ fun main(args: Array<String>) {
         force
     )
     if (positionsOnly) return
+    writeRuneValues(install, version, repoRoot, force)
 
     println("Wakfu install : $install")
     println("Data version  : $version")
@@ -203,6 +211,22 @@ fun main(args: Array<String>) {
     writeAchievementNames(install, itemCriteria, resources, force)
 
     println("\nDone.")
+}
+
+private fun writeRuneValues(
+    install: File,
+    version: String,
+    root: File,
+    force: Boolean,
+) {
+    val values = buildRuneValues(install, ItemsCatalog.fetchItemsJson(version), ActionCatalog.fetch(version))
+    verifyAndWrite(
+        File(root, "common-lib/src/main/resources/rune-values.json"),
+        Json.encodeToString(RuneValues.serializer(), values),
+        "rune-values",
+        values.byCharacteristic.size * 11,
+        force
+    )
 }
 
 /**

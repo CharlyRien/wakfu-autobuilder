@@ -9,6 +9,7 @@ import me.chosante.common.ItemEquipCriterion
 import java.io.File
 import java.lang.classfile.ClassFile
 import java.lang.classfile.ClassModel
+import java.lang.classfile.Instruction
 import java.lang.classfile.MethodModel
 import java.lang.classfile.Opcode
 import java.lang.classfile.instruction.ConstantInstruction
@@ -207,6 +208,76 @@ internal class ClientJar(
                 }.filter { it > 0 }
                 .distinct()
         return namespaces.singleOrNull() ?: error("achievement name lookup drift: ambiguous namespace constants $namespaces")
+    }
+
+    /** Follow the shard tooltip's renderer call; its doubled numeric argument is floor(value) * 2. */
+    fun requireRuneFloorBeforeDoubling() {
+        val anchors = setOf("shardBonusText", "shardDoubleBonusText", "shardLevelText")
+        val ui =
+            all.map { it.second }.singleOrNull { m ->
+                m
+                    .methods()
+                    .flatMap { method ->
+                        method
+                            .code()
+                            .map { code ->
+                                code.elementList().filterIsInstance<ConstantInstruction>().mapNotNull {
+                                    val value: Any = it.constantValue()
+                                    value as? String
+                                }
+                            }.orElse(emptyList())
+                    }.toSet()
+                    .containsAll(anchors)
+            } ?: error("Shard tooltip UI anchors missing or ambiguous")
+        val rendererCall =
+            ui
+                .methods()
+                .filter { it.methodTypeSymbol().returnType().descriptorString() == "Ljava/util/List;" }
+                .flatMap {
+                    it
+                        .code()
+                        .orElseThrow()
+                        .elementList()
+                        .filterIsInstance<InvokeInstruction>()
+                }.singleOrNull { it.opcode() == Opcode.INVOKESTATIC && Regex("\\(L[^;]+;ZS\\)L[^;]+;").matches(it.typeSymbol().descriptorString()) }
+                ?: error("Shard tooltip renderer call drift")
+        val renderer =
+            requireNotNull(model(rendererCall.owner().asInternalName())).methods().single {
+                it.methodName().stringValue() == rendererCall.name().stringValue() && it.methodTypeSymbol() == rendererCall.typeSymbol()
+            }
+        val transforms =
+            renderer
+                .code()
+                .orElseThrow()
+                .elementList()
+                .filterIsInstance<NewObjectInstruction>()
+                .mapNotNull { model(it.className().asInternalName()) }
+                .flatMap { it.methods() }
+                .filter { it.methodTypeSymbol().descriptorString() == "([Ljava/lang/Object;)[Ljava/lang/Object;" }
+        val transform = transforms.singleOrNull() ?: error("Shard doubled-argument transform missing or ambiguous")
+        val code =
+            transform
+                .code()
+                .orElseThrow()
+                .elementList()
+                .filterIsInstance<Instruction>()
+        val floors =
+            code.withIndex().filter { (_, el) ->
+                el is InvokeInstruction &&
+                    el.owner().asInternalName() == "java/lang/Math" &&
+                    el.name().stringValue() == "floor" &&
+                    el.typeSymbol().descriptorString() == "(D)D"
+            }
+        val at = floors.singleOrNull()?.index ?: error("Shard double rounding no longer has one Math.floor")
+        val multiplier: Any? = (code.getOrNull(at + 1) as? ConstantInstruction)?.constantValue()
+        check(
+            code.getOrNull(at - 1) is InvokeInstruction &&
+                (code[at - 1] as InvokeInstruction).name().stringValue() == "doubleValue" &&
+                multiplier == 2.0 &&
+                code.getOrNull(at + 2)?.opcode() == Opcode.DMUL
+        ) {
+            "Shard doubling no longer floors the numeric value before multiplying by 2 — review engine/certifier versions"
+        }
     }
 
     /** An enum constant: its static [field] name and the int arguments of its constructor call (ordinal first). */

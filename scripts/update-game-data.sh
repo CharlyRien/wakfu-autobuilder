@@ -50,7 +50,8 @@ echo "==> [4/5] bdata artifacts + sublimations + monsters (local game binaries a
 # items — so it MUST run after step 2; table, record prefix, kinds and breeds found structurally in the client
 # bytecode). achievement-names.json joins the referenced achievements with the local i18n bundles; its table
 # id, schema and name namespace are found from client bytecode too. equipment-positions.json is shipped
-# in common-lib and joins the client raw-position enum with CDN occupied equipment positions. The Monster layout is
+# in common-lib and joins the client raw-position enum with CDN occupied equipment positions. rune-values.json
+# also ships in common-lib; CDN shard equip formulas + client StaticEffect level bands replace transcribed tables. The Monster layout is
 # auto-derived from the client bytecode (SchemaGenerator), so version drift needs no hand-RE; only boss-tier
 # rank comes from the committed monster-overlay.json. Replaces the MethodWakfu/Fandom scrape AND the WakForge
 # sublimation pipeline. BDATA_FORCE_WRITE=1 accepts the (expected) data changes; the diff is printed first.

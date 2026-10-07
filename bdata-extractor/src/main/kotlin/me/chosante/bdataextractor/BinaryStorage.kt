@@ -57,6 +57,31 @@ fun loadTable(
     return Table(entries, records)
 }
 
+/** Decode and size/id-check EVERY record, retaining only requested ids to keep client-bytecode extraction within a small heap. */
+internal fun loadSelectedTableRecords(
+    installRoot: File,
+    typeId: Int,
+    schema: List<Field>,
+    selectedIds: Set<Int>,
+): Map<Int, Map<String, Any?>> {
+    val decoder = BinaryDecoder.create(readBin(installRoot, typeId), typeId)
+    val entries = decoder.readIndex()
+    decoder.reset(typeId)
+    val out = HashMap<Int, Map<String, Any?>>()
+    for (entry in entries) {
+        val before = decoder.position
+        val record = decoder.readRecord(schema)
+        check(decoder.position - before == entry.size) {
+            "Table $typeId record ${entry.id} size mismatch — re-derive the field schema"
+        }
+        val id = record.getValue(schema.first().name) as Int
+        check(id.toLong() == entry.id) { "Table $typeId record id $id differs from index ${entry.id}" }
+        if (id in selectedIds) check(out.put(id, record) == null) { "Duplicate table $typeId record $id" }
+    }
+    check(out.keys == selectedIds) { "Missing table $typeId records: ${selectedIds - out.keys}" }
+    return out
+}
+
 /**
  * True if [schema] cleanly decodes the first [sample] records of table [typeId] — every record consumes
  * exactly its indexed byte length (size-guard) and its leading field equals the index id. Records are read
