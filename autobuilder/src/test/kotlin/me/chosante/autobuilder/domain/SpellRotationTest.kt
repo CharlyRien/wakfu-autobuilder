@@ -424,4 +424,26 @@ class SpellRotationTest {
             .describedAs("scenario-agnostic resolution (the generic compare grid) keeps the pre-fix behaviour: the gated DI is not creditable")
             .isEqualTo(0)
     }
+
+    @Test
+    fun `zero AP resource spells never enter rotations or certificate AP throughput`() {
+        val pursuit = SpellCatalog.spells.single { it.id == 7077 }
+        assertThat(pursuit.apCost).isZero()
+        assertThat(pursuit.mpCost).isEqualTo(2)
+        assertThat(pursuit.maxCastsThisTurn).isEqualTo(2)
+        val zeroCosts =
+            listOf(
+                pursuit,
+                spell(90001, 0).copy(wpCost = 2),
+                spell(90002, 0).copy(mpCost = 2),
+                spell(90003, 0).copy(maxCastPerTurn = 1),
+                SpellCatalog.spells.single { it.id == 6279 }
+            )
+        val scored = zeroCosts.map { ScoredSpell(it, 0, 1_000_000.0) }
+        assertThat(SpellRotationOptimizer.bestRotation(scored, 12).casts).isEmpty()
+        assertThat(SpellRotationOptimizer.baseThroughputTable(zeroCosts, 12, 245)).containsOnly(0L)
+        val normal = spell(90004, 3).copy(baseDamage = 30)
+        val withZero = SpellRotationOptimizer.baseThroughputTable(zeroCosts + normal, 12, 245)
+        assertThat(withZero).containsExactly(*SpellRotationOptimizer.baseThroughputTable(listOf(normal), 12, 245))
+    }
 }

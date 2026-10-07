@@ -72,6 +72,11 @@ fun main(args: Array<String>) {
         ).forEach(::println)
         return
     }
+    if (args.firstOrNull() == "--spell-metadata-only") {
+        val install = File(args.getOrNull(1) ?: DEFAULT_INSTALL)
+        writeSpellMetadata(install, File(findRepositoryRoot(), "autobuilder/src/main/resources"), System.getenv("BDATA_FORCE_WRITE") == "1")
+        return
+    }
     val runeValuesOnly = args.firstOrNull() == "--rune-values-only"
     val positionsOnly = args.firstOrNull() == "--equipment-positions-only"
     val achievementsOnly = args.firstOrNull() == "--achievement-names-only"
@@ -151,6 +156,7 @@ fun main(args: Array<String>) {
     // Spell damage scalings: the per-level [base, inc] formula from bdata, anchored on the encyclopedia's
     // max-level value so SpellDamage scales each hit to the caster's level (the encyclopedia only knows one
     // level). Reads the committed encyclopedia spells.json as the anchor; produces spell-damage.json.
+    writeSpellMetadata(install, resources, force, spells, i18n)
     val encyclopediaSpells =
         LENIENT_JSON.decodeFromString(ListSerializer(Spell.serializer()), File(resources, "spells.json").readText())
     val spellDamageScalings = buildSpellDamageScalings(spells, effects, encyclopediaSpells)
@@ -223,6 +229,22 @@ fun main(args: Array<String>) {
     writeAchievementNames(install, itemCriteria, resources, force)
 
     println("\nDone.")
+}
+
+private fun writeSpellMetadata(
+    install: File,
+    resources: File,
+    force: Boolean,
+    spells: Table = loadTable(install, Tables.SPELL, Tables.SPELL_SCHEMA),
+    i18n: I18nBundle = I18nBundle.load(install, setOf(3)),
+) {
+    val file = File(resources, "spells.json")
+    val encyclopedia = LENIENT_JSON.decodeFromString(ListSerializer(Spell.serializer()), file.readText())
+    val resourcesById = CharacIdCatalog.load(install)
+    val enriched = buildSpellMetadata(spells, i18n, encyclopedia, resourcesById::scriptNameFor)
+    val absent = encyclopedia.filter { spell -> spells.records.none { it["id"] == spell.id } }.map { it.id }
+    println("  spell metadata: ${enriched.size - absent.size}/${enriched.size} client records; absent ids retained: $absent")
+    verifyAndWrite(file, Json.encodeToString(ListSerializer(Spell.serializer()), enriched), "spell-metadata", enriched.size, force)
 }
 
 private fun writeRuneValues(

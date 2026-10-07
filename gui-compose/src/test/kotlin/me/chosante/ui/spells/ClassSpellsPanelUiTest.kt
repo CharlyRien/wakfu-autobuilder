@@ -150,4 +150,41 @@ class ClassSpellsPanelUiTest {
         assertThat(withoutBand).isNotNull
         assertThat(withBand!!.expected).isGreaterThan(withoutBand!!.expected)
     }
+
+    @Test
+    fun `shows the utility wall resource cost and range`() =
+        runComposeUiTest {
+            setContent {
+                CompositionLocalProvider(LocalLang provides Lang.EN) {
+                    ClassSpellsPanel(UiState(clazz = CharacterClass.HUPPERMAGE, level = 100))
+                }
+            }
+            onNodeWithText("Wall of Energy").assertExists()
+            assertThat(onAllNodesWithText("150 quadramental breeze", substring = true).fetchSemanticsNodes()).isNotEmpty()
+            assertThat(onAllNodesWithText("1–3", substring = true).fetchSemanticsNodes()).isNotEmpty()
+        }
+
+    @Test
+    fun `shows pursuit MP cost alongside zero AP`() =
+        runComposeUiTest {
+            setContent {
+                CompositionLocalProvider(LocalLang provides Lang.EN) {
+                    ClassSpellsPanel(UiState(clazz = CharacterClass.ZOBAL, level = 100))
+                }
+            }
+            onNodeWithText("Pursuit").assertExists()
+            assertThat(onAllNodesWithText("0 AP  ·  2 MP", substring = true).fetchSemanticsNodes()).isNotEmpty()
+        }
+
+    @Test
+    fun `shows the positive Stasis Point expenditure from the client`() =
+        runComposeUiTest {
+            setContent {
+                CompositionLocalProvider(LocalLang provides Lang.EN) {
+                    ClassSpellsPanel(UiState(clazz = CharacterClass.STEAMER, level = 100))
+                }
+            }
+            onNodeWithText("Hypertension").assertExists()
+            assertThat(onAllNodesWithText("2 Stasis Points", substring = true).fetchSemanticsNodes()).isNotEmpty()
+        }
 }
