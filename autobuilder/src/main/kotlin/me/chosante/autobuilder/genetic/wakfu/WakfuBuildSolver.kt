@@ -422,8 +422,15 @@ object WakfuBuildSolver {
      * `StatBuilder.applyItemStatGates`) are enforced: they only REMOVE builds, so the certifiers ignore them (a relaxation, every
      * bound stays an upper bound of the gated optimum) and the domination pre-filter only keeps MORE items (a gated item never
      * evicts an ungated one; a swap never moves a gated total the wrong way) — a bound cached before stays an upper bound.
+     * 58: the domination pre-filter — which feeds every certificate's pool — ignores the stat gates that can never fail (the
+     * model's own `holdsOnEvery` test on the out-of-combat reach, narrowed by the caps: the 89 `critical hit > −10` gates, implied
+     * by the `≥ −9` crit cap) and protects only the gates of the gated items it KEEPS (a least fixpoint over the gate sources:
+     * a gated item it evicts no longer pins its stats in every other slot; argument in `filterDominatedPool`). The reduced pool's
+     * optimum is unchanged; it is only smaller (the free lvl-245 max-damage pool: 5 401 → 3 718 items, 680 with the gates
+     * stripped; CP-SAT det to OPTIMAL 1 558 → 445).
+     * Bounds can only fall with the pool: a bound cached before stays an upper bound — bumped as the pool every certificate reads changed.
      */
-    const val CERTIFIER_VERSION: Int = 57
+    const val CERTIFIER_VERSION: Int = 58
 
     // Min wall-clock gap between intermediate best-so-far emissions. Each emission re-runs the heavy
     // solutionToBuild + scoreFor (a knapsack rotation in max-damage) ON the native solve thread, stealing

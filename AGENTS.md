@@ -264,7 +264,10 @@ certificate reads from an item (CERTIFIER_VERSION 53 audit, `docs/perf-review-ba
 
 - equip conditions (see below): an item another pool item REQUIRES is never evicted, and `A`'s required items and
   conflict partners must be subsets of `B`'s; `A`'s stat gates ⊆ `B`'s, and a swap never moves a gated out-of-combat total the
-  wrong way (`≤` on upper-gated stats, `≥` on lower-gated ones).
+  wrong way (`≤` on upper-gated stats, `≥` on lower-gated ones). Only gates that CAN fail count (`DominationShape.gateCanFail`,
+  the model's own `holdsOnEvery` test through the shared `outOfCombatSheetReach`: the 89 `critical hit > −10` gates are no
+  gates), and only the gates of items that SURVIVE constrain the other slots — a least fixpoint over the gate sources
+  (`filterDominatedPool` / `dominationPass`, soundness argument in its KDoc; CERTIFIER_VERSION 58).
 
 Adding anything the model reads from an `Equipment` (a new field, a level- or name-dependent term) means adding its
 clause there — and bumping `CERTIFIER_VERSION`, since the certificates' pool changes.
@@ -302,7 +305,11 @@ re-checks the whole equipped set, so every rule is a rule on the FINAL build. Th
   `validateRequest` reports a forced item whose upper gate is below a target row by more than every in-combat-only sub bonus
   (`ForcedItemStatGateContradictsTarget`: forced Cartes And with range 4). The certificates ignore the gates (they only remove
   builds: a sound relaxation). Domination: A's gates ⊆ B's, `A ≤ B` on every stat an upper gate of an item worn beside B (or
-  A's own) bounds — in effect a pin on compared stats, runes exact — and `A ≥ B` on every lower-gated one (`EquipConstraints.gatedStats`).
+  A's own) bounds — in effect a pin on compared stats, runes exact — and `A ≥ B` on every lower-gated one (`EquipConstraints.gatedStats`),
+  counting only the gates that can fail and only those of the items the filter keeps (a gated item it evicts is in no build, so
+  its gate needs no protection). Gated items that are genuinely non-dominated (lvl-245: Cape Hilare / Voile d'Excarnus' crit
+  40–50 band, Cartes And's range ≤ 3, …) still pin their stats in the other slots: the lvl-245 free max-damage pool keeps
+  more items than with the gates stripped.
 - `BuildCombination.isValid(characterClass)` checks all five; the greedy warm start never picks a requiring item alone
   (each sword + ring BUNDLE is a candidate, ranked by `rescore`) and never pairs excluding rings; `validateRequest`
   rejects a wrong-class / never / requirement-unavailable forced item and two excluding forced items (`RequestValidationProblem`).
