@@ -40,7 +40,7 @@ class I18nBundle(
         val values =
             LANGS.associateWith { lang ->
                 byLang.getValue(lang)[key]?.takeIf { it.isNotBlank() }
-                    ?: error("Missing achievement name $key in the $lang i18n bundle")
+                    ?: error("Missing localized text $key in the $lang i18n bundle")
             }
         return I18nText(values.getValue("fr"), values.getValue("en"), values.getValue("es"), values.getValue("pt"))
     }

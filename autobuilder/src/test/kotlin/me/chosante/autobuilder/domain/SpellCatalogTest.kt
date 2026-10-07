@@ -70,4 +70,18 @@ class SpellCatalogTest {
         assertThat(damage!!.expected).isGreaterThan(0.0)
         assertThat(damage.expected).isLessThan(fireSpell.critDamage!!.toDouble() + 1)
     }
+
+    @Test
+    fun `official costs range and names join without treating a missing id as free`() {
+        val wall = SpellCatalog.spells.single { it.id == 5576 }
+        assertThat(wall.apCost).isZero()
+        assertThat(wall.rangeMin to wall.rangeMax).isEqualTo(1 to 3)
+        assertThat(wall.resourceCosts.single().amount).isEqualTo(150)
+        val arrow = SpellCatalog.spells.single { it.id == 5594 }
+        assertThat(arrow.name.es).isEqualTo("Flecha de Luz")
+        assertThat(arrow.element).isNull()
+        assertThat(arrow.missingFields).contains("element(LIGHT)")
+        assertThat(SpellCatalog.spells.single { it.id == 7077 }.mpCost).isEqualTo(2)
+        assertThat(SpellCatalog.spells.single { it.id == 5123 }.apCost).isNull()
+    }
 }

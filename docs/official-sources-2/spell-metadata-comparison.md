@@ -92,7 +92,7 @@ be a new schema field, not an identical-value source substitution; it was not ad
 No damage number, resource, domain field, scorer, engine or certificate version was changed by this investigation.
 No BDATA_FORCE_WRITE or encyclopedia network refresh was used; the comparison is against the committed oracle.
 
-## Source fingerprints (SHA-256)
+## Original PR #265 source fingerprints (SHA-256)
 
 - committed spells.json: `493a7c5cdae7b57694d281c47090cf26d0ab9b397a5c1c8fc6bf658fcf6bcf8c`
 - client lib/wakfu-client.jar: `e3eb8b9b6a1fa0d42d2f06f0af3e841ed783b2998f5c81d3cd8312294106d3cd`
@@ -153,3 +153,98 @@ otherwise-present LIGHT_MASTERY characteristic. The normal secondary, crit and d
 terms are then applied by the damage computation. This is client code evidence, not an inferred rule
 from field 30. Adding Light to the engine would require explicit best-mastery selection, coupled target
 resistance selection, resource/cooldown budgets and renewed soundness proofs for the AP-cell bounds.
+
+## Part 2: reviewed source migration
+
+`buildSpellMetadata` overlays only 707 present ids; **5150, 5089 and 5123 retain their original unknown
+values/names**. No table or i18n record exists for them. The encyclopedia continues selecting all 710
+ids and their category, element, damage anchors, area, LOS, icon, description and debuff metadata.
+The existing `spell-i18n.json` localized description overlay at runtime is unchanged; the description
+in `spells.json` is untouched. Runtime names now respect the reviewed names in `spells.json` rather
+than wholesale overwriting FR/EN from the side table.
+
+| Field | Changed records | Conflicting known values | Filled unknown values |
+|---|---:|---:|---:|
+| AP | 348 | 43 | 305 |
+| range min | 373 | 31 | 342 |
+| range max | 421 | 79 | 342 |
+| ES name | 691 | 691 | 0 |
+| PT name | 690 | 690 | 0 |
+| FR name | 13 | 13 | 0 |
+| EN name | 0 | 0 | 0 |
+
+All 707 present records also get MP and WP (including explicit zero); **4 have a positive MP cost**,
+**103 a positive WP cost**. Ten Huppermage spells carry additional spends in `base_cast_parameters`:
+key **111**, resolved structurally from the characteristic enum to `HUPPERMAGE_RESOURCE`, has negative
+base values: 50/100/150/200 breeze. Three Foggernaut entries have **positive** key 123 (`SP`) values: Stasis Point COSTS, not signed gains:
+6918 Hypertension 2, 6920 Ambush 1, 6922 Stasis Flux 3. The sign convention differs from Huppermage's.
+The client's `sp` tooltip key reads this amount unchanged, and the cast validator checks the amount
+is <= current SP. Plain i18n keys `SP` / `SPDescription` say Stasis Points cast special spells. Observed
+breadcrumbs: fyH.f → fcP.e; bPQ's `sp` branch → fyS.r(SP); enum id 123 (SP). No universal sign
+rule is assumed: unknown additional resource conventions fail pending review. All 13 resource costs
+are displayed (10 breeze, 3 SP). All current increments are zero; the builder
+still evaluates floor(base + inc × max_level), including resource parameters. Conditional `_51` cast
+parameter variants are deliberately not simulated: these are the default spell-sheet costs/ranges.
+
+### The 13 French corrections (English unchanged)
+
+The scrape's French listing name disagrees with its id's English name and spell behavior (many labels
+were shifted between neighboring ids). The client supplies the id-correct localized name. These ids
+alone are reviewed for replacement; an unreviewed FR difference stays untouched, and any future EN
+difference fails extraction pending review.
+
+| Id | Before | Client / retained English | Evidence for correction |
+|---|---|---|---|
+| 4720 | Téléportono | Gueule de bois / Worn-Out | Heal/armor/barrel repel; not a teleport |
+| 6845 | Ebriété | Pandanlku / Pandiniuras | MP/range active ally buff, not Merry state |
+| 7064 | Dynamite | Kaboom / Kaboom | Id's EN and client FR agree; obsolete FR title in scraped prose |
+| 5030 | Furie sanguinaire | Attirance / Attraction | Description attracts a target |
+| 5041 | Projection | Cinétose / Motion Sickness | Description triggers damage on movement |
+| 5043 | Attirance | Transposition / Transposition | Description switches positions |
+| 5044 | Transposition | Sacrifice / Sacrifice | Description intercepts allies' damage |
+| 5045 | Sacrifice | Armure sanguine / Sanguine Armor | Description stabilizes and grants armor |
+| 5047 | Armure sanguine | Bain de sang / Blood Bath | Id's EN and client FR agree; distinct vulnerability spell |
+| 7211 | Entaille | Coagulation / Coagulation | Description raises armor cap and shares armor |
+| 4604 | Invisibility | Invisibilité / Invisibility | Untranslated EN copied into FR |
+| 6942 | Tacticien | Bidouillage / Tinkering | Turret gains effects at expense of damage |
+| 7084 | Esprit masqué | Entrechoquement / Clashing | Description deals collisions; not a double summon |
+
+### Engine-visible change and 0-AP safety
+
+Of the **265** spells with a supported element and readable damage, AP changes only on **7077 Poursuite
+2 → 0** (real cost 2 MP) and **6937 Activation null → 0** (client passive). Poursuite is newly excluded
+from the AP-only rotation; Activation was already excluded for unknown AP. The other seven damage
+records gaining 0 AP are unsupported LIGHT: Flair 6279, Force sage 6282, Exploupée 933, Embuscade 5122,
+Roues chaudes 6940, Présages violents 7187, Flétrissement 7195. These are client passives (passive=2),
+not free active attacks, and remain outside the element-supported engine. The encyclopedia categories
+and damage are retained rather than silently changing the roster. Flair carries no default WP/MP cost
+in the client: its apparent AP 1 was prose misread by the scrape. No other AP 0 damage record is adopted.
+
+`bestRotation` requires scored AP >= 1; `baseThroughputTable` (solver AND certificate) requires cost >= 1.
+Thus even a spell with a finite cast cap and a WP/MP/class-resource spend contributes **no free damage**.
+The safety choice is **exclusion**, retaining the existing guards, locked on real Poursuite/Flair and
+synthetic bounded/unbounded MP/WP-only spells. Positive-AP spells still use the existing AP-only
+approximation; general MP/WP/resource modelling is a separate change. **CERTIFIER_VERSION 58 → 59,
+ENGINE_RESULTS_VERSION 3 → 4** invalidate bounds and flag old saved searches; history comments and the
+pair lock are updated.
+
+The class-spells panel now includes active utility spells too and shows MP/WP/breeze alongside AP and
+range. Breeze and Stasis Point expenditure conventions are tested separately. Default AP/range remain separate from conditional overrides. Reproduce after an encyclopedia
+scrape with `bdata-extractor --spell-metadata-only [install]` (or the full extractor, already wired after
+the scrape in `update-game-data.sh`). `BDATA_FORCE_WRITE=1` is needed for intentional oracle changes;
+the whole-catalog `SpellMetadataReproductionTest` requires exact reproduction on subsequent runs.
+
+### Follow-up source fingerprints (SHA-256)
+
+These installed jars differ from the original report fingerprints; the follow-up independently decodes
+and compares the current install, rather than assuming the old binaries. All AP/range/name difference
+counts and the three absent ids above were rechecked. CDN actions remain pinned to 1.93.1.62.
+
+- `lib/wakfu-client.jar`: `7dd7003aeb0bfb0dc7ee94b6c1a579c5d8fc93e35dd4ba416a0275925f15bef5`
+- `contents/bdata/66.jar`: `1a40731645620caa2d6376ac83f12e88f79319ae96fdd5fb056a3f061897fb8d`
+- `contents/bdata/68.jar`: `f84b4e2722f08186d5ad86801ee31ae4dc3b8c496fee7b8f0748a175b2b72bd1`
+- `contents/i18n/i18n_fr.jar`: `23fcf99e9312e692c052591840139592bb7a22a9a5a34b2a5a980186795c9bf9`
+- `contents/i18n/i18n_en.jar`: `c153f9bec6e383ccc343f8202af58971fcc5bf8b9d5bbcbed9866473bb7c0251`
+- `contents/i18n/i18n_es.jar`: `a8f1f86971f803f7315972f516f938464437bd8d9a04d63da9e9c1d99329a2da`
+- `contents/i18n/i18n_pt.jar`: `8eefc6908cbee973fa481bbc9402c3fc9bf653a1625f4a1ce9ce01ab711e7bb9`
+- Pinned CDN actions.json: `7937aee6ec35c891c0c273283baa8db5af987ec2c66a0a8bc6dc07e5c29702df`

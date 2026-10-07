@@ -92,6 +92,7 @@ object SpellRotationOptimizer {
         element: SpellElement? = null,
         maxCastsPerSpell: Int? = null,
     ): SpellRotation {
+        // This is an AP-only model: even a capped WP/MP/resource-only spell is excluded, never a free cast.
         val items = scored.filter { it.apCost in 1..apBudget && it.expectedDamagePerCast > 0.0 }
         if (apBudget <= 0 || items.isEmpty()) {
             return SpellRotation(element, apBudget.coerceAtLeast(0), 0, emptyList(), 0.0)
@@ -481,6 +482,7 @@ object SpellRotationOptimizer {
         val items =
             spells.mapNotNull { s ->
                 val cost = s.apCost ?: return@mapNotNull null
+                // Same exclusion as bestRotation: a non-AP expenditure cannot be priced by an AP cell.
                 if (cost < 1) return@mapNotNull null
                 val base = s.baseDamageAt(casterLevel)?.toLong() ?: return@mapNotNull null
                 Triple(cost, base, s.maxCastsThisTurn ?: maxAp)

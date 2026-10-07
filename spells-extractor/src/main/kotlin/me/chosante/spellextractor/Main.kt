@@ -82,6 +82,7 @@ suspend fun main() {
     outputFile.writeText(compactJson.encodeToString(ListSerializer(Spell.serializer()), sorted))
 
     printReport(sorted, classReports, outputFile)
+    println("Next: bdata-extractor --spell-metadata-only [install] merges the client costs, ranges and reviewed names (update-game-data.sh does this automatically).")
 }
 
 /**
