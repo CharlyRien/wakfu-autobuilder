@@ -1,0 +1,74 @@
+{
+    "positionIds": {
+        "HEAD": 0,
+        "HAIR": 1,
+        "FACE": 2,
+        "SHOULDERS": 3,
+        "NECK": 4,
+        "CHEST": 5,
+        "ARMS": 6,
+        "LEFT_HAND": 7,
+        "RIGHT_HAND": 8,
+        "SKIRT": 9,
+        "BELT": 10,
+        "TROUSERS": 11,
+        "LEGS": 12,
+        "BACK": 13,
+        "WING": 14,
+        "FIRST_WEAPON": 15,
+        "SECOND_WEAPON": 16,
+        "ACCESSORY": 17,
+        "BAG_1": 18,
+        "BAG_2": 19,
+        "BAG_3": 20,
+        "BAG_4": 21,
+        "PET": 22,
+        "COSTUME": 23,
+        "MOUNT": 24
+    },
+    "itemPositions": {
+        "AMULET": [
+            "NECK"
+        ],
+        "EMBLEM": [
+            "ACCESSORY"
+        ],
+        "SHOULDER_PADS": [
+            "SHOULDERS"
+        ],
+        "RING": [
+            "LEFT_HAND",
+            "RIGHT_HAND"
+        ],
+        "BOOTS": [
+            "LEGS"
+        ],
+        "ONE_HANDED_WEAPONS": [
+            "FIRST_WEAPON"
+        ],
+        "CHEST_PLATE": [
+            "CHEST"
+        ],
+        "CAPE": [
+            "BACK"
+        ],
+        "OFF_HAND_WEAPONS": [
+            "SECOND_WEAPON"
+        ],
+        "HELMET": [
+            "HEAD"
+        ],
+        "PETS": [
+            "PET"
+        ],
+        "TWO_HANDED_WEAPONS": [
+            "FIRST_WEAPON"
+        ],
+        "MOUNTS": [
+            "MOUNT"
+        ],
+        "BELT": [
+            "BELT"
+        ]
+    }
+}
