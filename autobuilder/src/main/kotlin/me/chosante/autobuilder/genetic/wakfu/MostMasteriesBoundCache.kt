@@ -136,13 +136,14 @@ internal object MostMasteriesBoundCache {
                     stopWhenBuildMatch = false,
                     maxDamageApTarget = null,
                     maxDamageMpPin = null,
-                    solverWorkers = null
+                    solverWorkers = null,
+                    computeBudget = ComputeBudget()
                 )
         )
 
     private fun cached(key: Key): Entry? = synchronized(entries) { entries[key] }
 
-    private fun stageWorkers(): Int = if (runningSearches.get() > 0) 1 else LongLongMaxMap.defaultWorkers()
+    private fun stageWorkers(budget: ComputeBudget): Int = if (runningSearches.get() > 0) 1 else budget.chunkWorkers
 
     /**
      * The memoized single-flight bound for [params] (null = the certificate bails on this request, or [shouldContinue]
@@ -215,7 +216,7 @@ internal object MostMasteriesBoundCache {
             // prefilter. No domination shape ⇒ a bail. Prefiltered requests are withheld at the proof gates.
             val bound =
                 if (fake != null) {
-                    fake(params, live, ::stageWorkers)
+                    fake(params, live) { stageWorkers(params.computeBudget) }
                 } else {
                     dominationShape(params, subs)?.let { shape ->
                         val pool = WakfuBuildSolver.filterDominatedPoolMemoizedForTest(basePool ?: WakfuBestBuildFinderAlgorithm.poolFor(params), shape)
@@ -225,7 +226,7 @@ internal object MostMasteriesBoundCache {
                             WakfuBestBuildFinderAlgorithm.runes,
                             subs,
                             shouldContinue = live,
-                            parallelism = ::stageWorkers
+                            parallelism = { stageWorkers(params.computeBudget) }
                         )
                     }
                 }

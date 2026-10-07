@@ -356,9 +356,9 @@ object MaxDamageSearch {
                                     threadsProvider = { tier ->
                                         when {
                                             !searchDone.get() -> 1 // never compete with the search's CP-SAT workers
-                                            tier == CertTier.TIER15 -> WakfuBuildSolver.certifierTier15Threads()
-                                            tier == CertTier.FAST -> WakfuBuildSolver.certifierFastWorldThreads()
-                                            else -> WakfuBuildSolver.certifierDefaultThreads()
+                                            tier == CertTier.TIER15 -> WakfuBuildSolver.certifierTier15Threads(baseParams.computeBudget)
+                                            tier == CertTier.FAST -> WakfuBuildSolver.certifierFastWorldThreads(baseParams.computeBudget)
+                                            else -> WakfuBuildSolver.certifierDefaultThreads(baseParams.computeBudget)
                                         }
                                     },
                                     incumbentProvider = { latestProxy.get().takeIf { it != Long.MIN_VALUE } },
@@ -533,7 +533,7 @@ object MaxDamageSearch {
         runes: List<RuneType>,
         sublimations: List<Sublimation>,
         result: SolverResult<BuildCombination>,
-        threads: Int = WakfuBuildSolver.certifierDefaultThreads(),
+        threads: Int = WakfuBuildSolver.certifierDefaultThreads(baseParams.computeBudget),
         // B8: polled once per certifier DP stage. When the caller cancels the proof (search restarted / window
         // closed) the certificate bails promptly and this returns Unavailable with nothing cached.
         isCancelled: () -> Boolean = { false },
@@ -681,7 +681,7 @@ object MaxDamageSearch {
                 // memory-cheap and this solve needs the REAL parallel portfolio — §9.11 measured
                 // low-worker duals stalling ~2× above the optimum, which silently degrades an
                 // exact closure into "proven within ~4%". 8 workers prove the S4 shape in ~40 s.
-                oracleWorkers = (Runtime.getRuntime().availableProcessors() - 2).coerceIn(4, 8),
+                oracleWorkers = baseParams.computeBudget.oracleWorkers,
                 oracleSeconds = SOFT_ORACLE_BUDGET_SECONDS,
                 shouldContinue = { !isCancelled() },
                 incumbentObjective = incumbent,
@@ -746,7 +746,7 @@ object MaxDamageSearch {
                 equipmentsByItemType,
                 runes,
                 sublimations,
-                oracleWorkers = (Runtime.getRuntime().availableProcessors() - 2).coerceIn(4, 8),
+                oracleWorkers = baseParams.computeBudget.oracleWorkers,
                 oracleSeconds = SOFT_ORACLE_BUDGET_SECONDS,
                 shouldContinue = { !isCancelled() },
                 incumbentObjective = incumbent,
@@ -755,7 +755,7 @@ object MaxDamageSearch {
             ) ?: return null
         if (incumbent > union.upper) return null // first-pass self-check already suppressed the badge
         if (incumbent == union.upper) return MaxDamageProof.ProvenOptimal
-        val workers = (Runtime.getRuntime().availableProcessors() - 2).coerceIn(4, 8)
+        val workers = baseParams.computeBudget.oracleWorkers
         // The exact no-condition anchor: reuse the fast pass's proof when it closed; otherwise pay a
         // longer refinement oracle (sacrieur230's no-condition proof needs >240 s) — without it the
         // composition has no exact floor and refinement cannot improve the badge. It runs FIRST and
@@ -879,7 +879,7 @@ object MaxDamageSearch {
             }
         }
 
-        val host = (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)
+        val host = probeParams.first().computeBudget.searchWorkers
         val plan = probePlan(probeParams.size, host, phaseBudget)
         val dispatcher = Dispatchers.IO.limitedParallelism(plan.concurrency)
         return coroutineScope {
@@ -937,7 +937,7 @@ object MaxDamageSearch {
             }
         }
 
-        val host = (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)
+        val host = probeParams.first().computeBudget.searchWorkers
         val plan = probePlan(probeParams.size, host, phaseBudget)
         val dispatcher = Dispatchers.IO.limitedParallelism(plan.concurrency)
         return coroutineScope {
@@ -1263,7 +1263,8 @@ object MaxDamageCertificateCache {
                     stopWhenBuildMatch = false,
                     maxDamageApTarget = null,
                     maxDamageMpPin = null,
-                    solverWorkers = null
+                    solverWorkers = null,
+                    computeBudget = ComputeBudget()
                 ),
             poolIds =
                 equipmentsByItemType.values

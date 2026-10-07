@@ -1116,4 +1116,6 @@ data class WakfuBestBuildParams(
     // its **parallel** AP probes don't each spawn cores−1 native threads and oversubscribe the CPU. Null =
     // default. Ignored when a deterministic SolverTuning is supplied.
     val solverWorkers: Int? = null,
+    /** CPU allowance for this operation; changing UI preferences never mutates an active search. */
+    val computeBudget: ComputeBudget = ComputeBudget(),
 )

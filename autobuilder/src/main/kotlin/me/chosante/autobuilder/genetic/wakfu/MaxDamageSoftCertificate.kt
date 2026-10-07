@@ -503,9 +503,10 @@ internal object MaxDamageSoftCertificate {
         states: HashMap<Long, Long>,
         options: List<Opt>,
         ccSupportLambda: Long,
+        budget: ComputeBudget,
     ): HashMap<Long, Long> {
         val transitions = states.size.toLong() * options.size
-        val workers = Runtime.getRuntime().availableProcessors() - 1
+        val workers = budget.chunkWorkers
         if (transitions < PARALLEL_APPLY_MIN_TRANSITIONS || workers < 2) {
             return applySequential(states.entries.toList(), options, states.size * 2, ccSupportLambda)
         }
@@ -1515,7 +1516,7 @@ internal object MaxDamageSoftCertificate {
             }
             stageLog?.add(StageRecord(label, HashMap(states), options, geo.lowOff, shift))
             val stageT0 = System.nanoTime()
-            states = geo.apply(states, options, ccSupportLambda)
+            states = geo.apply(states, options, ccSupportLambda, params.computeBudget)
             if (debug) {
                 println(
                     "S4_PROTO_STAGE $label states=${states.size} options=${options.size} " +
@@ -3997,7 +3998,7 @@ internal object MaxDamageSoftCertificate {
         val oracleFuture =
             if (highLevelNoCondition == null) {
                 java.util.concurrent.CompletableFuture.supplyAsync {
-                    WakfuBuildSolver.warmUp()
+                    WakfuBuildSolver.warmUp(params.computeBudget)
                     WakfuBuildSolver.timedMaxDamageProfileForTest(
                         params = params,
                         equipmentsByItemType = pool,

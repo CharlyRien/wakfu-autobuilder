@@ -177,7 +177,7 @@ class MostMasteriesBoundCacheTest {
             assertThat(second.await()).isSameAs(bound)
             assertThat(computes() - before).describedAs("single-flight: one compute for both callers").isEqualTo(1)
             // The key ignores the budget (and the other search-only fields): a re-run reads the memo instantly.
-            assertThat(MostMasteriesBoundCache.bound(p.copy(searchDuration = 99.seconds, solverWorkers = 2))).isSameAs(bound)
+            assertThat(MostMasteriesBoundCache.bound(p.copy(searchDuration = 99.seconds, solverWorkers = 2, computeBudget = ComputeBudget(1)))).isSameAs(bound)
             assertThat(computes() - before).isEqualTo(1)
         }
 
