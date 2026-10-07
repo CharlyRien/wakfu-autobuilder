@@ -62,7 +62,7 @@ internal val TRIGGER_KEYS =
 @Serializable
 data class CastLimit(
     val spellId: Int,
-    val name: String?,
+    val name: I18nText?,
     val breedId: Int,
     val maxCastPerTurn: Int,
     val maxCastPerTurnIncr: Int,
@@ -120,12 +120,6 @@ data class SublimationStacking(
     val cumulable: Boolean,
 )
 
-/** A spell's name/description/class as joined from the encyclopedia-scraped `spells-v*.json`. */
-data class SpellInfo(
-    val nameFr: String?,
-    val descFr: String?,
-)
-
 // ----- builders -----
 
 /**
@@ -151,7 +145,7 @@ fun buildSublimationStacking(
 /** Cast-limit artifact: player-breed spells, raw decoded values (0 = no limit / no cooldown). */
 fun buildCastLimits(
     spells: Table,
-    names: Map<Int, SpellInfo>,
+    i18n: I18nBundle,
 ): List<CastLimit> =
     spells.records
         .filter { (it["breed_id"] as Int) in PLAYER_BREEDS }
@@ -160,7 +154,7 @@ fun buildCastLimits(
             val id = r["id"] as Int
             CastLimit(
                 spellId = id,
-                name = names[id]?.nameFr,
+                name = i18n.text(NS_SPELL_NAME, id),
                 breedId = r["breed_id"] as Int,
                 maxCastPerTurn = (r["cast_max_per_turn"] as Float).toInt(),
                 maxCastPerTurnIncr = (r["cast_max_per_turn_incr"] as Float).toInt(),
@@ -302,7 +296,6 @@ fun buildPassives(
     spells: Table,
     effects: Table,
     actions: ActionCatalog,
-    names: Map<Int, SpellInfo>,
     i18n: I18nBundle,
 ): List<PassiveEntry> {
     @Suppress("UNCHECKED_CAST")
@@ -414,15 +407,15 @@ fun buildPassives(
                 }
             }
 
-            // Localized name/description from the client i18n bundle (all four languages); fall back to the
-            // encyclopedia's French text (widened to all languages) only if the bundle lacks the key.
+            // Names and descriptions come exclusively from the client i18n namespaces 3 and 4,
+            // in all four languages; a genuinely absent key stays null.
             PassiveEntry(
                 spellId = id,
-                name = i18n.text(NS_SPELL_NAME, id) ?: names[id]?.nameFr?.let { I18nText(it, it, it, it) },
+                name = i18n.text(NS_SPELL_NAME, id),
                 breedId = breed,
                 clazz = BREED_TO_CLASS.getValue(breed),
                 gfxId = gfx,
-                description = i18n.text(NS_SPELL_DESCRIPTION, id) ?: names[id]?.descFr?.let { I18nText(it, it, it, it) },
+                description = i18n.text(NS_SPELL_DESCRIPTION, id),
                 effectIds = effectIds,
                 declaredEffects =
                     resolved.map {
@@ -465,52 +458,3 @@ fun num(x: Double): JsonElement =
     } else {
         JsonPrimitive(Math.round(x * 10_000.0) / 10_000.0)
     }
-
-private val NUMERIC_ENTITY = Regex("&#(x?[0-9a-fA-F]+);")
-
-/**
- * HTML-entity unescape covering the named entities present in `spells-v*.json` plus any numeric entity
- * (`&#NN;` / `&#xHH;`). Numeric handling is for forward-compatibility — the current data has none — so a
- * future name/description with a numeric entity decodes instead of leaking raw `&#…;` text. (Unlisted
- * *named* entities still pass through verbatim; extend [HTML_ENTITIES] if a new one appears.)
- */
-fun unescapeHtml(s: String): String {
-    var out = s
-    for ((entity, ch) in HTML_ENTITIES) out = out.replace(entity, ch)
-    out =
-        NUMERIC_ENTITY.replace(out) { m ->
-            val body = m.groupValues[1]
-            val code = if (body[0].lowercaseChar() == 'x') body.drop(1).toInt(16) else body.toInt()
-            String(Character.toChars(code))
-        }
-    return out
-}
-
-private val HTML_ENTITIES =
-    listOf(
-        "&eacute;" to "é",
-        "&Eacute;" to "É",
-        "&egrave;" to "è",
-        "&ecirc;" to "ê",
-        "&Ecirc;" to "Ê",
-        "&icirc;" to "î",
-        "&iuml;" to "ï",
-        "&acirc;" to "â",
-        "&agrave;" to "à",
-        "& agrave;" to "à",
-        "&ucirc;" to "û",
-        "&ugrave;" to "ù",
-        "&ocirc;" to "ô",
-        "&ouml;" to "ö",
-        "&euml;" to "ë",
-        "&ccedil;" to "ç",
-        "&OElig;" to "Œ",
-        "&oelig;" to "œ",
-        "&rsquo;" to "’",
-        "&lsquo;" to "‘",
-        "&quot;" to "\"",
-        "&#39;" to "'",
-        "&lt;" to "<",
-        "&gt;" to ">",
-        "&amp;" to "&"
-    )

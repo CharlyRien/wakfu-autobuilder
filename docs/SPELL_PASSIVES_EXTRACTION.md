@@ -1,5 +1,7 @@
 # Class-Passives Extraction — Handoff
 
+> **Current text source:** client i18n namespaces 3 (name) and 4 (description), FR/EN/ES/PT; no encyclopedia fallback. Numeric decode evidence below is retained.
+
 > **✅ Shipped.** Implemented (`bdata-extractor` → `PassiveCatalog`, Lot 4). Resource files now use FIXED names (PR #167). Kept as the extraction howto.
 
 Companion to `SPELL_CAST_LIMITS_EXTRACTION.md`. Same toolchain (`jac3km4/wakfu-bdata`), same install
@@ -10,13 +12,13 @@ Companion to `SPELL_CAST_LIMITS_EXTRACTION.md`. Same toolchain (`jac3km4/wakfu-b
 `autobuilder/src/main/resources/spell-passives.json` — a JSON array, one entry per **player
 class passive** (332 entries, breeds `{1–16,18,19}`, `passive==2`), sorted by `breedId` then `spellId`.
 Offline baked artifact, parallel to `equipments.json` / `spells.json` / `spell-cast-limits.json`.
-**Not wired into Kotlin.**
+Loaded by `PassiveCatalog`; names and descriptions are `I18nText` in FR/EN/ES/PT.
 
 Per-entry shape:
 ```jsonc
 {
-  "spellId": 6989, "name": "Ligne", "breedId": 1, "class": "FECA",
-  "description": "Initially, the Range of Fire spells is not variable…",
+  "spellId": 6989, "name": {"fr": "Ligne", "en": "Line", "es": "Línea", "pt": "Linha"}, "breedId": 1, "class": "FECA",
+  "description": {"fr": "La Portée des sorts Feu…", "en": "Initially, the Range of Fire spells…", "es": "El alcance de los hechizos de fuego…", "pt": "Normalmente, o alcance dos feitiços de fogo…"},
   "effectIds": [299772],                  // raw top-level effect ids from the spell record (table 66)
   "declaredEffects": [                     // resolvable declarative effects in the passive's OWN effect tree
     { "actionId": 160, "kind": "stat", "characteristic": "RANGE",
@@ -35,9 +37,8 @@ Per-entry shape:
 
 1. **Catalogue.** Player passives are the spell-table (66) records with `passive == 2` and a player
    `breed_id`. The binary flag is **more reliable than the encyclopedia scraper's heuristic** (`spells.json`
-   classifies "no AP cost" as PASSIVE → 308; the binary flag → 332). `name` (FR) and `description` are
-   joined from `spells.json` by `spellId` (binary id == encyclopedia id, proven in the
-   cast-limits work).
+   classifies "no AP cost" as PASSIVE → 308; the binary flag → 332). `name` and `description` are joined from local client i18n namespaces 3 and 4
+   by `spellId`, in French, English, Spanish and Portuguese.
 2. **Effects.** Each passive record carries `effect_ids` into the **StaticEffect table (TYPE_ID 68)**,
    dumped the same way (`dump_doc::<StaticEffect>` in `main.rs`; 173 805 records). Each `StaticEffect`
    gives `action_id`, `params: f32[]`, `effect_criterion`, `duration_base`, `ends_at_end_of_turn`, and a

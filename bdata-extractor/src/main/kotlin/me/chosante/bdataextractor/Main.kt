@@ -69,8 +69,8 @@ fun main(args: Array<String>) {
     println("Wakfu install : $install")
     println("Data version  : $version")
 
-    val names = loadSpellInfo(File(resources, "spells.json"))
-    println("Loaded ${names.size} encyclopedia spell names")
+    // One official bundle for spell names (3), descriptions (4), monsters (7) and families (38).
+    val i18n = I18nBundle.load(install, namespaces = setOf(3, 4, 7, 38))
 
     println("Decoding Spell table (66)…")
     val spells = loadTable(install, Tables.SPELL, Tables.SPELL_SCHEMA)
@@ -93,14 +93,11 @@ fun main(args: Array<String>) {
             prettyPrintIndent = "  "
         }
 
-    val castLimits = buildCastLimits(spells, names)
+    val castLimits = buildCastLimits(spells, i18n)
     val castJson = json.encodeToString(ListSerializer(CastLimit.serializer()), castLimits)
     verifyAndWrite(File(resources, "spell-cast-limits.json"), castJson, "cast-limits", castLimits.size, force)
 
-    // Localization bundle, loaded once and reused for monsters below: spell name (3) + spell description (4)
-    // for passives, monster name (7) + family (38) for the bestiary.
-    val i18n = I18nBundle.load(install, namespaces = setOf(3, 4, 7, 38))
-    val passives = buildPassives(spells, effects, actions, names, i18n)
+    val passives = buildPassives(spells, effects, actions, i18n)
     val passivesJson = json.encodeToString(ListSerializer(PassiveEntry.serializer()), passives)
     verifyAndWrite(File(resources, "spell-passives.json"), passivesJson, "passives", passives.size, force)
 
@@ -185,21 +182,6 @@ fun main(args: Array<String>) {
     writeAchievementNames(install, itemCriteria, resources, force)
 
     println("\nDone.")
-}
-
-/** Reads the encyclopedia-scraped catalogue and joins FR name/description (HTML-unescaped) by spell id. */
-private fun loadSpellInfo(file: File): Map<Int, SpellInfo> {
-    if (!file.isFile) error("Missing $file — run :spells-extractor first.")
-    val spells = LENIENT_JSON.decodeFromString(ListSerializer(Spell.serializer()), file.readText())
-    return spells.associate { s ->
-        s.id to
-            SpellInfo(
-                s.name.fr
-                    .takeIf { it.isNotBlank() }
-                    ?.let(::unescapeHtml),
-                s.description?.fr?.let(::unescapeHtml)
-            )
-    }
 }
 
 /**

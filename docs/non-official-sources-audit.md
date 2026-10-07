@@ -27,8 +27,8 @@ Status: 🟢 Actionable (a concrete official source exists) · 🟡 Keep / docum
 | `icons-legacy-dead` | 4 unreferenced legacy HUD icon files | ✅ Done — `chore(assets): drop four unreferenced legacy stat icons` | minor | easy |
 | `monster-portraits` | Monster boss portraits — third-party wakassets mirror | 🟢 Actionable | notable | easy |
 | `rune-level-requirements` | Rune level-requirement table — hardcoded | ✅ Done — `refactor(data): rune level thresholds come from the game data` | notable | easy |
-| `spell-cast-limit-names` | spell-cast-limits.json names — from the encyclopedia spells.json | 🟢 Actionable | minor | easy |
-| `spell-passive-names` | spell-passives.json names/descriptions — from the encyclopedia spells.json | 🟢 Actionable | minor | easy |
+| `spell-cast-limit-names` | spell-cast-limits.json names — from the encyclopedia spells.json | ✅ Done — `feat(data): spell and passive names come from the game client in every language` | minor | easy |
+| `spell-passive-names` | spell-passives.json names/descriptions — from the encyclopedia spells.json | ✅ Done — `feat(data): spell and passive names come from the game client in every language` | minor | easy |
 | `stale-comments` | Stale provenance comments (wakassets/WakForge/MethodWakfu/Fandom) | ✅ Done — `docs: monster provenance comments name the official sources` | minor | easy |
 | `itemtypes-112` | itemType 112 icon — committed fallback (absent from gui.jar) | 🟢 Actionable | minor | medium |
 | `monster-rank-overlay` | monster-overlay.json — hand-curated boss rank | 🟢 Actionable | notable | medium |
@@ -126,7 +126,8 @@ Status: 🟢 Actionable (a concrete official source exists) · 🟡 Keep / docum
 
 ### `spell-cast-limit-names` — spell-cast-limits.json names — from the encyclopedia spells.json
 
-- **Status:** 🟢 Actionable
+- **Status:** ✅ Done — `feat(data): spell and passive names come from the game client in every language`
+- **Completion:** Names/descriptions exclusively use client namespaces 3/4 in FR/EN/ES/PT; encyclopedia fallback removed. Reviewed oracle: 722 cast name fields change shape/text; all numeric fields and all 339 passive rows unchanged. The GUI already localized passive text on main; no player-visible change or changeset.
 - **Category:** data-json · **Classification:** semi-official-encyclopedia · **Severity:** minor · **Feasibility:** easy · **Effort:** ~1-2 hours (S). Infrastructure (I18nBundle) already exists; the change is a parameter swap plus deleting dead code. Slightly more if widening to multi-language I18nText (touches the artifact schema + autobuilder consumers).
 - **What it is:** Per-spell cast limits (per-turn / per-target / cooldown). Embedded at autobuilder/src/main/resources/spell-cast-limits.json (135 KB).
 - **Why not fully official:** The substantive data (cast limits) is pure official bdata; however the file's name labels are joined from the encyclopedia-scraped spells.json (loadSpellInfo). It is therefore not a pure CDN/bdata artifact end-to-end. Minor because the load-bearing numbers are official; only display names are semi-official.
@@ -153,7 +154,8 @@ Status: 🟢 Actionable (a concrete official source exists) · 🟡 Keep / docum
 
 ### `spell-passive-names` — spell-passives.json names/descriptions — from the encyclopedia spells.json
 
-- **Status:** 🟢 Actionable
+- **Status:** ✅ Done — `feat(data): spell and passive names come from the game client in every language`
+- **Completion:** Names/descriptions exclusively use client namespaces 3/4 in FR/EN/ES/PT; encyclopedia fallback removed. Reviewed oracle: 722 cast name fields change shape/text; all numeric fields and all 339 passive rows unchanged. The GUI already localized passive text on main; no player-visible change or changeset.
 - **Category:** data-json · **Classification:** SEMI-OFFICIAL · **Severity:** minor · **Feasibility:** easy · **Effort:** S (a few hours): the I18nBundle is already written and proven on the monster path; the change is wiring two namespace lookups and re-running the extractor against a local install. No new decoder, no schema work.
 - **What it is:** Passive-spell flag (Spell 66) + their StaticEffect (68) effects. Embedded at autobuilder/src/main/resources/spell-passives.json (222 KB).
 - **Why not fully official:** Same pattern as spell-cast-limits.json: the effect data is pure official bdata, but the name labels are joined from the encyclopedia-scraped spells.json, so the artifact is not pure CDN/bdata end-to-end. Minor since the numeric/effect data is official.
