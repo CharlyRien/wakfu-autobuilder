@@ -1,10 +1,9 @@
 # GUI audit — October 2026
 
-A read-only audit of the Compose Desktop GUI, followed by the quick wins for **1.12.1** and a first batch of the backlog for
-**1.13.0**. It looked at `main` as it stood just before the 1.12.0 release commit (`a7d6a4a5`, where the window still read
-"Version 1.11.0 · Game data 1.93.1.62"). This file keeps the findings so the rest stay a backlog: items **F1–F6** are fixed in
-1.12.1 and **B1, B2, B4, B5** in 1.13.0 (each with its commit; B7 was fixed on the way), **B3 and B9** are fixed below (B6/B8 were fixed by later work), and
-**N1–N10** were found while fixing.
+A read-only audit of the Compose Desktop GUI, followed by fixes on `main` and the final follow-ups. It looked at `main` as it
+stood just before the 1.12.0 release commit (`a7d6a4a5`, where the window still read "Version 1.11.0 · Game data 1.93.1.62").
+All findings **F1–F6**, **B1–B9** and **N1–N10** are now fixed. The entries below retain the original findings alongside the
+commit subjects and regression coverage.
 
 ## Method
 
@@ -183,7 +182,7 @@ are the branch's own: a rebase-merge rewrites them, the subjects stay.
   original stamp: stamping it with the current version would relabel old numbers as current, and its card would stop saying so.
 - **Tests:** `BuildSearchModelStaleDataTest` (6), `StaleDataCueUiTest` (6).
 
-## Open backlog (from the audit)
+## Backlog status (from the audit)
 
 | # | Area | Finding | Evidence / lead |
 |---|---|---|---|
@@ -192,10 +191,14 @@ are the branch's own: a rebase-merge rewrites them, the subjects stay.
 | B3 (fixed) | i18n leftovers | **Fixed:** `fix(gui): the last English-only labels are translated`. History/library/filter/validation class names reuse `CharacterClass.label(lang)` from #250; spell costs and debuff lines use Tr, short levels read Niv. in FR; sublimations use localized rarity labels, passive stats use characteristic labels. `GuiLabelsTest` and `ResultLabelsUiTest` lock EN/FR. Was: Class names are the capitalised enum names in both languages (`TopBar.displayName()`, `HistoryEntry.classDisplayName()`); hard-coded English fragments "AP", "WP", "Lv", "res"; raw enum names `EPIC` / `NORMAL` (sublimation rarity) and `BLOCK_PERCENTAGE` (passive flat stats). | `StatsPanel` rotation card (`"… AP, −… res"`, `"→ …% res after debuffs"`, `"… AP)"`), `CompareScreen` / `ClassSpellsPanel` (`"$it AP"`, `"$it WP"`), `PaperdollPanel` / `Modals` / `StatsPanel` (`sub.rarity.name`), `StatsPanel.PassivesResult` (`it.key.name`), `PaperdollPanel` / `Modals` (`"Lv …"`). |
 | B4 (fixed) | Headline noise | **Fixed in 1.13.0** (`1c36f631`). Was: "0 Requested mastery" / "0 Expected damage" / "0 %" before any search, and an empty "Desired vs Achieved" card in Max Damage. | `MatchHero` rendered its headline number even with no build; `DesiredVsAchieved` had no empty state. |
 | B5 (fixed) | Stale data | **Fixed in 1.13.0** (`f1dd4f4b`). Was: nothing told the player that a saved build was computed with older game data. | `HistoryEntry.dataVersion` was stored but never compared with `WakfuData.VERSION`. |
-| B6 | Item picker | It shows the first 60 of 2 783 equippable items (level 110, no minimum level; 1 257 with min 80) with no count and no slot filter. | `Modals.kt` item picker; 7 899 distinct items in `equipments.json`. |
+| B6 (fixed) | Item picker | **Fixed:** `4eb493af` — `fix: the item picker lists every matching item, with a count and a slot filter`. Every matching item is reachable, the count is shown, and slots can be filtered. Test: `ItemPickerUiTest`. Was: it shows the first 60 of 2 783 equippable items (level 110, no minimum level; 1 257 with min 80) with no count and no slot filter. | `Modals.kt` item picker; 7 899 distinct items in `equipments.json`. |
 | B7 (fixed) | Saved boss builds forget the boss | **Fixed as a side effect of F3** (the boss is now saved and restored). Builds saved before 1.12.1 carry no boss and still load as a manual scenario. | `BOSS after reload of a boss build: selectedBoss=null bossElement=null` (before). |
-| B8 | Persistence | Nothing is remembered between launches except the language, the library sort / grouping, the tag registry and the "check optimality" switch. | `LibraryPreferences`: class, level, targets, rarities, duration… are lost on restart. |
+| B8 (fixed) | Persistence | **Fixed:** `c5bea4ac` — `feat: remember the request being edited between launches`. The active mode’s prepared request is restored from the workspace, including class, levels, targets, rarities, duration and scenario. Tests: `BuildSearchModelWorkspaceTest`, `WorkspacePersistenceTest`. Was: nothing is remembered between launches except the language, the library sort / grouping, the tag registry and the "check optimality" switch. | `LibraryPreferences`: class, level, targets, rarities, duration… are lost on restart. |
 | B9 (fixed) | Issue #128 residue | **Fixed:** `fix(gui): widened stats reflow into two columns without truncating labels or values`. Before: no two-column layout existed; at 300 dp the HP and distance-mastery labels were ellipsized in both modes and languages. Mastery, target and other-stat lists now use two columns from 432 dp of panel width (360 dp inside cards); values have their own line in narrow cells, labels wrap. Checked at 300/360/460 dp plus both sides of the switch and repeated resizing, EN/FR, full result cards. `StatsPanelLayoutUiTest`. Was: The stats column can reflow into two columns when it is widened (it is resizable up to 460 dp). | `AppShell` `statsWidth` coerce range; not re-checked after the F6 changes (they touch the request column only). |
+
+B8 also includes the persistence follow-ups `e4855ee3` — `fix: the remembered workspace survives a quit, a slow disk and a loaded build`
+and `8cc21a51` — `fix: a quit while the remembered request is still being read keeps the edit made meanwhile`.
+`BuildSearchModelWorkspaceTest` covers shutdown flushing, late reads, edits made during restore and loading a saved build.
 
 ## Found while fixing
 
@@ -204,20 +207,22 @@ are the branch's own: a rebase-merge rewrites them, the subjects stay.
 | N1 (fixed) | The paperdoll's "No item here improves the requested stats" explanation never shows after a **finished** search: it is gated on `Phase.Idle`, and a finished search is `Phase.Done`. (It only showed after a Stop, which now ends in `Done`.) **Fixed:** `fix(gui): the empty-slot explanation shows after a finished search`. The generic hint appears only after a completed, non-stopped most-masteries search; precision and damage have different objectives. Sublimation conditions remain visible in every mode. Test: `DollSlotsTest`. | `PaperdollPanel`, `emptyHints` filter. |
 | N2 (fixed) | "View this build as damage" keeps the previous mode's `match` (the mastery score or the % match) as the "Expected damage" headline; only the rotation and the per-position breakdown are recomputed. **Fixed:** `fix(gui): viewing a build as damage shows its expected damage in the headline`. The view reuses the search result scorer, including target penalties, and refreshes the achieved stats. Test: `BuildSearchModelDamageViewTest`. | `BuildSearchModel.viewCurrentBuildAsMaxDamage`. Probed: after the view `match` is still 1500 (the old score) while the rotation totals 113.4. |
 | N3 (fixed) | A stopped Max Damage search has no per-position damage breakdown: it is only computed once the stream completes. **Fixed:** `fix(gui): a stopped Max Damage search keeps its per-position damage breakdown`. Stop computes the same detail off the UI thread from the original search request and kept build; a newer search cancels it. Test: `BuildSearchModelStoppedDamageTest` (kept-build detail, a blocked late-result race, and returning to a parked stopped result). | `search()` completion path vs `cancel()`. |
-| N4 | "Could not save / import / duplicate build" banners still print the raw exception message (file paths). | **Fixed (2026-10-06):** localized retry banners; invalid imports explain how to check the clipboard. Technical details go to the log. |
+| N4 (fixed) | "Could not save / import / duplicate build" banners still print the raw exception message (file paths). | **Fixed:** `3c730ec3` — `fix(gui): save, import and duplicate errors are explained in the player's language`. Localized retry banners; invalid imports explain how to check the clipboard. Technical details go to the log. Test: `BuildSearchModelLibraryErrorsTest`. |
 | N5 (fixed) | The CLI still prints the raw precision score (`248.5% match found so far`); the 100 % cap of F4 is GUI-only. **Fixed:** `fix(cli): the precision match never reads above 100%`. The existing display helper now lives in `common-lib`; the GUI delegates to it and the CLI formats precision progress through it. Raw scores and other modes keep their meaning. Tests: `CliMatchDisplayTest`, `MatchDisplayTest`. | `autobuilder/Main.kt`. |
-| N6 | The boss picker listed only the first 120 of the 225 bosses (nothing said so): every boss after "M" needed a typed search. **Fixed with B2.** | `take(120)` in `BossPickerModal`. |
+| N6 (fixed) | The boss picker listed only the first 120 of the 225 bosses (nothing said so): every boss after "M" needed a typed search. **Fixed with B2.** | `take(120)` in `BossPickerModal`. |
 | N7 (fixed) | A Max Damage result's Mastery Summary opens on "Requested mastery 0" (and a trailing `0` in its header) when no mastery was requested. **Fixed:** `fix(gui): a max-damage result without a mastery request no longer shows "Requested mastery 0"`. Metric, hint and header number hidden without a mastery row; requested rows (including 0) unchanged. Test: `MasterySummaryUiTest` (EN/FR). | `StatsPanel.MasterySummary` always shows the metric. |
 | N8 (fixed) | "Save as new" on a loaded build leaves the build's own name in the box, and only the OTHER builds' names are refused, so two builds can end up with the same name (the library and Compare then show two identical titles). | **Fixed:** `fix(gui): "Save as new" suggests a free name and never duplicates an existing build's name`. The copy action opens name entry with the first free suffix; all names are refused for a copy, including the active one, in the dialog and model. Update still accepts its own name. Tests: `ModalKeyboardUiTest`, `BuildSearchModelSuggestedNameTest`. |
-| N9 | 17 of the 18 tests of `BuildSearchModelLibraryTest` never run: they are written `= runBlocking { … }`, so they return their last assertion, and JUnit ignores a `@Test` method that returns a value. With `: Unit` all 18 run and pass. | `gui-compose/src/test/.../state/BuildSearchModelLibraryTest.kt`; `BuildSearchModelSavedBossTest` already uses `): Unit = runBlocking {`. Not changed (follow-up task flagged). |
-| N10 | The "Stop at 100% match" / "Arrêter à 100%" switch is ignored: the GUI passes `stopWhenBuildMatch`, but no engine code reads it, so a precision search never stops at its first 100 % build. | **Fixed (2026-10-06):** precision checks every solution before throttling and stops CP-SAT at the first 100 % capped match. That build is returned without an optimality flag. Default/off and other modes are unchanged. |
+| N9 (fixed) | 17 of the 18 tests of `BuildSearchModelLibraryTest` never run: they are written `= runBlocking { … }`, so they return their last assertion, and JUnit ignores a `@Test` method that returns a value. With `: Unit` all 18 run and pass. | **Fixed:** `f13d43ba` — `test: restore library coverage and make fake searches deterministic`. Explicit `Unit` returns and a controlled coroutine scheduler restore all 18 original tests; an added scheduler/startup test brings `BuildSearchModelLibraryTest` to 19 passing tests. No further code change was needed in this follow-up. |
+| N10 (fixed) | The "Stop at 100% match" / "Arrêter à 100%" switch is ignored: the GUI passes `stopWhenBuildMatch`, but no engine code reads it, so a precision search never stops at its first 100 % build. | **Fixed:** `f55bc987` — `fix: "Stop at 100% match" stops a precision search at its first 100 % build`. Precision checks every solution before throttling and stops CP-SAT at the first 100 % capped match. That build is returned without an optimality flag. Default/off and other modes are unchanged. Test: `StopAtMatchTest`. |
 
 ## B3 follow-up scan
 
-The remaining English fallbacks are the save/import/duplicate error handlers in `BuildSearchModel` (N4: raw exception messages or
-"Could not save build", "Could not import build", "Could not duplicate build"), historical release-note text when no FR
-translation exists, unknown skill names in `skillLabel`, and the tiny fallback icon glyphs in `UiState.statCatalog`
-(`AP`/`MP`/`WP`, `Wa`/`Fi`/`Ea`/`Ai`, `Me`/`Re`/`He`, `Ws`/`Lk`/`Wl`/`Bl`, etc.; used by `StatGlyphIcon` when no PNG is available).
-Game-data names/descriptions also intentionally fall back to the
-other language when one translation is missing. App branding and unit symbols (`s`, `%`, `×`) are language-independent.
-The scan also found raw class/rarity/monster accessibility names and the hard-coded "Sublimations" tooltip heading; fixed in B3.
+The save/import/duplicate error handlers are now localized (N4, `3c730ec3` —
+`fix(gui): save, import and duplicate errors are explained in the player's language`; `BuildSearchModelLibraryErrorsTest`).
+The stat-icon fallback glyphs are localized too (`f5057562` — `fix(gui): stat icon fallbacks follow the player's language`;
+`StatGlyphLanguageTest` covers the asset inventory and changing the displayed fallback with the language).
+
+The remaining intentional English fallbacks are historical release-note text when no FR translation exists and unknown skill
+names in `skillLabel`. Game-data names/descriptions also fall back to the other language when one translation is missing.
+App branding and unit symbols (`s`, `%`, `×`) are language-independent. Raw class/rarity/monster accessibility names and the
+hard-coded "Sublimations" tooltip heading were fixed in B3.
