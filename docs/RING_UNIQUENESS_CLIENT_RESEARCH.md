@@ -1,5 +1,16 @@
 # HasAnotherSameEquipment: local-client evidence
 
+## In-game result (2026-10-07)
+
+A tester tried equipping two rarities of the same ring together. The game refused:
+« Vous ne pouvez pas équiper cet objet : vous portez déjà un objet identique ».
+
+The engine's one-ring-per-name rule matches the game and **must stay**. The client criterion's
+comparison of definition ids documented below is not the whole story: another check refuses
+these rings together. The bytecode evidence below remains valid for that criterion.
+
+## Client-bytecode evidence (2026-10-06)
+
 Investigated 2026-10-06 against `/Applications/Ankama/Wakfu/lib/wakfu-client.jar`, data version
 **1.93.1.62**. Jar SHA-256:
 `e3eb8b9b6a1fa0d42d2f06f0af3e841ed783b2998f5c81d3cd8312294106d3cd`.
