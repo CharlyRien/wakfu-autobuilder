@@ -110,7 +110,6 @@ fun ModalHost(
     onPickPassive: (me.chosante.common.Passive) -> Unit = {},
     passiveClass: me.chosante.common.CharacterClass = me.chosante.common.CharacterClass.CRA,
     onPickBoss: (Monster) -> Unit = {},
-    selectedBossId: Int? = null,
     runePickerCarrier: Equipment? = null,
     runeOptions: List<RuneType> = emptyList(),
     initialPinnedRunes: List<Int> = emptyList(),
@@ -171,7 +170,7 @@ fun ModalHost(
                 PassivePickerModal(clazz = passiveClass, selectedNames = forcedPassives, onPick = onPickPassive, onDone = onDismiss)
 
             Modal.BossPicker ->
-                BossPickerModal(selectedBossId = selectedBossId, onPick = onPickBoss)
+                BossPickerModal(onPick = onPickBoss)
 
             is Modal.ItemRunePicker ->
                 // Resolve the carrier at render time from the current build; if it's gone (e.g. a new
@@ -975,10 +974,7 @@ private fun PassiveResultRow(
 }
 
 @Composable
-private fun BossPickerModal(
-    selectedBossId: Int?,
-    onPick: (Monster) -> Unit,
-) {
+private fun BossPickerModal(onPick: (Monster) -> Unit) {
     val lang = LocalLang.current
     // Boss mode targets bosses, not every creature in the bestiary: the roster keeps only boss-tier entries (rank ≥ 1, ~225 of
     // the ~2 850 monsters), named and sorted in the language of the app. It is short enough to list in full, so there is no
@@ -993,7 +989,6 @@ private fun BossPickerModal(
         placeholder = tr(Tr.SEARCH_BOSSES),
         entries = filtered,
         entryKey = { it.id },
-        alreadySelected = setOfNotNull(selectedBossId),
         emptyText = tr(Tr.NO_MATCHING_BOSS),
         row = { entry -> BossResultRow(monster = entry, onClick = { onPick(entry) }) }
     )

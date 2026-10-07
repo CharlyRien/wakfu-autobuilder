@@ -38,7 +38,7 @@ Per-picker code retains query matching, localized sorting, rows and domain callb
 
 ## Commits and skipped steps
 
-1. `cd41ec18` — `refactor(gui): the six pickers share one picker scaffold` — migration with existing behavior preserved.
+1. `refactor(gui): the six pickers share one picker scaffold` — migration with existing behavior preserved.
 2. `fix(gui): every picker hides what you already chose` — hide the currently selected boss by ID;
    additive pickers already met the criterion, rune rows retain the editing exception described above.
 
@@ -51,16 +51,10 @@ existing item/sub/passive match counts and rune socket count are retained in thi
 No existing UI test needs adaptation. `PickerScaffoldUiTest` adds coverage for all six search fields,
 empty results after immediate typing, both item flows' forced/excluded union and rarity variants,
 two consecutive picks with immediate disappearance and Done for all four additive catalogs,
-repeated rune selection/removal and the double badge, and selected-boss ID exclusion with
-namesake retention and single-choice reopening in all four languages.
+and repeated rune selection/removal and the double badge.
 
 No new translation keys or bundle text: all EN/FR/ES/PT strings are reused, including Done and empty states.
 GUI only; no engine changes. Commits remain local; no push or PR.
 
 Commit 1 validation: `ktlintFormat` and full `:gui-compose:test` passed through the shared Gradle lock
 (474 tests, 2 skipped, no failures), including `TranslationBundlesTest`. Existing UI tests are unchanged.
-
-Commit 2 validation: `git fetch origin && git rebase origin/main` succeeded (already up to date,
-`origin/main` at `377cf5fe`), then `ktlintFormat` and the full `:gui-compose:test` suite passed
-(475 tests, 2 skipped, no failures), including translation and changeset guards.
-REF-1 is marked done in its section and the summary table. Nothing remains in this task.

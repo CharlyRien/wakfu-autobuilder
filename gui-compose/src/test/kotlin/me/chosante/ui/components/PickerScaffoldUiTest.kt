@@ -6,7 +6,6 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -217,49 +216,4 @@ class PickerScaffoldUiTest {
             onNodeWithText(Tr.SAVE.value(Lang.EN)).performClick()
             runOnIdle { assertThat(saved).containsExactly(rune.id) }
         }
-
-    @Test
-    fun `selected boss is hidden by ID while namesakes remain available in all four languages`() {
-        for (lang in Lang.entries) {
-            val roster = bossRoster(WakfuBestBuildFinderAlgorithm.monsters, lang)
-            val namesakes = roster.groupBy { it.displayName(lang) }.values.first { it.size > 1 }
-            val boss = namesakes.first()
-            runComposeUiTest {
-                val selected = mutableStateOf<Int?>(boss.id)
-                val modal = mutableStateOf<Modal?>(Modal.BossPicker)
-                var picked: Int? = null
-                setContent {
-                    CompositionLocalProvider(LocalLang provides lang) {
-                        ModalHost(
-                            modal = modal.value,
-                            excludedCharacteristics = emptySet(),
-                            equipmentCatalog = emptyList(),
-                            selectedBossId = selected.value,
-                            onSelectStat = {},
-                            onPickItem = {},
-                            onDismiss = { modal.value = null },
-                            onPickBoss = {
-                                selected.value = it.id
-                                picked = it.id
-                                modal.value = null
-                            }
-                        )
-                    }
-                }
-                onNode(hasSetTextAction()).assertIsFocused().performTextInput(boss.displayName(lang))
-                assertThat(onAllNodesWithText(boss.displayName(lang)).fetchSemanticsNodes()).hasSize(namesakes.size)
-                // One text node belongs to search; only the other IDs' rows remain.
-                onNodeWithText("${Tr.BOSS_LEVEL_SHORT.value(lang)} ${boss.level}").assertDoesNotExist()
-                onNodeWithText("${Tr.BOSS_LEVEL_SHORT.value(lang)} ${namesakes[1].level}").performClick()
-                onNode(hasSetTextAction()).assertDoesNotExist()
-                runOnIdle {
-                    assertThat(picked).isEqualTo(namesakes[1].id)
-                    modal.value = Modal.BossPicker
-                }
-                onNode(hasSetTextAction()).performTextInput(boss.displayName(lang))
-                onNodeWithText("${Tr.BOSS_LEVEL_SHORT.value(lang)} ${namesakes[1].level}").assertDoesNotExist()
-                onNodeWithText("${Tr.BOSS_LEVEL_SHORT.value(lang)} ${boss.level}").assertExists()
-            }
-        }
-    }
 }
