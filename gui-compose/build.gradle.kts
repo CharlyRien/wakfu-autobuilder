@@ -395,6 +395,8 @@ tasks.register("generateAssets") {
                     "res_back" to "RES_BACKSTAB"
                 ).mapValues { "miscellaneous/characteristics/${it.value}" }
             )
+            // Damage-line elements, including display-only Light/Stasis (never the Spell table's branch).
+            extractNamed("elements", mapOf("light" to "miscellaneous/elements/LIGHT", "stasis" to "miscellaneous/elements/STASIS"))
             // Boss portraits are fetched separately by bdata-extractor --monster-portraits-only from
             // static.ankama.com/wakfu/portal/game/monster/200/<gfx>.png (official 200x200 art).
             // gui.jar has only narrow monster banners; HTTP 403/404 on the portal leaves an empty tile.

@@ -248,3 +248,15 @@ counts and the three absent ids above were rechecked. CDN actions remain pinned 
 - `contents/i18n/i18n_es.jar`: `a8f1f86971f803f7315972f516f938464437bd8d9a04d63da9e9c1d99329a2da`
 - `contents/i18n/i18n_pt.jar`: `8eefc6908cbee973fa481bbc9402c3fc9bf653a1625f4a1ce9ce01ab711e7bb9`
 - Pinned CDN actions.json: `7937aee6ec35c891c0c273283baa8db5af987ec2c66a0a8bc6dc07e5c29702df`
+
+## Part 3: Light damage display only
+
+The class-spells panel reads the retained `element(LIGHT)` token through a GUI-only enum, displays the
+client's `miscellaneous/elements/LIGHT.tga` sun icon and the encyclopedia-anchored `baseDamageAt(level)`.
+Even with a build selected it shows a **base hit**, not a fabricated mastery-scaled expected hit, and a
+four-language note says the damage search does not count Light spells yet. The same presentation can
+handle a future STASIS token with its official icon, but there is no current STASIS damage anchor.
+`SpellElement` still has exactly four entries, `hasDamage` remains false for Light and the solver/
+certifier/rotation catalog remains unchanged by this display patch. UI tests lock Light Arrow at level
+100 with a loaded build, its icon/note and engine exclusion. The extraction task reproduces both icons.
+The scaling evidence and requirements for a future engine addition are recorded in part 1 above.
