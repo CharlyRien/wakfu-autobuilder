@@ -171,4 +171,27 @@ class BuildSearchModelEquipConditionReloadTest {
                 scope.cancel()
             }
         }
+
+    /**
+     * A save made before the stat gates were enforced can wear Cartes And (+1 range, active only at range ≤ 3) at 4 range: the
+     * game shows it inactive, so the build is no proven optimum. The same items at 3 range keep the flag.
+     */
+    @Test
+    fun `a saved build that breaks an item stat gate loses its proven-optimal flag on load`(): Unit =
+        runBlocking {
+            val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            try {
+                val rangeItems = listOf(27378, 21916, 21924, 23983).map(catalog::getValue)
+                val breaking = loaded(scope, save(BuildCombination(equipments = rangeItems, characterSkills = skills)))
+                assertFalse(breaking.ui.optimal, "Cartes And is inactive at 4 range: no proof stands for that build")
+                assertEquals(
+                    listOf(4),
+                    WakfuBestBuildFinderAlgorithm.statGateViolations(breaking.ui.build!!, CharacterClass.CRA).map { it.actual }
+                )
+                val keeping = loaded(scope, save(BuildCombination(equipments = rangeItems.dropLast(1), characterSkills = skills)))
+                assertTrue(keeping.ui.optimal, "at 3 range Cartes And is active: the stored proof flag stays")
+            } finally {
+                scope.cancel()
+            }
+        }
 }

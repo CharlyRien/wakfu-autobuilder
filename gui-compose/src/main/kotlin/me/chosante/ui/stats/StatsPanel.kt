@@ -67,12 +67,14 @@ import me.chosante.ui.components.InfoTip
 import me.chosante.ui.components.ObsoleteCue
 import me.chosante.ui.components.OlderEngineProof
 import me.chosante.ui.components.PassiveIcon
+import me.chosante.ui.components.StatGateCue
 import me.chosante.ui.components.StatGlyphIcon
 import me.chosante.ui.components.VerticalScrollHints
 import me.chosante.ui.components.displayName
 import me.chosante.ui.components.iconResourcePath
 import me.chosante.ui.components.localized
 import me.chosante.ui.components.rememberClasspathBitmap
+import me.chosante.ui.components.rememberStatGateViolations
 import me.chosante.ui.components.sublimationEffectText
 import me.chosante.ui.history.obsolescence
 import me.chosante.ui.i18n.Lang
@@ -130,6 +132,9 @@ fun StatsPanel(
             // A loaded saved build a new search may improve (game data updated and/or engine improved since it was saved): a
             // quiet note under the headline that says why and offers the re-run; nothing is blocked.
             ui.obsolescence()?.let { ObsoleteCue(obsolescence = it, onRerun = onRerunSearch) }
+            // A loaded saved build wearing an item the game would show inactive (a stat gate it breaks — saved before the search
+            // enforced them): each gate spelled out. A search result never breaks one.
+            StatGateCue(rememberStatGateViolations(ui.build, ui.clazz))
             if (ui.phase == Phase.Idle && ui.build == null) {
                 // No build yet: the ActionsCard (which normally carries the error banner) isn't shown,
                 // so surface a pre-search error — e.g. an invalid min/max level range — here instead.

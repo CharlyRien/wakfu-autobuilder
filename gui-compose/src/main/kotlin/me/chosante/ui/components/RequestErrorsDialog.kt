@@ -105,6 +105,10 @@ internal fun RequestValidationProblem.localizedMessage(lang: Lang): String =
             val name = if (lang == Lang.FR) item.name.fr else item.name.en
             "$name ${Tr.FORCED_ITEM_REQUIRES_ITEM.value(lang)} ${if (lang == Lang.FR) required.fr else required.en}"
         }
+        is RequestValidationProblem.ForcedItemStatGateContradictsTarget -> {
+            val name = if (lang == Lang.FR) item.name.fr else item.name.en
+            "$name ${Tr.FORCED_ITEM_STAT_GATE_TARGET.value(lang).format(statGateText(gate, lang), target)}"
+        }
         is RequestValidationProblem.ForcedItemsMutuallyExclusive -> {
             val names = items.joinToString { if (lang == Lang.FR) it.fr else it.en }
             "${Tr.FORCED_ITEMS_MUTUALLY_EXCLUSIVE.value(lang)} $names"

@@ -31,7 +31,8 @@ import kotlin.math.ceil
  * `D = 100 + clamp(DI)`, `Graw = 400·M + crit·(M + 5·K)` — the exact chain of
  * [perTurnDamageScore] / [perHitDamageScore], wrapped by the exact [applyConstraintPenalty]
  * power-6 fold (max-damage has NO overshoot tie-break, so no ×SCALE term). `power6` is the solver's
- * own [penaltyMultiplier], floor at 1 included.
+ * own [penaltyMultiplier], floor at 1 included. The item STAT GATES (`StatBuilder.applyItemStatGates`) are not read: they only
+ * remove builds, so the bound stays an upper bound (a relaxation).
  *
  * ARCHITECTURE: a clone of [MostMasteriesCertificate]'s stage DP (same packed key, same dims,
  * same target fold, same world split) with the CORE swapped. The value tracked per state is the

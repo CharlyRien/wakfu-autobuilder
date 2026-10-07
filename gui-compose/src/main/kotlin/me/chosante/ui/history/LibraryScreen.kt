@@ -47,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import me.chosante.autobuilder.genetic.wakfu.WakfuBestBuildFinderAlgorithm
 import me.chosante.common.CharacterClass
 import me.chosante.common.history.HistoryEntry
 import me.chosante.ui.components.BreedBackground
@@ -55,6 +56,7 @@ import me.chosante.ui.components.ItemThumbnail
 import me.chosante.ui.components.ObsoleteBadge
 import me.chosante.ui.components.OlderEngineProof
 import me.chosante.ui.components.RerunSearchLink
+import me.chosante.ui.components.StatGateBadge
 import me.chosante.ui.components.localized
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
@@ -774,6 +776,15 @@ private fun BuildCard(
                     ObsoleteBadge(obsolescence = obsolescence, storedScore = storedScore)
                     RerunSearchLink(onRerun = onRerun)
                 }
+            }
+            // A save that wears an item the game would show inactive (a stat gate it breaks): the pill lists them on hover.
+            val gateViolations =
+                remember(stored) {
+                    runCatching { WakfuBestBuildFinderAlgorithm.statGateViolations(stored.toBuildCombination(), stored.restoredClass()) }.getOrDefault(emptyList())
+                }
+            if (gateViolations.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(7.dp))
+                StatGateBadge(violations = gateViolations)
             }
             Spacer(modifier = Modifier.height(11.dp))
             SlotMiniGrid(entry = entry)

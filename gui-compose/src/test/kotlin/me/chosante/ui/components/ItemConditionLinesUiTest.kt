@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test
 class ItemConditionLinesUiTest {
     @Test
     fun `compact rows keep a single condition line and a count while hover reveals the full list`() {
-        val lines = listOf(ItemConditionLine("Needs a ring"), ItemConditionLine("Range ≤ 3 (not checked by the search yet)", true), ItemConditionLine("Cra only"))
+        val lines = listOf(ItemConditionLine("Needs a ring"), ItemConditionLine("Militia rank ≥ 2 (assumed met)", true), ItemConditionLine("Cra only"))
         for (lang in Lang.entries) {
             runComposeUiTest {
                 mainClock.autoAdvance = false

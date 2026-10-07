@@ -7,6 +7,9 @@ import com.google.ortools.sat.LinearExpr
 import me.chosante.autobuilder.domain.DamageScenario
 import me.chosante.autobuilder.domain.TargetStat
 import me.chosante.autobuilder.domain.TargetStats
+import me.chosante.autobuilder.domain.holdsOnEvery
+import me.chosante.autobuilder.domain.sheetCharacteristic
+import me.chosante.autobuilder.domain.statGates
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_MASTERIES
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.ELEMENTARY_RESISTANCES
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.MASTERY_RANDOM_BY_COUNT
@@ -22,6 +25,7 @@ import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.skillVariableCaps
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.sumVar
 import me.chosante.autobuilder.genetic.wakfu.WakfuBuildSolver.valueFor
 import me.chosante.common.Characteristic
+import me.chosante.common.CriterionComparison
 import me.chosante.common.Equipment
 import me.chosante.common.ExclusiveGroup
 import me.chosante.common.ItemType
@@ -1503,6 +1507,91 @@ internal class StatBuilder(
         model.addLessOrEqual(preSubStat(Characteristic.WAKFU_POINT), MAX_OUT_OF_COMBAT_WP)
         // Negative-crit gear is condition-limited: the sheet can't drop below −9% Critical Hit.
         model.addGreaterOrEqual(preSubStat(Characteristic.CRITICAL_HIT), MIN_OUT_OF_COMBAT_CRIT)
+        applyItemStatGates()
+    }
+
+    /**
+     * The item STAT GATES (AGENTS.md §4 "Item equip conditions"): for every pool item whose EQUIP criterion compares a
+     * characteristic (`GetCharac("RANGE") <= 3`, `GetCharacMax("AP") <= 11`, `GetCharac("FEROCITY") > -10`), the reified
+     * `x_item ⇒ outOfCombatStat(stat) <op> value` — in game the item is inactive (red) on a sheet that breaks it, so such a build
+     * is not a valid build. Called from [applyOutOfCombatCaps], which every model variant (the three modes, both legs, the
+     * relaxed / floored stages, the E8 re-solves) runs; the scorer-side twin is `statGateViolations` (domain/EquipConditions.kt).
+     *
+     * A gate every build of the model meets anyway ([outOfCombatReach] — the tracked reach, narrowed by the caps above) adds
+     * nothing: the 89 "critical hit > −10" gates are implied by the `≥ −9` crit cap as long as no out-of-combat extra carries
+     * negative crit (none in the data), so they cost no constraint.
+     *
+     * The certificates ignore the gates: they only REMOVE builds, so every bound computed without them stays an upper bound
+     * (a relaxation, sound; CERTIFIER_VERSION untouched by it).
+     */
+    private fun applyItemStatGates() {
+        for (item in allEquips) {
+            val gates = item.statGates
+            if (gates.isEmpty()) continue
+            val itemVar = equipVars.getValue(item) as BoolVar
+            for (gate in gates) {
+                val characteristic = gate.sheetCharacteristic
+                if (gate.holdsOnEvery(outOfCombatReach(characteristic))) continue
+                val stat = outOfCombatStat(characteristic)
+                val value = gate.value.toLong()
+                when (gate.comparison) {
+                    CriterionComparison.LT -> model.addLessOrEqual(stat, value - 1)
+                    CriterionComparison.LE -> model.addLessOrEqual(stat, value)
+                    CriterionComparison.GT -> model.addGreaterOrEqual(stat, value + 1)
+                    CriterionComparison.GE -> model.addGreaterOrEqual(stat, value)
+                    CriterionComparison.EQ -> model.addEquality(stat, value)
+                    CriterionComparison.NE -> model.addDifferent(stat, value)
+                }.onlyEnforceIf(itemVar)
+            }
+        }
+    }
+
+    // The out-of-combat sheet's extras on top of [preSubStat]: the permanent, scenario-free sub effects and the passives' flat
+    // stats (see [outOfCombatStat]). Lazy: only a pool with a gated item reads it.
+    private val outOfCombatExtraTermsByStat: Map<Characteristic, List<Term>> by lazy {
+        val map = HashMap<Characteristic, MutableList<Term>>()
+        for ((characteristic, terms) in buildOutOfCombatSubTerms()) map.getOrPut(characteristic) { mutableListOf() } += terms
+        for ((characteristic, terms) in passiveTermsByStat) map.getOrPut(characteristic) { mutableListOf() } += terms
+        map
+    }
+    private val outOfCombatCache = mutableMapOf<Characteristic, IntVar>()
+
+    /**
+     * OUT-OF-COMBAT (character-sheet) value of [char], what an item stat gate reads: [preSubStat] (base + items — the gated item's
+     * own line included — + runes + the skills' fixed lines; AP / MP / WP with their MAX_* lines, so a `GetCharacMax` gate reads
+     * it too: out of combat a pool is full) + the PERMANENT, scenario-free sublimation effects ([buildOutOfCombatSubTerms]:
+     * Visibilité's range, never Abandon's start-of-combat one) + the selected passives' flat stats. Unlike [preCombatStat] (what a
+     * sub's start-of-combat CONDITION reads, passives left out) it counts the passives: the game shows them on the sheet. The
+     * scorer-side twin is `outOfCombatSheet`.
+     */
+    internal fun outOfCombatStat(char: Characteristic): IntVar =
+        outOfCombatCache.getOrPut(char) {
+            val extras = outOfCombatExtraTermsByStat[char].orEmpty()
+            if (extras.isEmpty()) return@getOrPut preSubStat(char)
+            val terms = mutableListOf(Term(preSubStat(char), 1L))
+            terms.addAll(extras)
+            tSum("outOfCombat_${char.name}", terms, 0L, reachableSumDomain(terms, 0L), -STAT_ABS_MAX, STAT_ABS_MAX)
+        }
+
+    /**
+     * A sound reach of [outOfCombatStat] ([char]) WITHOUT building it: the reach of the [preSubStat] terms narrowed by the
+     * out-of-combat caps [applyOutOfCombatCaps] puts on it (≤ 16 AP / 8 MP / 20 WP, ≥ −9 crit), plus the extras' reach.
+     */
+    internal fun outOfCombatReach(char: Characteristic): LongRange {
+        val (terms, base) = baseTermsFor(char)
+        val preSub = reachableSumDomain(terms, base)
+        val capped =
+            when (char) {
+                Characteristic.ACTION_POINT -> preSub.first..minOf(preSub.last, MAX_OUT_OF_COMBAT_AP)
+                Characteristic.MOVEMENT_POINT -> preSub.first..minOf(preSub.last, MAX_OUT_OF_COMBAT_MP)
+                Characteristic.WAKFU_POINT -> preSub.first..minOf(preSub.last, MAX_OUT_OF_COMBAT_WP)
+                Characteristic.CRITICAL_HIT -> maxOf(preSub.first, MIN_OUT_OF_COMBAT_CRIT)..preSub.last
+                else -> preSub
+            }
+        val extras = outOfCombatExtraTermsByStat[char].orEmpty()
+        if (extras.isEmpty()) return capped
+        val extraReach = reachableSumDomain(extras, 0L)
+        return capped.first + extraReach.first..capped.last + extraReach.last
     }
 
     internal fun actualActionPointCeiling(): Long =

@@ -79,7 +79,18 @@ enum class Tr(
     EQUIP_INCOMPATIBLE("Can't be worn with %s", "Incompatible avec %s"),
     EQUIP_CLASS_ONLY("%s only", "Réservé à la classe %s"),
     EQUIP_NEVER("Cannot be equipped", "Non équipable"),
-    EQUIP_NOT_CHECKED("not checked by the search yet", "pas encore vérifié par la recherche"),
+
+    // A loaded / saved build that breaks an item's stat gate (the game shows the item red: inactive).
+    STAT_GATE_INACTIVE("%s would be inactive in game: %s, this build has %d", "%s serait inactif en jeu : %s, ce build a %d"),
+    STAT_GATE_BADGE("Inactive item", "Objet inactif"),
+    STAT_GATE_CUE_HINT(
+        "The game checks this condition on the out-of-combat characteristics. A new search only uses the item when the build meets it.",
+        "Le jeu vérifie cette condition sur les caractéristiques hors combat. Une nouvelle recherche n'utilise l'objet que si le build la respecte."
+    ),
+    FORCED_ITEM_STAT_GATE_TARGET(
+        "is only active with %s out of combat, but the request asks for %d",
+        "n'est actif qu'avec %s hors combat, mais la demande vise %d"
+    ),
     EQUIP_ASSUMED_MET("assumed met", "supposé rempli"),
     EQUIP_MILITIA_RANK("Militia rank", "Rang de milice"),
     EQUIP_NAMED_ACHIEVEMENT("Achievement “%s” completed", "Succès « %s » accompli"),

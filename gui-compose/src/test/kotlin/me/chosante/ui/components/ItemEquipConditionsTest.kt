@@ -49,11 +49,11 @@ class ItemEquipConditionsTest {
     }
 
     @Test
-    fun `stat gates use characteristic labels and mathematical operators with the unchecked marker`() {
-        assertLines(26295, "Range ≤ 3 (not checked by the search yet)", "Portée ≤ 3 (pas encore vérifié par la recherche)", true)
-        assertLines(4224, "Critical Hit > -10 (not checked by the search yet)", "Coup Critique > -10 (pas encore vérifié par la recherche)", true)
-        assertLines(26296, "Max AP ≥ 13 (not checked by the search yet)", "PA max ≥ 13 (pas encore vérifié par la recherche)", true)
-        assertLines(18691, "Max AP ≤ 11 (not checked by the search yet)", "PA max ≤ 11 (pas encore vérifié par la recherche)", true)
+    fun `stat gates use characteristic labels and mathematical operators and read as enforced rules`() {
+        assertLines(26295, "Range ≤ 3", "Portée ≤ 3")
+        assertLines(4224, "Critical Hit > -10", "Coup Critique > -10")
+        assertLines(26296, "Max AP ≥ 13", "PA max ≥ 13")
+        assertLines(18691, "Max AP ≤ 11", "PA max ≤ 11")
     }
 
     @Test
@@ -86,7 +86,7 @@ class ItemEquipConditionsTest {
             for (lang in Lang.entries) {
                 val formatted = formatItemEquipConditions(criterion, catalog, lang)
                 assertThat(formatted).allSatisfy { assertThat(it.text).isNotBlank() }
-                assertThat(formatted.count { it.unenforced }).isEqualTo(criterion.statGates.size + criterion.playerState.size)
+                assertThat(formatted.count { it.unenforced }).isEqualTo(criterion.playerState.size)
             }
         }
     }
@@ -101,7 +101,7 @@ class ItemEquipConditionsTest {
     @Test
     fun `strict less-than comparison stays strict`() {
         val criterion = ItemEquipCriterion(1, raw = "", statGates = listOf(ItemStatGate(Characteristic.RANGE, comparison = CriterionComparison.LT, value = 3)))
-        assertThat(formatItemEquipConditions(criterion, emptyMap(), Lang.EN)).containsExactly(ItemConditionLine("Range < 3 (not checked by the search yet)", true))
+        assertThat(formatItemEquipConditions(criterion, emptyMap(), Lang.EN)).containsExactly(ItemConditionLine("Range < 3"))
     }
 
     @Test

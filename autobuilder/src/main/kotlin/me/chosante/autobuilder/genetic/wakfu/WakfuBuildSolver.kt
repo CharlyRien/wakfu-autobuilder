@@ -418,7 +418,10 @@ object WakfuBuildSolver {
      * [me.chosante.autobuilder.domain.ringPairingKeys] — the name, or one key for a whole clique of rings that exclude each
      * other (the five excluding triples of the data) — so no bound pairs two rings the game refuses together (the review of
      * #246 measured up to +16 % on seeded pools); the soft certificate's max-debit cap, which more pairs only raise, keeps
-     * the name rule.
+     * the name rule. And the item STAT GATES (`GetCharac("RANGE") <= 3`, read on the out-of-combat sheet —
+     * `StatBuilder.applyItemStatGates`) are enforced: they only REMOVE builds, so the certifiers ignore them (a relaxation, every
+     * bound stays an upper bound of the gated optimum) and the domination pre-filter only keeps MORE items (a gated item never
+     * evicts an ungated one; a swap never moves a gated total the wrong way) — a bound cached before stays an upper bound.
      */
     const val CERTIFIER_VERSION: Int = 57
 
@@ -3369,7 +3372,8 @@ object WakfuBuildSolver {
      * Returns `null` when no certificate is available: a **multi-element / boss** scenario (the model's
      * per-element certifier seam only fires for one candidate element — compose per element instead), a
      * non-max-damage mode, or a forced-rune / forced-sublimation shape the certifier bails on. A non-null
-     * result is a sound upper-bound ledger in OBJECTIVE units (directly comparable to CP-SAT objectives).
+     * result is a sound upper-bound ledger in OBJECTIVE units (directly comparable to CP-SAT objectives). The item STAT GATES
+     * are not read (`StatBuilder.applyItemStatGates`): they only remove builds, so the ledger bounds the gated optimum too.
      *
      * @param incumbentObjective a feasible objective (the best build found) — cells whose bound is `≤` it are
      *   eliminated on the fast value; `null` confirms every non-bailed cell exactly.
@@ -4149,6 +4153,22 @@ object WakfuBuildSolver {
         params: WakfuBestBuildParams,
         equipmentsByItemType: Map<ItemType, List<Equipment>>,
     ): Map<ItemType, List<Equipment>> = prefilterRelevantEquipments(equipmentsByItemType, params)
+
+    /**
+     * Test-only: the size of the production model of [params] — (variables, constraints, items after the domination pre-filter) —
+     * built like a production solve (domination on), no solve. The stat-gate perf report reads it.
+     */
+    internal fun modelSizeForTest(
+        params: WakfuBestBuildParams,
+        equipmentsByItemType: Map<ItemType, List<Equipment>>,
+        runes: List<RuneType>,
+        sublimations: List<Sublimation>,
+        hardConstraints: Boolean,
+    ): Triple<Int, Int, Int> {
+        val built = buildModel(params, equipmentsByItemType, runes, sublimations, applyDomination = true, hardConstraints = hardConstraints)
+        val proto = built.model.model()
+        return Triple(proto.variablesCount, proto.constraintsCount, built.allEquips.size)
+    }
 
     /** Test-only: whether [params] would be prefiltered, and the resulting distinct-item pool size (no solve). */
     internal fun gatedPoolSizeForTest(

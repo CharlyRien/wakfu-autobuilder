@@ -34,7 +34,8 @@ import kotlin.math.ceil
  * AND expected sums, so it only keeps the objective folded, like the model's fold predicate. Such a row
  * is a FLOOR in the model (`TargetStats.hasFloors`: `≥ 0` on the hard leg, the objective halved on the
  * soft one while it is below 0) — constraints this bound ignores: a RELAXATION, so it stays an upper bound
- * of both reads (every floored build's objective is at most its unfloored one).
+ * of both reads (every floored build's objective is at most its unfloored one). The item STAT GATES (an item inactive on the
+ * build's out-of-combat sheet — `StatBuilder.applyItemStatGates`) are ignored the same way: they only remove builds.
  *
  * Sound-by-construction relaxations (each only ever RAISES the bound):
  *  - negative stat lines dropped everywhere — except a sublimation's DI, which is NET per sub (a build

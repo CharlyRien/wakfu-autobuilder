@@ -1,8 +1,15 @@
 package me.chosante.autobuilder.domain
 
+import me.chosante.autobuilder.genetic.wakfu.foldedToUsableStat
+import me.chosante.common.Character
 import me.chosante.common.CharacterClass
+import me.chosante.common.Characteristic
+import me.chosante.common.CriterionComparison
 import me.chosante.common.Equipment
 import me.chosante.common.ExclusiveGroup
+import me.chosante.common.ItemStatGate
+import me.chosante.common.SublimationEffect
+import me.chosante.common.SublimationKind
 
 // The item EQUIP conditions the engine ENFORCES (AGENTS.md §4 "Item equip conditions"), read from the item's own
 // [Equipment.equipCriterion] (joined from `item-criteria.json` when the catalog loads). Every consumer — the pool
@@ -13,8 +20,11 @@ import me.chosante.common.ExclusiveGroup
 //  - FORBIDS ([equipConflict]): the symmetric closure of `not HasEquipmentId` — two items conflict when EITHER one
 //    forbids the other (the Lieute rings only list their bans in their CRAFT criterion, yet the game refuses any two
 //    of their triple together);
-//  - CLASS-ONLY / NEVER ([isWearableBy]): static, filtered out of the pool before any search.
-// Stat gates and player-state conditions are not enforced (see [me.chosante.common.ItemEquipCriterion]).
+//  - CLASS-ONLY / NEVER ([isWearableBy]): static, filtered out of the pool before any search;
+//  - STAT GATES ([statGates], [statGateViolations]): `GetCharac("RANGE") <= 3` and the like, read on the build's
+//    OUT-OF-COMBAT sheet ([outOfCombatSheet]) — an item whose gate fails is inactive in game (it turns red), so a build
+//    that breaks one is not a valid build. The CP-SAT twin is `StatBuilder.applyItemStatGates`.
+// Player-state conditions are not enforced: they are outside the build, assumed met (see [me.chosante.common.ItemEquipCriterion]).
 
 /** The ids of the items [this] can only be worn with (its EQUIP criterion's `HasEquipmentId`). */
 val Equipment.requiredItemIds: List<Int>
@@ -147,4 +157,101 @@ fun ringPairingKeys(rings: Collection<Equipment>): Map<Int, String> {
         for (m in members) keys[m.equipmentId] = componentKey ?: nameKey.getValue(m.equipmentId)
     }
     return keys
+}
+
+/** The `GetCharac` / `GetCharacMax` gates of [this]'s EQUIP criterion (empty when it has none). */
+val Equipment.statGates: List<ItemStatGate>
+    get() = equipCriterion?.statGates.orEmpty()
+
+/** The usable characteristic [this] gate reads: AP / MP / WP for `GetCharacMax` too (see [outOfCombatSheet]). */
+val ItemStatGate.sheetCharacteristic: Characteristic
+    get() = characteristic.foldedToUsableStat()
+
+/** Whether [this] gate holds on an out-of-combat sheet value of [actual]. */
+fun ItemStatGate.holdsOn(actual: Int): Boolean = comparison.holds(actual, value)
+
+/**
+ * Whether [this] gate holds on EVERY value of [range] — a sound reach of the sheet stat — so no build can break it (the CP-SAT
+ * model then adds nothing for it). An empty range holds vacuously.
+ */
+fun ItemStatGate.holdsOnEvery(range: LongRange): Boolean {
+    if (range.isEmpty()) return true
+    val v = value.toLong()
+    return when (comparison) {
+        CriterionComparison.LT -> range.last < v
+        CriterionComparison.LE -> range.last <= v
+        CriterionComparison.GT -> range.first > v
+        CriterionComparison.GE -> range.first >= v
+        CriterionComparison.EQ -> range.first == v && range.last == v
+        CriterionComparison.NE -> v !in range
+    }
+}
+
+/** One broken stat gate: [item] is inactive in game because its [gate] fails on the build's out-of-combat [actual] value. */
+data class StatGateViolation(
+    val item: Equipment,
+    val gate: ItemStatGate,
+    val actual: Int,
+) {
+    /** English one-liner, the item named in French (CLI, logs, [equipConditionViolation]-style messages). */
+    fun describe(): String = "${item.name.fr} would be inactive in game: ${gate.characteristic} ${gate.comparison.symbol} ${gate.value}, the build has $actual"
+}
+
+/**
+ * The build's OUT-OF-COMBAT sheet — the character-sheet totals the game checks an item's stat gate against, re-checked on the
+ * whole equipped set: the character's base stats, every item's lines INCLUDING the gated item's own, the skills' FIXED lines,
+ * the runes, the PERMANENT sublimation effects ([SublimationEffect.appliesBeforeCombat] — Visibilité's +1 range — never a
+ * scenario-gated one: a scenario is a combat situation) and the selected passives' flat stats ([me.chosante.common.Passive.flatStats],
+ * the extractor's permanent subset, which the game shows on the sheet). Start-of-combat and in-combat sublimation effects
+ * (Abandon's range) do not count. AP / MP / WP fold their MAX_* lines in ([foldedToUsableStat]): out of combat a pool's current
+ * value is its maximum, so a `GetCharacMax` gate ([ItemStatGate.max]) reads the same total as a `GetCharac` one. The skills'
+ * PERCENT lines (% HP) are left out — no gated stat has one. Mirrors `StatBuilder.outOfCombatStat` term for term.
+ *
+ * [characterClass] sets the base stats (a Xelor starts with 12 WP); null reads a 6-WP class.
+ */
+fun outOfCombatSheet(
+    build: BuildCombination,
+    characterClass: CharacterClass?,
+): Map<Characteristic, Int> {
+    val level = build.characterSkills.level
+    val sheet = HashMap<Characteristic, Int>()
+
+    fun add(
+        characteristic: Characteristic,
+        value: Int,
+    ) {
+        if (value != 0) sheet.merge(characteristic.foldedToUsableStat(), value, Int::plus)
+    }
+    Character(characterClass ?: CharacterClass.UNKNOWN, level, level).baseCharacteristicValues.forEach { (c, v) -> add(c, v) }
+    for (item in build.equipments) item.characteristics.forEach { (c, v) -> add(c, v) }
+    build.characterSkills.allCharacteristicValues.fixedValues
+        .forEach { (c, v) -> add(c, v) }
+    for ((carrier, runes) in build.runes) runes.forEach { add(it.characteristic, it.valueOn(carrier.itemType, carrier.level)) }
+    for (sub in build.sublimations.values.flatten()) {
+        if (sub.kind == SublimationKind.COMBAT_CONDITIONAL || sub.kind == SublimationKind.CONVERSION) continue
+        for (effect in sub.effects.filterIsInstance<SublimationEffect.StatEffect>()) {
+            if (effect.appliesBeforeCombat && effect.scenarioGate == null) add(effect.characteristic, effect.magnitudeAtLevel(level))
+        }
+    }
+    for (passive in build.passives) passive.flatStats.forEach { (c, v) -> add(c, v) }
+    return sheet
+}
+
+/**
+ * Every stat gate [build] breaks ([outOfCombatSheet]), item by item in build order — empty when every item it wears is active.
+ * Reads each item's own [Equipment.equipCriterion]: a build read back from a save carries none, see
+ * `WakfuBestBuildFinderAlgorithm.statGateViolations`, which joins the catalog's first.
+ */
+fun statGateViolations(
+    build: BuildCombination,
+    characterClass: CharacterClass?,
+): List<StatGateViolation> {
+    if (build.equipments.none { it.statGates.isNotEmpty() }) return emptyList()
+    val sheet = outOfCombatSheet(build, characterClass)
+    return build.equipments.flatMap { item ->
+        item.statGates.mapNotNull { gate ->
+            val actual = sheet[gate.sheetCharacteristic] ?: 0
+            if (gate.holdsOn(actual)) null else StatGateViolation(item, gate, actual)
+        }
+    }
 }
