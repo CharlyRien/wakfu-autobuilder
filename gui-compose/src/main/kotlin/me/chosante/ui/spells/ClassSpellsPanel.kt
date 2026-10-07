@@ -1,5 +1,6 @@
 package me.chosante.ui.spells
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -37,13 +38,13 @@ import me.chosante.common.Characteristic
 import me.chosante.common.Passive
 import me.chosante.common.Spell
 import me.chosante.common.SpellDamage
-import me.chosante.common.SpellElement
 import me.chosante.ui.components.InfoTip
 import me.chosante.ui.components.PassiveIcon
 import me.chosante.ui.components.SpellIcon
 import me.chosante.ui.components.elementColor
 import me.chosante.ui.components.elementLabel
 import me.chosante.ui.components.localized
+import me.chosante.ui.components.rememberClasspathBitmap
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
 import me.chosante.ui.i18n.Tr
@@ -251,11 +252,19 @@ private fun SpellCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(3.dp))
-                ElementBadge(element = spell.element)
+                ElementBadge(spell = spell)
             }
         }
         SpellMetaRow(spell = spell)
         DamageBlock(entry = entry, critRate = critRate, hasBuild = hasBuild)
+        if (spell.baseDamage != null) {
+            spell.displayOnlyElement()?.let { element ->
+                Text(
+                    text = tr(Tr.SPELL_UNSUPPORTED_DAMAGE_NOTE).format(tr(element.label)),
+                    style = WTypography.labelSmall.copy(color = WColor.muted)
+                )
+            }
+        }
         spell.description?.localized(lang)?.takeIf { it.isNotBlank() }?.let { desc ->
             Text(
                 text = desc,
@@ -496,7 +505,18 @@ private fun SectionTitle(
 }
 
 @Composable
-private fun ElementBadge(element: SpellElement?) {
+private fun ElementBadge(spell: Spell) {
+    val displayElement = spell.displayOnlyElement()
+    if (displayElement != null) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            rememberClasspathBitmap(displayElement.iconPath)?.let { bitmap ->
+                Image(bitmap, contentDescription = tr(displayElement.label), modifier = Modifier.size(16.dp))
+            }
+            Text(text = tr(displayElement.label), style = WTypography.labelSmall.copy(color = WColor.text))
+        }
+        return
+    }
+    val element = spell.element
     element ?: return
     val color = element.elementColor()
     Box(
