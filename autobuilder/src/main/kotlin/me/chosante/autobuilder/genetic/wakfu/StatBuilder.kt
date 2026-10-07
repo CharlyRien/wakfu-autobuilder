@@ -1579,19 +1579,8 @@ internal class StatBuilder(
      */
     internal fun outOfCombatReach(char: Characteristic): LongRange {
         val (terms, base) = baseTermsFor(char)
-        val preSub = reachableSumDomain(terms, base)
-        val capped =
-            when (char) {
-                Characteristic.ACTION_POINT -> preSub.first..minOf(preSub.last, MAX_OUT_OF_COMBAT_AP)
-                Characteristic.MOVEMENT_POINT -> preSub.first..minOf(preSub.last, MAX_OUT_OF_COMBAT_MP)
-                Characteristic.WAKFU_POINT -> preSub.first..minOf(preSub.last, MAX_OUT_OF_COMBAT_WP)
-                Characteristic.CRITICAL_HIT -> maxOf(preSub.first, MIN_OUT_OF_COMBAT_CRIT)..preSub.last
-                else -> preSub
-            }
         val extras = outOfCombatExtraTermsByStat[char].orEmpty()
-        if (extras.isEmpty()) return capped
-        val extraReach = reachableSumDomain(extras, 0L)
-        return capped.first + extraReach.first..capped.last + extraReach.last
+        return outOfCombatSheetReach(char, reachableSumDomain(terms, base), if (extras.isEmpty()) 0L..0L else reachableSumDomain(extras, 0L))
     }
 
     internal fun actualActionPointCeiling(): Long =
@@ -2603,3 +2592,32 @@ internal class StatBuilder(
         return map
     }
 }
+
+/**
+ * The reach of the OUT-OF-COMBAT sheet value of [char] (what an item stat gate reads, [StatBuilder.outOfCombatStat]) from a sound
+ * reach of its [StatBuilder.preSubStat] part ([preSub]) and of its extras ([extras]: the permanent sub effects + the passives'
+ * flat stats), narrowed by the out-of-combat caps every model variant posts on the pre-sub part ([StatBuilder.applyOutOfCombatCaps]:
+ * ≤ 16 AP / 8 MP / 20 WP, ≥ −9 crit).
+ *
+ * The ONE place the caps narrow a gate's reach: the model ([StatBuilder.outOfCombatReach], the tracked pre-sub reach) and the
+ * domination pre-filter (`DominationShape.gateCanFail`, a pool-level reach — [UNKNOWN_PRE_SUB_REACH], the pre-sub variable's
+ * whole domain) both call it, so domination never treats as "never fails" a gate the model could see fail.
+ */
+internal fun outOfCombatSheetReach(
+    char: Characteristic,
+    preSub: LongRange,
+    extras: LongRange,
+): LongRange {
+    val capped =
+        when (char) {
+            Characteristic.ACTION_POINT -> preSub.first..minOf(preSub.last, MAX_OUT_OF_COMBAT_AP)
+            Characteristic.MOVEMENT_POINT -> preSub.first..minOf(preSub.last, MAX_OUT_OF_COMBAT_MP)
+            Characteristic.WAKFU_POINT -> preSub.first..minOf(preSub.last, MAX_OUT_OF_COMBAT_WP)
+            Characteristic.CRITICAL_HIT -> maxOf(preSub.first, MIN_OUT_OF_COMBAT_CRIT)..preSub.last
+            else -> preSub
+        }
+    return capped.first + extras.first..capped.last + extras.last
+}
+
+/** The whole domain of a [StatBuilder.preSubStat] variable (`tSum` clamps it to ±[STAT_ABS_MAX]): a sound reach for any pool. */
+internal val UNKNOWN_PRE_SUB_REACH: LongRange = -STAT_ABS_MAX..STAT_ABS_MAX

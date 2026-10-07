@@ -1,6 +1,7 @@
 package me.chosante.autobuilder.genetic.wakfu
 
 import me.chosante.autobuilder.domain.forbiddenItemIds
+import me.chosante.autobuilder.domain.holdsOnEvery
 import me.chosante.autobuilder.domain.requiredItemIds
 import me.chosante.autobuilder.domain.sheetCharacteristic
 import me.chosante.autobuilder.domain.statGates
@@ -13,6 +14,7 @@ import me.chosante.common.Characteristic
 import me.chosante.common.CriterionComparison
 import me.chosante.common.Equipment
 import me.chosante.common.ExclusiveGroup
+import me.chosante.common.ItemStatGate
 import me.chosante.common.ItemType
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
@@ -20,6 +22,7 @@ import me.chosante.common.SECONDARY_MASTERY_CHARACTERISTICS
 import me.chosante.common.Sublimation
 import me.chosante.common.SublimationConditionType
 import me.chosante.common.SublimationEffect
+import me.chosante.common.SublimationKind
 import me.chosante.common.SublimationRarity
 
 // Domination pre-filter (DominationFilter) extracted from the WakfuBuildSolver object (B1 of
@@ -75,7 +78,60 @@ internal data class DominationShape(
     val relicCarriers: Boolean = false,
     // The rune contract, null when no rune can be modelled (the old count-only socket clause is then all it needs).
     val runes: RuneDomination? = null,
+    // Per (usable) stat, a sound reach of the OUT-OF-COMBAT sheet's extras ([outOfCombatExtrasReach]: the modelled subs'
+    // permanent effects + the passives' flat stats; a stat absent from the map has none). With the out-of-combat caps it
+    // decides which item stat gates can fail at all ([gateCanFail]). null = unknown: every gate is treated as one that can fail.
+    val outOfCombatExtras: Map<Characteristic, LongRange>? = null,
 )
+
+/**
+ * Whether [gate] can fail on some build of the request's model. A gate that holds on EVERY build is no restriction at all, so
+ * domination treats it as NO gate (it neither blocks an eviction nor bounds a stat): `GetCharac("FEROCITY") > -10`, on 89
+ * items, is implied by the `≥ −9` out-of-combat crit cap whenever no out-of-combat extra carries negative crit.
+ *
+ * The test is the model's own ([StatBuilder.applyItemStatGates]: `holdsOnEvery` on the out-of-combat reach, narrowed by the caps
+ * through the shared [outOfCombatSheetReach]) on a reach that holds for ANY pool: the pre-sub part's whole variable domain
+ * ([UNKNOWN_PRE_SUB_REACH]) — domination runs before the model, on the pool it is about to shrink — plus the extras' reach. That
+ * reach contains the model's (tracked) one, so a gate domination ignores is one the model adds no constraint for either.
+ */
+internal fun DominationShape.gateCanFail(gate: ItemStatGate): Boolean {
+    val extras = outOfCombatExtras ?: return true
+    val characteristic = gate.sheetCharacteristic
+    return !gate.holdsOnEvery(outOfCombatSheetReach(characteristic, UNKNOWN_PRE_SUB_REACH, extras[characteristic] ?: 0L..0L))
+}
+
+/**
+ * A sound reach, per usable stat, of the extras the out-of-combat sheet adds to the pre-sub value ([StatBuilder.outOfCombatStat]):
+ * the selected passives' flat stats (constants, summed exactly) and the PERMANENT, scenario-free effects of the modelled subs
+ * ([buildOutOfCombatSubTerms]: FLAT / STATIC_CONDITIONAL subs only). A sub may be socketed several times, so a sub effect of a
+ * sign opens that side of the reach entirely (±[STAT_ABS_MAX]) — loose, but sound; only a stat no modelled sub lowers keeps a
+ * finite floor (crit on the shipped data: nothing lowers it out of combat).
+ */
+private fun outOfCombatExtrasReach(
+    params: WakfuBestBuildParams,
+    modelled: List<Sublimation>,
+): Map<Characteristic, LongRange> {
+    val constant = HashMap<Characteristic, Long>()
+    for (passive in WakfuBuildSolver.resolvedPassives(params)) {
+        for ((characteristic, value) in passive.flatStats) constant.merge(characteristic.foldedToUsableStat(), value.toLong(), Long::plus)
+    }
+    val lowered = HashSet<Characteristic>()
+    val raised = HashSet<Characteristic>()
+    for (sub in modelled) {
+        if (sub.kind == SublimationKind.COMBAT_CONDITIONAL || sub.kind == SublimationKind.CONVERSION) continue
+        for (effect in sub.effects.filterIsInstance<SublimationEffect.StatEffect>()) {
+            if (!effect.appliesBeforeCombat || effect.scenarioGate != null) continue
+            val magnitude = effect.magnitudeAtLevel(params.character.level)
+            val characteristic = effect.characteristic.foldedToUsableStat()
+            if (magnitude < 0) lowered += characteristic
+            if (magnitude > 0) raised += characteristic
+        }
+    }
+    return (constant.keys + lowered + raised).associateWith { c ->
+        val k = constant[c] ?: 0L
+        (if (c in lowered) -STAT_ABS_MAX else 0L) + k..(if (c in raised) STAT_ABS_MAX else 0L) + k
+    }
+}
 
 /**
  * How runes constrain domination when the request can model them. A rune's value is fixed by the CARRIER's level (the
@@ -184,6 +240,7 @@ internal fun dominationShape(
     val (forcedModelled, choosableModelled) = modelledSublimations(params, sublimations)
     val modelled = forcedModelled + choosableModelled
     val epicCarriers = modelled.any { it.rarity == SublimationRarity.EPIC }
+    val outOfCombatExtras = outOfCombatExtrasReach(params, modelled)
     val relicCarriers = modelled.any { it.rarity == SublimationRarity.RELIC }
     // Best-element concentration (Elemental Concentration) constrains `subVar ≤ "the scenario element is the strongest"`
     // wherever it is modelled. Its sound pin (the off-scenario elemental masteries MINIMIZED, below) needs a single
@@ -212,7 +269,8 @@ internal fun dominationShape(
             pinned,
             epicCarriers = epicCarriers,
             relicCarriers = relicCarriers,
-            runes = runeDomination(params, pinned)
+            runes = runeDomination(params, pinned),
+            outOfCombatExtras = outOfCombatExtras
         )
     }
 
@@ -290,7 +348,8 @@ internal fun dominationShape(
         minimized,
         epicCarriers = epicCarriers,
         relicCarriers = relicCarriers,
-        runes = runeDomination(params, pinned + minimized)
+        runes = runeDomination(params, pinned + minimized),
+        outOfCombatExtras = outOfCombatExtras
     )
 }
 
@@ -318,31 +377,84 @@ private fun runeDomination(
  * read over the WHOLE pool first, since a requirement crosses slots (a sword needs a ring): every item another pool item
  * requires is KEPT — whatever dominates it can't stand in for it in its requirer's build (the four nation rings are
  * stat-identical, zero-stat EPIC rings: they used to evict each other and fall to any 4-socket ring) — and
- * [EquipConstraints] carries each item's conflict partners (the symmetric closure of `not HasEquipmentId`) to [dominates].
+ * [EquipConstraints] carries each item's conflict partners (the symmetric closure of `not HasEquipmentId`) and the stat
+ * gates that can fail to [dominates].
+ *
+ * The stat gates are read to a FIXPOINT (CERTIFIER_VERSION 58), so that only the gates of items that SURVIVE constrain the
+ * others — at level 245 most gated items (levels 180–215) fall to stronger ungated ones, and a gate of an evicted item no
+ * longer pins its stat in every other slot. One pass ([dominationPass]) on a pool P picks a set S of gated items, builds the
+ * "beside" gate clauses of [dominates] from the gates of S only (every other clause — requirements, conflicts, exclusivity,
+ * runes, an item's OWN gates — from all of P, unchanged), filters P, and accepts the result only when every gated item that
+ * survived is in S; otherwise it adds the gated survivors to S and filters P again. S starts EMPTY and only grows, so the pass
+ * ends on the least such S (a filter with more gate sources evicts less, so the gated survivors only grow with S); it
+ * terminates since S ⊆ the gated items of P.
+ *
+ * Why the accepted result P' keeps the optimum of P. Take an optimal build β of P (every gate of every item it wears holds) and
+ * replace each of its evicted items B by a KEPT dominator A (a ≻-maximal one — the per-slot argument of [dominatedWithin]; the
+ * relation is transitive). The objective cannot fall (monotone), and every non-gate clause holds as before. A gate of an item
+ * g of the new build β' — g is in P', so g ∈ S whenever its gate can fail — held in β: either g was already worn, or g
+ * replaced some B whose gates ⊇ g's ("A's gates ⊆ B's") and held. Every swap moves each stat a gate of S bounds only in the
+ * safe direction (`A ≤ B` under an upper gate, `A ≥ B` under a lower one: an S item worn beside the swapped slot, or A's own
+ * gate), so g's gate still holds in β'. So β' is a valid build of P' at least as good as β: opt(P') = opt(P). The gates of an
+ * item NOT in S never need protecting: no build of P' wears it. A gate that can never fail ([DominationShape.gateCanFail]) is
+ * no gate at all.
+ *
+ * The pass is then repeated on its own output until it evicts nothing (each pass is optimum-preserving for ANY input pool, so
+ * the composition is: opt(P_{k+1}) = opt(P_k) = … = opt(P)); the requirement and conflict clauses are re-read from the smaller
+ * pool. Deterministic: [dominatedWithin] keeps the input order.
  */
 internal fun filterDominatedPool(
     pool: Map<ItemType, List<Equipment>>,
     shape: DominationShape,
 ): Map<ItemType, List<Equipment>> {
-    val constraints = EquipConstraints.of(pool)
-    return pool.mapValues { (slot, items) -> dominatedWithin(items, slot, shape, constraints) }
+    var current = pool
+    while (true) {
+        val next = dominationPass(current, shape)
+        if (next.values.sumOf { it.size } == current.values.sumOf { it.size }) return next
+        current = next
+    }
+}
+
+/** One pass of [filterDominatedPool]: the least set S of gate sources whose filter keeps no gated item outside S. */
+private fun dominationPass(
+    pool: Map<ItemType, List<Equipment>>,
+    shape: DominationShape,
+): Map<ItemType, List<Equipment>> {
+    var sources: Set<Int> = emptySet()
+    while (true) {
+        val constraints = EquipConstraints.of(pool, shape) { it.equipmentId in sources }
+        val kept = pool.mapValues { (slot, items) -> dominatedWithin(items, slot, shape, constraints) }
+        val keptGated =
+            kept.values
+                .flatten()
+                .filter { constraints.gates(it).isNotEmpty() }
+                .mapTo(HashSet()) { it.equipmentId }
+        if (sources.containsAll(keptGated)) return kept
+        sources = sources + keptGated
+    }
 }
 
 /**
  * The pool-wide side of the item EQUIP conditions domination must respect: [requiredKeys] (ids some pool item requires
  * — never evicted), each item's [conflictPartners] (pool ids it can't be worn with, either way round) and the STAT GATES
  * ([gatedStats]): the stats some pool item's gate bounds from above (`range ≤ 3`) or from below (`lock ≥ 500`), with the
- * slots of the gated items.
+ * slots of the gated items. Only the gates that CAN fail count ([gates], [DominationShape.gateCanFail]): a gate every build
+ * meets is no gate.
  */
 internal class EquipConstraints private constructor(
     val requiredKeys: Set<Int>,
     private val partners: Map<Int, Set<Int>>,
+    // Per item id, its stat gates that can fail (absent: none).
+    private val failableGates: Map<Int, List<ItemStatGate>>,
     // Per slot, the stats an upper (lower) gate of an item that can be worn BESIDE an item of that slot bounds: an item of
     // another slot, or a second ring. Precomputed: [gatedStats] runs once per compared pair.
     private val upperBySlot: Map<ItemType, Set<Characteristic>>,
     private val lowerBySlot: Map<ItemType, Set<Characteristic>>,
 ) {
     fun conflictPartners(item: Equipment): Set<Int> = partners[item.equipmentId].orEmpty()
+
+    /** [item]'s stat gates that can fail in the request ([DominationShape.gateCanFail]); [item] must be a pool item. */
+    fun gates(item: Equipment): List<ItemStatGate> = failableGates[item.equipmentId].orEmpty()
 
     /**
      * The sheet stats on which a swap of B by A in [slot] must not move the build's out-of-combat total: UP for [upper] (an
@@ -355,15 +467,23 @@ internal class EquipConstraints private constructor(
         upper: Boolean,
     ): Set<Characteristic> {
         val beside = (if (upper) upperBySlot else lowerBySlot)[slot].orEmpty()
-        val gates = a.statGates
+        val gates = gates(a)
         if (gates.isEmpty()) return beside
         return beside + gates.filter { if (upper) it.comparison.boundsAbove() else it.comparison.boundsBelow() }.map { it.sheetCharacteristic }
     }
 
     companion object {
-        val NONE = EquipConstraints(emptySet(), emptyMap(), emptyMap(), emptyMap())
+        val NONE = EquipConstraints(emptySet(), emptyMap(), emptyMap(), emptyMap(), emptyMap())
 
-        fun of(pool: Map<ItemType, List<Equipment>>): EquipConstraints {
+        /**
+         * The constraints of [pool]; the "beside" gate clauses read only the gates of the items [gateSource] accepts (every
+         * pool item by default — the fixpoint of [filterDominatedPool] passes its set S), an item's own gates always count.
+         */
+        fun of(
+            pool: Map<ItemType, List<Equipment>>,
+            shape: DominationShape,
+            gateSource: (Equipment) -> Boolean = { true },
+        ): EquipConstraints {
             val items = pool.values.flatten()
             val keys = items.flatMapTo(HashSet()) { it.requiredItemIds }
             val partners = HashMap<Int, MutableSet<Int>>()
@@ -373,19 +493,25 @@ internal class EquipConstraints private constructor(
                     partners.getOrPut(other) { HashSet() } += item.equipmentId
                 }
             }
+            val failableGates = HashMap<Int, List<ItemStatGate>>()
+            for (item in items) {
+                val gates = item.statGates.filter { shape.gateCanFail(it) }
+                if (gates.isNotEmpty()) failableGates[item.equipmentId] = gates
+            }
             val upper = HashMap<Characteristic, MutableSet<ItemType>>()
             val lower = HashMap<Characteristic, MutableSet<ItemType>>()
             for (item in items) {
-                for (gate in item.statGates) {
+                if (!gateSource(item)) continue
+                for (gate in failableGates[item.equipmentId].orEmpty()) {
                     if (gate.comparison.boundsAbove()) upper.getOrPut(gate.sheetCharacteristic) { HashSet() } += item.itemType
                     if (gate.comparison.boundsBelow()) lower.getOrPut(gate.sheetCharacteristic) { HashSet() } += item.itemType
                 }
             }
-            if (keys.isEmpty() && partners.isEmpty() && upper.isEmpty() && lower.isEmpty()) return NONE
+            if (keys.isEmpty() && partners.isEmpty() && failableGates.isEmpty()) return NONE
 
             fun besideBySlot(gatedSlots: Map<Characteristic, Set<ItemType>>): Map<ItemType, Set<Characteristic>> =
                 pool.keys.associateWith { slot -> gatedSlots.filterValues { slots -> slots.any { it != slot || slot == ItemType.RING } }.keys }
-            return EquipConstraints(keys, partners, besideBySlot(upper), besideBySlot(lower))
+            return EquipConstraints(keys, partners, failableGates, besideBySlot(upper), besideBySlot(lower))
         }
     }
 }
@@ -453,7 +579,8 @@ private fun dominatedWithin(
  *  - the item EQUIP conditions: **A's required items ⊆ B's** (the build already wears B's, so A's are worn too — a
  *    sword that needs its ring never evicts a free weapon) and **A's conflict partners ⊆ B's** (no item the build wears
  *    beside B refuses A). Class-only and never-equippable items are out of the pool before domination runs;
- *  - the item STAT GATES (read on the out-of-combat sheet, `StatBuilder.applyItemStatGates`): **A's gates ⊆ B's** (a gated item
+ *  - the item STAT GATES that can fail ([DominationShape.gateCanFail]; one every build meets is no gate) of the items still in
+ *    the pool (read on the out-of-combat sheet, `StatBuilder.applyItemStatGates`): **A's gates ⊆ B's** (a gated item
  *    never evicts an ungated one: its gate could fail where B was free), **`A ≤ B` on every stat an upper gate bounds** and
  *    **`A ≥ B` on every stat a lower gate bounds** ([EquipConstraints.gatedStats]: the gates of items worn beside B, and A's own)
  *    — so the swap never moves a gated total the wrong way; with the `≥` on compared stats an upper-gated one is in effect
@@ -466,7 +593,7 @@ private fun Equipment.dominates(
 ): Boolean {
     if (!other.requiredItemIds.containsAll(requiredItemIds)) return false
     if (!constraints.conflictPartners(other).containsAll(constraints.conflictPartners(this))) return false
-    if (!other.statGates.containsAll(statGates)) return false
+    if (!constraints.gates(other).containsAll(constraints.gates(this))) return false
     val upperGated = constraints.gatedStats(itemType, this, upper = true)
     if (upperGated.any { valueFor(it) > other.valueFor(it) }) return false
     if (constraints.gatedStats(itemType, this, upper = false).any { valueFor(it) < other.valueFor(it) }) return false

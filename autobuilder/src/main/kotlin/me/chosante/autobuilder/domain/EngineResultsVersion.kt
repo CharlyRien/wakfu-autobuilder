@@ -12,5 +12,8 @@ package me.chosante.autobuilder.domain
  *
  * 2: the item EQUIP conditions (`item-criteria.json`) — REQUIRES / FORBIDS / class-only / never, the exclusivity groups, and
  * the item STAT GATES (an item inactive on the build's out-of-combat sheet is never worn). Still 2: no release shipped it.
+ * 3: CERTIFIER_VERSION 58 — the domination pre-filter ignores the stat gates that can never fail and the gates of the items it
+ * evicts. Same optima, a smaller pool: a time-limited search of 1.15 / 1.16 (slowed by the gates) may now find a better build,
+ * and among equally good builds the one returned can differ.
  */
-const val ENGINE_RESULTS_VERSION: Int = 2
+const val ENGINE_RESULTS_VERSION: Int = 3
