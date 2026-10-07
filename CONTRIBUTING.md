@@ -149,3 +149,9 @@ Gradle multi-module; everyone depends on `common-lib` (pure domain model). The s
 `autobuilder` (Google OR-Tools CP-SAT — deterministic & optimal); the GUI is `gui-compose` (Compose
 Desktop, built programmatically in Kotlin — no FXML). The standalone `*-extractor` modules regenerate the
 embedded data. See [`AGENTS.md`](AGENTS.md) §2–§6 for the full map and the engine internals.
+
+Boss portraits can be refreshed without a local client with
+`./gradlew :bdata-extractor:run --args="--monster-portraits-only"`. It reads the committed
+`monsters.json` boss gfx ids and downloads 200×200 PNGs from Ankama's portal static host.
+HTTP 403/404 is a missing portrait; other errors or invalid images fail before assets change.
+Non-boss PNGs and unavailable portraits are removed, and unchanged official bytes stay untouched.

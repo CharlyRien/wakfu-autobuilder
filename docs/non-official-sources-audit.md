@@ -25,7 +25,7 @@ Status: 🟢 Actionable (a concrete official source exists) · 🟡 Keep / docum
 | ID | Title | Status | Severity | Feasibility |
 |---|---|---|---|---|
 | `icons-legacy-dead` | 4 unreferenced legacy HUD icon files | ✅ Done — `chore(assets): drop four unreferenced legacy stat icons` | minor | easy |
-| `monster-portraits` | Monster boss portraits — third-party wakassets mirror | 🟢 Actionable | notable | easy |
+| `monster-portraits` | Monster boss portraits — Ankama static host | ✅ Done — `feat(data): boss portraits come from Ankama's static host` | notable | easy |
 | `rune-level-requirements` | Rune level-requirement table — hardcoded | ✅ Done — `refactor(data): rune level thresholds come from the game data` | notable | easy |
 | `spell-cast-limit-names` | spell-cast-limits.json names — from the encyclopedia spells.json | ✅ Done — `feat(data): spell and passive names come from the game client in every language` | minor | easy |
 | `spell-passive-names` | spell-passives.json names/descriptions — from the encyclopedia spells.json | ✅ Done — `feat(data): spell and passive names come from the game client in every language` | minor | easy |
@@ -68,7 +68,8 @@ Status: 🟢 Actionable (a concrete official source exists) · 🟡 Keep / docum
 
 ### `monster-portraits` — Monster boss portraits — third-party wakassets mirror
 
-- **Status:** 🟢 Actionable
+- **Status:** ✅ Done — `feat(data): boss portraits come from Ankama's static host`
+- **Completion (2026-10-07):** Network-only `bdata-extractor --monster-portraits-only`, wired into `update-game-data.sh`. 219 official PNGs fetched for 225 bosses, 219 byte changes (209 existing portraits have identical decoded pixels; 10 newly available portraits), zero bosses without art. Removed all 431 PNGs belonging to no boss; no unavailable boss PNG existed. HTTP 403/404 is tolerated and stale art is removed rather than retaining third-party bytes. A second official fetch changes zero files. A GUI fix changeset records the 10 filled empty tiles. The old counts and byte-identity evidence below are historical.
 - **Category:** asset · **Classification:** NON-OFFICIAL (third-party Vertylo/wakassets PNG mirror); migratable to OFFICIAL-CDN (static.ankama.com Ankama-owned portal static host) · **Severity:** notable · **Feasibility:** easy · **Effort:** S (about half a day): ~40-60 lines for the fetch loop + a doc/comment sweep + a one-time re-baseline of 640 PNGs. No GUI, model, or asset-path changes (filenames are identical).
 - **What it is:** 640 PNG boss/monster portraits, 200x200, keyed by Monster.gfx (e.g. assets/monsters/100100004.png). Rendered by the GUI boss picker rows and boss card via MonsterAssets.iconPath().
 - **Why not fully official:** These 200x200 portraits do not exist in the local client's gui.jar — the client only keys monsters by gfx as 132x41 in-game banners (miscellaneous/.. / banner sprites), not 200x200 portraits. So generateAssets cannot supply them and they remain a transcription of the third-party Vertylo/wakassets mirror. No gui.jar path can supply an equivalent 200x200 portrait; the closest official asset is a 132x41 banner keyed by gfx (different art, different aspect), which is why the build task deliberately leaves them committed-static.
