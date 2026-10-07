@@ -462,6 +462,12 @@ as **fixed-name** JSON files (no version in the filename):
    `items.json` — colour/double-bonus + the boosted stat from the equip-effect action; replaces the old
    hand-maintained file), and **`monsters.json`** (boss-mode data: level/HP/flat elemental resistances +
    localized name/family + icon `gfx`, replacing the old third-party MethodWakfu/Fandom scrape).
+   **Spell metadata migration check (2026-10-07, 1.93.1.62):** 707/710 committed ids exist in Spell (66);
+   names/AP/range/element/icons do not all reproduce the committed oracle. No spells.json field switched.
+   See `docs/official-sources-2/spell-metadata-comparison.md` and its full difference CSV. `spell-i18n.json`
+   already supplies official four-language names/descriptions at runtime; cast limits/WP and level-scaled
+   damage formulas are official side tables. The encyclopedia still selects the roster/metadata and anchors
+   rendered damage. Changing engine-facing AP/range/element needs a separate reviewed data change with versions.
    **Spells stay on the encyclopedia** (`spells-extractor` → `spells.json`: name/element/AP/range/icon + the
    *max-level* base hit) because the spell-damage *renderer* is client-only — no decoder reproduces it, and
    every community tool (WakForge, Zenith) also uses Ankama's rendered output. But `bdata-extractor` adds the
