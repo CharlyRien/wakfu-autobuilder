@@ -12,7 +12,7 @@ import kotlinx.serialization.json.contentOrNull
 import me.chosante.common.I18nText
 import me.chosante.common.ItemEquipCriterion
 import me.chosante.common.Monster
-import me.chosante.common.RuneType
+import me.chosante.common.RuneCatalogData
 import me.chosante.common.Spell
 import me.chosante.common.SpellDamageScaling
 import me.chosante.common.SpellLocalization
@@ -148,9 +148,9 @@ fun main(args: Array<String>) {
     // Runes (itemTypeId 811 shards from the same items.json): colour + double-bonus slots from shardParameters,
     // boosted stat from the equip-effect action (ActionCatalog). Replaces the hand-maintained runes.json.
     val runes = ItemsCatalog.parseRunes(itemsJson, actions)
-    println("  ${runes.size} runes (itemTypeId ${ItemsCatalog.RUNE_ITEM_TYPE})")
-    val runesJson = json.encodeToString(ListSerializer(RuneType.serializer()), runes)
-    verifyAndWrite(File(resources, "runes.json"), runesJson, "runes", runes.size, force)
+    println("  ${runes.runes.size} runes (itemTypeId ${ItemsCatalog.RUNE_ITEM_TYPE})")
+    val runesJson = json.encodeToString(RuneCatalogData.serializer(), runes)
+    verifyAndWrite(File(resources, "runes.json"), runesJson, "runes", runes.runes.size, force)
 
     // Monsters (boss mode): decoded from the local Monster table (42) + i18n names, replacing the third-party
     // MethodWakfu/Fandom scrape. The table's positional schema is AUTO-DERIVED from the client bytecode

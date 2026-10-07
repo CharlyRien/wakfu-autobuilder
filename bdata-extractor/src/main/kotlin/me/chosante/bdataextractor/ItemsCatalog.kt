@@ -3,6 +3,7 @@ package me.chosante.bdataextractor
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import me.chosante.common.I18nText
+import me.chosante.common.RuneCatalogData
 import me.chosante.common.RuneColor
 import me.chosante.common.RuneType
 import me.chosante.common.SublimationRarity
@@ -75,8 +76,13 @@ object ItemsCatalog {
     fun parseRunes(
         json: String,
         actions: ActionCatalog,
-    ): List<RuneType> {
+    ): RuneCatalogData {
         val items = LENIENT_JSON.decodeFromString<List<ItemDto>>(json)
+        val requirements =
+            items
+                .filter { it.definition.item.baseParameters.itemTypeId == RUNE_ITEM_TYPE }
+                .map { requireNotNull(it.definition.item.shardsParameters).shardLevelRequirement }
+        require(requirements.isNotEmpty() && requirements.distinct().size == 1) { "Rune items must share one threshold list" }
         val out = ArrayList<RuneType>()
         for (it in items) {
             val core = it.definition.item
@@ -109,7 +115,7 @@ object ItemsCatalog {
                 )
             )
         }
-        return out
+        return RuneCatalogData(requirements.first(), out)
     }
 
     /** The sublimation item's `apply-state` ([APPLY_STATE_ACTION]) equip-effect: `params[0]` = stateId, `params[2]` = levels granted. */
@@ -240,6 +246,7 @@ object ItemsCatalog {
     private data class ShardParams(
         val color: Int = 0,
         val doubleBonusPosition: List<Int> = emptyList(),
+        val shardLevelRequirement: List<Int>,
     )
 
     @Serializable
