@@ -174,6 +174,7 @@ fun AppShell(
                 onPickPassive = model::pickPassive,
                 passiveClass = ui.clazz,
                 onPickBoss = model::pickBoss,
+                selectedBossId = ui.selectedBoss?.id,
                 // The per-item rune picker resolves its carrier from the current build by French name.
                 runePickerCarrier =
                     (ui.modal as? Modal.ItemRunePicker)?.let { m ->

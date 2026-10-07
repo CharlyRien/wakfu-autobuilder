@@ -43,8 +43,8 @@ chaque fiche est autonome (symptôme, cause racine, fichiers, plan, critères d'
 
 > **État au 2026-07-09.** Deux commits (`b146b68e` picker/flow, `c7cac999` cap de tier) ont fusionné **11
 > items** (RUNE-2/3, SUB-1/2, FLOW-1/2/3, PICK-1/2, REF-2, QOL-1) — suite complète verte
-> (common-lib + autobuilder + gui-compose). **Restent ouverts : ENG-3** (seul item moteur, P2) et **REF-1**
-> (partiel — les widgets/tri partagés sont faits, l'unification des 6 modales picker ne l'est pas).
+> (common-lib + autobuilder + gui-compose). **Reste ouvert : ENG-3** (seul item moteur, P2).
+> **REF-1 terminé le 2026-10-07** : les six pickers partagent maintenant `PickerScaffold`.
 
 | ID | Titre | Type | Prio | Effort | Statut | Dépend / Conflits |
 |----|-------|------|------|--------|--------|-------------------|
@@ -61,7 +61,7 @@ chaque fiche est autonome (symptôme, cause racine, fichiers, plan, critères d'
 | **FLOW-3** | Avertir des points d'aptitude non distribués | 🧹 | P2 | S | ✅ `b146b68e` (SKILL_LEFTOVER_WARNING) | — |
 | **PICK-1** | Picker : checkbox « équipables uniquement » (cochée par défaut) | ✨ | P2 | M | ✅ `b146b68e` (EQUIPPABLE_ONLY) | — |
 | **PICK-2** | Nettoyer les forced hors-niveau au changement de niveau (garder excluded) | 🧹 | P2 | S | ✅ `b146b68e` (TOAST_FORCED_ITEMS_REMOVED) | — |
-| **REF-1** | Abstraction partagée des pickers add/suppr (corrige #3 partout) | 🏗️ | P1 | M | ⚠️ **PARTIEL** — widgets partagés (PickerToggle/DoneButton/RuneDoubleBadge) + tri REF-2, mais les 6 `*PickerModal` restent séparés | base de RUNE-2/SUB-1 |
+| **REF-1** | Abstraction partagée des pickers add/suppr (corrige #3 partout) | 🏗️ | P1 | M | ✅ **DONE** — `refactor(gui): the six pickers share one picker scaffold` + `fix(gui): every picker hides what you already chose` | base de RUNE-2/SUB-1 |
 | **REF-2** | Tri alphabétique localisé de TOUTES les modales catalogue | 🏗️ | P2 | M | ✅ `b146b68e` (LocalizedSort.kt, 6 modales + TopBar) | — |
 | **QOL-1** | Tooltip sur libellés de stats cibles tronqués | 🧹 | P3 | S | ✅ `b146b68e` (TooltipArea sur le libellé cible) | — |
 | **QOL-2** | Durée vide → 10 minutes | 🧹 | P2 | S | ✅ mergé (#182) | — |
@@ -556,14 +556,25 @@ re-remplir les branches déjà optimales.
 # E. Refactors transverses (pickers / modales)
 
 ## REF-1 — Abstraction partagée des pickers add/suppression  🏗️ P1 · Effort M
-**Statut : 🔲 TODO** · **Décision dev : « corriger un bug quelque part le corrige pour tout le monde — partageons
-et abstrayons la logique. »**
+**Statut : ✅ DONE (2026-10-07)** — `refactor(gui): the six pickers share one picker scaffold` puis
+`fix(gui): every picker hides what you already chose`.
+
+Les quatre pickers additifs avaient déjà le filtrage des choix, l'auto-focus et la multi-sélection avec
+« Terminé ». `PickerScaffold` partage désormais leur structure avec le boss et les runes. Le boss déjà
+choisi est masqué par ID ; le boss reste mono-choix. Les runes gardent leurs lignes sélectionnées, compteurs
+et boutons +/− : cet éditeur de sockets autorise les répétitions et doit permettre le retrait. Il garde
+Enregistrer/Annuler. Aucun commit focus/multi-sélection supplémentaire n'est nécessaire.
+Tests existants inchangés ; nouvelle couverture des six champs, choix masqués, sélections successives,
+Done et répétition/retrait des runes. [État initial et rapport complet](picker-unification-report.md).
+
+**Décision dev : « corriger un bug quelque part le corrige pour tout le monde — partageons et abstrayons
+la logique. »**
 
 **Origine.** Bug #3 (testeur) : « Quand j'exclus un objet, il s'enlève pas de la liste des objets ! J'appuie sur
 le même depuis 2 min. » + QoL : « taper directement dans la boîte sans cliquer d'abord » + « sélectionner
 plusieurs items sans que la fenêtre se ferme ».
 
-**Confirmé.** Les pickers ne partagent pas leur logique : `ItemPickerModal` ignore `excludedItems`/`forcedItems`
+**Constat historique (juin 2026, remplacé par le rapport ci-dessus).** Les pickers ne partageaient pas leur logique : `ItemPickerModal` ignorait `excludedItems`/`forcedItems`
 (les items déjà épinglés restent listés et re-cliquables → no-op qui referme la modale). À l'inverse,
 `AddStatModal` fait déjà bien (`def.characteristic !in excluded`). Le `SearchField` n'auto-focus pas.
 `pickItem()` met toujours `modal = null` (pas de multi-sélection).
