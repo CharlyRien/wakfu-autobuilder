@@ -131,6 +131,7 @@ enum class Screen {
     Builder,
     Library,
     Compare,
+    Settings,
 }
 
 /**
@@ -236,6 +237,9 @@ sealed interface Modal {
      * search button, so the user knowingly re-optimizes the build they're editing.
      */
     data object ConfirmReSearch : Modal
+
+    /** Restore only the durable settings shown on the Settings screen. */
+    data object ConfirmResetSettings : Modal
 }
 
 data class UiState(
@@ -278,6 +282,7 @@ data class UiState(
      */
     val verifyOptimality: Boolean = true,
     val pickerHideChosen: Boolean = false,
+    val computeSettings: ComputeSettings = ComputeSettings(),
     val forcedItems: List<ItemChip> = emptyList(),
     val excludedItems: List<ItemChip> = emptyList(),
     /** When true (default), the solver may pick statically-modelable sublimations. */

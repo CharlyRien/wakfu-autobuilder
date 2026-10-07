@@ -150,6 +150,7 @@ fun ModalHost(
     onRenameTag: (oldName: String, newName: String) -> Unit = { _, _ -> },
     onDeleteTag: (name: String) -> Unit = {},
     onConfirmReSearch: () -> Unit = {},
+    onConfirmResetSettings: () -> Unit = {},
     onImportBuild: (json: String) -> Unit = {},
     validateImport: (json: String) -> Boolean = { false },
     onClipboardText: () -> String = { "" },
@@ -327,6 +328,18 @@ fun ModalHost(
                     confirmColor = WColor.danger,
                     onConfirm = { onDeleteBuild(modal.id) },
                     onCancel = onDismiss
+                )
+
+            Modal.ConfirmResetSettings ->
+                ConfirmModal(
+                    title = tr(Tr.SETTINGS_RESET),
+                    emphasis = null,
+                    message = tr(Tr.SETTINGS_RESET_HINT),
+                    confirmLabel = tr(Tr.SETTINGS_RESET),
+                    confirmColor = WColor.accent,
+                    onConfirm = onConfirmResetSettings,
+                    onCancel = onDismiss,
+                    confirmTag = "settings-reset-confirm"
                 )
 
             Modal.ConfirmReSearch ->
@@ -2055,6 +2068,7 @@ private fun ConfirmModal(
     confirmColor: Color,
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
+    confirmTag: String = "",
 ) {
     ModalCard(title = title) {
         if (emphasis != null) {
@@ -2073,7 +2087,13 @@ private fun ConfirmModal(
         Spacer(modifier = Modifier.height(WDimens.gap))
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             DialogButton(text = tr(Tr.CANCEL), filled = false, color = WColor.border, onClick = onCancel, modifier = Modifier.weight(1f))
-            DialogButton(text = confirmLabel, filled = true, color = confirmColor, onClick = onConfirm, modifier = Modifier.weight(1f))
+            DialogButton(
+                text = confirmLabel,
+                filled = true,
+                color = confirmColor,
+                onClick = onConfirm,
+                modifier = Modifier.weight(1f).then(if (confirmTag.isNotEmpty()) Modifier.testTag(confirmTag) else Modifier)
+            )
         }
     }
 }
