@@ -954,7 +954,7 @@ internal object MostMasteriesCertificate {
         // Stage-advance chunk workers ([LongLongMaxMap.advance]), read once per stage. A pure work
         // knob — the max-merge is order-independent, so every value yields the identical bound. The
         // search-time warm-up ([MostMasteriesBoundCache]) holds it at 1 while CP-SAT owns the cores.
-        parallelism: () -> Int = LongLongMaxMap::defaultWorkers,
+        parallelism: () -> Int = { params.computeBudget.chunkWorkers },
         // INTERNAL world-split recursion (review fix A#1) — never set by callers. worldDropCaps:
         // run the DP with every AT_MOST cap sub excluded; worldAssume: run it with THAT cap sub
         // assumed carried (LOW semantics on its capped stat, credits added at collapse).

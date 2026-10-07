@@ -513,7 +513,7 @@ object WakfuBuildSolver {
      * none of this is repeated. Idempotent and safe to call from any thread (e.g. during app
      * startup, concurrently with other warm-up work).
      */
-    fun warmUp() {
+    fun warmUp(computeBudget: ComputeBudget = ComputeBudget()) {
         if (!warmedUp.compareAndSet(false, true)) return
         // Referencing this object already ran `init { OrToolsNativeLoader.load() }`.
         val model = CpModel()
@@ -537,7 +537,7 @@ object WakfuBuildSolver {
         // macOS any window operation (zoom, raise, resize) then stalled until warm-up finished and
         // the whole app appeared frozen. Two workers still exercise the multi-worker portfolio path
         // while leaving the UI thread (and the OS) breathing room.
-        solver.parameters.numSearchWorkers = 2
+        solver.parameters.numSearchWorkers = computeBudget.warmupWorkers
         solver.solve(model)
     }
 
@@ -3298,7 +3298,7 @@ object WakfuBuildSolver {
      * safe default), while a large heap opens the parallel tier for a ~2–3× faster badge. No `CERTIFIER_VERSION`
      * bump — the thread count changes no bound value (the merge is an order-independent max; determinism locked).
      */
-    internal fun certifierDefaultThreads(): Int = certifierThreadsForHeap(Runtime.getRuntime().maxMemory(), Runtime.getRuntime().availableProcessors())
+    internal fun certifierDefaultThreads(budget: ComputeBudget = ComputeBudget()): Int = certifierThreadsForHeap(Runtime.getRuntime().maxMemory(), budget.logicalCores)
 
     /**
      * Pure, total heap→worker-count formula behind [certifierDefaultThreads] (extracted so it is unit-testable
@@ -3329,7 +3329,7 @@ object WakfuBuildSolver {
      * one worker per ~0.4 GiB of remainder, same `min(6, cores − 1)` cap, floor 1. The packaged GUI's -Xmx3g
      * resolves to 3 workers; a stock 4 GiB heap to 6; tiny heaps stay serial.
      */
-    internal fun certifierTier15Threads(): Int = certifierTier15ThreadsForHeap(Runtime.getRuntime().maxMemory(), Runtime.getRuntime().availableProcessors())
+    internal fun certifierTier15Threads(budget: ComputeBudget = ComputeBudget()): Int = certifierTier15ThreadsForHeap(Runtime.getRuntime().maxMemory(), budget.logicalCores)
 
     /**
      * Worker count for the FAST tier's per-world passes. A fast world DP is heavier than a tier-1.5
@@ -3338,7 +3338,7 @@ object WakfuBuildSolver {
      * `min(5, cores − 1)` — at most 5 worlds ever remain after the serial warm-once world. A stock 4 GiB
      * heap resolves to 4, the packaged GUI's -Xmx3g to 2, tiny heaps stay serial.
      */
-    internal fun certifierFastWorldThreads(): Int = certifierFastWorldThreadsForHeap(Runtime.getRuntime().maxMemory(), Runtime.getRuntime().availableProcessors())
+    internal fun certifierFastWorldThreads(budget: ComputeBudget = ComputeBudget()): Int = certifierFastWorldThreadsForHeap(Runtime.getRuntime().maxMemory(), budget.logicalCores)
 
     internal fun certifierFastWorldThreadsForHeap(
         maxMemoryBytes: Long,
@@ -3388,7 +3388,7 @@ object WakfuBuildSolver {
         sublimations: List<Sublimation> = emptyList(),
         applyDomination: Boolean = true,
         incumbentObjective: Long? = null,
-        threads: Int = certifierDefaultThreads(),
+        threads: Int = certifierDefaultThreads(params.computeBudget),
         // Re-read at each tier's start when set (takes precedence over [threads]) — the warm-up passes a
         // provider that returns 1 while the search runs and [certifierDefaultThreads] once it is done.
         threadsProvider: ((CertTier) -> Int)? = null,
@@ -3427,16 +3427,16 @@ object WakfuBuildSolver {
                 runes,
                 sublimations,
                 applyDomination = applyDomination,
-                certifyFastThreadsForTest = threads,
+                certifyFastThreadsForTest = params.computeBudget.cap(threads),
                 // Default: per-tier calibrated counts — production proofs get parallel tier-1.5 and
                 // fast-world workers even on a stock heap; the exact tier keeps the caller's [threads].
                 certifierThreadsProvider =
-                    threadsProvider
+                    threadsProvider?.let { provider -> { tier: CertTier -> params.computeBudget.cap(provider(tier)) } }
                         ?: { tier ->
                             when (tier) {
-                                CertTier.TIER15 -> maxOf(threads, certifierTier15Threads())
-                                CertTier.FAST -> maxOf(threads, certifierFastWorldThreads())
-                                else -> threads
+                                CertTier.TIER15 -> params.computeBudget.cap(maxOf(threads, certifierTier15Threads(params.computeBudget)))
+                                CertTier.FAST -> params.computeBudget.cap(maxOf(threads, certifierFastWorldThreads(params.computeBudget)))
+                                else -> params.computeBudget.cap(threads)
                             }
                         },
                 certifierIncumbentProvider = incumbentProvider,
@@ -3614,7 +3614,7 @@ object WakfuBuildSolver {
                     sublimations,
                     applyDomination = true,
                     incumbentObjective = incumbentObjective,
-                    threads = certifierDefaultThreads(),
+                    threads = certifierDefaultThreads(params.computeBudget),
                     cascadeTier15 = true,
                     isCancelled = isCancelled
                 ) ?: return null
@@ -3649,7 +3649,7 @@ object WakfuBuildSolver {
                     sublimations,
                     applyDomination = true,
                     incumbentObjective = incumbentObjective,
-                    threads = certifierDefaultThreads(),
+                    threads = certifierDefaultThreads(params.computeBudget),
                     isCancelled = isCancelled
                 ) ?: return null
             argmax =
@@ -5056,7 +5056,7 @@ object WakfuBuildSolver {
             solver.parameters.maxTimeInSeconds =
                 (maxWallSecondsOverride ?: (params.searchDuration.inWholeMilliseconds.toDouble() / 1000.0)).coerceAtLeast(0.05)
             solver.parameters.numSearchWorkers =
-                params.solverWorkers ?: (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)
+                params.computeBudget.cap(params.solverWorkers ?: params.computeBudget.searchWorkers)
         } else {
             // Deterministic, machine-independent solve for tests — see [SolverTuning]. A fixed worker
             // count + seed + a deterministic-time budget (not wall-clock) make CP-SAT reach the same

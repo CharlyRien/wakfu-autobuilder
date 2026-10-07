@@ -189,6 +189,20 @@ HUPPERMAGE"""
         clazz
     }
 
+    internal val computeBudget: me.chosante.autobuilder.genetic.wakfu.ComputeBudget
+        get() =
+            me.chosante.autobuilder.genetic.wakfu
+                .ComputeBudget(threads)
+
+    private val threads: Int by option(
+        "--threads",
+        help = "Logical cores allowed for searches and optimality proofs (default: all cores)"
+    ).int()
+        .default(me.chosante.autobuilder.genetic.wakfu.ComputeBudget.availableCores)
+        .check("Threads must be between 1 and ${me.chosante.autobuilder.genetic.wakfu.ComputeBudget.availableCores}") {
+            it in 1..me.chosante.autobuilder.genetic.wakfu.ComputeBudget.availableCores
+        }
+
     private val searchDuration: Duration by option(
         "--duration",
         "--duree",
@@ -771,7 +785,8 @@ HUPPERMAGE"""
                     forcedSublimations = forcedSublimations.map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName),
                     excludedSublimations = excludedSublimations.map(WakfuBestBuildFinderAlgorithm::canonicalSublimationName),
                     forcedPassives = passives,
-                    damageScenario = damageScenario
+                    damageScenario = damageScenario,
+                    computeBudget = computeBudget
                 )
             // An invalid-by-construction request (contradictory forced items/sublimations, level bounds…)
             // throws before any search work — print every problem cleanly instead of a stacktrace.

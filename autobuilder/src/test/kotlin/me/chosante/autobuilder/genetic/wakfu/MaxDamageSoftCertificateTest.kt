@@ -805,7 +805,7 @@ class MaxDamageSoftCertificateTest {
                 "maxSublimationTier",
                 "excludedSublimations"
             )
-        val objectiveNeutral = setOf("searchDuration", "stopWhenBuildMatch", "solverWorkers")
+        val objectiveNeutral = setOf("searchDuration", "stopWhenBuildMatch", "solverWorkers", "computeBudget")
         val classified = gatedBySupportsShape + reflectedInCertificateInputs + objectiveNeutral
         val actual =
             WakfuBestBuildParams::class.java.declaredFields

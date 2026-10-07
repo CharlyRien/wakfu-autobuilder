@@ -120,7 +120,7 @@ internal class LongLongMaxMap(
         private const val GOLDEN: Long = -0x61c8864680b583ebL // 0x9E3779B97F4A7C15
 
         /** [advance]'s default chunk-worker count: every core but one. */
-        fun defaultWorkers(): Int = Runtime.getRuntime().availableProcessors() - 1
+        fun defaultWorkers(): Int = ComputeBudget().chunkWorkers
 
         private fun capacityFor(expected: Int): Int {
             val want = (expected.coerceAtLeast(4).toLong() * 2).coerceAtMost(1L shl 30)
