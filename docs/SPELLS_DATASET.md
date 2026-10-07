@@ -1,57 +1,102 @@
 # Class-spells dataset
 
-> **✅ Shipped.** This pipeline is implemented and merged. Resource files now use FIXED names (PR #167); the version is a single constant `WakfuData.VERSION` in `common-lib`. Kept as the data-pipeline reference.
+The fixed-name `autobuilder/src/main/resources/spells.json` contains 710 encyclopedia-selected spell
+records across all 18 classes. `WakfuData.VERSION` pins game data; the bdata step needs the local client.
+The detailed field comparison, evidence, correction list and fingerprints live in
+[spell-metadata-comparison.md](official-sources-2/spell-metadata-comparison.md).
 
-How the per-class spell data (`autobuilder/src/main/resources/spells.json`) is produced and
-used. Design rationale lives in `docs/SPELLS_AND_COMBO_RESEARCH.md` (research branch); this file
-documents the shipped pipeline.
+## Sources
 
-## Why
+| Field | Source |
+|---|---|
+| Roster/id, class, category | Ankama encyclopedia |
+| AP, MP, WP, range min/max | Local client's Spell table 66, default sheet |
+| Class-resource costs | Spell 66 base_cast_parameters, resource-specific sign conventions; ids named through the client characteristic enum |
+| ES/PT spell names | Client i18n namespace 3, literal UTF-8, all present ids |
+| FR spell names | Client for 13 reviewed misaligned/obsolete listing names; encyclopedia otherwise |
+| EN spell names | Encyclopedia; exact client parity required before writing |
+| Damage element | Encyclopedia damage line; unsupported LIGHT/STASIS tokens remain explicit |
+| Max-level base/crit damage | Encyclopedia rendered anchor |
+| Area, LOS, icon, descriptions, resistance-debuff metadata | Encyclopedia |
+| Cast limits/cooldown | Client Spell 66 → spell-cast-limits.json |
+| Per-level damage formula | Spell 66 → StaticEffect 68 → spell-damage.json, selected/calibrated by the encyclopedia anchor |
+| Existing runtime description translations | spell-i18n.json, client namespace 4 (unchanged overlay; spells.json descriptions stay untouched) |
 
-The max-damage / boss auto-element search can recommend an element that is optimal on paper but
-*unplayable* for the class (e.g. "play Water" to a Cra that has no Water spells). It also can't show a
-spell's real damage when comparing same-class builds. Both need actual per-class spell data — element,
-AP cost, range, base damage — which **no official machine-readable API exposes** (Ankama's gamedata CDN
-403s on spells; WakForge's dump omits the elementary attack spells). So we scrape the **Ankama
-encyclopedia**, the authoritative source.
+707/710 ids exist in the current client. **5150 Refreshment, 5089 Crazy Scheme and 5123 Bloody Blade**
+retain the original record because neither Spell nor any client name bundle contains them. Missing
+numeric fields stay null, never zero. Unknown/unreadable fields remain in `missingFields`; successful
+client AP/range reads remove only their resolved markers. Other metadata is never guessed.
 
-## Pipeline (`spells-extractor` module)
+## Regeneration
 
-1. **`EncyclopediaClient`** — the encyclopedia bounces a bare request (302) through
-   `account.ankama.com/sso-redirect`, which sets a session cookie. We replicate a browser: a built-in
-   `java.net.http.HttpClient` with a `CookieManager` (captures/replays the cookie) + `NORMAL`
-   redirects + a desktop-Chrome `User-Agent`, primed once on the encyclopedia root. Per-request
-   throttle, exponential-backoff retries, and a **resumable** on-disk page cache
-   (`spells-extractor/.cache/`, git-ignored) so a re-run only fetches what's missing.
-2. **`SpellScraper`** — pure regex HTML→data (no HTML library). The class listing
-   (`/classes/<id>-<slug>`) yields `(id, name, icon)` stubs; each spell's detail page yields element /
-   AP / range / base+crit damage / area / line-of-sight.
-3. **`Main`** — crawls all 18 classes, enriches FR names from the FR class pages, and writes
-   `spells.json`. Every numeric field is **nullable**; a field that is *expected but
-   unreadable* is recorded in `Spell.missingFields` — **no value is ever invented** — and the run
-   prints a coverage report.
+1. `spells-extractor`: resumable encyclopedia scrape with cached pages, browser cookies/redirects and
+   retries. The class listing selects ids; detail pages supply rendered damage anchors and other fields.
+   The output is the intermediate encyclopedia catalog.
+2. `bdata-extractor`: `buildSpellMetadata` overlays the reviewed client fields in `spells.json`, then
+   builds the usual cast-limit, localization and damage-scaling side tables. Full positional records
+   pass the size guard. AP/range/MP/WP use floor(base + increment × max_level); all current increments
+   are zero. Resource parameters use distinct sign conventions: -200 HUPPERMAGE_RESOURCE means a 200-breeze spend;
+   +3 SP is a three-Stasis-Point cost (the cast validator requires enough SP). Unknown
+   resource cost conventions fail pending review. Conditional cast variants are not simulated by this default-sheet merge.
+3. The GUI asset task extracts spell icons and display-only LIGHT/STASIS damage icons from gui.jar.
 
-Re-generate after a data bump: `./gradlew :spells-extractor:run` (optionally `--args="<version>"`).
-Keep `WakfuData.VERSION` in `common-lib` in sync (the resource is loaded by the fixed name `spells.json`).
+`./scripts/update-game-data.sh [install]` runs this order automatically. To repeat only the metadata
+merge after a scrape, run `:bdata-extractor:run --args="--spell-metadata-only [install]"`.
+An intentional source/data change needs `BDATA_FORCE_WRITE=1`; ordinary reproduction blocks semantic
+oracle drift. `SpellMetadataReproductionTest` compares the entire committed catalog after regeneration
+and locks the in-game Light Arrow / Wall of Energy examples. New EN differences fail pending review;
+FR replacements are an explicit reviewed id set. CI skips local-client reproduction when no install exists.
 
-## Coverage (v1.91.1.54)
+## Element evidence and engine safety
 
-- **710 spells across all 18 classes.**
-- **264 with complete numeric damage** (element + base/crit damage + AP + range + area).
-- **41 flagged** in `missingFields`, none invented:
-  - **24** are **LIGHT / STASIS** spells (Eliotrope / Foggernaut / Huppermage etc.) — real elements
-    with no mastery in the 4-element model. The base hit is captured; the element token is preserved as
-    e.g. `element(LIGHT)` so the gap is explicit. (Modelling Light/Stasis masteries is future work.)
-  - **17** standard-element partials — mostly self/touch damage spells the page shows **no range** for
-    (AP is captured), plus a few passives that merely mention an element.
+Spell table position 30 is the **spellbook branch**, not the damage element. Light Arrow is WATER-branch
+but has LIGHT damage action **1083**; Stasis damage is action **917**. Standard damage actions are 2 FIRE,
+3 EARTH, 4 WATER, 5 AIR. Walking effects and parent descendants gives an exact singleton match on only
+**250/286** damage anchors (240 standard, 10 LIGHT); other effects are indirect or conditional/multiple,
+including Foggernaut Stasis variants. The encyclopedia's element is therefore retained. Reproduce the
+diagnostic using `--spell-elements-audit`; it writes no game artifact.
 
-## Consuming it
+`SpellCatalog.damageSpells` / `playableElements` still expose only the four supported damage elements
+(Cra = Fire/Earth/Air, never Water). `SpellRotationOptimizer.bestRotation` and `baseThroughputTable`
+(the solver/certifier AP cells) exclude **every AP < 1** spell: no WP/MP/class-resource spell can become
+free damage, with or without a cast cap. Poursuite's correction 2 AP → 0 AP (2 MP) newly removes it from
+this AP-only model. Activation null → 0 remains excluded. Flair is client passive, LIGHT, 0 AP with no
+default WP/MP spend; it was never an AP-priced damage spell. Positive-AP WP/resource spells retain the
+existing AP-only approximation. Resource-aware rotations require a separate model and review.
 
-- **`SpellCatalog`** (`autobuilder/domain`) — lazily loads the dataset; exposes `forClass`,
-  `damageSpells`, and `playableElements(clazz)` (the elements a class can actually deal damage in,
-  **derived from the real kit**). `playableElements` is the gate the boss / max-damage auto-element
-  search should consult — verified by test: Cra = {Fire, Earth, Air}, **not Water**.
-- **`SpellDamage`** (`common-lib`) — reusable, OR-Tools-free expected-damage formula: feed it a `Spell`
-  + a build's resolved characteristic totals.
-- **`BuildSpellDamage`** (`autobuilder/domain`) — bridges the two: resolves a `BuildCombination`'s
-  actual totals and returns a spell's expected hit, for the comparison view.
+The migration bumps **CERTIFIER_VERSION 59 / ENGINE_RESULTS_VERSION 4**, with their history and pair
+lock updated. Older saved searches are obsolete and their results should be recomputed. Display-only
+changes do not advance these versions further. Catalog/rotation tests and both non-slow certificate
+fuzz locks cover the migration.
+
+## Display and level scaling
+
+The class-spells panel includes active utility spells and shows AP, positive WP/MP costs, resource
+spends and ranges. Light damage cards show their level-scaled **base hit**, the official sun icon, and
+a note that damage searches do not count these spells yet. Even with a build loaded they do not show a
+made-up expected hit. A GUI-only element enum handles LIGHT/STASIS tokens without expanding the engine
+enum; the current roster has 21 LIGHT damage anchors and **no STASIS anchor**.
+
+The client damage computation establishes Light's game scaling: use the caster's best elemental
+mastery and the target resistance of that same element. Stasis uses best mastery and separately the
+lowest target elemental resistance. This supports the documented rule; this patch still displays only
+the base hit. Future engine support needs the best-mastery selection, coupled resistance selection,
+resource budgets and renewed solver/scorer/certificate soundness locks.
+
+`SpellDamageScalingBuilder` keeps the max-level encyclopedia anchor exactly, selecting a matching
+bdata slope where possible and a linear anchored approximation otherwise. `Spell.baseDamageAt(level)` /
+`critDamageAt(level)` use floor(base + increment × min(level, cap)); they never substitute a client
+rendered damage guess. `SpellDamage` and `BuildSpellDamage` scale only supported elements with resolved
+build stats. There remain 264 fully readable standard-element damage records and 41 flagged records;
+flags now mainly cover 21 LIGHT tokens, 10 absent base hits and 10 unconfirmed debuff targets, plus one
+missing-id AP/range pair (overlapping markers, not additional records).
+
+## Local migration validation (2026-10-08)
+
+After `git fetch origin && git rebase origin/main`, the shared Gradle wrapper ran `ktlintFormat`,
+then the complete bdata-extractor (34), common-lib (34), zenith-builder (7) and gui-compose (497, 2 skipped)
+suites successfully. Targeted autobuilder tests covered SpellCatalogTest, SpellRotationTest,
+EngineResultsVersionTest, MaxDamageSearchTest, MaxDamageSoftCertificateTest,
+MaxDamageTargetAwareCertificateTest and both non-slow WakfuBuildSolverTest certificate fuzz locks:
+75 tests, 19 opt-in harness cases skipped, no failures. Both fuzz locks executed and passed. Local-client
+reproduction tests ran against `/Applications/Ankama/Wakfu`, rather than being skipped for no install.
