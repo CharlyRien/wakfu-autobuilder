@@ -34,7 +34,7 @@ Status: 🟢 Actionable (a concrete official source exists) · 🟡 Keep / docum
 | `monster-rank-overlay` | monster-overlay.json — hand-curated boss roster and rank | 🟡 Keep / investigated 2026-10-07 | notable | partial source; roster unresolved |
 | `rune-slot-raw-ids` | Rune slot raw-id map — official client + CDN | ✅ Done — exact reproduction | minor | medium |
 | `spells-damage-anchor` | spell damage values — encyclopedia max-level anchor | 🟢 Actionable | minor | medium |
-| `spells-metadata-scrape` | spells.json metadata (name/element/AP/range/icon) — encyclopedia scrape | 🟢 Actionable | notable | medium |
+| `spells-metadata-scrape` | spells.json metadata — encyclopedia retained after comparison | 🟡 Investigated — exact reproduction fails | notable | reviewed data change needed |
 | `rarity-badges` | Rarity badge icons — hand-made static | 🟡 Keep / documented exception | minor | hard |
 | `rune-value-tables` | Rune per-level values — official shard formulas + client level bands | ✅ Done — 330/330 values match | notable | solved |
 | `sublimation-action-overlay` | Sublimation action overlay — hand-authored | 🟡 Keep / documented exception | minor | hard |
@@ -357,7 +357,23 @@ Dungeon position 13's monster-id vector has **512 distinct ids**, including **13
 
 ### `spells-metadata-scrape` — spells.json metadata (name/element/AP/range/icon) — encyclopedia scrape
 
-- **Status:** 🟢 Actionable
+- **Status:** 🟡 Investigated / retained — exact-reproduction gate fails
+- **2026-10-07 result (client/CDN 1.93.1.62):** Documented; no field switched. Full structural decode of
+  Spell (66), including its generic HashMaps, passes size/id guards on all 4,143 client records. Compared
+  all 710 committed unique ids: 707 present, 3 absent (5150, 5089, 5123). On the 707 present records:
+  id 0 differences; names FR 13 / EN 0 / ES 691 / PT 690; element 20 (10 conflicting non-null values);
+  AP 348 (43 conflicting non-null); range min 373 (31 conflicting non-null); range max 421 (79 conflicting
+  non-null); icon 14. Null-to-known is counted as a difference, not silently filled. All cost/range increments
+  are zero. Examples: Roly-Poly AP 2→0 (actually WP 2), Pursuit AP 2→0 (actually MP 2), Static Arrow range
+  1–1→5–8, Hunter’s Instinct FIRE→SUPPORT/null, Lethal Attack icon 2417→2421. `spells.json` has no maxLevel
+  field; all 707 client max levels are 245, and all 285 overlapping existing spell-damage caps match.
+  The audit's original raw-element mapping assumes whole-spell element equals the scraped damage-line
+  element; utility/passive cases disprove that assumption. Its names plan also predates the existing
+  official spell-i18n.json runtime join. Some AP errors are demonstrably scraper guesses (WP/MP/prose as AP),
+  but fixing them would alter engine results and requires the separate reviewed/versioned change excluded
+  here. Damage decoding stays out of scope. Full per-field evidence, source hashes, and the current split:
+  [comparison](official-sources-2/spell-metadata-comparison.md),
+  [all differences](official-sources-2/spell-metadata-differences.csv). AGENTS.md §5 documents the retained split.
 - **Category:** data-json · **Classification:** semi-official-encyclopedia · **Severity:** notable · **Feasibility:** medium · **Effort:** large (2-4 days). The non-damage fields are a ~1-day transcription (the schema and i18n infra already exist). The hard 1-3 days is reproducing the rendered base/crit damage selection from bdata alone and proving no regression against the committed encyclopedia values across all 18 classes.
 - **What it is:** Per-class spell catalog: name (fr/en/es/pt), element, AP cost, range, base + crit damage at max level, area, icon id, description. Embedded at autobuilder/src/main/resources/spells.json (575 KB).
 - **Why not fully official:** Sourced from scraped encyclopedia HTML, not the CDN gamedata JSON nor the local client bdata binaries. Ankama-owned but a documented exception per AGENTS.md: the spell-damage renderer is client-only and not reproducible from bdata, so the encyclopedia's rendered output is used. This is the canonical semi-official input the whole spell subsystem (and the three derived spell-* files below) leans on.
