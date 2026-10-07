@@ -444,7 +444,8 @@ as **fixed-name** JSON files (no version in the filename):
 5. `bdata-extractor` decodes the **local game client's** scrambled static-data tables — `Spell` (66),
    `StaticEffect` (68), `State` (67), `Monster` (42) inside `contents/bdata/<id>.jar`, plus the
    `contents/i18n/i18n_<lang>.jar` name bundles — and writes `spell-cast-limits.json`,
-   `spell-passives.json`, `sublimation-stacking.json` (per-sublimation `max_level` + `is_cumulable`),
+   `spell-passives.json` (names/descriptions from client i18n namespaces 3/4 in FR/EN/ES/PT;
+   cast-limit names also use namespace 3, with no encyclopedia fallback), `sublimation-stacking.json` (per-sublimation `max_level` + `is_cumulable`),
    **`sublimations.json`**, **`spell-damage.json`**, **`runes.json`** (itemTypeId 811 shards from the CDN
    `items.json` — colour/double-bonus + the boosted stat from the equip-effect action; replaces the old
    hand-maintained file), and **`monsters.json`** (boss-mode data: level/HP/flat elemental resistances +

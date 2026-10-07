@@ -4,6 +4,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import me.chosante.autobuilder.domain.PassiveCatalog
 import me.chosante.common.Characteristic
 import me.chosante.common.I18nText
 import me.chosante.ui.components.localized
@@ -11,6 +12,18 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
 class GameTextLanguagesTest {
+    @Test
+    fun `passive panel text selects every client language`() {
+        val glyph = PassiveCatalog.passives.single { it.spellId == 6988 }
+        val expected = listOf("Glyphe augmenté", "Increased Glyph", "Glifo Aumentado", "Glifo Aumentado")
+        val languages = listOf(Lang.FR, Lang.EN, Lang.ES, Lang.PT)
+        for ((lang, name) in languages.zip(expected)) {
+            assertThat(glyph.name?.localized(lang)).isEqualTo(name)
+            assertThat(glyph.description?.localized(lang)).isNotBlank()
+        }
+        assertThat(languages.map { glyph.description?.localized(it) }.distinct()).hasSize(4)
+    }
+
     @Test
     fun `every language selects its own game text and missing text falls back to English`() {
         val name = I18nText(fr = "Nom FR", en = "Name EN", es = "Nombre ES", pt = "Nome PT")
