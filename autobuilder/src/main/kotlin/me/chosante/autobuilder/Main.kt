@@ -104,6 +104,7 @@ import me.chosante.common.Monster
 import me.chosante.common.Rarity
 import me.chosante.common.RuneType
 import me.chosante.common.WakfuData
+import me.chosante.common.displayedMatchPercent
 import me.chosante.common.skills.Assignable
 import me.chosante.createZenithBuild
 import java.util.Locale
@@ -788,12 +789,7 @@ HUPPERMAGE"""
                     .onStart { progressBar.execute() }
                     .onEach {
                         progressBar.update {
-                            context =
-                                if (mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
-                                    "expected damage so far: ${it.matchPercentage}"
-                                } else {
-                                    "${it.matchPercentage}% match found so far"
-                                }
+                            context = searchProgressLine(mode, it.matchPercentage)
                             completed = it.progressPercentage.toLong()
                         }
                         delay(1000L)
@@ -1185,4 +1181,15 @@ private fun NullableOption<Pair<String, String>, Pair<String, String>>.toTargetS
             target = valueInt,
             userDefinedWeight = weight.toIntOrNull() ?: 1
         )
+    }
+
+/** The progress headline, with precision read as the same capped whole percentage as the GUI. */
+internal fun searchProgressLine(
+    mode: ScoreComputationMode,
+    match: java.math.BigDecimal,
+): String =
+    when (mode) {
+        ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT -> "${match.displayedMatchPercent()}% match found so far"
+        ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE -> "expected damage so far: $match"
+        else -> "$match% match found so far"
     }
