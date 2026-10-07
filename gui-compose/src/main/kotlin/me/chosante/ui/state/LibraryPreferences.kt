@@ -1,11 +1,12 @@
 package me.chosante.ui.state
 
+import me.chosante.autobuilder.genetic.wakfu.ComputeBudget
 import me.chosante.ui.i18n.Lang
 import java.util.prefs.Preferences
 
 /**
  * Persists the *durable* UI options across launches — the library view options (sort order and
- * group-by-class), the chosen UI language and the "check optimality after the search" switch (the active
+ * group-by-class), the language, processor use, picker visibility and post-search optimality check (the active
  * search/class filters are deliberately in-memory and reset each launch). Mirrors [WarmupTiming]'s
  * Preferences pattern, but as an injectable instance so tests can point it at a throwaway node. Every
  * access is wrapped in `runCatching`: a prefs failure must never break the UI.
@@ -68,7 +69,27 @@ class LibraryPreferences(
         runCatching { prefs?.putBoolean(KEY_HIDE_CHOSEN, value) }
     }
 
+    fun loadComputeSettings(): ComputeSettings =
+        ComputeSettings(
+            preset = runCatching { ProcessorUse.valueOf(prefs?.get(KEY_PROCESSOR_USE, "") ?: "") }.getOrDefault(ProcessorUse.MAXIMUM),
+            customCores =
+                (
+                    runCatching { prefs?.getInt(KEY_CUSTOM_CORES, ComputeBudget.availableCores) }.getOrNull()
+                        ?: ComputeBudget.availableCores
+                ).coerceIn(1, ComputeBudget.availableCores)
+        )
+
+    fun saveComputeSettings(settings: ComputeSettings) {
+        runCatching {
+            prefs?.put(KEY_PROCESSOR_USE, settings.preset.name)
+            prefs?.putInt(KEY_CUSTOM_CORES, settings.customCores.coerceIn(1, ComputeBudget.availableCores))
+        }
+    }
+
     private companion object {
+        const val KEY_PROCESSOR_USE = "processorUse"
+        const val KEY_CUSTOM_CORES = "processorCustomCores"
+
         const val KEY_HIDE_CHOSEN = "pickerHideChosen"
         const val KEY_LANG = "language"
         const val KEY_SORT = "librarySort"

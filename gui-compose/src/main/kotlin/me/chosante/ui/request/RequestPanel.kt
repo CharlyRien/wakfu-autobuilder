@@ -66,6 +66,7 @@ import me.chosante.ui.components.Hairline
 import me.chosante.ui.components.MonsterIcon
 import me.chosante.ui.components.RarityIcon
 import me.chosante.ui.components.StatGlyphIcon
+import me.chosante.ui.components.Toggle
 import me.chosante.ui.components.VerticalScrollHints
 import me.chosante.ui.components.displayFamily
 import me.chosante.ui.components.displayName
@@ -119,7 +120,7 @@ fun RequestPanel(
     onToggleExcludeAllSublimationsOfRarity: (SublimationRarity) -> Unit = {},
     onOpenPassivePicker: () -> Unit = {},
     onRemoveForcedPassive: (String) -> Unit = {},
-    onVerifyOptimalityChange: (Boolean) -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
@@ -142,7 +143,7 @@ fun RequestPanel(
                 onSelect = onModeChange,
                 onDurationChange = onDurationChange,
                 onStopAtMatchChange = onStopAtMatchChange,
-                onVerifyOptimalityChange = onVerifyOptimalityChange
+                onOpenSettings = onOpenSettings
             )
             if (ui.mode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE) {
                 BossCard(
@@ -213,8 +214,8 @@ fun RequestPanel(
     }
 }
 
-/** Test tag of the "Check optimality after the search" switch (see [SearchModeCard]). */
-internal const val VERIFY_OPTIMALITY_TOGGLE_TAG = "verify-optimality-toggle"
+/** The request reminds the player where the shared proof preference lives. */
+internal const val OPTIMALITY_SETTINGS_TAG = "optimality-settings"
 
 @Composable
 internal fun SearchModeCard(
@@ -225,7 +226,7 @@ internal fun SearchModeCard(
     onSelect: (ScoreComputationMode) -> Unit,
     onDurationChange: (String) -> Unit,
     onStopAtMatchChange: (Boolean) -> Unit,
-    onVerifyOptimalityChange: (Boolean) -> Unit,
+    onOpenSettings: () -> Unit,
 ) {
     RequestCard(title = tr(Tr.SEARCH_MODE)) {
         ModeSelector(selected = selected, onSelect = onSelect)
@@ -239,17 +240,20 @@ internal fun SearchModeCard(
             }
         }
         // The post-search optimality check only exists for the two maximizing modes (most masteries, max damage):
-        // precision mode has no proof to run afterwards, so a switch there would do nothing — it is not offered
+        // precision mode has no proof to run afterwards, so the Settings reminder is not offered
         // (the value persists, and is back as soon as another mode is picked).
         if (selected != ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT) {
             Hairline()
-            ConstraintRow(label = tr(Tr.VERIFY_OPTIMALITY), sublabel = tr(Tr.VERIFY_OPTIMALITY_SUB)) {
-                Toggle(
-                    checked = verifyOptimality,
-                    onCheckedChange = onVerifyOptimalityChange,
-                    modifier = Modifier.testTag(VERIFY_OPTIMALITY_TOGGLE_TAG)
-                )
-            }
+            Text(
+                text = tr(if (verifyOptimality) Tr.SETTINGS_PROOF_ON else Tr.SETTINGS_PROOF_OFF),
+                style = WTypography.labelSmall.copy(color = WColor.accent2),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag(OPTIMALITY_SETTINGS_TAG)
+                        .clickable(onClick = onOpenSettings)
+                        .padding(vertical = 10.dp)
+            )
         }
         // "Stop at 100% match" only makes sense in precision mode — it's the only mode with an exact
         // target to reach; the other modes maximise (mastery / damage) and never report a 100% match.
@@ -1327,34 +1331,6 @@ private fun ConstraintRow(
             }
         }
         content()
-    }
-}
-
-@Composable
-private fun Toggle(
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier =
-            modifier
-                .width(44.dp)
-                .height(24.dp)
-                .clip(RoundedCornerShape(999.dp))
-                .background(if (checked) WColor.accent2 else WColor.raised)
-                .border(1.dp, if (checked) WColor.accent2 else WColor.border, RoundedCornerShape(999.dp))
-                .clickable { onCheckedChange(!checked) }
-                .padding(3.dp),
-        contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart
-    ) {
-        Box(
-            modifier =
-                Modifier
-                    .size(18.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(if (checked) WColor.bg else WColor.faint)
-        )
     }
 }
 

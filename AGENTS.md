@@ -231,7 +231,10 @@ one binds, on real data too, nothing shown breaks a hard-leg floor, the budget s
 
 ### Inputs: `WakfuBestBuildParams`
 `character`, `targetStats: TargetStats`, `searchDuration`, `stopWhenBuildMatch`, `maxRarity`,
-`forcedItems`, `excludedItems`, `excludedRarities`, `scoreComputationMode`. `TargetStats` normalizes
+`forcedItems`, `excludedItems`, `excludedRarities`, `scoreComputationMode`, `computeBudget`. The immutable
+`ComputeBudget` caps the logical cores for each operation (CLI `--threads`, GUI Settings); every production worker
+formula keeps its previous margin and heap limit relative to that allowance. Worker counts change no DP bound; the
+proof caches normalize the budget away. See `docs/COMPUTE_BUDGET.md` for the complete site/formula audit. `TargetStats` normalizes
 per-stat weights and expands `MASTERY_ELEMENTARY` / `RESISTANCE_ELEMENTARY` into their four elements.
 
 ### Why the solver can leave slots empty (mount/pet/…) — *not a bug*
@@ -542,10 +545,10 @@ is no FXML/XML.** Package root `me.chosante.ui`, organized by feature: `shell`, 
   show until it lands. A save made with other game data or an older `ENGINE_RESULTS_VERSION` gets the **obsolete** badge
   (`history/Obsolescence.kt`, `components/ObsoleteBuildCue.kt`) with its reasons and a "Re-run the search" action
   (`BuildSearchModel.rerunSearch`).
-- **`AppShell`** (`shell/`) — `TopBar` (brand logo, language toggle, class, level/min-level, the
+- **`AppShell`** (`shell/`) — `TopBar` (brand logo, language toggle, Settings gear, class, level/min-level, the
   progress + match/mastery meters, Search button) above a 3-column body:
   - **`RequestPanel`** (`request/`) — search mode, target-stats editor, constraints (per-rarity
-    allow/exclude toggle chips, search duration, the "Check optimality after the search" switch…),
+    allow/exclude toggle chips, search duration, a clickable optimality Settings reminder…),
     forced / excluded item chips.
   - **`PaperdollPanel`** (`paperdoll/`) — the 14 equipment slots of the discovered build.
   - **`StatsPanel`** (`stats/`) — the headline hero (match `%` in precision mode, **cumulated
@@ -553,6 +556,10 @@ is no FXML/XML.** Package root `me.chosante.ui`, organized by feature: `shell`, 
     (info tooltip + Stop link, §4), mastery summary, desired-vs-achieved grid, skill tree, and the
     Zenith open/copy actions.
   Long panels show conditional **scroll-hint** badges (`components/ScrollHints.kt`).
+- **`SettingsScreen`** (`settings/`) — full shell screen with Computing (persisted Maximum / Balanced / Low / Custom
+  CPU budget and the existing post-search proof switch), Interface (language and hide-chosen preference), and About
+  (app / game-data versions, bug-report link, confirmed settings reset). A search captures its allowance; the post-search
+  proof captures the then-current one. Reset keeps language, library order/grouping and saved builds. See `docs/SETTINGS_PANEL.md`.
 - **Visuals** (`components/`): `IconPreloader` decodes item icons off-thread into a cache;
   `rememberClasspathBitmap` loads PNGs from the classpath. `theme/` holds the dark palette
   (`WColor`/`WTypography`/`WDimens`). Branding assets live in `assets/branding/` (a translucent

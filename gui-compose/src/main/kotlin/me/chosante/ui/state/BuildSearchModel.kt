@@ -382,7 +382,8 @@ class BuildSearchModel(
                 librarySort = libraryPreferences.loadSort(),
                 libraryGroupByClass = libraryPreferences.loadGroupByClass(),
                 verifyOptimality = libraryPreferences.loadVerifyOptimality(),
-                pickerHideChosen = libraryPreferences.loadHideChosen()
+                pickerHideChosen = libraryPreferences.loadHideChosen(),
+                computeSettings = libraryPreferences.loadComputeSettings()
             )
 
         // Read the remembered request while the engine warms up (a small local file, long read by the time warm-up ends); it
@@ -448,7 +449,7 @@ class BuildSearchModel(
                 kotlinx.coroutines.withTimeoutOrNull(15.seconds) { windowShown.await() }
                 delay(100.milliseconds)
                 try {
-                    WakfuBuildSolver.warmUp()
+                    WakfuBuildSolver.warmUp(ui.computeSettings.budget())
                     WarmupTiming.record(System.currentTimeMillis() - start)
                 } catch (cancellation: CancellationException) {
                     throw cancellation
@@ -918,6 +919,33 @@ class BuildSearchModel(
         if (!enabled) stopProof()
     }
 
+    fun setProcessorUse(preset: ProcessorUse) {
+        ui = ui.copy(computeSettings = ui.computeSettings.copy(preset = preset))
+        libraryPreferences.saveComputeSettings(ui.computeSettings)
+    }
+
+    fun setCustomCores(cores: Int) {
+        val count = cores.coerceIn(1, me.chosante.autobuilder.genetic.wakfu.ComputeBudget.availableCores)
+        ui = ui.copy(computeSettings = ui.computeSettings.copy(customCores = count))
+        libraryPreferences.saveComputeSettings(ui.computeSettings)
+    }
+
+    fun requestResetSettings() {
+        ui = ui.copy(modal = Modal.ConfirmResetSettings)
+    }
+
+    fun resetSettings() {
+        ui = ui.copy(computeSettings = ComputeSettings(), modal = null)
+        libraryPreferences.saveComputeSettings(ui.computeSettings)
+        setVerifyOptimality(true)
+        setPickerHideChosen(false)
+    }
+
+    fun reportBug() {
+        runCatching { openBrowser("https://github.com/CharlyRien/wakfu-autobuilder/issues") }
+            .onFailure { ui = ui.copy(error = UiError(Tr.SETTINGS_BROWSER_FAILED.value(ui.lang))) }
+    }
+
     fun setPickerHideChosen(value: Boolean) {
         ui = ui.copy(pickerHideChosen = value)
         libraryPreferences.saveHideChosen(value)
@@ -1288,6 +1316,10 @@ class BuildSearchModel(
                             // after the search"): read NOW, so flipping it mid-search counts. OFF starts no proof work
                             // at all — see [setVerifyOptimality] / [skipBackgroundProof].
                             val verifyOptimality = ui.verifyOptimality
+                            val proofParams = params.copy(computeBudget = ui.computeSettings.budget())
+                            // A warm-up still running under the search's allowance must not retain it for a new proof.
+                            // Completed bounds remain reusable: worker counts never change their values.
+                            if (proofParams.computeBudget != params.computeBudget) backgroundProofCanceller()
                             // A request no search can prove ([TargetStats.needsItemPrefilter]) has nothing to verify: the engine
                             // answers "unavailable" at once, so launching the check would only flash a "Verifying optimality…"
                             // spinner over the explanation the stats panel gives for it ([UiState.prefilteredRequest]). The
@@ -1299,7 +1331,7 @@ class BuildSearchModel(
                             // CP-SAT left un-closed (badge flips to proven even when `optimal` was false).
                             if (params.scoreComputationMode == ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE && completedResult != null && provable) {
                                 if (verifyOptimality) {
-                                    launchOptimalityProof(params, completedResult, character, damageScenario)
+                                    launchOptimalityProof(proofParams, completedResult, character, damageScenario)
                                 } else {
                                     skipBackgroundProof(params, completedResult)
                                 }
@@ -1315,7 +1347,7 @@ class BuildSearchModel(
                                 // instant — else the same ProofState pipeline renders the phase ("Verifying
                                 // optimality…") until the bound lands, then the badge.
                                 if (verifyOptimality) {
-                                    launchMostMasteriesQualityProof(params, completedResult)
+                                    launchMostMasteriesQualityProof(proofParams, completedResult)
                                 } else {
                                     skipBackgroundProof(params, completedResult)
                                 }
@@ -2035,7 +2067,8 @@ class BuildSearchModel(
             forcedRunesByItem = forcedRunesByItem,
             // A targeted boss overlays its per-element resistances onto the manual scenario (mirrors the CLI):
             // a forced element pins that one element, else all four are filled so the objective auto-picks.
-            damageScenario = currentDamageScenario()
+            damageScenario = currentDamageScenario(),
+            computeBudget = computeSettings.budget()
         )
 
     /**
@@ -2137,7 +2170,14 @@ class BuildSearchModel(
         confirmReSearch()
     }
 
+    private var settingsReturnScreen: Screen = Screen.Builder
+
+    fun openSettings() = goToScreen(Screen.Settings)
+
+    fun closeSettings() = goToScreen(settingsReturnScreen)
+
     fun goToScreen(screen: Screen) {
+        if (screen == Screen.Settings && ui.screen != Screen.Settings) settingsReturnScreen = ui.screen
         ui = ui.copy(screen = screen)
     }
 
@@ -2563,7 +2603,18 @@ class BuildSearchModel(
     fun newBuild() {
         job?.cancel()
         cancelProof()
-        ui = UiState(lang = ui.lang, verifyOptimality = ui.verifyOptimality, savedBuilds = ui.savedBuilds, screen = Screen.Builder)
+        ui =
+            UiState(
+                lang = ui.lang,
+                verifyOptimality = ui.verifyOptimality,
+                pickerHideChosen = ui.pickerHideChosen,
+                computeSettings = ui.computeSettings,
+                librarySort = ui.librarySort,
+                libraryGroupByClass = ui.libraryGroupByClass,
+                knownTags = ui.knownTags,
+                savedBuilds = ui.savedBuilds,
+                screen = Screen.Builder
+            )
     }
 
     /** Opens the Edit-build dialog (name + note + tags + folder). The dialog resolves the entry by id. */
