@@ -3692,12 +3692,14 @@ class WakfuBuildSolverTest {
             // (~90× unclosed gap) before. See docs/MAX_DAMAGE_PROVABLE_OPTIMUM.md (exp D).
             // D3: 1 worker + interleave + fixed seed — the canonical DETERMINISTIC protocol. The old 8-worker
             // run made "proves by det-deadline" a worker-race lottery that flaked on oversubscribed CI.
+            // The production path: the production solve applies the domination pre-filter (and its conditional keeps), so
+            // this proves what a user's search proves — the tuning would otherwise turn domination off.
             val results =
                 WakfuBuildSolver
                     .optimize(
                         fireMaxDamageParams(110),
                         fullEpicPool(110),
-                        WakfuBuildSolver.SolverTuning(numSearchWorkers = 1, interleaveSearch = true, maxDeterministicTime = 600.0)
+                        WakfuBuildSolver.SolverTuning(numSearchWorkers = 1, interleaveSearch = true, maxDeterministicTime = 600.0, applyDominationOverride = true)
                     ).toList()
             val proven = results.lastOrNull { it.isOptimal }
             assertThat(proven)
@@ -3712,13 +3714,15 @@ class WakfuBuildSolverTest {
         runBlocking {
             // The end-game pool is larger (higher masteries ⇒ wider reachable domains), so it gets more
             // deterministic budget; the per-pool propagation must still bring every product envelope down
-            // far enough to certify the bound. D3: deterministic 1w+interleave protocol (see the 110 twin).
+            // far enough to certify the bound. D3: deterministic 1w+interleave protocol (see the 110 twin), on the
+            // production path (domination on, like a user's search): with the 1.15 item stat gates the full, undominated
+            // pool no longer proves within the budget (det > 1200; ~450 with domination).
             val results =
                 WakfuBuildSolver
                     .optimize(
                         fireMaxDamageParams(245),
                         fullEpicPool(245),
-                        WakfuBuildSolver.SolverTuning(numSearchWorkers = 1, interleaveSearch = true, maxDeterministicTime = 1200.0)
+                        WakfuBuildSolver.SolverTuning(numSearchWorkers = 1, interleaveSearch = true, maxDeterministicTime = 1200.0, applyDominationOverride = true)
                     ).toList()
             val proven = results.lastOrNull { it.isOptimal }
             assertThat(proven)
