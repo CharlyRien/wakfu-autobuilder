@@ -277,6 +277,7 @@ data class UiState(
      * no proof work after the search — see [BuildSearchModel.setVerifyOptimality].
      */
     val verifyOptimality: Boolean = true,
+    val pickerHideChosen: Boolean = false,
     val forcedItems: List<ItemChip> = emptyList(),
     val excludedItems: List<ItemChip> = emptyList(),
     /** When true (default), the solver may pick statically-modelable sublimations. */

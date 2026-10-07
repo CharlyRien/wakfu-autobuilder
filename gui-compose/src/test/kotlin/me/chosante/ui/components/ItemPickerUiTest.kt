@@ -59,6 +59,7 @@ class ItemPickerUiTest {
                     equipmentCatalog = catalog,
                     forcedItemNames = if (mode == PickerMode.Forced) selectedNames else emptySet(),
                     excludedItemNames = if (mode == PickerMode.Excluded) selectedNames else emptySet(),
+                    hideChosen = selectedNames.isNotEmpty(),
                     level = 110,
                     onSelectStat = {},
                     onPickItem = onPick,
