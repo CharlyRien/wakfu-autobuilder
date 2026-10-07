@@ -1916,16 +1916,16 @@ private val allMasteryCharacteristics = specializedMasteryCharacteristics + elem
 
 private fun Characteristic.masteryOptionLabel(lang: Lang): String =
     when (this) {
-        Characteristic.MASTERY_ELEMENTARY -> localized(lang, fr = "Toutes", en = "All", es = "Todas")
-        Characteristic.MASTERY_ELEMENTARY_WATER -> localized(lang, fr = "Eau", en = "Water", es = "Agua")
-        Characteristic.MASTERY_ELEMENTARY_FIRE -> localized(lang, fr = "Feu", en = "Fire", es = "Fuego")
-        Characteristic.MASTERY_ELEMENTARY_EARTH -> localized(lang, fr = "Terre", en = "Earth", es = "Tierra")
-        Characteristic.MASTERY_ELEMENTARY_WIND -> localized(lang, fr = "Air", en = "Air", es = "Aire")
-        Characteristic.MASTERY_DISTANCE -> localized(lang, fr = "Distance", en = "Distance", es = "Distancia")
-        Characteristic.MASTERY_MELEE -> localized(lang, fr = "Mêlée", en = "Melee", es = "Melé")
-        Characteristic.MASTERY_CRITICAL -> localized(lang, fr = "Critique", en = "Critical", es = "Crítica")
-        Characteristic.MASTERY_BACK -> localized(lang, fr = "Dos", en = "Rear", es = "Espalda")
-        Characteristic.MASTERY_BERSERK -> localized(lang, fr = "Berserk", en = "Berserk", es = "Berserker")
-        Characteristic.MASTERY_HEALING -> localized(lang, fr = "Soin", en = "Healing", es = "Cura")
+        Characteristic.MASTERY_ELEMENTARY -> localized(lang, fr = "Toutes", en = "All", es = "Todas", pt = "Todos")
+        Characteristic.MASTERY_ELEMENTARY_WATER -> localized(lang, fr = "Eau", en = "Water", es = "Agua", pt = "Água")
+        Characteristic.MASTERY_ELEMENTARY_FIRE -> localized(lang, fr = "Feu", en = "Fire", es = "Fuego", pt = "Fogo")
+        Characteristic.MASTERY_ELEMENTARY_EARTH -> localized(lang, fr = "Terre", en = "Earth", es = "Tierra", pt = "Terra")
+        Characteristic.MASTERY_ELEMENTARY_WIND -> localized(lang, fr = "Air", en = "Air", es = "Aire", pt = "Ar")
+        Characteristic.MASTERY_DISTANCE -> localized(lang, fr = "Distance", en = "Distance", es = "Distancia", pt = "Distância")
+        Characteristic.MASTERY_MELEE -> localized(lang, fr = "Mêlée", en = "Melee", es = "Melé", pt = "Curta distância")
+        Characteristic.MASTERY_CRITICAL -> localized(lang, fr = "Critique", en = "Critical", es = "Crítica", pt = "Crítico")
+        Characteristic.MASTERY_BACK -> localized(lang, fr = "Dos", en = "Rear", es = "Espalda", pt = "Costas")
+        Characteristic.MASTERY_BERSERK -> localized(lang, fr = "Berserk", en = "Berserk", es = "Berserker", pt = "Berserk")
+        Characteristic.MASTERY_HEALING -> localized(lang, fr = "Soin", en = "Healing", es = "Cura", pt = "Cura")
         else -> label(lang)
     }

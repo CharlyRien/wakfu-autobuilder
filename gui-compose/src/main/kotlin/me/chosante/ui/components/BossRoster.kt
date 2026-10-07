@@ -42,5 +42,9 @@ internal fun bossRoster(
 /** Whether what the player typed matches the boss's name, in either language (so "Bus" finds a boss in an FR app too). */
 internal fun Monster.matchesQuery(query: String): Boolean {
     val needle = query.trim()
-    return needle.isEmpty() || name.fr.contains(needle, ignoreCase = true) || name.en.contains(needle, ignoreCase = true) || name.es.contains(needle, ignoreCase = true)
+    return needle.isEmpty() ||
+        name.fr.contains(needle, ignoreCase = true) ||
+        name.en.contains(needle, ignoreCase = true) ||
+        name.es.contains(needle, ignoreCase = true) ||
+        name.pt.contains(needle, ignoreCase = true)
 }

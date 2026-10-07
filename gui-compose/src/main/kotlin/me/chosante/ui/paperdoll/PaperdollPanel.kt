@@ -1234,7 +1234,7 @@ private fun Equipment.secondaryLine(
     val secondaryName =
         when (lang) {
             Lang.FR -> name.en
-            Lang.EN, Lang.ES -> name.fr
+            Lang.EN, Lang.ES, Lang.PT -> name.fr
         }.ifBlank { null }
             ?.takeUnless { it == localizedName(lang) }
     return listOfNotNull(secondaryName, slot.labelKey.value(lang)).joinToString(" · ")

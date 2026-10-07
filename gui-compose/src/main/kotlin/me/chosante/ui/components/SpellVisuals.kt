@@ -54,6 +54,7 @@ internal fun I18nText.localized(lang: Lang): String {
             Lang.FR -> fr
             Lang.EN -> en
             Lang.ES -> es
+            Lang.PT -> pt
         }
     return preferred.ifBlank { en.ifBlank { fr }.ifBlank { es } }
 }

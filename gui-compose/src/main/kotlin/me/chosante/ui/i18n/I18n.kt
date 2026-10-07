@@ -18,6 +18,7 @@ enum class Lang(
     EN("EN", "en"),
     FR("FR", "fr"),
     ES("ES", "es"),
+    PT("PT", "pt"),
 }
 
 /** The active UI language, provided once at the app root and read by [tr]. */
@@ -513,122 +514,160 @@ fun tr(key: Tr): String = key.value(LocalLang.current)
  */
 fun Characteristic.label(lang: Lang): String =
     when (this) {
-        Characteristic.MASTERY_ELEMENTARY -> localized(lang, fr = "Maîtrise Élémentaire", en = "Elemental Mastery", es = "Dominio elemental")
+        Characteristic.MASTERY_ELEMENTARY -> localized(lang, fr = "Maîtrise Élémentaire", en = "Elemental Mastery", es = "Dominio elemental", pt = "Domínio elementar")
         Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT ->
-            localized(lang, fr = "Maîtrise d'1 élément aléatoire", en = "Mastery of 1 Random Element", es = "Dominio de 1 elemento aleatorio")
+            localized(
+                lang,
+                fr = "Maîtrise d'1 élément aléatoire",
+                en = "Mastery of 1 Random Element",
+                es = "Dominio de 1 elemento aleatorio",
+                pt = "Domínio de 1 elemento aleatório"
+            )
         Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT ->
-            localized(lang, fr = "Maîtrise de 2 éléments aléatoires", en = "Mastery of 2 Random Elements", es = "Dominio de 2 elementos aleatorios")
+            localized(
+                lang,
+                fr = "Maîtrise de 2 éléments aléatoires",
+                en = "Mastery of 2 Random Elements",
+                es = "Dominio de 2 elementos aleatorios",
+                pt = "Domínio de 2 elementos aleatórios"
+            )
         Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT ->
-            localized(lang, fr = "Maîtrise de 3 éléments aléatoires", en = "Mastery of 3 Random Elements", es = "Dominio de 3 elementos aleatorios")
-        Characteristic.MASTERY_ELEMENTARY_WATER -> localized(lang, fr = "Maîtrise Eau", en = "Water Mastery", es = "Dominio agua")
-        Characteristic.MASTERY_ELEMENTARY_WIND -> localized(lang, fr = "Maîtrise Air", en = "Air Mastery", es = "Dominio aire")
-        Characteristic.MASTERY_ELEMENTARY_FIRE -> localized(lang, fr = "Maîtrise Feu", en = "Fire Mastery", es = "Dominio fuego")
-        Characteristic.MASTERY_ELEMENTARY_EARTH -> localized(lang, fr = "Maîtrise Terre", en = "Earth Mastery", es = "Dominio tierra")
-        Characteristic.MASTERY_DISTANCE -> localized(lang, fr = "Maîtrise Distance", en = "Distance Mastery", es = "Dominio distancia")
-        Characteristic.MASTERY_CRITICAL -> localized(lang, fr = "Maîtrise Critique", en = "Critical Mastery", es = "Dominio crítico")
-        Characteristic.MASTERY_BACK -> localized(lang, fr = "Maîtrise Dos", en = "Rear Mastery", es = "Dominio espalda")
-        Characteristic.MASTERY_MELEE -> localized(lang, fr = "Maîtrise Mêlée", en = "Melee Mastery", es = "Dominio de melé")
-        Characteristic.MASTERY_BERSERK -> localized(lang, fr = "Maîtrise Berserk", en = "Berserk Mastery", es = "Dominio berserker")
-        Characteristic.MASTERY_HEALING -> localized(lang, fr = "Maîtrise Soin", en = "Healing Mastery", es = "Dominio cura")
-        Characteristic.DAMAGE_INFLICTED -> localized(lang, fr = "Dommages infligés", en = "Damage Inflicted", es = "Daños infligidos")
-        Characteristic.RESISTANCE_CRITICAL -> localized(lang, fr = "Résistance Critique", en = "Critical Resist", es = "Resistencia Crítica")
-        Characteristic.RESISTANCE_BACK -> localized(lang, fr = "Résistance Dos", en = "Rear Resist", es = "Resistencia de Espalda")
-        Characteristic.RESISTANCE_ELEMENTARY -> localized(lang, fr = "Résistance Élémentaire", en = "Elemental Resist", es = "Resistencia Elemental")
+            localized(
+                lang,
+                fr = "Maîtrise de 3 éléments aléatoires",
+                en = "Mastery of 3 Random Elements",
+                es = "Dominio de 3 elementos aleatorios",
+                pt = "Domínio de 3 elementos aleatórios"
+            )
+        Characteristic.MASTERY_ELEMENTARY_WATER -> localized(lang, fr = "Maîtrise Eau", en = "Water Mastery", es = "Dominio agua", pt = "Domínio de água")
+        Characteristic.MASTERY_ELEMENTARY_WIND -> localized(lang, fr = "Maîtrise Air", en = "Air Mastery", es = "Dominio aire", pt = "Domínio de ar")
+        Characteristic.MASTERY_ELEMENTARY_FIRE -> localized(lang, fr = "Maîtrise Feu", en = "Fire Mastery", es = "Dominio fuego", pt = "Domínio de fogo")
+        Characteristic.MASTERY_ELEMENTARY_EARTH -> localized(lang, fr = "Maîtrise Terre", en = "Earth Mastery", es = "Dominio tierra", pt = "Domínio de terra")
+        Characteristic.MASTERY_DISTANCE -> localized(lang, fr = "Maîtrise Distance", en = "Distance Mastery", es = "Dominio distancia", pt = "Domínio de distância")
+        Characteristic.MASTERY_CRITICAL -> localized(lang, fr = "Maîtrise Critique", en = "Critical Mastery", es = "Dominio crítico", pt = "Domínio de crítico")
+        Characteristic.MASTERY_BACK -> localized(lang, fr = "Maîtrise Dos", en = "Rear Mastery", es = "Dominio espalda", pt = "Domínio de costas")
+        Characteristic.MASTERY_MELEE -> localized(lang, fr = "Maîtrise Mêlée", en = "Melee Mastery", es = "Dominio de melé", pt = "Domínio de Curta Distância")
+        Characteristic.MASTERY_BERSERK -> localized(lang, fr = "Maîtrise Berserk", en = "Berserk Mastery", es = "Dominio berserker", pt = "Domínio de Berserk")
+        Characteristic.MASTERY_HEALING -> localized(lang, fr = "Maîtrise Soin", en = "Healing Mastery", es = "Dominio cura", pt = "Domínio de cura")
+        Characteristic.DAMAGE_INFLICTED -> localized(lang, fr = "Dommages infligés", en = "Damage Inflicted", es = "Daños infligidos", pt = "Danos infligidos")
+        Characteristic.RESISTANCE_CRITICAL -> localized(lang, fr = "Résistance Critique", en = "Critical Resist", es = "Resistencia Crítica", pt = "Resistência a crítico")
+        Characteristic.RESISTANCE_BACK -> localized(lang, fr = "Résistance Dos", en = "Rear Resist", es = "Resistencia de Espalda", pt = "Resistência de costas")
+        Characteristic.RESISTANCE_ELEMENTARY -> localized(lang, fr = "Résistance Élémentaire", en = "Elemental Resist", es = "Resistencia Elemental", pt = "Resistência elementar")
         Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT ->
-            localized(lang, fr = "Résistance d'1 élément aléatoire", en = "Resist of 1 Random Element", es = "Resistencia de 1 elemento aleatorio")
+            localized(
+                lang,
+                fr = "Résistance d'1 élément aléatoire",
+                en = "Resist of 1 Random Element",
+                es = "Resistencia de 1 elemento aleatorio",
+                pt = "Resistência a 1 elemento aleatório"
+            )
         Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT ->
-            localized(lang, fr = "Résistance de 2 éléments aléatoires", en = "Resist of 2 Random Elements", es = "Resistencia de 2 elementos aleatorios")
+            localized(
+                lang,
+                fr = "Résistance de 2 éléments aléatoires",
+                en = "Resist of 2 Random Elements",
+                es = "Resistencia de 2 elementos aleatorios",
+                pt = "Resistência a 2 elementos aleatórios"
+            )
         Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT ->
-            localized(lang, fr = "Résistance de 3 éléments aléatoires", en = "Resist of 3 Random Elements", es = "Resistencia de 3 elementos aleatorios")
-        Characteristic.RESISTANCE_ELEMENTARY_EARTH -> localized(lang, fr = "Résistance Terre", en = "Earth Resist", es = "Resistencia a la tierra")
-        Characteristic.RESISTANCE_ELEMENTARY_FIRE -> localized(lang, fr = "Résistance Feu", en = "Fire Resist", es = "Resistencia al fuego")
-        Characteristic.RESISTANCE_ELEMENTARY_WATER -> localized(lang, fr = "Résistance Eau", en = "Water Resist", es = "Resistencia al agua")
-        Characteristic.RESISTANCE_ELEMENTARY_WIND -> localized(lang, fr = "Résistance Air", en = "Air Resist", es = "Resistencia al aire")
-        Characteristic.HP -> localized(lang, fr = "Points de Vie", en = "Health Points", es = "Puntos de Vida")
-        Characteristic.CRITICAL_HIT -> localized(lang, fr = "Coup Critique", en = "Critical Hit", es = "Golpe Crítico")
-        Characteristic.WAKFU_POINT -> localized(lang, fr = "PW", en = "WP", es = "PW")
-        Characteristic.MAX_WAKFU_POINTS -> localized(lang, fr = "PW max", en = "Max WP", es = "PW máx.")
-        Characteristic.ACTION_POINT -> localized(lang, fr = "PA", en = "AP", es = "PA")
-        Characteristic.MAX_ACTION_POINT -> localized(lang, fr = "PA max", en = "Max AP", es = "PA máx.")
-        Characteristic.RANGE -> localized(lang, fr = "Portée", en = "Range", es = "Alcance")
-        Characteristic.MOVEMENT_POINT -> localized(lang, fr = "PM", en = "MP", es = "PM")
-        Characteristic.MAX_MOVEMENT_POINT -> localized(lang, fr = "PM max", en = "Max MP", es = "PM máx.")
-        Characteristic.CONTROL -> localized(lang, fr = "Contrôle", en = "Control", es = "Control")
-        Characteristic.WISDOM -> localized(lang, fr = "Sagesse", en = "Wisdom", es = "Sabiduría")
-        Characteristic.DODGE -> localized(lang, fr = "Esquive", en = "Dodge", es = "Esquiva")
-        Characteristic.LOCK -> localized(lang, fr = "Tacle", en = "Lock", es = "Placaje")
-        Characteristic.PROSPECTION -> localized(lang, fr = "Prospection", en = "Prospecting", es = "Prospección")
-        Characteristic.INITIATIVE -> localized(lang, fr = "Initiative", en = "Initiative", es = "Iniciativa")
-        Characteristic.WILLPOWER -> localized(lang, fr = "Volonté", en = "Willpower", es = "Voluntad")
-        Characteristic.BLOCK_PERCENTAGE -> localized(lang, fr = "Parade %", en = "Block %", es = "Anticipación %")
-        Characteristic.GIVEN_ARMOR_PERCENTAGE -> localized(lang, fr = "Armure donnée %", en = "Given Armor %", es = "Armadura dada %")
-        Characteristic.RECEIVED_ARMOR_PERCENTAGE -> localized(lang, fr = "Armure reçue %", en = "Received Armor %", es = "Armadura recibida %")
+            localized(
+                lang,
+                fr = "Résistance de 3 éléments aléatoires",
+                en = "Resist of 3 Random Elements",
+                es = "Resistencia de 3 elementos aleatorios",
+                pt = "Resistência a 3 elementos aleatórios"
+            )
+        Characteristic.RESISTANCE_ELEMENTARY_EARTH -> localized(lang, fr = "Résistance Terre", en = "Earth Resist", es = "Resistencia a la tierra", pt = "Resistência a Terra")
+        Characteristic.RESISTANCE_ELEMENTARY_FIRE -> localized(lang, fr = "Résistance Feu", en = "Fire Resist", es = "Resistencia al fuego", pt = "Resistência a Fogo")
+        Characteristic.RESISTANCE_ELEMENTARY_WATER -> localized(lang, fr = "Résistance Eau", en = "Water Resist", es = "Resistencia al agua", pt = "Resistência a Água")
+        Characteristic.RESISTANCE_ELEMENTARY_WIND -> localized(lang, fr = "Résistance Air", en = "Air Resist", es = "Resistencia al aire", pt = "Resistência a Ar")
+        Characteristic.HP -> localized(lang, fr = "Points de Vie", en = "Health Points", es = "Puntos de Vida", pt = "Pontos de vida")
+        Characteristic.CRITICAL_HIT -> localized(lang, fr = "Coup Critique", en = "Critical Hit", es = "Golpe Crítico", pt = "Golpe crítico")
+        Characteristic.WAKFU_POINT -> localized(lang, fr = "PW", en = "WP", es = "PW", pt = "PW")
+        Characteristic.MAX_WAKFU_POINTS -> localized(lang, fr = "PW max", en = "Max WP", es = "PW máx.", pt = "PW máx.")
+        Characteristic.ACTION_POINT -> localized(lang, fr = "PA", en = "AP", es = "PA", pt = "PA")
+        Characteristic.MAX_ACTION_POINT -> localized(lang, fr = "PA max", en = "Max AP", es = "PA máx.", pt = "PA máx.")
+        Characteristic.RANGE -> localized(lang, fr = "Portée", en = "Range", es = "Alcance", pt = "Alcance")
+        Characteristic.MOVEMENT_POINT -> localized(lang, fr = "PM", en = "MP", es = "PM", pt = "PM")
+        Characteristic.MAX_MOVEMENT_POINT -> localized(lang, fr = "PM max", en = "Max MP", es = "PM máx.", pt = "PM máx.")
+        Characteristic.CONTROL -> localized(lang, fr = "Contrôle", en = "Control", es = "Control", pt = "Controle")
+        Characteristic.WISDOM -> localized(lang, fr = "Sagesse", en = "Wisdom", es = "Sabiduría", pt = "Sabedoria")
+        Characteristic.DODGE -> localized(lang, fr = "Esquive", en = "Dodge", es = "Esquiva", pt = "Esquiva")
+        Characteristic.LOCK -> localized(lang, fr = "Tacle", en = "Lock", es = "Placaje", pt = "Bloqueio")
+        Characteristic.PROSPECTION -> localized(lang, fr = "Prospection", en = "Prospecting", es = "Prospección", pt = "Prospecção")
+        Characteristic.INITIATIVE -> localized(lang, fr = "Initiative", en = "Initiative", es = "Iniciativa", pt = "Iniciativa")
+        Characteristic.WILLPOWER -> localized(lang, fr = "Volonté", en = "Willpower", es = "Voluntad", pt = "Vontade")
+        Characteristic.BLOCK_PERCENTAGE -> localized(lang, fr = "Parade %", en = "Block %", es = "Anticipación %", pt = "Parada %")
+        Characteristic.GIVEN_ARMOR_PERCENTAGE -> localized(lang, fr = "Armure donnée %", en = "Given Armor %", es = "Armadura dada %", pt = "Armadura concedida %")
+        Characteristic.RECEIVED_ARMOR_PERCENTAGE -> localized(lang, fr = "Armure reçue %", en = "Received Armor %", es = "Armadura recibida %", pt = "Armadura recebida %")
         Characteristic.HERBALIST_HARVEST_QUANTITY_PERCENTAGE ->
-            localized(lang, fr = "Récolte Herboriste %", en = "Herbalist Harvest %", es = "Recolección Herbolario %")
+            localized(lang, fr = "Récolte Herboriste %", en = "Herbalist Harvest %", es = "Recolección Herbolario %", pt = "Colheita de Herborista %")
         Characteristic.LUMBERJACK_HARVEST_QUANTITY_PERCENTAGE ->
-            localized(lang, fr = "Récolte Bûcheron %", en = "Lumberjack Harvest %", es = "Recolección Leñador %")
+            localized(lang, fr = "Récolte Bûcheron %", en = "Lumberjack Harvest %", es = "Recolección Leñador %", pt = "Colheita de Lenhador %")
         Characteristic.TRAPPER_HARVEST_QUANTITY_PERCENTAGE ->
-            localized(lang, fr = "Récolte Trappeur %", en = "Trapper Harvest %", es = "Recolección Trampero %")
+            localized(lang, fr = "Récolte Trappeur %", en = "Trapper Harvest %", es = "Recolección Trampero %", pt = "Colheita de Caçador %")
         Characteristic.MINER_HARVEST_QUANTITY_PERCENTAGE ->
-            localized(lang, fr = "Récolte Mineur %", en = "Miner Harvest %", es = "Recolección Minero %")
+            localized(lang, fr = "Récolte Mineur %", en = "Miner Harvest %", es = "Recolección Minero %", pt = "Colheita de Mineiro %")
         Characteristic.FARMER_HARVEST_QUANTITY_PERCENTAGE ->
-            localized(lang, fr = "Récolte Paysan %", en = "Farmer Harvest %", es = "Recolección Granjero %")
+            localized(lang, fr = "Récolte Paysan %", en = "Farmer Harvest %", es = "Recolección Granjero %", pt = "Colheita de Fazendeiro %")
         Characteristic.FISHERMAN_HARVEST_QUANTITY_PERCENTAGE ->
-            localized(lang, fr = "Récolte Pêcheur %", en = "Fisherman Harvest %", es = "Recolección Pescador %")
+            localized(lang, fr = "Récolte Pêcheur %", en = "Fisherman Harvest %", es = "Recolección Pescador %", pt = "Colheita de Pescador %")
     }
 
-/** Picks the FR/EN/ES form for [lang]; a tiny helper so inline per-language tables stay one line per entry. */
+/** Picks the FR/EN/ES/PT form for [lang]; a tiny helper so inline per-language tables stay one line per entry. */
 fun localized(
     lang: Lang,
     fr: String,
     en: String,
     es: String,
+    pt: String,
 ): String =
     when (lang) {
         Lang.FR -> fr
         Lang.EN -> en
         Lang.ES -> es
+        Lang.PT -> pt
     }
 
 /** Localized display name for an attack's range band (the secondary mastery it credits). */
 fun RangeBand.label(lang: Lang): String =
     when (this) {
-        RangeBand.MELEE -> localized(lang, fr = "Mêlée", en = "Melee", es = "Melé")
-        RangeBand.DISTANCE -> localized(lang, fr = "Distance", en = "Distance", es = "Distancia")
+        RangeBand.MELEE -> localized(lang, fr = "Mêlée", en = "Melee", es = "Melé", pt = "Curta distância")
+        RangeBand.DISTANCE -> localized(lang, fr = "Distance", en = "Distance", es = "Distancia", pt = "Distância")
     }
 
 /** Localized display name for an attack orientation (the positional damage multiplier). */
 fun Orientation.label(lang: Lang): String =
     when (this) {
-        Orientation.FACE -> localized(lang, fr = "Face", en = "Face", es = "Frente")
-        Orientation.SIDE -> localized(lang, fr = "Côté", en = "Side", es = "Lado")
-        Orientation.BACK -> localized(lang, fr = "Dos", en = "Back", es = "Espalda")
+        Orientation.FACE -> localized(lang, fr = "Face", en = "Face", es = "Frente", pt = "Frente")
+        Orientation.SIDE -> localized(lang, fr = "Côté", en = "Side", es = "Lado", pt = "Lado")
+        Orientation.BACK -> localized(lang, fr = "Dos", en = "Back", es = "Espalda", pt = "Costas")
     }
 
 /** Localized display name for an item rarity. */
 fun Rarity.label(lang: Lang): String =
     when (this) {
-        Rarity.COMMON -> localized(lang, fr = "Commun", en = "Common", es = "Común")
-        Rarity.UNCOMMON -> localized(lang, fr = "Inhabituel", en = "Uncommon", es = "Poco común")
-        Rarity.RARE -> localized(lang, fr = "Rare", en = "Rare", es = "Raro")
-        Rarity.MYTHIC -> localized(lang, fr = "Mythique", en = "Mythic", es = "Mítico")
-        Rarity.LEGENDARY -> localized(lang, fr = "Légendaire", en = "Legendary", es = "Legendario")
-        Rarity.RELIC -> localized(lang, fr = "Relique", en = "Relic", es = "Reliquia")
-        Rarity.SOUVENIR -> localized(lang, fr = "Souvenir", en = "Souvenir", es = "Recuerdo")
-        Rarity.EPIC -> localized(lang, fr = "Épique", en = "Epic", es = "Épico")
+        Rarity.COMMON -> localized(lang, fr = "Commun", en = "Common", es = "Común", pt = "Comum")
+        Rarity.UNCOMMON -> localized(lang, fr = "Inhabituel", en = "Uncommon", es = "Poco común", pt = "Incomum")
+        Rarity.RARE -> localized(lang, fr = "Rare", en = "Rare", es = "Raro", pt = "Raro")
+        Rarity.MYTHIC -> localized(lang, fr = "Mythique", en = "Mythic", es = "Mítico", pt = "Mítico")
+        Rarity.LEGENDARY -> localized(lang, fr = "Légendaire", en = "Legendary", es = "Legendario", pt = "Lendário")
+        Rarity.RELIC -> localized(lang, fr = "Relique", en = "Relic", es = "Reliquia", pt = "Relíquia")
+        Rarity.SOUVENIR -> localized(lang, fr = "Souvenir", en = "Souvenir", es = "Recuerdo", pt = "Lembrança")
+        Rarity.EPIC -> localized(lang, fr = "Épique", en = "Epic", es = "Épico", pt = "Épico")
     }
 
 /** Localized display name for a sublimation's rarity tier (epic/relic dedicated slot, or a normal socketed one). */
 fun SublimationRarity.label(lang: Lang): String =
     when (this) {
-        SublimationRarity.EPIC -> localized(lang, fr = "Épique", en = "Epic", es = "Épico")
-        SublimationRarity.RELIC -> localized(lang, fr = "Relique", en = "Relic", es = "Reliquia")
+        SublimationRarity.EPIC -> localized(lang, fr = "Épique", en = "Epic", es = "Épico", pt = "Épico")
+        SublimationRarity.RELIC -> localized(lang, fr = "Relique", en = "Relic", es = "Reliquia", pt = "Relíquia")
         SublimationRarity.NORMAL -> Tr.SUBLIMATION_NORMAL.value(lang)
     }
 
 /**
  * Localized display name for a skill-tree line. The domain's
- * [me.chosante.common.skills.SkillCharacteristic.name] is English-only; this maps it to FR/ES for
+ * [me.chosante.common.skills.SkillCharacteristic.name] is English-only; this maps it to FR/ES/PT for
  * the skill tree. Unknown names fall back to the English string.
  */
 fun skillLabel(
@@ -639,6 +678,7 @@ fun skillLabel(
         when (lang) {
             Lang.FR -> SKILL_NAME_FR
             Lang.ES -> SKILL_NAME_ES
+            Lang.PT -> SKILL_NAME_PT
             Lang.EN -> return englishName
         }
     return table[englishName] ?: englishName
@@ -715,20 +755,20 @@ private val SKILL_NAME_ES =
 /** Localized display name for an equipment slot type. */
 fun ItemType.label(lang: Lang): String =
     when (this) {
-        ItemType.AMULET -> localized(lang, fr = "Amulette", en = "Amulet", es = "Amuleto")
-        ItemType.EMBLEM -> localized(lang, fr = "Emblème", en = "Emblem", es = "Emblema")
-        ItemType.SHOULDER_PADS -> localized(lang, fr = "Épaulettes", en = "Epaulettes", es = "Hombreras")
-        ItemType.RING -> localized(lang, fr = "Anneau", en = "Ring", es = "Anillo")
-        ItemType.BOOTS -> localized(lang, fr = "Bottes", en = "Boots", es = "Botas")
-        ItemType.ONE_HANDED_WEAPONS -> localized(lang, fr = "Arme à une main", en = "One-handed Weapon", es = "Arma de una mano")
-        ItemType.CHEST_PLATE -> localized(lang, fr = "Plastron", en = "Breastplate", es = "Coraza")
-        ItemType.CAPE -> localized(lang, fr = "Cape", en = "Cape", es = "Capa")
-        ItemType.OFF_HAND_WEAPONS -> localized(lang, fr = "Seconde main", en = "Off-hand", es = "Segunda mano")
-        ItemType.HELMET -> localized(lang, fr = "Casque", en = "Helmet", es = "Casco")
-        ItemType.PETS -> localized(lang, fr = "Familier", en = "Pet", es = "Mascota")
-        ItemType.TWO_HANDED_WEAPONS -> localized(lang, fr = "Arme à deux mains", en = "Two-handed Weapon", es = "Arma de dos manos")
-        ItemType.MOUNTS -> localized(lang, fr = "Monture", en = "Mount", es = "Montura")
-        ItemType.BELT -> localized(lang, fr = "Ceinture", en = "Belt", es = "Cinturón")
+        ItemType.AMULET -> localized(lang, fr = "Amulette", en = "Amulet", es = "Amuleto", pt = "Amuleto")
+        ItemType.EMBLEM -> localized(lang, fr = "Emblème", en = "Emblem", es = "Emblema", pt = "Emblema")
+        ItemType.SHOULDER_PADS -> localized(lang, fr = "Épaulettes", en = "Epaulettes", es = "Hombreras", pt = "Ombreiras")
+        ItemType.RING -> localized(lang, fr = "Anneau", en = "Ring", es = "Anillo", pt = "Anel")
+        ItemType.BOOTS -> localized(lang, fr = "Bottes", en = "Boots", es = "Botas", pt = "Botas")
+        ItemType.ONE_HANDED_WEAPONS -> localized(lang, fr = "Arme à une main", en = "One-handed Weapon", es = "Arma de una mano", pt = "Arma de uma mão")
+        ItemType.CHEST_PLATE -> localized(lang, fr = "Plastron", en = "Breastplate", es = "Coraza", pt = "Peitoral")
+        ItemType.CAPE -> localized(lang, fr = "Cape", en = "Cape", es = "Capa", pt = "Capa")
+        ItemType.OFF_HAND_WEAPONS -> localized(lang, fr = "Seconde main", en = "Off-hand", es = "Segunda mano", pt = "Segunda mão")
+        ItemType.HELMET -> localized(lang, fr = "Casque", en = "Helmet", es = "Casco", pt = "Capacete")
+        ItemType.PETS -> localized(lang, fr = "Familier", en = "Pet", es = "Mascota", pt = "Mascote")
+        ItemType.TWO_HANDED_WEAPONS -> localized(lang, fr = "Arme à deux mains", en = "Two-handed Weapon", es = "Arma de dos manos", pt = "Arma de duas mãos")
+        ItemType.MOUNTS -> localized(lang, fr = "Monture", en = "Mount", es = "Montura", pt = "Montaria")
+        ItemType.BELT -> localized(lang, fr = "Ceinture", en = "Belt", es = "Cinturón", pt = "Cinto")
     }
 
 /** Shared localized class names. */
@@ -754,3 +794,37 @@ fun CharacterClass.label(lang: Lang): String =
         CharacterClass.HUPPERMAGE -> Tr.CLASS_HUPPERMAGE
         CharacterClass.UNKNOWN -> Tr.CLASS_UNKNOWN
     }.value(lang)
+
+private val SKILL_NAME_PT =
+    mapOf(
+        "% Block" to "% Parada",
+        "% Critical Hit" to "% Golpe crítico",
+        "% Damage Inflicted" to "% Danos infligidos",
+        "% HP as Armor" to "% PV como Armadura",
+        "% HP" to "% PV",
+        "HP" to "PV",
+        "% Heal Received" to "% Curas recebidas",
+        "% Inflicted Damage" to "% Danos infligidos",
+        "% damage" to "% danos",
+        "Action Point" to "Ponto de ação",
+        "Control and damage" to "Controle e danos",
+        "Dodge and lock" to "Esquiva e Bloqueio",
+        "Dodge" to "Esquiva",
+        "Initiative" to "Iniciativa",
+        "Lock" to "Bloqueio",
+        "Mastery Back" to "Domínio de costas",
+        "Mastery Berserk" to "Domínio de Berserk",
+        "Mastery Critical" to "Domínio de crítico",
+        "Mastery Distance" to "Domínio de distância",
+        "Mastery Elementary" to "Domínio elementar",
+        "Mastery Healing" to "Domínio de cura",
+        "Mastery Melee" to "Domínio de Curta Distância",
+        "Movement Point and damage" to "Ponto de movimento e danos",
+        "Range and damage" to "Alcance e danos",
+        "Resistance Back" to "Resistência de costas",
+        "Resistance Critical" to "Resistência a crítico",
+        "Resistance Elementary" to "Resistência elementar",
+        "Shield" to "Escudo",
+        "Wakfu Points" to "Pontos de Wakfu",
+        "Willpower" to "Vontade"
+    )

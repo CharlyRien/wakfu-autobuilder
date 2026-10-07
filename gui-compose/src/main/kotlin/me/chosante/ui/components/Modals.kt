@@ -529,7 +529,8 @@ private fun ItemPickerModal(
                     q.isBlank() ||
                         equipment.name.fr.contains(q, ignoreCase = true) ||
                         equipment.name.en.contains(q, ignoreCase = true) ||
-                        equipment.name.es.contains(q, ignoreCase = true)
+                        equipment.name.es.contains(q, ignoreCase = true) ||
+                        equipment.name.pt.contains(q, ignoreCase = true)
                 }.toList()
                 .sortedByLocalized(lang) { it.localizedName(lang) }
         }
@@ -716,6 +717,7 @@ private fun SublimationPickerModal(
                         sub.name.fr.contains(q, ignoreCase = true) ||
                         sub.name.en.contains(q, ignoreCase = true) ||
                         sub.name.es.contains(q, ignoreCase = true) ||
+                        sub.name.pt.contains(q, ignoreCase = true) ||
                         sublimationEffectText(sub, lang).contains(q, ignoreCase = true)
                 }.toList()
                 .sortedWith(
@@ -1053,7 +1055,8 @@ private fun ItemRunePickerModal(
                     q.isBlank() ||
                         rune.name.fr.contains(q, ignoreCase = true) ||
                         rune.name.en.contains(q, ignoreCase = true) ||
-                        rune.name.es.contains(q, ignoreCase = true)
+                        rune.name.es.contains(q, ignoreCase = true) ||
+                        rune.name.pt.contains(q, ignoreCase = true)
                 }.sortedByLocalized(lang) { it.name.localized(lang) }
         }
     val carrierName = carrier.name.localized(lang)

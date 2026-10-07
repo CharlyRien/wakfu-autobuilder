@@ -35,3 +35,36 @@ and stats layout tests iterate all languages and check actual text line widths,
 wrapping and ellipses. `LanguageTopBarUiTest` covers the wrapped and single-row
 bars. Spanish needs no further layout change. Existing UI tests now use the
 active language instead of assuming that every language other than EN is FR.
+
+## Portuguese
+
+`Lang.PT` adds a fourth option to the existing language toggle. Its bundle has
+441 keys; all 121 inline label/description call sites and the 30 skill-name
+entries also carry Portuguese. Adding a language requires a `Lang` entry,
+a bundle, and a required argument in the inline helper.
+
+Official terminology sources:
+
+- `runes.json`: Domínio elementar, Domínio de Curta Distância, Domínio de
+  distância, Domínio de crítico, Domínio de costas, Domínio de Berserk,
+  Domínio de cura, Bloqueio, Esquiva, and Resistência a Fogo/Água/Terra/Ar.
+- `spell-passives.json`: Mercado Pacifista uses Paradas (block), Protetor do
+  Rebanho uses PV, and Tique, Taque uses vontade. The class descriptions also
+  supply Ladino and Huppermago.
+
+Game-text resolution prefers PT and uses EN only when the requested text is
+blank. Item, rune, sublimation and boss searches include Portuguese names;
+passive searches use the selected language for both names and descriptions.
+Release notes with no Portuguese text retain their existing English fallback.
+Sublimation descriptions are reconstructed in Portuguese from structured
+conditions and effects; records carrying only English `rawText` retain that
+fallback because the dataset supplies no translated effect text.
+
+Validation: `ktlintFormat` and `:gui-compose:test` through the shared Gradle
+lock. The bundle guard automatically covers PT through `Lang.entries`. UI
+layout checks cover all four languages, including the top bar at its wrapping
+breakpoint; no additional layout fix is required. Game-text tests check
+language selection and fallback, compare stat labels with official rune names,
+and exercise item/boss searches in Spanish and Portuguese. The bulk exclusion
+buttons remain translated and tested. No push or PR creation is part of this
+work.

@@ -5,6 +5,7 @@ import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -37,7 +38,7 @@ class ItemPickerUiTest {
                 equipmentId = id,
                 guiId = 0,
                 level = 100,
-                name = I18nText("Objet %03d".format(id), "Item %03d".format(id), "", ""),
+                name = I18nText("Objet %03d".format(id), "Item %03d".format(id), "Objeto ES %03d".format(id), "Item PT %03d".format(id)),
                 rarity = Rarity.COMMON,
                 itemType = if (id % 2 == 0) ItemType.BOOTS else ItemType.RING,
                 characteristics = emptyMap()
@@ -111,13 +112,26 @@ class ItemPickerUiTest {
                     var picked: Equipment? = null
                     picker(lang, mode, onPick = { picked = it })
                     onNodeWithText(Tr.PICKER_MATCH_COUNT.value(lang).format(150)).assertExists()
-                    val last = if (lang == Lang.FR) catalog.last().name.fr else catalog.last().name.en
+                    val last = catalog.last().name.localized(lang)
                     // Lazy rows do not compose the entire catalog on opening.
                     onNodeWithText(last).assertDoesNotExist()
                     onNode(hasScrollToNodeAction()).performScrollToIndex(149)
                     onNodeWithText(last).assertExists().performClick()
                     runOnIdle { assertThat(picked).isEqualTo(catalog.last()) }
                 }
+            }
+        }
+    }
+
+    @Test
+    fun `Spanish and Portuguese item names are searchable`() {
+        for (lang in listOf(Lang.ES, Lang.PT)) {
+            runComposeUiTest {
+                picker(lang, PickerMode.Forced)
+                val name = catalog.last().name.localized(lang)
+                onNode(hasSetTextAction()).performTextInput(name)
+                onNodeWithText(Tr.PICKER_MATCH_COUNT.value(lang).format(1)).assertExists()
+                onNode(hasText(name) and !hasSetTextAction()).assertExists()
             }
         }
     }
@@ -135,7 +149,7 @@ class ItemPickerUiTest {
                 onNodeWithText(Tr.NO_MATCHING_ITEM.value(lang)).assertExists()
                 search.performTextReplacement("  iTeM 150  ")
                 onNodeWithText(Tr.PICKER_MATCH_COUNT.value(lang).format(1)).assertExists()
-                onAllNodesWithText(if (lang == Lang.FR) "Objet 150" else "Item 150")[0].assertExists()
+                onAllNodesWithText(catalog.last().name.localized(lang))[0].assertExists()
                 search.performTextReplacement("")
                 onNodeWithText(Tr.ALL_SLOTS.value(lang)).performScrollTo().performClick()
                 onNodeWithText(Tr.PICKER_MATCH_COUNT.value(lang).format(150)).assertExists()

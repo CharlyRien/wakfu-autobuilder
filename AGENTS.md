@@ -555,8 +555,8 @@ is no FXML/XML.** Package root `me.chosante.ui`, organized by feature: `shell`, 
   (`WColor`/`WTypography`/`WDimens`). Branding assets live in `assets/branding/` (a translucent
   wordmark + a rounded-square "squircle" app icon).
 - **i18n** (`i18n/I18n.kt` + `resources/i18n/strings_<lang>.properties`): `Tr` is a **bare enum of
-  keys only** (no inline strings) — the EN/FR/ES translations live one-per-language in
-  `strings_en.properties` / `strings_fr.properties` / `strings_es.properties` (UTF-8), loaded once,
+  keys only** (no inline strings) — the EN/FR/ES/PT translations live one-per-language in
+  `strings_en.properties` / `strings_fr.properties` / `strings_es.properties` / `strings_pt.properties` (UTF-8), loaded once,
   eagerly, by the `Translations` object and cross-checked at lookup with an English-only fallback
   (never the raw key name). `tr(Tr.X)` resolves through the `LocalLang` composition local;
   `Tr.X.value(lang)` is the non-composable form. **There is no generated i18n code** — adding a
@@ -566,8 +566,8 @@ is no FXML/XML.** Package root `me.chosante.ui`, organized by feature: `shell`, 
   has a blank value, or uses different `String.format` placeholders than the English bundle for the
   same key — the three things a 3-argument enum constructor used to catch for free. A handful of
   small per-language tables that key off a *domain* enum rather than `Tr` (`Characteristic.label`,
-  `SublimationRarity.label`, `ItemType.label`, `SKILL_NAME_ES`/`SKILL_NAME_FR`, …) stay inline in
-  `I18n.kt` via the `localized(lang, fr = …, en = …, es = …)` helper (named arguments — the
+  `SublimationRarity.label`, `ItemType.label`, `SKILL_NAME_PT`/`SKILL_NAME_ES`/`SKILL_NAME_FR`, …) stay inline in
+  `I18n.kt` via the `localized(lang, fr = …, en = …, es = …, pt = …)` helper (named arguments — the
   FR-first positional order is easy to swap by accident). Game-data names (items, sublimations,
   runes, spells, bosses, passives — `I18nText`) are a separate, pre-baked FR/EN/ES/PT dataset with
   its own `I18nText.localized(lang)` fallback (`components/SpellVisuals.kt`), not part of the `Tr`
