@@ -24,7 +24,7 @@ Status: 🟢 Actionable (a concrete official source exists) · 🟡 Keep / docum
 
 | ID | Title | Status | Severity | Feasibility |
 |---|---|---|---|---|
-| `icons-legacy-dead` | 4 unreferenced legacy HUD icon files | 🟢 Actionable | minor | easy |
+| `icons-legacy-dead` | 4 unreferenced legacy HUD icon files | ✅ Done — `chore(assets): drop four unreferenced legacy stat icons` | minor | easy |
 | `monster-portraits` | Monster boss portraits — third-party wakassets mirror | 🟢 Actionable | notable | easy |
 | `rune-level-requirements` | Rune level-requirement table — hardcoded | 🟢 Actionable | notable | easy |
 | `spell-cast-limit-names` | spell-cast-limits.json names — from the encyclopedia spells.json | 🟢 Actionable | minor | easy |
@@ -45,7 +45,8 @@ Status: 🟢 Actionable (a concrete official source exists) · 🟡 Keep / docum
 
 ### `icons-legacy-dead` — 4 unreferenced legacy HUD icon files
 
-- **Status:** 🟢 Actionable
+- **Status:** ✅ Done — `chore(assets): drop four unreferenced legacy stat icons`
+- **Completion:** Already removed on main by `f7d77dc8`; rechecked zero source references and the corrected build-script comment in this worktree.
 - **Category:** asset · **Classification:** NON-OFFICIAL · **Severity:** minor · **Feasibility:** easy · **Effort:** ~15 minutes (delete 4 files + one comment edit + a compile).
 - **What it is:** Four large (~15KB each) HUD stat icons left in assets/icons/ that the generateAssets icon-remap explicitly does not touch and that no Kotlin code references.
 - **Why not fully official:** The other 36 icons in assets/icons/ are officially re-sourced from gui.jar (overwrite=true), but these four map to no Characteristic, are deliberately left untouched by generateAssets, and are not referenced by any code (grep for barda/catchable/mastery_area/mastery_mono in gui-compose/src/main/kotlin returns nothing). They are stale committed-static leftovers of unknown/non-extracted origin. single-target and area mastery were removed by Ankama, so mastery_area/mastery_mono have no live official counterpart.
