@@ -27,7 +27,7 @@ class BossScenarioTest {
 
     @Test
     fun `flat resistance converts to percentage and caps at 90`() {
-        // Res% = floor((1 - 0.8^(flat/100)) * 100), verified against MethodWakfu's displayed values.
+        // Res% = floor((1 - 0.8^(flat/100)) * 100), Ankama's flat-to-percent resistance curve.
         assertThat(flatResistanceToPercent(0)).isZero()
         assertThat(flatResistanceToPercent(500)).isEqualTo(67)
         assertThat(flatResistanceToPercent(800)).isEqualTo(83)
