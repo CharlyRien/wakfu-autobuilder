@@ -501,6 +501,13 @@ as **fixed-name** JSON files (no version in the filename):
    occupied positions. Rune doubling reads this common-lib resource, also available to Zenith; socketless
    domain slots still have no rune placement. `EquipmentPositionsReproductionTest` checks the whole official join,
    and `EquipmentPositionsTest` locks all 14 previous rune slot domains. Disabled positions are never occupied.
+   **`common-lib/src/main/resources/rune-values.json`** holds all 15 rune value tables, derived from CDN
+   itemTypeId 811 equip-effect `base + increment × level` formulas and the client StaticEffect level bands.
+   The full effect schema is bytecode-derived and checked against the semantic positions; all records pass
+   size/id guards. The shard tooltip renderer is found from its public UI keys and followed structurally:
+   its numeric argument transform must still floor the normal value BEFORE doubling. The XP-cost
+   `shardLevelingCurve` is unrelated to displayed stat values. `RuneValuesReproductionTest` and
+   `RuneValuesTest` lock every normal and doubled value (15 × 11 × 2); drift needs review, never silent adoption.
    Everything is found STRUCTURALLY in the client bytecode, never by an obfuscated name: the table id from the table-type
    enum's `ITEM` constant, the record PREFIX from the ITEM binary-data classes' `read(reader)` calls up to the first
    `String[]` (the alternating (kind, expression) criteria — only that prefix is decoded, each record by its own
