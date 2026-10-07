@@ -44,6 +44,7 @@ import me.chosante.ui.i18n.Tr
 import me.chosante.ui.i18n.tr
 import me.chosante.ui.paperdoll.PaperdollPanel
 import me.chosante.ui.request.RequestPanel
+import me.chosante.ui.settings.SettingsScreen
 import me.chosante.ui.spells.ClassSpellsPanel
 import me.chosante.ui.state.BuildSearchModel
 import me.chosante.ui.state.BuilderTab
@@ -142,6 +143,19 @@ fun AppShell(
                                 onClearFilters = model::clearLibraryFilters
                             )
 
+                        Screen.Settings ->
+                            SettingsScreen(
+                                ui = ui,
+                                onBack = model::closeSettings,
+                                onProcessorUse = model::setProcessorUse,
+                                onCustomCores = model::setCustomCores,
+                                onVerifyOptimality = model::setVerifyOptimality,
+                                onLang = model::setLang,
+                                onHideChosen = model::setPickerHideChosen,
+                                onReportBug = model::reportBug,
+                                onReset = model::requestResetSettings
+                            )
+
                         Screen.Compare ->
                             CompareScreen(
                                 ui = ui,
@@ -220,6 +234,7 @@ fun AppShell(
                 onRenameTag = model::renameTag,
                 onDeleteTag = model::deleteTag,
                 onConfirmReSearch = model::confirmReSearch,
+                onConfirmResetSettings = model::resetSettings,
                 onImportBuild = model::importBuild,
                 validateImport = model::canParseImport,
                 onClipboardText = model::clipboardText
@@ -261,7 +276,7 @@ private fun BuilderBody(
                 onToggleRarity = model::toggleRarity,
                 onDurationChange = model::setDuration,
                 onStopAtMatchChange = model::setStopAtMatch,
-                onVerifyOptimalityChange = model::setVerifyOptimality,
+                onOpenSettings = model::openSettings,
                 onAddForcedItem = { model.openModal(Modal.ItemPicker(PickerMode.Forced)) },
                 onRemoveForcedItem = model::removeForcedItem,
                 onAddExcludedItem = { model.openModal(Modal.ItemPicker(PickerMode.Excluded)) },

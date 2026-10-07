@@ -13,9 +13,9 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
 /**
- * The "Check optimality after the search" switch in the Search Mode card, next to the search duration: offered where a
- * post-search check exists (most masteries, max damage), absent in precision mode (nothing to switch), and a click reports
- * the flipped value.
+ * The optimality settings reminder in the Search Mode card, next to the search duration: offered where a
+ * post-search check exists (most masteries, max damage), absent in precision mode (nothing to switch), and a click opens
+ * Settings. The moved switch itself is covered by SettingsScreenUiTest.
  */
 @OptIn(ExperimentalTestApi::class)
 class VerifyOptimalityToggleUiTest {
@@ -23,7 +23,7 @@ class VerifyOptimalityToggleUiTest {
         mode: ScoreComputationMode,
         verify: Boolean,
         lang: Lang = Lang.EN,
-        onChange: (Boolean) -> Unit = {},
+        onOpenSettings: () -> Unit = {},
     ) = setContent {
         CompositionLocalProvider(LocalLang provides lang) {
             SearchModeCard(
@@ -34,32 +34,32 @@ class VerifyOptimalityToggleUiTest {
                 onSelect = {},
                 onDurationChange = {},
                 onStopAtMatchChange = {},
-                onVerifyOptimalityChange = onChange
+                onOpenSettings = onOpenSettings
             )
         }
     }
 
     @Test
-    fun `most masteries and max damage offer the switch and a click reports the flipped value`() {
+    fun `most masteries and max damage offer the reminder and a click opens Settings`() {
         // One composition per mode: a Compose UI test sets its content once.
         for (mode in listOf(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT, ScoreComputationMode.FIND_BUILD_WITH_MAX_DAMAGE)) {
             runComposeUiTest {
-                val changes = mutableListOf<Boolean>()
-                card(mode, verify = true) { changes += it }
-                onNodeWithText("Check optimality after the search").assertExists()
-                onNodeWithTag(VERIFY_OPTIMALITY_TOGGLE_TAG).performClick()
-                assertThat(changes).describedAs("$mode: ON then a click reports OFF").containsExactly(false)
+                var opened = 0
+                card(mode, verify = true) { opened++ }
+                onNodeWithText("Optimality proof: on · Settings").assertExists()
+                onNodeWithTag(OPTIMALITY_SETTINGS_TAG).performClick()
+                assertThat(opened).describedAs("$mode: clicking the ON reminder opens Settings").isEqualTo(1)
             }
         }
     }
 
     @Test
-    fun `an OFF switch reports ON when clicked`() =
+    fun `an OFF reminder opens Settings when clicked`() =
         runComposeUiTest {
-            val changes = mutableListOf<Boolean>()
-            card(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT, verify = false) { changes += it }
-            onNodeWithTag(VERIFY_OPTIMALITY_TOGGLE_TAG).performClick()
-            assertThat(changes).containsExactly(true)
+            var opened = 0
+            card(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT, verify = false) { opened++ }
+            onNodeWithTag(OPTIMALITY_SETTINGS_TAG).performClick()
+            assertThat(opened).isEqualTo(1)
         }
 
     @Test
@@ -67,13 +67,13 @@ class VerifyOptimalityToggleUiTest {
         runComposeUiTest {
             card(ScoreComputationMode.FIND_CLOSEST_BUILD_FROM_INPUT, verify = true)
             onNodeWithText("Check optimality after the search").assertDoesNotExist()
-            onNodeWithTag(VERIFY_OPTIMALITY_TOGGLE_TAG).assertDoesNotExist()
+            onNodeWithTag(OPTIMALITY_SETTINGS_TAG).assertDoesNotExist()
         }
 
     @Test
-    fun `the switch is labelled in French`() =
+    fun `the reminder is labelled in French`() =
         runComposeUiTest {
             card(ScoreComputationMode.FIND_BUILD_WITH_MOST_MASTERIES_FROM_INPUT, verify = true, lang = Lang.FR)
-            onNodeWithText("Vérifier l'optimalité après la recherche").assertExists()
+            onNodeWithText("Preuve d’optimalité : activée · Réglages").assertExists()
         }
 }

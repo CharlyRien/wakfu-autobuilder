@@ -50,10 +50,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -76,6 +80,8 @@ import me.chosante.ui.state.onlyDigits
 import me.chosante.ui.theme.WColor
 import me.chosante.ui.theme.WType
 import me.chosante.ui.theme.WTypography
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * Below this window width the single-row TopBar can't fit the longest (French) content for a build
@@ -164,6 +170,8 @@ private fun TopBarSingleRow(
         GlobalLeft(ui = ui, onNavigate = onNavigate, onNewBuild = onNewBuild, onDetachActiveBuild = onDetachActiveBuild)
         Spacer(modifier = Modifier.weight(1f))
         LangToggle(current = ui.lang, onSelect = onLangChange)
+        Spacer(modifier = Modifier.width(8.dp))
+        SettingsButton(selected = ui.screen == Screen.Settings, onClick = { onNavigate(Screen.Settings) })
         if (ui.screen == Screen.Builder) {
             Spacer(modifier = Modifier.width(14.dp))
             SearchControls(
@@ -195,6 +203,8 @@ private fun GlobalChromeRow(
         GlobalLeft(ui = ui, onNavigate = onNavigate, onNewBuild = onNewBuild, onDetachActiveBuild = onDetachActiveBuild)
         Spacer(modifier = Modifier.weight(1f))
         LangToggle(current = ui.lang, onSelect = onLangChange)
+        Spacer(modifier = Modifier.width(8.dp))
+        SettingsButton(selected = ui.screen == Screen.Settings, onClick = { onNavigate(Screen.Settings) })
     }
 }
 
@@ -473,9 +483,10 @@ private fun Brand() {
 }
 
 @Composable
-private fun LangToggle(
+internal fun LangToggle(
     current: Lang,
     onSelect: (Lang) -> Unit,
+    tagPrefix: String = "topbar-language",
 ) {
     Row(
         modifier =
@@ -495,6 +506,7 @@ private fun LangToggle(
                     Modifier
                         .clip(RoundedCornerShape(6.dp))
                         .background(if (selected) WColor.raised else androidx.compose.ui.graphics.Color.Transparent)
+                        .testTag("$tagPrefix-${lang.name}")
                         .clickable { onSelect(lang) }
                         .padding(horizontal = 9.dp, vertical = 4.dp),
                 contentAlignment = Alignment.Center
@@ -831,6 +843,42 @@ private fun SearchButton(
                         lineHeight = 16.sp
                     )
             )
+        }
+    }
+}
+
+/** Vector gear, using the shell's quiet outlined action style. */
+@Composable
+private fun SettingsButton(
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val label = tr(Tr.SETTINGS)
+    val tint = if (selected) WColor.accent else WColor.muted
+    Box(
+        modifier =
+            Modifier
+                .size(34.dp)
+                .testTag("settings-gear")
+                .semantics { contentDescription = label }
+                .clip(RoundedCornerShape(9.dp))
+                .background(if (selected) WColor.raised else Color.Transparent)
+                .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
+                .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(Modifier.size(18.dp)) {
+            val path = Path()
+            repeat(32) { i ->
+                val angle = i * Math.PI / 16
+                val radius = size.minDimension * if (i % 4 in 1..2) 0.49f else 0.37f
+                val x = center.x + cos(angle).toFloat() * radius
+                val y = center.y + sin(angle).toFloat() * radius
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            path.close()
+            drawPath(path, tint, style = Stroke(width = 1.5.dp.toPx()))
+            drawCircle(tint, radius = size.minDimension * 0.15f, style = Stroke(width = 1.5.dp.toPx()))
         }
     }
 }
