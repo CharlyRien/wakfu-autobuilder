@@ -1,6 +1,6 @@
 # Spell metadata comparison — 2026-10-07
 
-Outcome: **documented; no source switched**. All 710 committed spell records were compared with the
+Original PR #265 outcome: **documented; no source switched** (superseded by the follow-up below). All 710 committed spell records were compared with the
 installed 1.93.1 client and pinned CDN version 1.93.1.62. Three ids are absent, and several fields differ.
 Adopting the differing AP/range/element values would change engine results, requiring the separate reviewed
 change and version bumps excluded by this brief. The scrape and damage anchor remain untouched.
@@ -101,3 +101,55 @@ No BDATA_FORCE_WRITE or encyclopedia network refresh was used; the comparison is
 - client contents/i18n/i18n_en.jar: `a9a077c6805fbfc9caa28d1b398b1c1ec95e3df035f7f3853ace9d82e2d11830`
 - client contents/i18n/i18n_es.jar: `7a1e3247388f5e771e31f2ea1e4db7a2c7dc48d4108b71dae04789e7966ce7c8`
 - client contents/i18n/i18n_pt.jar: `e6f6a6ecbbd81a86c6235f6781e16a4f8b6c3c848b7239809baa80e461975020`
+
+## Follow-up: in-game resolution (2026-10-07), part 1
+
+Field 30 is the **spell's elemental branch**: Spell's protected I16 at position 30 flows through the
+binary getter → spell-definition setter → levelled-spell getter. Its consumers group the spellbook
+into an element-keyed multimap, filter support spells and sort by branch; the tooltip also uses it
+for `elementsUsedIconURL` / `spellDescription.element`. It is not an effect's damage element and does
+not establish which rune a hit generates. Light Arrow 5594 is in the WATER branch (2), yet its effects
+348635/348411 use damage action **1083**, LIGHT. The maintainer confirmed 6 AP + 200 quadramental
+breeze, range 2–5 and the sun damage icon in game. Wall of Energy 5576: 0 AP + 150 breeze, range 1–3.
+The positional schema now calls field 30 `spell_branch` to avoid repeating the wrong interpretation.
+
+The damage element lives on **StaticEffect (68)'s action id**. Structural discovery starts at the
+FIRE/WATER/EARTH/AIR/STASIS/LIGHT/SUPPORT/PHYSICAL enum, reads constructor codes (never ordinal), then
+finds the action registry through its `Dommage : …` strings and its constructor's enum argument:
+2 FIRE, 3 EARTH, 4 WATER, 5 AIR, **917 STASIS**, **1083 LIGHT**, 1 PHYSICAL. The pinned CDN
+[actions.json](https://wakfu.cdn.ankama.com/gamedata/1.93.1.62/actions.json) supplies the named LIGHT
+registration and `[el6]` description; it omits the basic four and Stasis, whose evidence is bytecode.
+Names observed in this client only (diagnostic breadcrumbs, never lookup keys): aNt's field erI/getter
+cwt → bPU → fyV.hn/gtR → fyH → fyI; spellbook bhb/bPN/bPP; enum eVi; registry eVk; damage effect eXv.
+
+Comparison follows each spell's effect_ids and parent_id descendants, with cycles deduplicated.
+Of **286** encyclopedia records with baseDamage, **285** exist in the client (5123 absent):
+**250/286** have exactly one damage element and it equals the encyclopedia (**240/265** standard
+four-element records, **10/21** LIGHT). Twenty records have additional damage elements (7311 FIRE +
+PHYSICAL, 921 WATER + AIR, 925 EARTH + WATER, 749 WATER + LIGHT; plus 15 Foggernaut elemental spells with STASIS variants and Hypertension
+6918 LIGHT + STASIS); the encyclopedia anchor selects the
+expected element in the first four, but cannot uniquely select the Foggernaut variants. Sixteen have no direct damage action in this traversal (indirect state,
+script, passive or absent). Anchor-matched normal effects reproduce a singleton element on **248/286**.
+There are **0 STASIS damage anchors** in the committed roster: no claim of Stasis agreement can be made.
+The registry identifies it, but the encyclopedia does not provide a damage row to compare here.
+
+**Decision: retain every encyclopedia element.** Neither direct nor anchor-based extraction reproduces
+the whole damage roster. No unexplained difference is silently treated as an encyclopedia error.
+The full comparison is `spell-damage-elements.csv`; reproduce through
+`bdata-extractor --spell-elements-audit [install]` (diagnostic CSV; writes no game artifact).
+`SpellElementAuditTest` locks the Light Arrow counterexample and whole-roster agreement count.
+
+### Light scaling evidence (for the display-only follow-up)
+
+The same registered damage effect constructs the client's damage computation with the LIGHT enum.
+In that computation, LIGHT chooses the caster's **highest elemental damage mastery** and sets the
+resistance element to that same element. STASIS chooses the same best mastery but the target's
+**lowest elemental resistance** independently. The helper iterates the elemental enum, skips LIGHT
+and STASIS, skips entries without a mastery, and retains the largest actual mastery; equal values keep
+the first in enum order (FIRE, WATER, EARTH, AIR). Observed breadcrumbs: eXv → faw.fSB → eYG.a(PJ)
+(best mastery), eYG.b(PJ) (least resistance). These names are evidence for this fingerprint only.
+The public enum maps each standard element to its own DMG_*_PERCENT characteristic; this is not the
+otherwise-present LIGHT_MASTERY characteristic. The normal secondary, crit and damage-inflicted
+terms are then applied by the damage computation. This is client code evidence, not an inferred rule
+from field 30. Adding Light to the engine would require explicit best-mastery selection, coupled target
+resistance selection, resource/cooldown budgets and renewed soundness proofs for the AP-cell bounds.

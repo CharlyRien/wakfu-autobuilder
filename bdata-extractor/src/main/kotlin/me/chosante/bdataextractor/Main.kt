@@ -60,6 +60,18 @@ fun main(args: Array<String>) {
         println("Portrait refresh: $report")
         return
     }
+    if (args.firstOrNull() == "--spell-elements-audit") {
+        val install = File(args.getOrNull(1) ?: DEFAULT_INSTALL)
+        val resources = File(findRepositoryRoot(), "autobuilder/src/main/resources")
+        val encyclopedia = LENIENT_JSON.decodeFromString(ListSerializer(Spell.serializer()), File(resources, "spells.json").readText())
+        println("spellId,encyclopediaElement,effectElements,agrees")
+        spellDamageElementAudit(
+            loadTable(install, Tables.SPELL, Tables.SPELL_SCHEMA),
+            loadTable(install, Tables.STATIC_EFFECT, Tables.STATIC_EFFECT_SCHEMA),
+            encyclopedia
+        ).forEach(::println)
+        return
+    }
     val runeValuesOnly = args.firstOrNull() == "--rune-values-only"
     val positionsOnly = args.firstOrNull() == "--equipment-positions-only"
     val achievementsOnly = args.firstOrNull() == "--achievement-names-only"
