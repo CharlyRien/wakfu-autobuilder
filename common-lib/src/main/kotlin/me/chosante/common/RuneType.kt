@@ -94,9 +94,11 @@ data class RuneType(
         }
 
     companion object {
-        // Minimum *item* level required for an enchantment of level 1..11 (Ankama's official table:
-        // lvl 1 -> item 1, lvl 2 -> 36, lvl 3 -> 51, 4 -> 66, 5 -> 81, 6 -> 96, 7 -> 126, 8 -> 141,
-        // 9 -> 171, 10 -> 186, 11 -> 216). The cap follows the item's level, not the character's.
+        // Minimum *item* level for an enchantment of level 1..11. The game data carries the same list
+        // (CDN items.json shardsParameters.shardLevelRequirement, decoded into runes.json `levelRequirements`):
+        // [RuneCatalogData.embedded] checks the two match on load, so a data drift fails loudly instead of silently
+        // changing caps. Kept as a constant here so common-lib's consumers (zenith-builder) never need autobuilder's
+        // resources. The cap follows the item's level, not the character's; the value tables below remain transcribed.
         val RUNE_LEVEL_REQUIREMENTS = listOf(0, 36, 51, 66, 81, 96, 126, 141, 171, 186, 216)
 
         /**

@@ -24,7 +24,12 @@ class GameTextLanguagesTest {
     @Test
     fun `mastery and lock labels use the official rune names in Spanish and Portuguese`() {
         val text = requireNotNull(javaClass.getResourceAsStream("/runes.json")).bufferedReader().use { it.readText() }
-        val runes = Json.parseToJsonElement(text).jsonArray
+        val runes =
+            Json
+                .parseToJsonElement(text)
+                .jsonObject
+                .getValue("runes")
+                .jsonArray
         for (lang in listOf(Lang.ES, Lang.PT)) {
             for (rune in runes) {
                 val stat =
