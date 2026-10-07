@@ -2,14 +2,18 @@ package me.chosante.ui.components
 
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.graphics.toAwtImage
+import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
@@ -31,7 +35,9 @@ import me.chosante.ui.state.Modal
 import me.chosante.ui.state.PickerMode
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import java.io.File
 import java.util.prefs.Preferences
+import javax.imageio.ImageIO
 
 @OptIn(ExperimentalTestApi::class)
 class PickerSelectionUiTest {
@@ -145,6 +151,7 @@ class PickerSelectionUiTest {
                 second.assertIsSelected()
                 val badge = if (mode == PickerMode.Forced) Tr.PICKER_FORCED else Tr.PICKER_EXCLUDED
                 first.performClick()
+                capturePickerForReview("items-${mode.name}")
                 onNodeWithTag("picker-remove-${item.name.fr}").assertExists()
                 runOnIdle {
                     assertThat(forced.value).isEqualTo(mode == PickerMode.Forced)
@@ -249,10 +256,20 @@ class PickerSelectionUiTest {
                 }
             }
             onNodeWithText("$cap / $cap").assertExists()
+            capturePickerForReview("passives-full")
             onNode(hasSetTextAction()).performTextInput(all[cap].name!!.localized(Lang.EN))
             onNodeWithTag("picker-choice-${all[cap].spellId}").performScrollTo().assertIsNotEnabled()
             onNodeWithTag("picker-remove-${all.first().name!!.fr}").performScrollTo().performClick()
             onNodeWithTag("picker-choice-${all[cap].spellId}").performScrollTo().assertIsEnabled()
             onNodeWithText("${cap - 1} / $cap").assertExists()
         }
+}
+
+/** Optional local review captures; normal test runs write no files. */
+@OptIn(ExperimentalTestApi::class)
+internal fun ComposeUiTest.capturePickerForReview(name: String) {
+    val directory = System.getenv("WAKFU_PICKER_CAPTURE_DIR") ?: return
+    val target = File(directory, "$name.png")
+    target.parentFile.mkdirs()
+    ImageIO.write(onRoot().captureToImage().toAwtImage(), "png", target)
 }

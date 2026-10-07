@@ -69,7 +69,7 @@ No rebase, push, or new PR. The reverted changeset had already been removed.
 
 ### Additive pickers
 
-`feat(gui): pickers show what you already chose, and a click removes it`
+`0549b2a1` — `feat(gui): pickers show what you already chose, and a click removes it`
 
 `PickerScaffold` now owns checked/highlighted selection rows, toggle routing, optional hiding,
 the wrapped Chosen strip (maximum 96 dp, scrollable), removable chips, and the shared hide checkbox.
@@ -101,6 +101,32 @@ The existing hide-only tests now explicitly enable the option, since it is no lo
 | `PICKER_EXCLUDED` | Excluded | Exclu | Excluido | Excluído |
 | `PICKER_MOVED_TO_FORCED` | %s moved to forced items | %s fait maintenant partie de tes objets imposés | %s pasa a tus objetos impuestos | %s agora faz parte dos seus itens impostos |
 | `PICKER_MOVED_TO_EXCLUDED` | %s moved to excluded items | %s fait maintenant partie de tes objets exclus | %s pasa a tus objetos excluidos | %s agora faz parte dos seus itens excluídos |
+| `PICKER_CURRENT_BOSS` | Current boss: %s | Boss actuel : %s | Jefe actual: %s | Chefe atual: %s |
 
 Additive UX validation: `ktlintFormat` and full `:gui-compose:test` passed through the shared lock
 (479 tests, 2 skipped, no failures), including translation and changeset guards.
+
+### Boss picker
+
+`feat(gui): the boss picker highlights and scrolls to the current boss`
+
+The boss stays selectable and visible. `PickerScaffold` owns its shared checked/highlighted row,
+radio-button semantics and initial scrolling by canonical key via `rememberLazyListState`.
+The initial index is consumed once per opening, only when search is empty; later query edits do not
+jump back. The domain header supplies Current boss with the localized name; it stays above the list.
+Namesakes retain individual IDs, and the existing pick callback replaces the boss and closes the modal.
+The rune editor remains unchanged: it passes no additive selection policy and retains +/− and Save/Cancel.
+
+`BossPickerSelectionUiTest` covers all four languages, visibility of a current boss at the roster's end,
+the persistent current-boss label, selection semantics, searching from a late scroll position,
+no jump on clearing a search, three namesake bosses and replacement/reopening by ID.
+Optional local test captures (`WAKFU_PICKER_CAPTURE_DIR`) allow visual review of items, full passives and bosses.
+
+Both new commits include GUI changesets in EN/FR. The replaced boss-hiding changeset was removed by
+the maintainer before this task. No engine changes, branch rebase, push, or new PR. No requested work omitted.
+
+Final validation: `ktlintFormat` and the complete `:gui-compose:test` suite passed through the shared lock
+(481 tests, 2 skipped, 0 failures/errors), including `TranslationBundlesTest` and `ChangeFragmentsTest`.
+Reviewed captures of selected item variants, a full passive loadout and the current boss in Portuguese:
+wrapped chips, bounded lists and completion controls fit the existing modal styling.
+`git fetch origin` confirmed no new `origin/main` commits to merge; the published branch was never rebased.

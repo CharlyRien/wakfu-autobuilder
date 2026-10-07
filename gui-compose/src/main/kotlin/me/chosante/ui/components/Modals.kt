@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
@@ -118,6 +119,7 @@ fun ModalHost(
     onPickPassive: (me.chosante.common.Passive) -> Unit = {},
     passiveClass: me.chosante.common.CharacterClass = me.chosante.common.CharacterClass.CRA,
     onPickBoss: (Monster) -> Unit = {},
+    selectedBoss: Monster? = null,
     selectedCharacteristics: Set<Characteristic> = excludedCharacteristics,
     hideChosen: Boolean = false,
     onHideChosenChange: (Boolean) -> Unit = {},
@@ -208,7 +210,7 @@ fun ModalHost(
                 )
 
             Modal.BossPicker ->
-                BossPickerModal(onPick = onPickBoss)
+                BossPickerModal(selectedBoss = selectedBoss, onPick = onPickBoss)
 
             is Modal.ItemRunePicker ->
                 // Resolve the carrier at render time from the current build; if it's gone (e.g. a new
@@ -400,6 +402,8 @@ private fun <T, K> PickerScaffold(
     rowKey: (T) -> Any = { entryKey(it) as Any },
     selection: PickerSelection<K>? = null,
     onPick: ((T) -> Unit)? = null,
+    selectedKey: K? = null,
+    scrollToKey: K? = null,
     canPick: Boolean = true,
     showMatchCount: Boolean = false,
     listHeight: androidx.compose.ui.unit.Dp = 440.dp,
@@ -412,17 +416,22 @@ private fun <T, K> PickerScaffold(
 ) {
     val choices = selection?.choices.orEmpty().associateBy { it.key }
     val visible = entries.filterNot { selection?.hideChosen == true && entryKey(it) in choices }
+    // rememberLazyListState consumes this index only when the picker opens. Search edits never
+    // jump back to the current value; the list keeps its normal scroll behavior afterward.
+    val initialIndex = if (query.isBlank() && scrollToKey != null) entries.indexOfFirst { entryKey(it) == scrollToKey }.coerceAtLeast(0) else 0
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
     val renderRow: @Composable (T, Modifier) -> Unit = { entry, modifier ->
-        if (selection == null) {
+        if (selection == null && onPick == null) {
             Box(modifier) { row(entry) }
         } else {
             val identity = entryKey(entry)
             val chosen = choices[identity]
-            val removes = identity in selection.toggledKeys
+            val removes = selection?.toggledKeys?.contains(identity) == true
             PickerEntry(
-                selected = chosen != null,
+                selected = chosen != null || identity == selectedKey,
                 enabled = canPick || removes,
                 badge = chosen?.badge,
+                role = if (selection == null) Role.RadioButton else Role.Checkbox,
                 modifier = modifier.testTag("picker-choice-${rowKey(entry)}"),
                 onClick = { if (removes) selection.onRemove(identity) else onPick?.invoke(entry) }
             ) { row(entry) }
@@ -447,6 +456,7 @@ private fun <T, K> PickerScaffold(
         } else {
             val maxListHeight = if (selection == null) listHeight else minOf(listHeight, if (choices.isEmpty()) 340.dp else 260.dp)
             LazyColumn(
+                state = listState,
                 modifier = Modifier.heightIn(max = maxListHeight),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
@@ -468,6 +478,7 @@ private fun PickerEntry(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     badge: String? = null,
+    role: Role = Role.Checkbox,
     content: @Composable () -> Unit,
 ) {
     Row(
@@ -477,7 +488,7 @@ private fun PickerEntry(
                 .clip(RoundedCornerShape(9.dp))
                 .background(if (selected) WColor.accent.copy(alpha = 0.12f) else WColor.raised)
                 .border(1.dp, if (selected) WColor.accent else WColor.border, RoundedCornerShape(9.dp))
-                .selectable(selected = selected, enabled = enabled, role = Role.Checkbox, onClick = onClick)
+                .selectable(selected = selected, enabled = enabled, role = role, onClick = onClick)
                 .alpha(if (enabled) 1f else 0.45f)
                 .padding(4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1167,7 +1178,10 @@ private fun PassiveResultRow(passive: me.chosante.common.Passive) {
 }
 
 @Composable
-private fun BossPickerModal(onPick: (Monster) -> Unit) {
+private fun BossPickerModal(
+    selectedBoss: Monster?,
+    onPick: (Monster) -> Unit,
+) {
     val lang = LocalLang.current
     // Boss mode targets bosses, not every creature in the bestiary: the roster keeps only boss-tier entries (rank ≥ 1, ~225 of
     // the ~2 850 monsters), named and sorted in the language of the app. It is short enough to list in full, so there is no
@@ -1183,15 +1197,21 @@ private fun BossPickerModal(onPick: (Monster) -> Unit) {
         entries = filtered,
         entryKey = { it.id },
         emptyText = tr(Tr.NO_MATCHING_BOSS),
-        row = { entry -> BossResultRow(monster = entry, onClick = { onPick(entry) }) }
+        selectedKey = selectedBoss?.id,
+        scrollToKey = selectedBoss?.id,
+        onPick = onPick,
+        header = {
+            if (selectedBoss != null) {
+                Text(tr(Tr.PICKER_CURRENT_BOSS).format(selectedBoss.displayName(lang)), style = WTypography.labelMedium)
+                Spacer(Modifier.height(WDimens.gap))
+            }
+        },
+        row = { entry -> BossResultRow(monster = entry) }
     )
 }
 
 @Composable
-private fun BossResultRow(
-    monster: Monster,
-    onClick: () -> Unit,
-) {
+private fun BossResultRow(monster: Monster) {
     val lang = LocalLang.current
     Row(
         modifier =
@@ -1200,7 +1220,6 @@ private fun BossResultRow(
                 .clip(RoundedCornerShape(9.dp))
                 .background(WColor.raised)
                 .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-                .clickable(onClick = onClick)
                 .padding(horizontal = 11.dp, vertical = 9.dp),
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(10.dp)

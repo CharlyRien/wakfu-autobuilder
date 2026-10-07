@@ -43,8 +43,8 @@ chaque fiche est autonome (symptôme, cause racine, fichiers, plan, critères d'
 
 > **État au 2026-07-09.** Deux commits (`b146b68e` picker/flow, `c7cac999` cap de tier) ont fusionné **11
 > items** (RUNE-2/3, SUB-1/2, FLOW-1/2/3, PICK-1/2, REF-2, QOL-1) — suite complète verte
-> (common-lib + autobuilder + gui-compose). **Restent ouverts : ENG-3** (seul item moteur, P2) et **REF-1**
-> (partiel — les widgets/tri partagés sont faits, l'unification des 6 modales picker ne l'est pas).
+> (common-lib + autobuilder + gui-compose). **Reste ouvert : ENG-3** (seul item moteur, P2).
+> **REF-1 terminé le 2026-10-07** : scaffold des six pickers et UX révisée (choix cochés, retrait, masquage mémorisé, boss courant).
 
 | ID | Titre | Type | Prio | Effort | Statut | Dépend / Conflits |
 |----|-------|------|------|--------|--------|-------------------|
@@ -61,7 +61,7 @@ chaque fiche est autonome (symptôme, cause racine, fichiers, plan, critères d'
 | **FLOW-3** | Avertir des points d'aptitude non distribués | 🧹 | P2 | S | ✅ `b146b68e` (SKILL_LEFTOVER_WARNING) | — |
 | **PICK-1** | Picker : checkbox « équipables uniquement » (cochée par défaut) | ✨ | P2 | M | ✅ `b146b68e` (EQUIPPABLE_ONLY) | — |
 | **PICK-2** | Nettoyer les forced hors-niveau au changement de niveau (garder excluded) | 🧹 | P2 | S | ✅ `b146b68e` (TOAST_FORCED_ITEMS_REMOVED) | — |
-| **REF-1** | Abstraction partagée des pickers add/suppr | 🏗️ | P1 | M | ✅ scaffold partagé ; UX additive révisée : `feat(gui): pickers show what you already chose, and a click removes it` | repérage du boss courant en cours |
+| **REF-1** | Abstraction partagée des pickers add/suppr | 🏗️ | P1 | M | ✅ scaffold partagé ; UX additive révisée : `feat(gui): pickers show what you already chose, and a click removes it` + `feat(gui): the boss picker highlights and scrolls to the current boss` | — |
 | **REF-2** | Tri alphabétique localisé de TOUTES les modales catalogue | 🏗️ | P2 | M | ✅ `b146b68e` (LocalizedSort.kt, 6 modales + TopBar) | — |
 | **QOL-1** | Tooltip sur libellés de stats cibles tronqués | 🧹 | P3 | S | ✅ `b146b68e` (TooltipArea sur le libellé cible) | — |
 | **QOL-2** | Durée vide → 10 minutes | 🧹 | P2 | S | ✅ mergé (#182) | — |
@@ -559,17 +559,18 @@ re-remplir les branches déjà optimales.
 **UX révisée (2026-10-07).** `feat(gui): pickers show what you already chose, and a click removes it` :
 choix cochés et conservés dans les listes, retrait par clic ou pastille, option commune « Masquer les choix »
 mémorisée entre lancements, badges imposé/exclu et changement de liste, limite des passifs visible.
-Le masquage du boss a été annulé par `02feed40` ; le repérage/défilement du choix courant suit dans un commit séparé.
+Le masquage du boss a été annulé par `02feed40`. `feat(gui): the boss picker highlights and scrolls to the current boss`
+affiche son choix courant et le défilement initial par ID, en gardant le boss sélectionnable. Les runes restent inchangées.
 [Rapport et traductions](picker-unification-report.md).
 
-**Statut : 🔲 TODO** · **Décision dev : « corriger un bug quelque part le corrige pour tout le monde — partageons
+**Statut : ✅ DONE (2026-10-07)** · **Décision dev : « corriger un bug quelque part le corrige pour tout le monde — partageons
 et abstrayons la logique. »**
 
 **Origine.** Bug #3 (testeur) : « Quand j'exclus un objet, il s'enlève pas de la liste des objets ! J'appuie sur
 le même depuis 2 min. » + QoL : « taper directement dans la boîte sans cliquer d'abord » + « sélectionner
 plusieurs items sans que la fenêtre se ferme ».
 
-**Confirmé.** Les pickers ne partagent pas leur logique : `ItemPickerModal` ignore `excludedItems`/`forcedItems`
+**Constat historique (juin 2026, remplacé par l’UX ci-dessus).** Les pickers ne partagent pas leur logique : `ItemPickerModal` ignore `excludedItems`/`forcedItems`
 (les items déjà épinglés restent listés et re-cliquables → no-op qui referme la modale). À l'inverse,
 `AddStatModal` fait déjà bien (`def.characteristic !in excluded`). Le `SearchField` n'auto-focus pas.
 `pickItem()` met toujours `modal = null` (pas de multi-sélection).
