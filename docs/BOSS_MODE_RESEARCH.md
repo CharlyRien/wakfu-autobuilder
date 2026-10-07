@@ -7,7 +7,7 @@ Status: **research / design only** (no implementation). Author pass: 2026-06-14.
 > ⚠️ **Superseded data pipeline (2026-06-19).** The `monsters-extractor` module and the MethodWakfu/Fandom
 > scrape described below have been **removed**. `monsters.json` (fixed name, no `-v<version>` suffix) is now
 > produced by the **`bdata-extractor`**, decoded from the local game client's Monster table (42) + i18n names,
-> with boss-tier `rank` and icon `gfx` carried by the committed `monster-overlay.json`. The design/scoring
+> with boss-tier `rank` carried by the committed `monster-overlay.json` and `gfx` decoded from Monster. The design/scoring
 > narrative below still holds; only the data *source* changed. See `AGENTS.md` §5 and `CONTRIBUTING.md`.
 
 > **Vision.** Pick a boss → get the best **max-damage** build for the player's class against it.
@@ -22,7 +22,7 @@ Status: **research / design only** (no implementation). Author pass: 2026-06-14.
 
 Boss mode is **implemented** on top of the max-damage engine, following the phased plan below:
 
-- **Data pipeline (`monsters-extractor`).** Crawls the MethodWakfu Reborn bestiary **REST API**
+- **Historical data pipeline (removed `monsters-extractor`).** Crawled the MethodWakfu Reborn bestiary **REST API**
   (`/api/bestiary` — plain JSON, cleaner than the `_payload.json` devalue route), cross-references the
   Fandom `MonsterCard` template for provenance, and writes `autobuilder/.../monsters.json`.
   **715 monsters (226 bosses)** ingested. Of the 111 bosses MethodWakfu cannot serve (HTTP 500
