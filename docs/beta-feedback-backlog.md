@@ -61,7 +61,7 @@ chaque fiche est autonome (symptôme, cause racine, fichiers, plan, critères d'
 | **FLOW-3** | Avertir des points d'aptitude non distribués | 🧹 | P2 | S | ✅ `b146b68e` (SKILL_LEFTOVER_WARNING) | — |
 | **PICK-1** | Picker : checkbox « équipables uniquement » (cochée par défaut) | ✨ | P2 | M | ✅ `b146b68e` (EQUIPPABLE_ONLY) | — |
 | **PICK-2** | Nettoyer les forced hors-niveau au changement de niveau (garder excluded) | 🧹 | P2 | S | ✅ `b146b68e` (TOAST_FORCED_ITEMS_REMOVED) | — |
-| **REF-1** | Abstraction partagée des pickers add/suppr (corrige #3 partout) | 🏗️ | P1 | M | ⚠️ **PARTIEL** — widgets partagés (PickerToggle/DoneButton/RuneDoubleBadge) + tri REF-2, mais les 6 `*PickerModal` restent séparés | base de RUNE-2/SUB-1 |
+| **REF-1** | Abstraction partagée des pickers add/suppr | 🏗️ | P1 | M | ✅ scaffold partagé ; UX additive révisée : `feat(gui): pickers show what you already chose, and a click removes it` | repérage du boss courant en cours |
 | **REF-2** | Tri alphabétique localisé de TOUTES les modales catalogue | 🏗️ | P2 | M | ✅ `b146b68e` (LocalizedSort.kt, 6 modales + TopBar) | — |
 | **QOL-1** | Tooltip sur libellés de stats cibles tronqués | 🧹 | P3 | S | ✅ `b146b68e` (TooltipArea sur le libellé cible) | — |
 | **QOL-2** | Durée vide → 10 minutes | 🧹 | P2 | S | ✅ mergé (#182) | — |
@@ -556,6 +556,12 @@ re-remplir les branches déjà optimales.
 # E. Refactors transverses (pickers / modales)
 
 ## REF-1 — Abstraction partagée des pickers add/suppression  🏗️ P1 · Effort M
+**UX révisée (2026-10-07).** `feat(gui): pickers show what you already chose, and a click removes it` :
+choix cochés et conservés dans les listes, retrait par clic ou pastille, option commune « Masquer les choix »
+mémorisée entre lancements, badges imposé/exclu et changement de liste, limite des passifs visible.
+Le masquage du boss a été annulé par `02feed40` ; le repérage/défilement du choix courant suit dans un commit séparé.
+[Rapport et traductions](picker-unification-report.md).
+
 **Statut : 🔲 TODO** · **Décision dev : « corriger un bug quelque part le corrige pour tout le monde — partageons
 et abstrayons la logique. »**
 

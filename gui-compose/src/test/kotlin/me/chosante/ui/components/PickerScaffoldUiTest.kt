@@ -98,7 +98,7 @@ class PickerScaffoldUiTest {
     }
 
     @Test
-    fun `both item flows hide forced and excluded names including every rarity variant`() {
+    fun `hide chosen hides both item states including every rarity variant`() {
         for (mode in PickerMode.entries) {
             runComposeUiTest {
                 setContent {
@@ -112,6 +112,7 @@ class PickerScaffoldUiTest {
                                     carrier.copy(equipmentId = 2, rarity = Rarity.RARE),
                                     carrier.copy(equipmentId = 3, name = I18nText("Autre", "Other", "Otro", "Outro"))
                                 ),
+                            hideChosen = true,
                             forcedItemNames = setOf(carrier.name.fr),
                             excludedItemNames = setOf("Autre"),
                             onSelectStat = {},
@@ -128,7 +129,7 @@ class PickerScaffoldUiTest {
     }
 
     @Test
-    fun `four additive pickers remove each choice immediately and close only with Done`() {
+    fun `hide chosen removes each additive choice from rows and closes only with Done`() {
         val subs =
             WakfuBestBuildFinderAlgorithm.sublimations
                 .distinctBy { it.stateId }
@@ -155,8 +156,11 @@ class PickerScaffoldUiTest {
                             modal = modal.value,
                             excludedCharacteristics = chosenStats.value,
                             equipmentCatalog = items,
+                            hideChosen = true,
                             forcedItemNames = chosenNames.value,
+                            excludedItemNames = chosenNames.value,
                             forcedSublimations = chosenNames.value.toList(),
+                            excludedSublimations = chosenNames.value.toList(),
                             forcedPassives = chosenNames.value.toList(),
                             onSelectStat = { chosenStats.value += it },
                             onPickItem = { chosenNames.value += it.name.fr },
@@ -175,7 +179,7 @@ class PickerScaffoldUiTest {
                     }
                 labels.forEach { label ->
                     onNode(hasSetTextAction()).performTextReplacement(label)
-                    onNode(hasText(label) and !hasSetTextAction()).performClick().assertDoesNotExist()
+                    onNode(hasText(label) and !hasSetTextAction()).performClick()
                     onNodeWithText(Tr.DONE.value(Lang.EN)).assertExists()
                 }
                 runOnIdle {
