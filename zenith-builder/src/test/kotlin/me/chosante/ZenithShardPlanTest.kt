@@ -59,6 +59,13 @@ class ZenithShardPlanTest {
             gfxId = id
         )
 
+    @Test
+    fun `official rune resources are available on the standalone Zenith classpath`() {
+        val rune = rune(10).copy(characteristic = Characteristic.MASTERY_DISTANCE, doubleBonusPosition = listOf(0))
+        assertThat(rune.valueOn(ItemType.BELT, 216)).isEqualTo(33)
+        assertThat(rune.valueOn(ItemType.HELMET, 216)).isEqualTo(66)
+    }
+
     /**
      * The stacking export contract: a cumulable sub socketed on TWO carriers yields one `/shard/add` per
      * carrier — same `id_shard`, different `side`. Nothing dedupes by shard id, which is what lets Zenith

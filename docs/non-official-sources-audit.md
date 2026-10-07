@@ -32,11 +32,11 @@ Status: 🟢 Actionable (a concrete official source exists) · 🟡 Keep / docum
 | `stale-comments` | Stale provenance comments (wakassets/WakForge/MethodWakfu/Fandom) | ✅ Done — `docs: monster provenance comments name the official sources` | minor | easy |
 | `itemtypes-112` | itemType 112 icon — committed fallback (absent from gui.jar) | 🟢 Actionable | minor | medium |
 | `monster-rank-overlay` | monster-overlay.json — hand-curated boss roster and rank | 🟡 Keep / investigated 2026-10-07 | notable | partial source; roster unresolved |
-| `rune-slot-raw-ids` | Rune slot raw-id map — hardcoded (WakForge ITEM_SLOT_DATA) | 🟢 Actionable | minor | medium |
+| `rune-slot-raw-ids` | Rune slot raw-id map — official client + CDN | ✅ Done — exact reproduction | minor | medium |
 | `spells-damage-anchor` | spell damage values — encyclopedia max-level anchor | 🟢 Actionable | minor | medium |
 | `spells-metadata-scrape` | spells.json metadata (name/element/AP/range/icon) — encyclopedia scrape | 🟢 Actionable | notable | medium |
 | `rarity-badges` | Rarity badge icons — hand-made static | 🟡 Keep / documented exception | minor | hard |
-| `rune-value-tables` | Rune per-level value tables — transcribed from WakForge useConstants.js | 🟡 Keep / documented exception | notable | hard |
+| `rune-value-tables` | Rune per-level values — official shard formulas + client level bands | ✅ Done — 330/330 values match | notable | solved |
 | `sublimation-action-overlay` | Sublimation action overlay — hand-authored | 🟡 Keep / documented exception | minor | hard |
 | `branding` | App branding/logo artwork — original (not game data) | ℹ️ Not a game-data source | minor | blocked |
 | `zenith-output` | zenith-builder equipment GET — third-party OUTPUT | ℹ️ Not a game-data source | minor | blocked |
@@ -420,7 +420,28 @@ Dungeon position 13's monster-id vector has **512 distinct ids**, including **13
 
 ### `rune-value-tables` — Rune per-level value tables — transcribed from WakForge useConstants.js
 
-- **Status:** 🟡 Keep / documented exception
+- **Status:** ✅ Done — official CDN + client, exact reproduction
+- **2026-10-07 investigation (client/CDN 1.93.1.62):** All 330 reachable cells match exactly: 15 modeled runes
+  × 11 levels × normal/doubled, zero differences. All 17 CDN shard items share the threshold and XP-cost
+  curve; the two action-400 retired runes are outside the 15-stat engine domain. The audit's old claim that
+  the displayed transform is unavailable is wrong: CDN equip effects have the formulas, and StaticEffect (68)
+  supplies their `container_min_level` / `container_max_level`. The table type is found via its enum,
+  schema via protected bytecode fields, every one of 178,337 records passes size/id guards, and every rune's
+  effect ids, actions and complete params agree with the CDN.
+  - Elemental: levels 1–5 `floor(level)`, 6–9 `floor(-11 + 3*level)`, 10–11 `floor(2*level)`.
+  - Secondary masteries: 1–5 `floor(1.5*level)`, 6–9 `floor(-16.5 + 4.5*level)`, 10–11 `floor(3*level)`.
+  - Dodge/lock, initiative, HP: respectively 3, 2, 4 times the elemental formula before flooring.
+  - Resistance: levels 1–11 `floor(2.5*level)`; no irregular curve transform. The level-0 constant effect
+    ([2,0] for resistance) is NOT active at levels 1–11. At 11, normal=27, doubled=54.
+  - Doubling: the client shard-tooltip model (public keys `shardBonusText`, `shardDoubleBonusText`,
+    `shardLevelText`) calls a renderer whose numeric-argument transformer executes
+    `doubleValue()` → `Math.floor` → literal 2.0 → `DMUL`. Thus level-1 secondary mastery is 1/2,
+    resistance is 2/4, rather than rounding after multiplying. This structural call chain is guarded
+    during extraction and the install-gated reproduction test. `shardLevelingCurve` is used by the
+    shard-level/XP conversion and has no role in these values.
+  Generated `rune-values.json` ships in common-lib itself (including Zenith's standalone classpath).
+  All six historical tables now read that official artifact; oracle and exhaustive historical-value tests
+  fail on drift. No data value or engine/certifier version changed. No BDATA_FORCE_WRITE was used.
 - **Category:** hardcoded-table · **Classification:** non-official-wakforge · **Severity:** notable · **Feasibility:** hard · **Effort:** medium — roughly 1-2 days. Steps 1-2 (wire shardLevelRequirement + shardLevelingCurve through the existing CDN DTO) are a few hours; the reverse-engineering of the displayed-value transform + rounding (steps 3-4) is the real cost and is uncertain. Bounded because the multiplier structure is already largely solved (hp/init/dodge are exact multiples) and the anchor technique is established in this repo.
 - **What it is:** The flat per-enchantment-level stat values for every rune family (elemental mastery, secondary mastery, resistance, dodge/lock, initiative, HP). These are the actual numeric stat amounts a socketed rune contributes at each level 1..11, used by RuneType.valueOn() to feed both the solver objective and the Zenith export.
 - **Why not fully official:** The class KDoc states outright: 'The per-level value tables are transcribed verbatim from WakForge's useConstants.js ... because Ankama's transform from the raw shardLevelingCurve to the displayed stat is undocumented and irregular.' These numbers come from the third-party WakForge project, not from the CDN or the decoded client. The raw shardLevelingCurve IS in the CDN items.json, but the irregular Ankama transform to displayed stat is not reproduced first-party, so the displayed-value table was copied from WakForge.

@@ -29,13 +29,12 @@ enum class RuneColor(
  * Values follow the **best-achievable / BiS** model (see docs/ENCHANTMENTS_PLAN.md and the
  * `autobuilder-optimistic-modeling` decision): the rune is always at the **max level the carrier
  * item's level allows** (see [maxLevel]), and it **doubles** on its favoured equipment slots
- * ([doubleBonusPosition]) exactly as
- * WakForge models it — which is also the optimum a committed player can actually reach (socket colours
+ * ([doubleBonusPosition]) as the official client computes it — the optimum a committed player can reach (socket colours
  * are re-rollable, but a rune can only double on the slots whose native colour matches it).
  *
- * The per-level value tables are transcribed verbatim from WakForge's `useConstants.js`
- * (docs/ENCHANTMENTS_PLAN.md §6), because Ankama's transform from the raw `shardLevelingCurve` to the
- * displayed stat is undocumented and irregular.
+ * Per-level values come from CDN shard equip-effect formulas and the client StaticEffect level bands,
+ * generated into [RuneValues]. The client floors each normal value before doubling; the extractor guards
+ * that bytecode shape. `shardLevelingCurve` describes XP costs, not displayed stats.
  */
 @Serializable
 data class RuneType(
@@ -70,35 +69,14 @@ data class RuneType(
 
     fun isDoubledOn(itemType: ItemType): Boolean = slotRawIds(itemType).any { it in doubleBonusPosition }
 
-    private fun baseValueTable(): List<Int> =
-        when (characteristic) {
-            Characteristic.MASTERY_ELEMENTARY -> RUNE_ELEMENTAL_MASTERY_LEVEL_VALUES
-            Characteristic.MASTERY_MELEE,
-            Characteristic.MASTERY_DISTANCE,
-            Characteristic.MASTERY_BERSERK,
-            Characteristic.MASTERY_CRITICAL,
-            Characteristic.MASTERY_BACK,
-            Characteristic.MASTERY_HEALING,
-            -> RUNE_MASTERY_LEVEL_VALUES
-
-            Characteristic.RESISTANCE_ELEMENTARY_FIRE,
-            Characteristic.RESISTANCE_ELEMENTARY_WATER,
-            Characteristic.RESISTANCE_ELEMENTARY_EARTH,
-            Characteristic.RESISTANCE_ELEMENTARY_WIND,
-            -> RUNE_RESISTANCE_LEVEL_VALUES
-
-            Characteristic.LOCK, Characteristic.DODGE -> RUNE_DODGE_LOCK_LEVEL_VALUES
-            Characteristic.INITIATIVE -> RUNE_INITIATIVE_LEVEL_VALUES
-            Characteristic.HP -> RUNE_HEALTH_LEVEL_VALUES
-            else -> error("No rune value table for characteristic $characteristic (rune $id)")
-        }
+    private fun baseValueTable(): List<Int> = RuneValues.embedded.byCharacteristic[characteristic] ?: error("No rune value table for characteristic $characteristic (rune $id)")
 
     companion object {
         // Minimum *item* level for an enchantment of level 1..11. The game data carries the same list
         // (CDN items.json shardsParameters.shardLevelRequirement, decoded into runes.json `levelRequirements`):
         // [RuneCatalogData.embedded] checks the two match on load, so a data drift fails loudly instead of silently
         // changing caps. Kept as a constant here so common-lib's consumers (zenith-builder) never need autobuilder's
-        // resources. The cap follows the item's level, not the character's; the value tables below remain transcribed.
+        // resources. The cap follows the item's level, not the character's.
         val RUNE_LEVEL_REQUIREMENTS = listOf(0, 36, 51, 66, 81, 96, 126, 141, 171, 186, 216)
 
         /**
@@ -127,15 +105,13 @@ data class RuneType(
                 Characteristic.HP
             )
 
-        // Per-rune-level value tables (index by level-1). WakForge's resistance table carries a 12th
-        // entry (30) that its own `[level-1]` indexing never reaches (max level 11 -> 27); we keep the
-        // 11 reachable values so doubled max resistance is 27*2 = 54, matching the game.
-        val RUNE_MASTERY_LEVEL_VALUES = listOf(1, 3, 4, 6, 7, 10, 15, 19, 24, 30, 33)
-        val RUNE_ELEMENTAL_MASTERY_LEVEL_VALUES = listOf(1, 2, 3, 4, 5, 7, 10, 13, 16, 20, 22)
-        val RUNE_RESISTANCE_LEVEL_VALUES = listOf(2, 5, 7, 10, 12, 15, 17, 20, 22, 25, 27)
-        val RUNE_DODGE_LOCK_LEVEL_VALUES = listOf(3, 6, 9, 12, 15, 21, 30, 39, 48, 60, 66)
-        val RUNE_INITIATIVE_LEVEL_VALUES = listOf(2, 4, 6, 8, 10, 14, 20, 26, 32, 40, 44)
-        val RUNE_HEALTH_LEVEL_VALUES = listOf(4, 8, 12, 16, 20, 28, 40, 52, 64, 80, 88)
+        // Compatibility accessors for consumers of the former tables; every value now comes from the official artifact.
+        val RUNE_MASTERY_LEVEL_VALUES get() = RuneValues.embedded.byCharacteristic.getValue(Characteristic.MASTERY_MELEE)
+        val RUNE_ELEMENTAL_MASTERY_LEVEL_VALUES get() = RuneValues.embedded.byCharacteristic.getValue(Characteristic.MASTERY_ELEMENTARY)
+        val RUNE_RESISTANCE_LEVEL_VALUES get() = RuneValues.embedded.byCharacteristic.getValue(Characteristic.RESISTANCE_ELEMENTARY_FIRE)
+        val RUNE_DODGE_LOCK_LEVEL_VALUES get() = RuneValues.embedded.byCharacteristic.getValue(Characteristic.DODGE)
+        val RUNE_INITIATIVE_LEVEL_VALUES get() = RuneValues.embedded.byCharacteristic.getValue(Characteristic.INITIATIVE)
+        val RUNE_HEALTH_LEVEL_VALUES get() = RuneValues.embedded.byCharacteristic.getValue(Characteristic.HP)
 
         /**
          * Client raw position ids, joined to CDN occupied positions in [EquipmentPositions].
