@@ -65,7 +65,7 @@ object Tables {
             Field("range_min_base", F32),
             Field("range_min_level_increment", F32),
             Field("max_effect_cap", I16),
-            Field("element", I16),
+            Field("spell_branch", I16),
             Field("xp_gain_percentage", I16),
             Field("spell_type", I16),
             Field("ui_position", I16),
