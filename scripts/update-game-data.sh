@@ -40,7 +40,8 @@ echo "==> [3/5] Spells (encyclopedia)…"
 ./gradlew --console=plain :spells-extractor:run
 
 echo "==> [4/5] bdata artifacts + sublimations + monsters (local game binaries at: $WAKFU_INSTALL)…"
-# bdata reads the freshly-written spells.json (for passive/cast-limit names), so it MUST run after step 3.
+# bdata reads freshly-written spells.json for the damage anchor, so it MUST run after step 3.
+# Spell/passive names and descriptions come from client i18n namespaces 3/4 in all four languages.
 # It decodes cast-limits + passives + the Monster table (42) + the State/StaticEffect tables, and fetches the
 # CDN items.json + actions.json for sublimation metadata + action semantics. It produces spell-cast-limits.json,
 # spell-passives.json, spell-damage.json (per-level damage formula anchored on the encyclopedia spells.json,

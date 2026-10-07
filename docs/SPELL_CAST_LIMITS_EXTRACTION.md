@@ -1,5 +1,7 @@
 # Spell Cast-Limit Extraction — Handoff
 
+> **Current text source:** `name` is nullable `I18nText` from client namespace 3 (FR/EN/ES/PT), keyed by spell id. Cast-limit numbers still come from Spell table 66.
+
 > **✅ Shipped.** The extraction is implemented (`bdata-extractor`) and its output is baked + joined in `SpellCatalog`. Resource files now use FIXED names (PR #167). Kept as the extraction howto.
 
 ## 1. TL;DR / recommended path
@@ -220,7 +222,7 @@ FALLBACKS (in order)
 
 OUTPUT CONTRACT
 Array (or id-keyed map) of:
-  { "spellId": int, "name": string|null, "breedId": int|null,
+  { "spellId": int, "name": I18nText|null, "breedId": int|null,
     "maxCastPerTurn": int|null, "maxCastPerTurnIncr": number|null,
     "maxCastPerTarget": int|null, "cooldown": int|null }
 Rules: NEVER invent a value. Use null for anything unconfirmed or not yet oracle-validated. Do NOT
@@ -262,14 +264,14 @@ cargo run --release --bin main -- /Applications/Ankama/Wakfu   # -> Spell.json (
 ```
 The decode ran clean (no panic) over all 4079 records — the positional `String` fields
 (`cast_criterion`, `learn_criteria`) parse as valid UTF-8, which a layout drift would have broken.
-Then post-process: filter `breed_id` to the 18 player-class ids, key by `id`, French names joined
-from `spells.json`, emit the §6 contract.
+Then post-process: filter `breed_id` to the 18 player-class ids, key by `id`, four-language names joined
+from the client i18n namespace 3, emit the §6 contract.
 
 ### Field mapping (binary → output)
 `cast_max_per_turn` (f32) → `maxCastPerTurn`; `cast_max_per_turn_incr` (f32) → `maxCastPerTurnIncr`;
 `cast_max_per_target` (i16) → `maxCastPerTarget`; `cast_min_interval` (i16) → `cooldown`;
 `pw_base` (f32) → `wpCost` (the WP base cost; `pa`/`pm`/`pw` = AP/MP/WP, so it sits right after `pa_base`);
-`breed_id` (i16) → `breedId`; `id` → `spellId`. `name` = French name from the scraped catalog.
+`breed_id` (i16) → `breedId`; `id` → `spellId`. `name` = localized name from client i18n namespace 3.
 
 ### Convention (decided & applied)
 Values are the **raw decoded integers, verbatim** (per-turn floats are all exact integers; `…Incr`
@@ -279,7 +281,7 @@ is `0` for every spell in this data version). **`0` means "no limit" / "no coold
 We preserve `0` (rather than coercing to `null`) so "confirmed unlimited" stays distinct from
 "unknown"; every spell in the file has a real binary record, so there are **no `null` cast fields**.
 A future consumer that wants "no cap" = `null` maps `0 → null` trivially. `name` is `null` only for
-the few binary spells with no matching encyclopedia entry (sub-spells).
+binary spells with no namespace-3 name entry in the client.
 
 ### breed_id → class (derived from the id-join against the encyclopedia, authoritative)
 `1` Feca · `2` Osamodas · `3` Enutrof · `4` Sram · `5` Xelor · `6` Ecaflip · `7` Eniripsa ·

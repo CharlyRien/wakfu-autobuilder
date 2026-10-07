@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * Per-spell cast limits decoded from the local game client by the `bdata-extractor` module and baked
- * into `autobuilder/src/main/resources/spell-cast-limits-v<VERSION>.json` (see
+ * into `autobuilder/src/main/resources/spell-cast-limits.json` (see
  * `docs/SPELL_CAST_LIMITS_EXTRACTION.md`). Joined onto [Spell] by [spellId] at catalog load
  * (`SpellCatalog`) so the spell-rotation optimizer can bound how often a spell is cast per turn.
  *
@@ -20,7 +20,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class SpellCastLimit(
     val spellId: Int,
-    val name: String? = null,
+    /** Four-language name from client i18n namespace 3; not used to compute cast limits. */
+    val name: I18nText? = null,
     val breedId: Int? = null,
     val maxCastPerTurn: Int? = null,
     val maxCastPerTurnIncr: Int? = null,

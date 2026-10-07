@@ -21,14 +21,6 @@ class ExtractTest {
     }
 
     @Test
-    fun `unescapeHtml resolves the named entities present in the catalogue`() {
-        assertEquals("Immunité", unescapeHtml("Immunit&eacute;"))
-        assertEquals("Éclair", unescapeHtml("&Eacute;clair"))
-        assertEquals("Présage", unescapeHtml("Pr&eacute;sage"))
-        assertEquals("Flèche ardente", unescapeHtml("Flèche ardente")) // already-unescaped passes through
-    }
-
-    @Test
     fun `ActionCatalog parses charac tokens, sign, damage and random-element actions`() {
         val json =
             """
@@ -61,12 +53,5 @@ class ExtractTest {
         // 330 is a structural REG action with no [#charac] token -> not a stat/damage kind
         assertEquals(null, catalog.kind(330))
         assertEquals(setOf(80, 90, 41, 56, 1, 24, 39, 40, 1068, 1069, 330), catalog.allActionIds)
-    }
-
-    @Test
-    fun `unescapeHtml decodes numeric entities too`() {
-        assertEquals("é", unescapeHtml("&#233;"))
-        assertEquals("ê", unescapeHtml("&#xEA;"))
-        assertEquals("Œuf", unescapeHtml("&OElig;uf")) // named entity still works alongside numeric
     }
 }
