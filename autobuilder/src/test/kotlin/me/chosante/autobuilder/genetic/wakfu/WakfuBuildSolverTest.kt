@@ -8808,6 +8808,8 @@ class WakfuBuildSolverTest {
         assertThat(fp(base.copy(maxDamageMpPin = 7))).describedAs("MP pin is normalized away").isEqualTo(baseline)
         assertThat(fp(base.copy(solverWorkers = 3))).describedAs("worker count is normalized away").isEqualTo(baseline)
 
+        assertThat(fp(base.copy(computeBudget = ComputeBudget(1)))).describedAs("CPU budget is normalized away").isEqualTo(baseline)
+
         // Every ledger-affecting field must change it.
         assertThat(fp(base.copy(character = base.character.copy(level = base.character.level + 5)))).describedAs("level").isNotEqualTo(baseline)
         assertThat(fp(base.copy(character = base.character.copy(minLevel = base.character.minLevel + 1)))).describedAs("minLevel").isNotEqualTo(baseline)
@@ -8883,7 +8885,8 @@ class WakfuBuildSolverTest {
                 "damageScenario",
                 "maxDamageApTarget",
                 "maxDamageMpPin",
-                "solverWorkers"
+                "solverWorkers",
+                "computeBudget"
             )
         assertThat(instanceFieldNames(DamageScenario::class.java))
             .describedAs("a new DamageScenario field must be added to fingerprintOf")
