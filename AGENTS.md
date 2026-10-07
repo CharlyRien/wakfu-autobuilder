@@ -438,9 +438,11 @@ as **fixed-name** JSON files (no version in the filename):
    `icons`, mapped to `miscellaneous/characteristics` by the `Characteristic` each represents) from the **local
    game client's** `contents/gui_jar/gui.jar` — TGAs keyed by the same ids as our data, converted to PNG under
    `gui-compose/src/main/resources/assets/<set>/<id>.png`. (The community `Vertylo/wakassets` repo was just a
-   PNG mirror of these.) Two sets stay committed-static because the client has no clean equivalent: monster
-   boss **portraits** (the client only keys monsters by gfx as 132×41 banners — the 200×200 are sprite renders)
-   and the 8 **rarity** badges (gui.jar has a filled icon only for epic/relic; the rest are border frames).
+   PNG mirror of these.) Monster boss **portraits** are refreshed separately by the network-only
+   `bdata-extractor --monster-portraits-only` from Ankama's `static.ankama.com/wakfu/portal/game/monster/200/<gfx>.png`
+   for every rank ≥ 1 boss; 403/404 means no portrait. It removes non-boss and unavailable PNGs, and is wired
+   into `update-game-data.sh`. The client only has narrow banners. The 8 **rarity** badges also stay committed-static
+   (gui.jar has a filled icon only for epic/relic; the rest are border frames).
 5. `bdata-extractor` decodes the **local game client's** scrambled static-data tables — `Spell` (66),
    `StaticEffect` (68), `State` (67), `Monster` (42) inside `contents/bdata/<id>.jar`, plus the
    `contents/i18n/i18n_<lang>.jar` name bundles — and writes `spell-cast-limits.json`,

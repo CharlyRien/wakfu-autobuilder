@@ -233,8 +233,9 @@ tasks.register("generateAssets") {
           - itemTypes/ equipment-slot icons re-sourced by their numeric ids (miscellaneous/itemTypes)
           - runes/     the 3 socket-colour shards (theme/images/shard{Red,Green,Blue}Full)
           - icons/     the 36 HUD stat icons mapped to miscellaneous/characteristics (by Characteristic)
-        NOT extracted here (stay committed-static): monster portraits (200x200 renders; the client only keys
-        monsters by gfx as 132x41 banners) and the 8 rarity gems in assets/rarities/. The gems ARE grounded on
+        Monster portraits are refreshed separately by bdata-extractor --monster-portraits-only from Ankama's
+        static.ankama.com portal (200x200 PNGs keyed by gfx); gui.jar only has 132x41 monster banners.
+        The 8 rarity gems in assets/rarities/ are also committed-static. The gems ARE grounded on
         official client art, but via a separate maintainer script (scripts/generate-rarity-gems.py): gui.jar
         only ships a faceted gem for epic + relic (theme/images/pictos/Rarity{Epic,Relic}.tga), so epic/relic
         are copied verbatim and the other six are derived by recolouring the official epic gem to each rarity's
@@ -394,9 +395,9 @@ tasks.register("generateAssets") {
                     "res_back" to "RES_BACKSTAB"
                 ).mapValues { "miscellaneous/characteristics/${it.value}" }
             )
-            // Monster portraits are NOT extracted: the boss picker shows only bosses (all 220 already have a
-            // committed 200x200 portrait), and the client only keys monsters by gfx as 132x41 in-game banners,
-            // not portraits — so there is nothing better to pull. The committed boss portraits stay as-is.
+            // Boss portraits are fetched separately by bdata-extractor --monster-portraits-only from
+            // static.ankama.com/wakfu/portal/game/monster/200/<gfx>.png (official 200x200 art).
+            // gui.jar has only narrow monster banners; HTTP 403/404 on the portal leaves an empty tile.
 
             // Class ("breed") artwork, keyed by CharacterClass.breedId. In gui.jar: breeds/icons/<id>,
             // breeds/illustrations/<id*10> (male; +1 is female), breeds/backgrounds/<id>. Re-keyed to the plain

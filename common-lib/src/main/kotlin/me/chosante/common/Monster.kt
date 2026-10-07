@@ -23,8 +23,8 @@ import kotlinx.serialization.Serializable
  *   table, so it is carried by the committed `monster-overlay.json` overlay; monsters with no entry
  *   default to 0 (regular, hidden from the picker).
  * @property gfx Ankama sprite/graphics id, used by the GUI to resolve the monster's icon PNG
- *   (`assets/monsters/<gfx>.png`, sourced from the community `Vertylo/wakassets` set — the same repo as
- *   item icons). Decoded straight from the Monster record (the bdata schema is auto-derived from the client
+ *   (`assets/monsters/<gfx>.png`, fetched from Ankama’s portal static host at
+ *   `https://static.ankama.com/wakfu/portal/game/monster/200/<gfx>.png`). Decoded straight from the Monster record (the bdata schema is auto-derived from the client
  *   bytecode, so the trailing GFX block is reached even across version drift). Nullable on purpose:
  *   `<= 0` (no sprite) becomes null and consumers degrade to no icon rather than crash.
  * @property source Data provenance, e.g. `"bdata"` (decoded from the local client), for traceability.
