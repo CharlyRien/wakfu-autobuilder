@@ -168,12 +168,22 @@ fun AppShell(
                 forcedSublimations = ui.forcedSublimations,
                 excludedSublimations = ui.excludedSublimations,
                 forcedPassives = ui.forcedPassives,
+                selectedCharacteristics = ui.targets.map { it.characteristic }.toSet(),
+                hideChosen = ui.pickerHideChosen,
+                onHideChosenChange = model::setPickerHideChosen,
+                onRemoveStat = { stat -> ui.targets.firstOrNull { it.characteristic == stat }?.let { model.removeTarget(it.id) } },
+                onRemoveForcedItem = { name -> ui.forcedItems.firstOrNull { it.matchName == name }?.let(model::removeForcedItem) },
+                onRemoveExcludedItem = { name -> ui.excludedItems.firstOrNull { it.matchName == name }?.let(model::removeExcludedItem) },
+                onRemoveForcedSublimation = model::removeForcedSublimation,
+                onRemoveExcludedSublimation = model::removeExcludedSublimation,
+                onRemovePassive = model::removeForcedPassive,
                 onSelectStat = model::addTarget,
                 onPickItem = model::pickItem,
                 onPickSublimation = model::pickSublimation,
                 onPickPassive = model::pickPassive,
                 passiveClass = ui.clazz,
                 onPickBoss = model::pickBoss,
+                selectedBoss = ui.selectedBoss,
                 // The per-item rune picker resolves its carrier from the current build by French name.
                 runePickerCarrier =
                     (ui.modal as? Modal.ItemRunePicker)?.let { m ->

@@ -9,6 +9,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,7 +22,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
@@ -51,6 +56,10 @@ import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
@@ -110,6 +119,16 @@ fun ModalHost(
     onPickPassive: (me.chosante.common.Passive) -> Unit = {},
     passiveClass: me.chosante.common.CharacterClass = me.chosante.common.CharacterClass.CRA,
     onPickBoss: (Monster) -> Unit = {},
+    selectedBoss: Monster? = null,
+    selectedCharacteristics: Set<Characteristic> = excludedCharacteristics,
+    hideChosen: Boolean = false,
+    onHideChosenChange: (Boolean) -> Unit = {},
+    onRemoveStat: (Characteristic) -> Unit = {},
+    onRemoveForcedItem: (String) -> Unit = {},
+    onRemoveExcludedItem: (String) -> Unit = {},
+    onRemoveForcedSublimation: (String) -> Unit = {},
+    onRemoveExcludedSublimation: (String) -> Unit = {},
+    onRemovePassive: (String) -> Unit = {},
     runePickerCarrier: Equipment? = null,
     runeOptions: List<RuneType> = emptyList(),
     initialPinnedRunes: List<Int> = emptyList(),
@@ -140,7 +159,11 @@ fun ModalHost(
         when (modal) {
             Modal.AddStat ->
                 AddStatModal(
-                    excluded = excludedCharacteristics,
+                    excluded = excludedCharacteristics - selectedCharacteristics,
+                    selected = selectedCharacteristics,
+                    hideChosen = hideChosen,
+                    onHideChosenChange = onHideChosenChange,
+                    onRemove = onRemoveStat,
                     onSelect = onSelectStat,
                     onDone = onDismiss
                 )
@@ -149,7 +172,12 @@ fun ModalHost(
                 ItemPickerModal(
                     mode = modal.mode,
                     equipmentCatalog = equipmentCatalog,
-                    selectedNames = forcedItemNames + excludedItemNames,
+                    forcedNames = forcedItemNames,
+                    excludedNames = excludedItemNames,
+                    hideChosen = hideChosen,
+                    onHideChosenChange = onHideChosenChange,
+                    onRemoveForced = onRemoveForcedItem,
+                    onRemoveExcluded = onRemoveExcludedItem,
                     level = level,
                     minLevel = minLevel,
                     maxRarity = maxRarity,
@@ -161,16 +189,28 @@ fun ModalHost(
             is Modal.SublimationPicker ->
                 SublimationPickerModal(
                     exclude = modal.exclude,
-                    selectedNames = forcedSublimations + excludedSublimations,
+                    selectedNames = if (modal.exclude) excludedSublimations else forcedSublimations,
+                    hideChosen = hideChosen,
+                    onHideChosenChange = onHideChosenChange,
+                    onRemove = if (modal.exclude) onRemoveExcludedSublimation else onRemoveForcedSublimation,
                     onPick = onPickSublimation,
                     onDone = onDismiss
                 )
 
             Modal.PassivePicker ->
-                PassivePickerModal(clazz = passiveClass, selectedNames = forcedPassives, onPick = onPickPassive, onDone = onDismiss)
+                PassivePickerModal(
+                    clazz = passiveClass,
+                    level = level,
+                    selectedNames = forcedPassives,
+                    hideChosen = hideChosen,
+                    onHideChosenChange = onHideChosenChange,
+                    onRemove = onRemovePassive,
+                    onPick = onPickPassive,
+                    onDone = onDismiss
+                )
 
             Modal.BossPicker ->
-                BossPickerModal(onPick = onPickBoss)
+                BossPickerModal(selectedBoss = selectedBoss, onPick = onPickBoss)
 
             is Modal.ItemRunePicker ->
                 // Resolve the carrier at render time from the current build; if it's gone (e.g. a new
@@ -335,78 +375,254 @@ internal fun Scrim(
     }
 }
 
+private data class PickerChoice<K>(
+    val key: K,
+    val label: String,
+    val badge: String? = null,
+)
+
+private data class PickerSelection<K>(
+    val choices: List<PickerChoice<K>>,
+    val hideChosen: Boolean,
+    val onHideChosenChange: (Boolean) -> Unit,
+    val onRemove: (K) -> Unit,
+    val toggledKeys: Set<K> = choices.map { it.key }.toSet(),
+)
+
+/** Selection, toggling and completion are shared; domain callbacks retain validation and persistence. */
+@Composable
+private fun <T, K> PickerScaffold(
+    title: String,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    placeholder: String,
+    entries: List<T>,
+    entryKey: (T) -> K,
+    emptyText: String,
+    rowKey: (T) -> Any = { entryKey(it) as Any },
+    selection: PickerSelection<K>? = null,
+    onPick: ((T) -> Unit)? = null,
+    selectedKey: K? = null,
+    scrollToKey: K? = null,
+    canPick: Boolean = true,
+    showMatchCount: Boolean = false,
+    listHeight: androidx.compose.ui.unit.Dp = 440.dp,
+    loading: Boolean = false,
+    header: @Composable () -> Unit = {},
+    footer: @Composable () -> Unit = {},
+    onDone: (() -> Unit)? = null,
+    listContent: (@Composable (List<T>, @Composable (T, Modifier) -> Unit) -> Unit)? = null,
+    row: @Composable (T) -> Unit = {},
+) {
+    val choices = selection?.choices.orEmpty().associateBy { it.key }
+    val visible = entries.filterNot { selection?.hideChosen == true && entryKey(it) in choices }
+    // rememberLazyListState consumes this index only when the picker opens. Search edits never
+    // jump back to the current value; the list keeps its normal scroll behavior afterward.
+    val initialIndex = if (query.isBlank() && scrollToKey != null) entries.indexOfFirst { entryKey(it) == scrollToKey }.coerceAtLeast(0) else 0
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
+    val renderRow: @Composable (T, Modifier) -> Unit = { entry, modifier ->
+        if (selection == null && onPick == null) {
+            Box(modifier) { row(entry) }
+        } else {
+            val identity = entryKey(entry)
+            val chosen = choices[identity]
+            val removes = selection?.toggledKeys?.contains(identity) == true
+            PickerEntry(
+                selected = chosen != null || identity == selectedKey,
+                enabled = canPick || removes,
+                badge = chosen?.badge,
+                role = if (selection == null) Role.RadioButton else Role.Checkbox,
+                modifier = modifier.testTag("picker-choice-${rowKey(entry)}"),
+                onClick = { if (removes) selection.onRemove(identity) else onPick?.invoke(entry) }
+            ) { row(entry) }
+        }
+    }
+    ModalCard(title = title) {
+        if (loading) {
+            LoadingState(message = tr(Tr.LOADING_ITEMS))
+            return@ModalCard
+        }
+        if (selection != null) {
+            PickerChosenStrip(selection)
+            PickerToggle(checked = selection.hideChosen, label = tr(Tr.PICKER_HIDE_CHOSEN), onToggle = { selection.onHideChosenChange(!selection.hideChosen) })
+            Spacer(modifier = Modifier.height(WDimens.gap))
+        }
+        header()
+        SearchField(query = query, onQueryChange = onQueryChange, placeholder = placeholder, autoFocus = true)
+        Spacer(modifier = Modifier.height(WDimens.gap))
+        if (showMatchCount) PickerMatchCount(visible.size)
+        if (listContent != null) {
+            listContent(visible, renderRow)
+        } else {
+            val maxListHeight = if (selection == null) listHeight else minOf(listHeight, if (choices.isEmpty()) 340.dp else 260.dp)
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.heightIn(max = maxListHeight),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                items(visible, key = rowKey) { renderRow(it, Modifier) }
+            }
+        }
+        if (visible.isEmpty()) {
+            Text(text = emptyText, style = WTypography.bodyMedium.copy(color = WColor.muted), modifier = Modifier.padding(vertical = 16.dp))
+        }
+        if (onDone != null) PickerDoneButton(onDone = onDone)
+        footer()
+    }
+}
+
+@Composable
+private fun PickerEntry(
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    badge: String? = null,
+    role: Role = Role.Checkbox,
+    content: @Composable () -> Unit,
+) {
+    Row(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(9.dp))
+                .background(if (selected) WColor.accent.copy(alpha = 0.12f) else WColor.raised)
+                .border(1.dp, if (selected) WColor.accent else WColor.border, RoundedCornerShape(9.dp))
+                .selectable(selected = selected, enabled = enabled, role = role, onClick = onClick)
+                .alpha(if (enabled) 1f else 0.45f)
+                .padding(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(if (selected) "✓" else "□", style = WTypography.labelMedium.copy(color = if (selected) WColor.accent else WColor.muted))
+        Column(Modifier.weight(1f)) {
+            content()
+            if (badge != null) Text(badge, style = WTypography.labelSmall.copy(color = WColor.accent), modifier = Modifier.padding(start = 11.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun <K> PickerChosenStrip(selection: PickerSelection<K>) {
+    if (selection.choices.isEmpty()) return
+    val lang = LocalLang.current
+    Text(tr(Tr.PICKER_CHOSEN_COUNT).format(selection.choices.size), style = WTypography.labelMedium)
+    FlowRow(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .heightIn(max = 96.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        selection.choices.forEach { choice ->
+            Row(
+                modifier =
+                    Modifier
+                        .clip(
+                            RoundedCornerShape(7.dp)
+                        ).background(WColor.raised)
+                        .border(1.dp, WColor.accent.copy(alpha = 0.4f), RoundedCornerShape(7.dp))
+                        .padding(start = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    choice.label + (
+                        choice.badge?.let {
+                            " · $it"
+                        } ?: ""
+                    ),
+                    style = WTypography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.widthIn(max = 290.dp)
+                )
+                Text(
+                    "✕",
+                    style = WTypography.labelMedium,
+                    modifier =
+                        Modifier
+                            .testTag("picker-remove-${choice.key}")
+                            .semantics { contentDescription = Tr.PICKER_REMOVE_CHOSEN.value(lang).format(choice.label) }
+                            .clickable { selection.onRemove(choice.key) }
+                            .padding(8.dp)
+                )
+            }
+        }
+    }
+    Spacer(Modifier.height(6.dp))
+}
+
 @Composable
 private fun AddStatModal(
     excluded: Set<Characteristic>,
+    selected: Set<Characteristic>,
+    hideChosen: Boolean,
+    onHideChosenChange: (Boolean) -> Unit,
+    onRemove: (Characteristic) -> Unit,
     onSelect: (Characteristic) -> Unit,
     onDone: () -> Unit,
 ) {
     val lang = LocalLang.current
     var query by remember { mutableStateOf("") }
-    val sections =
-        remember(query, excluded, lang) {
-            val normalizedQuery = query.trim()
-            val results =
-                statCatalog.filter { def ->
-                    def.characteristic !in excluded &&
-                        def.label(lang).contains(normalizedQuery, ignoreCase = true)
-                }
-            statSections.mapNotNull { section ->
-                val sectionStats =
-                    results
-                        .filter { section.accepts(it.characteristic) }
-                        .sortedByLocalized(lang) { it.label(lang) }
-                if (sectionStats.isEmpty()) {
-                    null
-                } else {
-                    section to sectionStats
-                }
-            }
+    val results =
+        remember(query, lang, excluded) {
+            statCatalog.filter { it.characteristic !in excluded && it.label(lang).contains(query.trim(), ignoreCase = true) }
         }
-    ModalCard(title = tr(Tr.ADD_TARGET_STAT_TITLE)) {
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.FILTER_STATS), autoFocus = true)
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        Column(
-            modifier =
-                Modifier
-                    .heightIn(max = 420.dp)
-                    .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(7.dp)
-        ) {
-            sections.forEachIndexed { sectionIndex, (section, stats) ->
-                if (sectionIndex > 0) {
-                    Spacer(modifier = Modifier.height(4.dp))
+    PickerScaffold(
+        title = tr(Tr.ADD_TARGET_STAT_TITLE),
+        query = query,
+        onQueryChange = { query = it },
+        placeholder = tr(Tr.FILTER_STATS),
+        entries = results,
+        entryKey = { it.characteristic },
+        selection =
+            PickerSelection(
+                statCatalog.filter { it.characteristic in selected }.map { PickerChoice(it.characteristic, it.label(lang)) },
+                hideChosen,
+                onHideChosenChange,
+                onRemove
+            ),
+        onPick = { onSelect(it.characteristic) },
+        emptyText = tr(Tr.NO_MATCHING_STAT),
+        onDone = onDone,
+        listContent = { visible, renderTile ->
+            val sections =
+                statSections.mapNotNull { section ->
+                    val stats = visible.filter { section.accepts(it.characteristic) }.sortedByLocalized(lang) { it.label(lang) }
+                    if (stats.isEmpty()) null else section to stats
                 }
-                Text(
-                    text = tr(section.title),
-                    style = WTypography.labelMedium.copy(color = WColor.muted)
-                )
-                stats.chunked(2).forEach { pair ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        pair.forEach { def ->
-                            CatalogTile(
-                                characteristic = def.characteristic,
-                                glyph = def.glyph,
-                                color = def.color,
-                                label = def.label(lang),
-                                onClick = { onSelect(def.characteristic) },
-                                modifier = Modifier.weight(1f)
-                            )
+            Column(
+                modifier =
+                    Modifier
+                        .heightIn(max = if (selected.isEmpty()) 340.dp else 260.dp)
+                        .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                sections.forEachIndexed { sectionIndex, (section, stats) ->
+                    if (sectionIndex > 0) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                    Text(
+                        text = tr(section.title),
+                        style = WTypography.labelMedium.copy(color = WColor.muted)
+                    )
+                    stats.chunked(2).forEach { pair ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                            pair.forEach { def ->
+                                renderTile(def, Modifier.weight(1f))
+                            }
+                            if (pair.size == 1) Spacer(modifier = Modifier.weight(1f))
                         }
-                        if (pair.size == 1) Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
-            if (sections.isEmpty()) {
-                Text(
-                    text = tr(Tr.NO_MATCHING_STAT),
-                    style = WTypography.bodyMedium.copy(color = WColor.muted),
-                    modifier = Modifier.padding(vertical = 16.dp)
-                )
-            }
-        }
-        PickerDoneButton(onDone = onDone)
-    }
+        },
+        row = { def -> CatalogTile(characteristic = def.characteristic, glyph = def.glyph, color = def.color, label = def.label(lang)) }
+    )
 }
 
 private data class StatSection(
@@ -464,7 +680,6 @@ private fun CatalogTile(
     glyph: String,
     color: Color,
     label: String,
-    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -474,7 +689,6 @@ private fun CatalogTile(
                 .clip(RoundedCornerShape(9.dp))
                 .background(WColor.raised)
                 .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-                .clickable(onClick = onClick)
                 .padding(horizontal = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(9.dp)
@@ -504,7 +718,12 @@ private fun CatalogTile(
 private fun ItemPickerModal(
     mode: PickerMode,
     equipmentCatalog: List<Equipment>?,
-    selectedNames: Set<String>,
+    forcedNames: Set<String>,
+    excludedNames: Set<String>,
+    hideChosen: Boolean,
+    onHideChosenChange: (Boolean) -> Unit,
+    onRemoveForced: (String) -> Unit,
+    onRemoveExcluded: (String) -> Unit,
     level: Int,
     minLevel: Int,
     maxRarity: Rarity,
@@ -514,6 +733,7 @@ private fun ItemPickerModal(
 ) {
     val lang = LocalLang.current
     var query by remember { mutableStateOf("") }
+    val selectedNames = forcedNames + excludedNames
     var equippableOnly by remember { mutableStateOf(true) }
     var slotFilter by remember { mutableStateOf<ItemType?>(null) }
     val results =
@@ -522,7 +742,6 @@ private fun ItemPickerModal(
             val q = query.trim()
             catalog
                 .asSequence()
-                .filterNot { it.name.fr in selectedNames }
                 .filter { slotFilter == null || it.itemType == slotFilter }
                 .filter { !equippableOnly || it.isEquippableForPicker(level, minLevel, maxRarity, excludedRarities) }
                 .filter { equipment ->
@@ -536,40 +755,43 @@ private fun ItemPickerModal(
         }
     val catalogById = remember(equipmentCatalog) { equipmentCatalog.orEmpty().associateBy { it.equipmentId } }
     val title = if (mode == PickerMode.Forced) tr(Tr.REQUIRE_ITEM_TITLE) else tr(Tr.BAN_ITEM_TITLE)
-    val accent = if (mode == PickerMode.Forced) WColor.success else WColor.danger
-    ModalCard(title = title) {
-        if (equipmentCatalog == null) {
-            LoadingState(message = tr(Tr.LOADING_ITEMS))
-            return@ModalCard
+    PickerScaffold(
+        title = title,
+        query = query,
+        onQueryChange = { query = it },
+        placeholder = tr(Tr.SEARCH_ITEMS),
+        entries = results,
+        entryKey = { it.name.fr },
+        selection =
+            PickerSelection(
+                selectedNames.map { name ->
+                    PickerChoice(
+                        name,
+                        equipmentCatalog.orEmpty().firstOrNull { it.name.fr == name }?.localizedName(lang) ?: name,
+                        tr(if (name in forcedNames) Tr.PICKER_FORCED else Tr.PICKER_EXCLUDED)
+                    )
+                },
+                hideChosen,
+                onHideChosenChange,
+                { name -> if (name in forcedNames) onRemoveForced(name) else onRemoveExcluded(name) },
+                toggledKeys = if (mode == PickerMode.Forced) forcedNames else excludedNames
+            ),
+        onPick = onPick,
+        rowKey = { it.equipmentId },
+        emptyText = tr(Tr.NO_MATCHING_ITEM),
+        showMatchCount = true,
+        loading = equipmentCatalog == null,
+        header = {
+            PickerToggle(checked = equippableOnly, label = tr(Tr.EQUIPPABLE_ONLY), onToggle = { equippableOnly = !equippableOnly })
+            Spacer(modifier = Modifier.height(WDimens.gap))
+            ItemSlotFilter(selected = slotFilter, onSelect = { slotFilter = it })
+            Spacer(modifier = Modifier.height(WDimens.gap))
+        },
+        onDone = onDone,
+        row = { equipment ->
+            ItemResultRow(equipment = equipment, catalog = catalogById)
         }
-        PickerToggle(
-            checked = equippableOnly,
-            label = tr(Tr.EQUIPPABLE_ONLY),
-            onToggle = { equippableOnly = !equippableOnly }
-        )
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        ItemSlotFilter(selected = slotFilter, onSelect = { slotFilter = it })
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_ITEMS), autoFocus = true)
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        PickerMatchCount(results.size)
-        LazyColumn(
-            modifier = Modifier.heightIn(max = 440.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(results, key = { it.equipmentId }) { equipment ->
-                ItemResultRow(equipment = equipment, catalog = catalogById, mode = mode, accent = accent, onClick = { onPick(equipment) })
-            }
-        }
-        if (results.isEmpty()) {
-            Text(
-                text = tr(Tr.NO_MATCHING_ITEM),
-                style = WTypography.bodyMedium.copy(color = WColor.muted),
-                modifier = Modifier.padding(vertical = 16.dp)
-            )
-        }
-        PickerDoneButton(onDone = onDone)
-    }
+    )
 }
 
 @Composable
@@ -638,9 +860,6 @@ private fun LoadingState(message: String) {
 private fun ItemResultRow(
     equipment: Equipment,
     catalog: Map<Int, Equipment>,
-    mode: PickerMode,
-    accent: Color,
-    onClick: () -> Unit,
 ) {
     val lang = LocalLang.current
     val conditions =
@@ -655,7 +874,6 @@ private fun ItemResultRow(
                     .clip(RoundedCornerShape(9.dp))
                     .background(WColor.raised)
                     .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-                    .clickable(onClick = onClick)
                     .padding(horizontal = 11.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -683,10 +901,6 @@ private fun ItemResultRow(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            Text(
-                text = tr(if (mode == PickerMode.Forced) Tr.REQUIRE else Tr.BAN),
-                style = WTypography.labelMedium.copy(color = accent)
-            )
         }
     }
 }
@@ -695,6 +909,9 @@ private fun ItemResultRow(
 private fun SublimationPickerModal(
     exclude: Boolean = false,
     selectedNames: List<String>,
+    hideChosen: Boolean,
+    onHideChosenChange: (Boolean) -> Unit,
+    onRemove: (String) -> Unit,
     onPick: (Sublimation) -> Unit,
     onDone: () -> Unit,
 ) {
@@ -710,7 +927,6 @@ private fun SublimationPickerModal(
             val q = query.trim()
             results
                 .asSequence()
-                .filterNot { it.name.fr in selectedNames }
                 .filter { rarityFilter == null || it.rarity == rarityFilter }
                 .filter { sub ->
                     q.isBlank() ||
@@ -727,36 +943,39 @@ private fun SublimationPickerModal(
                         }
                 )
         }
-    ModalCard(title = tr(if (exclude) Tr.EXCLUDE_SUBLIMATION_TITLE else Tr.REQUIRE_SUBLIMATION_TITLE)) {
-        SublimationRarityFilter(selected = rarityFilter, onSelect = { rarityFilter = it })
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_SUBLIMATIONS), autoFocus = true)
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        PickerMatchCount(filtered.size)
-        LazyColumn(
-            modifier = Modifier.heightIn(max = 440.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(filtered, key = { it.stateId }) { sub ->
-                SublimationResultRow(sub = sub, lang = lang, onClick = { onPick(sub) })
-            }
-        }
-        if (filtered.isEmpty()) {
-            Text(
-                text = tr(Tr.NO_MATCHING_SUBLIMATION),
-                style = WTypography.bodyMedium.copy(color = WColor.muted),
-                modifier = Modifier.padding(vertical = 16.dp)
-            )
-        }
-        PickerDoneButton(onDone = onDone)
-    }
+    PickerScaffold(
+        title = tr(if (exclude) Tr.EXCLUDE_SUBLIMATION_TITLE else Tr.REQUIRE_SUBLIMATION_TITLE),
+        query = query,
+        onQueryChange = { query = it },
+        placeholder = tr(Tr.SEARCH_SUBLIMATIONS),
+        entries = filtered,
+        entryKey = { it.name.fr },
+        emptyText = tr(Tr.NO_MATCHING_SUBLIMATION),
+        selection =
+            PickerSelection(
+                selectedNames.distinct().map { name ->
+                    PickerChoice(name, results.firstOrNull { it.name.fr == name }?.name?.localized(lang) ?: name)
+                },
+                hideChosen,
+                onHideChosenChange,
+                onRemove
+            ),
+        onPick = onPick,
+        rowKey = { it.stateId },
+        showMatchCount = true,
+        onDone = onDone,
+        header = {
+            SublimationRarityFilter(selected = rarityFilter, onSelect = { rarityFilter = it })
+            Spacer(modifier = Modifier.height(WDimens.gap))
+        },
+        row = { entry -> SublimationResultRow(sub = entry, lang = lang) }
+    )
 }
 
 @Composable
 private fun SublimationResultRow(
     sub: Sublimation,
     lang: Lang,
-    onClick: () -> Unit,
 ) {
     Column(
         modifier =
@@ -765,7 +984,6 @@ private fun SublimationResultRow(
                 .clip(RoundedCornerShape(9.dp))
                 .background(WColor.raised)
                 .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-                .clickable(onClick = onClick)
                 .padding(horizontal = 11.dp, vertical = 9.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp)
     ) {
@@ -871,7 +1089,11 @@ private fun SublimationRarity.displayColor(): Color =
 @Composable
 private fun PassivePickerModal(
     clazz: me.chosante.common.CharacterClass,
+    level: Int,
     selectedNames: List<String>,
+    hideChosen: Boolean,
+    onHideChosenChange: (Boolean) -> Unit,
+    onRemove: (String) -> Unit,
     onPick: (me.chosante.common.Passive) -> Unit,
     onDone: () -> Unit,
 ) {
@@ -883,7 +1105,6 @@ private fun PassivePickerModal(
             val q = query.trim()
             all
                 .asSequence()
-                .filterNot { passive -> passive.name?.fr?.let { it in selectedNames } == true }
                 .filter { passive ->
                     q.isBlank() ||
                         passive.name?.localized(lang)?.contains(q, ignoreCase = true) == true ||
@@ -891,34 +1112,39 @@ private fun PassivePickerModal(
                 }.toList()
                 .sortedByLocalized(lang) { it.name?.localized(lang).orEmpty() }
         }
-    ModalCard(title = tr(Tr.REQUIRE_PASSIVE_TITLE)) {
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_PASSIVES), autoFocus = true)
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        PickerMatchCount(filtered.size)
-        LazyColumn(
-            modifier = Modifier.heightIn(max = 440.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(filtered, key = { it.spellId }) { passive ->
-                PassiveResultRow(passive = passive, onClick = { onPick(passive) })
-            }
-        }
-        if (filtered.isEmpty()) {
-            Text(
-                text = tr(Tr.NO_MATCHING_PASSIVE),
-                style = WTypography.bodyMedium.copy(color = WColor.muted),
-                modifier = Modifier.padding(vertical = 16.dp)
-            )
-        }
-        PickerDoneButton(onDone = onDone)
-    }
+    PickerScaffold(
+        title = tr(Tr.REQUIRE_PASSIVE_TITLE),
+        query = query,
+        onQueryChange = { query = it },
+        placeholder = tr(Tr.SEARCH_PASSIVES),
+        entries = filtered,
+        entryKey = { it.name?.fr ?: it.spellId.toString() },
+        emptyText = tr(Tr.NO_MATCHING_PASSIVE),
+        selection =
+            PickerSelection(
+                selectedNames.distinct().map { name ->
+                    PickerChoice(name, all.firstOrNull { it.name?.fr == name }?.name?.localized(lang) ?: name)
+                },
+                hideChosen,
+                onHideChosenChange,
+                onRemove
+            ),
+        onPick = onPick,
+        canPick = selectedNames.size < PassiveCatalog.slotsForLevel(level),
+        header = {
+            Text("${selectedNames.size} / ${PassiveCatalog.slotsForLevel(level)}", style = WTypography.labelMedium)
+            if (selectedNames.size >= PassiveCatalog.slotsForLevel(level)) Text(tr(Tr.PASSIVE_SLOTS_FULL), style = WTypography.labelSmall.copy(color = WColor.muted))
+            Spacer(Modifier.height(WDimens.gap))
+        },
+        rowKey = { it.spellId },
+        showMatchCount = true,
+        onDone = onDone,
+        row = { entry -> PassiveResultRow(passive = entry) }
+    )
 }
 
 @Composable
-private fun PassiveResultRow(
-    passive: me.chosante.common.Passive,
-    onClick: () -> Unit,
-) {
+private fun PassiveResultRow(passive: me.chosante.common.Passive) {
     val lang = LocalLang.current
     Row(
         modifier =
@@ -927,7 +1153,6 @@ private fun PassiveResultRow(
                 .clip(RoundedCornerShape(9.dp))
                 .background(WColor.raised)
                 .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-                .clickable(onClick = onClick)
                 .padding(horizontal = 11.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(9.dp)
@@ -953,7 +1178,10 @@ private fun PassiveResultRow(
 }
 
 @Composable
-private fun BossPickerModal(onPick: (Monster) -> Unit) {
+private fun BossPickerModal(
+    selectedBoss: Monster?,
+    onPick: (Monster) -> Unit,
+) {
     val lang = LocalLang.current
     // Boss mode targets bosses, not every creature in the bestiary: the roster keeps only boss-tier entries (rank ≥ 1, ~225 of
     // the ~2 850 monsters), named and sorted in the language of the app. It is short enough to list in full, so there is no
@@ -961,32 +1189,29 @@ private fun BossPickerModal(onPick: (Monster) -> Unit) {
     val results = remember(lang) { bossRoster(WakfuBestBuildFinderAlgorithm.monsters, lang) }
     var query by remember { mutableStateOf("") }
     val filtered = remember(query, results) { results.filter { it.matchesQuery(query) } }
-    ModalCard(title = tr(Tr.CHOOSE_BOSS_TITLE)) {
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_BOSSES), autoFocus = true)
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        LazyColumn(
-            modifier = Modifier.heightIn(max = 440.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(filtered, key = { it.id }) { monster ->
-                BossResultRow(monster = monster, onClick = { onPick(monster) })
+    PickerScaffold(
+        title = tr(Tr.CHOOSE_BOSS_TITLE),
+        query = query,
+        onQueryChange = { query = it },
+        placeholder = tr(Tr.SEARCH_BOSSES),
+        entries = filtered,
+        entryKey = { it.id },
+        emptyText = tr(Tr.NO_MATCHING_BOSS),
+        selectedKey = selectedBoss?.id,
+        scrollToKey = selectedBoss?.id,
+        onPick = onPick,
+        header = {
+            if (selectedBoss != null) {
+                Text(tr(Tr.PICKER_CURRENT_BOSS).format(selectedBoss.displayName(lang)), style = WTypography.labelMedium)
+                Spacer(Modifier.height(WDimens.gap))
             }
-        }
-        if (filtered.isEmpty()) {
-            Text(
-                text = tr(Tr.NO_MATCHING_BOSS),
-                style = WTypography.bodyMedium.copy(color = WColor.muted),
-                modifier = Modifier.padding(vertical = 16.dp)
-            )
-        }
-    }
+        },
+        row = { entry -> BossResultRow(monster = entry) }
+    )
 }
 
 @Composable
-private fun BossResultRow(
-    monster: Monster,
-    onClick: () -> Unit,
-) {
+private fun BossResultRow(monster: Monster) {
     val lang = LocalLang.current
     Row(
         modifier =
@@ -995,7 +1220,6 @@ private fun BossResultRow(
                 .clip(RoundedCornerShape(9.dp))
                 .background(WColor.raised)
                 .border(1.dp, WColor.border, RoundedCornerShape(9.dp))
-                .clickable(onClick = onClick)
                 .padding(horizontal = 11.dp, vertical = 9.dp),
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -1060,52 +1284,50 @@ private fun ItemRunePickerModal(
                 }.sortedByLocalized(lang) { it.name.localized(lang) }
         }
     val carrierName = carrier.name.localized(lang)
-    ModalCard(title = "${tr(Tr.EDIT_RUNES_TITLE)} — $carrierName") {
-        Text(
-            text = "${tr(Tr.RUNE_SOCKETS_LABEL)}: $total / $sockets",
-            style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
-        )
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_RUNES), autoFocus = true)
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        LazyColumn(
-            modifier = Modifier.heightIn(max = 360.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(filtered, key = { it.id }) { rune ->
-                RuneOptionRow(
-                    rune = rune,
-                    lang = lang,
-                    carrierItemType = carrier.itemType,
-                    count = counts[rune.id] ?: 0,
-                    canAdd = total < sockets,
-                    onAdd = { counts[rune.id] = (counts[rune.id] ?: 0) + 1 },
-                    onRemove = {
-                        val current = counts[rune.id] ?: 0
-                        if (current <= 1) counts.remove(rune.id) else counts[rune.id] = current - 1
-                    }
+    PickerScaffold(
+        title = "${tr(Tr.EDIT_RUNES_TITLE)} — $carrierName",
+        query = query,
+        onQueryChange = { query = it },
+        placeholder = tr(Tr.SEARCH_RUNES),
+        entries = filtered,
+        entryKey = { it.id },
+        emptyText = tr(Tr.NO_MATCHING_RUNE),
+        listHeight = 360.dp,
+        header = {
+            Text(
+                text = "${tr(Tr.RUNE_SOCKETS_LABEL)}: $total / $sockets",
+                style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
+            )
+            Spacer(modifier = Modifier.height(WDimens.gap))
+        },
+        footer = {
+            Spacer(modifier = Modifier.height(WDimens.gap))
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                DialogButton(text = tr(Tr.CANCEL), filled = false, color = WColor.border, onClick = onCancel, modifier = Modifier.weight(1f))
+                DialogButton(
+                    text = tr(Tr.SAVE),
+                    filled = true,
+                    color = WColor.accent,
+                    onClick = { onConfirm(counts.entries.flatMap { (id, n) -> List(n) { id } }) },
+                    modifier = Modifier.weight(1f)
                 )
             }
-        }
-        if (filtered.isEmpty()) {
-            Text(
-                text = tr(Tr.NO_MATCHING_RUNE),
-                style = WTypography.bodyMedium.copy(color = WColor.muted),
-                modifier = Modifier.padding(vertical = 16.dp)
+        },
+        row = { rune ->
+            RuneOptionRow(
+                rune = rune,
+                lang = lang,
+                carrierItemType = carrier.itemType,
+                count = counts[rune.id] ?: 0,
+                canAdd = total < sockets,
+                onAdd = { counts[rune.id] = (counts[rune.id] ?: 0) + 1 },
+                onRemove = {
+                    val current = counts[rune.id] ?: 0
+                    if (current <= 1) counts.remove(rune.id) else counts[rune.id] = current - 1
+                }
             )
         }
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            DialogButton(text = tr(Tr.CANCEL), filled = false, color = WColor.border, onClick = onCancel, modifier = Modifier.weight(1f))
-            DialogButton(
-                text = tr(Tr.SAVE),
-                filled = true,
-                color = WColor.accent,
-                onClick = { onConfirm(counts.entries.flatMap { (id, n) -> List(n) { id } }) },
-                modifier = Modifier.weight(1f)
-            )
-        }
-    }
+    )
 }
 
 @Composable
@@ -1215,7 +1437,7 @@ private fun PickerToggle(
         modifier =
             Modifier
                 .clip(RoundedCornerShape(8.dp))
-                .clickable(onClick = onToggle)
+                .toggleable(value = checked, role = Role.Checkbox, onValueChange = { onToggle() })
                 .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)

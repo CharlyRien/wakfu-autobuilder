@@ -62,7 +62,14 @@ class LibraryPreferences(
         runCatching { prefs?.put(KEY_TAGS, tags.joinToString("\n")) }
     }
 
+    fun loadHideChosen(): Boolean = runCatching { prefs?.getBoolean(KEY_HIDE_CHOSEN, false) }.getOrNull() ?: false
+
+    fun saveHideChosen(value: Boolean) {
+        runCatching { prefs?.putBoolean(KEY_HIDE_CHOSEN, value) }
+    }
+
     private companion object {
+        const val KEY_HIDE_CHOSEN = "pickerHideChosen"
         const val KEY_LANG = "language"
         const val KEY_SORT = "librarySort"
         const val KEY_GROUP = "libraryGroupByClass"

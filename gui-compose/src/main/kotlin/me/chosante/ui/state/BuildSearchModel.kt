@@ -381,7 +381,8 @@ class BuildSearchModel(
                 lang = libraryPreferences.loadLang(),
                 librarySort = libraryPreferences.loadSort(),
                 libraryGroupByClass = libraryPreferences.loadGroupByClass(),
-                verifyOptimality = libraryPreferences.loadVerifyOptimality()
+                verifyOptimality = libraryPreferences.loadVerifyOptimality(),
+                pickerHideChosen = libraryPreferences.loadHideChosen()
             )
 
         // Read the remembered request while the engine warms up (a small local file, long read by the time warm-up ends); it
@@ -917,6 +918,11 @@ class BuildSearchModel(
         if (!enabled) stopProof()
     }
 
+    fun setPickerHideChosen(value: Boolean) {
+        ui = ui.copy(pickerHideChosen = value)
+        libraryPreferences.saveHideChosen(value)
+    }
+
     fun removeForcedItem(item: ItemChip) {
         ui = ui.copy(forcedItems = ui.forcedItems - item)
     }
@@ -1094,8 +1100,16 @@ class BuildSearchModel(
     fun pickItem(equipment: me.chosante.common.Equipment) {
         val chip = equipment.toChip()
         when ((ui.modal as? Modal.ItemPicker)?.mode) {
-            PickerMode.Forced -> pinForced(chip)
-            PickerMode.Excluded -> pinExcluded(chip)
+            PickerMode.Forced -> {
+                val moved = ui.excludedItems.any { it.matchName == chip.matchName }
+                pinForced(chip)
+                if (moved) ui = ui.copy(toast = Tr.PICKER_MOVED_TO_FORCED.value(ui.lang).format(chip.name))
+            }
+            PickerMode.Excluded -> {
+                val moved = ui.forcedItems.any { it.matchName == chip.matchName }
+                pinExcluded(chip)
+                if (moved) ui = ui.copy(toast = Tr.PICKER_MOVED_TO_EXCLUDED.value(ui.lang).format(chip.name))
+            }
             null -> {}
         }
     }

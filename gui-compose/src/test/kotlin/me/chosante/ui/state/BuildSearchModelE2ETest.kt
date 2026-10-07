@@ -39,6 +39,7 @@ import me.chosante.common.history.TargetSnapshot
 import me.chosante.common.skills.CharacterSkills
 import me.chosante.ui.history.HistoryRepository
 import me.chosante.ui.i18n.Lang
+import me.chosante.ui.i18n.Tr
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -337,6 +338,25 @@ class BuildSearchModelE2ETest {
             assertTrue(model.ui.forcedItems.isEmpty())
             assertEquals(listOf("Solomonk"), model.ui.excludedItems.map { it.matchName })
             assertEquals(Modal.ItemPicker(PickerMode.Excluded), model.ui.modal)
+            assertEquals(
+                Tr.PICKER_MOVED_TO_EXCLUDED.value(model.ui.lang).format(
+                    model.ui.excludedItems
+                        .single()
+                        .name
+                ),
+                model.ui.toast
+            )
+            model.openModal(Modal.ItemPicker(PickerMode.Forced))
+            model.pickItem(item)
+            assertTrue(model.ui.excludedItems.isEmpty())
+            assertEquals(
+                Tr.PICKER_MOVED_TO_FORCED.value(model.ui.lang).format(
+                    model.ui.forcedItems
+                        .single()
+                        .name
+                ),
+                model.ui.toast
+            )
         } finally {
             scope.cancel()
         }

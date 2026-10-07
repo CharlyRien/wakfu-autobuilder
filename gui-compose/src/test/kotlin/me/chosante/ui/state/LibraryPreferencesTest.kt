@@ -59,4 +59,22 @@ class LibraryPreferencesTest {
         prefs.saveVerifyOptimality(false) // no-op, must not throw
         assertThat(prefs.loadVerifyOptimality()).isTrue()
     }
+
+    @Test
+    fun `hide chosen defaults off and survives fresh preference instances`() {
+        val node = Preferences.userRoot().node("me/chosante/wakfu-autobuilder-test/${javaClass.simpleName}-picker")
+        try {
+            node.clear()
+            assertThat(LibraryPreferences(node).loadHideChosen()).isFalse()
+            LibraryPreferences(node).saveHideChosen(true)
+            node.flush()
+            assertThat(LibraryPreferences(node).loadHideChosen()).isTrue()
+            LibraryPreferences(node).saveHideChosen(false)
+            assertThat(LibraryPreferences(node).loadHideChosen()).isFalse()
+            LibraryPreferences(null).saveHideChosen(true)
+            assertThat(LibraryPreferences(null).loadHideChosen()).isFalse()
+        } finally {
+            runCatching { node.removeNode() }
+        }
+    }
 }
