@@ -9,6 +9,8 @@ fun localizedCollator(lang: Lang): Collator =
             when (lang) {
                 Lang.FR -> Locale.FRENCH
                 Lang.EN -> Locale.ENGLISH
+                Lang.ES -> Locale.of("es")
+                Lang.PT -> Locale.of("pt")
             }
         ).apply {
             strength = Collator.PRIMARY

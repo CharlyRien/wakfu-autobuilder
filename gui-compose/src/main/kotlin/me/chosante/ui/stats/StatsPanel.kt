@@ -713,7 +713,7 @@ private fun SpellCastRow(
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = if (lang == Lang.FR) cast.spell.name.fr else cast.spell.name.en,
+            text = cast.spell.name.localized(lang),
             style = WTypography.bodyMedium,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -1462,7 +1462,7 @@ private fun SublimationsResult(ui: UiState) {
             subs.forEach { sub ->
                 Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = sub.name.let { if (ui.lang == me.chosante.ui.i18n.Lang.FR) it.fr else it.en }, style = WTypography.labelMedium.copy(color = WColor.text))
+                        Text(text = sub.name.localized(ui.lang), style = WTypography.labelMedium.copy(color = WColor.text))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(text = sub.rarity.label(LocalLang.current), style = WTypography.labelSmall.copy(color = WColor.muted, fontFamily = WType.mono))
                         Spacer(modifier = Modifier.width(8.dp))

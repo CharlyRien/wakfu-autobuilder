@@ -10,13 +10,17 @@ import me.chosante.autobuilder.domain.BuildCombination
 import me.chosante.autobuilder.domain.SpellCast
 import me.chosante.autobuilder.domain.SpellRotation
 import me.chosante.common.CharacterClass
+import me.chosante.common.Characteristic
 import me.chosante.common.I18nText
 import me.chosante.common.Passive
 import me.chosante.common.Spell
 import me.chosante.common.SpellElement
 import me.chosante.common.skills.CharacterSkills
+import me.chosante.ui.components.localized
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
+import me.chosante.ui.i18n.Tr
+import me.chosante.ui.i18n.label
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
@@ -26,7 +30,7 @@ class ResultLabelsUiTest {
     fun `the rotation and passive result display localized costs resistance and characteristic names`() {
         for (lang in Lang.entries) {
             runComposeUiTest {
-                val name = I18nText(en = "Debuff", fr = "Malus", es = "", pt = "")
+                val name = I18nText(en = "Debuff", fr = "Malus", es = "Malus ES", pt = "Malus PT")
                 val spell = Spell(1, CharacterClass.CRA, name, element = SpellElement.FIRE, apCost = 2, targetResistanceReductionFlat = 50)
                 val cast = SpellCast(spell, 1, 2, 1234.0)
                 val passive = Passive(1, clazz = "CRA", name = name, flatBuildStats = mapOf("BLOCK_PERCENTAGE" to 10.0))
@@ -44,10 +48,10 @@ class ResultLabelsUiTest {
                         }
                     }
                 }
-                onNodeWithText(if (lang == Lang.EN) "↳ Debuff (2 AP, −50 res)" else "↳ Malus (2 PA, −50 rés.)").assertExists()
-                onNodeWithText(if (lang == Lang.EN) "→ 60% res after debuffs" else "→ 60 % rés. après les malus").assertExists()
-                onNodeWithText(if (lang == Lang.EN) "1,234  (10/12 AP)" else "1,234  (10/12 PA)").assertExists()
-                onNodeWithText(if (lang == Lang.EN) "+10 Block %" else "+10 Parade %").assertExists()
+                onNodeWithText(Tr.SPELL_DEBUFF_CAST.value(lang).format(name.localized(lang), 2, 50)).assertExists()
+                onNodeWithText(Tr.SPELL_DEBUFF_RESISTANCE.value(lang).format(60)).assertExists()
+                onNodeWithText(Tr.SPELL_ROTATION_TOTAL.value(lang).format("1,234", 10, 12)).assertExists()
+                onNodeWithText("+10 ${Characteristic.BLOCK_PERCENTAGE.label(lang)}").assertExists()
                 assertThat(onAllNodesWithText("BLOCK_PERCENTAGE", substring = true).fetchSemanticsNodes()).isEmpty()
             }
         }

@@ -13,738 +13,495 @@ import me.chosante.common.SublimationRarity
 
 enum class Lang(
     val label: String,
+    val resourceSuffix: String,
 ) {
-    EN("EN"),
-    FR("FR"),
+    EN("EN", "en"),
+    FR("FR", "fr"),
+    ES("ES", "es"),
+    PT("PT", "pt"),
 }
 
 /** The active UI language, provided once at the app root and read by [tr]. */
 val LocalLang = staticCompositionLocalOf { Lang.EN }
 
 /**
- * Every user-facing static string, with its English and French forms. Hand-written (no codegen)
- * so the two translations stay side by side and the keys are type-checked at the call site.
+ * Every user-facing static string, keyed by name. The translations themselves live in
+ * `src/main/resources/i18n/strings_<lang>.properties` (one file per language, UTF-8) rather than
+ * in this enum, so adding a language is "add a properties file", not "edit this file".
  */
-enum class Tr(
-    val en: String,
-    val fr: String,
-) {
-    // Brand / top bar
-    CLASS("Class", "Classe"),
-    LEVEL_SHORT("Lv", "Niv."),
-    MIN_SHORT("Min", "Min"),
-    LEVEL_RANGE_INVALID(
-        "Min level can't be higher than the character level. Lower the min, or raise the level.",
-        "Le niveau min ne peut pas dépasser le niveau du personnage. Baisse le min, ou augmente le niveau."
-    ),
-    FORCED_ITEM_NOT_EQUIPPABLE(
-        "can't be equipped for this build — its level or rarity is outside the search.",
-        "n'est pas équipable pour ce build — son niveau ou sa rareté est hors de la recherche."
-    ),
-    FORCED_SUBLIMATION_RARITY_INVALID(
-        "Only one epic and one relic sublimation can be forced — remove one of:",
-        "Tu ne peux imposer qu'une sublimation épique et une relique — retire l'une de :"
-    ),
-    SUBLIMATION_FORCED_AND_EXCLUDED(
-        "is both forced and excluded — remove it from one of the two lists.",
-        "est à la fois imposée et exclue — retire-la de l'une des deux listes."
-    ),
-    FORCED_ITEM_ALSO_EXCLUDED(
-        "is both forced and excluded — remove it from one of the two lists.",
-        "est à la fois imposé et exclu — retire-le de l'une des deux listes."
-    ),
-    FORCED_ITEMS_SLOT_CONFLICT(
-        "Too many forced items for the same slot — remove one of:",
-        "Trop d'objets imposés pour le même emplacement — retire l'un de :"
-    ),
-    FORCED_WEAPONS_CONFLICT(
-        "A forced two-handed weapon occupies both hands — it can't be combined with:",
-        "Une arme à deux mains imposée occupe les deux mains — elle ne peut pas être combinée avec :"
-    ),
-    FORCED_ITEM_RARITY_BUDGET(
-        "A build can equip only one epic item (a few common items count as epic) and one relic item — remove one of:",
-        "Un build ne peut équiper qu'un objet épique (quelques objets communs comptent comme épiques) et une relique — retire l'un de :"
-    ),
-    FORCED_SUBLIMATION_NO_CARRIER(
-        "needs an equipped item of its rarity (epic/relic), but that rarity is excluded from the search.",
-        "nécessite un objet équipé de sa rareté (épique/relique), mais cette rareté est exclue de la recherche."
-    ),
-    FORCED_SUBLIMATIONS_EXCEED_CAPACITY(
-        "A build can socket at most 10 sublimations — remove some forced sublimations.",
-        "Un build ne peut recevoir que 10 sublimations au maximum — retire des sublimations imposées."
-    ),
-
-    // Item equip conditions (the game's own rules on who may wear an item, and with what)
-    EQUIP_NEEDS("Needs %s", "Nécessite %s"),
-    EQUIP_INCOMPATIBLE("Can't be worn with %s", "Incompatible avec %s"),
-    EQUIP_CLASS_ONLY("%s only", "Réservé à la classe %s"),
-    EQUIP_NEVER("Cannot be equipped", "Non équipable"),
-
-    // A loaded / saved build that breaks an item's stat gate (the game shows the item red: inactive).
-    STAT_GATE_INACTIVE("%s would be inactive in game: %s, this build has %d", "%s serait inactif en jeu : %s, ce build a %d"),
-    STAT_GATE_BADGE("Inactive item", "Objet inactif"),
-    STAT_GATE_CUE_HINT(
-        "The game checks this condition on the out-of-combat characteristics. A new search only uses the item when the build meets it.",
-        "Le jeu vérifie cette condition sur les caractéristiques hors combat. Une nouvelle recherche n'utilise l'objet que si le build la respecte."
-    ),
-    FORCED_ITEM_STAT_GATE_TARGET(
-        "is only active with %s out of combat, but the request asks for %d",
-        "n'est actif qu'avec %s hors combat, mais la demande vise %d"
-    ),
-    EQUIP_ASSUMED_MET("assumed met", "supposé rempli"),
-    EQUIP_MILITIA_RANK("Militia rank", "Rang de milice"),
-    EQUIP_NAMED_ACHIEVEMENT("Achievement “%s” completed", "Succès « %s » accompli"),
-    EQUIP_NAMED_ACHIEVEMENT_NOT_COMPLETED("Achievement “%s” not completed", "Succès « %s » non accompli"),
-    EQUIP_ACHIEVEMENT("Achievement #%s completed", "Succès n°%s accompli"),
-    EQUIP_ACHIEVEMENT_NOT_COMPLETED("Achievement #%s not completed", "Succès n°%s non accompli"),
-    EQUIP_STASIS_GAUGE("Stasis gauge", "Jauge de Stasis"),
-    EQUIP_WAKFU_GAUGE("Wakfu gauge", "Jauge de Wakfu"),
-    EQUIP_CRIME_SCORE("Crime score", "Score de crime"),
-    EQUIP_ITEM_FALLBACK("Item #%d", "Objet n°%d"),
-    EQUIP_MORE("+%d more", "+%d autres"),
-
-    // Shared by the class picker and item conditions.
-    CLASS_FECA("Feca", "Féca"),
-    CLASS_OSAMODAS("Osamodas", "Osamodas"),
-    CLASS_ENUTROF("Enutrof", "Enutrof"),
-    CLASS_SRAM("Sram", "Sram"),
-    CLASS_XELOR("Xelor", "Xélor"),
-    CLASS_ECAFLIP("Ecaflip", "Écaflip"),
-    CLASS_ENIRIPSA("Eniripsa", "Eniripsa"),
-    CLASS_IOP("Iop", "Iop"),
-    CLASS_CRA("Cra", "Crâ"),
-    CLASS_SADIDA("Sadida", "Sadida"),
-    CLASS_SACRIEUR("Sacrier", "Sacrieur"),
-    CLASS_PANDAWA("Pandawa", "Pandawa"),
-    CLASS_ROUBLARD("Rogue", "Roublard"),
-    CLASS_ZOBAL("Masqueraider", "Zobal"),
-    CLASS_OUGINAK("Ouginak", "Ouginak"),
-    CLASS_STEAMER("Foggernaut", "Steamer"),
-    CLASS_ELIOTROPE("Eliotrope", "Eliotrope"),
-    CLASS_HUPPERMAGE("Huppermage", "Huppermage"),
-    CLASS_UNKNOWN("Unknown", "Inconnue"),
-
-    FORCED_ITEM_WRONG_CLASS(
-        "is reserved to another class — it can't be equipped by this character. Reserved to:",
-        "est réservé à une autre classe — ce personnage ne peut pas l'équiper. Réservé à :"
-    ),
-    FORCED_ITEM_NEVER_EQUIPPABLE(
-        "can't be equipped in the game — remove it from the forced items.",
-        "n'est pas équipable dans le jeu — retire-le des objets imposés."
-    ),
-    FORCED_ITEM_REQUIRES_ITEM(
-        "can only be worn together with an item this search can't equip (its level or rarity is outside the search, or it is excluded):",
-        "ne peut être porté qu'avec un objet que cette recherche ne peut pas équiper (niveau ou rareté hors de la recherche, ou objet exclu) :"
-    ),
-    FORCED_ITEMS_MUTUALLY_EXCLUSIVE(
-        "These forced items can't be worn together in the game — remove one of:",
-        "Ces objets imposés ne peuvent pas être portés ensemble dans le jeu — retire l'un de :"
-    ),
-    REQUEST_ERRORS_TITLE(
-        "Can't search yet",
-        "Recherche impossible"
-    ),
-    REQUEST_ERRORS_INTRO(
-        "Fix these before searching:",
-        "Corrige ces points avant de lancer la recherche :"
-    ),
-    REQUEST_ERRORS_DISMISS(
-        "Got it",
-        "Compris"
-    ),
-    PROGRESS("Progress", "Progression"),
-    PRELOAD_WARMUP("Starting the engine…", "Démarrage du moteur…"),
-    MATCH("Match", "Correspondance"),
-    SEARCH("Search", "Rechercher"),
-    STOP("Stop", "Arrêter"),
-
-    // Zone headers
-    ZONE_REQUEST("Request", "Requête"),
-    ZONE_REQUEST_HINT("Input", "Entrée"),
-    ZONE_BUILD("Discovered Build", "Build découvert"),
-    ZONE_BUILD_IDLE("Awaiting search", "En attente"),
-    ZONE_BUILD_SEARCHING("Live - best so far", "En direct - meilleur trouvé"),
-    ZONE_BUILD_DONE("Result", "Résultat"),
-    ZONE_BUILD_STOPPED("Stopped - best so far", "Arrêté - meilleur trouvé"),
-    ZONE_STATS("Resulting Stats", "Stats résultantes"),
-    ZONE_STATS_HINT("Output", "Sortie"),
-
-    // Request panel
-    SEARCH_MODE("Search Mode", "Mode de recherche"),
-    MODE_MASTERIES("Most Masteries", "Max maîtrises"),
-    MODE_MASTERIES_SUB("minimum constraints, max masteries", "contraintes min, max maîtrises"),
-    MODE_PRECISION("Precision", "Précision"),
-    MODE_PRECISION_SUB("hit every target exactly", "vise chaque cible exactement"),
-    MODE_MAX_DAMAGE("Max Damage", "Dégâts max"),
-    MODE_MAX_DAMAGE_SUB("maximize expected damage", "maximise les dégâts attendus"),
-    DAMAGE_SCENARIO("Attack scenario", "Scénario d'attaque"),
-    SCENARIO_ELEMENT("Element", "Élément"),
-    SCENARIO_RANGE("Range", "Portée"),
-    SCENARIO_ORIENTATION("Orientation", "Orientation"),
-    SCENARIO_BERSERK("Berserk (≤50% HP)", "Berserk (≤50% PV)"),
-    SCENARIO_HEALING("Healing", "Soin"),
-    SCENARIO_CRIT_CAP("Crit cap %", "Plafond crit %"),
-    SCENARIO_ENEMY_RES("Enemy res %", "Rés. ennemi %"),
-    SCENARIO_ROLE("Role preset", "Préréglage de rôle"),
-    ROLE_DISTANCE_DPS("Distance DPS", "DPS distance"),
-    ROLE_MELEE_DPS("Melee DPS", "DPS mêlée"),
-    ROLE_TANK("Tank", "Tank"),
-    SCENARIO_SURVIVAL_FLOOR("Survivability floor", "Plancher de survie"),
-    SCENARIO_MIN_EHP("Min effective HP", "PV efficaces min"),
-    BOSS("Boss", "Boss"),
-    BOSS_NONE_HINT(
-        "Target a boss to auto-fill its elemental resistances — the search picks the best playable element.",
-        "Ciblez un boss pour remplir ses résistances élémentaires — la recherche choisit le meilleur élément jouable."
-    ),
-    VS_BOSS("vs %s", "contre %s"),
-    BOSS_PICK("＋ Choose a boss", "＋ Choisir un boss"),
-    BOSS_CHANGE("Change", "Changer"),
-    BOSS_REMOVE("Remove", "Retirer"),
-    BOSS_LEVEL_SHORT("Lv", "Niv."),
-    BOSS_ELEMENT("Damage element", "Élément d'attaque"),
-    BOSS_ELEMENT_AUTO("Auto", "Auto"),
-    BOSS_DIFFICULTY("Difficulty (HP×)", "Difficulté (PV×)"),
-    CHOOSE_BOSS_TITLE("Choose a boss", "Choisir un boss"),
-    SEARCH_BOSSES("Search bosses (name)", "Rechercher un boss (nom)"),
-    NO_MATCHING_BOSS("No matching boss", "Aucun boss correspondant"),
-    TURNS_TO_KILL("Turns to kill", "Tours pour tuer"),
-    EXPECTED_DAMAGE("Expected damage", "Dégâts attendus"),
-    SPELL_ROTATION("Spell Rotation", "Rotation de sorts"),
-    STAT_AP_AMOUNT("%d AP", "%d PA"),
-    STAT_WP_AMOUNT("%d WP", "%d PW"),
-    SPELL_DEBUFF_CAST("↳ %s (%d AP, −%d res)", "↳ %s (%d PA, −%d rés.)"),
-    SPELL_DEBUFF_RESISTANCE("→ %d%% res after debuffs", "→ %d %% rés. après les malus"),
-    SPELL_ROTATION_TOTAL("%s  (%d/%d AP)", "%s  (%d/%d PA)"),
-    SUBLIMATION_NORMAL("Normal", "Normale"),
-    SPELL_ROTATION_SUB("best spells for this build's AP", "meilleurs sorts pour les PA du build"),
-    SPELL_ROTATION_PER_TURN("expected damage / turn", "dégâts attendus / tour"),
-    SPELL_ROTATION_EMPTY(
-        "No playable spells in this element for this class — try another attack element.",
-        "Aucun sort jouable dans cet élément pour cette classe — essaie un autre élément d'attaque."
-    ),
-    SPELL_ROTATION_NOTE(
-        "WP costs aren't modeled — WP-gated spells may not sustain their casts every turn (upper bound).",
-        "Le coût en PW n'est pas modélisé — les sorts à PW peuvent ne pas tenir leurs lancers chaque tour (borne haute)."
-    ),
-    TARGET_STATS("Target Stats", "Stats cibles"),
-    MAXIMIZED_MASTERIES("Maximized Masteries", "Maîtrises à maximiser"),
-    NO_MASTERY_SELECTED("None selected", "Aucune sélection"),
-    DI_AUTOMAX_HINT(
-        "Damage Inflicted is already optimized in this mode; add it as a target only if you need a minimum.",
-        "Les Dommages infligés sont déjà optimisés dans ce mode ; ajoute-les en cible seulement si tu veux un minimum."
-    ),
-    PRIORITY("Priority", "Priorité"),
-    PRIORITY_HINT(
-        "Priority (1–5): higher targets win when they can't all be met",
-        "Priorité (1–5) : les cibles prioritaires l'emportent si tout n'est pas atteignable"
-    ),
-    ADD_TARGET_STAT("＋ Add target stat", "＋ Ajouter une stat"),
-    KIND_EXACT("minimum", "minimum"),
-    KIND_MAXIMIZE("maximize", "maximiser"),
-    MAX_RARITY("Max rarity", "Rareté max"),
-    RARITIES("Rarities", "Raretés"),
-    RARITIES_SUB("tap to allow / exclude", "clic pour autoriser / exclure"),
-    SEARCH_DURATION("Search duration", "Durée de recherche"),
-    SEARCH_DURATION_SUB("time budget for the solver (empty = 10 min)", "temps alloué au solveur (vide = 10 min)"),
-    SECONDS_SHORT("sec", "sec"),
-    STOP_AT_MATCH("Stop at 100% match", "Arrêter à 100%"),
-    VERIFY_OPTIMALITY("Check optimality after the search", "Vérifier l'optimalité après la recherche"),
-    VERIFY_OPTIMALITY_SUB(
-        "may keep the processor busy for minutes once the search ends",
-        "peut occuper le processeur plusieurs minutes après la recherche"
-    ),
-    SEARCH_NO_RESULT(
-        "No build produced in this time window. Narrow the level range or increase the duration.",
-        "Aucun build produit dans cette fenêtre. Réduis la plage de niveaux ou augmente la durée."
-    ),
-    FORCED_ITEMS("Forced Items", "Objets imposés"),
-    REQUIRE_ITEM_CHIP("＋ require item", "＋ imposer un objet"),
-    EXCLUDED_ITEMS("Excluded Items", "Objets exclus"),
-    BAN_ITEM_CHIP("＋ ban item", "＋ exclure un objet"),
-    SUBLIMATIONS_RUNES("Sublimations & Runes", "Sublimations & Runes"),
-    SOLVER_PICKS_SUBLIMATIONS("Solver picks sublimations", "Le solveur choisit les sublimations"),
-    SUBLIMATION_LEVEL_CAP("Max auto-picked sublimation tier", "Palier max des sublimations auto"),
-    SUBLIMATION_LEVEL_ALL("All tiers", "Tous paliers"),
-    SUBLIMATION_LEVEL_UP_TO("≤ %d", "≤ %d"),
-    SUBLIMATION_TIER_SHORT("T%d", "P%d"),
-
-    // Stacking at a glance: granted levels / stack cap — e.g. Carnage III = "3/6" (one shard
-    // grants 3 levels, the stack caps at 6). Lets a user spot autobuilder-vs-Zenith stacking
-    // discrepancies immediately.
-    SUBLIMATION_STACK_SHORT("%d/%d", "%d/%d"),
-    SUBLIMATION_LEVEL_CAP_HINT(
-        "The tier is the sublimation's I/II/III generation. Caps only solver-picked sublimations; forced ones can exceed it.",
-        "Le palier est la génération I/II/III de la sublimation. Limite seulement les sublimations choisies par le solveur ; les imposées peuvent dépasser."
-    ),
-    FORCED_SUBLIMATIONS("Forced Sublimations", "Sublimations imposées"),
-    ADD_SUBLIMATION_CHIP("＋ Force a sublimation", "＋ Forcer une sublimation"),
-    CHOSEN_SUBLIMATIONS("Sublimations", "Sublimations"),
-    REQUIRE_SUBLIMATION_TITLE("Force a sublimation", "Forcer une sublimation"),
-    EXCLUDED_SUBLIMATIONS("Excluded Sublimations", "Sublimations exclues"),
-    BAN_SUBLIMATION_CHIP("＋ Exclude a sublimation", "＋ Exclure une sublimation"),
-    EXCLUDE_SUBLIMATION_TITLE("Exclude a sublimation", "Exclure une sublimation"),
-    SEARCH_SUBLIMATIONS("Search sublimations (title / effect)…", "Rechercher des sublimations (titre / effet)…"),
-    NO_MATCHING_SUBLIMATION("No matching sublimation", "Aucune sublimation correspondante"),
-    FORCED_PASSIVES("Passive loadout", "Passifs équipés"),
-    ADD_PASSIVE_CHIP("＋ Add a passive", "＋ Ajouter un passif"),
-    CHOSEN_PASSIVES("Passives", "Passifs"),
-    REQUIRE_PASSIVE_TITLE("Add a passive", "Ajouter un passif"),
-    SEARCH_PASSIVES("Search passives (name / effect)…", "Rechercher des passifs (nom / effet)…"),
-    NO_MATCHING_PASSIVE("No matching passive", "Aucun passif correspondant"),
-    PASSIVE_SLOTS_FULL("All passive slots used", "Tous les emplacements de passifs utilisés"),
-    EDIT_RUNES("Edit runes", "Modifier les runes"),
-    EDIT_RUNES_TITLE("Runes", "Runes"),
-    RUNE_SOCKETS_LABEL("Sockets", "Emplacements"),
-    SEARCH_RUNES("Search runes…", "Rechercher des runes…"),
-    NO_MATCHING_RUNE("No matching rune", "Aucune rune correspondante"),
-    LOCK_CURRENT_RUNES("Lock current runes", "Verrouiller les runes actuelles"),
-    RUNES_PER_ITEM_HINT(
-        "Runes are pinned per item — hover a slot in the build and click ◈.",
-        "Les runes se définissent par objet — survole un emplacement du build et clique sur ◈."
-    ),
-    RUNES_ALLGOLD_HINT(
-        "Runes are shown \"all gold\": best stat, max level, socket colours assumed re-rolled. The Zenith link can differ (real socket colours aren't re-rolled).",
-        "Runes affichées en « tout doré » : meilleure stat, niveau max, couleurs d'emplacements supposées re-roll. Le lien Zenith peut différer (les vraies couleurs ne sont pas re-roll)."
-    ),
-
-    // Paperdoll
-    PREPARING_OR_TOOLS_MODEL("Preparing OR-Tools model", "Préparation du modèle OR-Tools"),
-    FIRST_RESULT_HINT(
-        "The first build will appear here as soon as the solver has one.",
-        "Le premier build apparaîtra ici dès que le solveur en a un."
-    ),
-    EMPTY("empty", "vide"),
-
-    // Empty-slot explanations ("explain the solver's choices"): %s = the sublimation's localized name.
-    EMPTY_SLOT_SUB_HINT("Kept empty for %s", "Laissé vide pour %s"),
-    EMPTY_SLOT_NO_GAIN_HINT(
-        "No item here improves the requested stats",
-        "Aucun objet ici n'améliore les stats demandées"
-    ),
-    LEVEL_PREFIX_LONG("Level", "Niveau"),
-    LEVEL_PREFIX_SHORT("Lv", "Niv."),
-    DISCLAIMER(
-        "Unofficial fan tool - not affiliated with Ankama - item art © Ankama (community-sourced)",
-        "Outil de fan non officiel - non affilié à Ankama - visuels © Ankama (communautaires)"
-    ),
-    APP_VERSION_LABEL("Version", "Version"),
-    GAME_DATA_LABEL("Game data", "Données de jeu"),
-    SLOT_HELMET("Helmet", "Casque"),
-    SLOT_AMULET("Amulet", "Amulette"),
-    SLOT_EPAULETTES("Epaulettes", "Épaulettes"),
-    SLOT_BREASTPLATE("Breastplate", "Plastron"),
-    SLOT_CAPE("Cape", "Cape"),
-    SLOT_EMBLEM("Emblem", "Emblème"),
-    SLOT_BELT("Belt", "Ceinture"),
-    SLOT_RING_I("Ring I", "Anneau I"),
-    SLOT_RING_II("Ring II", "Anneau II"),
-    SLOT_BOOTS("Boots", "Bottes"),
-    SLOT_WEAPON("Weapon", "Arme"),
-    SLOT_SECOND_WEAPON("Second Wpn", "2nde arme"),
-    SLOT_PET("Pet", "Familier"),
-    SLOT_MOUNT("Mount", "Monture"),
-
-    // Stats panel
-    BUILD_MATCH("Build Match", "Correspondance"),
-    TARGETS_MET("Targets met", "Cibles atteintes"),
-    BUILD_MASTERY("Requested mastery", "Maîtrise demandée"),
-    BUILD_MASTERY_HINT("specialized summed + weakest requested element", "spécialisées sommées + élément demandé le plus faible"),
-    MASTERY_SHORT("Mastery", "Maîtrise"),
-    OPTIMAL_PROVEN("Optimal proven", "Optimal prouvé"),
-    BEST_FOUND("Best found · optimum not proven", "Meilleur trouvé · optimum non prouvé"),
-    NOT_OPTIMAL_HINT(
-        "Time budget reached before proving the optimum — raise the search duration to aim higher.",
-        "Budget de temps atteint avant de prouver l'optimum — augmente la durée de recherche pour viser plus haut."
-    ),
-    SEARCH_STOPPED_HINT(
-        "Search stopped early — run it again to let the solver finish.",
-        "Recherche arrêtée avant la fin — relance-la pour laisser le solveur terminer."
-    ),
-    NOT_OPTIMAL_STRUCTURAL_HINT(
-        "Best found across resistance-debuff sequencing — that turn structure is searched heuristically, so more time won't materially change the result.",
-        "Meilleur trouvé parmi les séquences de réduction de résistance — cette structure de tour est explorée heuristiquement, donc plus de temps n'y changera pas grand-chose."
-    ),
-
-    // A request on several elements searches a pre-filtered item pool, so it never earns an optimality badge, whatever the search
-    // duration: this explanation replaces the "raise the search duration" hint there (which would be false advice). The title says
-    // WHAT is missing, the body WHY, and that it is not a defect of the build.
-    NO_PROOF_TITLE(
-        "No optimality proof for this request",
-        "Pas de preuve d'optimalité pour cette requête"
-    ),
-    NO_PROOF_BODY(
-        "Your request targets several elements. To keep the search fast, the engine only compares a selection of the strongest items, " +
-            "not the whole catalog. The build found is very likely the best, but it can't be proven, even with more time. " +
-            "Single-element requests are not affected.",
-        "Ta requête vise plusieurs éléments. Pour que la recherche reste rapide, le moteur ne compare qu'une sélection des meilleurs " +
-            "objets, pas tout le catalogue. Le build trouvé est très probablement le meilleur, mais on ne peut pas le prouver, même " +
-            "avec plus de temps. Les requêtes sur un seul élément ne sont pas concernées."
-    ),
-
-    // Max-damage certificate proof state (P4.4). The %s is the elapsed time ("2 min 10 s").
-    PROVING_OPTIMALITY("Verifying optimality… (%s)", "Vérification de l'optimalité… (%s)"),
-    PROOF_CONSTRUCTING("Building the proven optimal build… (%s)", "Construction du build optimal prouvé… (%s)"),
-
-    // Soft-proof stage narration (the engine reports which certificate stage just ran, phrased as
-    // what runs NEXT — the keys fire at stage completion).
-    PROOF_STAGE_WORLD_TREE("Exploring conditional-sublimation worlds… (%s)", "Exploration des mondes de sublimations conditionnelles… (%s)"),
-    PROOF_STAGE_AFTER_RELAXED("Computing certificate bounds… (%s)", "Calcul des bornes du certificat… (%s)"),
-    PROOF_STAGE_AFTER_NO_COND("Scanning conditional worlds… (%s)", "Balayage des mondes conditionnels… (%s)"),
-    PROOF_STAGE_AFTER_COARSE("Refining the binding worlds… (%s)", "Raffinement des mondes déterminants… (%s)"),
-    PROOF_STAGE_AFTER_REFINE("Pricing secondary-mastery conditions… (%s)", "Évaluation des conditions de maîtrise secondaire… (%s)"),
-    PROOF_STAGE_AFTER_SECONDARY("Auto-calibrating the proof for this request… (%s)", "Auto-calibration de la preuve pour cette requête… (%s)"),
-    PROOF_STAGE_FINALIZING("Finalizing the certificate… (%s)", "Finalisation du certificat… (%s)"),
-    PROOF_STAGE_CP_PROBE("Attempting a full CP-SAT proof… (%s)", "Tentative de preuve CP-SAT complète… (%s)"),
-    PROOF_STAGE_CARRIER_CLOSURE("Closing the proof world by world… (%s)", "Fermeture de la preuve monde par monde… (%s)"),
-    PROOF_REFINING("Refining the proof in the background…", "Affinage de la preuve en arrière-plan…"),
-
-    // Tooltip on the "still checking" cue (the Verifying… line and the refining line): what this background work is, what it
-    // costs, what it can change, and how to stop it or switch it off. Plain words on purpose.
-    PROOF_INFO(
-        "The app is still checking how close this build is to the best possible one. This check is optional: it uses " +
-            "your processor, sometimes all its cores, for up to several minutes. The badge may improve and, in Max " +
-            "Damage, the build may be replaced by the proven best one. You can stop it at any time and keep your current " +
-            "build and badge, or turn it off in the search settings (\"Check optimality after the search\").",
-        "L'app vérifie encore à quel point ce build est proche du meilleur possible. Cette vérification est facultative : " +
-            "elle utilise ton processeur, parfois tous ses cœurs, jusqu'à plusieurs minutes. Le badge peut s'améliorer et, " +
-            "en Dégâts max, le build peut être remplacé par le meilleur build prouvé. Tu peux l'arrêter à tout moment en " +
-            "gardant ton build et ton badge actuels, ou la désactiver dans les paramètres de recherche " +
-            "(« Vérifier l'optimalité après la recherche »)."
-    ),
-
-    // The certificate's bound on a build it could not prove optimal: it reads as a BOUND ("at most X below the optimum"), never as
-    // a success, and replaces the "optimum not proven" headline instead of stacking under it. FR uses a no-break space before the %.
-    BEST_FOUND_WITHIN(
-        "Best found · at most %s%% below the optimum",
-        "Meilleur trouvé · au plus %s %% sous l'optimum"
-    ),
-    PROOF_UNAVAILABLE_FORCED("Proof unavailable (forced runes/sublimations)", "Preuve indisponible (runes/sublimations imposées)"),
-    MASTERY_SUMMARY("Mastery Summary", "Cumul maîtrises"),
-    MASTERY_TOTAL("Tracked total", "Total suivi"),
-    BUILD_SHEET_TITLE("Other build stats", "Autres stats du build"),
-    BUILD_SHEET_EMPTY("No other notable stats on this build.", "Aucune autre stat notable sur ce build."),
-    MASTERY_ELEMENTALS("Elementals", "Élémentaires"),
-    MASTERY_SPECIALIZED("Specialized", "Spécialisées"),
-    MASTERY_INCIDENTAL("Also on the build (not requested)", "Aussi sur le build (non demandé)"),
-    DESIRED_VS_ACHIEVED("Desired vs Achieved", "Désiré vs Obtenu"),
-    TAG_EXACT("minimum", "minimum"),
-    TAG_MAXIMIZE("maximize", "maximiser"),
-    SKILL_ALLOCATION("Skill Allocation", "Répartition des aptitudes"),
-    BRANCHES_COUNT("5 branches", "5 branches"),
-    OPEN_IN_ZENITH("Open in Zenith ↗", "Ouvrir dans Zenith ↗"),
-    VIEW_AS_DAMAGE("View this build as damage", "Voir ce build en dégâts"),
-    OPENING("Opening...", "Ouverture..."),
-    COPY_BUILD_LINK("Copy build link", "Copier le lien"),
-    EXPORT_BUILD("Export build", "Exporter le build"),
-    NO_BUILD_YET("No build yet", "Aucun build"),
-    NO_BUILD_HINT(
-        "Set your target stats & constraints on the left, then hit Search. " +
-            "The paperdoll fills in live as better builds are found.",
-        "Définissez vos stats cibles et contraintes à gauche, puis lancez la recherche. " +
-            "L'équipement se remplit en direct à mesure que de meilleurs builds sont trouvés."
-    ),
-    BRANCH_INTELLIGENCE("Intelligence", "Intelligence"),
-    BRANCH_STRENGTH("Strength", "Force"),
-    BRANCH_AGILITY("Agility", "Agilité"),
-    BRANCH_LUCK("Luck", "Chance"),
-    BRANCH_MAJOR("Major", "Majeur"),
-    SKILL_LEFTOVER_WARNING(
-        "%d aptitude point(s) are unassigned because they do not change this build's damage; assign them in game for survivability or comfort.",
-        "%d point(s) d'aptitude ne sont pas placés car ils ne changent pas les dégâts de ce build ; répartis-les en jeu pour la survie ou le confort."
-    ),
-
-    // Modals
-    ADD_TARGET_STAT_TITLE("Add target stat", "Ajouter une stat cible"),
-    FILTER_STATS("Filter stats…", "Filtrer les stats…"),
-    STAT_GROUP_CORE("Core", "Base"),
-    STAT_GROUP_MASTERIES("Masteries", "Maîtrises"),
-    STAT_GROUP_RESISTANCES("Resistances", "Résistances"),
-    STAT_GROUP_SECONDARY("Secondary", "Secondaires"),
-    NO_MATCHING_STAT("No matching stat", "Aucune stat correspondante"),
-    REQUIRE_ITEM_TITLE("Require item", "Imposer un objet"),
-    BAN_ITEM_TITLE("Ban item", "Exclure un objet"),
-    SEARCH_ITEMS("Search items (FR / EN)…", "Rechercher des objets (FR / EN)…"),
-    ALL_SLOTS("All slots", "Tous les emplacements"),
-    PICKER_MATCH_COUNT("Matches: %d", "Résultats : %d"),
-    NO_MATCHING_ITEM("No matching item", "Aucun objet correspondant"),
-    EQUIPPABLE_ONLY("Equippable only", "Équipables uniquement"),
-    RARITY_ALL("All", "Toutes"),
-    DONE("Done", "Terminé"),
-    REQUIRE("Require", "Imposer"),
-    BAN("Ban", "Exclure"),
-    RUNES("Runes", "Châsses"),
-    LOADING_ITEMS("Loading item database…", "Chargement de la base d'objets…"),
-
-    // Import-build dialog
-    IMPORT_DIALOG_TITLE("Import a build", "Importer un build"),
-    IMPORT_DIALOG_HINT(
-        "Paste a build exported from this app (input + result). It's added to your library and opened.",
-        "Colle un build exporté depuis l'app (entrée + résultat). Il est ajouté à ta bibliothèque et ouvert."
-    ),
-    IMPORT_PLACEHOLDER("Paste the exported build here…", "Colle ici le build exporté…"),
-    IMPORT_PASTE("Paste", "Coller"),
-    GLYPH_ACTION_POINT("AP", "PA"),
-    GLYPH_MOVEMENT_POINT("MP", "PM"),
-    GLYPH_WAKFU_POINT("WP", "PW"),
-    GLYPH_MASTERY_ELEMENTARY("El", "Él"),
-    GLYPH_MASTERY_ELEMENTARY_WATER("Wa", "Ea"),
-    GLYPH_MASTERY_ELEMENTARY_FIRE("Fi", "Fe"),
-    GLYPH_MASTERY_ELEMENTARY_EARTH("Ea", "Te"),
-    GLYPH_MASTERY_ELEMENTARY_WIND("Ai", "Ai"),
-    GLYPH_MASTERY_MELEE("Me", "Mê"),
-    GLYPH_MASTERY_BACK("Re", "Do"),
-    GLYPH_MASTERY_BERSERK("Be", "Be"),
-    GLYPH_MASTERY_HEALING("He", "So"),
-    GLYPH_RESISTANCE_ELEMENTARY("rE", "rÉ"),
-    GLYPH_RESISTANCE_ELEMENTARY_WATER("rW", "rE"),
-    GLYPH_RESISTANCE_ELEMENTARY_FIRE("rF", "rF"),
-    GLYPH_RESISTANCE_ELEMENTARY_EARTH("rT", "rT"),
-    GLYPH_RESISTANCE_CRITICAL("rC", "rC"),
-    GLYPH_RESISTANCE_BACK("rB", "rD"),
-    GLYPH_CONTROL("Co", "Ct"),
-    GLYPH_WISDOM("Ws", "Sa"),
-    GLYPH_PROSPECTION("Pp", "Pp"),
-    GLYPH_INITIATIVE("In", "In"),
-    GLYPH_LOCK("Lk", "Ta"),
-    GLYPH_WILLPOWER("Wl", "Vo"),
-    GLYPH_BLOCK_PERCENTAGE("Bl", "Pa"),
-    IMPORT_INVALID(
-        "That doesn't look like an exported build. Check the clipboard content and copy the exported build again.",
-        "Cela ne ressemble pas à un build exporté. Vérifie le contenu du presse-papiers et copie à nouveau le build exporté."
-    ),
-    SAVE_BUILD_FAILED("Could not save this build. Please try saving it again.", "Impossible d'enregistrer ce build. Réessaie de l'enregistrer."),
-    IMPORT_BUILD_FAILED("Could not import this build. Please try importing it again.", "Impossible d'importer ce build. Réessaie de l'importer."),
-    DUPLICATE_BUILD_FAILED("Could not duplicate this build. Please try duplicating it again.", "Impossible de dupliquer ce build. Réessaie de le dupliquer."),
-    IMPORT_CONFIRM("Import", "Importer"),
-    IMPORTED_BUILD_NAME("Imported build", "Build importé"),
-
-    // Toasts (read off the composition by the state holder)
-    TOAST_ZENITH_COPIED("Zenith link copied", "Lien Zenith copié"),
-    TOAST_ZENITH_READY("Zenith build ready", "Build Zenith prêt"),
-    TOAST_BUILD_SAVED("Build saved", "Build enregistré"),
-    TOAST_BUILD_DUPLICATED("Build duplicated", "Build dupliqué"),
-    TOAST_BUILD_EXPORTED("Build copied to clipboard", "Build copié dans le presse-papiers"),
-    TOAST_BUILD_IMPORTED("Build imported", "Build importé"),
-    TOAST_RUNES_LOCKED("Current runes locked for this item", "Runes actuelles verrouillées pour cet objet"),
-    TOAST_FORCED_ITEMS_REMOVED(
-        "%d forced item(s) removed because they no longer fit the level/rarity range",
-        "%d objet(s) imposé(s) retiré(s) car ils ne correspondent plus au niveau ou à la rareté"
-    ),
-    TOAST_WORKSPACE_ENTRIES_REMOVED(
-        "%d item(s), sublimation(s), passive(s) or rune(s) from your last session no longer exist in the game data and were removed",
-        "%d objet(s), sublimation(s), passif(s) ou rune(s) de ta dernière session n'existent plus dans les données du jeu et ont été retirés"
-    ),
-
-    // Error banner: plain sentences, the technical detail goes to the log. %s in ZENITH_BROWSER_FAILED = the "Copy build link" label.
-    ZENITH_UNREACHABLE(
-        "Zenith did not answer — check your connection and retry.",
-        "Zenith n'a pas répondu — vérifie ta connexion et réessaie."
-    ),
-    ZENITH_BROWSER_FAILED(
-        "Couldn't open your browser — use \"%s\" and paste the link into it yourself.",
-        "Impossible d'ouvrir ton navigateur — utilise « %s » et colle le lien dedans toi-même."
-    ),
-    SEARCH_FAILED(
-        "The search failed unexpectedly — try again. If it keeps happening, please report it.",
-        "La recherche a échoué de façon inattendue — réessaie. Si cela continue, signale-le."
-    ),
-    RETRY("Retry", "Réessayer"),
-
-    // Navigation / active build
-    NAV_BUILDER("Builder", "Builder"),
-    NAV_LIBRARY("My Builds", "Mes builds"),
-    NEW_BUILD("＋ New", "＋ Nouveau"),
-    ACTIVE_BUILD_EDITING("Editing", "Édition"),
-    BACK("Back", "Retour"),
-
-    // Save dialog
-    SAVE_BUILD("Save build", "Enregistrer le build"),
-    SAVE_DIALOG_TITLE("Save this build", "Enregistrer ce build"),
-    SAVE_NAME_LABEL("Name", "Nom"),
-    SAVE_NOTE_LABEL("Note (optional)", "Note (facultatif)"),
-    SAVE("Save", "Enregistrer"),
-    SAVE_AS_NEW("Save as new", "Nouveau build"),
-    UPDATE_BUILD("Update", "Mettre à jour"),
-    SAVE_NAME_TAKEN("Another build already uses this name", "Un autre build porte déjà ce nom"),
-    SAVE_UPDATE_HINT("Updating the loaded build — or save it as a new one.", "Met à jour le build chargé — ou enregistre-le comme nouveau."),
-    CANCEL("Cancel", "Annuler"),
-
-    // Library
-    LIBRARY_TITLE("My Builds", "Mes builds"),
-    LIBRARY_SUBTITLE("Saved locally on this computer", "Enregistrés localement sur cet ordinateur"),
-    IMPORT_BUILD("⤓ Import", "⤓ Importer"),
-    LIBRARY_EMPTY("No saved builds yet", "Aucun build enregistré"),
-    LIBRARY_EMPTY_HINT(
-        "Run a search in the Builder, then hit Save — your builds show up here.",
-        "Lance une recherche dans le Builder, puis Enregistre — tes builds apparaîtront ici."
-    ),
-    LIBRARY_SEARCH("Search builds…", "Rechercher un build…"),
-    LIBRARY_NO_MATCH("No build matches your search", "Aucun build ne correspond"),
-    LIBRARY_COUNT("saved", "enregistrés"),
-
-    // A build computed with other game data than the app's (a saved build loaded after a game update): a small note on its My
-    // Builds card and in the stats column. %s = the game-data version it was saved with.
-    OBSOLETE_BADGE("Obsolete", "Obsolète"),
-    OBSOLETE_DATA_REASON(
-        "Game data updated since this build was saved (%s): new items, sublimations or runes may give a better build. Re-run the search.",
-        "Données du jeu mises à jour depuis (%s) : de nouveaux objets, sublimations ou runes peuvent donner un meilleur build. Relance la recherche."
-    ),
-    OBSOLETE_ENGINE_REASON(
-        "The engine was improved since this build was saved: re-running the search may find a better build or score.",
-        "Le moteur a été amélioré depuis l'enregistrement de ce build : relancer la recherche peut trouver un meilleur build ou un meilleur score."
-    ),
-    OBSOLETE_STORED_SCORE("When saved: %s", "À l'enregistrement : %s"),
-    OBSOLETE_DATA_OTHER("Saved with other game data (%s).", "Enregistré avec d'autres données du jeu (%s)."),
-    PROVEN_BY_OLDER_ENGINE(
-        "Proven by an older engine version: re-run the search to prove it with the current one.",
-        "Prouvé par une ancienne version du moteur : relance la recherche pour le prouver avec la version actuelle."
-    ),
-    ACTION_RERUN_SEARCH("Re-run the search", "Relancer la recherche"),
-    LIBRARY_ALL_BUILDS("All builds", "Tous les builds"),
-    LIBRARY_CLASSES("Classes", "Classes"),
-    LIBRARY_TAGS("Tags", "Tags"),
-    LIBRARY_SORT("Sort", "Tri"),
-    SORT_NEWEST("Newest", "Plus récents"),
-    SORT_OLDEST("Oldest", "Plus anciens"),
-    SORT_NAME("Name (A–Z)", "Nom (A–Z)"),
-    SORT_LEVEL("Level", "Niveau"),
-    LIBRARY_GROUP_BY_CLASS("Group by class", "Grouper par classe"),
-    LIBRARY_CLEAR_FILTERS("Clear filters", "Effacer les filtres"),
-    LIBRARY_FOLDERS("Folders", "Dossiers"),
-    LIBRARY_UNFILED("Unfiled", "Sans dossier"),
-    FOLDER_LABEL("Folder", "Dossier"),
-    FOLDER_NONE("None", "Aucun"),
-    FOLDER_NEW("New folder…", "Nouveau dossier…"),
-    RENAME_FOLDER_TITLE("Rename folder", "Renommer le dossier"),
-    DELETE_FOLDER_TITLE("Delete folder", "Supprimer le dossier"),
-    DELETE_FOLDER_HINT(
-        "The builds inside are kept and become unfiled.",
-        "Les builds qu'il contient sont conservés et redeviennent sans dossier."
-    ),
-    TOAST_FOLDER_RENAMED("Folder renamed", "Dossier renommé"),
-    TOAST_FOLDERS_MERGED("Folders merged", "Dossiers fusionnés"),
-    TOAST_FOLDER_DELETED("Folder deleted — builds kept", "Dossier supprimé — builds conservés"),
-    ACTION_LOAD("Load", "Charger"),
-    ACTION_COMPARE("Compare", "Comparer"),
-    ACTION_DUPLICATE("Duplicate", "Dupliquer"),
-    ACTION_RENAME("Rename", "Renommer"),
-    ACTION_DELETE("Delete", "Supprimer"),
-
-    /** Suffix appended to a duplicated build's name, e.g. "Cra 110 (copy)". */
-    DUPLICATE_SUFFIX("copy", "copie"),
-
-    // Edit / delete dialogs
-    EDIT_BUILD_TITLE("Edit build", "Modifier le build"),
-    TAGS_LABEL("Tags", "Tags"),
-    TAG_ADD_PLACEHOLDER("Type or pick a tag…", "Tape ou choisis un tag…"),
-    TAG_ADD("Add", "Ajouter"),
-    TAG_CREATE("Create", "Créer"),
-    TAG_NONE_LEFT("No tag matches — type to create one", "Aucun tag — tape pour en créer un"),
-    TAG_NEW("New tag", "Nouveau tag"),
-    CREATE_TAG_TITLE("New tag", "Nouveau tag"),
-    RENAME_TAG_TITLE("Rename tag", "Renommer le tag"),
-    DELETE_TAG_TITLE("Delete tag", "Supprimer le tag"),
-    DELETE_TAG_HINT(
-        "The tag is removed from every build. The builds themselves are kept.",
-        "Le tag est retiré de tous les builds. Les builds eux-mêmes sont conservés."
-    ),
-    TOAST_TAG_RENAMED("Tag renamed", "Tag renommé"),
-    TOAST_TAGS_MERGED("Tags merged", "Tags fusionnés"),
-    TOAST_TAG_DELETED("Tag deleted from all builds", "Tag supprimé de tous les builds"),
-    DELETE_TITLE("Delete this build?", "Supprimer ce build ?"),
-    DELETE_HINT("This permanently removes it from your local library.", "Le retire définitivement de ta bibliothèque locale."),
-
-    // Re-search guard
-    RESEARCH_TITLE("Re-optimize this build?", "Ré-optimiser ce build ?"),
-    RESEARCH_HINT(
-        "You're editing a saved build. Searching recomputes it from your current targets; " +
-            "you can then save the result back over it.",
-        "Tu édites un build enregistré. La recherche le recalcule selon tes cibles actuelles ; " +
-            "tu pourras ensuite réenregistrer le résultat par-dessus."
-    ),
-    RESEARCH_CONFIRM("Re-optimize", "Ré-optimiser"),
-
-    // Compare view
-    COMPARE_TITLE("Compare builds", "Comparer les builds"),
-    COMPARE_PICK("Pick a build", "Choisir un build"),
-    COMPARE_ADD("Add build", "Ajouter un build"),
-    COMPARE_BETTER("Best", "Meilleur"),
-    COMPARE_EQUAL("=", "="),
-    COMPARE_EMPTY("Pick at least two builds to compare them side by side.", "Choisis au moins deux builds à comparer côte à côte."),
-    COMPARE_STAT("Stat", "Stat"),
-    COMPARE_ENGINE_SCORE("Mastery score (engine)", "Score maîtrises (moteur)"),
-    COMPARE_ENGINE_DAMAGE("Expected damage (engine)", "Dégâts attendus (moteur)"),
-    COMPARE_GROUP_DAMAGE("Damage", "Dégâts"),
-    COMPARE_GROUP_OTHER("Other", "Autres"),
-    COMPARE_SPELL_DAMAGE("Spell damage", "Dégâts des sorts"),
-    COMPARE_SPELLS_MIXED_CLASS(
-        "Spell damage compares only builds of the same class — these are different classes.",
-        "Les dégâts des sorts ne comparent que des builds de la même classe — ici les classes diffèrent."
-    ),
-
-    // What's-new dialog (once-per-version release notes)
-    WHATS_NEW_TITLE("What's new in", "Nouveautés de la version"),
-
-    // Sections of the player-facing notes (changes/: one feat / fix / perf note per change), and the label of a note that
-    // only concerns the command-line tool.
-    WHATS_NEW_NEW("New", "Nouveau"),
-    WHATS_NEW_FIXED("Fixes", "Corrections"),
-    WHATS_NEW_FASTER("Faster", "Plus rapide"),
-    WHATS_NEW_SCOPE_CLI("Command line", "Ligne de commande"),
-
-    // The release-please CHANGELOG headings, still shown for the releases that predate those notes (≤ 1.11).
-    WHATS_NEW_FEATURES("Features", "Fonctionnalités"),
-    WHATS_NEW_FIXES("Bug Fixes", "Corrections"),
-    WHATS_NEW_PERF("Performance Improvements", "Améliorations de performance"),
-    WHATS_NEW_GOT_IT("Got it", "Compris"),
-
-    // Class spells & passives tab (build-result region)
-    TAB_DISCOVERED_BUILD("Discovered build", "Build découvert"),
-    TAB_CLASS_SPELLS("Class spells & passives", "Sorts & passifs"),
-    CLASS_SPELLS_TITLE("Class spells", "Sorts de la classe"),
-    CLASS_SPELLS_PASSIVES("Passives", "Passifs"),
-    PASSIVE_IN_BUILD("in build", "dans le build"),
-    CLASS_SPELLS_EMPTY("This class has no damage spells in the data.", "Cette classe n'a aucun sort de dégâts dans les données."),
-    CLASS_SPELLS_NO_BUILD(
-        "No build yet — showing each spell's base hit at this level. Run a search to see this build's damage.",
-        "Pas encore de build — dégâts de base affichés à ce niveau. Lance une recherche pour voir les dégâts de ce build."
-    ),
-    SPELL_EXPECTED_HIT("expected hit", "dégâts moyens"),
-    SPELL_BASE_HIT("base hit", "dégâts de base"),
-    SPELL_NONCRIT("non-crit", "non-crit"),
-    SPELL_CRIT("crit", "crit"),
-    SPELL_ALWAYS_CRITS("always crits · 100% crit", "toujours crit · 100% crit"),
-    SPELL_PER_TURN_SUFFIX("turn", "tour"),
-    SPELL_EXPECTED_HIT_INFO(
-        "Expected hit: the average damage of one cast. It blends a non-crit and a crit hit, weighted by " +
-            "this build's crit chance, from its elemental mastery, its distance/melee mastery, % damage " +
-            "inflicted and critical mastery — against a 0%-resistance target.",
-        "Dégâts moyens : la moyenne d'un lancer. Mélange un coup normal et un coup critique, pondérés par les " +
-            "chances de coup critique du build, d'après sa maîtrise élémentaire, sa maîtrise distance/mêlée, ses " +
-            "% de dégâts infligés et sa maîtrise critique — contre une cible à 0% de résistance."
-    ),
-    SPELL_DAMAGE_RANGE_NOTE("incl. %s mastery", "incl. maîtrise %s"),
-    SPELL_DAMAGE_DIST_MELEE_HINT(
-        "Distance and melee mastery both present — a hit uses only one (the scenario's), never both.",
-        "Maîtrise distance et mêlée toutes deux présentes — un coup n'en utilise qu'une (celle du scénario), jamais les deux."
-    ),
-    SPELL_VARIANT_BERSERK("berserk", "berserk"),
-    SCENARIO_DAMAGE_BREAKDOWN("Damage by position", "Dégâts par position"),
-    SPELL_BASE_HIT_INFO(
-        "Base hit at this level, before the build's masteries. Run a search to see this build's expected damage.",
-        "Dégâts de base à ce niveau, avant les maîtrises du build. Lance une recherche pour voir les dégâts attendus de ce build."
-    ),
-    ELEMENT_FIRE("Fire", "Feu"),
-    ELEMENT_WATER("Water", "Eau"),
-    ELEMENT_EARTH("Earth", "Terre"),
-    ELEMENT_AIR("Air", "Air"),
+enum class Tr {
+    CLASS,
+    LEVEL_SHORT,
+    MIN_SHORT,
+    LEVEL_RANGE_INVALID,
+    FORCED_ITEM_NOT_EQUIPPABLE,
+    FORCED_SUBLIMATION_RARITY_INVALID,
+    SUBLIMATION_FORCED_AND_EXCLUDED,
+    FORCED_ITEM_ALSO_EXCLUDED,
+    FORCED_ITEMS_SLOT_CONFLICT,
+    FORCED_WEAPONS_CONFLICT,
+    FORCED_ITEM_RARITY_BUDGET,
+    FORCED_SUBLIMATION_NO_CARRIER,
+    FORCED_SUBLIMATIONS_EXCEED_CAPACITY,
+    EQUIP_NEEDS,
+    EQUIP_INCOMPATIBLE,
+    EQUIP_CLASS_ONLY,
+    EQUIP_NEVER,
+    STAT_GATE_INACTIVE,
+    STAT_GATE_BADGE,
+    STAT_GATE_CUE_HINT,
+    FORCED_ITEM_STAT_GATE_TARGET,
+    EQUIP_ASSUMED_MET,
+    EQUIP_MILITIA_RANK,
+    EQUIP_NAMED_ACHIEVEMENT,
+    EQUIP_NAMED_ACHIEVEMENT_NOT_COMPLETED,
+    EQUIP_ACHIEVEMENT,
+    EQUIP_ACHIEVEMENT_NOT_COMPLETED,
+    EQUIP_STASIS_GAUGE,
+    EQUIP_WAKFU_GAUGE,
+    EQUIP_CRIME_SCORE,
+    EQUIP_ITEM_FALLBACK,
+    EQUIP_MORE,
+    CLASS_FECA,
+    CLASS_OSAMODAS,
+    CLASS_ENUTROF,
+    CLASS_SRAM,
+    CLASS_XELOR,
+    CLASS_ECAFLIP,
+    CLASS_ENIRIPSA,
+    CLASS_IOP,
+    CLASS_CRA,
+    CLASS_SADIDA,
+    CLASS_SACRIEUR,
+    CLASS_PANDAWA,
+    CLASS_ROUBLARD,
+    CLASS_ZOBAL,
+    CLASS_OUGINAK,
+    CLASS_STEAMER,
+    CLASS_ELIOTROPE,
+    CLASS_HUPPERMAGE,
+    CLASS_UNKNOWN,
+    FORCED_ITEM_WRONG_CLASS,
+    FORCED_ITEM_NEVER_EQUIPPABLE,
+    FORCED_ITEM_REQUIRES_ITEM,
+    FORCED_ITEMS_MUTUALLY_EXCLUSIVE,
+    REQUEST_ERRORS_TITLE,
+    REQUEST_ERRORS_INTRO,
+    REQUEST_ERRORS_DISMISS,
+    PROGRESS,
+    PRELOAD_WARMUP,
+    MATCH,
+    SEARCH,
+    STOP,
+    ZONE_REQUEST,
+    ZONE_REQUEST_HINT,
+    ZONE_BUILD,
+    ZONE_BUILD_IDLE,
+    ZONE_BUILD_SEARCHING,
+    ZONE_BUILD_DONE,
+    ZONE_BUILD_STOPPED,
+    ZONE_STATS,
+    ZONE_STATS_HINT,
+    SEARCH_MODE,
+    MODE_MASTERIES,
+    MODE_MASTERIES_SUB,
+    MODE_PRECISION,
+    MODE_PRECISION_SUB,
+    MODE_MAX_DAMAGE,
+    MODE_MAX_DAMAGE_SUB,
+    DAMAGE_SCENARIO,
+    SCENARIO_ELEMENT,
+    SCENARIO_RANGE,
+    SCENARIO_ORIENTATION,
+    SCENARIO_BERSERK,
+    SCENARIO_HEALING,
+    SCENARIO_CRIT_CAP,
+    SCENARIO_ENEMY_RES,
+    SCENARIO_ROLE,
+    ROLE_DISTANCE_DPS,
+    ROLE_MELEE_DPS,
+    ROLE_TANK,
+    SCENARIO_SURVIVAL_FLOOR,
+    SCENARIO_MIN_EHP,
+    BOSS,
+    BOSS_NONE_HINT,
+    VS_BOSS,
+    BOSS_PICK,
+    BOSS_CHANGE,
+    BOSS_REMOVE,
+    BOSS_LEVEL_SHORT,
+    BOSS_ELEMENT,
+    BOSS_ELEMENT_AUTO,
+    BOSS_DIFFICULTY,
+    CHOOSE_BOSS_TITLE,
+    SEARCH_BOSSES,
+    NO_MATCHING_BOSS,
+    TURNS_TO_KILL,
+    EXPECTED_DAMAGE,
+    SPELL_ROTATION,
+    STAT_AP_AMOUNT,
+    STAT_WP_AMOUNT,
+    SPELL_DEBUFF_CAST,
+    SPELL_DEBUFF_RESISTANCE,
+    SPELL_ROTATION_TOTAL,
+    SUBLIMATION_NORMAL,
+    SPELL_ROTATION_SUB,
+    SPELL_ROTATION_PER_TURN,
+    SPELL_ROTATION_EMPTY,
+    SPELL_ROTATION_NOTE,
+    TARGET_STATS,
+    MAXIMIZED_MASTERIES,
+    NO_MASTERY_SELECTED,
+    DI_AUTOMAX_HINT,
+    PRIORITY,
+    PRIORITY_HINT,
+    ADD_TARGET_STAT,
+    KIND_EXACT,
+    KIND_MAXIMIZE,
+    MAX_RARITY,
+    RARITIES,
+    RARITIES_SUB,
+    SEARCH_DURATION,
+    SEARCH_DURATION_SUB,
+    SECONDS_SHORT,
+    STOP_AT_MATCH,
+    VERIFY_OPTIMALITY,
+    VERIFY_OPTIMALITY_SUB,
+    SEARCH_NO_RESULT,
+    FORCED_ITEMS,
+    REQUIRE_ITEM_CHIP,
+    EXCLUDED_ITEMS,
+    BAN_ITEM_CHIP,
+    SUBLIMATIONS_RUNES,
+    SOLVER_PICKS_SUBLIMATIONS,
+    SUBLIMATION_LEVEL_CAP,
+    SUBLIMATION_LEVEL_ALL,
+    SUBLIMATION_LEVEL_UP_TO,
+    SUBLIMATION_TIER_SHORT,
+    SUBLIMATION_STACK_SHORT,
+    SUBLIMATION_LEVEL_CAP_HINT,
+    FORCED_SUBLIMATIONS,
+    ADD_SUBLIMATION_CHIP,
+    CHOSEN_SUBLIMATIONS,
+    REQUIRE_SUBLIMATION_TITLE,
+    EXCLUDED_SUBLIMATIONS,
+    BAN_SUBLIMATION_CHIP,
+    EXCLUDE_SUBLIMATION_TITLE,
+    SEARCH_SUBLIMATIONS,
+    NO_MATCHING_SUBLIMATION,
+    FORCED_PASSIVES,
+    ADD_PASSIVE_CHIP,
+    CHOSEN_PASSIVES,
+    REQUIRE_PASSIVE_TITLE,
+    SEARCH_PASSIVES,
+    NO_MATCHING_PASSIVE,
+    PASSIVE_SLOTS_FULL,
+    EDIT_RUNES,
+    EDIT_RUNES_TITLE,
+    RUNE_SOCKETS_LABEL,
+    SEARCH_RUNES,
+    NO_MATCHING_RUNE,
+    LOCK_CURRENT_RUNES,
+    RUNES_PER_ITEM_HINT,
+    RUNES_ALLGOLD_HINT,
+    PREPARING_OR_TOOLS_MODEL,
+    FIRST_RESULT_HINT,
+    EMPTY,
+    EMPTY_SLOT_SUB_HINT,
+    EMPTY_SLOT_NO_GAIN_HINT,
+    LEVEL_PREFIX_LONG,
+    LEVEL_PREFIX_SHORT,
+    DISCLAIMER,
+    APP_VERSION_LABEL,
+    GAME_DATA_LABEL,
+    SLOT_HELMET,
+    SLOT_AMULET,
+    SLOT_EPAULETTES,
+    SLOT_BREASTPLATE,
+    SLOT_CAPE,
+    SLOT_EMBLEM,
+    SLOT_BELT,
+    SLOT_RING_I,
+    SLOT_RING_II,
+    SLOT_BOOTS,
+    SLOT_WEAPON,
+    SLOT_SECOND_WEAPON,
+    SLOT_PET,
+    SLOT_MOUNT,
+    BUILD_MATCH,
+    TARGETS_MET,
+    BUILD_MASTERY,
+    BUILD_MASTERY_HINT,
+    MASTERY_SHORT,
+    OPTIMAL_PROVEN,
+    BEST_FOUND,
+    NOT_OPTIMAL_HINT,
+    SEARCH_STOPPED_HINT,
+    NOT_OPTIMAL_STRUCTURAL_HINT,
+    NO_PROOF_TITLE,
+    NO_PROOF_BODY,
+    PROVING_OPTIMALITY,
+    PROOF_CONSTRUCTING,
+    PROOF_STAGE_WORLD_TREE,
+    PROOF_STAGE_AFTER_RELAXED,
+    PROOF_STAGE_AFTER_NO_COND,
+    PROOF_STAGE_AFTER_COARSE,
+    PROOF_STAGE_AFTER_REFINE,
+    PROOF_STAGE_AFTER_SECONDARY,
+    PROOF_STAGE_FINALIZING,
+    PROOF_STAGE_CP_PROBE,
+    PROOF_STAGE_CARRIER_CLOSURE,
+    PROOF_REFINING,
+    PROOF_INFO,
+    BEST_FOUND_WITHIN,
+    PROOF_UNAVAILABLE_FORCED,
+    MASTERY_SUMMARY,
+    MASTERY_TOTAL,
+    BUILD_SHEET_TITLE,
+    BUILD_SHEET_EMPTY,
+    MASTERY_ELEMENTALS,
+    MASTERY_SPECIALIZED,
+    MASTERY_INCIDENTAL,
+    DESIRED_VS_ACHIEVED,
+    TAG_EXACT,
+    TAG_MAXIMIZE,
+    SKILL_ALLOCATION,
+    BRANCHES_COUNT,
+    OPEN_IN_ZENITH,
+    VIEW_AS_DAMAGE,
+    OPENING,
+    COPY_BUILD_LINK,
+    EXPORT_BUILD,
+    NO_BUILD_YET,
+    NO_BUILD_HINT,
+    BRANCH_INTELLIGENCE,
+    BRANCH_STRENGTH,
+    BRANCH_AGILITY,
+    BRANCH_LUCK,
+    BRANCH_MAJOR,
+    SKILL_LEFTOVER_WARNING,
+    ADD_TARGET_STAT_TITLE,
+    FILTER_STATS,
+    STAT_GROUP_CORE,
+    STAT_GROUP_MASTERIES,
+    STAT_GROUP_RESISTANCES,
+    STAT_GROUP_SECONDARY,
+    NO_MATCHING_STAT,
+    REQUIRE_ITEM_TITLE,
+    BAN_ITEM_TITLE,
+    SEARCH_ITEMS,
+    ALL_SLOTS,
+    PICKER_MATCH_COUNT,
+    NO_MATCHING_ITEM,
+    EQUIPPABLE_ONLY,
+    RARITY_ALL,
+    DONE,
+    REQUIRE,
+    BAN,
+    RUNES,
+    LOADING_ITEMS,
+    IMPORT_DIALOG_TITLE,
+    IMPORT_DIALOG_HINT,
+    IMPORT_PLACEHOLDER,
+    IMPORT_PASTE,
+    GLYPH_ACTION_POINT,
+    GLYPH_MOVEMENT_POINT,
+    GLYPH_WAKFU_POINT,
+    GLYPH_MASTERY_ELEMENTARY,
+    GLYPH_MASTERY_ELEMENTARY_WATER,
+    GLYPH_MASTERY_ELEMENTARY_FIRE,
+    GLYPH_MASTERY_ELEMENTARY_EARTH,
+    GLYPH_MASTERY_ELEMENTARY_WIND,
+    GLYPH_MASTERY_MELEE,
+    GLYPH_MASTERY_BACK,
+    GLYPH_MASTERY_BERSERK,
+    GLYPH_MASTERY_HEALING,
+    GLYPH_RESISTANCE_ELEMENTARY,
+    GLYPH_RESISTANCE_ELEMENTARY_WATER,
+    GLYPH_RESISTANCE_ELEMENTARY_FIRE,
+    GLYPH_RESISTANCE_ELEMENTARY_EARTH,
+    GLYPH_RESISTANCE_CRITICAL,
+    GLYPH_RESISTANCE_BACK,
+    GLYPH_CONTROL,
+    GLYPH_WISDOM,
+    GLYPH_PROSPECTION,
+    GLYPH_INITIATIVE,
+    GLYPH_LOCK,
+    GLYPH_WILLPOWER,
+    GLYPH_BLOCK_PERCENTAGE,
+    IMPORT_INVALID,
+    SAVE_BUILD_FAILED,
+    IMPORT_BUILD_FAILED,
+    DUPLICATE_BUILD_FAILED,
+    IMPORT_CONFIRM,
+    IMPORTED_BUILD_NAME,
+    TOAST_ZENITH_COPIED,
+    TOAST_ZENITH_READY,
+    TOAST_BUILD_SAVED,
+    TOAST_BUILD_DUPLICATED,
+    TOAST_BUILD_EXPORTED,
+    TOAST_BUILD_IMPORTED,
+    TOAST_RUNES_LOCKED,
+    TOAST_FORCED_ITEMS_REMOVED,
+    TOAST_WORKSPACE_ENTRIES_REMOVED,
+    ZENITH_UNREACHABLE,
+    ZENITH_BROWSER_FAILED,
+    SEARCH_FAILED,
+    RETRY,
+    NAV_BUILDER,
+    NAV_LIBRARY,
+    NEW_BUILD,
+    ACTIVE_BUILD_EDITING,
+    BACK,
+    SAVE_BUILD,
+    SAVE_DIALOG_TITLE,
+    SAVE_NAME_LABEL,
+    SAVE_NOTE_LABEL,
+    SAVE,
+    SAVE_AS_NEW,
+    UPDATE_BUILD,
+    SAVE_NAME_TAKEN,
+    SAVE_UPDATE_HINT,
+    CANCEL,
+    LIBRARY_TITLE,
+    LIBRARY_SUBTITLE,
+    IMPORT_BUILD,
+    LIBRARY_EMPTY,
+    LIBRARY_EMPTY_HINT,
+    LIBRARY_SEARCH,
+    LIBRARY_NO_MATCH,
+    LIBRARY_COUNT,
+    OBSOLETE_BADGE,
+    OBSOLETE_DATA_REASON,
+    OBSOLETE_ENGINE_REASON,
+    OBSOLETE_STORED_SCORE,
+    OBSOLETE_DATA_OTHER,
+    PROVEN_BY_OLDER_ENGINE,
+    ACTION_RERUN_SEARCH,
+    LIBRARY_ALL_BUILDS,
+    LIBRARY_CLASSES,
+    LIBRARY_TAGS,
+    LIBRARY_SORT,
+    SORT_NEWEST,
+    SORT_OLDEST,
+    SORT_NAME,
+    SORT_LEVEL,
+    LIBRARY_GROUP_BY_CLASS,
+    LIBRARY_CLEAR_FILTERS,
+    LIBRARY_FOLDERS,
+    LIBRARY_UNFILED,
+    FOLDER_LABEL,
+    FOLDER_NONE,
+    FOLDER_NEW,
+    RENAME_FOLDER_TITLE,
+    DELETE_FOLDER_TITLE,
+    DELETE_FOLDER_HINT,
+    TOAST_FOLDER_RENAMED,
+    TOAST_FOLDERS_MERGED,
+    TOAST_FOLDER_DELETED,
+    ACTION_LOAD,
+    ACTION_COMPARE,
+    ACTION_DUPLICATE,
+    ACTION_RENAME,
+    ACTION_DELETE,
+    DUPLICATE_SUFFIX,
+    EDIT_BUILD_TITLE,
+    TAGS_LABEL,
+    TAG_ADD_PLACEHOLDER,
+    TAG_ADD,
+    TAG_CREATE,
+    TAG_NONE_LEFT,
+    TAG_NEW,
+    CREATE_TAG_TITLE,
+    RENAME_TAG_TITLE,
+    DELETE_TAG_TITLE,
+    DELETE_TAG_HINT,
+    TOAST_TAG_RENAMED,
+    TOAST_TAGS_MERGED,
+    TOAST_TAG_DELETED,
+    DELETE_TITLE,
+    DELETE_HINT,
+    RESEARCH_TITLE,
+    RESEARCH_HINT,
+    RESEARCH_CONFIRM,
+    COMPARE_TITLE,
+    COMPARE_PICK,
+    COMPARE_ADD,
+    COMPARE_BETTER,
+    COMPARE_EQUAL,
+    COMPARE_EMPTY,
+    COMPARE_STAT,
+    COMPARE_ENGINE_SCORE,
+    COMPARE_ENGINE_DAMAGE,
+    COMPARE_GROUP_DAMAGE,
+    COMPARE_GROUP_OTHER,
+    COMPARE_SPELL_DAMAGE,
+    COMPARE_SPELLS_MIXED_CLASS,
+    WHATS_NEW_TITLE,
+    WHATS_NEW_NEW,
+    WHATS_NEW_FIXED,
+    WHATS_NEW_FASTER,
+    WHATS_NEW_SCOPE_CLI,
+    WHATS_NEW_FEATURES,
+    WHATS_NEW_FIXES,
+    WHATS_NEW_PERF,
+    WHATS_NEW_GOT_IT,
+    TAB_DISCOVERED_BUILD,
+    TAB_CLASS_SPELLS,
+    CLASS_SPELLS_TITLE,
+    CLASS_SPELLS_PASSIVES,
+    PASSIVE_IN_BUILD,
+    CLASS_SPELLS_EMPTY,
+    CLASS_SPELLS_NO_BUILD,
+    SPELL_EXPECTED_HIT,
+    SPELL_BASE_HIT,
+    SPELL_NONCRIT,
+    SPELL_CRIT,
+    SPELL_ALWAYS_CRITS,
+    SPELL_PER_TURN_SUFFIX,
+    SPELL_EXPECTED_HIT_INFO,
+    SPELL_DAMAGE_RANGE_NOTE,
+    SPELL_DAMAGE_DIST_MELEE_HINT,
+    SPELL_VARIANT_BERSERK,
+    SCENARIO_DAMAGE_BREAKDOWN,
+    SPELL_BASE_HIT_INFO,
+    ELEMENT_FIRE,
+    ELEMENT_WATER,
+    ELEMENT_EARTH,
+    ELEMENT_AIR,
+    EXCLUDE_ALL_SUBLIMATIONS_RARITY,
+    UNEXCLUDE_ALL_SUBLIMATIONS_RARITY,
     ;
 
-    fun value(lang: Lang): String =
-        when (lang) {
-            Lang.EN -> en
-            Lang.FR -> fr
-        }
+    val en: String get() = value(Lang.EN)
+    val fr: String get() = value(Lang.FR)
+
+    fun value(lang: Lang): String = Translations.lookup(lang, name)
+}
+
+/**
+ * Loads every `i18n/strings_<lang>.properties` bundle from the classpath (UTF-8) once, eagerly, at
+ * first touch. [TranslationBundlesTest] (`gui-compose` test sources) guarantees in CI that every
+ * [Tr] key exists in every bundle with matching placeholders, so [lookup] only needs a fallback to
+ * English for robustness against a corrupted/partial jar at runtime — it never falls back to the
+ * raw enum name, and a bundle that fails to load (missing resource) degrades to an empty map
+ * instead of crashing the app.
+ */
+private object Translations {
+    private val bundles: Map<Lang, Map<String, String>> = Lang.entries.associateWith(::loadBundle)
+
+    private fun loadBundle(lang: Lang): Map<String, String> {
+        val path = "/i18n/strings_${lang.resourceSuffix}.properties"
+        val stream = Translations::class.java.getResourceAsStream(path) ?: return emptyMap()
+        val properties = java.util.Properties()
+        stream.use { properties.load(it.bufferedReader(Charsets.UTF_8)) }
+        return properties.entries.associate { (key, value) -> key.toString() to value.toString() }
+    }
+
+    fun lookup(
+        lang: Lang,
+        key: String,
+    ): String = bundles[lang]?.get(key) ?: bundles[Lang.EN]?.get(key).orEmpty()
 }
 
 @Composable
@@ -755,101 +512,176 @@ fun tr(key: Tr): String = key.value(LocalLang.current)
  * Localized display name for **every** characteristic — exhaustive so the compiler guarantees no
  * stat shown on an item tooltip is left without a translation.
  */
-fun Characteristic.label(lang: Lang): String {
-    val fr = lang == Lang.FR
-    return when (this) {
-        Characteristic.MASTERY_ELEMENTARY -> if (fr) "Maîtrise Élémentaire" else "Elemental Mastery"
-        Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT -> if (fr) "Maîtrise d'1 élément aléatoire" else "Mastery of 1 Random Element"
-        Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT -> if (fr) "Maîtrise de 2 éléments aléatoires" else "Mastery of 2 Random Elements"
-        Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT -> if (fr) "Maîtrise de 3 éléments aléatoires" else "Mastery of 3 Random Elements"
-        Characteristic.MASTERY_ELEMENTARY_WATER -> if (fr) "Maîtrise Eau" else "Water Mastery"
-        Characteristic.MASTERY_ELEMENTARY_WIND -> if (fr) "Maîtrise Air" else "Air Mastery"
-        Characteristic.MASTERY_ELEMENTARY_FIRE -> if (fr) "Maîtrise Feu" else "Fire Mastery"
-        Characteristic.MASTERY_ELEMENTARY_EARTH -> if (fr) "Maîtrise Terre" else "Earth Mastery"
-        Characteristic.MASTERY_DISTANCE -> if (fr) "Maîtrise Distance" else "Distance Mastery"
-        Characteristic.MASTERY_CRITICAL -> if (fr) "Maîtrise Critique" else "Critical Mastery"
-        Characteristic.MASTERY_BACK -> if (fr) "Maîtrise Dos" else "Rear Mastery"
-        Characteristic.MASTERY_MELEE -> if (fr) "Maîtrise Mêlée" else "Melee Mastery"
-        Characteristic.MASTERY_BERSERK -> if (fr) "Maîtrise Berserk" else "Berserk Mastery"
-        Characteristic.MASTERY_HEALING -> if (fr) "Maîtrise Soin" else "Healing Mastery"
-        Characteristic.DAMAGE_INFLICTED -> if (fr) "Dommages infligés" else "Damage Inflicted"
-        Characteristic.RESISTANCE_CRITICAL -> if (fr) "Résistance Critique" else "Critical Resist"
-        Characteristic.RESISTANCE_BACK -> if (fr) "Résistance Dos" else "Rear Resist"
-        Characteristic.RESISTANCE_ELEMENTARY -> if (fr) "Résistance Élémentaire" else "Elemental Resist"
-        Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT -> if (fr) "Résistance d'1 élément aléatoire" else "Resist of 1 Random Element"
-        Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT -> if (fr) "Résistance de 2 éléments aléatoires" else "Resist of 2 Random Elements"
-        Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT -> if (fr) "Résistance de 3 éléments aléatoires" else "Resist of 3 Random Elements"
-        Characteristic.RESISTANCE_ELEMENTARY_EARTH -> if (fr) "Résistance Terre" else "Earth Resist"
-        Characteristic.RESISTANCE_ELEMENTARY_FIRE -> if (fr) "Résistance Feu" else "Fire Resist"
-        Characteristic.RESISTANCE_ELEMENTARY_WATER -> if (fr) "Résistance Eau" else "Water Resist"
-        Characteristic.RESISTANCE_ELEMENTARY_WIND -> if (fr) "Résistance Air" else "Air Resist"
-        Characteristic.HP -> if (fr) "Points de Vie" else "Health Points"
-        Characteristic.CRITICAL_HIT -> if (fr) "Coup Critique" else "Critical Hit"
-        Characteristic.WAKFU_POINT -> if (fr) "PW" else "WP"
-        Characteristic.MAX_WAKFU_POINTS -> if (fr) "PW max" else "Max WP"
-        Characteristic.ACTION_POINT -> if (fr) "PA" else "AP"
-        Characteristic.MAX_ACTION_POINT -> if (fr) "PA max" else "Max AP"
-        Characteristic.RANGE -> if (fr) "Portée" else "Range"
-        Characteristic.MOVEMENT_POINT -> if (fr) "PM" else "MP"
-        Characteristic.MAX_MOVEMENT_POINT -> if (fr) "PM max" else "Max MP"
-        Characteristic.CONTROL -> if (fr) "Contrôle" else "Control"
-        Characteristic.WISDOM -> if (fr) "Sagesse" else "Wisdom"
-        Characteristic.DODGE -> if (fr) "Esquive" else "Dodge"
-        Characteristic.LOCK -> if (fr) "Tacle" else "Lock"
-        Characteristic.PROSPECTION -> if (fr) "Prospection" else "Prospecting"
-        Characteristic.INITIATIVE -> if (fr) "Initiative" else "Initiative"
-        Characteristic.WILLPOWER -> if (fr) "Volonté" else "Willpower"
-        Characteristic.BLOCK_PERCENTAGE -> if (fr) "Parade %" else "Block %"
-        Characteristic.GIVEN_ARMOR_PERCENTAGE -> if (fr) "Armure donnée %" else "Given Armor %"
-        Characteristic.RECEIVED_ARMOR_PERCENTAGE -> if (fr) "Armure reçue %" else "Received Armor %"
-        Characteristic.HERBALIST_HARVEST_QUANTITY_PERCENTAGE -> if (fr) "Récolte Herboriste %" else "Herbalist Harvest %"
-        Characteristic.LUMBERJACK_HARVEST_QUANTITY_PERCENTAGE -> if (fr) "Récolte Bûcheron %" else "Lumberjack Harvest %"
-        Characteristic.TRAPPER_HARVEST_QUANTITY_PERCENTAGE -> if (fr) "Récolte Trappeur %" else "Trapper Harvest %"
-        Characteristic.MINER_HARVEST_QUANTITY_PERCENTAGE -> if (fr) "Récolte Mineur %" else "Miner Harvest %"
-        Characteristic.FARMER_HARVEST_QUANTITY_PERCENTAGE -> if (fr) "Récolte Paysan %" else "Farmer Harvest %"
-        Characteristic.FISHERMAN_HARVEST_QUANTITY_PERCENTAGE -> if (fr) "Récolte Pêcheur %" else "Fisherman Harvest %"
+fun Characteristic.label(lang: Lang): String =
+    when (this) {
+        Characteristic.MASTERY_ELEMENTARY -> localized(lang, fr = "Maîtrise Élémentaire", en = "Elemental Mastery", es = "Dominio elemental", pt = "Domínio elementar")
+        Characteristic.MASTERY_ELEMENTARY_ONE_RANDOM_ELEMENT ->
+            localized(
+                lang,
+                fr = "Maîtrise d'1 élément aléatoire",
+                en = "Mastery of 1 Random Element",
+                es = "Dominio de 1 elemento aleatorio",
+                pt = "Domínio de 1 elemento aleatório"
+            )
+        Characteristic.MASTERY_ELEMENTARY_TWO_RANDOM_ELEMENT ->
+            localized(
+                lang,
+                fr = "Maîtrise de 2 éléments aléatoires",
+                en = "Mastery of 2 Random Elements",
+                es = "Dominio de 2 elementos aleatorios",
+                pt = "Domínio de 2 elementos aleatórios"
+            )
+        Characteristic.MASTERY_ELEMENTARY_THREE_RANDOM_ELEMENT ->
+            localized(
+                lang,
+                fr = "Maîtrise de 3 éléments aléatoires",
+                en = "Mastery of 3 Random Elements",
+                es = "Dominio de 3 elementos aleatorios",
+                pt = "Domínio de 3 elementos aleatórios"
+            )
+        Characteristic.MASTERY_ELEMENTARY_WATER -> localized(lang, fr = "Maîtrise Eau", en = "Water Mastery", es = "Dominio agua", pt = "Domínio de água")
+        Characteristic.MASTERY_ELEMENTARY_WIND -> localized(lang, fr = "Maîtrise Air", en = "Air Mastery", es = "Dominio aire", pt = "Domínio de ar")
+        Characteristic.MASTERY_ELEMENTARY_FIRE -> localized(lang, fr = "Maîtrise Feu", en = "Fire Mastery", es = "Dominio fuego", pt = "Domínio de fogo")
+        Characteristic.MASTERY_ELEMENTARY_EARTH -> localized(lang, fr = "Maîtrise Terre", en = "Earth Mastery", es = "Dominio tierra", pt = "Domínio de terra")
+        Characteristic.MASTERY_DISTANCE -> localized(lang, fr = "Maîtrise Distance", en = "Distance Mastery", es = "Dominio distancia", pt = "Domínio de distância")
+        Characteristic.MASTERY_CRITICAL -> localized(lang, fr = "Maîtrise Critique", en = "Critical Mastery", es = "Dominio crítico", pt = "Domínio de crítico")
+        Characteristic.MASTERY_BACK -> localized(lang, fr = "Maîtrise Dos", en = "Rear Mastery", es = "Dominio espalda", pt = "Domínio de costas")
+        Characteristic.MASTERY_MELEE -> localized(lang, fr = "Maîtrise Mêlée", en = "Melee Mastery", es = "Dominio de melé", pt = "Domínio de Curta Distância")
+        Characteristic.MASTERY_BERSERK -> localized(lang, fr = "Maîtrise Berserk", en = "Berserk Mastery", es = "Dominio berserker", pt = "Domínio de Berserk")
+        Characteristic.MASTERY_HEALING -> localized(lang, fr = "Maîtrise Soin", en = "Healing Mastery", es = "Dominio cura", pt = "Domínio de cura")
+        Characteristic.DAMAGE_INFLICTED -> localized(lang, fr = "Dommages infligés", en = "Damage Inflicted", es = "Daños infligidos", pt = "Danos infligidos")
+        Characteristic.RESISTANCE_CRITICAL -> localized(lang, fr = "Résistance Critique", en = "Critical Resist", es = "Resistencia Crítica", pt = "Resistência a crítico")
+        Characteristic.RESISTANCE_BACK -> localized(lang, fr = "Résistance Dos", en = "Rear Resist", es = "Resistencia de Espalda", pt = "Resistência de costas")
+        Characteristic.RESISTANCE_ELEMENTARY -> localized(lang, fr = "Résistance Élémentaire", en = "Elemental Resist", es = "Resistencia Elemental", pt = "Resistência elementar")
+        Characteristic.RESISTANCE_ELEMENTARY_ONE_RANDOM_ELEMENT ->
+            localized(
+                lang,
+                fr = "Résistance d'1 élément aléatoire",
+                en = "Resist of 1 Random Element",
+                es = "Resistencia de 1 elemento aleatorio",
+                pt = "Resistência a 1 elemento aleatório"
+            )
+        Characteristic.RESISTANCE_ELEMENTARY_TWO_RANDOM_ELEMENT ->
+            localized(
+                lang,
+                fr = "Résistance de 2 éléments aléatoires",
+                en = "Resist of 2 Random Elements",
+                es = "Resistencia de 2 elementos aleatorios",
+                pt = "Resistência a 2 elementos aleatórios"
+            )
+        Characteristic.RESISTANCE_ELEMENTARY_THREE_RANDOM_ELEMENT ->
+            localized(
+                lang,
+                fr = "Résistance de 3 éléments aléatoires",
+                en = "Resist of 3 Random Elements",
+                es = "Resistencia de 3 elementos aleatorios",
+                pt = "Resistência a 3 elementos aleatórios"
+            )
+        Characteristic.RESISTANCE_ELEMENTARY_EARTH -> localized(lang, fr = "Résistance Terre", en = "Earth Resist", es = "Resistencia a la tierra", pt = "Resistência a Terra")
+        Characteristic.RESISTANCE_ELEMENTARY_FIRE -> localized(lang, fr = "Résistance Feu", en = "Fire Resist", es = "Resistencia al fuego", pt = "Resistência a Fogo")
+        Characteristic.RESISTANCE_ELEMENTARY_WATER -> localized(lang, fr = "Résistance Eau", en = "Water Resist", es = "Resistencia al agua", pt = "Resistência a Água")
+        Characteristic.RESISTANCE_ELEMENTARY_WIND -> localized(lang, fr = "Résistance Air", en = "Air Resist", es = "Resistencia al aire", pt = "Resistência a Ar")
+        Characteristic.HP -> localized(lang, fr = "Points de Vie", en = "Health Points", es = "Puntos de Vida", pt = "Pontos de vida")
+        Characteristic.CRITICAL_HIT -> localized(lang, fr = "Coup Critique", en = "Critical Hit", es = "Golpe Crítico", pt = "Golpe crítico")
+        Characteristic.WAKFU_POINT -> localized(lang, fr = "PW", en = "WP", es = "PW", pt = "PW")
+        Characteristic.MAX_WAKFU_POINTS -> localized(lang, fr = "PW max", en = "Max WP", es = "PW máx.", pt = "PW máx.")
+        Characteristic.ACTION_POINT -> localized(lang, fr = "PA", en = "AP", es = "PA", pt = "PA")
+        Characteristic.MAX_ACTION_POINT -> localized(lang, fr = "PA max", en = "Max AP", es = "PA máx.", pt = "PA máx.")
+        Characteristic.RANGE -> localized(lang, fr = "Portée", en = "Range", es = "Alcance", pt = "Alcance")
+        Characteristic.MOVEMENT_POINT -> localized(lang, fr = "PM", en = "MP", es = "PM", pt = "PM")
+        Characteristic.MAX_MOVEMENT_POINT -> localized(lang, fr = "PM max", en = "Max MP", es = "PM máx.", pt = "PM máx.")
+        Characteristic.CONTROL -> localized(lang, fr = "Contrôle", en = "Control", es = "Control", pt = "Controle")
+        Characteristic.WISDOM -> localized(lang, fr = "Sagesse", en = "Wisdom", es = "Sabiduría", pt = "Sabedoria")
+        Characteristic.DODGE -> localized(lang, fr = "Esquive", en = "Dodge", es = "Esquiva", pt = "Esquiva")
+        Characteristic.LOCK -> localized(lang, fr = "Tacle", en = "Lock", es = "Placaje", pt = "Bloqueio")
+        Characteristic.PROSPECTION -> localized(lang, fr = "Prospection", en = "Prospecting", es = "Prospección", pt = "Prospecção")
+        Characteristic.INITIATIVE -> localized(lang, fr = "Initiative", en = "Initiative", es = "Iniciativa", pt = "Iniciativa")
+        Characteristic.WILLPOWER -> localized(lang, fr = "Volonté", en = "Willpower", es = "Voluntad", pt = "Vontade")
+        Characteristic.BLOCK_PERCENTAGE -> localized(lang, fr = "Parade %", en = "Block %", es = "Anticipación %", pt = "Parada %")
+        Characteristic.GIVEN_ARMOR_PERCENTAGE -> localized(lang, fr = "Armure donnée %", en = "Given Armor %", es = "Armadura dada %", pt = "Armadura concedida %")
+        Characteristic.RECEIVED_ARMOR_PERCENTAGE -> localized(lang, fr = "Armure reçue %", en = "Received Armor %", es = "Armadura recibida %", pt = "Armadura recebida %")
+        Characteristic.HERBALIST_HARVEST_QUANTITY_PERCENTAGE ->
+            localized(lang, fr = "Récolte Herboriste %", en = "Herbalist Harvest %", es = "Recolección Herbolario %", pt = "Colheita de Herborista %")
+        Characteristic.LUMBERJACK_HARVEST_QUANTITY_PERCENTAGE ->
+            localized(lang, fr = "Récolte Bûcheron %", en = "Lumberjack Harvest %", es = "Recolección Leñador %", pt = "Colheita de Lenhador %")
+        Characteristic.TRAPPER_HARVEST_QUANTITY_PERCENTAGE ->
+            localized(lang, fr = "Récolte Trappeur %", en = "Trapper Harvest %", es = "Recolección Trampero %", pt = "Colheita de Caçador %")
+        Characteristic.MINER_HARVEST_QUANTITY_PERCENTAGE ->
+            localized(lang, fr = "Récolte Mineur %", en = "Miner Harvest %", es = "Recolección Minero %", pt = "Colheita de Mineiro %")
+        Characteristic.FARMER_HARVEST_QUANTITY_PERCENTAGE ->
+            localized(lang, fr = "Récolte Paysan %", en = "Farmer Harvest %", es = "Recolección Granjero %", pt = "Colheita de Fazendeiro %")
+        Characteristic.FISHERMAN_HARVEST_QUANTITY_PERCENTAGE ->
+            localized(lang, fr = "Récolte Pêcheur %", en = "Fisherman Harvest %", es = "Recolección Pescador %", pt = "Colheita de Pescador %")
     }
-}
+
+/** Picks the FR/EN/ES/PT form for [lang]; a tiny helper so inline per-language tables stay one line per entry. */
+fun localized(
+    lang: Lang,
+    fr: String,
+    en: String,
+    es: String,
+    pt: String,
+): String =
+    when (lang) {
+        Lang.FR -> fr
+        Lang.EN -> en
+        Lang.ES -> es
+        Lang.PT -> pt
+    }
 
 /** Localized display name for an attack's range band (the secondary mastery it credits). */
 fun RangeBand.label(lang: Lang): String =
     when (this) {
-        RangeBand.MELEE -> if (lang == Lang.FR) "Mêlée" else "Melee"
-        RangeBand.DISTANCE -> if (lang == Lang.FR) "Distance" else "Distance"
+        RangeBand.MELEE -> localized(lang, fr = "Mêlée", en = "Melee", es = "Melé", pt = "Curta distância")
+        RangeBand.DISTANCE -> localized(lang, fr = "Distance", en = "Distance", es = "Distancia", pt = "Distância")
     }
 
 /** Localized display name for an attack orientation (the positional damage multiplier). */
 fun Orientation.label(lang: Lang): String =
     when (this) {
-        Orientation.FACE -> if (lang == Lang.FR) "Face" else "Face"
-        Orientation.SIDE -> if (lang == Lang.FR) "Côté" else "Side"
-        Orientation.BACK -> if (lang == Lang.FR) "Dos" else "Back"
+        Orientation.FACE -> localized(lang, fr = "Face", en = "Face", es = "Frente", pt = "Frente")
+        Orientation.SIDE -> localized(lang, fr = "Côté", en = "Side", es = "Lado", pt = "Lado")
+        Orientation.BACK -> localized(lang, fr = "Dos", en = "Back", es = "Espalda", pt = "Costas")
     }
 
 /** Localized display name for an item rarity. */
 fun Rarity.label(lang: Lang): String =
     when (this) {
-        Rarity.COMMON -> if (lang == Lang.FR) "Commun" else "Common"
-        Rarity.UNCOMMON -> if (lang == Lang.FR) "Inhabituel" else "Uncommon"
-        Rarity.RARE -> if (lang == Lang.FR) "Rare" else "Rare"
-        Rarity.MYTHIC -> if (lang == Lang.FR) "Mythique" else "Mythic"
-        Rarity.LEGENDARY -> if (lang == Lang.FR) "Légendaire" else "Legendary"
-        Rarity.RELIC -> if (lang == Lang.FR) "Relique" else "Relic"
-        Rarity.SOUVENIR -> if (lang == Lang.FR) "Souvenir" else "Souvenir"
-        Rarity.EPIC -> if (lang == Lang.FR) "Épique" else "Epic"
+        Rarity.COMMON -> localized(lang, fr = "Commun", en = "Common", es = "Común", pt = "Comum")
+        Rarity.UNCOMMON -> localized(lang, fr = "Inhabituel", en = "Uncommon", es = "Poco común", pt = "Incomum")
+        Rarity.RARE -> localized(lang, fr = "Rare", en = "Rare", es = "Raro", pt = "Raro")
+        Rarity.MYTHIC -> localized(lang, fr = "Mythique", en = "Mythic", es = "Mítico", pt = "Mítico")
+        Rarity.LEGENDARY -> localized(lang, fr = "Légendaire", en = "Legendary", es = "Legendario", pt = "Lendário")
+        Rarity.RELIC -> localized(lang, fr = "Relique", en = "Relic", es = "Reliquia", pt = "Relíquia")
+        Rarity.SOUVENIR -> localized(lang, fr = "Souvenir", en = "Souvenir", es = "Recuerdo", pt = "Lembrança")
+        Rarity.EPIC -> localized(lang, fr = "Épique", en = "Epic", es = "Épico", pt = "Épico")
+    }
+
+/** Localized display name for a sublimation's rarity tier (epic/relic dedicated slot, or a normal socketed one). */
+fun SublimationRarity.label(lang: Lang): String =
+    when (this) {
+        SublimationRarity.EPIC -> localized(lang, fr = "Épique", en = "Epic", es = "Épico", pt = "Épico")
+        SublimationRarity.RELIC -> localized(lang, fr = "Relique", en = "Relic", es = "Reliquia", pt = "Relíquia")
+        SublimationRarity.NORMAL -> Tr.SUBLIMATION_NORMAL.value(lang)
     }
 
 /**
  * Localized display name for a skill-tree line. The domain's
- * [me.chosante.common.skills.SkillCharacteristic.name] is English-only; this maps it to FR for the skill
- * tree. Unknown names fall back to the English string.
+ * [me.chosante.common.skills.SkillCharacteristic.name] is English-only; this maps it to FR/ES/PT for
+ * the skill tree. Unknown names fall back to the English string.
  */
 fun skillLabel(
     englishName: String,
     lang: Lang,
 ): String {
-    if (lang != Lang.FR) return englishName
-    return SKILL_NAME_FR[englishName] ?: englishName
+    val table =
+        when (lang) {
+            Lang.FR -> SKILL_NAME_FR
+            Lang.ES -> SKILL_NAME_ES
+            Lang.PT -> SKILL_NAME_PT
+            Lang.EN -> return englishName
+        }
+    return table[englishName] ?: englishName
 }
 
 private val SKILL_NAME_FR =
@@ -859,6 +691,7 @@ private val SKILL_NAME_FR =
         "% Damage Inflicted" to "% Dommages infligés",
         "% HP as Armor" to "% PV en Armure",
         "% HP" to "% PV",
+        "HP" to "PV",
         "% Heal Received" to "% Soins reçus",
         "% Inflicted Damage" to "% Dommages infligés",
         "% damage" to "% dommages",
@@ -885,23 +718,57 @@ private val SKILL_NAME_FR =
         "Willpower" to "Volonté"
     )
 
+private val SKILL_NAME_ES =
+    mapOf(
+        "% Block" to "% Anticipación",
+        "% Critical Hit" to "% Golpe Crítico",
+        "% Damage Inflicted" to "% Daños infligidos",
+        "% HP as Armor" to "% PdV como Armadura",
+        "% HP" to "% PdV",
+        "HP" to "PdV",
+        "% Heal Received" to "% Curas recibidas",
+        "% Inflicted Damage" to "% Daños infligidos",
+        "% damage" to "% daño",
+        "Action Point" to "Punto de Acción",
+        "Control and damage" to "Control y daño",
+        "Dodge and lock" to "Esquiva y Placaje",
+        "Dodge" to "Esquiva",
+        "Initiative" to "Iniciativa",
+        "Lock" to "Placaje",
+        "Mastery Back" to "Dominio espalda",
+        "Mastery Berserk" to "Dominio berserker",
+        "Mastery Critical" to "Dominio crítico",
+        "Mastery Distance" to "Dominio distancia",
+        "Mastery Elementary" to "Dominio elemental",
+        "Mastery Healing" to "Dominio cura",
+        "Mastery Melee" to "Dominio de melé",
+        "Movement Point and damage" to "Punto de Movimiento y daño",
+        "Range and damage" to "Alcance y daño",
+        "Resistance Back" to "Resistencia de espalda",
+        "Resistance Critical" to "Resistencia crítica",
+        "Resistance Elementary" to "Resistencia elemental",
+        "Shield" to "Escudo",
+        "Wakfu Points" to "Puntos de Wakfu",
+        "Willpower" to "Voluntad"
+    )
+
 /** Localized display name for an equipment slot type. */
 fun ItemType.label(lang: Lang): String =
     when (this) {
-        ItemType.AMULET -> if (lang == Lang.FR) "Amulette" else "Amulet"
-        ItemType.EMBLEM -> if (lang == Lang.FR) "Emblème" else "Emblem"
-        ItemType.SHOULDER_PADS -> if (lang == Lang.FR) "Épaulettes" else "Epaulettes"
-        ItemType.RING -> if (lang == Lang.FR) "Anneau" else "Ring"
-        ItemType.BOOTS -> if (lang == Lang.FR) "Bottes" else "Boots"
-        ItemType.ONE_HANDED_WEAPONS -> if (lang == Lang.FR) "Arme à une main" else "One-handed Weapon"
-        ItemType.CHEST_PLATE -> if (lang == Lang.FR) "Plastron" else "Breastplate"
-        ItemType.CAPE -> if (lang == Lang.FR) "Cape" else "Cape"
-        ItemType.OFF_HAND_WEAPONS -> if (lang == Lang.FR) "Seconde main" else "Off-hand"
-        ItemType.HELMET -> if (lang == Lang.FR) "Casque" else "Helmet"
-        ItemType.PETS -> if (lang == Lang.FR) "Familier" else "Pet"
-        ItemType.TWO_HANDED_WEAPONS -> if (lang == Lang.FR) "Arme à deux mains" else "Two-handed Weapon"
-        ItemType.MOUNTS -> if (lang == Lang.FR) "Monture" else "Mount"
-        ItemType.BELT -> if (lang == Lang.FR) "Ceinture" else "Belt"
+        ItemType.AMULET -> localized(lang, fr = "Amulette", en = "Amulet", es = "Amuleto", pt = "Amuleto")
+        ItemType.EMBLEM -> localized(lang, fr = "Emblème", en = "Emblem", es = "Emblema", pt = "Emblema")
+        ItemType.SHOULDER_PADS -> localized(lang, fr = "Épaulettes", en = "Epaulettes", es = "Hombreras", pt = "Ombreiras")
+        ItemType.RING -> localized(lang, fr = "Anneau", en = "Ring", es = "Anillo", pt = "Anel")
+        ItemType.BOOTS -> localized(lang, fr = "Bottes", en = "Boots", es = "Botas", pt = "Botas")
+        ItemType.ONE_HANDED_WEAPONS -> localized(lang, fr = "Arme à une main", en = "One-handed Weapon", es = "Arma de una mano", pt = "Arma de uma mão")
+        ItemType.CHEST_PLATE -> localized(lang, fr = "Plastron", en = "Breastplate", es = "Coraza", pt = "Peitoral")
+        ItemType.CAPE -> localized(lang, fr = "Cape", en = "Cape", es = "Capa", pt = "Capa")
+        ItemType.OFF_HAND_WEAPONS -> localized(lang, fr = "Seconde main", en = "Off-hand", es = "Segunda mano", pt = "Segunda mão")
+        ItemType.HELMET -> localized(lang, fr = "Casque", en = "Helmet", es = "Casco", pt = "Capacete")
+        ItemType.PETS -> localized(lang, fr = "Familier", en = "Pet", es = "Mascota", pt = "Mascote")
+        ItemType.TWO_HANDED_WEAPONS -> localized(lang, fr = "Arme à deux mains", en = "Two-handed Weapon", es = "Arma de dos manos", pt = "Arma de duas mãos")
+        ItemType.MOUNTS -> localized(lang, fr = "Monture", en = "Mount", es = "Montura", pt = "Montaria")
+        ItemType.BELT -> localized(lang, fr = "Ceinture", en = "Belt", es = "Cinturón", pt = "Cinto")
     }
 
 /** Shared localized class names. */
@@ -928,10 +795,36 @@ fun CharacterClass.label(lang: Lang): String =
         CharacterClass.UNKNOWN -> Tr.CLASS_UNKNOWN
     }.value(lang)
 
-/** Epic and relic share the equipment rarity labels; normal is specific to sublimations. */
-fun SublimationRarity.label(lang: Lang): String =
-    when (this) {
-        SublimationRarity.EPIC -> Rarity.EPIC.label(lang)
-        SublimationRarity.RELIC -> Rarity.RELIC.label(lang)
-        SublimationRarity.NORMAL -> Tr.SUBLIMATION_NORMAL.value(lang)
-    }
+private val SKILL_NAME_PT =
+    mapOf(
+        "% Block" to "% Parada",
+        "% Critical Hit" to "% Golpe crítico",
+        "% Damage Inflicted" to "% Danos infligidos",
+        "% HP as Armor" to "% PV como Armadura",
+        "% HP" to "% PV",
+        "HP" to "PV",
+        "% Heal Received" to "% Curas recebidas",
+        "% Inflicted Damage" to "% Danos infligidos",
+        "% damage" to "% danos",
+        "Action Point" to "Ponto de ação",
+        "Control and damage" to "Controle e danos",
+        "Dodge and lock" to "Esquiva e Bloqueio",
+        "Dodge" to "Esquiva",
+        "Initiative" to "Iniciativa",
+        "Lock" to "Bloqueio",
+        "Mastery Back" to "Domínio de costas",
+        "Mastery Berserk" to "Domínio de Berserk",
+        "Mastery Critical" to "Domínio de crítico",
+        "Mastery Distance" to "Domínio de distância",
+        "Mastery Elementary" to "Domínio elementar",
+        "Mastery Healing" to "Domínio de cura",
+        "Mastery Melee" to "Domínio de Curta Distância",
+        "Movement Point and damage" to "Ponto de movimento e danos",
+        "Range and damage" to "Alcance e danos",
+        "Resistance Back" to "Resistência de costas",
+        "Resistance Critical" to "Resistência a crítico",
+        "Resistance Elementary" to "Resistência elementar",
+        "Shield" to "Escudo",
+        "Wakfu Points" to "Pontos de Wakfu",
+        "Willpower" to "Vontade"
+    )

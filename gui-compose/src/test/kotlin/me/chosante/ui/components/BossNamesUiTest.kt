@@ -90,6 +90,17 @@ class BossNamesUiTest {
     }
 
     @Test
+    fun `Spanish and Portuguese boss names can be searched and are displayed`() {
+        for (lang in listOf(Lang.ES, Lang.PT)) {
+            runComposeUiTest {
+                picker(lang)
+                onAllNodes(hasSetTextAction())[0].performTextInput(boss.name.localized(lang))
+                assertThat(rows(boss.name.localized(lang)).fetchSemanticsNodes()).hasSize(1)
+            }
+        }
+    }
+
+    @Test
     fun `the search finds a boss by its name in either language`() {
         runComposeUiTest {
             picker(Lang.EN)

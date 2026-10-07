@@ -11,6 +11,7 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.unit.dp
 import me.chosante.ui.i18n.Lang
 import me.chosante.ui.i18n.LocalLang
+import me.chosante.ui.i18n.Tr
 import org.junit.jupiter.api.Test
 
 @OptIn(ExperimentalTestApi::class)
@@ -30,7 +31,7 @@ class ItemConditionLinesUiTest {
                 }
                 mainClock.advanceTimeByFrame()
                 onNodeWithText("Needs a ring").assertExists()
-                onNodeWithText(if (lang == Lang.EN) "+2 more" else "+2 autres").assertExists()
+                onNodeWithText(Tr.EQUIP_MORE.value(lang).format(2)).assertExists()
                 onNodeWithText(lines[1].text).assertDoesNotExist()
                 onNodeWithText(lines[2].text).assertDoesNotExist()
                 onNodeWithText("Needs a ring").performMouseInput { moveTo(center) }
