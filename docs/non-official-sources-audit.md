@@ -29,7 +29,7 @@ Status: 🟢 Actionable (a concrete official source exists) · 🟡 Keep / docum
 | `rune-level-requirements` | Rune level-requirement table — hardcoded | 🟢 Actionable | notable | easy |
 | `spell-cast-limit-names` | spell-cast-limits.json names — from the encyclopedia spells.json | 🟢 Actionable | minor | easy |
 | `spell-passive-names` | spell-passives.json names/descriptions — from the encyclopedia spells.json | 🟢 Actionable | minor | easy |
-| `stale-comments` | Stale provenance comments (wakassets/WakForge/MethodWakfu/Fandom) | 🟢 Actionable (docs) | minor | easy |
+| `stale-comments` | Stale provenance comments (wakassets/WakForge/MethodWakfu/Fandom) | ✅ Done — `docs: monster provenance comments name the official sources` | minor | easy |
 | `itemtypes-112` | itemType 112 icon — committed fallback (absent from gui.jar) | 🟢 Actionable | minor | medium |
 | `monster-rank-overlay` | monster-overlay.json — hand-curated boss rank | 🟢 Actionable | notable | medium |
 | `rune-slot-raw-ids` | Rune slot raw-id map — hardcoded (WakForge ITEM_SLOT_DATA) | 🟢 Actionable | minor | medium |
@@ -178,7 +178,7 @@ Status: 🟢 Actionable (a concrete official source exists) · 🟡 Keep / docum
 
 ### `stale-comments` — Stale provenance comments (wakassets/WakForge/MethodWakfu/Fandom)
 
-- **Status:** 🟢 Actionable (docs)
+- **Status:** ✅ Done — `docs: monster provenance comments name the official sources`
 - **Category:** comment-doc · **Classification:** other · **Severity:** minor · **Feasibility:** easy · **Effort:** ~30-45 min (comment + doc wording only; no code logic, no data regeneration).
 - **What it is:** Numerous comments and docs still describe the old monster-data pipeline (MethodWakfu Reborn bestiary REST/scrape + Fandom MonsterCard fallback) as if it were the source of monster stats. The monsters-extractor module, MethodWakfuBestiary.kt and FandomCrossReference.kt are deleted; monster STATS now come from bdata (local client). These mentions are stale/historical, not live dependencies — but several read as current and should be corrected to avoid implying a non-official live source.
 - **Why not fully official:** Not a data input itself — flagged because the comments falsely imply a third-party live source for monster stats. The BossScenarioTest comment 'verified against MethodWakfu's displayed values' documents a one-time validation, not a runtime dependency. BOSS_MODE_RESEARCH.md / SUBLIMATIONS_LOT3_*.md / parts of FULL_DAMAGE_PLAN.md / ENCHANTMENTS_PLAN.md describe the retired WakForge/noredlace/MethodWakfu/Fandom pipelines and are mostly marked SUPERSEDED, but the headers and inline references remain and can mislead.
