@@ -335,6 +335,62 @@ internal fun Scrim(
     }
 }
 
+/** Shared catalog shell. Keys are canonical identities, never translated display names.
+ * Selection is supplied by the caller so rejected picks (for example a full passive loadout) stay visible.
+ * Rune editing supplies no hidden keys: repeated runes and removal are part of that editor's contract.
+ */
+@Composable
+private fun <T, K> PickerScaffold(
+    title: String,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    placeholder: String,
+    entries: List<T>,
+    entryKey: (T) -> K,
+    emptyText: String,
+    rowKey: (T) -> Any = { entryKey(it) as Any },
+    alreadySelected: Set<K> = emptySet(),
+    showMatchCount: Boolean = false,
+    listHeight: androidx.compose.ui.unit.Dp = 440.dp,
+    loading: Boolean = false,
+    header: @Composable () -> Unit = {},
+    footer: @Composable () -> Unit = {},
+    onDone: (() -> Unit)? = null,
+    listContent: (@Composable (List<T>) -> Unit)? = null,
+    row: @Composable (T) -> Unit = {},
+) {
+    val visible = remember(entries, alreadySelected, entryKey) { entries.filterNot { entryKey(it) in alreadySelected } }
+    ModalCard(title = title) {
+        if (loading) {
+            LoadingState(message = tr(Tr.LOADING_ITEMS))
+            return@ModalCard
+        }
+        header()
+        SearchField(query = query, onQueryChange = onQueryChange, placeholder = placeholder, autoFocus = true)
+        Spacer(modifier = Modifier.height(WDimens.gap))
+        if (showMatchCount) PickerMatchCount(visible.size)
+        if (listContent != null) {
+            listContent(visible)
+        } else {
+            LazyColumn(
+                modifier = Modifier.heightIn(max = listHeight),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                items(visible, key = rowKey) { row(it) }
+            }
+        }
+        if (visible.isEmpty()) {
+            Text(
+                text = emptyText,
+                style = WTypography.bodyMedium.copy(color = WColor.muted),
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
+        }
+        if (onDone != null) PickerDoneButton(onDone = onDone)
+        footer()
+    }
+}
+
 @Composable
 private fun AddStatModal(
     excluded: Set<Characteristic>,
@@ -343,70 +399,60 @@ private fun AddStatModal(
 ) {
     val lang = LocalLang.current
     var query by remember { mutableStateOf("") }
-    val sections =
-        remember(query, excluded, lang) {
-            val normalizedQuery = query.trim()
-            val results =
-                statCatalog.filter { def ->
-                    def.characteristic !in excluded &&
-                        def.label(lang).contains(normalizedQuery, ignoreCase = true)
-                }
-            statSections.mapNotNull { section ->
-                val sectionStats =
-                    results
-                        .filter { section.accepts(it.characteristic) }
-                        .sortedByLocalized(lang) { it.label(lang) }
-                if (sectionStats.isEmpty()) {
-                    null
-                } else {
-                    section to sectionStats
-                }
-            }
+    val results =
+        remember(query, lang) {
+            statCatalog.filter { it.label(lang).contains(query.trim(), ignoreCase = true) }
         }
-    ModalCard(title = tr(Tr.ADD_TARGET_STAT_TITLE)) {
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.FILTER_STATS), autoFocus = true)
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        Column(
-            modifier =
-                Modifier
-                    .heightIn(max = 420.dp)
-                    .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(7.dp)
-        ) {
-            sections.forEachIndexed { sectionIndex, (section, stats) ->
-                if (sectionIndex > 0) {
-                    Spacer(modifier = Modifier.height(4.dp))
+    PickerScaffold(
+        title = tr(Tr.ADD_TARGET_STAT_TITLE),
+        query = query,
+        onQueryChange = { query = it },
+        placeholder = tr(Tr.FILTER_STATS),
+        entries = results,
+        entryKey = { it.characteristic },
+        alreadySelected = excluded,
+        emptyText = tr(Tr.NO_MATCHING_STAT),
+        onDone = onDone,
+        listContent = { visible ->
+            val sections =
+                statSections.mapNotNull { section ->
+                    val stats = visible.filter { section.accepts(it.characteristic) }.sortedByLocalized(lang) { it.label(lang) }
+                    if (stats.isEmpty()) null else section to stats
                 }
-                Text(
-                    text = tr(section.title),
-                    style = WTypography.labelMedium.copy(color = WColor.muted)
-                )
-                stats.chunked(2).forEach { pair ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        pair.forEach { def ->
-                            CatalogTile(
-                                characteristic = def.characteristic,
-                                glyph = def.glyph,
-                                color = def.color,
-                                label = def.label(lang),
-                                onClick = { onSelect(def.characteristic) },
-                                modifier = Modifier.weight(1f)
-                            )
+            Column(
+                modifier =
+                    Modifier
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                sections.forEachIndexed { sectionIndex, (section, stats) ->
+                    if (sectionIndex > 0) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                    Text(
+                        text = tr(section.title),
+                        style = WTypography.labelMedium.copy(color = WColor.muted)
+                    )
+                    stats.chunked(2).forEach { pair ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                            pair.forEach { def ->
+                                CatalogTile(
+                                    characteristic = def.characteristic,
+                                    glyph = def.glyph,
+                                    color = def.color,
+                                    label = def.label(lang),
+                                    onClick = { onSelect(def.characteristic) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            if (pair.size == 1) Spacer(modifier = Modifier.weight(1f))
                         }
-                        if (pair.size == 1) Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
-            if (sections.isEmpty()) {
-                Text(
-                    text = tr(Tr.NO_MATCHING_STAT),
-                    style = WTypography.bodyMedium.copy(color = WColor.muted),
-                    modifier = Modifier.padding(vertical = 16.dp)
-                )
-            }
         }
-        PickerDoneButton(onDone = onDone)
-    }
+    )
 }
 
 private data class StatSection(
@@ -522,7 +568,6 @@ private fun ItemPickerModal(
             val q = query.trim()
             catalog
                 .asSequence()
-                .filterNot { it.name.fr in selectedNames }
                 .filter { slotFilter == null || it.itemType == slotFilter }
                 .filter { !equippableOnly || it.isEquippableForPicker(level, minLevel, maxRarity, excludedRarities) }
                 .filter { equipment ->
@@ -537,39 +582,29 @@ private fun ItemPickerModal(
     val catalogById = remember(equipmentCatalog) { equipmentCatalog.orEmpty().associateBy { it.equipmentId } }
     val title = if (mode == PickerMode.Forced) tr(Tr.REQUIRE_ITEM_TITLE) else tr(Tr.BAN_ITEM_TITLE)
     val accent = if (mode == PickerMode.Forced) WColor.success else WColor.danger
-    ModalCard(title = title) {
-        if (equipmentCatalog == null) {
-            LoadingState(message = tr(Tr.LOADING_ITEMS))
-            return@ModalCard
+    PickerScaffold(
+        title = title,
+        query = query,
+        onQueryChange = { query = it },
+        placeholder = tr(Tr.SEARCH_ITEMS),
+        entries = results,
+        entryKey = { it.name.fr },
+        alreadySelected = selectedNames,
+        rowKey = { it.equipmentId },
+        emptyText = tr(Tr.NO_MATCHING_ITEM),
+        showMatchCount = true,
+        loading = equipmentCatalog == null,
+        header = {
+            PickerToggle(checked = equippableOnly, label = tr(Tr.EQUIPPABLE_ONLY), onToggle = { equippableOnly = !equippableOnly })
+            Spacer(modifier = Modifier.height(WDimens.gap))
+            ItemSlotFilter(selected = slotFilter, onSelect = { slotFilter = it })
+            Spacer(modifier = Modifier.height(WDimens.gap))
+        },
+        onDone = onDone,
+        row = { equipment ->
+            ItemResultRow(equipment = equipment, catalog = catalogById, mode = mode, accent = accent, onClick = { onPick(equipment) })
         }
-        PickerToggle(
-            checked = equippableOnly,
-            label = tr(Tr.EQUIPPABLE_ONLY),
-            onToggle = { equippableOnly = !equippableOnly }
-        )
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        ItemSlotFilter(selected = slotFilter, onSelect = { slotFilter = it })
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_ITEMS), autoFocus = true)
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        PickerMatchCount(results.size)
-        LazyColumn(
-            modifier = Modifier.heightIn(max = 440.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(results, key = { it.equipmentId }) { equipment ->
-                ItemResultRow(equipment = equipment, catalog = catalogById, mode = mode, accent = accent, onClick = { onPick(equipment) })
-            }
-        }
-        if (results.isEmpty()) {
-            Text(
-                text = tr(Tr.NO_MATCHING_ITEM),
-                style = WTypography.bodyMedium.copy(color = WColor.muted),
-                modifier = Modifier.padding(vertical = 16.dp)
-            )
-        }
-        PickerDoneButton(onDone = onDone)
-    }
+    )
 }
 
 @Composable
@@ -710,7 +745,6 @@ private fun SublimationPickerModal(
             val q = query.trim()
             results
                 .asSequence()
-                .filterNot { it.name.fr in selectedNames }
                 .filter { rarityFilter == null || it.rarity == rarityFilter }
                 .filter { sub ->
                     q.isBlank() ||
@@ -727,29 +761,24 @@ private fun SublimationPickerModal(
                         }
                 )
         }
-    ModalCard(title = tr(if (exclude) Tr.EXCLUDE_SUBLIMATION_TITLE else Tr.REQUIRE_SUBLIMATION_TITLE)) {
-        SublimationRarityFilter(selected = rarityFilter, onSelect = { rarityFilter = it })
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_SUBLIMATIONS), autoFocus = true)
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        PickerMatchCount(filtered.size)
-        LazyColumn(
-            modifier = Modifier.heightIn(max = 440.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(filtered, key = { it.stateId }) { sub ->
-                SublimationResultRow(sub = sub, lang = lang, onClick = { onPick(sub) })
-            }
-        }
-        if (filtered.isEmpty()) {
-            Text(
-                text = tr(Tr.NO_MATCHING_SUBLIMATION),
-                style = WTypography.bodyMedium.copy(color = WColor.muted),
-                modifier = Modifier.padding(vertical = 16.dp)
-            )
-        }
-        PickerDoneButton(onDone = onDone)
-    }
+    PickerScaffold(
+        title = tr(if (exclude) Tr.EXCLUDE_SUBLIMATION_TITLE else Tr.REQUIRE_SUBLIMATION_TITLE),
+        query = query,
+        onQueryChange = { query = it },
+        placeholder = tr(Tr.SEARCH_SUBLIMATIONS),
+        entries = filtered,
+        entryKey = { it.name.fr },
+        emptyText = tr(Tr.NO_MATCHING_SUBLIMATION),
+        alreadySelected = selectedNames.toSet(),
+        rowKey = { it.stateId },
+        showMatchCount = true,
+        onDone = onDone,
+        header = {
+            SublimationRarityFilter(selected = rarityFilter, onSelect = { rarityFilter = it })
+            Spacer(modifier = Modifier.height(WDimens.gap))
+        },
+        row = { entry -> SublimationResultRow(sub = entry, lang = lang, onClick = { onPick(entry) }) }
+    )
 }
 
 @Composable
@@ -883,7 +912,6 @@ private fun PassivePickerModal(
             val q = query.trim()
             all
                 .asSequence()
-                .filterNot { passive -> passive.name?.fr?.let { it in selectedNames } == true }
                 .filter { passive ->
                     q.isBlank() ||
                         passive.name?.localized(lang)?.contains(q, ignoreCase = true) == true ||
@@ -891,27 +919,20 @@ private fun PassivePickerModal(
                 }.toList()
                 .sortedByLocalized(lang) { it.name?.localized(lang).orEmpty() }
         }
-    ModalCard(title = tr(Tr.REQUIRE_PASSIVE_TITLE)) {
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_PASSIVES), autoFocus = true)
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        PickerMatchCount(filtered.size)
-        LazyColumn(
-            modifier = Modifier.heightIn(max = 440.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(filtered, key = { it.spellId }) { passive ->
-                PassiveResultRow(passive = passive, onClick = { onPick(passive) })
-            }
-        }
-        if (filtered.isEmpty()) {
-            Text(
-                text = tr(Tr.NO_MATCHING_PASSIVE),
-                style = WTypography.bodyMedium.copy(color = WColor.muted),
-                modifier = Modifier.padding(vertical = 16.dp)
-            )
-        }
-        PickerDoneButton(onDone = onDone)
-    }
+    PickerScaffold(
+        title = tr(Tr.REQUIRE_PASSIVE_TITLE),
+        query = query,
+        onQueryChange = { query = it },
+        placeholder = tr(Tr.SEARCH_PASSIVES),
+        entries = filtered,
+        entryKey = { it.name?.fr },
+        emptyText = tr(Tr.NO_MATCHING_PASSIVE),
+        alreadySelected = selectedNames.toSet(),
+        rowKey = { it.spellId },
+        showMatchCount = true,
+        onDone = onDone,
+        row = { entry -> PassiveResultRow(passive = entry, onClick = { onPick(entry) }) }
+    )
 }
 
 @Composable
@@ -961,25 +982,16 @@ private fun BossPickerModal(onPick: (Monster) -> Unit) {
     val results = remember(lang) { bossRoster(WakfuBestBuildFinderAlgorithm.monsters, lang) }
     var query by remember { mutableStateOf("") }
     val filtered = remember(query, results) { results.filter { it.matchesQuery(query) } }
-    ModalCard(title = tr(Tr.CHOOSE_BOSS_TITLE)) {
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_BOSSES), autoFocus = true)
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        LazyColumn(
-            modifier = Modifier.heightIn(max = 440.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(filtered, key = { it.id }) { monster ->
-                BossResultRow(monster = monster, onClick = { onPick(monster) })
-            }
-        }
-        if (filtered.isEmpty()) {
-            Text(
-                text = tr(Tr.NO_MATCHING_BOSS),
-                style = WTypography.bodyMedium.copy(color = WColor.muted),
-                modifier = Modifier.padding(vertical = 16.dp)
-            )
-        }
-    }
+    PickerScaffold(
+        title = tr(Tr.CHOOSE_BOSS_TITLE),
+        query = query,
+        onQueryChange = { query = it },
+        placeholder = tr(Tr.SEARCH_BOSSES),
+        entries = filtered,
+        entryKey = { it.id },
+        emptyText = tr(Tr.NO_MATCHING_BOSS),
+        row = { entry -> BossResultRow(monster = entry, onClick = { onPick(entry) }) }
+    )
 }
 
 @Composable
@@ -1060,52 +1072,50 @@ private fun ItemRunePickerModal(
                 }.sortedByLocalized(lang) { it.name.localized(lang) }
         }
     val carrierName = carrier.name.localized(lang)
-    ModalCard(title = "${tr(Tr.EDIT_RUNES_TITLE)} — $carrierName") {
-        Text(
-            text = "${tr(Tr.RUNE_SOCKETS_LABEL)}: $total / $sockets",
-            style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
-        )
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        SearchField(query = query, onQueryChange = { query = it }, placeholder = tr(Tr.SEARCH_RUNES), autoFocus = true)
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        LazyColumn(
-            modifier = Modifier.heightIn(max = 360.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            items(filtered, key = { it.id }) { rune ->
-                RuneOptionRow(
-                    rune = rune,
-                    lang = lang,
-                    carrierItemType = carrier.itemType,
-                    count = counts[rune.id] ?: 0,
-                    canAdd = total < sockets,
-                    onAdd = { counts[rune.id] = (counts[rune.id] ?: 0) + 1 },
-                    onRemove = {
-                        val current = counts[rune.id] ?: 0
-                        if (current <= 1) counts.remove(rune.id) else counts[rune.id] = current - 1
-                    }
+    PickerScaffold(
+        title = "${tr(Tr.EDIT_RUNES_TITLE)} — $carrierName",
+        query = query,
+        onQueryChange = { query = it },
+        placeholder = tr(Tr.SEARCH_RUNES),
+        entries = filtered,
+        entryKey = { it.id },
+        emptyText = tr(Tr.NO_MATCHING_RUNE),
+        listHeight = 360.dp,
+        header = {
+            Text(
+                text = "${tr(Tr.RUNE_SOCKETS_LABEL)}: $total / $sockets",
+                style = WTypography.labelSmall.copy(fontFamily = WType.mono, color = WColor.muted)
+            )
+            Spacer(modifier = Modifier.height(WDimens.gap))
+        },
+        footer = {
+            Spacer(modifier = Modifier.height(WDimens.gap))
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                DialogButton(text = tr(Tr.CANCEL), filled = false, color = WColor.border, onClick = onCancel, modifier = Modifier.weight(1f))
+                DialogButton(
+                    text = tr(Tr.SAVE),
+                    filled = true,
+                    color = WColor.accent,
+                    onClick = { onConfirm(counts.entries.flatMap { (id, n) -> List(n) { id } }) },
+                    modifier = Modifier.weight(1f)
                 )
             }
-        }
-        if (filtered.isEmpty()) {
-            Text(
-                text = tr(Tr.NO_MATCHING_RUNE),
-                style = WTypography.bodyMedium.copy(color = WColor.muted),
-                modifier = Modifier.padding(vertical = 16.dp)
+        },
+        row = { rune ->
+            RuneOptionRow(
+                rune = rune,
+                lang = lang,
+                carrierItemType = carrier.itemType,
+                count = counts[rune.id] ?: 0,
+                canAdd = total < sockets,
+                onAdd = { counts[rune.id] = (counts[rune.id] ?: 0) + 1 },
+                onRemove = {
+                    val current = counts[rune.id] ?: 0
+                    if (current <= 1) counts.remove(rune.id) else counts[rune.id] = current - 1
+                }
             )
         }
-        Spacer(modifier = Modifier.height(WDimens.gap))
-        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            DialogButton(text = tr(Tr.CANCEL), filled = false, color = WColor.border, onClick = onCancel, modifier = Modifier.weight(1f))
-            DialogButton(
-                text = tr(Tr.SAVE),
-                filled = true,
-                color = WColor.accent,
-                onClick = { onConfirm(counts.entries.flatMap { (id, n) -> List(n) { id } }) },
-                modifier = Modifier.weight(1f)
-            )
-        }
-    }
+    )
 }
 
 @Composable
