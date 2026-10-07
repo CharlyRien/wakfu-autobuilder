@@ -138,22 +138,13 @@ data class RuneType(
         val RUNE_HEALTH_LEVEL_VALUES = listOf(4, 8, 12, 16, 20, 28, 40, 52, 64, 80, 88)
 
         /**
-         * Equipment-slot raw ids used by rune doubling (WakForge `ITEM_SLOT_DATA`). A rune doubles when
-         * placed on a slot whose raw id is in its [doubleBonusPosition]. Rings expose both ring raw ids
-         * (7, 8); socketless slots (off-hand, emblem, pet, mount) return empty and never double.
+         * Client raw position ids, joined to CDN occupied positions in [EquipmentPositions].
+         * The socketless domain slots retain their empty rune-placement domain.
          */
         fun slotRawIds(itemType: ItemType): List<Int> =
             when (itemType) {
-                ItemType.HELMET -> listOf(0)
-                ItemType.CHEST_PLATE -> listOf(5)
-                ItemType.SHOULDER_PADS -> listOf(3)
-                ItemType.BOOTS -> listOf(12)
-                ItemType.AMULET -> listOf(4)
-                ItemType.CAPE -> listOf(13)
-                ItemType.BELT -> listOf(10)
-                ItemType.ONE_HANDED_WEAPONS, ItemType.TWO_HANDED_WEAPONS -> listOf(15)
-                ItemType.RING -> listOf(7, 8)
                 ItemType.OFF_HAND_WEAPONS, ItemType.EMBLEM, ItemType.PETS, ItemType.MOUNTS -> emptyList()
+                else -> EquipmentPositions.embedded.rawIds(itemType)
             }
     }
 }

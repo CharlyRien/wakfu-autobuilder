@@ -496,6 +496,11 @@ as **fixed-name** JSON files (no version in the filename):
    The Achievement table id is read from the table-type enum, the full schema from `SchemaGenerator`, and the name
    namespace from the achievement UI model’s public field keys + `getName()` lookup. Missing records/locales or ambiguous
    bytecode shapes fail loudly. See `docs/ACHIEVEMENT_NAMES_EXTRACTION.md`. This is display-only, with no engine change.
+   **`common-lib/src/main/resources/equipment-positions.json`** joins the client raw equipment-position enum
+   (found by constant-name anchors; explicit constructor id, never ordinal) with CDN `equipmentItemTypes.json`
+   occupied positions. Rune doubling reads this common-lib resource, also available to Zenith; socketless
+   domain slots still have no rune placement. `EquipmentPositionsReproductionTest` checks the whole official join,
+   and `EquipmentPositionsTest` locks all 14 previous rune slot domains. Disabled positions are never occupied.
    Everything is found STRUCTURALLY in the client bytecode, never by an obfuscated name: the table id from the table-type
    enum's `ITEM` constant, the record PREFIX from the ITEM binary-data classes' `read(reader)` calls up to the first
    `String[]` (the alternating (kind, expression) criteria — only that prefix is decoded, each record by its own
